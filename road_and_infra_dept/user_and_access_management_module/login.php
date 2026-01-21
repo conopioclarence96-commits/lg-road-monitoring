@@ -16,7 +16,7 @@ try {
     $dbProbe = new Database();
     $dbProbe->getConnection();
 } catch (Exception $e) {
-    $dbStatusMessage = 'Database connection is not configured on this server yet. Set DB_HOST, DB_NAME, DB_USER, DB_PASS (and optional DB_PORT) in your hosting environment, or create road_and_infra_dept/config/database.local.php.';
+    $dbStatusMessage = 'Database connection error: ' . $e->getMessage() . '. Please check your configuration in road_and_infra_dept/config/database.local.php.';
     $dbStatusType = 'error';
 }
 

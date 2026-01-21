@@ -1,6 +1,6 @@
 <?php
 return [
-    'host' => 'localhost',
+    'host' => '127.0.0.1',
     'username' => 'root',
     'password' => '',
     'database' => 'lgu_road_infra',
