@@ -2,15 +2,41 @@
 // Database configuration for LGU Road and Infrastructure Department
 class Database
 {
-    private $host = 'localhost';
-    private $username = 'root';
-    private $password = 'root123';
-    private $database = 'rgmap_lgu_road_infra';
+    // Defaults are for local development only.
+    // In production, set environment variables:
+    // DB_HOST, DB_NAME, DB_USER, DB_PASS (optionally DB_PORT)
+    private $host;
+    private $username;
+    private $password;
+    private $database;
+    private $port;
     private $conn;
 
     public function __construct()
     {
+        $this->loadConfig();
         $this->connect();
+    }
+
+    private function loadConfig()
+    {
+        // Allow optional local override file (do NOT commit secrets):
+        // road_and_infra_dept/config/database.local.php returning an array:
+        // ['host'=>..., 'username'=>..., 'password'=>..., 'database'=>..., 'port'=>...]
+        $localFile = __DIR__ . '/database.local.php';
+        $local = [];
+        if (is_file($localFile)) {
+            $maybe = include $localFile;
+            if (is_array($maybe)) {
+                $local = $maybe;
+            }
+        }
+
+        $this->host = $local['host'] ?? (getenv('DB_HOST') ?: 'localhost');
+        $this->username = $local['username'] ?? (getenv('DB_USER') ?: 'root');
+        $this->password = $local['password'] ?? (getenv('DB_PASS') ?: 'root123');
+        $this->database = $local['database'] ?? (getenv('DB_NAME') ?: 'rgmap_lgu_road_infra');
+        $this->port = (int)($local['port'] ?? (getenv('DB_PORT') ?: 3306));
     }
 
     private function connect()
@@ -21,6 +47,7 @@ class Database
                 $this->username,
                 $this->password,
                 $this->database,
+                $this->port
             );
 
             if ($this->conn->connect_error) {
