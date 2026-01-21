@@ -1,6 +1,13 @@
 <?php
 // Start session
 session_start();
+$basePath = '';
+$loginUrl = 'login.php';
+
+if (isset($_SERVER['SCRIPT_NAME']) && basename($_SERVER['SCRIPT_NAME']) === 'index.php') {
+    $basePath = '/user_and_access_management_module';
+    $loginUrl = 'index.php';
+}
 
 // Include authentication and database
 require_once '../config/database.php';

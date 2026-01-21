@@ -4,8 +4,8 @@ class Database
 {
     private $host = 'localhost';
     private $username = 'root';
-    private $password = '';
-    private $database = 'lgu_road_infra';
+    private $password = 'root123';
+    private $database = 'rgmap_lgu_road_infra';
     private $conn;
 
     public function __construct()
