@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Browser Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-btn { padding: 10px 20px; margin: 10px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        .test-btn:hover { background: #0056b3; }
+        .result { margin: 20px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; background: #f9f9f9; }
+        .success { color: #28a745; }
+        .error { color: #dc2626; }
+    </style>
+</head>
+<body>
+    <h1>Browser API Test</h1>
+    <button class="test-btn" onclick="testMainAPI()">Test Main API</button>
+    <button class="test-btn" onclick="testSimpleAPI()">Test Simple API</button>
+    <button class="test-btn" onclick="testDatabase()">Test Database</button>
+    
+    <div id="result" class="result"></div>
+    
+    <script>
+        function testMainAPI() {
+            console.log('Testing main API...');
+            fetch('http://localhost/LGU-kristine/road_and_infra_dept/test_main_api.php')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Main API Response:', data);
+                    showResult('Main API', data.success, data.message);
+                })
+                .catch(error => {
+                    console.error('Main API Error:', error);
+                    showResult('Main API', false, error.message);
+                });
+        }
+        
+        function testSimpleAPI() {
+            console.log('Testing simple API...');
+            fetch('http://localhost/LGU-kristine/road_and_infra_dept/test_simple_api.php')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Simple API Response:', data);
+                    showResult('Simple API', data.success, data.message);
+                })
+                .catch(error => {
+                    console.error('Simple API Error:', error);
+                    showResult('Simple API', false, error.message);
+                });
+        }
+        
+        function testDatabase() {
+            console.log('Testing database connection...');
+            fetch('http://localhost/LGU-kristine/road_and_infra_dept/check_db.php')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Database Response:', data);
+                    showResult('Database', data.success, data.message);
+                })
+                .catch(error => {
+                    console.error('Database Error:', error);
+                    showResult('Database', false, error.message);
+                });
+        }
+        
+        function showResult(testName, success, message) {
+            const resultDiv = document.getElementById('result');
+            const statusClass = success ? 'success' : 'error';
+            const messageHtml = message ? `<div class="message">${message}</div>` : '';
+            
+            resultDiv.innerHTML = `
+                <h3>${testName} Test</h3>
+                <div class="result ${statusClass}">
+                    <div class="${statusClass}">${success ? '✅' : '❌'} ${testName} API: ${success ? 'Working' : 'Failed'}</div>
+                    ${messageHtml}
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>
