@@ -5,7 +5,7 @@ $basePath = '';
 $loginUrl = 'login.php';
 
 if (isset($_SERVER['SCRIPT_NAME']) && basename($_SERVER['SCRIPT_NAME']) === 'index.php') {
-    $basePath = '/user_and_access_management_module';
+    $basePath = '/road_and_infra_dept/user_and_access_management_module';
     $loginUrl = 'index.php';
 }
 
