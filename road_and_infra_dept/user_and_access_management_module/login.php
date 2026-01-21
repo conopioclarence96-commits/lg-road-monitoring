@@ -1,17 +1,13 @@
 <?php
 // Start session
 session_start();
-$basePath = '';
-$loginUrl = 'login.php';
-
-if (isset($_SERVER['SCRIPT_NAME']) && basename($_SERVER['SCRIPT_NAME']) === 'index.php') {
-    $basePath = '/road_and_infra_dept/user_and_access_management_module';
-    $loginUrl = 'index.php';
-}
+$moduleWebPath = '/road_and_infra_dept/user_and_access_management_module';
+$basePath = $moduleWebPath;
+$loginUrl = '/index.php';
 
 // Include authentication and database
-require_once '../config/database.php';
-require_once '../config/auth.php';
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/auth.php';
 
 // Redirect if already logged in (unless bypass parameter is set)
 if ($auth->isLoggedIn() && !isset($_GET['bypass'])) {
@@ -345,7 +341,7 @@ function createUserSession($conn, $user_id) {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LGU | Login</title>
-    <link rel="stylesheet" href="styles/style.css" />
+    <link rel="stylesheet" href="<?php echo htmlspecialchars($basePath, ENT_QUOTES, 'UTF-8'); ?>/styles/style.css" />
     <style>
       body {
         height: 100vh;
@@ -353,7 +349,7 @@ function createUserSession($conn, $user_id) {
         flex-direction: column;
 
         /* NEW — background image + blur */
-        background: url("assets/img/cityhall.jpeg") center/cover no-repeat fixed;
+        background: url("<?php echo htmlspecialchars($basePath, ENT_QUOTES, 'UTF-8'); ?>/assets/img/cityhall.jpeg") center/cover no-repeat fixed;
         position: relative;
         overflow: hidden;
       }
@@ -410,7 +406,7 @@ function createUserSession($conn, $user_id) {
     <header class="nav">
       <div class="nav-logo">🏛️ Local Government Unit Portal</div>
       <div class="nav-links">
-        <a href="">Home</a>
+        <a href="<?php echo htmlspecialchars($loginUrl, ENT_QUOTES, 'UTF-8'); ?>">Home</a>
       </div>
     </header>
     <div class="wrapper">
@@ -418,13 +414,13 @@ function createUserSession($conn, $user_id) {
         <!-- LOGIN -->
         <div class="panel login">
           <div class="card">
-            <img src="assets/img/logocityhall.png" class="icon-top" />
+            <img src="<?php echo htmlspecialchars($basePath, ENT_QUOTES, 'UTF-8'); ?>/assets/img/logocityhall.png" class="icon-top" />
             <h2 class="title">LGU Login</h2>
             <p class="subtitle">
               Secure access to community maintenance services.
             </p>
 
-            <form id="loginForm" method="POST" action="">
+            <form id="loginForm" method="POST" action="<?php echo htmlspecialchars($loginUrl, ENT_QUOTES, 'UTF-8'); ?>">
               <div class="input-box">
                 <label>Email Address</label>
                 <input type="email" name="email" placeholder="name@lgu.gov.ph" required 
@@ -468,7 +464,7 @@ function createUserSession($conn, $user_id) {
               </div>
             <?php endif; ?>
 
-            <form method="POST" action="">
+            <form method="POST" action="<?php echo htmlspecialchars($loginUrl, ENT_QUOTES, 'UTF-8'); ?>">
               <div class="input-box">
                 <label>Email Address</label>
                 <input type="email" name="email" value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>" />
@@ -524,7 +520,7 @@ function createUserSession($conn, $user_id) {
               </div>
             <?php endif; ?>
 
-            <form class="two-column-form" method="POST" action="">
+            <form class="two-column-form" method="POST" action="<?php echo htmlspecialchars($loginUrl, ENT_QUOTES, 'UTF-8'); ?>" enctype="multipart/form-data">
               <div class="input-box">
                 <label>First Name</label>
                 <input type="text" name="first_name" value="<?php echo isset($_POST['first_name']) ? htmlspecialchars($_POST['first_name']) : ''; ?>" />
