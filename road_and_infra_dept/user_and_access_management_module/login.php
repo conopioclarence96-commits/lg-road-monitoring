@@ -9,6 +9,17 @@ $loginUrl = '/index.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/auth.php';
 
+// If the DB is misconfigured/unavailable, show a friendly message instead of a 500.
+$dbStatusMessage = '';
+$dbStatusType = '';
+try {
+    $dbProbe = new Database();
+    $dbProbe->getConnection();
+} catch (Exception $e) {
+    $dbStatusMessage = 'Database connection is not configured on this server yet. Please update production database credentials.';
+    $dbStatusType = 'error';
+}
+
 // Redirect if already logged in (unless bypass parameter is set)
 if ($auth->isLoggedIn() && !isset($_GET['bypass'])) {
     $auth->redirectToDashboard();
@@ -421,6 +432,11 @@ function createUserSession($conn, $user_id) {
             </p>
 
             <form id="loginForm" method="POST" action="<?php echo htmlspecialchars($loginUrl, ENT_QUOTES, 'UTF-8'); ?>">
+              <?php if (!empty($dbStatusMessage)): ?>
+                <div class="message <?php echo htmlspecialchars($dbStatusType, ENT_QUOTES, 'UTF-8'); ?>" style="margin-bottom: 12px;">
+                  <?php echo htmlspecialchars($dbStatusMessage, ENT_QUOTES, 'UTF-8'); ?>
+                </div>
+              <?php endif; ?>
               <div class="input-box">
                 <label>Email Address</label>
                 <input type="email" name="email" placeholder="name@lgu.gov.ph" required 

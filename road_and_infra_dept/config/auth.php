@@ -1,12 +1,23 @@
 <?php
 // Authentication and session management functions for Road and Infrastructure Department
-require_once 'database.php';
+require_once __DIR__ . '/database.php';
 
 class Auth {
     private $database;
     
     public function __construct() {
-        $this->database = new Database();
+        try {
+            $this->database = new Database();
+        } catch (Exception $e) {
+            // Allow pages (like login) to render even if DB is misconfigured/unavailable.
+            // DB-backed features will gracefully no-op/fail closed.
+            $this->database = null;
+            error_log("Auth init failed (DB unavailable): " . $e->getMessage());
+        }
+    }
+
+    private function hasDb() {
+        return $this->database !== null;
     }
     
     // Check if user is logged in
@@ -156,6 +167,9 @@ class Auth {
         if (!$this->isLoggedIn()) {
             return;
         }
+        if (!$this->hasDb()) {
+            return;
+        }
         
         try {
             $conn = $this->database->getConnection();
@@ -180,6 +194,9 @@ class Auth {
     
     // Clean up expired sessions
     public function cleanupExpiredSessions() {
+        if (!$this->hasDb()) {
+            return;
+        }
         try {
             $conn = $this->database->getConnection();
             
@@ -199,6 +216,9 @@ class Auth {
     
     // Clean up current session from database
     private function cleanupSession() {
+        if (!$this->hasDb()) {
+            return;
+        }
         try {
             $conn = $this->database->getConnection();
             $sessionId = session_id();
@@ -222,6 +242,11 @@ class Auth {
     // Validate session is still active
     public function validateSession() {
         if (!$this->isLoggedIn()) {
+            return false;
+        }
+        if (!$this->hasDb()) {
+            // Can't validate against DB; fail closed by logging out.
+            $this->logout();
             return false;
         }
         
@@ -262,6 +287,9 @@ class Auth {
         if (!$this->isLoggedIn()) {
             return;
         }
+        if (!$this->hasDb()) {
+            return;
+        }
         
         try {
             $conn = $this->database->getConnection();
@@ -286,6 +314,9 @@ class Auth {
     
     // Validate JWT token (for API authentication)
     public function validateToken($token) {
+        if (!$this->hasDb()) {
+            return false;
+        }
         try {
             // For now, use a simple token validation
             // In production, implement proper JWT validation
@@ -321,6 +352,9 @@ class Auth {
     
     // Generate session token for API
     public function generateApiToken($user) {
+        if (!$this->hasDb()) {
+            return false;
+        }
         try {
             $conn = $this->database->getConnection();
             $sessionId = bin2hex(random_bytes(32));
@@ -348,6 +382,9 @@ class Auth {
     }
 // Create a notification for a user
     public function createNotification($userId, $title, $message, $type = 'info') {
+        if (!$this->hasDb()) {
+            return false;
+        }
         try {
             $conn = $this->database->getConnection();
             
@@ -369,6 +406,9 @@ class Auth {
     
     // Get unread notifications for a user
     public function getUnreadNotifications($userId, $limit = 10) {
+        if (!$this->hasDb()) {
+            return [];
+        }
         try {
             $conn = $this->database->getConnection();
             
@@ -399,6 +439,9 @@ class Auth {
     
     // Mark notification as read
     public function markNotificationRead($notificationId, $userId) {
+        if (!$this->hasDb()) {
+            return false;
+        }
         try {
             $conn = $this->database->getConnection();
             
@@ -421,6 +464,9 @@ class Auth {
     
     // Mark all notifications as read for a user
     public function markAllNotificationsRead($userId) {
+        if (!$this->hasDb()) {
+            return false;
+        }
         try {
             $conn = $this->database->getConnection();
             
@@ -443,6 +489,9 @@ class Auth {
     
     // Get unread notification count for a user
     public function getUnreadNotificationCount($userId) {
+        if (!$this->hasDb()) {
+            return 0;
+        }
         try {
             $conn = $this->database->getConnection();
             
