@@ -35,7 +35,7 @@ class Database
         $this->host = $local['host'] ?? (getenv('DB_HOST') ?: 'localhost');
         $this->username = $local['username'] ?? (getenv('DB_USER') ?: 'root');
         $this->password = $local['password'] ?? (getenv('DB_PASS') ?: 'root123');
-        $this->database = $local['database'] ?? (getenv('DB_NAME') ?: 'rgmap_lgu_road_infra');
+        $this->database = $local['database'] ?? (getenv('DB_NAME') ?: 'rgmap_rgmap_lgu_road_infra');
         $this->port = (int)($local['port'] ?? (getenv('DB_PORT') ?: 3306));
     }
 
