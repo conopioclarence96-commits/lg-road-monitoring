@@ -1,6 +1,6 @@
 <?php
 // Authentication and session management functions for Road and Infrastructure Department
-require_once __DIR__ . '/database.php';
+require_once __DIR__ . '/database.local.php';
 
 class Auth {
     private $database;

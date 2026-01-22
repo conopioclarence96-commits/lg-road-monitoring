@@ -6,9 +6,11 @@
 -- Created: January 2026
 -- ==============================================================================
 
--- Create database if it doesn't exist
-CREATE DATABASE IF NOT EXISTS lgu_road_infra;
-USE lgu_road_infra;
+-- Create database if it doesn't exist 
+-- NOTE: If you are using shared hosting (e.g. cPanel), you must create the database 
+-- manually and then import this file. Ensure the database name matches your configuration.
+-- CREATE DATABASE IF NOT EXISTS rgmap_lgu_road_infra;
+-- USE rgmap_lgu_road_infra;
 
 -- ------------------------------------------------------------------------------
 -- 1. DROP EXISTING TABLES (Reverse Dependency Order)
