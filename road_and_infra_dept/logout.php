@@ -24,6 +24,6 @@ if (ini_get("session.use_cookies")) {
 }
 
 // Redirect to login.php
-header('Location: ' . (basename($loginUrl) === 'index.php' ? 'index.php' : 'user_and_access_management_module/login.php'));
+header('Location: ' . $loginUrl);
 exit;
 ?>
