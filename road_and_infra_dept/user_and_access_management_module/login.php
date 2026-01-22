@@ -1,9 +1,16 @@
 <?php
 // Start session
 session_start();
-$moduleWebPath = '/road_and_infra_dept/user_and_access_management_module';
-$basePath = $moduleWebPath;
-$loginUrl = '/index.php';
+if (!isset($basePath)) {
+    $basePath = '';
+    $loginUrl = 'login.php';
+
+
+    if (isset($_SERVER['SCRIPT_NAME']) && basename($_SERVER['SCRIPT_NAME']) === 'index.php') {
+        $basePath = 'lg-road-monitoring/road_and_infra_dept/';
+        $loginUrl = 'index.php';
+    }
+}
 
 // Include authentication and database
 require_once __DIR__ . '/../config/database.php';
