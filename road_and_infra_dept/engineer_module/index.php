@@ -1,6 +1,16 @@
 <?php
 // Start session and include authentication
 session_start();
+
+$basePath = '';
+$loginUrl = 'login.php';
+
+if (isset($_SERVER['SCRIPT_NAME']) && basename($_SERVER['SCRIPT_NAME']) === 'index.php') {
+    $basePath = 'lgu-portal/public/';
+    $loginUrl = 'index.php';
+    $employeeUrl = 'lgu-portal/public/employee.php';
+}
+
 require_once '../config/auth.php';
 require_once '../config/database.php';
 

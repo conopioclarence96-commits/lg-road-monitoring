@@ -147,7 +147,12 @@ class Auth {
             }
         }
         
-        header('Location: login.php');
+        $loginUrl = 'login.php';
+        if (isset($_SERVER['SCRIPT_NAME']) && basename($_SERVER['SCRIPT_NAME']) === 'index.php') {
+            $loginUrl = 'index.php';
+        }
+        
+        header('Location: ' . $loginUrl);
         exit;
     }
     

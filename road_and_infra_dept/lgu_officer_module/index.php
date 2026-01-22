@@ -2,6 +2,15 @@
 // LGU Officer Dashboard - Based on Admin UI Structure
 session_start();
 
+$basePath = '';
+$loginUrl = 'login.php';
+
+if (isset($_SERVER['SCRIPT_NAME']) && basename($_SERVER['SCRIPT_NAME']) === 'index.php') {
+    $basePath = 'lgu-portal/public/';
+    $loginUrl = 'index.php';
+    $employeeUrl = 'lgu-portal/public/employee.php';
+}
+
 // Include authentication and database
 require_once '../config/auth.php';
 require_once '../config/database.php';
