@@ -24,7 +24,7 @@ try {
 }
 
 // Redirect if already logged in (unless bypass parameter is set)
-if ($auth->isLoggedIn() && !isset($_GET['bypass'])) {
+if ($auth->isLoggedIn() && !isset($_GET['bypass']) && !isset($isLanding)) {
     $auth->redirectToDashboard();
     exit;
 }
