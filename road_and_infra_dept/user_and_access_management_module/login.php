@@ -1,11 +1,11 @@
-<?php
-$basePath = '';
-$loginUrl = 'login.php';
+// Determine the base path for assets and redirects based on how the file is accessed
+$isRootIndex = (isset($_SERVER['SCRIPT_NAME']) && basename($_SERVER['SCRIPT_NAME']) === 'index.php');
 
-if (isset($_SERVER['SCRIPT_NAME']) && basename($_SERVER['SCRIPT_NAME']) === 'index.php') {
-    $basePath = 'lgu-portal/public/';
-    $loginUrl = 'index.php';
-}
+// Asset path should point to the module folder if accessed from root index.php
+$assetPath = $isRootIndex ? 'road_and_infra_dept/user_and_access_management_module/' : '';
+
+// Base redirect path (from root it's 'road_and_infra_dept/', from module folder it's '../')
+$baseRedirect = $isRootIndex ? 'road_and_infra_dept/' : '../';
 
 // Start session
 session_start();
@@ -248,27 +248,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_additional'])
                         
                         // Determine redirect based on user role
                         // Both Admin and LGU Officer can login from this unified page
-                        switch ($user['role']) {
-                            case 'admin':
-                                // Redirect to Admin UI
-                                $redirectUrl = '../admin_ui/index.php';
-                                break;
-                            case 'lgu_officer':
-                                // Redirect to LGU Officer Dashboard
-                                $redirectUrl = '../lgu_officer_module/index.php';
-                                break;
-                            case 'engineer':
-                                $redirectUrl = '../engineer_module/index.php';
-                                break;
-                            case 'citizen':
-                                $redirectUrl = '../citizen_module/index.php';
-                                break;
-                            default:
-                                $redirectUrl = '../dashboard.php';
-                        }
-                        
-                        // Redirect to appropriate dashboard
-                        header('Location: ' . $redirectUrl);
+                        $auth->redirectToDashboard();
                         exit;
                     }
                 } else {
@@ -354,7 +334,7 @@ function createUserSession($conn, $user_id) {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LGU | Login</title>
-    <link rel="stylesheet" href="styles/style.css" />
+    <link rel="stylesheet" href="<?php echo $assetPath; ?>styles/style.css" />
     <style>
       body {
         height: 100vh;
@@ -362,7 +342,7 @@ function createUserSession($conn, $user_id) {
         flex-direction: column;
 
         /* NEW — background image + blur */
-        background: url("assets/img/cityhall.jpeg") center/cover no-repeat fixed;
+        background: url("<?php echo $assetPath; ?>assets/img/cityhall.jpeg") center/cover no-repeat fixed;
         position: relative;
         overflow: hidden;
       }
@@ -427,7 +407,7 @@ function createUserSession($conn, $user_id) {
         <!-- LOGIN -->
         <div class="panel login">
           <div class="card">
-            <img src="assets/img/logocityhall.png" class="icon-top" />
+            <img src="<?php echo $assetPath; ?>assets/img/logocityhall.png" class="icon-top" />
             <h2 class="title">LGU Login</h2>
             <p class="subtitle">
               Secure access to community maintenance services.

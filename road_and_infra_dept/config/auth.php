@@ -109,7 +109,13 @@ class Auth {
             $current_dir === 'citizen_module'
         );
         
-        $prefix = $is_in_module ? '../' : '';
+        $isRootIndex = (isset($_SERVER['SCRIPT_NAME']) && basename($_SERVER['SCRIPT_NAME']) === 'index.php');
+        
+        if ($isRootIndex) {
+            $prefix = 'road_and_infra_dept/';
+        } else {
+            $prefix = $is_in_module ? '../' : '';
+        }
         
         switch ($role) {
             case 'admin':
@@ -152,10 +158,10 @@ class Auth {
             }
         }
         
-        $loginUrl = 'login.php';
-        if (isset($_SERVER['SCRIPT_NAME']) && basename($_SERVER['SCRIPT_NAME']) === 'index.php') {
-            $loginUrl = 'index.php';
-        }
+        $isRootIndex = (isset($_SERVER['SCRIPT_NAME']) && basename($_SERVER['SCRIPT_NAME']) === 'index.php');
+        $prefix = $isRootIndex ? 'road_and_infra_dept/' : '../';
+        
+        $loginUrl = $isRootIndex ? 'index.php' : ($is_in_module ? '../user_and_access_management_module/login.php' : 'user_and_access_management_module/login.php');
         
         header('Location: ' . $loginUrl);
         exit;
