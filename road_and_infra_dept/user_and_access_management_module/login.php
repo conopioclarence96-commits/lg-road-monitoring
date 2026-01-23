@@ -1,4 +1,12 @@
 <?php
+$basePath = '';
+$loginUrl = 'login.php';
+
+if (isset($_SERVER['SCRIPT_NAME']) && basename($_SERVER['SCRIPT_NAME']) === 'index.php') {
+    $basePath = 'lgu-portal/public/';
+    $loginUrl = 'index.php';
+}
+
 // Start session
 session_start();
 
