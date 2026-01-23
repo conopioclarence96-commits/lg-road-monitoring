@@ -1,6 +1,6 @@
 <?php
 // Authentication and session management functions for Road and Infrastructure Department
-require_once __DIR__ . '/database.local.php';
+require_once __DIR__ . '/database.php';
 
 class Auth {
     private $database;
@@ -109,9 +109,9 @@ class Auth {
             $current_dir === 'engineer_module'
         );
         
-        $isRoot = (strpos($_SERVER['PHP_SELF'], 'road_and_infra_dept') === false);
+        $isIncluded = (realpath(__FILE__) !== realpath($_SERVER['SCRIPT_FILENAME']));
         
-        if ($isRoot) {
+        if ($isIncluded) {
             $prefix = 'road_and_infra_dept/';
         } else {
             $prefix = $is_in_module ? '../' : '';
@@ -158,17 +158,9 @@ class Auth {
             }
         }
         
-        $isRoot = (strpos($_SERVER['PHP_SELF'], 'road_and_infra_dept') === false);
-        $current_dir = basename(dirname($_SERVER['PHP_SELF']));
-        $is_in_module = (
-            $current_dir === 'admin_ui' || 
-            $current_dir === 'user_and_access_management_module' || 
-            $current_dir === 'lgu_officer_module' ||
-            $current_dir === 'citizen_module' ||
-            $current_dir === 'engineer_module'
-        );
+        $isIncluded = (realpath(__FILE__) !== realpath($_SERVER['SCRIPT_FILENAME']));
         
-        $loginUrl = $isRoot ? 'index.php' : ($is_in_module ? '../user_and_access_management_module/login.php' : 'user_and_access_management_module/login.php');
+        $loginUrl = $isIncluded ? 'index.php' : ($is_in_module ? '../user_and_access_management_module/login.php' : 'user_and_access_management_module/login.php');
         
         header('Location: ' . $loginUrl);
         exit;
