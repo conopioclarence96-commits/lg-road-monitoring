@@ -7,7 +7,7 @@
  */
 return [
     'host' => 'localhost',        // e.g., 'localhost' or an IP address
-    'username' => 'rgmap_gu_road_infra',         // your database username
-    'password' => 'root123',             // your database password
+    'username' => 'rgmap_root',         // your database username
+    'password' => 'root123456',             // your database password
     'database' => 'rgmap_gu_road_infra' // your database name
 ];
