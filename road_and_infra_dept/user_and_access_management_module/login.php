@@ -19,7 +19,7 @@ try {
     $dbCheck = new Database();
     $connCheck = $dbCheck->getConnection();
 } catch (Exception $e) {
-    die("Error: Unable to connect to database. Please check your configuration. " . (getenv('APP_DEBUG') ? $e->getMessage() : ""));
+    die("Error: Unable to connect to database. " . $e->getMessage());
 }
 
 // Redirect if already logged in (unless bypass parameter is set)
