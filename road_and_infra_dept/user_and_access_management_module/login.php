@@ -84,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_register'])) {
                         $_SESSION['registration_email'] = $email;
                         
                         // Auto-switch to additional info panel after successful registration
-                        echo '<script>setTimeout(() => showPanel("additional"), 1000);</script>';
+                        $showAdditional = true;
                     } else {
                         $registerMessage = 'Failed to create account';
                         $registerMessageType = 'error';
@@ -596,6 +596,13 @@ function createUserSession($conn, $user_id) {
         if (panel === "register") wrapper.classList.add("show-register");
         if (panel === "additional") wrapper.classList.add("show-additional");
       }
+
+      <?php if (isset($showAdditional) && $showAdditional): ?>
+      // Trigger transition if registration was successful
+      document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => showPanel('additional'), 1000);
+      });
+      <?php endif; ?>
     </script>
   </body>
 </html>
