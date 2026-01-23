@@ -6,9 +6,9 @@ $basePath = '';
 $loginUrl = 'road_and_infra_dept/user_and_access_management_module/login.php';
 
 if (isset($_SERVER['SCRIPT_NAME']) && basename($_SERVER['SCRIPT_NAME']) === 'index.php') {
-    $basePath = 'lgu-portal/public/';
+    $basePath = 'lg-road-monitoring/';
     $loginUrl = 'index.php';
-    $employeeUrl = 'lgu-portal/public/employee.php';
+    $employeeUrl = 'lg-road-monitoring/index.php';
 }
 
 // Correct path to auth.php relative to root index.php
