@@ -5,8 +5,8 @@ session_start();
 $basePath = '';
 $loginUrl = 'login.php';
 
-if (isset($_SERVER['SCRIPT_NAME']) && basename($_SERVER['SCRIPT_NAME']) === 'index.php') {
-    $basePath = 'lgu-portal/public/';
+$isRoot = (strpos($_SERVER['PHP_SELF'], 'road_and_infra_dept') === false);
+if ($isRoot) {
     $loginUrl = 'index.php';
 }
 

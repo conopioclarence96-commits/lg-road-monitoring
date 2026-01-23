@@ -1,11 +1,12 @@
 // Determine the base path for assets and redirects based on how the file is accessed
-$isRootIndex = (isset($_SERVER['SCRIPT_NAME']) && basename($_SERVER['SCRIPT_NAME']) === 'index.php');
+// Using PHP_SELF to detect if we are running from the root index.php
+$isRoot = (strpos($_SERVER['PHP_SELF'], 'road_and_infra_dept') === false);
 
-// Asset path should point to the module folder if accessed from root index.php
-$assetPath = $isRootIndex ? 'road_and_infra_dept/user_and_access_management_module/' : '';
+// Asset path should point to the module folder if accessed from root
+$assetPath = $isRoot ? 'road_and_infra_dept/user_and_access_management_module/' : '';
 
-// Base redirect path (from root it's 'road_and_infra_dept/', from module folder it's '../')
-$baseRedirect = $isRootIndex ? 'road_and_infra_dept/' : '../';
+// Base redirect path for Auth class (this will be used if auth methods aren't available)
+$baseRedirect = $isRoot ? 'road_and_infra_dept/' : '../';
 
 // Start session
 session_start();
