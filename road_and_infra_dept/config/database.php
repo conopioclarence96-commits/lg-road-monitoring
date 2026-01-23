@@ -10,11 +10,23 @@ class Database
 
     public function __construct()
     {
-        // Use environment variables for production or defaults for local
+        // Default credentials
         $this->host = getenv('DB_HOST') ?: 'localhost';
         $this->username = getenv('DB_USER') ?: 'root';
         $this->password = getenv('DB_PASS') ?: '';
         $this->database = getenv('DB_NAME') ?: 'lgu_road_infra';
+
+        // Check for local configuration file
+        $localConfigFile = __DIR__ . '/database.local.php';
+        if (file_exists($localConfigFile)) {
+            $localConfig = include $localConfigFile;
+            if (is_array($localConfig)) {
+                $this->host = $localConfig['host'] ?? $this->host;
+                $this->username = $localConfig['username'] ?? $this->username;
+                $this->password = $localConfig['password'] ?? $this->password;
+                $this->database = $localConfig['database'] ?? $this->database;
+            }
+        }
 
         $this->connect();
     }

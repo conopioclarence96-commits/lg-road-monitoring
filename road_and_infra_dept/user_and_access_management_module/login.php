@@ -11,8 +11,16 @@ if (isset($_SERVER['SCRIPT_NAME']) && basename($_SERVER['SCRIPT_NAME']) === 'ind
 session_start();
 
 // Include authentication and database
-require_once '../config/database.php';
-require_once '../config/auth.php';
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/auth.php';
+
+// Check database connection before proceeding
+try {
+    $dbCheck = new Database();
+    $connCheck = $dbCheck->getConnection();
+} catch (Exception $e) {
+    die("Error: Unable to connect to database. Please check your configuration. " . (getenv('APP_DEBUG') ? $e->getMessage() : ""));
+}
 
 // Redirect if already logged in (unless bypass parameter is set)
 if ($auth->isLoggedIn() && !isset($_GET['bypass'])) {

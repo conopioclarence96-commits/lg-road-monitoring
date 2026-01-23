@@ -6,7 +6,12 @@ class Auth {
     private $database;
     
     public function __construct() {
-        $this->database = new Database();
+        try {
+            $this->database = new Database();
+        } catch (Exception $e) {
+            error_log("Auth initialization - Database connection failed: " . $e->getMessage());
+            // We don't throw here to avoid 500 mapping, but subsequent calls will need to check connection
+        }
     }
     
     // Check if user is logged in
