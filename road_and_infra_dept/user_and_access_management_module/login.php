@@ -11,6 +11,11 @@ $baseRedirect = $isIncluded ? 'road_and_infra_dept/' : '../';
 // Start session
 session_start();
 
+// Check for additional info parameter
+if (isset($_GET['show_additional']) && $_GET['show_additional'] == '1') {
+    $_SESSION['show_additional_info'] = true;
+}
+
 // Include authentication and database
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/auth.php';
@@ -82,12 +87,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_register'])) {
                         
                         // Store registration data in session for additional info step
                         $_SESSION['registration_email'] = $email;
+                        $_SESSION['show_additional_info'] = true;
                         
                         // Auto-switch to additional info panel after successful registration
                         $showAdditional = true;
                         
                         // Debug: Log successful registration
                         error_log("Registration successful for email: $email, showAdditional: true");
+                        
+                        // Redirect to same page with parameter to force additional info
+                        header("Location: " . $_SERVER['PHP_SELF'] . "?show_additional=1");
+                        exit();
                     } else {
                         $registerMessage = 'Failed to create account';
                         $registerMessageType = 'error';
@@ -192,6 +202,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
                 $additionalMessage = "Additional information submitted successfully!";
                 $additionalMessageType = "success";
             }
+            
+            // Clear the additional info session flag after successful submission
+            unset($_SESSION['show_additional_info']);
             
             // Verify the update was successful by checking the database
             $verifyStmt = $conn->prepare("SELECT first_name, middle_name, last_name, role, status FROM users WHERE email = ?");
@@ -571,12 +584,17 @@ function createUserSession($conn, $user_id) {
                 Next
               </button>
 
-              <?php if ($registerMessageType === 'success' && isset($_SESSION['registration_email'])): ?>
+              <?php if (($registerMessageType === 'success' && isset($_SESSION['registration_email'])) || (isset($_SESSION['show_additional_info']) && $_SESSION['show_additional_info'])): ?>
                 <p class="small-text" style="color: green; margin-top: 15px;">
                   ✅ Registration successful! 
-                  <a href="#" class="link" onclick="showPanel('additional')" style="color: #007bff; font-weight: bold;">
+                  <a href="#" class="link" onclick="showPanel('additional'); <?php unset($_SESSION['show_additional_info']); ?>" style="color: #007bff; font-weight: bold;">
                     Click here to complete your profile
                   </a>
+                </p>
+                <p class="small-text" style="margin-top: 10px;">
+                  <button type="button" onclick="showPanel('additional')" style="background: #28a745; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">
+                    📝 Complete Additional Information
+                  </button>
                 </p>
               <?php else: ?>
                 <p class="small-text">
@@ -584,6 +602,12 @@ function createUserSession($conn, $user_id) {
                   <a href="#" class="link" onclick="showPanel('login')"
                     >Back to Login</a
                   >
+                </p>
+                <!-- Always show this button for testing -->
+                <p class="small-text" style="margin-top: 10px;">
+                  <button type="button" onclick="showPanel('additional')" style="background: #6c757d; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                    📋 Additional Information Form
+                  </button>
                 </p>
               <?php endif; ?>
             </form>
@@ -700,7 +724,7 @@ function createUserSession($conn, $user_id) {
         if (panel === "additional") wrapper.classList.add("show-additional");
       }
 
-      <?php if (isset($showAdditional) && $showAdditional): ?>
+      <?php if ((isset($showAdditional) && $showAdditional) || (isset($_SESSION['show_additional_info']) && $_SESSION['show_additional_info'])): ?>
       // Trigger transition if registration was successful
       document.addEventListener('DOMContentLoaded', () => {
         console.log('Registration successful, showing additional info panel...');
