@@ -615,6 +615,11 @@ function createUserSession($conn, $user_id) {
                     📋 Go to Additional Information Form
                   </button>
                 </p>
+                <p class="small-text" style="margin-top: 5px;">
+                  <button type="button" onclick="testPanelSwitch()" style="background: #6c757d; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                    🧪 Test Panel Switch
+                  </button>
+                </p>
               <?php endif; ?>
             </form>
           </div>
@@ -763,12 +768,31 @@ function createUserSession($conn, $user_id) {
     </footer>
     <script>
       function showPanel(panel) {
+        console.log('showPanel called with:', panel);
         const wrapper = document.querySelector(".wrapper");
+        
+        if (!wrapper) {
+          console.error('Wrapper element not found');
+          return;
+        }
 
         wrapper.classList.remove("show-register", "show-additional");
+        console.log('Removed classes');
 
-        if (panel === "register") wrapper.classList.add("show-register");
-        if (panel === "additional") wrapper.classList.add("show-additional");
+        if (panel === "register") {
+          wrapper.classList.add("show-register");
+          console.log('Added show-register');
+        }
+        if (panel === "additional") {
+          wrapper.classList.add("show-additional");
+          console.log('Added show-additional');
+        }
+      }
+      
+      // Test function to verify JavaScript is working
+      function testPanelSwitch() {
+        console.log('Testing panel switch...');
+        showPanel('additional');
       }
 
       <?php if ((isset($showAdditional) && $showAdditional) || (isset($_SESSION['show_additional_info']) && $_SESSION['show_additional_info'])): ?>
