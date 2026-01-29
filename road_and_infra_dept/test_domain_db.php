@@ -19,9 +19,9 @@
         <h2>📋 Current Configuration</h2>
         <pre>
 Host: 127.0.0.1
-Username: root
-Password: root123456
-Database: road_infra
+Username: rgmap_root
+Password: root123
+Database: rgmap_road_infra
         </pre>
     </div>
     
@@ -30,15 +30,15 @@ Database: road_infra
         
         <?php
         try {
-            $conn = new mysqli('127.0.0.1', 'root', 'root123456', 'road_infra');
+            $conn = new mysqli('127.0.0.1', 'rgmap_root', 'root123', 'rgmap_road_infra');
             
             if ($conn->connect_error) {
                 echo "<p class='error'>❌ Connection failed: " . $conn->connect_error . "</p>";
                 echo "<h3>🔍 Troubleshooting Steps:</h3>";
                 echo "<ol>";
                 echo "<li>Make sure CyberPanel MySQL service is running</li>";
-                echo "<li>Verify database 'road_infra' exists in CyberPanel</li>";
-                echo "<li>Check if password 'root123456' is correct</li>";
+                echo "<li>Verify database 'rgmap_road_infra' exists in CyberPanel</li>";
+                echo "<li>Check if password 'root123' is correct</li>";
                 echo "<li>Ensure CyberPanel allows connections from 127.0.0.1</li>";
                 echo "<li>Import the SQL setup file if database is empty</li>";
                 echo "</ol>";
