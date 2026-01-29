@@ -15,6 +15,6 @@
 return [
     'host' => 'localhost',        // e.g., 'localhost' or an IP address
     'username' => 'root',         // your database username
-    'password' => 'root123456',   // your database password - CYBERPANEL PASSWORD
+    'password' => 'root',   // your database password - CYBERPANEL PASSWORD
     'database' => 'road_infra'    // your database name - CYBERPANEL DATABASE
 ];
