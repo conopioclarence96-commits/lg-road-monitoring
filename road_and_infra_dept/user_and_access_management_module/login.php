@@ -116,89 +116,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_register'])) {
     }
 }
 
-// Handle Complete Registration (both initial and additional info in one go)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'complete_registration') {
-    $email = $_POST['register_email'] ?? '';
-    $password = $_POST['register_password'] ?? '';
-    
-    if (empty($email) || empty($password)) {
-        $additionalMessage = "Email and password are required";
-        $additionalMessageType = "error";
-    } else {
-        try {
-            // Create database connection
-            $database = new Database();
-            $conn = $database->getConnection();
-            
-            // Check if email already exists
-            $checkStmt = $conn->prepare("SELECT id FROM users WHERE email = ?");
-            $checkStmt->bind_param("s", $email);
-            $checkStmt->execute();
-            $checkResult = $checkStmt->get_result();
-            
-            if ($checkResult->num_rows > 0) {
-                $additionalMessage = "Email already exists";
-                $additionalMessageType = "error";
-            } else {
-                // Hash password
-                $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
-                
-                // Collect additional form data
-                $submittedData = [
-                    'first_name' => filter_input(INPUT_POST, 'first_name', FILTER_SANITIZE_STRING),
-                    'middle_name' => filter_input(INPUT_POST, 'middle_name', FILTER_SANITIZE_STRING),
-                    'last_name' => filter_input(INPUT_POST, 'last_name', FILTER_SANITIZE_STRING),
-                    'birthday' => filter_input(INPUT_POST, 'birthday', FILTER_SANITIZE_STRING),
-                    'address' => filter_input(INPUT_POST, 'address', FILTER_SANITIZE_STRING),
-                    'civil_status' => filter_input(INPUT_POST, 'civil_status', FILTER_SANITIZE_STRING),
-                    'role' => filter_input(INPUT_POST, 'role', FILTER_SANITIZE_STRING)
-                ];
-                
-                // Insert complete user record (using only existing columns)
-                $stmt = $conn->prepare("
-                    INSERT INTO users (email, password, first_name, middle_name, last_name, role, status, email_verified, created_at) 
-                    VALUES (?, ?, ?, ?, ?, ?, 'pending', 0, CURRENT_TIMESTAMP)
-                ");
-                
-                $stmt->bind_param("sssssss", 
-                    $email,
-                    $hashedPassword,
-                    $submittedData['first_name'],
-                    $submittedData['middle_name'],
-                    $submittedData['last_name'],
-                    $submittedData['role']
-                );
-                
-                if ($stmt->execute()) {
-                    $additionalMessage = "Registration completed successfully! Your account is now pending approval.";
-                    $additionalMessageType = "success";
-                    
-                    // Auto-login user
-                    $_SESSION['user_id'] = $conn->insert_id;
-                    $_SESSION['email'] = $email;
-                    $_SESSION['first_name'] = $submittedData['first_name'];
-                    $_SESSION['last_name'] = $submittedData['last_name'];
-                    $_SESSION['full_name'] = $submittedData['first_name'] . ' ' . $submittedData['last_name'];
-                    $_SESSION['role'] = $submittedData['role'];
-                    $_SESSION['logged_in'] = true;
-                    
-                    // Redirect to dashboard after 2 seconds
-                    header("refresh:2; url=" . $baseRedirect . "user_and_access_management_module/dashboard.php");
-                } else {
-                    $additionalMessage = "Failed to create account";
-                    $additionalMessageType = "error";
-                }
-                $stmt->close();
-            }
-            $checkStmt->close();
-            
-        } catch (Exception $e) {
-            $additionalMessage = "Error: " . $e->getMessage();
-            $additionalMessageType = "error";
-        }
-    }
-}
-
 // Handle Additional Information form submission
 $additionalMessage = '';
 $additionalMessageType = '';
@@ -661,9 +578,8 @@ function createUserSession($conn, $user_id) {
 
               <button
                 class="btn-primary"
-                type="button"
+                type="submit"
                 name="submit_register"
-                onclick="captureAndShowAdditional()"
               >
                 Next
               </button>
@@ -726,20 +642,47 @@ function createUserSession($conn, $user_id) {
             <?php endif; ?>
 
             <form class="two-column-form" method="POST" action="">
-              <!-- Hidden fields for initial registration data -->
-              <input type="hidden" name="register_email" id="register_email" value="">
-              <input type="hidden" name="register_password" id="register_password" value="">
-              <input type="hidden" name="action" value="complete_registration">
-              
-              <div class="input-box">
-                <label>Email Address</label>
-                <input type="email" name="email" id="email_display" readonly style="background: #f8f9fa; color: #6c757d;" />
-              </div>
-              
               <div class="input-box">
                 <label>First Name</label>
                 <input type="text" name="first_name" value="<?php echo isset($_POST['first_name']) ? htmlspecialchars($_POST['first_name']) : ''; ?>" required />
               </div>
+
+              <div class="input-box">
+                <label>Middle Name</label>
+                <input type="text" name="middle_name" value="<?php echo isset($_POST['middle_name']) ? htmlspecialchars($_POST['middle_name']) : ''; ?>" />
+              </div>
+
+              <div class="input-box">
+                <label>Last Name</label>
+                <input type="text" name="last_name" value="<?php echo isset($_POST['last_name']) ? htmlspecialchars($_POST['last_name']) : ''; ?>" required />
+              </div>
+
+              <div class="input-box">
+                <label>Role</label>
+                <select name="role" required>
+                  <option value="">Select Role</option>
+                  <option value="lgu_officer" <?php echo (isset($_POST['role']) && $_POST['role'] === 'lgu_officer') ? 'selected' : ''; ?>>LGU Officer</option>
+                  <option value="engineer" <?php echo (isset($_POST['role']) && $_POST['role'] === 'engineer') ? 'selected' : ''; ?>>Engineer</option>
+                  <option value="citizen" <?php echo (isset($_POST['role']) && $_POST['role'] === 'citizen') ? 'selected' : ''; ?>>Citizen</option>
+                </select>
+              </div>
+
+              <!-- UPLOAD ID -->
+              <div class="input-box">
+                <label>Upload Valid ID</label>
+                <input type="file" name="valid_id" accept="image/*" />
+              </div>
+
+              <!-- FULL WIDTH BUTTON -->
+              <div class="form-actions">
+                <button class="btn-primary" type="submit" name="submit_additional">Submit</button>
+                <p class="small-text">
+                  <a href="#" class="link" onclick="showPanel('register')"
+                    >Back</a
+                  >
+                </p>
+              </div>
+            </form>
 
               <div class="input-box">
                 <label>Middle Name</label>
@@ -820,26 +763,6 @@ function createUserSession($conn, $user_id) {
 
         if (panel === "register") wrapper.classList.add("show-register");
         if (panel === "additional") wrapper.classList.add("show-additional");
-      }
-
-      function captureAndShowAdditional() {
-        // Get email and password from registration form
-        const email = document.querySelector('input[name="email"]').value;
-        const password = document.querySelector('input[name="password"]').value;
-        
-        // Validate
-        if (!email || !password) {
-          alert('Please enter both email and password');
-          return;
-        }
-        
-        // Set hidden fields in additional form
-        document.getElementById('register_email').value = email;
-        document.getElementById('register_password').value = password;
-        document.getElementById('email_display').value = email;
-        
-        // Show additional panel
-        showPanel('additional');
       }
 
       <?php if ((isset($showAdditional) && $showAdditional) || (isset($_SESSION['show_additional_info']) && $_SESSION['show_additional_info'])): ?>
