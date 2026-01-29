@@ -85,6 +85,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_register'])) {
                         
                         // Auto-switch to additional info panel after successful registration
                         $showAdditional = true;
+                        
+                        // Debug: Log successful registration
+                        error_log("Registration successful for email: $email, showAdditional: true");
                     } else {
                         $registerMessage = 'Failed to create account';
                         $registerMessageType = 'error';
@@ -568,12 +571,21 @@ function createUserSession($conn, $user_id) {
                 Next
               </button>
 
-              <p class="small-text">
-                Already have an account?
-                <a href="#" class="link" onclick="showPanel('login')"
-                  >Back to Login</a
-                >
-              </p>
+              <?php if ($registerMessageType === 'success' && isset($_SESSION['registration_email'])): ?>
+                <p class="small-text" style="color: green; margin-top: 15px;">
+                  ✅ Registration successful! 
+                  <a href="#" class="link" onclick="showPanel('additional')" style="color: #007bff; font-weight: bold;">
+                    Click here to complete your profile
+                  </a>
+                </p>
+              <?php else: ?>
+                <p class="small-text">
+                  Already have an account?
+                  <a href="#" class="link" onclick="showPanel('login')"
+                    >Back to Login</a
+                  >
+                </p>
+              <?php endif; ?>
             </form>
           </div>
         </div>
@@ -691,7 +703,11 @@ function createUserSession($conn, $user_id) {
       <?php if (isset($showAdditional) && $showAdditional): ?>
       // Trigger transition if registration was successful
       document.addEventListener('DOMContentLoaded', () => {
-        setTimeout(() => showPanel('additional'), 1000);
+        console.log('Registration successful, showing additional info panel...');
+        setTimeout(() => {
+          console.log('Switching to additional panel...');
+          showPanel('additional');
+        }, 1000);
       });
       <?php endif; ?>
     </script>
