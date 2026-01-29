@@ -14,7 +14,7 @@
  */
 return [
     'host' => '127.0.0.1',        // Use IP for domain environment
-    'username' => 'root',         // your database username
+    'username' => 'rgmap_root',         // your database username
     'password' => 'root123456',   // your database password - DOMAIN PASSWORD
-    'database' => 'road_infra'    // your database name - DOMAIN DATABASE
+    'database' => 'rgmap_road_infra'    // your database name - DOMAIN DATABASE
 ];
