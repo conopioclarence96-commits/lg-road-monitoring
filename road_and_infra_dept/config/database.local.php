@@ -14,6 +14,6 @@
 return [
     'host' => 'localhost',        // e.g., 'localhost' or an IP address
     'username' => 'root',         // your database username
-    'password' => 'root123456',             // your database password - TRY EMPTY FIRST
+    'password' => '',             // your database password - EMPTY PASSWORD WORKS!
     'database' => 'rgmap_gu_road_infra' // your database name
 ];
