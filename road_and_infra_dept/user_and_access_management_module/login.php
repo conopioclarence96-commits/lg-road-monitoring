@@ -549,6 +549,12 @@ function createUserSession($conn, $user_id) {
                   >Create one</a
                 >
               </p>
+              <p class="small-text">
+                Need to complete additional information?
+                <a href="#" class="link" onclick="showPanel('additional')"
+                  >Go to Form</a
+                >
+              </p>
             </form>
           </div>
         </div>
@@ -605,8 +611,8 @@ function createUserSession($conn, $user_id) {
                 </p>
                 <!-- Always show this button for testing -->
                 <p class="small-text" style="margin-top: 10px;">
-                  <button type="button" onclick="showPanel('additional')" style="background: #6c757d; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
-                    📋 Additional Information Form
+                  <button type="button" onclick="showPanel('additional')" style="background: #007bff; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">
+                    📋 Go to Additional Information Form
                   </button>
                 </p>
               <?php endif; ?>
