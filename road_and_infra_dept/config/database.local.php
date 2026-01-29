@@ -13,8 +13,8 @@
  * 5. Custom: username='your_username', password='your_password', database='your_db_name'
  */
 return [
-    'host' => 'localhost',        // e.g., 'localhost' or an IP address
+    'host' => '127.0.0.1',        // e.g., 'localhost' or an IP address
     'username' => 'root',         // your database username
-    'password' => 'YES',   // your database password - CYBERPANEL PASSWORD
+    'password' => 'root123456',   // your database password - CYBERPANEL PASSWORD
     'database' => 'road_infra'    // your database name - CYBERPANEL DATABASE
 ];
