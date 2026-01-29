@@ -523,7 +523,7 @@ function createUserSession($conn, $user_id) {
       }
 
       /* NEW — Blur overlay */
-      body::before {
+      /* body::before {
         content: "";
         position: absolute;
         top: 0;
@@ -534,7 +534,7 @@ function createUserSession($conn, $user_id) {
         backdrop-filter: blur(6px); /* actual blur */
         background: rgba(0, 0, 0, 0.35); /* dark overlay */
         z-index: 0; /* keeps blur behind content */
-      }
+      } */
 
       /* Make content appear ABOVE blur */
       .nav,
