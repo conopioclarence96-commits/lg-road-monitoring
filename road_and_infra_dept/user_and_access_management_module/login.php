@@ -108,7 +108,14 @@ $additionalMessage = '';
 $additionalMessageType = '';
 $submittedData = [];
 
+// Debug: Log all POST data at the top of the file
+error_log("LOGIN.PHP - POST method: " . $_SERVER['REQUEST_METHOD']);
+error_log("LOGIN.PHP - POST data: " . print_r($_POST, true));
+error_log("LOGIN.PHP - submit_additional isset: " . (isset($_POST['submit_additional']) ? 'YES' : 'NO'));
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional'])) {
+    error_log("LOGIN.PHP - Processing additional information submission...");
+    
     // Collect form data
     $submittedData = [
         'first_name' => filter_input(INPUT_POST, 'first_name', FILTER_SANITIZE_STRING),
@@ -119,6 +126,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
         'civil_status' => filter_input(INPUT_POST, 'civil_status', FILTER_SANITIZE_STRING),
         'role' => filter_input(INPUT_POST, 'role', FILTER_SANITIZE_STRING)
     ];
+    
+    error_log("LOGIN.PHP - Collected submitted data: " . print_r($submittedData, true));
     
     try {
         // Create database connection
@@ -140,6 +149,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
         ");
         
         $email = $_SESSION['registration_email'] ?? '';
+        error_log("LOGIN.PHP - Email from session: '$email'");
+        
+        $stmt = $conn->prepare("
+            UPDATE users SET 
+                first_name = ?, 
+                middle_name = ?, 
+                last_name = ?, 
+                birthday = ?, 
+                address = ?, 
+                civil_status = ?, 
+                role = ?, 
+                updated_at = CURRENT_TIMESTAMP
+            WHERE email = ?
+        ");
+        
         $stmt->bind_param("ssssssss", 
             $submittedData['first_name'],
             $submittedData['middle_name'],
@@ -151,7 +175,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
             $email
         );
         
+        error_log("LOGIN.PHP - About to execute UPDATE with role: '{$submittedData['role']}'");
+        
         if ($stmt->execute()) {
+            error_log("LOGIN.PHP - UPDATE executed successfully. Affected rows: " . $stmt->affected_rows);
             // Handle file upload
             if (isset($_FILES['valid_id']) && $_FILES['valid_id']['error'] === UPLOAD_ERR_OK) {
                 $uploadedFile = $_FILES['valid_id'];
@@ -162,9 +189,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
                 $additionalMessage = "Additional information submitted successfully!";
                 $additionalMessageType = "success";
             }
+            
+            // Verify the update was successful by checking the database
+            $verifyStmt = $conn->prepare("SELECT first_name, middle_name, last_name, role, status FROM users WHERE email = ?");
+            $verifyStmt->bind_param("s", $email);
+            $verifyStmt->execute();
+            $verifyResult = $verifyStmt->get_result();
+            $updatedUser = $verifyResult->fetch_assoc();
+            $verifyStmt->close();
+            
+            // Debug: Log what was actually updated
+            error_log("Additional info update for email: $email");
+            error_log("Updated role in DB: " . ($updatedUser['role'] ?? 'NULL'));
+            error_log("Form submitted role: " . ($submittedData['role'] ?? 'NULL'));
+            error_log("Updated name: " . ($updatedUser['first_name'] ?? 'NULL') . ' ' . ($updatedUser['last_name'] ?? 'NULL'));
+            
+            // Auto-login user after successful additional information submission
+            if (!empty($email)) {
+                try {
+                    // Get user data from database
+                    $loginStmt = $conn->prepare("
+                        SELECT id, email, first_name, last_name, role, status, email_verified 
+                        FROM users 
+                        WHERE email = ?
+                    ");
+                    $loginStmt->bind_param("s", $email);
+                    $loginStmt->execute();
+                    $loginResult = $loginStmt->get_result();
+                    
+                    if ($loginResult->num_rows === 1) {
+                        $user = $loginResult->fetch_assoc();
+                        
+                        // Set session variables for automatic login
+                        $_SESSION['user_id'] = $user['id'];
+                        $_SESSION['email'] = $user['email'];
+                        $_SESSION['first_name'] = $user['first_name'];
+                        $_SESSION['last_name'] = $user['last_name'];
+                        $_SESSION['full_name'] = $user['first_name'] . ' ' . $user['last_name'];
+                        $_SESSION['role'] = $user['role'];
+                        $_SESSION['logged_in'] = true;
+                        $_SESSION['login_time'] = time();
+                        
+                        // Log successful login attempt
+                        logLoginAttempt($conn, $email, true, $_SERVER['REMOTE_ADDR'] ?? '', $_SERVER['HTTP_USER_AGENT'] ?? '');
+                        
+                        // Update last login timestamp
+                        updateLastLogin($conn, $user['id']);
+                        
+                        // Create user session
+                        createUserSession($conn, $user['id']);
+                        
+                        // Clear registration session data
+                        unset($_SESSION['registration_email']);
+                        
+                        // Redirect to appropriate dashboard
+                        $auth->redirectToDashboard();
+                        exit;
+                    }
+                    $loginStmt->close();
+                } catch (Exception $e) {
+                    error_log("Auto-login after additional info error: " . $e->getMessage());
+                    // If auto-login fails, still show success message
+                }
+            }
         } else {
             $additionalMessage = "Failed to update additional information";
             $additionalMessageType = "error";
+            error_log("Additional info update failed for email: $email. Error: " . $stmt->error);
         }
         $stmt->close();
         

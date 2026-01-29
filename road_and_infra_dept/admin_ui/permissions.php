@@ -761,6 +761,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <th>Email</th>
                             <th>Role</th>
                             <th>Status</th>
+                            <th>Phone</th>
                             <th width="150">Actions</th>
                         </tr>
                     </thead>
@@ -771,7 +772,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $conn = $database->getConnection();
 
                             $stmt = $conn->prepare("
-                                SELECT id, first_name, last_name, email, role, status 
+                                SELECT id, first_name, middle_name, last_name, email, role, status, phone, address, birthday, civil_status, created_at, last_login 
                                 FROM users 
                                 ORDER BY created_at DESC
                             ");
@@ -779,12 +780,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $result = $stmt->get_result();
 
                             if ($result->num_rows === 0) {
-                                echo '<tr><td colspan="6" style="text-align: center; padding: 40px; color: #94a3b8;">No users found in registry</td></tr>';
+                                echo '<tr><td colspan="7" style="text-align: center; padding: 40px; color: #94a3b8;">No users found in registry</td></tr>';
                             }
 
                             while ($user = $result->fetch_assoc()):
                                 $roleLabel = ucfirst(str_replace('_', ' ', $user['role']));
-                                $fullName = htmlspecialchars($user['first_name'] . ' ' . $user['last_name']);
+                                $fullName = htmlspecialchars($user['first_name'] . ' ' . ($user['middle_name'] ? $user['middle_name'] . ' ' : '') . $user['last_name']);
+                                
+                                // Debug: Log user data for troubleshooting
+                                error_log("User ID {$user['id']} data: " . print_r($user, true));
                             ?>
                                 <tr>
                                     <td><?php echo $user['id']; ?></td>
@@ -792,6 +796,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <td><?php echo htmlspecialchars($user['email']); ?></td>
                                     <td><span class="badge badge-<?php echo $user['role']; ?>"><?php echo $roleLabel; ?></span></td>
                                     <td><span class="status-pill status-<?php echo $user['status']; ?>"><?php echo ucfirst($user['status']); ?></span></td>
+                                    <td><?php echo $user['phone'] ? htmlspecialchars($user['phone']) : '<span style="color: #94a3b8;">N/A</span>'; ?></td>
                                     <td>
                                         <div class="action-group">
                                             <button class="btn-action btn-view" onclick="fetchUser(<?php echo $user['id']; ?>)" title="View Details"><i class="fas fa-eye"></i></button>
@@ -811,7 +816,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <?php endwhile;
                             $stmt->close();
                         } catch (Exception $e) {
-                            echo '<tr><td colspan="6" style="text-align: center; padding: 40px; color: #ef4444;">Error loading user registry: ' . htmlspecialchars($e->getMessage()) . '</td></tr>';
+                            echo '<tr><td colspan="7" style="text-align: center; padding: 40px; color: #ef4444;">Error loading user registry: ' . htmlspecialchars($e->getMessage()) . '</td></tr>';
                         }
                         ?>
                     </tbody>
@@ -886,13 +891,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         function showModal(user) {
             const modal = document.getElementById('userModal');
             const body = document.getElementById('modalBody');
+            
+            // Format birthday if exists
+            let birthdayText = 'N/A';
+            if (user.birthday) {
+                const birthday = new Date(user.birthday);
+                birthdayText = birthday.toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                });
+            }
+            
+            // Format last login if exists
+            let lastLoginText = 'Never';
+            if (user.last_login) {
+                const lastLogin = new Date(user.last_login);
+                lastLoginText = lastLogin.toLocaleString('en-US', { 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            }
+            
             body.innerHTML = `
-                <div style="display: grid; gap: 10px;">
-                    <p><strong>Name:</strong> ${user.first_name} ${user.last_name}</p>
-                    <p><strong>Email:</strong> ${user.email}</p>
-                    <p><strong>Role:</strong> ${user.role}</p>
-                    <p><strong>Status:</strong> ${user.status}</p>
-                    <p><strong>Registered:</strong> ${user.created_at}</p>
+                <div style="display: grid; gap: 12px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div>
+                            <p><strong>First Name:</strong> ${user.first_name || 'N/A'}</p>
+                            <p><strong>Middle Name:</strong> ${user.middle_name || 'N/A'}</p>
+                            <p><strong>Last Name:</strong> ${user.last_name || 'N/A'}</p>
+                        </div>
+                        <div>
+                            <p><strong>Email:</strong> ${user.email || 'N/A'}</p>
+                            <p><strong>Phone:</strong> ${user.phone || 'N/A'}</p>
+                            <p><strong>Role:</strong> ${user.role || 'N/A'}</p>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div>
+                            <p><strong>Status:</strong> ${user.status || 'N/A'}</p>
+                            <p><strong>Civil Status:</strong> ${user.civil_status || 'N/A'}</p>
+                        </div>
+                        <div>
+                            <p><strong>Birthday:</strong> ${birthdayText}</p>
+                            <p><strong>Address:</strong> ${user.address || 'N/A'}</p>
+                        </div>
+                    </div>
+                    <div style="border-top: 1px solid #e5e7eb; padding-top: 12px;">
+                        <p><strong>Registered:</strong> ${new Date(user.created_at).toLocaleString('en-US', { 
+                            year: 'numeric', 
+                            month: 'short', 
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        })}</p>
+                        <p><strong>Last Login:</strong> ${lastLoginText}</p>
+                    </div>
                 </div>
             `;
             modal.style.display = 'flex';
@@ -1045,15 +1102,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 const tdName = tr[i].getElementsByTagName('td')[1];
                 const tdEmail = tr[i].getElementsByTagName('td')[2];
                 const tdRole = tr[i].getElementsByTagName('td')[3];
+                const tdPhone = tr[i].getElementsByTagName('td')[5];
                 
-                if (tdName || tdEmail || tdRole) {
+                if (tdName || tdEmail || tdRole || tdPhone) {
                     const nameText = tdName.textContent || tdName.innerText;
                     const emailText = tdEmail.textContent || tdEmail.innerText;
                     const roleText = tdRole.textContent || tdRole.innerText;
+                    const phoneText = tdPhone.textContent || tdPhone.innerText;
                     
                     if (nameText.toLowerCase().indexOf(filter) > -1 || 
                         emailText.toLowerCase().indexOf(filter) > -1 || 
-                        roleText.toLowerCase().indexOf(filter) > -1) {
+                        roleText.toLowerCase().indexOf(filter) > -1 ||
+                        phoneText.toLowerCase().indexOf(filter) > -1) {
                         tr[i].style.display = "";
                     } else {
                         tr[i].style.display = "none";
