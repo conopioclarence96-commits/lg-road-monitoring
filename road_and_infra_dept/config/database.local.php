@@ -12,8 +12,8 @@
  * 4. Custom: username='your_username', password='your_password', database='your_db_name'
  */
 return [
-    'host' => 'localhost',        // e.g., 'localhost' or an IP address
-    'username' => 'root',         // your database username
-    'password' => '',             // your database password - EMPTY PASSWORD WORKS!
-    'database' => 'rgmap_gu_road_infra' // your database name - WORKING DATABASE
+'host' => '127.0.0.1',        // Try 127.0.0.1 instead of localhost
+'username' => 'root',         
+'password' => 'root123456',   
+'database' => 'rgmap_road_infra'    
 ];
