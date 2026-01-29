@@ -516,16 +516,15 @@ function createUserSession($conn, $user_id) {
         display: flex;
         flex-direction: column;
         min-height: 100vh;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+
+        /* Original background image + blur */
+        background: url("<?php echo $assetPath; ?>assets/img/cityhall.jpeg") center/cover no-repeat fixed;
+        position: relative;
+        overflow: hidden;
       }
 
-      /* NEW — background image + blur */
-      /* background: url("<?php echo $assetPath; ?>assets/img/cityhall.jpeg") center/cover no-repeat fixed;
-      position: relative;
-      overflow: hidden; */
-
-      /* NEW — Blur overlay */
-      /* body::before {
+      /* Original blur overlay */
+      body::before {
         content: "";
         position: absolute;
         top: 0;
@@ -533,10 +532,10 @@ function createUserSession($conn, $user_id) {
         width: 100%;
         height: 100%;
 
-        backdrop-filter: blur(6px); /* actual blur */
-        background: rgba(0, 0, 0, 0.35); /* dark overlay */
-        z-index: 0; /* keeps blur behind content */
-      } */
+        backdrop-filter: blur(6px);
+        background: rgba(0, 0, 0, 0.35);
+        z-index: 0;
+      }
 
       /* Make content appear ABOVE blur */
       .nav,
@@ -545,11 +544,24 @@ function createUserSession($conn, $user_id) {
         z-index: 1;
       }
 
-      /* Make content appear ABOVE blur */
-      .footer,
-      .wrapper {
+      .footer {
         position: relative;
         z-index: 1;
+      }
+      
+      /* Ensure form elements are above overlay */
+      .card {
+        position: relative;
+        z-index: 2;
+        background: rgba(255, 255, 255, 0.95);
+      }
+      
+      .input-box input,
+      .input-box select,
+      .input-box button,
+      .btn-primary {
+        position: relative;
+        z-index: 3;
       }
 
       .message {
