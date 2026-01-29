@@ -154,21 +154,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     'role' => filter_input(INPUT_POST, 'role', FILTER_SANITIZE_STRING)
                 ];
                 
-                // Insert complete user record
+                // Insert complete user record (using only existing columns)
                 $stmt = $conn->prepare("
-                    INSERT INTO users (email, password, first_name, middle_name, last_name, birthday, address, civil_status, role, status, email_verified, created_at) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, CURRENT_TIMESTAMP)
+                    INSERT INTO users (email, password, first_name, middle_name, last_name, role, status, email_verified, created_at) 
+                    VALUES (?, ?, ?, ?, ?, ?, 'pending', 0, CURRENT_TIMESTAMP)
                 ");
                 
-                $stmt->bind_param("sssssssss", 
+                $stmt->bind_param("sssssss", 
                     $email,
                     $hashedPassword,
                     $submittedData['first_name'],
                     $submittedData['middle_name'],
                     $submittedData['last_name'],
-                    $submittedData['birthday'],
-                    $submittedData['address'],
-                    $submittedData['civil_status'],
                     $submittedData['role']
                 );
                 
@@ -746,41 +743,45 @@ function createUserSession($conn, $user_id) {
 
               <div class="input-box">
                 <label>Middle Name</label>
-                <input type="text" name="middle_name" value="<?php echo isset($_POST['middle_name']) ? htmlspecialchars($_POST['middle_name']) : ''; ?>" />
-              </div>
 
-              <div class="input-box">
-                <label>Last Name</label>
-                <input type="text" name="last_name" value="<?php echo isset($_POST['last_name']) ? htmlspecialchars($_POST['last_name']) : ''; ?>" />
+                  <p class="small-text">
+                    Don't have an account?
+                    <a href="#" class="link" onclick="showPanel('register')"
+                      >Create one</a
+                    >
+                  </p>
+                </form>
               </div>
+            </div>
 
-              <div class="input-box">
-                <label>Birthday</label>
-                <input type="date" name="birthday" value="<?php echo isset($_POST['birthday']) ? htmlspecialchars($_POST['birthday']) : ''; ?>" />
-              </div>
+            <!-- REGISTER -->
+            <div class="panel register">
+              <div class="card">
+                <h2 class="title">Create Account</h2>
+                <p class="subtitle">Register for LGU services.</p>
+                
+                <?php if ($registerMessage): ?>
+                  <div class="message <?php echo $registerMessageType; ?>" style="margin-bottom: 20px; padding: 15px; border-radius: 8px;">
+                    <?php echo htmlspecialchars($registerMessage); ?>
+                  </div>
+                <?php endif; ?>
 
-              <div class="input-box">
-                <label>Address</label>
-                <input type="text" name="address" value="<?php echo isset($_POST['address']) ? htmlspecialchars($_POST['address']) : ''; ?>" />
-              </div>
+                <form method="POST" action="">
+                  <div class="input-box">
+                    <label>Email Address</label>
+                    <input type="email" name="email" value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>" />
+                  </div>
 
-              <div class="input-box">
-                <label>Civil Status</label>
-                <input type="text" name="civil_status" value="<?php echo isset($_POST['civil_status']) ? htmlspecialchars($_POST['civil_status']) : ''; ?>" />
-              </div>
+                  <div class="input-box">
+                    <label>Password</label>
+                    <input type="password" name="password" />
+                  </div>
 
-              <div class="input-box">
-                <label>Role</label>
-                <select name="role">
-                  <option value="">Select role</option>
-                  <option value="engineer" <?php echo (isset($_POST['role']) && $_POST['role'] === 'engineer') ? 'selected' : ''; ?>>Engineer</option>
-                  <option value="lgu_officer" <?php echo (isset($_POST['role']) && $_POST['role'] === 'lgu_officer') ? 'selected' : ''; ?>>LGU Officer</option>
-                  <option value="citizen" <?php echo (isset($_POST['role']) && $_POST['role'] === 'citizen') ? 'selected' : ''; ?>>Citizen</option>
-                </select>
-              </div>
-
-              <!-- UPLOAD ID -->
-              <div class="input-box">
+                  <button
+                    class="btn-primary"
+                    type="button"
+                    name="submit_register"
+                    onclick="captureAndShowAdditional()"
                 <label>Upload Valid ID</label>
                 <input type="file" name="valid_id" accept="image/*" />
               </div>
