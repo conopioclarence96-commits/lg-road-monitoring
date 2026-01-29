@@ -515,12 +515,14 @@ function createUserSession($conn, $user_id) {
         height: 100vh;
         display: flex;
         flex-direction: column;
-
-        /* NEW — background image + blur */
-        background: url("<?php echo $assetPath; ?>assets/img/cityhall.jpeg") center/cover no-repeat fixed;
-        position: relative;
-        overflow: hidden;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       }
+
+      /* NEW — background image + blur */
+      /* background: url("<?php echo $assetPath; ?>assets/img/cityhall.jpeg") center/cover no-repeat fixed;
+      position: relative;
+      overflow: hidden; */
 
       /* NEW — Blur overlay */
       /* body::before {
