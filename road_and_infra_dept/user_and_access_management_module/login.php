@@ -11,11 +11,6 @@ $baseRedirect = $isIncluded ? 'road_and_infra_dept/' : '../';
 // Start session
 session_start();
 
-// Check for additional info parameter
-if (isset($_GET['show_additional']) && $_GET['show_additional'] == '1') {
-    $_SESSION['show_additional_info'] = true;
-}
-
 // Include authentication and database
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/auth.php';
@@ -34,7 +29,87 @@ if ($auth->isLoggedIn() && !isset($_GET['bypass']) && !isset($isLanding)) {
     exit;
 }
 
-// Handle registration form submission
+// Handle Complete Registration (all information at once)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_register_complete'])) {
+    $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL);
+    $password = $_POST['password'] ?? '';
+    $first_name = filter_input(INPUT_POST, 'first_name', FILTER_SANITIZE_STRING);
+    $middle_name = filter_input(INPUT_POST, 'middle_name', FILTER_SANITIZE_STRING);
+    $last_name = filter_input(INPUT_POST, 'last_name', FILTER_SANITIZE_STRING);
+    $role = filter_input(INPUT_POST, 'role', FILTER_SANITIZE_STRING);
+    
+    // Validate input
+    if (empty($email) || empty($password) || empty($first_name) || empty($last_name) || empty($role)) {
+        $registerMessage = 'Please fill in all required fields';
+        $registerMessageType = 'error';
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $registerMessage = 'Invalid email format';
+        $registerMessageType = 'error';
+    } else {
+        try {
+            // Create database connection
+            $database = new Database();
+            $conn = $database->getConnection();
+            
+            // Check if email already exists
+            $checkStmt = $conn->prepare("SELECT id FROM users WHERE email = ?");
+            $checkStmt->bind_param("s", $email);
+            $checkStmt->execute();
+            $checkResult = $checkStmt->get_result();
+            
+            if ($checkResult->num_rows > 0) {
+                $registerMessage = 'Email already exists';
+                $registerMessageType = 'error';
+            } else {
+                // Hash password
+                $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+                
+                // Insert complete user record
+                $stmt = $conn->prepare("
+                    INSERT INTO users (email, password, first_name, middle_name, last_name, role, status, email_verified, created_at) 
+                    VALUES (?, ?, ?, ?, ?, ?, 'pending', 0, CURRENT_TIMESTAMP)
+                ");
+                
+                $stmt->bind_param("sssssss", 
+                    $email,
+                    $hashedPassword,
+                    $first_name,
+                    $middle_name,
+                    $last_name,
+                    $role
+                );
+                
+                if ($stmt->execute()) {
+                    $registerMessage = 'Account created successfully! Your account is now pending approval.';
+                    $registerMessageType = 'success';
+                    
+                    // Auto-login user
+                    $_SESSION['user_id'] = $conn->insert_id;
+                    $_SESSION['email'] = $email;
+                    $_SESSION['first_name'] = $first_name;
+                    $_SESSION['last_name'] = $last_name;
+                    $_SESSION['full_name'] = $first_name . ' ' . $last_name;
+                    $_SESSION['role'] = $role;
+                    $_SESSION['logged_in'] = true;
+                    
+                    // Redirect to dashboard after 2 seconds
+                    header("refresh:2; url=" . $baseRedirect . "user_and_access_management_module/dashboard.php");
+                } else {
+                    $registerMessage = 'Failed to create account';
+                    $registerMessageType = 'error';
+                }
+                $stmt->close();
+            }
+            $checkStmt->close();
+            
+        } catch (Exception $e) {
+            $registerMessage = 'Error: ' . $e->getMessage();
+            $registerMessageType = 'error';
+        }
+    }
+}
+
+// Handle registration form submission (original - for backward compatibility)
 $registerMessage = '';
 $registerMessageType = '';
 
@@ -87,17 +162,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_register'])) {
                         
                         // Store registration data in session for additional info step
                         $_SESSION['registration_email'] = $email;
-                        $_SESSION['show_additional_info'] = true;
                         
                         // Auto-switch to additional info panel after successful registration
                         $showAdditional = true;
-                        
-                        // Debug: Log successful registration
-                        error_log("Registration successful for email: $email, showAdditional: true");
-                        
-                        // Redirect to same page with parameter to force additional info
-                        header("Location: " . $_SERVER['PHP_SELF'] . "?show_additional=1");
-                        exit();
                     } else {
                         $registerMessage = 'Failed to create account';
                         $registerMessageType = 'error';
@@ -549,21 +616,15 @@ function createUserSession($conn, $user_id) {
                   >Create one</a
                 >
               </p>
-              <p class="small-text">
-                Need to complete additional information?
-                <a href="#" class="link" onclick="showPanel('additional')"
-                  >Go to Form</a
-                >
-              </p>
             </form>
           </div>
         </div>
 
         <!-- REGISTER -->
         <div class="panel register">
-          <div class="card">
+          <div class="card wide">
             <h2 class="title">Create Account</h2>
-            <p class="subtitle">Register for LGU services.</p>
+            <p class="subtitle">Register for LGU services with complete information.</p>
             
             <?php if ($registerMessage): ?>
               <div class="message <?php echo $registerMessageType; ?>" style="margin-bottom: 20px; padding: 15px; border-radius: 8px;">
@@ -572,55 +633,61 @@ function createUserSession($conn, $user_id) {
             <?php endif; ?>
 
             <form method="POST" action="">
+              <!-- Account Information -->
+              <h3 style="margin-bottom: 15px; color: #1e293b;">Account Information</h3>
               <div class="input-box">
                 <label>Email Address</label>
-                <input type="email" name="email" value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>" />
+                <input type="email" name="email" value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>" required />
               </div>
 
               <div class="input-box">
                 <label>Password</label>
-                <input type="password" name="password" />
+                <input type="password" name="password" required />
               </div>
 
-              <button
-                class="btn-primary"
-                type="submit"
-                name="submit_register"
-              >
-                Next
+              <!-- Personal Information -->
+              <h3 style="margin: 25px 0 15px; color: #1e293b;">Personal Information</h3>
+              <div class="input-box">
+                <label>First Name</label>
+                <input type="text" name="first_name" value="<?php echo isset($_POST['first_name']) ? htmlspecialchars($_POST['first_name']) : ''; ?>" required />
+              </div>
+
+              <div class="input-box">
+                <label>Middle Name</label>
+                <input type="text" name="middle_name" value="<?php echo isset($_POST['middle_name']) ? htmlspecialchars($_POST['middle_name']) : ''; ?>" />
+              </div>
+
+              <div class="input-box">
+                <label>Last Name</label>
+                <input type="text" name="last_name" value="<?php echo isset($_POST['last_name']) ? htmlspecialchars($_POST['last_name']) : ''; ?>" required />
+              </div>
+
+              <div class="input-box">
+                <label>Role</label>
+                <select name="role" required>
+                  <option value="">Select Role</option>
+                  <option value="lgu_officer" <?php echo (isset($_POST['role']) && $_POST['role'] === 'lgu_officer') ? 'selected' : ''; ?>>LGU Officer</option>
+                  <option value="engineer" <?php echo (isset($_POST['role']) && $_POST['role'] === 'engineer') ? 'selected' : ''; ?>>Engineer</option>
+                  <option value="citizen" <?php echo (isset($_POST['role']) && $_POST['role'] === 'citizen') ? 'selected' : ''; ?>>Citizen</option>
+                </select>
+              </div>
+
+              <!-- UPLOAD ID -->
+              <div class="input-box">
+                <label>Upload Valid ID (Optional)</label>
+                <input type="file" name="valid_id" accept="image/*" />
+              </div>
+
+              <button type="submit" class="btn-primary" name="submit_register_complete">
+                Create Account
               </button>
 
-              <?php if (($registerMessageType === 'success' && isset($_SESSION['registration_email'])) || (isset($_SESSION['show_additional_info']) && $_SESSION['show_additional_info'])): ?>
-                <p class="small-text" style="color: green; margin-top: 15px;">
-                  ✅ Registration successful! 
-                  <a href="#" class="link" onclick="showPanel('additional'); <?php unset($_SESSION['show_additional_info']); ?>" style="color: #007bff; font-weight: bold;">
-                    Click here to complete your profile
-                  </a>
-                </p>
-                <p class="small-text" style="margin-top: 10px;">
-                  <button type="button" onclick="showPanel('additional')" style="background: #28a745; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">
-                    📝 Complete Additional Information
-                  </button>
-                </p>
-              <?php else: ?>
-                <p class="small-text">
-                  Already have an account?
-                  <a href="#" class="link" onclick="showPanel('login')"
-                    >Back to Login</a
-                  >
-                </p>
-                <!-- Always show this button for testing -->
-                <p class="small-text" style="margin-top: 10px;">
-                  <button type="button" onclick="showPanel('additional')" style="background: #007bff; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">
-                    📋 Go to Additional Information Form
-                  </button>
-                </p>
-                <p class="small-text" style="margin-top: 5px;">
-                  <button type="button" onclick="testPanelSwitch()" style="background: #6c757d; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
-                    🧪 Test Panel Switch
-                  </button>
-                </p>
-              <?php endif; ?>
+              <p class="small-text">
+                Already have an account?
+                <a href="#" class="link" onclick="showPanel('login')"
+                  >Back to Login</a
+                >
+              </p>
             </form>
           </div>
         </div>
@@ -768,41 +835,18 @@ function createUserSession($conn, $user_id) {
     </footer>
     <script>
       function showPanel(panel) {
-        console.log('showPanel called with:', panel);
         const wrapper = document.querySelector(".wrapper");
-        
-        if (!wrapper) {
-          console.error('Wrapper element not found');
-          return;
-        }
 
         wrapper.classList.remove("show-register", "show-additional");
-        console.log('Removed classes');
 
-        if (panel === "register") {
-          wrapper.classList.add("show-register");
-          console.log('Added show-register');
-        }
-        if (panel === "additional") {
-          wrapper.classList.add("show-additional");
-          console.log('Added show-additional');
-        }
-      }
-      
-      // Test function to verify JavaScript is working
-      function testPanelSwitch() {
-        console.log('Testing panel switch...');
-        showPanel('additional');
+        if (panel === "register") wrapper.classList.add("show-register");
+        if (panel === "additional") wrapper.classList.add("show-additional");
       }
 
-      <?php if ((isset($showAdditional) && $showAdditional) || (isset($_SESSION['show_additional_info']) && $_SESSION['show_additional_info'])): ?>
+      <?php if (isset($showAdditional) && $showAdditional): ?>
       // Trigger transition if registration was successful
       document.addEventListener('DOMContentLoaded', () => {
-        console.log('Registration successful, showing additional info panel...');
-        setTimeout(() => {
-          console.log('Switching to additional panel...');
-          showPanel('additional');
-        }, 1000);
+        setTimeout(() => showPanel('additional'), 1000);
       });
       <?php endif; ?>
     </script>
