@@ -9,11 +9,12 @@
  * 1. XAMPP: username='root', password='', database='your_db_name'
  * 2. WAMP: username='root', password='', database='your_db_name'  
  * 3. MAMP: username='root', password='root', database='your_db_name'
- * 4. Custom: username='your_username', password='your_password', database='your_db_name'
+ * 4. CyberPanel: username='root', password='root123456', database='road_infra'
+ * 5. Custom: username='your_username', password='your_password', database='your_db_name'
  */
 return [
     'host' => 'localhost',        // e.g., 'localhost' or an IP address
     'username' => 'root',         // your database username
-    'password' => '',             // your database password - EMPTY PASSWORD WORKS!
-    'database' => 'rgmap_road_infra' // your database name
+    'password' => 'root123456',   // your database password - CYBERPANEL PASSWORD
+    'database' => 'road_infra'    // your database name - CYBERPANEL DATABASE
 ];
