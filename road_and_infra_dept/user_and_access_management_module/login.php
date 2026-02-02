@@ -341,14 +341,15 @@ function createUserSession($conn, $user_id) {
     <link rel="stylesheet" href="styles/style.css" />
     <style>
       body {
-        height: 100vh;
+        min-height: 100vh;
+        min-height: 100dvh;
         display: flex;
         flex-direction: column;
+        overflow-x: hidden;
 
         /* NEW — background image + blur */
         background: url("assets/img/cityhall.jpeg") center/cover no-repeat fixed;
         position: relative;
-        overflow: hidden;
       }
 
       /* NEW — Blur overlay */
@@ -367,22 +368,18 @@ function createUserSession($conn, $user_id) {
 
       /* Make content appear ABOVE blur */
       .nav,
-      .wrapper {
-        position: relative;
-        z-index: 1;
-      }
-
-      /* Make content appear ABOVE blur */
-      .footer,
-      .wrapper {
+      .wrapper,
+      .footer {
         position: relative;
         z-index: 1;
       }
 
       .message {
-        padding: 10px;
-        border-radius: 5px;
+        padding: 12px;
+        border-radius: 8px;
         margin-top: 10px;
+        font-size: 14px;
+        line-height: 1.4;
       }
 
       .message.error {
@@ -395,6 +392,47 @@ function createUserSession($conn, $user_id) {
         background-color: #d4edda;
         color: #155724;
         border: 1px solid #c3e6cb;
+      }
+
+      .submitted-data {
+        margin-bottom: 20px;
+        padding: 15px;
+        background: #f8fafc;
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+      }
+
+      .submitted-data h4 {
+        margin-bottom: 10px;
+        color: #1e293b;
+        font-size: 16px;
+      }
+
+      .submitted-data p {
+        margin-bottom: 5px;
+        font-size: 14px;
+        line-height: 1.4;
+      }
+
+      /* Mobile-specific adjustments */
+      @media (max-width: 480px) {
+        .message {
+          padding: 10px;
+          font-size: 13px;
+        }
+
+        .submitted-data {
+          padding: 12px;
+          margin-bottom: 15px;
+        }
+
+        .submitted-data h4 {
+          font-size: 14px;
+        }
+
+        .submitted-data p {
+          font-size: 13px;
+        }
       }
     </style>
   </head>
@@ -456,7 +494,7 @@ function createUserSession($conn, $user_id) {
             <p class="subtitle">Register for LGU services.</p>
             
             <?php if ($registerMessage): ?>
-              <div class="message <?php echo $registerMessageType; ?>" style="margin-bottom: 20px; padding: 15px; border-radius: 8px;">
+              <div class="message <?php echo $registerMessageType; ?>">
                 <?php echo htmlspecialchars($registerMessage); ?>
               </div>
             <?php endif; ?>
@@ -496,14 +534,14 @@ function createUserSession($conn, $user_id) {
             <h2 class="title">Additional Information</h2>
             
             <?php if ($additionalMessage): ?>
-              <div class="message <?php echo $additionalMessageType; ?>" style="margin-bottom: 20px; padding: 15px; border-radius: 8px;">
+              <div class="message <?php echo $additionalMessageType; ?>">
                 <?php echo htmlspecialchars($additionalMessage); ?>
               </div>
             <?php endif; ?>
 
             <?php if (!empty($submittedData)): ?>
-              <div class="submitted-data" style="margin-bottom: 20px; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
-                <h4 style="margin-bottom: 10px; color: #1e293b;">Submitted Information:</h4>
+              <div class="submitted-data">
+                <h4>Submitted Information:</h4>
                 <p><strong>First Name:</strong> <?php echo htmlspecialchars($submittedData['first_name'] ?? ''); ?></p>
                 <p><strong>Middle Name:</strong> <?php echo htmlspecialchars($submittedData['middle_name'] ?? ''); ?></p>
                 <p><strong>Last Name:</strong> <?php echo htmlspecialchars($submittedData['last_name'] ?? ''); ?></p>
