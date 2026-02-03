@@ -439,7 +439,6 @@ $stmt = $conn->prepare("
     LEFT JOIN users u ON dr.reporter_id = u.id
     WHERE dr.status IN ('resolved', 'closed') 
     AND dr.id NOT IN (SELECT damage_report_id FROM public_publications WHERE damage_report_id IS NOT NULL AND archived = 0)
-    AND dr.publication_status = 'pending'
 ");
 $stmt->execute();
 $result = $stmt->get_result();
