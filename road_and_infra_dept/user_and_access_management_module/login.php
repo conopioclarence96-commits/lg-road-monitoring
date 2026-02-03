@@ -332,11 +332,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_additional'])
                         $loginMessage = 'Please verify your email address before logging in.';
                         $messageType = 'error';
                     }
-                    // Check if user is approved by admin (except admin users who auto-approve)
-                    elseif ($user['role'] !== 'admin' && !isset($user['admin_approved'])) {
-                        $loginMessage = 'Your account requires admin approval before you can login. Please contact an administrator.';
-                        $messageType = 'error';
-                    }
                     else {
                         // Login successful - set session variables
                         $_SESSION['user_id'] = $user['id'];
