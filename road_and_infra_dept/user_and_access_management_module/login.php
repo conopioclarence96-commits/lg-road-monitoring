@@ -228,8 +228,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
                 last_name = ?, 
                 address = ?, 
                 role = ?, 
-                status = 'active',
-                email_verified = 1,
                 updated_at = CURRENT_TIMESTAMP
             WHERE email = ?
         ");
@@ -237,7 +235,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
         $email = $_SESSION['registration_email'] ?? '';
         error_log("LOGIN.PHP - Email from session: '$email'");
         
-        $stmt->bind_param("ssssss", 
+        $stmt->bind_param("sssss", 
             $submittedData['first_name'],
             $submittedData['middle_name'],
             $submittedData['last_name'],
@@ -257,75 +255,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
                 $additionalMessage = "Additional information submitted successfully! File uploaded: " . $uploadedFile['name'];
                 $additionalMessageType = "success";
             } else {
-                $additionalMessage = "Additional information submitted successfully!";
+                $additionalMessage = "Your registration has been submitted successfully! Your account is now pending admin approval. You will be able to login once an administrator approves your account.";
                 $additionalMessageType = "success";
             }
             
             // Clear the additional info session flag after successful submission
             unset($_SESSION['show_additional_info']);
-            
-            // Verify the update was successful by checking the database
-            $verifyStmt = $conn->prepare("SELECT first_name, middle_name, last_name, role, status FROM users WHERE email = ?");
-            $verifyStmt->bind_param("s", $email);
-            $verifyStmt->execute();
-            $verifyResult = $verifyStmt->get_result();
-            $updatedUser = $verifyResult->fetch_assoc();
-            $verifyStmt->close();
-            
-            // Debug: Log what was actually updated
-            error_log("Additional info update for email: $email");
-            error_log("Updated role in DB: " . ($updatedUser['role'] ?? 'NULL'));
-            error_log("Form submitted role: " . ($submittedData['role'] ?? 'NULL'));
-            error_log("Updated name: " . ($updatedUser['first_name'] ?? 'NULL') . ' ' . ($updatedUser['last_name'] ?? 'NULL'));
-            
-            // Auto-login user after successful additional information submission
-            if (!empty($email)) {
-                try {
-                    // Get user data from database
-                    $loginStmt = $conn->prepare("
-                        SELECT id, email, first_name, last_name, role, status, email_verified 
-                        FROM users 
-                        WHERE email = ?
-                    ");
-                    $loginStmt->bind_param("s", $email);
-                    $loginStmt->execute();
-                    $loginResult = $loginStmt->get_result();
-                    
-                    if ($loginResult->num_rows === 1) {
-                        $user = $loginResult->fetch_assoc();
-                        
-                        // Set session variables for automatic login
-                        $_SESSION['user_id'] = $user['id'];
-                        $_SESSION['email'] = $user['email'];
-                        $_SESSION['first_name'] = $user['first_name'];
-                        $_SESSION['last_name'] = $user['last_name'];
-                        $_SESSION['full_name'] = $user['first_name'] . ' ' . $user['last_name'];
-                        $_SESSION['role'] = $user['role'];
-                        $_SESSION['logged_in'] = true;
-                        $_SESSION['login_time'] = time();
-                        
-                        // Log successful login attempt
-                        logLoginAttempt($conn, $email, true, $_SERVER['REMOTE_ADDR'] ?? '', $_SERVER['HTTP_USER_AGENT'] ?? '');
-                        
-                        // Update last login timestamp
-                        updateLastLogin($conn, $user['id']);
-                        
-                        // Create user session
-                        createUserSession($conn, $user['id']);
-                        
-                        // Clear registration session data
-                        unset($_SESSION['registration_email']);
-                        
-                        // Redirect to appropriate dashboard
-                        $auth->redirectToDashboard();
-                        exit;
-                    }
-                    $loginStmt->close();
-                } catch (Exception $e) {
-                    error_log("Auto-login after additional info error: " . $e->getMessage());
-                    // If auto-login fails, still show success message
-                }
-            }
+            unset($_SESSION['registration_email']);
         } else {
             $additionalMessage = "Failed to update additional information";
             $additionalMessageType = "error";
@@ -384,12 +320,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_additional'])
                     
                     // Check if user is active
                     if ($user['status'] !== 'active') {
-                        $loginMessage = 'Account is not active. Please contact administrator.';
+                        if ($user['status'] === 'pending') {
+                            $loginMessage = 'Your account is pending admin approval. Please wait for an administrator to approve your registration.';
+                        } else {
+                            $loginMessage = 'Account is not active. Please contact administrator.';
+                        }
                         $messageType = 'error';
                     }
                     // Check if email is verified
                     elseif (!$user['email_verified']) {
                         $loginMessage = 'Please verify your email address before logging in.';
+                        $messageType = 'error';
+                    }
+                    // Check if user is approved by admin (except admin users who auto-approve)
+                    elseif ($user['role'] !== 'admin' && !isset($user['admin_approved'])) {
+                        $loginMessage = 'Your account requires admin approval before you can login. Please contact an administrator.';
                         $messageType = 'error';
                     }
                     else {
