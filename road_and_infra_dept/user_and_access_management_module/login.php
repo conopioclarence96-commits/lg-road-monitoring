@@ -235,7 +235,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
         $email = $_SESSION['registration_email'] ?? '';
         error_log("LOGIN.PHP - Email from session: '$email'");
         
-        $stmt->bind_param("sssss", 
+        $stmt->bind_param("ssssss", 
             $submittedData['first_name'],
             $submittedData['middle_name'],
             $submittedData['last_name'],
