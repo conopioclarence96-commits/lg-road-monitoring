@@ -290,8 +290,9 @@ body {
 /* ADDITIONAL INFO PANEL ONLY */
 /* ============================= */
 
-/* Make card wider ONLY for additional info */
-.panel.additional .card {
+/* Make card wider ONLY for additional info and register panels */
+.panel.additional .card,
+.panel.register .card.wide {
     width: 800px;        /* overrides 350px */
     max-width: 90vw;
     max-height: 85vh;
@@ -328,7 +329,8 @@ body {
 
 /* Mobile responsiveness */
 @media (max-width: 768px) {
-    .panel.additional .card {
+    .panel.additional .card,
+    .panel.register .card.wide {
         width: 95vw;
     }
 

@@ -776,47 +776,49 @@ function createUserSession($conn, $user_id) {
               </div>
             </form>
 
+            <form class="two-column-form" method="POST" action="">
+              <div class="input-box">
+                <label>First Name</label>
+                <input type="text" name="first_name" value="<?php echo isset($_POST['first_name']) ? htmlspecialchars($_POST['first_name']) : ''; ?>" required />
+              </div>
+
               <div class="input-box">
                 <label>Middle Name</label>
-
-                  <p class="small-text">
-                    Don't have an account?
-                    <a href="#" class="link" onclick="showPanel('register')"
-                      >Create one</a
-                    >
-                  </p>
-                </form>
+                <input type="text" name="middle_name" value="<?php echo isset($_POST['middle_name']) ? htmlspecialchars($_POST['middle_name']) : ''; ?>" />
               </div>
-            </div>
 
-            <!-- REGISTER -->
-            <div class="panel register">
-              <div class="card">
-                <h2 class="title">Create Account</h2>
-                <p class="subtitle">Register for LGU services.</p>
-                
-                <?php if ($registerMessage): ?>
-                  <div class="message <?php echo $registerMessageType; ?>" style="margin-bottom: 20px; padding: 15px; border-radius: 8px;">
-                    <?php echo htmlspecialchars($registerMessage); ?>
-                  </div>
-                <?php endif; ?>
+              <div class="input-box">
+                <label>Last Name</label>
+                <input type="text" name="last_name" value="<?php echo isset($_POST['last_name']) ? htmlspecialchars($_POST['last_name']) : ''; ?>" required />
+              </div>
 
-                <form method="POST" action="">
-                  <div class="input-box">
-                    <label>Email Address</label>
-                    <input type="email" name="email" value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>" />
-                  </div>
+              <div class="input-box">
+                <label>Birthday</label>
+                <input type="date" name="birthday" value="<?php echo isset($_POST['birthday']) ? htmlspecialchars($_POST['birthday']) : ''; ?>" />
+              </div>
 
-                  <div class="input-box">
-                    <label>Password</label>
-                    <input type="password" name="password" />
-                  </div>
+              <div class="input-box">
+                <label>Address</label>
+                <input type="text" name="address" value="<?php echo isset($_POST['address']) ? htmlspecialchars($_POST['address']) : ''; ?>" />
+              </div>
 
-                  <button
-                    class="btn-primary"
-                    type="button"
-                    name="submit_register"
-                    onclick="captureAndShowAdditional()"
+              <div class="input-box">
+                <label>Civil Status</label>
+                <input type="text" name="civil_status" value="<?php echo isset($_POST['civil_status']) ? htmlspecialchars($_POST['civil_status']) : ''; ?>" />
+              </div>
+
+              <div class="input-box">
+                <label>Role</label>
+                <select name="role" required>
+                  <option value="">Select Role</option>
+                  <option value="lgu_officer" <?php echo (isset($_POST['role']) && $_POST['role'] === 'lgu_officer') ? 'selected' : ''; ?>>LGU Officer</option>
+                  <option value="engineer" <?php echo (isset($_POST['role']) && $_POST['role'] === 'engineer') ? 'selected' : ''; ?>>Engineer</option>
+                  <option value="citizen" <?php echo (isset($_POST['role']) && $_POST['role'] === 'citizen') ? 'selected' : ''; ?>>Citizen</option>
+                </select>
+              </div>
+
+              <!-- UPLOAD ID -->
+              <div class="input-box">
                 <label>Upload Valid ID</label>
                 <input type="file" name="valid_id" accept="image/*" />
               </div>

@@ -14,7 +14,7 @@ class Database
         $this->host = getenv('DB_HOST') ?: 'localhost';
         $this->username = getenv('DB_USER') ?: 'root';
         $this->password = getenv('DB_PASS') ?: '';
-        $this->database = getenv('DB_NAME') ?: 'lgu_road_infra';
+        $this->database = getenv('DB_NAME') ?: 'rgmap_gu_road_infra';
 
         // Check for local configuration file
         $localConfigFile = __DIR__ . '/database.local.php';
