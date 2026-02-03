@@ -254,7 +254,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 $stmt = $conn->prepare("
                     UPDATE public_publications 
-                    SET approval_status = 'approved', is_published = 1, last_updated = NOW() 
+                    SET is_published = 1, last_updated = NOW() 
                     WHERE id = ?
                 ");
                 $stmt->bind_param("i", $publication_id);
@@ -294,7 +294,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 $stmt = $conn->prepare("
                     UPDATE public_publications 
-                    SET approval_status = 'rejected', is_published = 0, last_updated = NOW() 
+                    SET is_published = 0, last_updated = NOW() 
                     WHERE id = ?
                 ");
                 $stmt->bind_param("i", $publication_id);
@@ -336,7 +336,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 $stmt = $conn->prepare("
                     UPDATE public_publications 
-                    SET approval_status = 'needs_revision', is_published = 0, last_updated = NOW() 
+                    SET is_published = 0, last_updated = NOW() 
                     WHERE id = ?
                 ");
                 $stmt->bind_param("i", $publication_id);
@@ -433,7 +433,7 @@ while ($row = $result->fetch_assoc()) {
 $stmt = $conn->prepare("
     SELECT dr.id, dr.report_id as publication_id, dr.location as road_name, dr.description as issue_summary, 
            'Damage Report' as issue_type, dr.severity as severity_public, dr.status as status_public, 
-           dr.reported_at as date_reported, dr.updated_at as publication_date, 'READY' as approval_status,
+           dr.reported_at as date_reported, dr.updated_at as publication_date, 'READY' as status,
            u.first_name, u.last_name, 'raw_report' as item_origin
     FROM damage_reports dr
     LEFT JOIN users u ON dr.reporter_id = u.id
@@ -479,7 +479,7 @@ foreach ($allPublications as $report) {
         } elseif (isset($report['status_public']) && $report['status_public'] === 'under_repair') {
             $stats['under_repair_public']++;
         }
-    } elseif (isset($report['approval_status']) && $report['approval_status'] === 'READY') {
+    } elseif (isset($report['status']) && $report['status'] === 'READY') {
         $stats['ready_to_publish']++;
     }
 }
@@ -1027,7 +1027,7 @@ foreach ($allPublications as $report) {
                             <?php foreach ($allPublications as $report): ?>
                                 <?php 
                                     $statusClass = str_replace('_', '-', $report['status_public']);
-                                    $approvalClass = strtolower(str_replace(' ', '-', $report['approval_status']));
+                                    $approvalClass = isset($report['status']) ? strtolower(str_replace(' ', '-', $report['status'])) : 'published';
                                 ?>
                                 <tr>
                                     <td>
@@ -1050,7 +1050,7 @@ foreach ($allPublications as $report) {
                                         </small>
                                     </td>
                                     <td><span class="status-badge status-<?php echo $statusClass; ?>"><?php echo strtoupper(str_replace('_', ' ', $report['status_public'])); ?></span></td>
-                                    <td><span class="status-badge status-<?php echo $approvalClass; ?>"><?php echo strtoupper(str_replace('_', ' ', $report['approval_status'])); ?></span></td>
+                                    <td><span class="status-badge status-<?php echo $approvalClass; ?>"><?php echo strtoupper(str_replace('_', ' ', isset($report['status']) ? $report['status'] : 'PUBLISHED')); ?></span></td>
                                     <td>
                                         <div style="display: flex; gap: 8px;">
                                             <button class="btn btn-sm" style="background: #f1f5f9; color: #475569;" onclick="previewPublication(<?php echo $report['id']; ?>, '<?php echo $report['item_origin']; ?>')" title="Preview">
@@ -1064,14 +1064,14 @@ foreach ($allPublications as $report) {
                                                 <button class="btn btn-sm" style="background: #fee2e2; color: #991b1b;" onclick="submitAction('decline_pending_report', {report_id: <?php echo $report['id']; ?>}, 'Stop this report from being published?')" title="Decline">
                                                     <i class="fas fa-ban"></i>
                                                 </button>
-                                            <?php elseif ($report['approval_status'] === 'pending' || $report['approval_status'] === 'needs_revision'): ?>
+                                            <?php elseif (isset($report['status']) && ($report['status'] === 'pending' || $report['status'] === 'needs_revision')): ?>
                                                 <button class="btn btn-success btn-sm" title="Approve" onclick="submitAction('approve_publication', {publication_id: <?php echo $report['id']; ?>}, 'Approve and publish this proposal?')">
                                                     <i class="fas fa-check"></i>
                                                 </button>
                                                 <button class="btn btn-danger btn-sm" onclick="showRejectModal(<?php echo $report['id']; ?>)" title="Decline">
                                                     <i class="fas fa-times"></i>
                                                 </button>
-                                            <?php elseif ($report['approval_status'] === 'approved'): ?>
+                                            <?php elseif (isset($report['is_published']) && $report['is_published'] == 1): ?>
                                                 <button class="btn btn-warning btn-sm" onclick="openUpdateModal(<?php echo $report['id']; ?>, '<?php echo $report['status_public']; ?>', '<?php echo $report['completion_date']; ?>')" title="Update Progress">
                                                     <i class="fas fa-edit"></i>
                                                 </button>
@@ -1204,7 +1204,7 @@ foreach ($allPublications as $report) {
                                 </div>
                                 <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
                                     <span class="status-badge status-${statusClass}">${data.status_public.replace('_', ' ').toUpperCase()}</span>
-                                    <span class="status-badge" style="background: #f1f5f9; color: #475569; font-size: 0.7rem; border: 1px solid #e2e8f0;">${data.approval_status.toUpperCase()}</span>
+                                    <span class="status-badge" style="background: #f1f5f9; color: #475569; font-size: 0.7rem; border: 1px solid #e2e8f0;">${data.status ? data.status.toUpperCase() : 'PUBLISHED'}</span>
                                 </div>
                             </div>
                         </div>
@@ -1255,7 +1255,7 @@ foreach ($allPublications as $report) {
                                 <i class="fas fa-check-circle"></i> Approve & Publish
                             </button>
                         `;
-                    } else if (data.approval_status === 'pending' || data.approval_status === 'needs_revision') {
+                    } else if (data.status && (data.status === 'pending' || data.status === 'needs_revision')) {
                         actions.innerHTML = `
                             <button type="button" class="btn btn-danger" onclick="closeModal('previewModal'); showRejectModal(${data.id})">
                                 <i class="fas fa-times"></i> Decline
