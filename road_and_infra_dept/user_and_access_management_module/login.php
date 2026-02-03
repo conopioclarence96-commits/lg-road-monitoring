@@ -237,16 +237,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
         $email = $_SESSION['registration_email'] ?? '';
         error_log("LOGIN.PHP - Email from session: '$email'");
         
-        $status = 'active';
-$email_verified = 1;
-        $stmt->bind_param("sssssss", 
+        $stmt->bind_param("ssssss", 
             $submittedData['first_name'],
             $submittedData['middle_name'],
             $submittedData['last_name'],
             $submittedData['address'],
             $submittedData['role'],
-            $status,
-            $email_verified,
             $email
         );
         
