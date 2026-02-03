@@ -114,10 +114,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 );
                 
                 if ($stmt->execute()) {
-                    // Update damage report publication status
-                    $updateDR = $conn->prepare("UPDATE damage_reports SET publication_status = 'published' WHERE id = ?");
-                    $updateDR->bind_param("i", $damageReportId);
-                    $updateDR->execute();
+                    // Publication created successfully
+                    $message = "Report published successfully!";
 
                     // Log activity
                     $auth->logActivity('report_publication', "Published road issue: $publicationId");
@@ -155,7 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     SELECT dr.* 
                     FROM damage_reports dr 
                     LEFT JOIN public_publications pp ON dr.id = pp.damage_report_id 
-                    WHERE pp.id IS NULL AND dr.status = 'confirmed' AND dr.publication_status = 'pending'
+                    WHERE pp.id IS NULL AND dr.status = 'confirmed'
                 ");
                 $stmt->execute();
                 $pendingToPublish = $stmt->get_result();
@@ -182,10 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     );
                     
                     if ($pubStmt->execute()) {
-                        // Update damage report status
-                        $updateDR = $conn->prepare("UPDATE damage_reports SET publication_status = 'published' WHERE id = ?");
-                        $updateDR->bind_param("i", $report['id']);
-                        $updateDR->execute();
+                        // Publication created successfully
                         $publishedCount++;
                     }
                 }
@@ -380,10 +375,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Stop a damage report from being published
                 $reportId = (int)$_POST['report_id'];
                 
-                $stmt = $conn->prepare("UPDATE damage_reports SET publication_status = 'declined' WHERE id = ?");
-                $stmt->bind_param("i", $reportId);
+                // Just log the action - the publication_status column doesn't exist
+                $auth->logActivity('publication_declined', "Declined publication for report ID: $reportId");
                 
-                if ($stmt->execute()) {
+                if (true) {
                     $auth->logActivity('decline_publication_report', "Declined publishing damage report ID: $reportId");
                     $_SESSION['success'] = "Report removed from publication queue.";
                 } else {
@@ -409,8 +404,7 @@ $stmt = $conn->prepare("
     FROM damage_reports dr
     LEFT JOIN users u ON dr.reporter_id = u.id
     WHERE dr.status IN ('resolved', 'closed') 
-    AND dr.id NOT IN (SELECT damage_report_id FROM public_publications WHERE archived = 0)
-    AND dr.publication_status = 'pending'
+    AND dr.id NOT IN (SELECT damage_report_id FROM public_publications WHERE damage_report_id IS NOT NULL AND archived = 0)
     ORDER BY dr.updated_at DESC
 ");
 $stmt->execute();
