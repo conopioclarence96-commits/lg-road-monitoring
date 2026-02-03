@@ -165,6 +165,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_register'])) {
                         
                         // Auto-switch to additional info panel after successful registration
                         $showAdditional = true;
+                        
+                        // Debug logging
+                        error_log("Registration successful for email: $email");
+                        error_log("ShowAdditional set to: " . ($showAdditional ? 'true' : 'false'));
+                        error_log("Session email set: " . $_SESSION['registration_email']);
                     } else {
                         $registerMessage = 'Failed to create account';
                         $registerMessageType = 'error';
@@ -177,7 +182,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_register'])) {
             }
         } catch (Exception $e) {
             error_log("Registration error: " . $e->getMessage());
-            $registerMessage = 'An error occurred during registration';
+            $registerMessage = 'Error: ' . $e->getMessage();
             $registerMessageType = 'error';
         }
     }
@@ -773,6 +778,7 @@ function createUserSession($conn, $user_id) {
     </footer>
     <script>
       function showPanel(panel) {
+        console.log('Showing panel:', panel);
         const wrapper = document.querySelector(".wrapper");
 
         wrapper.classList.remove("show-register", "show-additional");
@@ -783,8 +789,13 @@ function createUserSession($conn, $user_id) {
 
       <?php if (isset($showAdditional) && $showAdditional): ?>
       // Trigger transition if registration was successful
+      console.log('ShowAdditional detected, will redirect to additional panel');
       document.addEventListener('DOMContentLoaded', () => {
-        setTimeout(() => showPanel('additional'), 1000);
+        console.log('DOM loaded, triggering additional panel in 1 second');
+        setTimeout(() => {
+          console.log('Calling showPanel(additional)');
+          showPanel('additional');
+        }, 1000);
       });
       <?php endif; ?>
     </script>
