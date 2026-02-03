@@ -226,9 +226,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
                 first_name = ?, 
                 middle_name = ?, 
                 last_name = ?, 
-                birthday = ?, 
                 address = ?, 
-                civil_status = ?, 
                 role = ?, 
                 updated_at = CURRENT_TIMESTAMP
             WHERE email = ?
@@ -237,26 +235,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
         $email = $_SESSION['registration_email'] ?? '';
         error_log("LOGIN.PHP - Email from session: '$email'");
         
-        $stmt = $conn->prepare("
-            UPDATE users SET 
-                first_name = ?, 
-                middle_name = ?, 
-                last_name = ?, 
-                birthday = ?, 
-                address = ?, 
-                civil_status = ?, 
-                role = ?, 
-                updated_at = CURRENT_TIMESTAMP
-            WHERE email = ?
-        ");
-        
-        $stmt->bind_param("ssssssss", 
+        $stmt->bind_param("ssssss", 
             $submittedData['first_name'],
             $submittedData['middle_name'],
             $submittedData['last_name'],
-            $submittedData['birthday'],
             $submittedData['address'],
-            $submittedData['civil_status'],
             $submittedData['role'],
             $email
         );
