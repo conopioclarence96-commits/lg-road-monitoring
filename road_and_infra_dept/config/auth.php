@@ -111,10 +111,15 @@ class Auth {
         
         $isIncluded = (realpath(__FILE__) !== realpath($_SERVER['SCRIPT_FILENAME']));
         
-        if ($isIncluded) {
+        // Check if we're already in the road_and_infra_dept directory structure
+        $in_road_infra = strpos($_SERVER['PHP_SELF'], 'road_and_infra_dept') !== false;
+        
+        if ($isIncluded && !$in_road_infra) {
             $prefix = 'road_and_infra_dept/';
+        } elseif ($is_in_module) {
+            $prefix = '../';
         } else {
-            $prefix = $is_in_module ? '../' : '';
+            $prefix = '';
         }
         
         switch ($role) {
@@ -159,6 +164,16 @@ class Auth {
         }
         
         $isIncluded = (realpath(__FILE__) !== realpath($_SERVER['SCRIPT_FILENAME']));
+        
+        // Detect current directory for logout redirect
+        $current_dir = basename(dirname($_SERVER['PHP_SELF']));
+        $is_in_module = (
+            $current_dir === 'admin_ui' || 
+            $current_dir === 'user_and_access_management_module' || 
+            $current_dir === 'lgu_officer_module' ||
+            $current_dir === 'citizen_module' ||
+            $current_dir === 'engineer_module'
+        );
         
         $loginUrl = $isIncluded ? 'index.php' : ($is_in_module ? '../user_and_access_management_module/login.php' : 'user_and_access_management_module/login.php');
         
