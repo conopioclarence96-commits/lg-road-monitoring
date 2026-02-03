@@ -772,7 +772,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $conn = $database->getConnection();
 
                             $stmt = $conn->prepare("
-                                SELECT id, first_name, middle_name, last_name, email, role, status, phone, address, birthday, civil_status, created_at, last_login 
+                                SELECT id, first_name, middle_name, last_name, email, role, status, phone, address, created_at, last_login 
                                 FROM users 
                                 ORDER BY created_at DESC
                             ");
