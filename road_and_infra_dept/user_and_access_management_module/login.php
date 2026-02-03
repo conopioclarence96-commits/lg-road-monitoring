@@ -715,49 +715,6 @@ function createUserSession($conn, $user_id) {
               </div>
 
               <div class="input-box">
-                <label>Role</label>
-                <select name="role" required>
-                  <option value="">Select Role</option>
-                  <option value="lgu_officer" <?php echo (isset($_POST['role']) && $_POST['role'] === 'lgu_officer') ? 'selected' : ''; ?>>LGU Officer</option>
-                  <option value="engineer" <?php echo (isset($_POST['role']) && $_POST['role'] === 'engineer') ? 'selected' : ''; ?>>Engineer</option>
-                  <option value="citizen" <?php echo (isset($_POST['role']) && $_POST['role'] === 'citizen') ? 'selected' : ''; ?>>Citizen</option>
-                </select>
-              </div>
-
-              <!-- UPLOAD ID -->
-              <div class="input-box">
-                <label>Upload Valid ID</label>
-                <input type="file" name="valid_id" accept="image/*" />
-              </div>
-
-              <!-- FULL WIDTH BUTTON -->
-              <div class="form-actions">
-                <button class="btn-primary" type="submit" name="submit_additional">Submit</button>
-                <p class="small-text">
-                  <a href="#" class="link" onclick="showPanel('register')"
-                    >Back</a
-                  >
-                </p>
-              </div>
-            </form>
-
-            <form class="two-column-form" method="POST" action="">
-              <div class="input-box">
-                <label>First Name</label>
-                <input type="text" name="first_name" value="<?php echo isset($_POST['first_name']) ? htmlspecialchars($_POST['first_name']) : ''; ?>" required />
-              </div>
-
-              <div class="input-box">
-                <label>Middle Name</label>
-                <input type="text" name="middle_name" value="<?php echo isset($_POST['middle_name']) ? htmlspecialchars($_POST['middle_name']) : ''; ?>" />
-              </div>
-
-              <div class="input-box">
-                <label>Last Name</label>
-                <input type="text" name="last_name" value="<?php echo isset($_POST['last_name']) ? htmlspecialchars($_POST['last_name']) : ''; ?>" required />
-              </div>
-
-              <div class="input-box">
                 <label>Birthday</label>
                 <input type="date" name="birthday" value="<?php echo isset($_POST['birthday']) ? htmlspecialchars($_POST['birthday']) : ''; ?>" />
               </div>
