@@ -15,6 +15,13 @@ $auth->requireLogin();
 ?>
 
 <nav class="sidebar-nav">
+  <!-- Hamburger Menu Button -->
+  <button class="hamburger-btn" id="hamburgerBtn" onclick="toggleSidebar()">
+    <span></span>
+    <span></span>
+    <span></span>
+  </button>
+
   <div class="sidebar-content">
     <div class="site-logo">
       <img src="<?php echo $asset_base; ?>logocityhall.png" />
@@ -183,4 +190,130 @@ $auth->requireLogin();
     background: #2a4fa3;
     box-shadow: 0 4px 12px rgba(55, 98, 200, 0.2);
   }
+
+  /* Hamburger Menu Button */
+  .hamburger-btn {
+    display: none;
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 1001;
+    background: #3762c8;
+    border: none;
+    border-radius: 8px;
+    padding: 12px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(55, 98, 200, 0.3);
+    transition: all 0.3s ease;
+  }
+
+  .hamburger-btn:hover {
+    background: #2a4fa3;
+    transform: scale(1.05);
+  }
+
+  .hamburger-btn span {
+    display: block;
+    width: 25px;
+    height: 3px;
+    background: white;
+    margin: 5px 0;
+    transition: 0.3s;
+    border-radius: 2px;
+  }
+
+  .hamburger-btn.active span:nth-child(1) {
+    transform: rotate(45deg) translate(5px, 5px);
+  }
+
+  .hamburger-btn.active span:nth-child(2) {
+    opacity: 0;
+  }
+
+  .hamburger-btn.active span:nth-child(3) {
+    transform: rotate(-45deg) translate(7px, -6px);
+  }
+
+  /* Responsive Sidebar */
+  .sidebar-nav {
+    transition: transform 0.3s ease;
+  }
+
+  .sidebar-nav.collapsed {
+    transform: translateX(-100%);
+  }
+
+  /* Mobile Responsive */
+  @media (max-width: 768px) {
+    .hamburger-btn {
+      display: block;
+    }
+
+    .sidebar-nav {
+      transform: translateX(-100%);
+    }
+
+    .sidebar-nav.active {
+      transform: translateX(0);
+    }
+
+    .sidebar-nav.collapsed {
+      transform: translateX(-100%);
+    }
+  }
+
+  /* Adjust main content margin for mobile */
+  @media (max-width: 768px) {
+    body {
+      margin-left: 0 !important;
+    }
+  }
 </style>
+
+<!-- JavaScript for Hamburger Menu -->
+<script>
+function toggleSidebar() {
+  const sidebar = document.querySelector('.sidebar-nav');
+  const hamburger = document.querySelector('.hamburger-btn');
+  
+  sidebar.classList.toggle('active');
+  sidebar.classList.toggle('collapsed');
+  hamburger.classList.toggle('active');
+}
+
+// Close sidebar when clicking outside on mobile
+document.addEventListener('click', function(event) {
+  const sidebar = document.querySelector('.sidebar-nav');
+  const hamburger = document.querySelector('.hamburger-btn');
+  
+  if (window.innerWidth <= 768) {
+    if (!sidebar.contains(event.target) && !hamburger.contains(event.target)) {
+      sidebar.classList.remove('active');
+      sidebar.classList.add('collapsed');
+      hamburger.classList.remove('active');
+    }
+  }
+});
+
+// Handle window resize
+window.addEventListener('resize', function() {
+  const sidebar = document.querySelector('.sidebar-nav');
+  const hamburger = document.querySelector('.hamburger-btn');
+  
+  if (window.innerWidth > 768) {
+    sidebar.classList.remove('collapsed');
+    hamburger.classList.remove('active');
+  } else {
+    sidebar.classList.add('collapsed');
+    hamburger.classList.remove('active');
+  }
+});
+
+// Initialize sidebar state on mobile
+document.addEventListener('DOMContentLoaded', function() {
+  if (window.innerWidth <= 768) {
+    const sidebar = document.querySelector('.sidebar-nav');
+    sidebar.classList.add('collapsed');
+  }
+});
+</script>
