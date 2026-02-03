@@ -147,14 +147,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_register'])) {
                 // Hash password
                 $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
                 
-                // Insert new user with default 'pending' status
+                // Insert new user with default 'pending' status and placeholder values for required fields
                 $stmt = $conn->prepare("
-                    INSERT INTO users (email, password, role, status, email_verified, created_at) 
-                    VALUES (?, ?, 'citizen', 'pending', 0, CURRENT_TIMESTAMP)
+                    INSERT INTO users (email, password, first_name, last_name, role, status, email_verified, created_at) 
+                    VALUES (?, ?, 'Pending', 'Registration', ?, 'pending', 0, CURRENT_TIMESTAMP)
                 ");
                 
                 if ($stmt) {
-                    $stmt->bind_param("ss", $email, $hashedPassword);
+                    $role = 'citizen';
+                $stmt->bind_param("sss", $email, $hashedPassword, $role);
                     
                     if ($stmt->execute()) {
                         $registerMessage = 'Account created successfully! Please proceed to provide additional information.';
