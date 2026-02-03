@@ -454,10 +454,9 @@ usort($allPublications, function($a, $b) {
 // Get Statistics for Proposals (needed for summary cards)
 $stmt = $conn->prepare("
     SELECT 
-        SUM(CASE WHEN approval_status = 'pending' THEN 1 ELSE 0 END) as pending,
-        SUM(CASE WHEN approval_status = 'approved' AND damage_report_id IS NULL THEN 1 ELSE 0 END) as approved_proposals,
-        SUM(CASE WHEN approval_status = 'rejected' THEN 1 ELSE 0 END) as rejected,
-        SUM(CASE WHEN approval_status = 'needs_revision' THEN 1 ELSE 0 END) as revision
+        COUNT(*) as total_publications,
+        SUM(CASE WHEN is_published = 1 THEN 1 ELSE 0 END) as published,
+        SUM(CASE WHEN is_published = 0 THEN 1 ELSE 0 END) as pending
     FROM public_publications 
     WHERE archived = 0
 ");
@@ -466,25 +465,22 @@ $proposalStats = $stmt->get_result()->fetch_assoc();
 
 // Get statistics
 $stats = [
-    'active_announcements' => 0,
-    'engineer_proposals' => 0,
+    'active_announcements' => $proposalStats['published'] ?? 0,
+    'engineer_proposals' => $proposalStats['pending'] ?? 0,
     'ready_to_publish' => 0,
     'completed_public' => 0,
     'under_repair_public' => 0
 ];
 
 foreach ($allPublications as $report) {
-    if ($report['approval_status'] === 'approved') {
-        $stats['active_announcements']++;
-        if ($report['status_public'] === 'completed' || $report['status_public'] === 'fixed') {
+    if (isset($report['is_published']) && $report['is_published'] == 1) {
+        if (isset($report['status_public']) && ($report['status_public'] === 'completed' || $report['status_public'] === 'fixed')) {
             $stats['completed_public']++;
-        } elseif ($report['status_public'] === 'under_repair') {
+        } elseif (isset($report['status_public']) && $report['status_public'] === 'under_repair') {
             $stats['under_repair_public']++;
         }
-    } elseif ($report['approval_status'] === 'READY') {
+    } elseif (isset($report['approval_status']) && $report['approval_status'] === 'READY') {
         $stats['ready_to_publish']++;
-    } elseif ($report['approval_status'] === 'pending' || $report['approval_status'] === 'needs_revision') {
-        $stats['engineer_proposals']++;
     }
 }
 ?>
