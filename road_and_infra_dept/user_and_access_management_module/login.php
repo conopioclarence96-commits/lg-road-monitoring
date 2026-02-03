@@ -228,6 +228,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
                 last_name = ?, 
                 address = ?, 
                 role = ?, 
+                status = 'active',
+                email_verified = 1,
                 updated_at = CURRENT_TIMESTAMP
             WHERE email = ?
         ");
@@ -235,12 +237,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
         $email = $_SESSION['registration_email'] ?? '';
         error_log("LOGIN.PHP - Email from session: '$email'");
         
-        $stmt->bind_param("ssssss", 
+        $status = 'active';
+$email_verified = 1;
+        $stmt->bind_param("sssssss", 
             $submittedData['first_name'],
             $submittedData['middle_name'],
             $submittedData['last_name'],
             $submittedData['address'],
             $submittedData['role'],
+            $status,
+            $email_verified,
             $email
         );
         
