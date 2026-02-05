@@ -3,14 +3,22 @@
 if (session_status() == PHP_SESSION_NONE) {
   session_start();
 }
-require_once '../config/auth.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/road_and_infra_dept/config/auth.php';
 
 // Path detection for assets
 $current_dir = basename(dirname($_SERVER['PHP_SELF']));
 $is_subfolder = ($current_dir !== 'road_and_infra_dept');
 $is_lgu_module = ($current_dir === 'lgu_officer_module');
-$asset_base = $is_subfolder ? '../user_and_access_management_module/assets/img/' : 'user_and_access_management_module/assets/img/';
+$is_road_damage_reporting = (strpos($_SERVER['PHP_SELF'], 'road_damage_reporting') !== false);
 
+// Adjust asset base path based on directory depth
+if ($is_road_damage_reporting) {
+  $asset_base = '../../user_and_access_management_module/assets/img/';
+} elseif ($is_subfolder) {
+  $asset_base = '../user_and_access_management_module/assets/img/';
+} else {
+  $asset_base = 'user_and_access_management_module/assets/img/';
+}
 
 // Require login to access this page
 $auth->requireLogin();
