@@ -48,8 +48,8 @@ $auth->logActivity('page_access', 'Accessed road damage reporting dashboard');
       content: "";
       position: absolute;
       inset: 0;
-      backdrop-filter: blur(10px);
-      background: rgba(15, 23, 42, 0.45);
+      backdrop-filter: blur(3px);
+      background: rgba(15, 23, 42, 0.3);
       z-index: 0;
     }
 
