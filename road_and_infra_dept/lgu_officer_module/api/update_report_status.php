@@ -25,10 +25,14 @@ try {
     $database = new Database();
     $conn = $database->getConnection();
 
-    $report_id = $_POST['report_id'] ?? '';
-    $status = $_POST['status'] ?? '';
-    $lgu_notes = $_POST['lgu_notes'] ?? '';
-    $assigned_to = $_POST['assigned_to'] ?? null;
+    // Get JSON data from request body
+    $json_input = file_get_contents('php://input');
+    $data = json_decode($json_input, true);
+    
+    $report_id = $data['report_id'] ?? '';
+    $status = $data['status'] ?? '';
+    $lgu_notes = $data['notes'] ?? ''; // JavaScript sends 'notes', not 'lgu_notes'
+    $assigned_to = $data['assigned_to'] ?? null;
     $officer_id = $_SESSION['user_id'];
 
     if (empty($report_id) || empty($status)) {
