@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
       // Get user data - select known columns
       $stmt = $conn->prepare("
                 SELECT id, first_name, middle_name, last_name, email, role, status, 
-                       email_verified, phone, address, created_at, last_login, birthday
+                       email_verified, phone, address, created_at, last_login
                 FROM users 
                 WHERE id = ?
             ");
