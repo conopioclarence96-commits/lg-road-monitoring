@@ -78,7 +78,7 @@ $auth->requireLogin();
 
 
       <li>
-        <a href="../lgu_officer_module/gis_overview.php" class="nav-link"><svg
+        <a href="../lgu_officer_module/gis_mapping_dashboard.php" class="nav-link"><svg
             xmlns="http://www.w3.org/2000/svg" width="30" height="30" fill="currentColor" class="bi bi-geo-alt"
             viewBox="0 0 16 16">
             <path
