@@ -40,7 +40,7 @@ try {
     $traffic_impact = $_POST['traffic_impact'] ?? 'moderate';
     $contact_number = $_POST['contact_number'] ?? '';
     $anonymous_report = isset($_POST['anonymous_report']) ? 1 : 0;
-    $user_id = $anonymous_report ? null : 1; // Use dummy user ID for testing
+    $user_id = $anonymous_report ? 0 : 1; // Use 0 for anonymous, 1 for testing user
 
     if (empty($location) || empty($barangay) || empty($damage_type) || empty($description)) {
         sendResponse(false, 'Please fill in all required fields.');
