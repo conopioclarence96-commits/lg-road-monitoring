@@ -76,9 +76,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($stmt->execute()) {
                 $report_id = $conn->insert_id;
                 
-                // Update the report_id after insertion
-                $update_stmt = $conn->prepare("UPDATE damage_reports SET report_id = ? WHERE id = ?");
+                // Generate a unique report_id that doesn't conflict with existing ones
                 $generated_report_id = 'RD-' . str_pad($report_id, 4, '0', STR_PAD_LEFT);
+                
+                // Check if this report_id already exists and find next available
+                $check_stmt = $conn->prepare("SELECT COUNT(*) FROM damage_reports WHERE report_id = ?");
+                $check_stmt->bind_param("s", $generated_report_id);
+                $check_stmt->execute();
+                $count = $check_stmt->get_result()->fetch_row()[0];
+                
+                // If conflict exists, find next available number
+                if ($count > 0) {
+                    $max_stmt = $conn->prepare("SELECT MAX(CAST(SUBSTRING(report_id, 4) AS UNSIGNED)) as max_num FROM damage_reports WHERE report_id LIKE 'RD-%'");
+                    $max_stmt->execute();
+                    $max_result = $max_stmt->get_result()->fetch_assoc();
+                    $next_num = ($max_result['max_num'] ?? 0) + 1;
+                    $generated_report_id = 'RD-' . str_pad($next_num, 4, '0', STR_PAD_LEFT);
+                }
+                
+                // Update the report_id
+                $update_stmt = $conn->prepare("UPDATE damage_reports SET report_id = ? WHERE id = ?");
                 $update_stmt->bind_param("si", $generated_report_id, $report_id);
                 $update_stmt->execute();
                 $success = "Road damage report submitted successfully!";
