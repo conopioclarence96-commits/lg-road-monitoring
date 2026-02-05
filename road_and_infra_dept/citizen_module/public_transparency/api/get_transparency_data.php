@@ -20,12 +20,11 @@ try {
     $stats_query = "
         SELECT 
             COUNT(*) as total_reports,
-            SUM(CASE WHEN status IN ('pending', 'under_review') THEN 1 ELSE 0 END) as pending_reports,
-            SUM(CASE WHEN status IN ('in_progress') THEN 1 ELSE 0 END) as under_repair,
-            SUM(CASE WHEN status IN ('completed', 'closed') THEN 1 ELSE 0 END) as completed_repairs,
-            SUM(CASE WHEN severity = 'urgent' THEN 1 ELSE 0 END) as urgent_cases
+            SUM(CASE WHEN status IN ('pending', 'in_progress') THEN 1 ELSE 0 END) as pending_reports,
+            SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as under_repair,
+            SUM(CASE WHEN status IN ('completed', 'resolved', 'closed') THEN 1 ELSE 0 END) as completed_repairs,
+            SUM(CASE WHEN severity IN ('high', 'critical', 'urgent') THEN 1 ELSE 0 END) as urgent_cases
         FROM damage_reports
-        WHERE publication_status = 'published'
     ";
     
     $stats_result = $conn->query($stats_query);
@@ -88,12 +87,11 @@ try {
             dr.damage_type as issue,
             dr.severity,
             dr.status,
-            dr.reported_at,
+            dr.created_at as reported_at,
             CONCAT(u.first_name, ' ', u.last_name) as reporter_name
         FROM damage_reports dr
         LEFT JOIN users u ON dr.reporter_id = u.id
-        WHERE dr.publication_status = 'published'
-        ORDER BY dr.reported_at DESC
+        ORDER BY dr.created_at DESC
         LIMIT 20
     ";
     
