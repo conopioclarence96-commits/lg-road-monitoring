@@ -53,8 +53,8 @@ $page_description = "Interactive map showing road damage reports and infrastruct
     <link rel="icon" type="image/x-icon" href="../assets/img/favicon.ico">
     
     <!-- External Libraries -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css?v=2.0" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css?v=2.0" />
     
     <!-- Custom CSS -->
     <style>
@@ -659,6 +659,9 @@ $page_description = "Interactive map showing road damage reports and infrastruct
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
+        // Force cache refresh - Version 2.0
+        console.log('GIS Dashboard v2.0 - Loaded at:', new Date().toISOString());
+        
         // Initialize map
         let map;
         let markers = [];
