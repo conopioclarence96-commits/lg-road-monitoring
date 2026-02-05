@@ -735,7 +735,7 @@ try {
 
     <!-- Main Content -->
     <main class="main-content">
-    <div class="stats-grid">
+    <div class="stats-grid" id="statsGrid">
             <div class="stat-card">
                 <div class="stat-icon total">
                     <i class="fas fa-clipboard-list"></i>
