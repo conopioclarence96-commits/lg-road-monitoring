@@ -368,14 +368,15 @@ try {
 
         .modal-content {
             background: white;
-            margin: 5% auto;
+            margin: 2% auto;
             padding: 0;
-            border-radius: 15px;
-            width: 90%;
-            max-width: 800px;
-            max-height: 90vh;
+            border-radius: 20px;
+            width: 95%;
+            max-width: 900px;
+            max-height: 95vh;
             overflow-y: auto;
             animation: slideIn 0.3s ease;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
         }
 
         @keyframes slideIn {
@@ -392,16 +393,17 @@ try {
         .modal-header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 25px;
-            border-radius: 15px 15px 0 0;
+            padding: 30px;
+            border-radius: 20px 20px 0 0;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
 
         .modal-header h3 {
-            font-size: 1.5rem;
+            font-size: 1.8rem;
             margin: 0;
+            font-weight: 600;
         }
 
         .modal-close {
@@ -410,111 +412,246 @@ try {
             color: white;
             font-size: 1.5rem;
             cursor: pointer;
-            width: 40px;
-            height: 40px;
+            width: 45px;
+            height: 45px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: background 0.3s ease;
+            transition: all 0.3s ease;
         }
 
         .modal-close:hover {
             background: rgba(255,255,255,0.3);
+            transform: scale(1.1);
         }
 
         .modal-body {
-            padding: 30px;
+            padding: 40px;
+            background: #f8f9fa;
+        }
+
+        .report-details-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .detail-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            transition: transform 0.3s ease;
+        }
+
+        .detail-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.12);
+        }
+
+        .detail-label {
+            font-size: 0.85rem;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .detail-value {
+            font-size: 1.1rem;
+            color: #2c3e50;
+            font-weight: 500;
+        }
+
+        .severity-indicator {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 25px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .severity-urgent { background: #e74c3c; color: white; }
+        .severity-high { background: #f39c12; color: white; }
+        .severity-medium { background: #3498db; color: white; }
+        .severity-low { background: #95a5a6; color: white; }
+
+        .status-indicator {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 25px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-transform: capitalize;
+            letter-spacing: 0.5px;
+        }
+
+        .status-pending { background: #f39c12; color: white; }
+        .status-under_review { background: #3498db; color: white; }
+        .status-approved { background: #27ae60; color: white; }
+        .status-in_progress { background: #8e44ad; color: white; }
+        .status-completed { background: #27ae60; color: white; }
+        .status-rejected { background: #e74c3c; color: white; }
+
+        .description-section {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+
+        .description-text {
+            line-height: 1.6;
+            color: #2c3e50;
+            font-size: 1.05rem;
+        }
+
+        .images-section {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+
+        .section-title {
+            font-size: 1.3rem;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title i {
+            color: #667eea;
+        }
+
+        .image-gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .image-thumb {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+            border-radius: 12px;
+            border: 3px solid #e1e8ed;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+
+        .image-thumb:hover {
+            border-color: #667eea;
+            transform: scale(1.05);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .no-images {
+            text-align: center;
+            padding: 40px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            color: #6c757d;
+            border: 2px dashed #dee2e6;
+        }
+
+        .no-images i {
+            font-size: 3.5rem;
+            margin-bottom: 15px;
+            opacity: 0.4;
+            color: #6c757d;
+        }
+
+        .no-images p {
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+        }
+
+        .no-images small {
+            color: #6c757d;
+            font-size: 0.85rem;
+        }
+
+        .action-section {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
         }
 
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 25px;
         }
 
         .form-group label {
             display: block;
             color: #2c3e50;
             font-weight: 600;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
+            font-size: 0.95rem;
         }
 
-        .form-group input,
         .form-group select,
         .form-group textarea {
             width: 100%;
-            padding: 12px;
+            padding: 15px;
             border: 2px solid #e1e8ed;
-            border-radius: 8px;
-            font-size: 0.95rem;
-            transition: border-color 0.3s ease;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background: white;
         }
 
-        .form-group input:focus,
         .form-group select:focus,
         .form-group textarea:focus {
             outline: none;
             border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
 
         .form-group textarea {
             resize: vertical;
-            min-height: 100px;
+            min-height: 120px;
+            font-family: inherit;
         }
 
-        .image-gallery {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
             gap: 15px;
-            margin-top: 15px;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e1e8ed;
         }
 
-        .image-thumb {
-            width: 100%;
-            height: 150px;
-            object-fit: cover;
-            border-radius: 10px;
-            border: 3px solid #e1e8ed;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .image-thumb:hover {
-            border-color: #667eea;
-            transform: scale(1.05);
-        }
-
-        .no-images {
-            text-align: center;
-            padding: 30px;
-            background: #f8f9fa;
-            border-radius: 10px;
-            color: #7f8c8d;
-        }
-
-        .no-images i {
-            font-size: 3rem;
-            margin-bottom: 15px;
-            opacity: 0.5;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 12px 25px;
+        .btn {
+            padding: 12px 30px;
             border: none;
-            border-radius: 8px;
+            border-radius: 10px;
             cursor: pointer;
             font-size: 1rem;
+            font-weight: 600;
             transition: all 0.3s ease;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .btn-secondary {
-            background: #95a5a6;
+            background: #6c757d;
             color: white;
             padding: 12px 25px;
             border: none;
@@ -896,21 +1033,25 @@ try {
             console.log('Processed images:', images);
             
             const imagesHtml = images && images.length > 0 ? `
-                <div class="form-group">
-                    <label>Evidence Photos</label>
+                <div class="images-section">
+                    <h3 class="section-title">
+                        <i class="fas fa-camera"></i> Evidence Photos
+                    </h3>
                     <div class="image-gallery">
                         ${images.map(img => `
                             <img src="../uploads/reports/${img}" 
                                  alt="Report Image" 
                                  class="image-thumb" 
                                  onclick="window.open('../uploads/reports/${img}', '_blank')"
-                                 onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIiBmaWxsPSIjRjhGOUZBIi8+CjxwYXRoIGQ9Ik03NSA1MEM4Ny41IDUwIDk3LjUgNjAgOTcuNSA3NUM5Ny41IDkwIDg3LjUgMTAwIDc1IDEwMEM2Mi41IDEwMCA1Mi41IDkwIDUyLjUgNzVDNTIuNSA2MCA2Mi41IDUwIDc1IDUwWiIgZmlsbD0iI0NDRDM0MSIvPgo8cGF0aCBkPSJNNjUgNzVIMTDJWODVIMjVWNzVINjVaIiBmaWxsPSIjQ0NDQzQxIi8+CjxwYXRoIGQ9Ik04NSA3NUgxMjVWODVIMTg2Vjc1SDg1WiIgZmlsbD0iI0NDQzQxIi8+Cjwvc3ZnPgo='; this.title='Image not found: ${img}';">
+                                 onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE4MCIgdmlld0JveD0iMCAwIDIwMCAxODAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMTgwIiBmaWxsPSIjRjhGOUZBIi8+CjxwYXRoIGQ9Ik0xMDAgNDBDMTIwIDQwIDE0MCA2MCAxNDAgOTBDMTQwIDEyMCAxMjAgMTQwIDEwMCAxNDBDODAgMTQwIDYwIDEyMCA2MCA5MEM2MCA2MCA4MCA0MCAxMDAgNDBaIiBmaWxsPSIjQ0NDQzQxIi8+CjxwYXRoIGQ9Ik04MCA5MEgxMjBWMTIwSDE0MFY5MEg4MFoiIGZpbGw9IiNDQ0M0MSIvPgo8L3N2Zz4K'; this.title='Image not found: ${img}';">
                         `).join('')}
                     </div>
                 </div>
             ` : `
-                <div class="form-group">
-                    <label>Evidence Photos</label>
+                <div class="images-section">
+                    <h3 class="section-title">
+                        <i class="fas fa-camera"></i> Evidence Photos
+                    </h3>
                     <div class="no-images">
                         <i class="fas fa-image"></i>
                         <p>No photos uploaded with this report</p>
@@ -920,67 +1061,88 @@ try {
             `;
 
             modalBody.innerHTML = `
-                <div style="max-height: 60vh; overflow-y: auto;">
-                    <div class="form-group">
-                        <label>Report ID</label>
-                        <input type="text" value="${report.report_id}" readonly>
+                <div style="max-height: 70vh; overflow-y: auto;">
+                    <div class="report-details-grid">
+                        <div class="detail-card">
+                            <div class="detail-label">Report ID</div>
+                            <div class="detail-value">${report.report_id}</div>
+                        </div>
+                        <div class="detail-card">
+                            <div class="detail-label">Reporter</div>
+                            <div class="detail-value">${report.reporter_name || 'Anonymous'}</div>
+                        </div>
+                        <div class="detail-card">
+                            <div class="detail-label">Location</div>
+                            <div class="detail-value">${report.location}</div>
+                        </div>
+                        <div class="detail-card">
+                            <div class="detail-label">Barangay</div>
+                            <div class="detail-value">${report.barangay}</div>
+                        </div>
+                        <div class="detail-card">
+                            <div class="detail-label">Damage Type</div>
+                            <div class="detail-value">${report.damage_type}</div>
+                        </div>
+                        <div class="detail-card">
+                            <div class="detail-label">Severity</div>
+                            <div class="detail-value">
+                                <span class="severity-indicator severity-${report.severity}">
+                                    ${report.severity}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="detail-card">
+                            <div class="detail-label">Status</div>
+                            <div class="detail-value">
+                                <span class="status-indicator status-${report.status}">
+                                    ${report.status.replace('_', ' ')}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="detail-card">
+                            <div class="detail-label">Reported Date</div>
+                            <div class="detail-value">${report.created_at_formatted}</div>
+                        </div>
                     </div>
                     
-                    <div class="form-group">
-                        <label>Location</label>
-                        <input type="text" value="${report.location}" readonly>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Barangay</label>
-                        <input type="text" value="${report.barangay}" readonly>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Damage Type</label>
-                        <input type="text" value="${report.damage_type}" readonly>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Severity</label>
-                        <input type="text" value="${report.severity}" readonly>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Description</label>
-                        <textarea readonly>${report.description}</textarea>
+                    <div class="description-section">
+                        <h3 class="section-title">
+                            <i class="fas fa-info-circle"></i> Description
+                        </h3>
+                        <div class="description-text">${report.description}</div>
                     </div>
                     
                     ${imagesHtml}
                     
-                    <div class="form-group">
-                        <label>Reported Date</label>
-                        <input type="text" value="${report.created_at_formatted}" readonly>
+                    <div class="action-section">
+                        <h3 class="section-title">
+                            <i class="fas fa-edit"></i> Update Report Status
+                        </h3>
+                        <div class="form-group">
+                            <label for="currentStatus">Current Status</label>
+                            <select id="currentStatus">
+                                <option value="pending" ${report.status === 'pending' ? 'selected' : ''}>Pending</option>
+                                <option value="under_review" ${report.status === 'under_review' ? 'selected' : ''}>Under Review</option>
+                                <option value="approved" ${report.status === 'approved' ? 'selected' : ''}>Approved</option>
+                                <option value="in_progress" ${report.status === 'in_progress' ? 'selected' : ''}>In Progress</option>
+                                <option value="completed" ${report.status === 'completed' ? 'selected' : ''}>Completed</option>
+                                <option value="rejected" ${report.status === 'rejected' ? 'selected' : ''}>Rejected</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="lguNotes">LGU Notes</label>
+                            <textarea id="lguNotes" placeholder="Add notes about this report...">${report.lgu_notes || ''}</textarea>
+                        </div>
+                        
+                        <div class="modal-actions">
+                            <button class="btn btn-secondary" onclick="closeModal()">
+                                <i class="fas fa-times"></i> Cancel
+                            </button>
+                            <button class="btn btn-primary" onclick="updateReportStatus()">
+                                <i class="fas fa-save"></i> Update Status
+                            </button>
+                        </div>
                     </div>
-                    
-                    <div class="form-group">
-                        <label>Current Status</label>
-                        <select id="currentStatus">
-                            <option value="pending" ${report.status === 'pending' ? 'selected' : ''}>Pending</option>
-                            <option value="under_review" ${report.status === 'under_review' ? 'selected' : ''}>Under Review</option>
-                            <option value="approved" ${report.status === 'approved' ? 'selected' : ''}>Approved</option>
-                            <option value="in_progress" ${report.status === 'in_progress' ? 'selected' : ''}>In Progress</option>
-                            <option value="completed" ${report.status === 'completed' ? 'selected' : ''}>Completed</option>
-                            <option value="rejected" ${report.status === 'rejected' ? 'selected' : ''}>Rejected</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>LGU Notes</label>
-                        <textarea id="lguNotes" placeholder="Add notes about this report..."></textarea>
-                    </div>
-                </div>
-                
-                <div style="margin-top: 20px; text-align: right;">
-                    <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-                    <button class="btn btn-primary" onclick="updateReportStatus()">
-                        <i class="fas fa-save"></i> Update Status
-                    </button>
                 </div>
             `;
 
