@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Image Display</title>
+</head>
+<body>
+    <h1>Test Image Display from LGU Officer Module</h1>
+    
+    <h2>Test 1: Direct image path</h2>
+    <img src="../uploads/reports/RPT-001_1768755714.png" alt="Test Image 1" style="border: 2px solid red; max-width: 200px;">
+    
+    <h2>Test 2: Check if file exists</h2>
+    <script>
+        // Test if image files exist
+        const testImages = [
+            '../uploads/reports/RPT-001_1768755714.png',
+            '../uploads/reports/RPT-001_1768758303.jpg'
+        ];
+        
+        testImages.forEach(src => {
+            const img = new Image();
+            img.onload = function() {
+                document.body.innerHTML += '<p style="color: green;">✓ ' + src + ' - LOADED</p>';
+            };
+            img.onerror = function() {
+                document.body.innerHTML += '<p style="color: red;">✗ ' + src + ' - FAILED</p>';
+            };
+            img.src = src;
+        });
+    </script>
+    
+    <h2>Test 3: Simulate modal image display</h2>
+    <div id="testModal" style="border: 1px solid #ccc; padding: 20px;">
+        <h3>Evidence Photos (Test)</h3>
+        <div class="image-gallery">
+            <img src="../uploads/reports/RPT-001_1768755714.png" alt="Report Image" style="max-width: 100px; max-height: 100px; object-fit: cover; border: 1px solid #ddd; border-radius: 4px; margin: 5px;">
+            <img src="../uploads/reports/RPT-001_1768758303.jpg" alt="Report Image" style="max-width: 100px; max-height: 100px; object-fit: cover; border: 1px solid #ddd; border-radius: 4px; margin: 5px;">
+        </div>
+    </div>
+    
+    <h2>Instructions:</h2>
+    <p>1. Place this file in the lgu_officer_module directory</p>
+    <p>2. Open it in browser</p>
+    <p>3. If images appear, the path is correct</p>
+    <p>4. If not, check the path or file permissions</p>
+</body>
+</html>

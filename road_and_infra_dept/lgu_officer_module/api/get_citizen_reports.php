@@ -87,7 +87,12 @@ try {
     $reports = [];
     while ($row = $result->fetch_assoc()) {
         // Parse images JSON if exists
+        $raw_images = $row['images'];
         $row['images'] = $row['images'] ? json_decode($row['images'], true) : [];
+        
+        // Debug logging
+        error_log("Report ID: " . $row['report_id'] . " - Raw images: " . $raw_images);
+        error_log("Report ID: " . $row['report_id'] . " - Parsed images: " . print_r($row['images'], true));
         
         // Format date using reported_at column
         $row['created_at_formatted'] = date('M j, Y g:i A', strtotime($row['reported_at']));

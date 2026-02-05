@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Image Upload</title>
+</head>
+<body>
+    <h1>Test Image Upload Function</h1>
+    
+    <form action="road_and_infra_dept/citizen_module/api/handle_report.php" method="POST" enctype="multipart/form-data">
+        <h2>Submit Test Report with Image</h2>
+        
+        <div>
+            <label>Location:</label>
+            <input type="text" name="location" value="Test Location for Image Upload" required>
+        </div>
+        
+        <div>
+            <label>Barangay:</label>
+            <select name="barangay" required>
+                <option value="Poblacion">Poblacion</option>
+            </select>
+        </div>
+        
+        <div>
+            <label>Damage Type:</label>
+            <select name="damage_type" required>
+                <option value="pothole">Pothole</option>
+            </select>
+        </div>
+        
+        <div>
+            <label>Severity:</label>
+            <select name="severity" required>
+                <option value="medium">Medium</option>
+            </select>
+        </div>
+        
+        <div>
+            <label>Description:</label>
+            <textarea name="description" required>Test report to verify image upload functionality</textarea>
+        </div>
+        
+        <div>
+            <label>Upload Image:</label>
+            <input type="file" name="images[]" accept="image/*" required>
+        </div>
+        
+        <div>
+            <label>
+                <input type="checkbox" name="anonymous_report" value="1">
+                Submit anonymously
+            </label>
+        </div>
+        
+        <button type="submit">Submit Test Report</button>
+    </form>
+    
+    <hr>
+    
+    <h2>After Submitting:</h2>
+    <ol>
+        <li>Check server error logs for upload debugging</li>
+        <li>Check <a href="debug_database.php">debug_database.php</a> to see if image data is saved</li>
+        <li>Check <a href="../lgu_officer_module/citizen_reports_view.php">LGU Officer View</a> to see if images appear</li>
+    </ol>
+</body>
+</html>
