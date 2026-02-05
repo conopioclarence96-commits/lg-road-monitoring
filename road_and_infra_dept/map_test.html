@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>GIS Map Test</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #map { height: 400px; width: 100%; border: 2px solid #ccc; border-radius: 8px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <h1>🗺️ GIS Map Test</h1>
+    <div id="status"></div>
+    <div id="map"></div>
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        let map;
+        let markers = [];
+        
+        function updateStatus(message, type) {
+            const status = document.getElementById('status');
+            status.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+        
+        function initMap() {
+            try {
+                updateStatus('🔄 Initializing map...', 'info');
+                
+                map = L.map('map').setView([14.5995, 120.9842], 13);
+                
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
+                }).addTo(map);
+                
+                updateStatus('✅ Map initialized successfully!', 'success');
+                
+                // Add test markers
+                addTestMarkers();
+                
+            } catch (error) {
+                updateStatus('❌ Map initialization failed: ' + error.message, 'error');
+                console.error('Map error:', error);
+            }
+        }
+        
+        function addTestMarkers() {
+            const testReports = [
+                { lat: 14.5995, lng: 120.9842, type: 'critical', title: 'Critical Pothole', desc: 'Large pothole on Main Street' },
+                { lat: 14.6095, lng: 120.9942, type: 'medium', title: 'Medium Crack', desc: 'Surface crack on Highway' },
+                { lat: 14.5895, lng: 120.9742, type: 'low', title: 'Low Drainage', desc: 'Minor drainage issue' }
+            ];
+            
+            testReports.forEach(report => {
+                const color = getColorByType(report.type);
+                const marker = L.circleMarker([report.lat, report.lng], {
+                    radius: 8,
+                    fillColor: color,
+                    color: '#fff',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                }).addTo(map);
+
+                marker.bindPopup(`
+                    <strong>${report.title}</strong><br>
+                    ${report.desc}<br>
+                    <small>Type: ${report.type}</small>
+                `);
+                
+                markers.push(marker);
+            });
+            
+            updateStatus('✅ Test markers added to map!', 'success');
+        }
+        
+        function getColorByType(type) {
+            const colors = {
+                'critical': '#dc2626',
+                'medium': '#f59e0b',
+                'low': '#10b981'
+            };
+            return colors[type] || '#6b7280';
+        }
+        
+        // Initialize map when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(initMap, 500);
+        });
+    </script>
+</body>
+</html>

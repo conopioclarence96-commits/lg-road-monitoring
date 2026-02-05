@@ -601,23 +601,49 @@ $page_description = "Interactive map showing road damage reports and infrastruct
         let selectedReport = null;
 
         function initMap() {
-            // Create map centered on a default location (adjust to your area)
-            map = L.map('map').setView([14.5995, 120.9842], 13);
+            try {
+                console.log('Initializing map...');
+                
+                // Check if map container exists
+                const mapContainer = document.getElementById('map');
+                if (!mapContainer) {
+                    throw new Error('Map container not found');
+                }
+                
+                // Clear any loading spinner
+                mapContainer.innerHTML = '';
+                
+                // Create map centered on a default location (adjust to your area)
+                map = L.map('map').setView([14.5995, 120.9842], 13);
+                console.log('Map object created');
 
-            // Add tile layer
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors'
-            }).addTo(map);
+                // Add tile layer
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
+                }).addTo(map);
+                console.log('Tile layer added');
 
-            // Load real data from database
-            loadMapData('all');
+                // Load data immediately
+                loadMapData('all');
+                console.log('Map initialization complete');
+                
+            } catch (error) {
+                console.error('Map initialization error:', error);
+                showErrorMessage('Failed to initialize map: ' + error.message);
+                
+                // Try to load fallback data anyway
+                setTimeout(() => {
+                    console.log('Attempting to load fallback data...');
+                    loadFallbackData('all');
+                }, 1000);
+            }
         }
 
         function loadMapData(filter = 'all') {
             console.log('Loading map data with filter:', filter);
             
-            // Use absolute path to avoid path resolution issues
-            const apiUrl = '/api/get_gis_data_test.php?filter=' + filter;
+            // Use relative path that works with PHP development server
+            const apiUrl = '../api/get_gis_data_test.php?filter=' + filter;
             console.log('Fetching from:', apiUrl);
             
             fetch(apiUrl)
@@ -655,6 +681,26 @@ $page_description = "Interactive map showing road damage reports and infrastruct
 
         function loadFallbackData(filter = 'all') {
             console.log('Loading fallback data for filter:', filter);
+            
+            // Ensure map exists before trying to add markers
+            if (!map) {
+                console.log('Map not initialized, creating map first...');
+                try {
+                    const mapContainer = document.getElementById('map');
+                    if (mapContainer) {
+                        mapContainer.innerHTML = '';
+                        map = L.map('map').setView([14.5995, 120.9842], 13);
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                            attribution: '© OpenStreetMap contributors'
+                        }).addTo(map);
+                        console.log('Map created in fallback mode');
+                    }
+                } catch (error) {
+                    console.error('Failed to create map in fallback mode:', error);
+                    showErrorMessage('Failed to create map: ' + error.message);
+                    return;
+                }
+            }
             
             // Fallback sample data
             const fallbackReports = [
