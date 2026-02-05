@@ -530,7 +530,7 @@ function createUserSession($conn, $user_id) {
             <img src="<?php echo $assetPath; ?>assets/img/logocityhall.png" class="icon-top" />
             <h2 class="title">LGU Login</h2>
             <p class="subtitle">
-              Secure access to community maintenance services.
+             Road and Infrastructure Monitoring System
             </p>
 
             <form id="loginForm" method="POST" action="">
