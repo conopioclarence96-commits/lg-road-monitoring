@@ -1192,6 +1192,11 @@ $repairs = [
         });
 
         function viewInspection(data) {
+            console.log('viewInspection called with data:', data);
+            console.log('Report ID:', data.report_id);
+            console.log('Inspection ID:', data.id);
+            console.log('Inspection Type:', data.inspection_type);
+            
             currentInspectionData = data;
             document.getElementById('modal-report-id').textContent = data.report_id;
             document.getElementById('modal-inspection-id').textContent = data.id;
@@ -1259,20 +1264,12 @@ $repairs = [
                 approvalActions.style.display = 'block';
                 approvalActions.innerHTML = `
                     <span class="detail-label"><i class="fas fa-cogs"></i> Actions</span>
-                    <div style="display: flex; gap: 12px; margin-top: 8px;">
-                        <button class="btn-action" onclick="approveReport()" style="background: #16a34a;">
-                            <i class="fas fa-check-circle"></i> Approve Report
-                        </button>
-                        <button class="btn-action" onclick="rejectReport()" style="background: #dc2626;">
-                            <i class="fas fa-times-circle"></i> Reject Report
-                        </button>
-                    </div>
-                `;
-            } else {
                 approvalActions.style.display = 'none';
             }
 
+            console.log('About to show modal');
             document.getElementById('inspectionModal').style.display = 'flex';
+            console.log('Modal should now be visible');
         }
 
         function approveCitizenReport() {
