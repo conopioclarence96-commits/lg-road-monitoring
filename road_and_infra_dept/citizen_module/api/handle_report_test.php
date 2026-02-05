@@ -21,16 +21,10 @@ function sendResponse($success, $message, $extra = []) {
 // }
 
 try {
-    // Use simple database connection for testing
-    $host = '127.0.0.1';
-    $username = 'rgmap_root';
-    $password = 'root123';
-    $database = 'rgmap_road_infra';
-    
-    $conn = new mysqli($host, $username, $password, $database);
-    if ($conn->connect_error) {
-        sendResponse(false, 'Database connection failed: ' . $conn->connect_error);
-    }
+    // Use the domain's database configuration
+    require_once '../../config/database.php';
+    $database = new Database();
+    $conn = $database->getConnection();
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         sendResponse(false, 'Invalid request method.');
@@ -57,7 +51,7 @@ try {
     $rand = str_pad(rand(1, 999), 3, '0', STR_PAD_LEFT);
     $report_id = "DR-$year-$rand";
 
-    // Handle Image Uploads - SIMPLE VERSION
+    // Handle Image Uploads - DOMAIN VERSION
     $uploaded_images = [];
     
     // Check if images were uploaded
