@@ -39,8 +39,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Insert with road_name column
                 $stmt = $conn->prepare("
                     INSERT INTO damage_reports (
-                        road_name, issue_type, severity, description, 
-                        date_reported, reported_by, status
+                        road_name, damage_type, severity, description, 
+                        created_at, reported_by, status
                     ) VALUES (?, ?, ?, ?, NOW(), ?, 'pending')
                     ");
                 
@@ -50,8 +50,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Insert without road_name column (fallback)
                 $stmt = $conn->prepare("
                     INSERT INTO damage_reports (
-                        issue_type, severity, description, 
-                        date_reported, reported_by, status
+                        damage_type, severity, description, 
+                        created_at, reported_by, status
                     ) VALUES (?, ?, ?, NOW(), ?, 'pending')
                     ");
                 
@@ -151,7 +151,7 @@ try {
         SELECT 
             $select_fields,
             CONCAT('RD-', LPAD(dr.id, 4, '0')) as report_id,
-            COALESCE(u.full_name, 'Unknown User') as reporter_name
+            COALESCE(CONCAT(u.first_name, ' ', u.last_name), 'Unknown User') as reporter_name
         FROM damage_reports dr
         LEFT JOIN users u ON dr.reported_by = u.id
         $where_clause
