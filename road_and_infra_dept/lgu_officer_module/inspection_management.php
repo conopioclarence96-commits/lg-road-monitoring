@@ -282,7 +282,18 @@ try {
         LEFT JOIN users u ON i.inspector_id = u.id
         ORDER BY i.created_at DESC
     ";
+    
+    error_log("About to execute inspections query");
+    error_log("Connection state: " . ($conn ? "Connected" : "Not connected"));
+    
     $result = $conn->query($query);
+    
+    if (!$result) {
+        error_log("Query failed: " . $conn->error);
+        error_log("Query was: " . $query);
+    } else {
+        error_log("Query succeeded, rows: " . $result->num_rows);
+    }
     
     // Debug: Show the actual SQL query and results
     error_log("SQL Query: " . $query);
