@@ -278,15 +278,15 @@ try {
     $query = "
         SELECT i.*, 
                CASE 
-                   WHEN i.inspector_id IS NULL THEN 'Citizen Report'
+                   WHEN i.inspector_id = 999999 THEN 'Citizen Report'
                    ELSE COALESCE(u.name, 'Unknown')
                END as reporter_name,
                CASE 
-                   WHEN i.inspector_id IS NULL THEN 'citizen'
+                   WHEN i.inspector_id = 999999 THEN 'citizen'
                    ELSE 'regular'
                END as inspection_type
         FROM inspections i 
-        LEFT JOIN users u ON i.inspector_id = u.id
+        LEFT JOIN users u ON i.inspector_id = u.id AND i.inspector_id != 999999
         ORDER BY i.created_at DESC
     ";
     $result = $conn->query($query);
