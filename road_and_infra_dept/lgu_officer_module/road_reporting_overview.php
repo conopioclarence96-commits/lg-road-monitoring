@@ -51,24 +51,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Insert with road_name column
                 $stmt = $conn->prepare("
                     INSERT INTO damage_reports (
-                        road_name, location, damage_type, severity, description, 
+                        report_id, road_name, location, damage_type, severity, description, 
+                        created_at, $user_column, status
+                    ) VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, 'pending')
+                    ");
+                
+                $user_id = $_SESSION['user_id'] ?? 1;
+                $temp_report_id = 'TEMP-' . time(); // Temporary unique value
+                $stmt->bind_param("ssssssi", $temp_report_id, $location, $location, $damage_type, $severity, $description, $user_id);
+            } else {
+                // Insert without road_name column (fallback)
+                $stmt = $conn->prepare("
+                    INSERT INTO damage_reports (
+                        report_id, location, damage_type, severity, description, 
                         created_at, $user_column, status
                     ) VALUES (?, ?, ?, ?, ?, NOW(), ?, 'pending')
                     ");
                 
                 $user_id = $_SESSION['user_id'] ?? 1;
-                $stmt->bind_param("sssssi", $location, $location, $damage_type, $severity, $description, $user_id);
-            } else {
-                // Insert without road_name column (fallback)
-                $stmt = $conn->prepare("
-                    INSERT INTO damage_reports (
-                        location, damage_type, severity, description, 
-                        created_at, $user_column, status
-                    ) VALUES (?, ?, ?, ?, NOW(), ?, 'pending')
-                    ");
-                
-                $user_id = $_SESSION['user_id'] ?? 1;
-                $stmt->bind_param("ssssi", $location, $damage_type, $severity, $description, $user_id);
+                $temp_report_id = 'TEMP-' . time(); // Temporary unique value
+                $stmt->bind_param("sssssi", $temp_report_id, $location, $damage_type, $severity, $description, $user_id);
             }
             
             if ($stmt->execute()) {
