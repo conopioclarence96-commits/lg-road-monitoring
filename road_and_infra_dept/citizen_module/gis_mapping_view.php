@@ -419,12 +419,95 @@ $auth->requireAnyRole(['citizen', 'admin']);
                 attribution: '© OpenStreetMap contributors'
             }).addTo(map);
 
-            // Add sample markers for road issues and projects
-            addSampleData();
+            // Load real data from database
+            loadMapData('all');
+        }
+
+        function loadMapData(filter = 'all') {
+            fetch('api/get_gis_data.php?filter=' + filter)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        updateMapWithRealData(data.data.features);
+                        updateStatistics(data.data.statistics);
+                    } else {
+                        console.error('Error loading map data:', data.message);
+                        // Fallback to sample data
+                        addSampleData();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching map data:', error);
+                    // Fallback to sample data
+                    addSampleData();
+                });
+        }
+
+        function updateMapWithRealData(features) {
+            // Clear existing markers
+            markers.forEach(marker => {
+                map.removeLayer(marker);
+            });
+            markers = [];
+
+            // Add markers from database
+            features.forEach(feature => {
+                const coords = feature.geometry.coordinates;
+                const props = feature.properties;
+                
+                const color = getColorByType(props.type);
+                const marker = L.circleMarker([coords[1], coords[0]], {
+                    radius: getMarkerSize(props.severity),
+                    fillColor: color,
+                    color: '#fff',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                }).addTo(map);
+
+                // Create popup content
+                let popupContent = `
+                    <strong>${props.title}</strong><br>
+                    ${props.description}<br>
+                    <small>Type: ${props.type}</small><br>
+                    <small>Severity: ${props.severity}</small>
+                `;
+
+                if (props.address) {
+                    popupContent += `<br><small>Address: ${props.address}</small>`;
+                }
+                if (props.barangay) {
+                    popupContent += `<br><small>Barangay: ${props.barangay}</small>`;
+                }
+
+                marker.bindPopup(popupContent);
+                marker.type = props.type;
+                marker.severity = props.severity;
+                marker.data_type = props.data_type;
+                markers.push(marker);
+            });
+        }
+
+        function getMarkerSize(severity) {
+            const sizes = {
+                'low': 6,
+                'medium': 8,
+                'high': 10,
+                'critical': 12
+            };
+            return sizes[severity] || 8;
+        }
+
+        function updateStatistics(stats) {
+            // Update info cards with real data
+            const cards = document.querySelectorAll('.info-card .number');
+            if (cards[0]) cards[0].textContent = stats.total_markers || 0; // Total Roads Mapped
+            if (cards[1]) cards[1].textContent = stats.active_issues || 0; // Active Issues
+            if (cards[2]) cards[2].textContent = stats.construction_zones || 0; // Construction Zones
         }
 
         function addSampleData() {
-            // Sample data for road issues
+            // Fallback sample data for road issues
             const issues = [
                 { lat: 14.5995, lng: 120.9842, type: 'critical', title: 'Main Road Pothole', desc: 'Large pothole causing traffic issues' },
                 { lat: 14.6055, lng: 120.9902, type: 'medium', title: 'Market Street Crack', desc: 'Surface cracks needing repair' },
@@ -478,20 +561,8 @@ $auth->requireAnyRole(['citizen', 'admin']);
 
             currentFilter = filter;
 
-            // Show/hide markers based on filter
-            markers.forEach(marker => {
-                if (filter === 'all') {
-                    marker.addTo(map);
-                } else if (filter === 'issues' && (marker.type === 'critical' || marker.type === 'medium')) {
-                    marker.addTo(map);
-                } else if (filter === 'projects' && (marker.type === 'construction' || marker.type === 'planned')) {
-                    marker.addTo(map);
-                } else if (filter === 'completed' && marker.type === 'completed') {
-                    marker.addTo(map);
-                } else {
-                    map.removeLayer(marker);
-                }
-            });
+            // Load filtered data from database
+            loadMapData(filter);
         }
 
         function resetMap() {
