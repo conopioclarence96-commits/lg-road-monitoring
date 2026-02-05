@@ -430,7 +430,7 @@ $auth->requireAnyRole(['citizen', 'admin']);
                 console.log('FormData has images:', formData.has('images'));
                 console.log('Images files:', formData.getAll('images'));
 
-                fetch('api/handle_report.php', {
+                fetch('api/handle_report_no_auth.php', {
                     method: 'POST',
                     body: formData
                 })
