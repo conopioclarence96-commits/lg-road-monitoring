@@ -68,6 +68,30 @@ $result = $stmt->get_result();
 while ($row = $result->fetch_assoc()) {
     $approvedProjects[] = $row;
 }
+
+// Get GIS data for map display
+$gisData = [];
+$stmt = $conn->prepare("
+    SELECT feature_id, feature_type, name, description, latitude, longitude, properties, status
+    FROM gis_data 
+    WHERE status = 'active'
+    ORDER BY created_at DESC
+");
+$stmt->execute();
+$gisResult = $stmt->get_result();
+
+while ($row = $gisResult->fetch_assoc()) {
+    $gisData[] = [
+        'id' => $row['feature_id'],
+        'type' => $row['feature_type'],
+        'name' => $row['name'],
+        'description' => $row['description'],
+        'lat' => (float)$row['latitude'],
+        'lng' => (float)$row['longitude'],
+        'properties' => json_decode($row['properties'] ?? '{}', true),
+        'status' => $row['status']
+    ];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -76,6 +100,7 @@ while ($row = $result->fetch_assoc()) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Public Transparency | Citizen Portal</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
         
@@ -271,6 +296,46 @@ while ($row = $result->fetch_assoc()) {
             border: 2px dashed #cbd5e1;
         }
 
+        /* Interactive Map */
+        #roadMap {
+            height: 400px;
+            border-radius: 12px;
+            border: 2px solid #e2e8f0;
+            background: #f8fafc;
+        }
+
+        .map-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .legend {
+            background: white;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            margin-bottom: 10px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
         /* Filter Section */
         .filter-section {
             background: #f8fafc;
@@ -403,11 +468,26 @@ while ($row = $result->fetch_assoc()) {
         <div class="transparency-card">
             <h2 class="section-title">Public Road Map</h2>
             <p class="section-desc">Visual display of verified road issues and project locations.</p>
-            <div class="map-placeholder">
-                <i class="fas fa-map-marked-alt" style="font-size: 3rem; margin-bottom: 15px; display: block;"></i>
-                Interactive Map View (GIS Integration)<br>
-                <small>Showing road conditions and project locations</small>
+            
+            <div class="map-controls">
+                <div class="legend">
+                    <strong>Legend</strong>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #ef4444;"></div>
+                        <span>Damage Reports</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #3b82f6;"></div>
+                        <span>Infrastructure</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #10b981;"></div>
+                        <span>Maintenance</span>
+                    </div>
+                </div>
             </div>
+            
+            <div id="roadMap"></div>
         </div>
 
         <!-- Verified Road Issues -->
@@ -473,5 +553,63 @@ while ($row = $result->fetch_assoc()) {
             </div>
         </div>
     </main>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Initialize the map
+        const map = L.map('roadMap').setView([14.5995, 120.9842], 13);
+
+        // Add tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 18
+        }).addTo(map);
+
+        // GIS data from PHP
+        const gisData = <?php echo json_encode($gisData); ?>;
+        
+        // Add markers to the map
+        gisData.forEach(item => {
+            let markerColor = '#ef4444'; // Default red for damage
+            let iconClass = 'fa-exclamation-triangle';
+            
+            if (item.type === 'infrastructure') {
+                markerColor = '#3b82f6'; // Blue for infrastructure
+                iconClass = 'fa-building';
+            } else if (item.type === 'maintenance') {
+                markerColor = '#10b981'; // Green for maintenance
+                iconClass = 'fa-tools';
+            }
+            
+            // Create custom icon
+            const customIcon = L.divIcon({
+                html: `<div style="background: ${markerColor}; color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                    <i class="fas ${iconClass}" style="font-size: 14px;"></i>
+                </div>`,
+                className: 'custom-marker',
+                iconSize: [30, 30],
+                iconAnchor: [15, 15]
+            });
+            
+            // Add marker to map
+            const marker = L.marker([item.lat, item.lng], { icon: customIcon })
+                .addTo(map)
+                .bindPopup(`
+                    <div style="padding: 10px; min-width: 200px;">
+                        <h4 style="margin: 0 0 10px 0; color: #1e293b;">${item.name}</h4>
+                        <p style="margin: 0 0 5px 0; color: #64748b;">${item.description || 'No description available'}</p>
+                        <small style="color: #94a3b8;">Type: ${item.type.charAt(0).toUpperCase() + item.type.slice(1)}</small>
+                    </div>
+                `);
+        });
+
+        // Add click handler for map
+        map.on('click', function(e) {
+            if (e.originalEvent.target === map._container) {
+                // Close any open popups when clicking on the map itself
+                map.closePopup();
+            }
+        });
+    </script>
 </body>
 </html>
