@@ -98,7 +98,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $update_stmt = $conn->prepare("UPDATE damage_reports SET report_id = ? WHERE id = ?");
                 $update_stmt->bind_param("si", $generated_report_id, $report_id);
                 $update_stmt->execute();
-                $success = "Road damage report submitted successfully!";
+                
+                // Redirect to prevent form resubmission
+                header("Location: " . $_SERVER['PHP_SELF'] . "?success=1");
+                exit();
             } else {
                 $error = "Failed to submit report. Please try again.";
             }
@@ -106,6 +109,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = "Database error: " . $e->getMessage();
         }
     }
+}
+
+// Handle success message from redirect
+if (isset($_GET['success']) && $_GET['success'] == '1') {
+    $success = "Road damage report submitted successfully!";
 }
 
 // Get filtering and sorting parameters
@@ -632,26 +640,14 @@ try {
     </main>
 
     <script>
-        // Clear form after successful submission
-        function clearForm() {
-            document.querySelector('form').reset();
+        // Clear any success/error messages after 5 seconds
+        setTimeout(() => {
+            const errorDiv = document.querySelector('[style*="background: #fee2e2"]');
+            const successDiv = document.querySelector('[style*="background: #dcfce7"]');
             
-            // Clear any success/error messages after 3 seconds
-            setTimeout(() => {
-                const errorDiv = document.querySelector('[style*="background: #fee2e2"]');
-                const successDiv = document.querySelector('[style*="background: #dcfce7"]');
-                
-                if (errorDiv) errorDiv.style.display = 'none';
-                if (successDiv) successDiv.style.display = 'none';
-            }, 3000);
-        }
-        
-        // Auto-refresh page after successful submission to show new data
-        <?php if (isset($success)): ?>
-            setTimeout(() => {
-                window.location.reload();
-            }, 2000);
-        <?php endif; ?>
+            if (errorDiv) errorDiv.style.display = 'none';
+            if (successDiv) successDiv.style.display = 'none';
+        }, 5000);
         
         console.log('Road reporting form ready');
     </script>
