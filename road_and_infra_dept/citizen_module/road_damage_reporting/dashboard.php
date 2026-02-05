@@ -1,7 +1,7 @@
 <?php
 // Start session and include authentication
 session_start();
-require_once '../config/auth.php';
+require_once '../../config/auth.php';
 
 // Require login to access this page
 $auth->requireLogin();
@@ -38,7 +38,7 @@ $auth->logActivity('page_access', 'Accessed road damage reporting dashboard');
 
     body {
       height: 100vh;
-      background: url("assets/img/cityhall.jpeg") center/cover no-repeat fixed;
+      background: url("../../user_and_access_management_module/assets/img/cityhall.jpeg") center/cover no-repeat fixed;
       position: relative;
       overflow: hidden;
       color: var(--text-main);
@@ -341,7 +341,7 @@ $auth->logActivity('page_access', 'Accessed road damage reporting dashboard');
 
 <body>
   <!-- SIDEBAR (REUSED) -->
-  <?php include '../sidebar/sidebar.php'; ?>
+  <?php include '../../sidebar/sidebar.php'; ?>
 
   <div class="main-content">
     <header class="page-header">
