@@ -1018,11 +1018,21 @@ try {
             // Handle images - ensure it's an array
             let images = [];
             if (report.images) {
+                console.log('Raw images data:', report.images);
+                console.log('Images type:', typeof report.images);
+                console.log('Images is array:', Array.isArray(report.images));
+                
                 try {
                     if (typeof report.images === 'string') {
-                        images = JSON.parse(report.images);
+                        // If it's a string, try to parse it as JSON
+                        const parsed = JSON.parse(report.images);
+                        images = Array.isArray(parsed) ? parsed : [];
                     } else if (Array.isArray(report.images)) {
+                        // If it's already an array, use it directly
                         images = report.images;
+                    } else {
+                        // If it's something else, treat as empty
+                        images = [];
                     }
                 } catch (e) {
                     console.error('Error parsing images:', e);
@@ -1030,7 +1040,8 @@ try {
                 }
             }
             
-            console.log('Processed images:', images);
+            console.log('Final processed images:', images);
+            console.log('Images array length:', images.length);
             
             const imagesHtml = images && images.length > 0 ? `
                 <div class="images-section">

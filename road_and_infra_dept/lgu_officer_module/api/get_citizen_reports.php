@@ -88,11 +88,26 @@ try {
     while ($row = $result->fetch_assoc()) {
         // Parse images JSON if exists
         $raw_images = $row['images'];
-        $row['images'] = $row['images'] ? json_decode($row['images'], true) : [];
+        
+        // Handle different data types for images field
+        if (empty($raw_images)) {
+            $row['images'] = [];
+        } elseif (is_string($raw_images)) {
+            // Try to decode JSON string
+            $decoded = json_decode($raw_images, true);
+            $row['images'] = $decoded !== null ? $decoded : [];
+        } elseif (is_array($raw_images)) {
+            // Already an array
+            $row['images'] = $raw_images;
+        } else {
+            // Unknown type, treat as empty
+            $row['images'] = [];
+        }
         
         // Debug logging
         error_log("Report ID: " . $row['report_id'] . " - Raw images: " . $raw_images);
         error_log("Report ID: " . $row['report_id'] . " - Parsed images: " . print_r($row['images'], true));
+        error_log("Report ID: " . $row['report_id'] . " - Images type: " . gettype($row['images']));
         
         // Format date using reported_at column
         $row['created_at_formatted'] = date('M j, Y g:i A', strtotime($row['reported_at']));
