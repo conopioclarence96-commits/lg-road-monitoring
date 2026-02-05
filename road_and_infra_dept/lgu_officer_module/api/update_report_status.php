@@ -98,7 +98,7 @@ try {
         $inspection_stmt = $conn->prepare($inspection_query);
         
         // Create variables for bind_param
-        $inspector_id = 999999; // Use special user ID for citizen inspections
+        $inspector_id = null; // Use NULL for citizen inspections after removing constraint
         $current_timestamp = date('Y-m-d H:i:s');
         
         $inspection_stmt->bind_param(
