@@ -35,12 +35,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $column_check = $conn->query("SHOW COLUMNS FROM damage_reports LIKE 'road_name'");
             $has_road_name = $column_check->num_rows > 0;
             
+            // Check for user reference column (try multiple possibilities)
+            $user_column = 'reported_by'; // default
+            $possible_columns = ['reported_by', 'user_id', 'reporter_id', 'created_by'];
+            
+            foreach ($possible_columns as $col) {
+                $check = $conn->query("SHOW COLUMNS FROM damage_reports LIKE '$col'");
+                if ($check && $check->num_rows > 0) {
+                    $user_column = $col;
+                    break;
+                }
+            }
+            
             if ($has_road_name) {
                 // Insert with road_name column
                 $stmt = $conn->prepare("
                     INSERT INTO damage_reports (
                         road_name, damage_type, severity, description, 
-                        created_at, reported_by, status
+                        created_at, $user_column, status
                     ) VALUES (?, ?, ?, ?, NOW(), ?, 'pending')
                     ");
                 
@@ -51,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $conn->prepare("
                     INSERT INTO damage_reports (
                         damage_type, severity, description, 
-                        created_at, reported_by, status
+                        created_at, $user_column, status
                     ) VALUES (?, ?, ?, NOW(), ?, 'pending')
                     ");
                 
@@ -142,6 +154,18 @@ try {
     }
     $has_road_name = $column_check->num_rows > 0;
     
+    // Check for user reference column (try multiple possibilities)
+    $user_column = 'reported_by'; // default
+    $possible_columns = ['reported_by', 'user_id', 'reporter_id', 'created_by'];
+    
+    foreach ($possible_columns as $col) {
+        $check = $conn->query("SHOW COLUMNS FROM damage_reports LIKE '$col'");
+        if ($check && $check->num_rows > 0) {
+            $user_column = $col;
+            break;
+        }
+    }
+    
     // Build query based on available columns
     $select_fields = $has_road_name ? 
         "dr.id, dr.road_name, dr.damage_type, dr.severity, dr.status, dr.created_at" :
@@ -153,7 +177,7 @@ try {
             CONCAT('RD-', LPAD(dr.id, 4, '0')) as report_id,
             COALESCE(CONCAT(u.first_name, ' ', u.last_name), 'Unknown User') as reporter_name
         FROM damage_reports dr
-        LEFT JOIN users u ON dr.reported_by = u.id
+        LEFT JOIN users u ON dr.$user_column = u.id
         $where_clause
         $order_by
         LIMIT 50
