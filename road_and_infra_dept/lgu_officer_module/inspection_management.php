@@ -330,7 +330,7 @@ try {
                 'date' => date('M d, Y', strtotime($row['created_at'])),
                 'status' => ucfirst(str_replace('_', ' ', $row['status'])),
                 'severity' => ucfirst($row['severity']),
-                'damage_type' => ucfirst($row['damage_type']),
+                'damage_type' => 'Unknown', // Default value since column doesn't exist
                 'reporter' => 'Citizen Report',
                 'coordinates' => '14.5995° N, 120.9842° E', // Default coordinates
                 'description' => $row['description'],
