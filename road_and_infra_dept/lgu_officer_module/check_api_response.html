@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Check API Response</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin: 10px; }
+        .result { margin: 20px 0; padding: 15px; border-radius: 4px; background: #f8f9fa; }
+        pre { background: #f1f1f1; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Check API Response for Latest Report</h1>
+    
+    <button onclick="checkAPI()">📋 Check API Response</button>
+    <button onclick="checkLatestReport()">🔍 Check Latest Report Details</button>
+    
+    <div id="result"></div>
+    
+    <script>
+        async function checkAPI() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>Loading...</p>';
+            
+            try {
+                const response = await fetch('api/get_citizen_reports.php');
+                const text = await response.text();
+                const data = JSON.parse(text);
+                
+                console.log('Full API Response:', data);
+                
+                let html = '<h2>📊 API Response Analysis</h2>';
+                html += '<p><strong>Success:</strong> ' + data.success + '</p>';
+                html += '<p><strong>Message:</strong> ' + data.message + '</p>';
+                html += '<p><strong>Total Reports:</strong> ' + data.data.reports.length + '</p>';
+                html += '<hr>';
+                
+                if (data.data.reports.length > 0) {
+                    const latestReport = data.data.reports[0];
+                    html += '<h3>📄 Latest Report: ' + latestReport.report_id + '</h3>';
+                    html += '<p><strong>Location:</strong> ' + latestReport.location + '</p>';
+                    html += '<p><strong>Raw Images Data:</strong> <code>' + latestReport.images + '</code></p>';
+                    html += '<p><strong>Parsed Images:</strong> <code>' + JSON.stringify(latestReport.images) + '</code></p>';
+                    html += '<p><strong>Images Type:</strong> ' + typeof latestReport.images + '</p>';
+                    html += '<p><strong>Is Array:</strong> ' + Array.isArray(latestReport.images) + '</p>';
+                    html += '<p><strong>Array Length:</strong> ' + (Array.isArray(latestReport.images) ? latestReport.images.length : 'N/A') + '</p>';
+                    
+                    if (Array.isArray(latestReport.images) && latestReport.images.length > 0) {
+                        html += '<div style="background: #d4edda; padding: 10px; border-radius: 4px; margin: 10px 0;">';
+                        html += '<h4>✅ Images Found:</h4>';
+                        html += '<ul>';
+                        latestReport.images.forEach(img => {
+                            html += '<li>' + img + '</li>';
+                        });
+                        html += '</ul>';
+                        html += '</div>';
+                    } else {
+                        html += '<div style="background: #f8d7da; padding: 10px; border-radius: 4px; margin: 10px 0;">';
+                        html += '<h4>❌ No Images Found</h4>';
+                        html += '</div>';
+                    }
+                }
+                
+                resultDiv.innerHTML = html;
+                
+            } catch(error) {
+                resultDiv.innerHTML = '<p style="color: red;">Error: ' + error.message + '</p>';
+            }
+        }
+        
+        async function checkLatestReport() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>Loading...</p>';
+            
+            try {
+                const response = await fetch('api/get_citizen_reports.php');
+                const text = await response.text();
+                const data = JSON.parse(text);
+                
+                console.log('Full API Response:', data);
+                
+                if (data.success && data.data.reports.length > 0) {
+                    const latestReport = data.data.reports[0];
+                    
+                    let html = '<h2>🔍 Latest Report Details</h2>';
+                    html += '<div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #ddd;">';
+                    html += '<h3>' + latestReport.report_id + '</h3>';
+                    
+                    // Show all report data
+                    for (let key in latestReport) {
+                        html += '<p><strong>' + key + ':</strong> ';
+                        
+                        if (typeof latestReport[key] === 'object' && latestReport[key] !== null) {
+                            html += '<pre>' + JSON.stringify(latestReport[key], null, 2) + '</pre>';
+                        } else {
+                            html += latestReport[key];
+                        }
+                        html += '</p>';
+                    }
+                    
+                    html += '</div>';
+                    
+                    resultDiv.innerHTML = html;
+                } else {
+                    resultDiv.innerHTML = '<p>No reports found</p>';
+                }
+                
+            } catch(error) {
+                resultDiv.innerHTML = '<p style="color: red;">Error: ' + error.message + '</p>';
+            }
+        }
+    </script>
+</body>
+</html>
