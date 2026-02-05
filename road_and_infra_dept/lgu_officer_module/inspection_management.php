@@ -380,6 +380,7 @@ try {
             'inspection_type' => 'regular'
         ],
     ];
+    $citizenReports = [];
 }
 
 $repairs = [
