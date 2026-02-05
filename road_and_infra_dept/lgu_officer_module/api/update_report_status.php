@@ -86,7 +86,7 @@ try {
                 inspection_id, location, severity, 
                 description, photos, inspector_id, status, 
                 inspection_date, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
         ";
         
         // Get report details for inspection
@@ -100,15 +100,19 @@ try {
         
         // Create variables for bind_param
         $inspector_id = $report_data['reporter_id'] ?: null;
+        $current_timestamp = date('Y-m-d H:i:s');
         
         $inspection_stmt->bind_param(
-            'sssssss',
+            'sssssssss',
             $inspection_id,
             $report_data['location'],
             $report_data['severity'],
             $report_data['description'],
             $report_data['images'],
-            $inspector_id
+            $inspector_id,
+            $current_timestamp,
+            $current_timestamp,
+            $current_timestamp
         );
         
         if (!$inspection_stmt->execute()) {
