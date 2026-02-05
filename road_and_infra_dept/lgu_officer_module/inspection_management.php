@@ -278,15 +278,15 @@ try {
     $query = "
         SELECT i.*, 
                CASE 
-                   WHEN i.inspector_id IS NOT NULL AND i.inspector_id NOT IN (SELECT id FROM users WHERE role IN ('lgu_officer', 'admin')) THEN 'Citizen Report'
+                   WHEN i.inspector_id = 'citizen_report' THEN 'Citizen Report'
                    ELSE COALESCE(u.name, 'Unknown')
                END as reporter_name,
                CASE 
-                   WHEN i.inspector_id IS NOT NULL AND i.inspector_id NOT IN (SELECT id FROM users WHERE role IN ('lgu_officer', 'admin')) THEN 'citizen'
+                   WHEN i.inspector_id = 'citizen_report' THEN 'citizen'
                    ELSE 'regular'
                END as inspection_type
         FROM inspections i 
-        LEFT JOIN users u ON i.inspector_id = u.id 
+        LEFT JOIN users u ON i.inspector_id = u.id AND i.inspector_id != 'citizen_report'
         ORDER BY i.created_at DESC
     ";
     $result = $conn->query($query);
@@ -892,8 +892,8 @@ $repairs = [
                         <td><div class="loc-text"><i class="fas fa-map-pin"></i> <?php echo $ins['location']; ?></div></td>
                         <td><?php echo $ins['date']; ?></td>
                         <td>
-                            <span style="background: <?php echo $ins['inspection_type'] === 'lgu' ? '#dbeafe' : '#f3f4f6'; ?>; color: <?php echo $ins['inspection_type'] === 'lgu' ? '#1e40af' : '#374151'; ?>; padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">
-                                <?php echo $ins['inspection_type'] === 'lgu' ? 'LGU' : 'Regular'; ?>
+                            <span style="background: <?php echo $ins['inspection_type'] === 'citizen' ? '#dcfce7' : ($ins['inspection_type'] === 'lgu' ? '#dbeafe' : '#f3f4f6'); ?>; color: <?php echo $ins['inspection_type'] === 'citizen' ? '#16a34a' : ($ins['inspection_type'] === 'lgu' ? '#1e40af' : '#374151'); ?>; padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">
+                                <?php echo $ins['inspection_type'] === 'citizen' ? 'Citizen' : ($ins['inspection_type'] === 'lgu' ? 'LGU' : 'Regular'); ?>
                             </span>
                         </td>
                         <td>
