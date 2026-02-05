@@ -22,16 +22,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = "All required fields must be filled.";
     } else {
         try {
-            // Insert new damage report
-            $stmt = $conn->prepare("
-                INSERT INTO damage_reports (
-                    road_name, issue_type, severity, description, 
-                    date_reported, reported_by, status
-                ) VALUES (?, ?, ?, ?, NOW(), ?, 'pending')
-                ");
+            // Check if road_name column exists
+            $column_check = $conn->query("SHOW COLUMNS FROM damage_reports LIKE 'road_name'");
+            $has_road_name = $column_check->num_rows > 0;
             
-            $user_id = $_SESSION['user_id'] ?? 1; // Fallback to user ID 1 if not set
-            $stmt->bind_param("ssssi", $location, $damage_type, $severity, $description, $user_id);
+            if ($has_road_name) {
+                // Insert with road_name column
+                $stmt = $conn->prepare("
+                    INSERT INTO damage_reports (
+                        road_name, issue_type, severity, description, 
+                        date_reported, reported_by, status
+                    ) VALUES (?, ?, ?, ?, NOW(), ?, 'pending')
+                    ");
+                
+                $user_id = $_SESSION['user_id'] ?? 1;
+                $stmt->bind_param("ssssi", $location, $damage_type, $severity, $description, $user_id);
+            } else {
+                // Insert without road_name column (fallback)
+                $stmt = $conn->prepare("
+                    INSERT INTO damage_reports (
+                        issue_type, severity, description, 
+                        date_reported, reported_by, status
+                    ) VALUES (?, ?, ?, NOW(), ?, 'pending')
+                    ");
+                
+                $user_id = $_SESSION['user_id'] ?? 1;
+                $stmt->bind_param("sssi", $damage_type, $severity, $description, $user_id);
+            }
             
             if ($stmt->execute()) {
                 $report_id = $conn->insert_id;
@@ -94,14 +111,18 @@ $order_by = $sort_by === 'oldest' ? 'ORDER BY dr.date_reported ASC' : 'ORDER BY 
 // Fetch damage reports from database
 $reports = [];
 try {
+    // Check if road_name column exists
+    $column_check = $conn->query("SHOW COLUMNS FROM damage_reports LIKE 'road_name'");
+    $has_road_name = $column_check->num_rows > 0;
+    
+    // Build query based on available columns
+    $select_fields = $has_road_name ? 
+        "dr.id, dr.road_name, dr.issue_type, dr.severity, dr.status, dr.date_reported" :
+        "dr.id, 'Unknown Location' as road_name, dr.issue_type, dr.severity, dr.status, dr.date_reported";
+    
     $stmt = $conn->prepare("
         SELECT 
-            dr.id,
-            dr.road_name,
-            dr.issue_type,
-            dr.severity,
-            dr.status,
-            dr.date_reported,
+            $select_fields,
             CONCAT('RD-', LPAD(dr.id, 4, '0')) as report_id,
             u.full_name as reporter_name
         FROM damage_reports dr
