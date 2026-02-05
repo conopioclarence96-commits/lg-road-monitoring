@@ -274,9 +274,17 @@ try {
 try {
     error_log("Attempting to fetch inspections from database");
     
-    // Fetch regular inspections
+    // Fetch all inspections and identify citizen vs regular by inspector_id
     $query = "
-        SELECT i.*, u.name as reporter_name, 'regular' as inspection_type
+        SELECT i.*, 
+               CASE 
+                   WHEN i.inspector_id IS NOT NULL AND i.inspector_id NOT IN (SELECT id FROM users WHERE role IN ('lgu_officer', 'admin')) THEN 'Citizen Report'
+                   ELSE COALESCE(u.name, 'Unknown')
+               END as reporter_name,
+               CASE 
+                   WHEN i.inspector_id IS NOT NULL AND i.inspector_id NOT IN (SELECT id FROM users WHERE role IN ('lgu_officer', 'admin')) THEN 'citizen'
+                   ELSE 'regular'
+               END as inspection_type
         FROM inspections i 
         LEFT JOIN users u ON i.inspector_id = u.id 
         ORDER BY i.created_at DESC
@@ -289,60 +297,45 @@ try {
     if ($result) {
         while ($row = $result->fetch_assoc()) {
             $photos = json_decode($row['photos'] ?? '[]', true) ?: [];
-            $inspections[] = [
-                'id' => $row['inspection_id'],
-                'report_id' => 'DR-' . date('Y', strtotime($row['created_at'])) . '-' . substr($row['inspection_id'], -3),
-                'location' => $row['location'],
-                'date' => date('M d, Y', strtotime($row['inspection_date'])),
-                'status' => ucfirst($row['status']),
-                'severity' => ucfirst($row['severity']),
-                'cost' => $row['estimated_cost'] ? '₱' . number_format($row['estimated_cost'], 2) : '₱0.00',
-                'reporter' => $row['reporter_name'] ?? 'Unknown',
-                'coordinates' => '14.5995° N, 120.9842° E', // Default coordinates
-                'description' => $row['description'],
-                'images' => $photos,
-                'inspection_type' => 'regular'
-            ];
+            
+            if ($row['inspection_type'] === 'citizen') {
+                // Citizen inspection data
+                $inspections[] = [
+                    'id' => $row['inspection_id'],
+                    'report_id' => 'CR-' . date('Y', strtotime($row['created_at'])) . '-' . substr($row['inspection_id'], -3),
+                    'location' => $row['location'],
+                    'date' => date('M d, Y', strtotime($row['created_at'])),
+                    'status' => ucfirst(str_replace('_', ' ', $row['status'])),
+                    'severity' => ucfirst($row['severity']),
+                    'damage_type' => 'Unknown',
+                    'reporter' => $row['reporter_name'],
+                    'coordinates' => '14.5995° N, 120.9842° E',
+                    'description' => $row['description'],
+                    'images' => $photos,
+                    'inspection_type' => 'citizen'
+                ];
+            } else {
+                // Regular inspection data
+                $inspections[] = [
+                    'id' => $row['inspection_id'],
+                    'report_id' => 'DR-' . date('Y', strtotime($row['created_at'])) . '-' . substr($row['inspection_id'], -3),
+                    'location' => $row['location'],
+                    'date' => date('M d, Y', strtotime($row['inspection_date'] ?? $row['created_at'])),
+                    'status' => ucfirst($row['status']),
+                    'severity' => ucfirst($row['severity']),
+                    'cost' => $row['estimated_cost'] ? '₱' . number_format($row['estimated_cost'], 2) : '₱0.00',
+                    'reporter' => $row['reporter_name'],
+                    'coordinates' => '14.5995° N, 120.9842° E',
+                    'description' => $row['description'],
+                    'images' => $photos,
+                    'inspection_type' => 'regular'
+                ];
+            }
         }
         $result->free();
     }
     
-    // Fetch citizen reports that have been converted to inspections
-    $citizenQuery = "
-        SELECT i.*, 
-               'Citizen Report' as reporter_name,
-               1 as is_anonymous
-        FROM inspections i
-        ORDER BY i.created_at DESC
-    ";
-    $citizenResult = $conn->query($citizenQuery);
-    
-    $citizenReports = [];
-    
-    if ($citizenResult) {
-        while ($row = $citizenResult->fetch_assoc()) {
-            $images = json_decode($row['photos'] ?? '[]', true) ?: [];
-            $citizenReports[] = [
-                'id' => $row['inspection_id'],
-                'report_id' => 'CR-' . date('Y', strtotime($row['created_at'])) . '-' . substr($row['inspection_id'], -3),
-                'location' => $row['location'],
-                'date' => date('M d, Y', strtotime($row['created_at'])),
-                'status' => ucfirst(str_replace('_', ' ', $row['status'])),
-                'severity' => ucfirst($row['severity']),
-                'damage_type' => 'Unknown', // Default value since column doesn't exist
-                'reporter' => 'Citizen Report',
-                'coordinates' => '14.5995° N, 120.9842° E', // Default coordinates
-                'description' => $row['description'],
-                'images' => $images,
-                'inspection_type' => 'citizen',
-                'anonymous' => true,
-                'contact_number' => null
-            ];
-        }
-        $citizenResult->free();
-    }
-    
-    error_log("Successfully fetched " . count($inspections) . " inspections and " . count($citizenReports) . " citizen reports from database");
+    error_log("Successfully fetched " . count($inspections) . " inspections from database");
 } catch (Exception $e) {
     error_log("Database error: " . $e->getMessage());
     error_log("Using fallback mock data");
@@ -916,30 +909,6 @@ $repairs = [
                         </td>
                     </tr>
                     <?php endforeach; ?>
-                    
-                    <?php foreach ($citizenReports as $report): ?>
-                    <tr>
-                        <td class="id-text" style="color: #667eea;"><?php echo $report['id']; ?></td>
-                        <td><div class="loc-text"><i class="fas fa-map-pin"></i> <?php echo $report['location']; ?></div></td>
-                        <td><?php echo $report['date']; ?></td>
-                        <td>
-                            <span style="background: #dcfce7; color: #16a34a; padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">
-                                <i class="fas fa-users"></i> Citizen
-                            </span>
-                        </td>
-                        <td>
-                            <span class="badge badge-<?php echo str_replace(' ', '', strtolower($report['status'])); ?>">
-                                <i class="fas <?php echo strpos($report['status'], 'Pending') !== false ? 'fa-clock' : 'fa-check'; ?>"></i>
-                                <?php echo $report['status']; ?>
-                            </span>
-                        </td>
-                        <td>
-                            <button class="btn-action" onclick='viewInspection(<?php echo json_encode($report); ?>)'>
-                                <i class="fas fa-eye"></i> Inspect
-                            </button>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
@@ -1073,8 +1042,7 @@ $repairs = [
         
         // Data arrays
         const inspectionsData = <?php echo json_encode($inspections); ?>;
-        const citizenReportsData = <?php echo json_encode($citizenReports); ?>;
-        const allReports = [...inspectionsData, ...citizenReportsData];
+        const allReports = inspectionsData;
 
         // Load notifications when page loads
         document.addEventListener('DOMContentLoaded', function() {
