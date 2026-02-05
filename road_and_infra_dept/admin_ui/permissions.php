@@ -800,8 +800,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <td>
                                         <div class="action-group">
                                             <button class="btn-action btn-view" onclick="fetchUser(<?php echo $user['id']; ?>)" title="View Details"><i class="fas fa-eye"></i></button>
-                                            <button class="btn-action" style="background: #8b5cf6;" onclick="showPermissionModal(<?php echo $user['id']; ?>, '<?php echo $fullName; ?>')" title="Manage Permissions"><i class="fas fa-key"></i></button>
-                                            
                                             <?php if ($user['status'] === 'pending'): ?>
                                                 <button class="btn-action btn-approve" onclick="handleAction('approve_user', <?php echo $user['id']; ?>)" title="Approve"><i class="fas fa-check"></i></button>
                                                 <button class="btn-action btn-reject" onclick="handleAction('reject_user', <?php echo $user['id']; ?>)" title="Reject"><i class="fas fa-times"></i></button>
@@ -824,17 +822,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
 
-        <!-- Permission Management Modal -->
-        <div id="permissionModal" class="modal">
-            <div class="modal-content" style="width: 600px;">
-                <h3 id="permissionModalTitle" style="margin-bottom: 20px; color: #1e293b;">Manage Permissions</h3>
-                <div id="permissionModalBody"></div>
-                <div style="margin-top: 25px; display: flex; justify-content: flex-end; gap: 10px;">
-                    <button onclick="closePermissionModal()" style="padding: 10px 20px; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer;">Close</button>
-                </div>
-            </div>
-        </div>
-    </main>
+            </main>
 
     <!-- User Details Modal -->
     <div id="userModal" class="modal">
@@ -955,136 +943,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             modal.style.display = 'flex';
         }
 
-        function showPermissionModal(userId, userName) {
-            const modal = document.getElementById('permissionModal');
-            const title = document.getElementById('permissionModalTitle');
-            const body = document.getElementById('permissionModalBody');
-            
-            title.textContent = `Manage Permissions - ${userName}`;
-            
-            body.innerHTML = `
-                <div style="margin-bottom: 20px;">
-                    <h4 style="margin-bottom: 15px; color: #374151;">Grant New Permission</h4>
-                    <form id="permissionForm" style="display: grid; gap: 15px;">
-                        <input type="hidden" name="user_id" value="${userId}">
-                        <input type="hidden" name="action" value="grant_permission">
-                        
-                        <div>
-                            <label style="display: block; margin-bottom: 5px; font-weight: 600;">Module:</label>
-                            <select name="module" required style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px;">
-                                <option value="">Select Module</option>
-                                <option value="road_reporting">Road Reporting</option>
-                                <option value="inspection_management">Inspection Management</option>
-                                <option value="gis_overview">GIS Overview</option>
-                                <option value="user_management">User Management</option>
-                                <option value="citizen_module">Citizen Module</option>
-                            </select>
-                        </div>
-                        
-                        <div>
-                            <label style="display: block; margin-bottom: 5px; font-weight: 600;">Permission:</label>
-                            <select name="permission" required style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px;">
-                                <option value="">Select Permission</option>
-                                <option value="view">View</option>
-                                <option value="create">Create</option>
-                                <option value="edit">Edit</option>
-                                <option value="delete">Delete</option>
-                                <option value="approve">Approve</option>
-                                <option value="admin">Admin</option>
-                            </select>
-                        </div>
-                        
-                        <button type="submit" style="background: #10b981; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; width: 100%;">Grant Permission</button>
-                    </form>
-                </div>
-                
-                <div>
-                    <h4 style="margin-bottom: 15px; color: #374151;">Current Permissions</h4>
-                    <div id="currentPermissions" style="max-height: 200px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px;">
-                        <p style="color: #6b7280; text-align: center;">Loading permissions...</p>
-                    </div>
-                </div>
-            `;
-            
-            modal.style.display = 'flex';
-            loadUserPermissions(userId);
-            
-            // Handle form submission
-            document.getElementById('permissionForm').onsubmit = function(e) {
-                e.preventDefault();
-                const formData = new FormData(this);
-                
-                fetch('', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(res => res.text())
-                .then(() => {
-                    location.reload();
-                })
-                .catch(err => {
-                    console.error('Error:', err);
-                    alert('Failed to grant permission');
-                });
-            };
-        }
-
-        function loadUserPermissions(userId) {
-            const formData = new FormData();
-            formData.append('action', 'view_permissions');
-            formData.append('user_id', userId);
-            
-            fetch('', {
-                method: 'POST',
-                body: formData
-            })
-            .then(res => res.json())
-            .then(data => {
-                const container = document.getElementById('currentPermissions');
-                if (data.length === 0) {
-                    container.innerHTML = '<p style="color: #6b7280; text-align: center;">No permissions granted</p>';
-                } else {
-                    container.innerHTML = data.map(perm => `
-                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; margin-bottom: 5px; background: #f9fafb; border-radius: 4px;">
-                            <span><strong>${perm.module}:</strong> ${perm.permission}</span>
-                            <button onclick="revokePermission(${perm.id})" style="background: #ef4444; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer;">Revoke</button>
-                        </div>
-                    `).join('');
-                }
-            })
-            .catch(err => {
-                console.error('Error:', err);
-                document.getElementById('currentPermissions').innerHTML = '<p style="color: #ef4444; text-align: center;">Error loading permissions</p>';
-            });
-        }
-
-        function revokePermission(permissionId) {
-            if (confirm('Are you sure you want to revoke this permission?')) {
-                const formData = new FormData();
-                formData.append('action', 'revoke_permission');
-                formData.append('permission_id', permissionId);
-                
-                fetch('', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(res => res.text())
-                .then(() => {
-                    location.reload();
-                })
-                .catch(err => {
-                    console.error('Error:', err);
-                    alert('Failed to revoke permission');
-                });
-            }
-        }
-
         function closeModal() {
             document.getElementById('userModal').style.display = 'none';
-        }
-
-        function closePermissionModal() {
-            document.getElementById('permissionModal').style.display = 'none';
         }
 
         window.onclick = function(event) {
