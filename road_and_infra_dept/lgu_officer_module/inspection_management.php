@@ -310,11 +310,9 @@ try {
     // Fetch citizen reports that have been converted to inspections
     $citizenQuery = "
         SELECT i.*, 
-               CONCAT(u.first_name, ' ', u.last_name) as reporter_name,
-               dr.reporter_id IS NULL as is_anonymous
+               'Citizen Report' as reporter_name,
+               1 as is_anonymous
         FROM inspections i
-        LEFT JOIN damage_reports dr ON i.report_id = dr.report_id
-        LEFT JOIN users u ON dr.reporter_id = u.id
         WHERE i.inspection_type = 'citizen'
         ORDER BY i.created_at DESC
     ";
@@ -324,23 +322,23 @@ try {
     
     if ($citizenResult) {
         while ($row = $citizenResult->fetch_assoc()) {
-            $images = json_decode($row['images'] ?? '[]', true) ?: [];
+            $images = json_decode($row['photos'] ?? '[]', true) ?: [];
             $citizenReports[] = [
                 'id' => $row['inspection_id'],
-                'report_id' => $row['report_id'],
+                'report_id' => 'CR-' . date('Y', strtotime($row['created_at'])) . '-' . substr($row['inspection_id'], -3),
                 'location' => $row['location'],
                 'barangay' => $row['barangay'],
                 'date' => date('M d, Y', strtotime($row['created_at'])),
                 'status' => ucfirst(str_replace('_', ' ', $row['status'])),
                 'severity' => ucfirst($row['severity']),
                 'damage_type' => ucfirst($row['damage_type']),
-                'reporter' => $row['is_anonymous'] ? 'Anonymous' : ($row['reporter_name'] ?? 'Unknown'),
+                'reporter' => 'Citizen Report',
                 'coordinates' => '14.5995° N, 120.9842° E', // Default coordinates
                 'description' => $row['description'],
                 'images' => $images,
                 'inspection_type' => 'citizen',
-                'anonymous' => $row['is_anonymous'],
-                'contact_number' => $row['contact_number'] ?? null
+                'anonymous' => true,
+                'contact_number' => null
             ];
         }
         $citizenResult->free();
