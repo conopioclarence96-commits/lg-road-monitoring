@@ -632,7 +632,27 @@ try {
     </main>
 
     <script>
-        // Form submission is now handled without photo uploads
+        // Clear form after successful submission
+        function clearForm() {
+            document.querySelector('form').reset();
+            
+            // Clear any success/error messages after 3 seconds
+            setTimeout(() => {
+                const errorDiv = document.querySelector('[style*="background: #fee2e2"]');
+                const successDiv = document.querySelector('[style*="background: #dcfce7"]');
+                
+                if (errorDiv) errorDiv.style.display = 'none';
+                if (successDiv) successDiv.style.display = 'none';
+            }, 3000);
+        }
+        
+        // Auto-refresh page after successful submission to show new data
+        <?php if (isset($success)): ?>
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        <?php endif; ?>
+        
         console.log('Road reporting form ready');
     </script>
 </body>
