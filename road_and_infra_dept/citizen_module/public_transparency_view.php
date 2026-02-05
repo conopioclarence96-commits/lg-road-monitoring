@@ -496,10 +496,10 @@ while ($row = $gisResult->fetch_assoc()) {
             <p class="section-desc">Publicly accessible information about road conditions and repair status.</p>
             
             <div class="filter-section">
-                <button class="filter-btn active">All Issues</button>
-                <button class="filter-btn">Potholes</button>
-                <button class="filter-btn">Cracks</button>
-                <button class="filter-btn">Drainage</button>
+                <button class="filter-btn active" data-filter="all">All Issues</button>
+                <button class="filter-btn" data-filter="pothole">Potholes</button>
+                <button class="filter-btn" data-filter="crack">Cracks</button>
+                <button class="filter-btn" data-filter="drainage">Drainage</button>
             </div>
 
             <div class="table-container">
@@ -525,7 +525,7 @@ while ($row = $gisResult->fetch_assoc()) {
                             </tr>
                         <?php else: ?>
                             <?php foreach ($publishedReports as $report): ?>
-                                <tr>
+                                <tr class="issue-row" data-issue-type="<?php echo strtolower($report['issue_type']); ?>">
                                     <td><?php echo htmlspecialchars($report['road_name']); ?></td>
                                     <td><?php echo ucfirst($report['issue_type']); ?></td>
                                     <td><span class="status-badge status-<?php echo $report['severity_public']; ?>"><?php echo ucfirst($report['severity_public']); ?></span></td>
@@ -601,6 +601,31 @@ while ($row = $gisResult->fetch_assoc()) {
                         <small style="color: #94a3b8;">Type: ${item.type.charAt(0).toUpperCase() + item.type.slice(1)}</small>
                     </div>
                 `);
+        });
+
+        // Filter functionality for road issues
+        const filterButtons = document.querySelectorAll('.filter-section .filter-btn');
+        const issueRows = document.querySelectorAll('.issue-row');
+        
+        filterButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                // Remove active class from all buttons
+                filterButtons.forEach(btn => btn.classList.remove('active'));
+                // Add active class to clicked button
+                this.classList.add('active');
+                
+                const filter = this.getAttribute('data-filter');
+                
+                // Filter table rows
+                issueRows.forEach(row => {
+                    if (filter === 'all') {
+                        row.style.display = '';
+                    } else {
+                        const issueType = row.getAttribute('data-issue-type');
+                        row.style.display = issueType === filter ? '' : 'none';
+                    }
+                });
+            });
         });
 
         // Add click handler for map
