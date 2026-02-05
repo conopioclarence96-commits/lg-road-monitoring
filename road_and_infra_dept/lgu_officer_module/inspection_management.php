@@ -25,6 +25,82 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $action = $_POST['action'];
     $inspectionId = $_POST['inspection_id'] ?? '';
     
+    if ($action === 'approve_citizen') {
+        $reportId = $_POST['report_id'] ?? '';
+        
+        error_log("Citizen approval request received for report: " . $reportId);
+        error_log("Session user ID: " . ($_SESSION['user_id'] ?? 'not set'));
+        
+        // Update citizen report status to approved
+        $updateStmt = $conn->prepare("UPDATE damage_reports SET status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE report_id = ?");
+        if (!$updateStmt) {
+            error_log("Failed to prepare citizen approval statement: " . $conn->error);
+            echo json_encode([
+                'success' => false,
+                'message' => 'Database error preparing citizen approval query'
+            ]);
+            exit;
+        }
+        
+        $updateStmt->bind_param('s', $reportId);
+        $updateResult = $updateStmt->execute();
+        error_log("Citizen approval query executed: " . ($updateResult ? 'success' : 'failed'));
+        
+        if ($updateResult) {
+            // Get updated statistics
+            $statsQuery = "
+                SELECT 
+                    COUNT(*) as total_inspections,
+                    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_approvals,
+                    SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as repairs_in_progress,
+                    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_repairs
+                FROM inspections
+            ";
+            $statsResult = $conn->query($statsQuery);
+            $stats = $statsResult ? $statsResult->fetch_assoc() : [
+                'total_inspections' => 0,
+                'pending_approvals' => 0,
+                'repairs_in_progress' => 0,
+                'completed_repairs' => 0
+            ];
+            
+            // Add citizen reports to stats
+            $citizenStatsQuery = "
+                SELECT 
+                    COUNT(*) as total_reports,
+                    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_reports
+                FROM damage_reports
+            ";
+            $citizenStatsResult = $conn->query($citizenStatsQuery);
+            $citizenStats = $citizenStatsResult ? $citizenStatsResult->fetch_assoc() : [
+                'total_reports' => 0,
+                'pending_reports' => 0
+            ];
+            
+            // Combine stats
+            $combinedStats = [
+                'total_inspections' => $stats['total_inspections'] + $citizenStats['total_reports'],
+                'pending_approvals' => $stats['pending_approvals'] + $citizenStats['pending_reports'],
+                'repairs_in_progress' => $stats['repairs_in_progress'],
+                'completed_repairs' => $stats['completed_repairs']
+            ];
+            
+            echo json_encode([
+                'success' => true,
+                'message' => 'Citizen report approved successfully and sent to GIS mapping!',
+                'stats' => $combinedStats,
+                'gis_url' => 'gis_mapping_dashboard.php' // URL to GIS mapping
+            ]);
+        } else {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Failed to approve citizen report'
+            ]);
+        }
+        $updateStmt->close();
+        exit;
+    }
+    
     if ($action === 'approve') {
         error_log("Approval request received for inspection: " . $inspectionId);
         error_log("Session user ID: " . ($_SESSION['user_id'] ?? 'not set'));
@@ -231,7 +307,45 @@ try {
         $result->free();
     }
     
-    error_log("Successfully fetched " . count($inspections) . " inspections from database");
+    // Fetch citizen reports for inspection
+    $citizenQuery = "
+        SELECT dr.*, 
+               CONCAT(u.first_name, ' ', u.last_name) as reporter_name,
+               dr.reporter_id IS NULL as is_anonymous
+        FROM damage_reports dr
+        LEFT JOIN users u ON dr.reporter_id = u.id
+        WHERE dr.status IN ('approved', 'under_review')
+        ORDER BY dr.created_at DESC
+    ";
+    $citizenResult = $conn->query($citizenQuery);
+    
+    $citizenReports = [];
+    
+    if ($citizenResult) {
+        while ($row = $citizenResult->fetch_assoc()) {
+            $images = json_decode($row['images'] ?? '[]', true) ?: [];
+            $citizenReports[] = [
+                'id' => $row['report_id'],
+                'report_id' => $row['report_id'],
+                'location' => $row['location'],
+                'barangay' => $row['barangay'],
+                'date' => date('M d, Y', strtotime($row['created_at'])),
+                'status' => ucfirst(str_replace('_', ' ', $row['status'])),
+                'severity' => ucfirst($row['severity']),
+                'damage_type' => ucfirst($row['damage_type']),
+                'reporter' => $row['is_anonymous'] ? 'Anonymous' : ($row['reporter_name'] ?? 'Unknown'),
+                'coordinates' => '14.5995° N, 120.9842° E', // Default coordinates
+                'description' => $row['description'],
+                'images' => $images,
+                'inspection_type' => 'citizen',
+                'anonymous' => $row['is_anonymous'],
+                'contact_number' => $row['contact_number']
+            ];
+        }
+        $citizenResult->free();
+    }
+    
+    error_log("Successfully fetched " . count($inspections) . " inspections and " . count($citizenReports) . " citizen reports from database");
 } catch (Exception $e) {
     error_log("Database error: " . $e->getMessage());
     error_log("Using fallback mock data");
@@ -804,6 +918,30 @@ $repairs = [
                         </td>
                     </tr>
                     <?php endforeach; ?>
+                    
+                    <?php foreach ($citizenReports as $report): ?>
+                    <tr>
+                        <td class="id-text" style="color: #667eea;"><?php echo $report['id']; ?></td>
+                        <td><div class="loc-text"><i class="fas fa-map-pin"></i> <?php echo $report['location']; ?></div></td>
+                        <td><?php echo $report['date']; ?></td>
+                        <td>
+                            <span style="background: #dcfce7; color: #16a34a; padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">
+                                <i class="fas fa-users"></i> Citizen
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge badge-<?php echo str_replace(' ', '', strtolower($report['status'])); ?>">
+                                <i class="fas <?php echo strpos($report['status'], 'Pending') !== false ? 'fa-clock' : 'fa-check'; ?>"></i>
+                                <?php echo $report['status']; ?>
+                            </span>
+                        </td>
+                        <td>
+                            <button class="btn-action" onclick='viewInspection(<?php echo json_encode($report); ?>)'>
+                                <i class="fas fa-eye"></i> Inspect
+                            </button>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
@@ -934,6 +1072,11 @@ $repairs = [
     <script>
         let currentInspectionData = null;
         let notifications = [];
+        
+        // Data arrays
+        const inspectionsData = <?php echo json_encode($inspections); ?>;
+        const citizenReportsData = <?php echo json_encode($citizenReports); ?>;
+        const allReports = [...inspectionsData, ...citizenReportsData];
 
         // Load notifications when page loads
         document.addEventListener('DOMContentLoaded', function() {
@@ -1073,7 +1216,7 @@ $repairs = [
             document.getElementById('modal-location').textContent = data.location;
             document.getElementById('modal-status').textContent = data.status;
             document.getElementById('modal-date').textContent = data.date;
-            document.getElementById('modal-cost').textContent = data.cost;
+            document.getElementById('modal-cost').textContent = data.cost || '₱0.00';
             document.getElementById('modal-reporter').textContent = data.reporter;
             document.getElementById('modal-coordinates').textContent = data.coordinates;
             document.getElementById('modal-description').textContent = data.description;
@@ -1087,23 +1230,114 @@ $repairs = [
             // Handle Gallery
             const gallery = document.getElementById('modal-gallery');
             gallery.innerHTML = '';
-            data.images.forEach(img => {
-                gallery.innerHTML += `
+            
+            if (data.images && data.images.length > 0) {
+                data.images.forEach(img => {
+                    if (data.inspection_type === 'citizen') {
+                        // Citizen reports have actual image paths
+                        gallery.innerHTML += `
+                            <div class="gallery-item">
+                                <img src="../uploads/reports/${img}" alt="Report Image" style="width: 100%; height: 100%; object-fit: cover;">
+                            </div>
+                        `;
+                    } else {
+                        // Regular inspections may have placeholder images
+                        gallery.innerHTML += `
+                            <div class="gallery-item">
+                                <i class="fas fa-image"></i>
+                            </div>
+                        `;
+                    }
+                });
+            } else {
+                gallery.innerHTML = `
                     <div class="gallery-item">
                         <i class="fas fa-image"></i>
                     </div>
                 `;
-            });
+            }
 
-            // Show/hide approval actions based on status
+            // Show/hide approval actions based on status and type
             const approvalActions = document.getElementById('approval-actions');
-            if (data.status === 'Pending' || data.status === 'Pending Approval') {
+            if (data.inspection_type === 'citizen' && (data.status === 'Under Review' || data.status === 'Pending')) {
                 approvalActions.style.display = 'block';
+                // Update button text for citizen reports
+                approvalActions.innerHTML = `
+                    <span class="detail-label"><i class="fas fa-cogs"></i> Actions</span>
+                    <div style="display: flex; gap: 12px; margin-top: 8px;">
+                        <button class="btn-action" onclick="approveCitizenReport()" style="background: #16a34a;">
+                            <i class="fas fa-check-circle"></i> Approve & Send to GIS
+                        </button>
+                        <button class="btn-action" onclick="rejectReport()" style="background: #dc2626;">
+                            <i class="fas fa-times-circle"></i> Reject Report
+                        </button>
+                    </div>
+                `;
+            } else if (data.status === 'Pending' || data.status === 'Pending Approval') {
+                approvalActions.style.display = 'block';
+                approvalActions.innerHTML = `
+                    <span class="detail-label"><i class="fas fa-cogs"></i> Actions</span>
+                    <div style="display: flex; gap: 12px; margin-top: 8px;">
+                        <button class="btn-action" onclick="approveReport()" style="background: #16a34a;">
+                            <i class="fas fa-check-circle"></i> Approve Report
+                        </button>
+                        <button class="btn-action" onclick="rejectReport()" style="background: #dc2626;">
+                            <i class="fas fa-times-circle"></i> Reject Report
+                        </button>
+                    </div>
+                `;
             } else {
                 approvalActions.style.display = 'none';
             }
 
             document.getElementById('inspectionModal').style.display = 'flex';
+        }
+
+        function approveCitizenReport() {
+            if (!currentInspectionData) return;
+            
+            console.log('Approving citizen report:', currentInspectionData.id);
+            
+            if (confirm('Are you sure you want to approve this citizen report and send it to GIS mapping?')) {
+                // Send approval request to server
+                fetch('inspection_management.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `action=approve_citizen&report_id=${currentInspectionData.id}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Server response:', data);
+                    if (data.success) {
+                        alert('Citizen report approved successfully and sent to GIS mapping!');
+                        
+                        // Update stat cards with new values
+                        if (data.stats) {
+                            console.log('Updating stats:', data.stats);
+                            updateStatCards(data.stats);
+                        }
+                        
+                        closeModal();
+                        // Update status in table without full reload
+                        updateInspectionStatus(currentInspectionData.id, 'Approved');
+                        
+                        // Optionally open GIS mapping
+                        if (data.gis_url) {
+                            setTimeout(() => {
+                                window.open(data.gis_url, '_blank');
+                            }, 1000);
+                        }
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while approving the citizen report.');
+                });
+            }
         }
 
         function approveReport() {
