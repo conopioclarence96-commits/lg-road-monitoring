@@ -353,6 +353,20 @@ $auth->requireAnyRole(['citizen', 'admin']);
     <div id="toast-container"></div>
 
     <script>
+        // Debug logging
+        console.log('Report Damage Page Loaded - v2.0');
+        
+        // Check if all required elements exist
+        const requiredElements = ['reportForm', 'submitBtn', 'reportImages', 'imagePreview', 'toast-container'];
+        requiredElements.forEach(id => {
+            const element = document.getElementById(id);
+            if (!element) {
+                console.error(`Missing element: ${id}`);
+            } else {
+                console.log(`Found element: ${id}`);
+            }
+        });
+        
         // Image Preview with validation
         document.getElementById('reportImages').addEventListener('change', function(e) {
             const preview = document.getElementById('imagePreview');
@@ -394,43 +408,58 @@ $auth->requireAnyRole(['citizen', 'admin']);
         // Form Submission
         document.getElementById('reportForm').addEventListener('submit', function(e) {
             e.preventDefault();
+            console.log('Form submission started');
             
             const btn = document.getElementById('submitBtn');
             const originalText = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
-            btn.disabled = true;
+            
+            try {
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+                btn.disabled = true;
 
-            const formData = new FormData(this);
+                const formData = new FormData(this);
+                console.log('Form data prepared');
 
-            fetch('api/handle_report.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(async response => {
-                const text = await response.text();
-                try {
-                    return JSON.parse(text);
-                } catch(e) {
-                    throw new Error(text || 'Invalid server response');
-                }
-            })
-            .then(data => {
-                if(data.success) {
-                    showToast(data.message, 'success');
-                    this.reset();
-                    document.getElementById('imagePreview').innerHTML = '';
-                } else {
-                    showToast(data.message, 'error');
-                }
-            })
-            .catch(error => {
-                console.error(error);
-                showToast(error.message || 'An error occurred during submission', 'error');
-            })
-            .finally(() => {
+                fetch('api/handle_report.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(async response => {
+                    console.log('Response received:', response.status);
+                    const text = await response.text();
+                    console.log('Response text:', text);
+                    
+                    try {
+                        return JSON.parse(text);
+                    } catch(e) {
+                        console.error('JSON parse error:', e);
+                        throw new Error(text || 'Invalid server response');
+                    }
+                })
+                .then(data => {
+                    console.log('Parsed data:', data);
+                    if(data.success) {
+                        showToast(data.message, 'success');
+                        this.reset();
+                        document.getElementById('imagePreview').innerHTML = '';
+                    } else {
+                        showToast(data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Submission error:', error);
+                    showToast(error.message || 'An error occurred during submission', 'error');
+                })
+                .finally(() => {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                });
+            } catch (error) {
+                console.error('Form submission error:', error);
+                showToast('Unexpected error: ' + error.message, 'error');
                 btn.innerHTML = originalText;
                 btn.disabled = false;
-            });
+            }
         });
 
         function showToast(message, type = 'success') {
