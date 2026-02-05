@@ -277,14 +277,14 @@ $conn = $db->getConnection();
             position: fixed;
             top: 0;
             left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(4px);
-            z-index: 2000;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
             display: none;
             align-items: center;
             justify-content: center;
+            z-index: 1000;
             padding: 20px;
         }
 
@@ -294,11 +294,22 @@ $conn = $db->getConnection();
             max-width: 1200px;
             max-height: 90vh;
             border-radius: 20px;
-            overflow-y: auto;
-            position: relative;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            overflow: hidden;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
             display: flex;
             flex-direction: column;
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-30px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
         }
 
         .modal-header {
@@ -307,7 +318,7 @@ $conn = $db->getConnection();
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: #f8fafc;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
             border-radius: 20px 20px 0 0;
         }
 
@@ -322,6 +333,7 @@ $conn = $db->getConnection();
 
         .modal-title i {
             color: var(--primary);
+            font-size: 1.3rem;
         }
 
         .modal-close {
@@ -330,27 +342,31 @@ $conn = $db->getConnection();
             color: #94a3b8;
             font-size: 1.5rem;
             cursor: pointer;
-            transition: color 0.2s;
             padding: 8px;
             border-radius: 8px;
+            transition: all 0.2s ease;
         }
 
         .modal-close:hover {
             color: #1e293b;
             background: #f1f5f9;
+            transform: scale(1.1);
         }
 
         .modal-body {
-            padding: 32px;
+            padding: 0;
             overflow-y: auto;
+            flex: 1;
+            background: #fafbfc;
         }
 
         .modal-loading {
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 60px;
+            padding: 60px 20px;
             color: var(--text-muted);
+            font-size: 1.1rem;
         }
 
         .modal-loading i {
@@ -359,12 +375,16 @@ $conn = $db->getConnection();
             animation: spin 1s linear infinite;
         }
 
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
         .modal-content-wrapper {
             width: 100%;
-            overflow-x: hidden;
+            min-height: 100%;
             background: url('../user_and_access_management_module/assets/img/cityhall.jpeg') center/cover no-repeat fixed;
             position: relative;
-            min-height: 100vh;
             color: var(--text-main);
         }
 
@@ -380,119 +400,30 @@ $conn = $db->getConnection();
         .modal-content-wrapper .main-content {
             position: relative;
             z-index: 1;
-            padding: 30px 40px;
-            display: flex;
-            flex-direction: column;
+            padding: 40px;
+            max-height: calc(90vh - 80px);
             overflow-y: auto;
-            max-height: 90vh;
         }
 
         .modal-content-wrapper .module-header {
             color: white;
-            margin-bottom: 30px;
+            margin-bottom: 40px;
         }
 
         .modal-content-wrapper .module-header h1 {
             font-size: 2.2rem;
             font-weight: 700;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .modal-content-wrapper .module-header p {
-            font-size: 1rem;
-            opacity: 0.9;
-            letter-spacing: 0.5px;
-        }
-
-        .modal-content-wrapper .header-divider {
-            border: none;
-            height: 1px;
-            background: rgba(255, 255, 255, 0.3);
             margin: 15px 0;
         }
 
         .modal-content-wrapper .stats-cards-container {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
         }
 
         .modal-content-wrapper .stat-card {
-            background: var(--glass-bg);
-            backdrop-filter: blur(10px);
-            border-radius: 16px;
-            border: 1px solid var(--glass-border);
-            padding: 24px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-
-        .modal-content-wrapper .stat-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
-        }
-
-        .modal-content-wrapper .stat-card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-
-        .modal-content-wrapper .stat-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-        }
-
-        .modal-content-wrapper .stat-icon.primary {
-            background: rgba(37, 99, 235, 0.1);
-            color: var(--primary);
-        }
-
-        .modal-content-wrapper .stat-icon.success {
-            background: rgba(22, 163, 74, 0.1);
-            color: var(--success);
-        }
-
-        .modal-content-wrapper .stat-icon.warning {
-            background: rgba(245, 158, 11, 0.1);
-            color: var(--warning);
-        }
-
-        .modal-content-wrapper .stat-icon.danger {
-            background: rgba(220, 38, 38, 0.1);
-            color: var(--danger);
-        }
-
-        .modal-content-wrapper .stat-card h3 {
-            font-size: 2rem;
-            font-weight: 700;
-            color: var(--text-main);
-            margin-bottom: 5px;
-        }
-
-        .modal-content-wrapper .stat-card p {
-            color: var(--text-muted);
-            font-size: 0.9rem;
-        }
-
-        .modal-content-wrapper .workflow-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-            gap: 25px;
-            margin-bottom: 30px;
-        }
-
-        .modal-content-wrapper .workflow-card {
             background: var(--glass-bg);
             backdrop-filter: blur(10px);
             border-radius: 20px;
@@ -500,63 +431,166 @@ $conn = $db->getConnection();
             padding: 30px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
             transition: transform 0.3s ease, box-shadow 0.3s ease;
-            cursor: pointer;
-            text-decoration: none;
-            color: inherit;
         }
 
-        .modal-content-wrapper .workflow-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+        .modal-content-wrapper .stat-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
         }
 
-        .modal-content-wrapper .card-icon {
+        .modal-content-wrapper .stat-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-content-wrapper .stat-icon {
             width: 60px;
             height: 60px;
             border-radius: 16px;
             display: flex;
             align-items: center;
             justify-content: center;
+            font-size: 1.5rem;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .modal-content-wrapper .stat-icon.primary {
+            background: linear-gradient(135deg, rgba(37, 99, 235, 0.15) 0%, rgba(37, 99, 235, 0.05) 100%);
+            color: var(--primary);
+        }
+
+        .modal-content-wrapper .stat-icon.success {
+            background: linear-gradient(135deg, rgba(22, 163, 74, 0.15) 0%, rgba(22, 163, 74, 0.05) 100%);
+            color: var(--success);
+        }
+
+        .modal-content-wrapper .stat-icon.warning {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(245, 158, 11, 0.05) 100%);
+            color: var(--warning);
+        }
+
+        .modal-content-wrapper .stat-icon.danger {
+            background: linear-gradient(135deg, rgba(220, 38, 38, 0.15) 0%, rgba(220, 38, 38, 0.05) 100%);
+            color: var(--danger);
+        }
+
+        .modal-content-wrapper .stat-card h3 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--text-main);
+            margin-bottom: 8px;
+            line-height: 1;
+        }
+
+        .modal-content-wrapper .stat-card p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .modal-content-wrapper .workflow-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .modal-content-wrapper .workflow-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border-radius: 24px;
+            border: 1px solid var(--glass-border);
+            padding: 35px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            transition: all 0.4s ease;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .modal-content-wrapper .workflow-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--success));
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .modal-content-wrapper .workflow-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .modal-content-wrapper .workflow-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-content-wrapper .card-icon {
+            width: 70px;
+            height: 70px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-size: 1.8rem;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+            transition: transform 0.3s ease;
+        }
+
+        .modal-content-wrapper .workflow-card:hover .card-icon {
+            transform: scale(1.1) rotate(5deg);
         }
 
         .modal-content-wrapper .card-icon.review {
-            background: rgba(37, 99, 235, 0.1);
+            background: linear-gradient(135deg, rgba(37, 99, 235, 0.15) 0%, rgba(37, 99, 235, 0.05) 100%);
             color: var(--primary);
         }
 
         .modal-content-wrapper .card-icon.view {
-            background: rgba(22, 163, 74, 0.1);
+            background: linear-gradient(135deg, rgba(22, 163, 74, 0.15) 0%, rgba(22, 163, 74, 0.05) 100%);
             color: var(--success);
         }
 
         .modal-content-wrapper .card-icon.lgu {
-            background: rgba(245, 158, 11, 0.1);
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(245, 158, 11, 0.05) 100%);
             color: var(--warning);
         }
 
         .modal-content-wrapper .workflow-card h3 {
-            font-size: 1.4rem;
+            font-size: 1.5rem;
             font-weight: 700;
             color: var(--text-main);
-            margin-bottom: 12px;
+            margin-bottom: 15px;
+            line-height: 1.3;
         }
 
         .modal-content-wrapper .workflow-card p {
             color: var(--text-muted);
-            font-size: 0.95rem;
-            line-height: 1.6;
-            margin-bottom: 20px;
+            font-size: 1rem;
+            line-height: 1.7;
+            margin-bottom: 25px;
+            min-height: 60px;
         }
 
         .modal-content-wrapper .card-action {
             display: inline-flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
             font-weight: 600;
-            color: var(--primary);
-            font-size: 0.9rem;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+            text-decoration: none;
         }
 
         .modal-content-wrapper .card-action.view-action {
@@ -565,6 +599,10 @@ $conn = $db->getConnection();
 
         .modal-content-wrapper .card-action.lgu-action {
             color: var(--warning);
+        }
+
+        .modal-content-wrapper .card-action:hover {
+            transform: translateX(5px);
         }
     </style>
 </head>
