@@ -77,47 +77,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             if ($stmt->execute()) {
                 $report_id = $conn->insert_id;
-                
-                // Handle file uploads with better error checking
-                if (!empty($_FILES['photos']['name'][0])) {
-                    $upload_dir = '../uploads/damage_reports/';
-                    if (!is_dir($upload_dir)) {
-                        mkdir($upload_dir, 0755, true);
-                    }
-                    
-                    $uploaded_files = [];
-                    foreach ($_FILES['photos']['tmp_name'] as $key => $tmp_name) {
-                        if ($_FILES['photos']['error'][$key] === UPLOAD_ERR_OK) {
-                            $filename = time() . '_' . basename($_FILES['photos']['name'][$key]);
-                            $filepath = $upload_dir . $filename;
-                            
-                            // Validate file type
-                            $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-                            $file_type = $_FILES['photos']['type'][$key];
-                            
-                            if (in_array($file_type, $allowed_types)) {
-                                if (move_uploaded_file($tmp_name, $filepath)) {
-                                    $uploaded_files[] = $filepath;
-                                    
-                                    // Insert photo record
-                                    $photo_stmt = $conn->prepare("
-                                        INSERT INTO damage_report_photos (damage_report_id, photo_path, uploaded_at)
-                                        VALUES (?, ?, NOW())
-                                    ");
-                                    $photo_stmt->bind_param("is", $report_id, $filepath);
-                                    $photo_stmt->execute();
-                                }
-                            } else {
-                                $error = "Only JPEG, PNG, GIF, and WebP images are allowed.";
-                            }
-                        }
-                    }
-                    
-                    if (empty($uploaded_files) && !empty($_FILES['photos']['name'][0])) {
-                        $error = "Failed to upload any valid images.";
-                    }
-                }
-                
                 $success = "Road damage report submitted successfully!";
             } else {
                 $error = "Failed to submit report. Please try again.";
@@ -577,12 +536,11 @@ try {
 
                 <div class="form-group">
                     <label class="form-label">Evidence Photos</label>
-                    <div class="photo-upload-zone">
-                        <i class="fas fa-camera"></i>
-                        <p>Drag & drop or <span>browse</span></p>
-                        <input type="file" name="photos[]" multiple accept="image/*" style="display: none;" id="photo-input">
+                    <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; text-align: center; color: #6c757d;">
+                        <i class="fas fa-camera" style="font-size: 2rem; margin-bottom: 10px; display: block;"></i>
+                        <p style="margin: 0;">Photo upload temporarily unavailable</p>
+                        <small style="color: #868e96;">Please contact administrator to enable photo uploads</small>
                     </div>
-                    <div id="photo-preview" style="margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;"></div>
                 </div>
 
                 <button type="submit" class="btn-submit">Submit Official Report</button>
@@ -653,61 +611,8 @@ try {
     </main>
 
     <script>
-        // Trigger file input when clicking the zone
-        document.querySelector('.photo-upload-zone').addEventListener('click', () => {
-            document.getElementById('photo-input').click();
-        });
-
-        // Handle file preview
-        document.getElementById('photo-input').addEventListener('change', function(e) {
-            const preview = document.getElementById('photo-preview');
-            preview.innerHTML = '';
-            
-            Array.from(this.files).forEach(file => {
-                if (file.type.startsWith('image/')) {
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        const img = document.createElement('img');
-                        img.src = e.target.result;
-                        img.style.width = '80px';
-                        img.style.height = '80px';
-                        img.style.objectFit = 'cover';
-                        img.style.borderRadius = '8px';
-                        img.style.border = '2px solid #e2e8f0';
-                        preview.appendChild(img);
-                    };
-                    reader.readAsDataURL(file);
-                }
-            });
-        });
-
-        // Handle drag and drop
-        const dropZone = document.querySelector('.photo-upload-zone');
-        
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.style.background = 'rgba(248, 250, 252, 0.9)';
-            dropZone.style.borderColor = 'var(--primary)';
-        });
-        
-        dropZone.addEventListener('dragleave', (e) => {
-            e.preventDefault();
-            dropZone.style.background = 'rgba(248, 250, 252, 0.5)';
-            dropZone.style.borderColor = '#cbd5e1';
-        });
-        
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.style.background = 'rgba(248, 250, 252, 0.5)';
-            dropZone.style.borderColor = '#cbd5e1';
-            
-            const files = e.dataTransfer.files;
-            document.getElementById('photo-input').files = files;
-            
-            // Trigger change event to show preview
-            const event = new Event('change', { bubbles: true });
-            document.getElementById('photo-input').dispatchEvent(event);
-        });
+        // Form submission is now handled without photo uploads
+        console.log('Road reporting form ready');
     </script>
 </body>
 </html>
