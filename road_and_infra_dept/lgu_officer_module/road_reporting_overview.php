@@ -6,11 +6,124 @@ require_once '../config/database.php';
 
 $auth->requireAnyRole(['lgu_officer', 'admin']);
 
-// Mock data (Replace with real data later)
-$reports = [
-    ['id' => 'RD-001', 'location' => 'Main Road, Brgy. Central', 'type' => 'Pothole', 'status' => 'Pending'],
-    ['id' => 'RD-002', 'location' => 'Riverside Blvd.', 'type' => 'Crack', 'status' => 'Under Review'],
-];
+// Initialize database connection
+$database = new Database();
+$conn = $database->getConnection();
+
+// Handle form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $location = $_POST['location'] ?? '';
+    $damage_type = $_POST['damage_type'] ?? '';
+    $severity = $_POST['severity'] ?? '';
+    $description = $_POST['description'] ?? '';
+    
+    // Validate required fields
+    if (empty($location) || empty($damage_type) || empty($severity)) {
+        $error = "All required fields must be filled.";
+    } else {
+        try {
+            // Insert new damage report
+            $stmt = $conn->prepare("
+                INSERT INTO damage_reports (
+                    road_name, issue_type, severity, description, 
+                    date_reported, reported_by, status
+                ) VALUES (?, ?, ?, ?, NOW(), ?, 'pending')
+                ");
+            
+            $user_id = $_SESSION['user_id'] ?? 1; // Fallback to user ID 1 if not set
+            $stmt->bind_param("ssssi", $location, $damage_type, $severity, $description, $user_id);
+            
+            if ($stmt->execute()) {
+                $report_id = $conn->insert_id;
+                
+                // Handle file uploads
+                if (!empty($_FILES['photos']['name'][0])) {
+                    $upload_dir = '../uploads/damage_reports/';
+                    if (!is_dir($upload_dir)) {
+                        mkdir($upload_dir, 0755, true);
+                    }
+                    
+                    foreach ($_FILES['photos']['tmp_name'] as $key => $tmp_name) {
+                        if ($_FILES['photos']['error'][$key] === UPLOAD_ERR_OK) {
+                            $filename = time() . '_' . basename($_FILES['photos']['name'][$key]);
+                            $filepath = $upload_dir . $filename;
+                            
+                            if (move_uploaded_file($tmp_name, $filepath)) {
+                                // Insert photo record
+                                $photo_stmt = $conn->prepare("
+                                    INSERT INTO damage_report_photos (damage_report_id, photo_path, uploaded_at)
+                                    VALUES (?, ?, NOW())
+                                ");
+                                $photo_stmt->bind_param("is", $report_id, $filepath);
+                                $photo_stmt->execute();
+                            }
+                        }
+                    }
+                }
+                
+                $success = "Road damage report submitted successfully!";
+            } else {
+                $error = "Failed to submit report. Please try again.";
+            }
+        } catch (Exception $e) {
+            $error = "Database error: " . $e->getMessage();
+        }
+    }
+}
+
+// Get filtering and sorting parameters
+$sort_by = $_GET['sort_by'] ?? 'latest';
+$status_filter = $_GET['status'] ?? 'all';
+
+// Build the query
+$where_conditions = [];
+$params = [];
+$types = '';
+
+if ($status_filter !== 'all') {
+    $where_conditions[] = "dr.status = ?";
+    $params[] = $status_filter;
+    $types .= 's';
+}
+
+$where_clause = !empty($where_conditions) ? 'WHERE ' . implode(' AND ', $where_conditions) : '';
+
+// Sorting
+$order_by = $sort_by === 'oldest' ? 'ORDER BY dr.date_reported ASC' : 'ORDER BY dr.date_reported DESC';
+
+// Fetch damage reports from database
+$reports = [];
+try {
+    $stmt = $conn->prepare("
+        SELECT 
+            dr.id,
+            dr.road_name,
+            dr.issue_type,
+            dr.severity,
+            dr.status,
+            dr.date_reported,
+            CONCAT('RD-', LPAD(dr.id, 4, '0')) as report_id,
+            u.full_name as reporter_name
+        FROM damage_reports dr
+        LEFT JOIN users u ON dr.reported_by = u.id
+        $where_clause
+        $order_by
+        LIMIT 50
+    ");
+    
+    if (!empty($params)) {
+        $stmt->bind_param($types, ...$params);
+    }
+    
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    while ($row = $result->fetch_assoc()) {
+        $reports[] = $row;
+    }
+} catch (Exception $e) {
+    $error = "Error fetching reports: " . $e->getMessage();
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -268,6 +381,40 @@ $reports = [
             color: #1e293b;
         }
 
+        /* Status Badge */
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .status-pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-under-review {
+            background: #e0e7ff;
+            color: #3730a3;
+        }
+
+        .status-approved {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-in-progress {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .status-completed {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
         /* Scrollbar */
         .main-content::-webkit-scrollbar {
             width: 8px;
@@ -296,33 +443,49 @@ $reports = [
             <h2 class="card-title">Report Road Damage</h2>
             
             <form action="" method="POST" enctype="multipart/form-data">
+                <?php if (isset($error)): ?>
+                    <div style="background: #fee2e2; color: #dc2626; padding: 12px; border-radius: 8px; margin-bottom: 20px; font-size: 0.9rem;">
+                        <i class="fas fa-exclamation-circle"></i> <?php echo htmlspecialchars($error); ?>
+                    </div>
+                <?php endif; ?>
+                
+                <?php if (isset($success)): ?>
+                    <div style="background: #dcfce7; color: #166534; padding: 12px; border-radius: 8px; margin-bottom: 20px; font-size: 0.9rem;">
+                        <i class="fas fa-check-circle"></i> <?php echo htmlspecialchars($success); ?>
+                    </div>
+                <?php endif; ?>
+                
                 <div class="form-group">
                     <label class="form-label">Location</label>
-                    <input type="text" class="form-control" placeholder="Street / Barangay Name" required>
+                    <input type="text" name="location" class="form-control" placeholder="Street / Barangay Name" required>
                 </div>
 
                 <div class="form-group">
                     <label class="form-label">Damage Type</label>
-                    <select class="form-control" required>
-                        <option value="Pothole">Pothole</option>
-                        <option value="Crack">Crack</option>
-                        <option value="Landslide">Landslide</option>
-                        <option value="Flooding">Flooding</option>
+                    <select name="damage_type" class="form-control" required>
+                        <option value="">Select damage type</option>
+                        <option value="pothole">Pothole</option>
+                        <option value="crack">Crack</option>
+                        <option value="landslide">Landslide</option>
+                        <option value="flooding">Flooding</option>
+                        <option value="drainage">Drainage Issue</option>
                     </select>
                 </div>
 
                 <div class="form-group">
                     <label class="form-label">Severity Level</label>
-                    <select class="form-control" required>
-                        <option value="Low">Low (Minor wear)</option>
-                        <option value="Medium">Medium (Moderate damage)</option>
-                        <option value="High">High (Severe/Dangerous)</option>
+                    <select name="severity" class="form-control" required>
+                        <option value="">Select severity</option>
+                        <option value="low">Low (Minor wear)</option>
+                        <option value="medium">Medium (Moderate damage)</option>
+                        <option value="high">High (Severe/Dangerous)</option>
+                        <option value="critical">Critical (Emergency)</option>
                     </select>
                 </div>
 
                 <div class="form-group">
                     <label class="form-label">Description</label>
-                    <textarea class="form-control" placeholder="Describe the damage extent..."></textarea>
+                    <textarea name="description" class="form-control" placeholder="Describe the damage extent..." required></textarea>
                 </div>
 
                 <div class="form-group">
@@ -330,8 +493,9 @@ $reports = [
                     <div class="photo-upload-zone">
                         <i class="fas fa-camera"></i>
                         <p>Drag & drop or <span>browse</span></p>
-                        <input type="file" style="display: none;" id="photo-input">
+                        <input type="file" name="photos[]" multiple accept="image/*" style="display: none;" id="photo-input">
                     </div>
+                    <div id="photo-preview" style="margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;"></div>
                 </div>
 
                 <button type="submit" class="btn-submit">Submit Official Report</button>
@@ -346,18 +510,20 @@ $reports = [
                 <div class="table-controls">
                     <div class="control-group">
                         <label class="control-label">Sort by Date</label>
-                        <select class="control-select">
-                            <option>Latest</option>
-                            <option>Oldest</option>
+                        <select class="control-select" onchange="window.location.href='?sort_by=' + this.value + '&status=<?php echo urlencode($status_filter); ?>'">
+                            <option value="latest" <?php echo $sort_by === 'latest' ? 'selected' : ''; ?>>Latest</option>
+                            <option value="oldest" <?php echo $sort_by === 'oldest' ? 'selected' : ''; ?>>Oldest</option>
                         </select>
                     </div>
                     <div class="control-group">
                         <label class="control-label">Filter by Status</label>
-                        <select class="control-select">
-                            <option>All</option>
-                            <option>Pending</option>
-                            <option>Under Review</option>
-                            <option>Approved</option>
+                        <select class="control-select" onchange="window.location.href='?status=' + this.value + '&sort_by=<?php echo urlencode($sort_by); ?>'">
+                            <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All</option>
+                            <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending</option>
+                            <option value="under_review" <?php echo $status_filter === 'under_review' ? 'selected' : ''; ?>>Under Review</option>
+                            <option value="approved" <?php echo $status_filter === 'approved' ? 'selected' : ''; ?>>Approved</option>
+                            <option value="in_progress" <?php echo $status_filter === 'in_progress' ? 'selected' : ''; ?>>In Progress</option>
+                            <option value="completed" <?php echo $status_filter === 'completed' ? 'selected' : ''; ?>>Completed</option>
                         </select>
                     </div>
                 </div>
@@ -373,14 +539,27 @@ $reports = [
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($reports as $report): ?>
-                    <tr>
-                        <td class="id-cell"><?php echo $report['id']; ?></td>
-                        <td><?php echo $report['location']; ?></td>
-                        <td><?php echo $report['type']; ?></td>
-                        <td><?php echo $report['status']; ?></td>
-                    </tr>
-                    <?php endforeach; ?>
+                    <?php if (empty($reports)): ?>
+                        <tr>
+                            <td colspan="4" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                                <i class="fas fa-info-circle" style="font-size: 1.5rem; margin-bottom: 10px; display: block;"></i>
+                                No damage reports found.
+                            </td>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($reports as $report): ?>
+                        <tr>
+                            <td class="id-cell"><?php echo htmlspecialchars($report['report_id']); ?></td>
+                            <td><?php echo htmlspecialchars($report['road_name']); ?></td>
+                            <td><?php echo ucfirst(htmlspecialchars($report['issue_type'])); ?></td>
+                            <td>
+                                <span class="status-badge status-<?php echo str_replace('_', '-', $report['status']); ?>">
+                                    <?php echo ucfirst(str_replace('_', ' ', htmlspecialchars($report['status']))); ?>
+                                </span>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
@@ -390,6 +569,57 @@ $reports = [
         // Trigger file input when clicking the zone
         document.querySelector('.photo-upload-zone').addEventListener('click', () => {
             document.getElementById('photo-input').click();
+        });
+
+        // Handle file preview
+        document.getElementById('photo-input').addEventListener('change', function(e) {
+            const preview = document.getElementById('photo-preview');
+            preview.innerHTML = '';
+            
+            Array.from(this.files).forEach(file => {
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const img = document.createElement('img');
+                        img.src = e.target.result;
+                        img.style.width = '80px';
+                        img.style.height = '80px';
+                        img.style.objectFit = 'cover';
+                        img.style.borderRadius = '8px';
+                        img.style.border = '2px solid #e2e8f0';
+                        preview.appendChild(img);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+        });
+
+        // Handle drag and drop
+        const dropZone = document.querySelector('.photo-upload-zone');
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.style.background = 'rgba(248, 250, 252, 0.9)';
+            dropZone.style.borderColor = 'var(--primary)';
+        });
+        
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropZone.style.background = 'rgba(248, 250, 252, 0.5)';
+            dropZone.style.borderColor = '#cbd5e1';
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.background = 'rgba(248, 250, 252, 0.5)';
+            dropZone.style.borderColor = '#cbd5e1';
+            
+            const files = e.dataTransfer.files;
+            document.getElementById('photo-input').files = files;
+            
+            // Trigger change event to show preview
+            const event = new Event('change', { bubbles: true });
+            document.getElementById('photo-input').dispatchEvent(event);
         });
     </script>
 </body>
