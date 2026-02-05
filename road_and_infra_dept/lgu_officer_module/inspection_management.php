@@ -291,12 +291,19 @@ try {
     ";
     $result = $conn->query($query);
     
+    // Debug: Show the actual SQL query and results
+    error_log("SQL Query: " . $query);
+    error_log("Number of rows found: " . ($result ? $result->num_rows : 0));
+    
     $inspections = [];
     
     // Process inspections based on actual database structure
     if ($result) {
         while ($row = $result->fetch_assoc()) {
             $photos = json_decode($row['photos'] ?? '[]', true) ?: [];
+            
+            // Debug: Log each inspection being processed
+            error_log("Processing inspection: " . $row['inspection_id'] . " - Type: " . $row['inspection_type'] . " - Inspector ID: " . $row['inspector_id']);
             
             if ($row['inspection_type'] === 'citizen') {
                 // Citizen inspection data
