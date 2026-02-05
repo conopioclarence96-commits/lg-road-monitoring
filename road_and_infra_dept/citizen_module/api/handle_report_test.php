@@ -40,7 +40,42 @@ try {
     $traffic_impact = $_POST['traffic_impact'] ?? 'moderate';
     $contact_number = $_POST['contact_number'] ?? '';
     $anonymous_report = isset($_POST['anonymous_report']) ? 1 : 0;
-    $user_id = $anonymous_report ? 0 : 1; // Use 0 for anonymous, 1 for testing user
+    
+    // Handle foreign key constraint - use existing user or create a test user
+    if ($anonymous_report) {
+        // For anonymous reports, try to find an existing user or use a default
+        $check_user = $conn->prepare("SELECT id FROM users ORDER BY id LIMIT 1");
+        $check_user->execute();
+        $user_result = $check_user->get_result();
+        
+        if ($user_result->num_rows > 0) {
+            $user_row = $user_result->fetch_assoc();
+            $user_id = $user_row['id'];
+        } else {
+            // Create a test user if none exists
+            $insert_user = $conn->prepare("INSERT INTO users (username, email, first_name, last_name, password, role, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())");
+            $test_username = 'test_user_' . time();
+            $test_email = 'test@example.com';
+            $test_password = password_hash('test123', PASSWORD_DEFAULT);
+            $test_role = 'citizen';
+            
+            $insert_user->bind_param('ssssss', $test_username, $test_email, 'Test', 'User', $test_password, $test_role);
+            $insert_user->execute();
+            $user_id = $conn->insert_id;
+        }
+    } else {
+        // For non-anonymous, use the first available user
+        $check_user = $conn->prepare("SELECT id FROM users ORDER BY id LIMIT 1");
+        $check_user->execute();
+        $user_result = $check_user->get_result();
+        
+        if ($user_result->num_rows > 0) {
+            $user_row = $user_result->fetch_assoc();
+            $user_id = $user_row['id'];
+        } else {
+            sendResponse(false, 'No users found in database. Cannot create report.');
+        }
+    }
 
     if (empty($location) || empty($barangay) || empty($damage_type) || empty($description)) {
         sendResponse(false, 'Please fill in all required fields.');
