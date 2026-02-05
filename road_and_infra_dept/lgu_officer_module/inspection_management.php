@@ -856,6 +856,18 @@ $repairs = [
         <!-- Inspection Reports -->
         <div class="content-card">
             <h2><i class="fas fa-file-alt"></i> Inspection Reports</h2>
+            <div style="background: #f0f9ff; border: 1px solid #0ea5e9; padding: 10px; margin-bottom: 15px; border-radius: 8px;">
+                <small style="color: #0c4a6e;">
+                    <strong>DEBUG:</strong> Found <?php echo count($inspections); ?> inspections 
+                    <?php 
+                    if (count($inspections) <= 2) {
+                        echo "(Using fallback mock data - Database query failed)";
+                    } else {
+                        echo "(Using real database data)";
+                    }
+                    ?>
+                </small>
+            </div>
             <table class="custom-table">
                 <thead>
                     <tr>
