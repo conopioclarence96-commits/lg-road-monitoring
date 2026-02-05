@@ -906,7 +906,7 @@ foreach ($publications as $pub) {
                     }
 
                     const statusClass = data.status_public.replace('_', '-');
-                    const approvalClass = data.approval_status;
+                    const approvalClass = data.is_published ? 'published' : 'draft';
 
                     content.innerHTML = `
                         <div class="publication-header" style="margin-bottom: 30px; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px;">
@@ -921,7 +921,7 @@ foreach ($publications as $pub) {
                             </div>
                             <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 10px;">
                                 <span class="status-badge status-${statusClass}">${data.status_public.replace('_', ' ').toUpperCase()}</span>
-                                <span class="status-badge approval-${approvalClass}">${data.approval_status.toUpperCase()}</span>
+                                <span class="status-badge approval-${approvalClass}">${data.is_published ? 'PUBLISHED' : 'DRAFT'}</span>
                             </div>
                         </div>
 
