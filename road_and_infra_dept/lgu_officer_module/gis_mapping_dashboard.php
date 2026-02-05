@@ -753,7 +753,8 @@ $page_description = "Interactive map showing road damage reports and infrastruct
                     description: 'Large pothole causing traffic hazards and vehicle damage',
                     status: 'pending',
                     created_at: '2024-01-15 10:30:00',
-                    reporter_name: 'Juan Santos'
+                    reporter_name: 'Juan Santos',
+                    type: 'critical'
                 },
                 {
                     id: 2,
@@ -764,7 +765,8 @@ $page_description = "Interactive map showing road damage reports and infrastruct
                     description: 'Surface cracks spreading across highway lane',
                     status: 'under_review',
                     created_at: '2024-01-14 14:20:00',
-                    reporter_name: 'Maria Reyes'
+                    reporter_name: 'Maria Reyes',
+                    type: 'medium'
                 },
                 {
                     id: 3,
@@ -775,7 +777,8 @@ $page_description = "Interactive map showing road damage reports and infrastruct
                     description: 'Severe flooding during heavy rain blocking road access',
                     status: 'approved',
                     created_at: '2024-01-13 09:15:00',
-                    reporter_name: 'Carlos Mendoza'
+                    reporter_name: 'Carlos Mendoza',
+                    type: 'high'
                 },
                 {
                     id: 4,
@@ -786,7 +789,8 @@ $page_description = "Interactive map showing road damage reports and infrastruct
                     description: 'Clogged drainage causing minor water accumulation',
                     status: 'completed',
                     created_at: '2024-01-12 16:45:00',
-                    reporter_name: 'Ana Cruz'
+                    reporter_name: 'Ana Cruz',
+                    type: 'completed'
                 },
                 {
                     id: 5,
@@ -797,7 +801,8 @@ $page_description = "Interactive map showing road damage reports and infrastruct
                     description: 'Partial landslide blocking one lane of traffic',
                     status: 'in_progress',
                     created_at: '2024-01-11 11:30:00',
-                    reporter_name: 'Roberto Diaz'
+                    reporter_name: 'Roberto Diaz',
+                    type: 'construction'
                 },
                 {
                     id: 6,
@@ -806,9 +811,10 @@ $page_description = "Interactive map showing road damage reports and infrastruct
                     damage_type: 'pothole',
                     severity: 'medium',
                     description: 'Multiple small potholes along riverside drive',
-                    status: 'pending',
+                    status: 'completed',
                     created_at: '2024-01-10 08:00:00',
-                    reporter_name: 'Jose Martinez'
+                    reporter_name: 'Jose Martinez',
+                    type: 'completed'
                 },
                 {
                     id: 7,
@@ -819,7 +825,32 @@ $page_description = "Interactive map showing road damage reports and infrastruct
                     description: 'Minor surface cracks on central avenue',
                     status: 'completed',
                     created_at: '2024-01-09 15:30:00',
-                    reporter_name: 'Linda Santos'
+                    reporter_name: 'Linda Santos',
+                    type: 'completed'
+                },
+                {
+                    id: 8,
+                    report_id: 'RD-0008',
+                    location: 'Port Area Road',
+                    damage_type: 'flooding',
+                    severity: 'medium',
+                    description: 'Seasonal flooding in port area during high tide',
+                    status: 'pending',
+                    created_at: '2024-01-08 12:00:00',
+                    reporter_name: 'Pedro Cruz',
+                    type: 'medium'
+                },
+                {
+                    id: 9,
+                    report_id: 'RD-0009',
+                    location: 'Highway Extension',
+                    damage_type: 'landslide',
+                    severity: 'critical',
+                    description: 'Major landslide requiring road closure',
+                    status: 'approved',
+                    created_at: '2024-01-07 09:00:00',
+                    reporter_name: 'Maria Santos',
+                    type: 'project'
                 }
             ];
 
@@ -839,7 +870,7 @@ $page_description = "Interactive map showing road damage reports and infrastruct
                 if (filter !== 'all') {
                     if (filter === 'issues' && !in_array(report.status, ['pending', 'under_review', 'approved'])) return;
                     if (filter === 'completed' && report.status !== 'completed') return;
-                    if (filter === 'projects' && report.damage_type !== 'landslide') return;
+                    if (filter === 'projects' && !in_array(report.type, ['construction', 'project'])) return;
                 }
                 
                 // Generate coordinates spread around the area
@@ -857,7 +888,7 @@ $page_description = "Interactive map showing road damage reports and infrastruct
                         report_id: report.report_id,
                         title: 'Road Damage: ' + ucfirst(report.damage_type),
                         description: report.description,
-                        type: 'damage',
+                        type: report.type,
                         severity: report.severity,
                         status: report.status,
                         address: report.location,
@@ -880,7 +911,7 @@ $page_description = "Interactive map showing road damage reports and infrastruct
                     statistics.completed_work++;
                 }
                 
-                if (report.damage_type === 'landslide') {
+                if (in_array(report.type, ['construction', 'project'])) {
                     statistics.construction_zones++;
                 }
             });
@@ -985,12 +1016,12 @@ $page_description = "Interactive map showing road damage reports and infrastruct
             const colors = {
                 'critical': '#dc2626',
                 'medium': '#f59e0b',
-                'low': '#10b981',
                 'high': '#ef4444',
-                'damage': '#ef4444',
+                'low': '#10b981',
+                'completed': '#6b7280',
                 'construction': '#3b82f6',
                 'project': '#8b5cf6',
-                'completed': '#6b7280'
+                'damage': '#ef4444'
             };
             return colors[type] || '#6b7280';
         }
