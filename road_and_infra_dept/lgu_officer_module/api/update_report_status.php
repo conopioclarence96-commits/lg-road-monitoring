@@ -84,9 +84,9 @@ try {
         $inspection_query = "
             INSERT INTO inspections (
                 inspection_id, location, severity, 
-                description, photos, inspector_id, inspection_type, status, created_by, 
+                description, photos, inspector_id, status, created_by, 
                 inspection_date, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         ";
         
         // Get report details for inspection
@@ -100,17 +100,15 @@ try {
         
         // Create variables for bind_param
         $inspector_id = $report_data['reporter_id'] ?: null;
-        $inspection_type = 'citizen';
         
         $inspection_stmt->bind_param(
-            'sssssssis',
+            'ssssssis',
             $inspection_id,
             $report_data['location'],
             $report_data['severity'],
             $report_data['description'],
             $report_data['images'],
             $inspector_id,
-            $inspection_type,
             $officer_id
         );
         

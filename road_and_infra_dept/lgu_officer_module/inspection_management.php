@@ -313,7 +313,6 @@ try {
                'Citizen Report' as reporter_name,
                1 as is_anonymous
         FROM inspections i
-        WHERE i.inspection_type = 'citizen'
         ORDER BY i.created_at DESC
     ";
     $citizenResult = $conn->query($citizenQuery);
