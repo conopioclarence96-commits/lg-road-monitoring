@@ -980,6 +980,9 @@ $auth->requireRole('lgu_officer');
                 }
                 
                 console.log('Modal elements found, building content...');
+                console.log('Report data:', report);
+                console.log('Images data:', report.images);
+                console.log('Images length:', report.images ? report.images.length : 'null/undefined');
                 
                 const imagesHtml = report.images && report.images.length > 0 ? `
                     <div class="form-group">
@@ -987,11 +990,21 @@ $auth->requireRole('lgu_officer');
                         <div class="image-gallery">
                             ${report.images.map(img => `
                                 <img src="../uploads/reports/${img}" alt="Report Image" class="image-thumb" 
-                                     onclick="window.open('../uploads/reports/${img}', '_blank')">
+                                     onclick="window.open('../uploads/reports/${img}', '_blank')" 
+                                     style="max-width: 100px; max-height: 100px; object-fit: cover; border: 1px solid #ddd; border-radius: 4px; margin: 5px;">
                             `).join('')}
                         </div>
                     </div>
-                ` : '';
+                ` : `
+                    <div class="form-group">
+                        <label class="form-label">Evidence Photos</label>
+                        <div style="padding: 20px; background: #f8f9fa; border-radius: 8px; text-align: center; color: #6c757d;">
+                            <i class="fas fa-image" style="font-size: 2rem; margin-bottom: 10px; opacity: 0.5;"></i>
+                            <p>No photos uploaded with this report</p>
+                            <small style="color: #999;">Debug: Images array = ${JSON.stringify(report.images)}</small>
+                        </div>
+                    </div>
+                `;
 
                 if (mode === 'view') {
                     // Read-only view modal

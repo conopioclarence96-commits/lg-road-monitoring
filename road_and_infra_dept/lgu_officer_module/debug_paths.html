@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Path Debug</title>
+</head>
+<body>
+    <h1>Current Path Structure Debug</h1>
+    
+    <h2>From LGU Officer Module Perspective:</h2>
+    <p>Current URL path: <span id="currentPath"></span></p>
+    
+    <h2>Test Different Image Paths:</h2>
+    
+    <div style="border: 1px solid #ccc; padding: 10px; margin: 10px;">
+        <h3>Path 1: ../uploads/reports/ (current attempt)</h3>
+        <img src="../uploads/reports/RPT-001_1768755714.png" alt="Path 1" style="max-width: 100px; border: 1px solid red;">
+    </div>
+    
+    <div style="border: 1px solid #ccc; padding: 10px; margin: 10px;">
+        <h3>Path 2: ../../uploads/reports/ (original)</h3>
+        <img src="../../uploads/reports/RPT-001_1768755714.png" alt="Path 2" style="max-width: 100px; border: 1px solid blue;">
+    </div>
+    
+    <div style="border: 1px solid #ccc; padding: 10px; margin: 10px;">
+        <h3>Path 3: /road_and_infra_dept/uploads/reports/ (absolute)</h3>
+        <img src="/road_and_infra_dept/uploads/reports/RPT-001_1768755714.png" alt="Path 3" style="max-width: 100px; border: 1px solid green;">
+    </div>
+    
+    <div style="border: 1px solid #ccc; padding: 10px; margin: 10px;">
+        <h3>Path 4: ./uploads/reports/ (relative)</h3>
+        <img src="./uploads/reports/RPT-001_1768755714.png" alt="Path 4" style="max-width: 100px; border: 1px solid orange;">
+    </div>
+    
+    <script>
+        document.getElementById('currentPath').textContent = window.location.pathname;
+    </script>
+    
+    <h2>Instructions:</h2>
+    <p>1. Place this file in the same directory as citizen_reports_view.php</p>
+    <p>2. Open it in your browser</p>
+    <p>3. See which path shows the image correctly</p>
+    <p>4. Use that path in the modal</p>
+</body>
+</html>

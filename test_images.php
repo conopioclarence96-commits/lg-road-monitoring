@@ -1,6 +1,6 @@
 <?php
 // Test script to check image display functionality
-require_once 'config/database.php';
+require_once 'road_and_infra_dept/config/database.php';
 
 try {
     $database = new Database();

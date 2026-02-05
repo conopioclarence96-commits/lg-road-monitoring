@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Image Path Test</title>
+    <style>
+        img { border: 2px solid red; margin: 10px; }
+        .test { padding: 20px; background: #f0f0f0; margin: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Image Path Test</h1>
+    
+    <div class="test">
+        <h3>Test 1: Check if images exist in uploads/reports/</h3>
+        <img src="road_and_infra_dept/uploads/reports/RPT-001_1768755714.png" alt="Test Image 1">
+        <img src="road_and_infra_dept/uploads/reports/RPT-001_1768758303.jpg" alt="Test Image 2">
+    </div>
+    
+    <div class="test">
+        <h3>Test 2: Check relative path from root</h3>
+        <img src="./road_and_infra_dept/uploads/reports/RPT-001_1768755714.png" alt="Test Image 3">
+    </div>
+    
+    <div class="test">
+        <h3>Test 3: Direct file listing</h3>
+        <p>Files found in uploads/reports/:</p>
+        <ul>
+            <li>RPT-001_1768755714.png</li>
+            <li>RPT-001_1768755718.png</li>
+            <li>RPT-001_1768755722.png</li>
+            <li>RPT-001_1768755741.png</li>
+            <li>RPT-001_1768755766.png</li>
+            <li>RPT-001_1768755811.png</li>
+            <li>RPT-001_1768755994.png</li>
+            <li>RPT-001_1768758303.jpg</li>
+        </ul>
+    </div>
+    
+    <div class="test">
+        <h3>Test 4: Check if directory listing works</h3>
+        <iframe src="road_and_infra_dept/uploads/reports/" width="100%" height="200"></iframe>
+    </div>
+    
+    <div class="test">
+        <h3>Instructions</h3>
+        <p>If images appear above, the path is correct. If not, check:</p>
+        <ul>
+            <li>Web server permissions on uploads/ directory</li>
+            <li>File paths in the modal</li>
+            <li>Database records containing image filenames</li>
+        </ul>
+    </div>
+</body>
+</html>
