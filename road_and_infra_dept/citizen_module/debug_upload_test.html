@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Image Upload</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .form-group { margin: 15px 0; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+        button { background: #667eea; color: white; border: none; padding: 15px 30px; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #5a6fd8; }
+        .result { margin: 20px 0; padding: 15px; border-radius: 4px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .debug { background: #f1f1f1; padding: 10px; font-family: monospace; font-size: 12px; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Debug Image Upload Process</h1>
+    <p>This will show us exactly what's happening during the image upload process.</p>
+    
+    <form id="debugForm" enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="location">Location:</label>
+            <input type="text" id="location" name="location" value="Debug Test Location" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="barangay">Barangay:</label>
+            <select id="barangay" name="barangay" required>
+                <option value="Poblacion">Poblacion</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="damage_type">Damage Type:</label>
+            <select id="damage_type" name="damage_type" required>
+                <option value="pothole">Pothole</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="severity">Severity:</label>
+            <select id="severity" name="severity" required>
+                <option value="medium">Medium</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="description">Description:</label>
+            <textarea id="description" name="description" required>Debug test to identify image upload issues</textarea>
+        </div>
+        
+        <div class="form-group">
+            <label for="images">📷 Upload Image:</label>
+            <input type="file" id="images" name="images[]" accept="image/*" required style="border: 2px solid #667eea;">
+        </div>
+        
+        <div class="form-group">
+            <label>
+                <input type="checkbox" name="anonymous_report" value="1" checked>
+                Submit anonymously
+            </label>
+        </div>
+        
+        <button type="submit">🔍 Debug Upload Process</button>
+    </form>
+    
+    <div id="result"></div>
+    
+    <script>
+        document.getElementById('debugForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<div class="result">🔄 Debugging upload process...</div>';
+            
+            try {
+                const formData = new FormData(this);
+                
+                console.log('=== DEBUG SUBMISSION START ===');
+                console.log('FormData entries:');
+                for (let [key, value] of formData.entries()) {
+                    if (value instanceof File) {
+                        console.log(`${key}:`, value.name, value.size, value.type);
+                    } else {
+                        console.log(`${key}:`, value);
+                    }
+                }
+                
+                const response = await fetch('api/debug_upload_process.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const text = await response.text();
+                console.log('=== SERVER RESPONSE ===');
+                console.log('Status:', response.status);
+                console.log('Raw response:', text);
+                
+                try {
+                    const data = JSON.parse(text);
+                    console.log('Parsed data:', data);
+                    
+                    let html = `<div class="result ${data.success ? 'success' : 'error'}">`;
+                    html += `<h3>🔍 Debug Results:</h3>`;
+                    html += `<p><strong>${data.success ? '✅' : '❌'} ${data.message}</strong></p>`;
+                    
+                    if (data.success) {
+                        html += `<p><strong>Report ID:</strong> ${data.report_id}</p>`;
+                        
+                        if (data.uploaded_images && data.uploaded_images.length > 0) {
+                            html += `<div class="success">`;
+                            html += `<p><strong>📸 Images Uploaded:</strong></p>`;
+                            html += `<ul>`;
+                            data.uploaded_images.forEach(img => {
+                                html += `<li>${img}</li>`;
+                            });
+                            html += `</ul>`;
+                            html += `<p><strong>📁 Expected Location:</strong> uploads/reports/</p>`;
+                            html += `</div>`;
+                        } else {
+                            html += `<div class="error">`;
+                            html += `<p><strong>❌ No Images Uploaded</strong></p>`;
+                            html += `<p>This means the upload process failed at the server level.</p>`;
+                            html += `</div>`;
+                        }
+                        
+                        html += `<p><strong>🔧 Test Mode:</strong> Authentication bypassed</p>`;
+                        
+                        if (data.db_images) {
+                            html += `<p><strong>🗃️ Database Images:</strong> <code>${data.db_images}</code></p>`;
+                        }
+                    }
+                    
+                    html += `<details style="margin-top: 15px;">`;
+                    html += `<summary><strong>📋 Full Server Response:</strong></summary>`;
+                    html += `<div class="debug">${text}</div>`;
+                    html += `</details>`;
+                    
+                    html += `</div>`;
+                    resultDiv.innerHTML = html;
+                    
+                } catch(jsonError) {
+                    resultDiv.innerHTML = `
+                        <div class="result error">
+                            <h3>❌ JSON Parse Error</h3>
+                            <p>The server didn't return valid JSON. This means there's a PHP error.</p>
+                            <details>
+                                <summary>Raw Response:</summary>
+                                <div class="debug">${text}</div>
+                            </details>
+                        </div>
+                    `;
+                }
+                
+            } catch(error) {
+                console.error('Network error:', error);
+                resultDiv.innerHTML = `<div class="result error">❌ Network Error: ${error.message}</div>`;
+            }
+        });
+    </script>
+</body>
+</html>
