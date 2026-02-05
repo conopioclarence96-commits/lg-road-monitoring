@@ -614,13 +614,18 @@ $page_description = "Interactive map showing road damage reports and infrastruct
         }
 
         function loadMapData(filter = 'all') {
-            fetch('../api/get_gis_data.php?filter=' + filter)
+            fetch('../api/get_gis_data_test.php?filter=' + filter)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
                         updateMapWithRealData(data.data.features);
                         updateStatistics(data.data.statistics);
                         updateLastUpdated();
+                        
+                        // Show sample data notification if present
+                        if (data.message) {
+                            showNotification(data.message, 'info');
+                        }
                     } else {
                         console.error('Error loading map data:', data.message);
                         showErrorMessage('Unable to load map data. Please try again.');
@@ -777,6 +782,39 @@ $page_description = "Interactive map showing road damage reports and infrastruct
 
         function exportData() {
             window.open('../api/export_reports.php', '_blank');
+        }
+
+        function showNotification(message, type = 'info') {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 15px 20px;
+                background: ${type === 'info' ? '#3b82f6' : '#10b981'};
+                color: white;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                z-index: 10000;
+                font-size: 0.9rem;
+                max-width: 300px;
+            `;
+            notification.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-info-circle"></i>
+                    <span>${message}</span>
+                </div>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 5000);
         }
 
         function showErrorMessage(message) {
