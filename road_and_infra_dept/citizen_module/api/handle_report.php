@@ -67,8 +67,8 @@ try {
 
     // Insert into damage_reports table
     // Use existing column names: reported_at instead of created_at
-    $stmt = $conn->prepare("INSERT INTO damage_reports (report_id, reporter_id, location, barangay, damage_type, severity, description, estimated_size, traffic_impact, contact_number, anonymous_report, status, images, reported_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)");
-    $stmt->bind_param("sissssssisii", $report_id, $user_id, $location, $barangay, $damage_type, $severity, $description, $estimated_size, $traffic_impact, $contact_number, $anonymous_report, $images_json);
+    $stmt = $conn->prepare("INSERT INTO damage_reports (report_id, reporter_id, location, description, severity, estimated_size, traffic_impact, contact_number, images, reported_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)");
+    $stmt->bind_param("sissssisii", $report_id, $user_id, $location, $description, $severity, $estimated_size, $traffic_impact, $contact_number, $images_json);
 
     if ($stmt->execute()) {
         // Log Activity
