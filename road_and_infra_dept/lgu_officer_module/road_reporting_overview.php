@@ -51,7 +51,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Insert with road_name column
                 $stmt = $conn->prepare("
                     INSERT INTO damage_reports (
-                        report_id, road_name, damage_type, severity, description, 
+                        report_id, road_name, location, damage_type, severity, description, 
+                        created_at, $user_column, status
+                    ) VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, 'pending')
+                    ");
+                
+                $user_id = $_SESSION['user_id'] ?? 1;
+                // Generate report_id
+                $report_id = 'RD-' . str_pad(($conn->insert_id + 1), 4, '0', STR_PAD_LEFT);
+                $stmt->bind_param("ssssssi", $report_id, $location, $location, $damage_type, $severity, $description, $user_id);
+            } else {
+                // Insert without road_name column (fallback)
+                $stmt = $conn->prepare("
+                    INSERT INTO damage_reports (
+                        report_id, location, damage_type, severity, description, 
                         created_at, $user_column, status
                     ) VALUES (?, ?, ?, ?, ?, NOW(), ?, 'pending')
                     ");
@@ -60,19 +73,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Generate report_id
                 $report_id = 'RD-' . str_pad(($conn->insert_id + 1), 4, '0', STR_PAD_LEFT);
                 $stmt->bind_param("sssssi", $report_id, $location, $damage_type, $severity, $description, $user_id);
-            } else {
-                // Insert without road_name column (fallback)
-                $stmt = $conn->prepare("
-                    INSERT INTO damage_reports (
-                        report_id, damage_type, severity, description, 
-                        created_at, $user_column, status
-                    ) VALUES (?, ?, ?, ?, NOW(), ?, 'pending')
-                    ");
-                
-                $user_id = $_SESSION['user_id'] ?? 1;
-                // Generate report_id
-                $report_id = 'RD-' . str_pad(($conn->insert_id + 1), 4, '0', STR_PAD_LEFT);
-                $stmt->bind_param("ssssi", $report_id, $damage_type, $severity, $description, $user_id);
             }
             
             if ($stmt->execute()) {
