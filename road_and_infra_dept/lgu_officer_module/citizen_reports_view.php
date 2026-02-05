@@ -1,20 +1,24 @@
 <?php
 // citizen_reports_view.php - LGU Officer View for Citizen Reports
 session_start();
+
+$basePath = '';
+$loginUrl = 'login.php';
+
+$isRoot = (strpos($_SERVER['PHP_SELF'], 'road_and_infra_dept') === false);
+if ($isRoot) {
+    $loginUrl = 'index.php';
+}
+
+// Include authentication and database
 require_once '../config/auth.php';
 require_once '../config/database.php';
 
-// Check authentication
-if (!$auth->isLoggedIn()) {
-    header('Location: ../login.php');
-    exit;
-}
+// Require LGU officer role (admin also has access)
+$auth->requireAnyRole(['lgu_officer', 'admin']);
 
-// Check if user is LGU officer
-if (!$auth->hasRole('lgu_officer')) {
-    header('Location: ../dashboard.php');
-    exit;
-}
+// Log page access
+$auth->logActivity('page_access', 'Accessed citizen reports view');
 ?>
 
 <!DOCTYPE html>
@@ -25,6 +29,9 @@ if (!$auth->hasRole('lgu_officer')) {
     <title>Citizen Reports - LGU Officer Dashboard</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
+        /* Import the same styles as other LGU pages */
+        @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap");
+
         * {
             margin: 0;
             padding: 0;
@@ -32,23 +39,59 @@ if (!$auth->hasRole('lgu_officer')) {
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: "Poppins", sans-serif;
+            background: url("../user_and_access_management_module/assets/img/cityhall.jpeg") center/cover no-repeat fixed;
+            position: relative;
             min-height: 100vh;
         }
 
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
+        body::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            backdrop-filter: blur(6px);
+            background: rgba(0, 0, 0, 0.35);
+            z-index: 0;
         }
 
-        .header {
-            background: white;
+        /* Main Content Layout */
+        .main-content {
+            margin-left: 250px;
+            padding: 20px;
+            position: relative;
+            z-index: 1;
+            min-height: 100vh;
+        }
+
+        .page-header {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
             border-radius: 15px;
             padding: 30px;
             margin-bottom: 30px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .page-header h1 {
+            color: #2c3e50;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .page-header p {
+            color: #7f8c8d;
+            font-size: 1.1rem;
+        }
+
+        .divider {
+            border: none;
+            height: 2px;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            margin: 15px 0;
+            opacity: 0.3;
         }
 
         .header h1 {
@@ -70,7 +113,8 @@ if (!$auth->hasRole('lgu_officer')) {
         }
 
         .stat-card {
-            background: white;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
             border-radius: 15px;
             padding: 25px;
             box-shadow: 0 5px 15px rgba(0,0,0,0.1);
@@ -87,6 +131,10 @@ if (!$auth->hasRole('lgu_officer')) {
             margin-bottom: 15px;
         }
 
+        .stat-icon.pending { color: #f39c12; }
+        .stat-icon.under_review { color: #3498db; }
+        .stat-icon.completed { color: #27ae60; }
+
         .stat-number {
             font-size: 2rem;
             font-weight: bold;
@@ -100,7 +148,8 @@ if (!$auth->hasRole('lgu_officer')) {
         }
 
         .filters {
-            background: white;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
             border-radius: 15px;
             padding: 25px;
             margin-bottom: 30px;
@@ -132,6 +181,7 @@ if (!$auth->hasRole('lgu_officer')) {
             border-radius: 8px;
             font-size: 0.95rem;
             transition: border-color 0.3s ease;
+            background: rgba(255, 255, 255, 0.8);
         }
 
         .filter-group input:focus,
@@ -141,7 +191,8 @@ if (!$auth->hasRole('lgu_officer')) {
         }
 
         .reports-container {
-            background: white;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
             border-radius: 15px;
             padding: 25px;
             box-shadow: 0 5px 15px rgba(0,0,0,0.1);
@@ -510,71 +561,70 @@ if (!$auth->hasRole('lgu_officer')) {
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1><i class="fas fa-clipboard-list"></i> Citizen Reports</h1>
-            <p>View and manage road damage reports submitted by citizens</p>
-        </div>
+    <!-- Sidebar -->
+    <?php include '../sidebar/sidebar.php'; ?>
 
-        <div class="stats-grid" id="statsGrid">
-            <!-- Stats will be loaded here -->
-        </div>
+    <!-- Main Content -->
+    <main class="main-content">
+    <div class="stats-grid" id="statsGrid">
+        <!-- Stats will be loaded here -->
+    </div>
 
-        <div class="filters">
-            <div class="filter-grid">
-                <div class="filter-group">
-                    <label for="searchInput">Search</label>
-                    <input type="text" id="searchInput" placeholder="Search reports...">
-                </div>
-                <div class="filter-group">
-                    <label for="statusFilter">Status</label>
-                    <select id="statusFilter">
-                        <option value="all">All Status</option>
-                        <option value="pending">Pending</option>
-                        <option value="under_review">Under Review</option>
-                        <option value="approved">Approved</option>
-                        <option value="in_progress">In Progress</option>
-                        <option value="completed">Completed</option>
-                        <option value="rejected">Rejected</option>
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <label for="severityFilter">Severity</label>
-                    <select id="severityFilter">
-                        <option value="all">All Levels</option>
-                        <option value="urgent">Urgent</option>
-                        <option value="high">High</option>
-                        <option value="medium">Medium</option>
-                        <option value="low">Low</option>
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <label for="sortFilter">Sort By</label>
-                    <select id="sortFilter">
-                        <option value="latest">Latest First</option>
-                        <option value="oldest">Oldest First</option>
-                        <option value="severity_high">High Severity First</option>
-                        <option value="severity_low">Low Severity First</option>
-                    </select>
-                </div>
+    <div class="filters">
+        <div class="filter-grid">
+            <div class="filter-group">
+                <label for="searchInput">Search</label>
+                <input type="text" id="searchInput" placeholder="Search reports...">
             </div>
-        </div>
-
-        <div class="reports-container">
-            <div class="reports-header">
-                <h2>Recent Reports</h2>
-                <button class="btn btn-primary" onclick="refreshReports()">
-                    <i class="fas fa-sync-alt"></i> Refresh
-                </button>
+            <div class="filter-group">
+                <label for="statusFilter">Status</label>
+                <select id="statusFilter">
+                    <option value="all">All Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="under_review">Under Review</option>
+                    <option value="approved">Approved</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                    <option value="rejected">Rejected</option>
+                </select>
             </div>
-            <div id="reportsTableContainer">
-                <div class="loading">
-                    <i class="fas fa-spinner fa-spin"></i>
-                    <p>Loading reports...</p>
-                </div>
+            <div class="filter-group">
+                <label for="severityFilter">Severity</label>
+                <select id="severityFilter">
+                    <option value="all">All Levels</option>
+                    <option value="urgent">Urgent</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="sortFilter">Sort By</label>
+                <select id="sortFilter">
+                    <option value="latest">Latest First</option>
+                    <option value="oldest">Oldest First</option>
+                    <option value="severity_high">High Severity First</option>
+                    <option value="severity_low">Low Severity First</option>
+                </select>
             </div>
         </div>
     </div>
+
+    <div class="reports-container">
+        <div class="reports-header">
+            <h2>Recent Reports</h2>
+            <button class="btn btn-primary" onclick="refreshReports()">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+        </div>
+        <div id="reportsTableContainer">
+            <div class="loading">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>Loading reports...</p>
+            </div>
+        </div>
+    </div>
+    </main>
 
     <!-- Report Details Modal -->
     <div id="reportModal" class="modal">
