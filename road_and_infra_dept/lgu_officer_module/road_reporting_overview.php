@@ -69,30 +69,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             
+            // Check if photo_path column exists
+            $photo_check = $conn->query("SHOW COLUMNS FROM damage_reports LIKE 'photo_path'");
+            $has_photo_path = $photo_check->num_rows > 0;
+            
+            // Build INSERT statement based on available columns
             if ($has_road_name) {
-                // Insert with road_name column
+                $insert_fields = "report_id, road_name, location, damage_type, severity, description, created_at, $user_column, status";
+                $insert_values = "?, ?, ?, ?, ?, ?, NOW(), ?, 'pending'";
+                $insert_types = "ssssssi";
+                
+                if ($has_photo_path) {
+                    $insert_fields .= ", photo_path";
+                    $insert_values .= ", ?";
+                    $insert_types .= "s";
+                }
+                
                 $stmt = $conn->prepare("
-                    INSERT INTO damage_reports (
-                        report_id, road_name, location, damage_type, severity, description, 
-                        created_at, $user_column, status, photo_path
-                    ) VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, 'pending', ?)
+                    INSERT INTO damage_reports ($insert_fields)
+                    VALUES ($insert_values)
                     ");
                 
                 $user_id = $_SESSION['user_id'] ?? 1;
-                $temp_report_id = 'TEMP-' . time(); // Temporary unique value
-                $stmt->bind_param("ssssssis", $temp_report_id, $location, $location, $damage_type, $severity, $description, $user_id, $photo_path);
+                $temp_report_id = 'TEMP-' . time();
+                
+                if ($has_photo_path) {
+                    $stmt->bind_param($insert_types, $temp_report_id, $location, $location, $damage_type, $severity, $description, $user_id, $photo_path);
+                } else {
+                    $stmt->bind_param($insert_types, $temp_report_id, $location, $location, $damage_type, $severity, $description, $user_id);
+                }
             } else {
-                // Insert without road_name column (fallback)
+                $insert_fields = "report_id, location, damage_type, severity, description, created_at, $user_column, status";
+                $insert_values = "?, ?, ?, ?, ?, NOW(), ?, 'pending'";
+                $insert_types = "sssssi";
+                
+                if ($has_photo_path) {
+                    $insert_fields .= ", photo_path";
+                    $insert_values .= ", ?";
+                    $insert_types .= "s";
+                }
+                
                 $stmt = $conn->prepare("
-                    INSERT INTO damage_reports (
-                        report_id, location, damage_type, severity, description, 
-                        created_at, $user_column, status, photo_path
-                    ) VALUES (?, ?, ?, ?, ?, NOW(), ?, 'pending', ?)
+                    INSERT INTO damage_reports ($insert_fields)
+                    VALUES ($insert_values)
                     ");
                 
                 $user_id = $_SESSION['user_id'] ?? 1;
-                $temp_report_id = 'TEMP-' . time(); // Temporary unique value
-                $stmt->bind_param("sssssis", $temp_report_id, $location, $damage_type, $severity, $description, $user_id, $photo_path);
+                $temp_report_id = 'TEMP-' . time();
+                
+                if ($has_photo_path) {
+                    $stmt->bind_param($insert_types, $temp_report_id, $location, $damage_type, $severity, $description, $user_id, $photo_path);
+                } else {
+                    $stmt->bind_param($insert_types, $temp_report_id, $location, $damage_type, $severity, $description, $user_id);
+                }
             }
             
             if ($stmt->execute()) {
