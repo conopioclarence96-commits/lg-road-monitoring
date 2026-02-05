@@ -144,8 +144,8 @@ try {
     
     // Build query based on available columns
     $select_fields = $has_road_name ? 
-        "dr.id, dr.road_name, dr.issue_type, dr.severity, dr.status, dr.date_reported" :
-        "dr.id, 'Unknown Location' as road_name, dr.issue_type, dr.severity, dr.status, dr.date_reported";
+        "dr.id, dr.road_name, dr.damage_type, dr.severity, dr.status, dr.date_reported" :
+        "dr.id, 'Unknown Location' as road_name, dr.damage_type, dr.severity, dr.status, dr.date_reported";
     
     $sql = "
         SELECT 
@@ -610,7 +610,7 @@ try {
                         <tr>
                             <td class="id-cell"><?php echo htmlspecialchars($report['report_id']); ?></td>
                             <td><?php echo htmlspecialchars($report['road_name'] ?? 'Unknown Location'); ?></td>
-                            <td><?php echo ucfirst(htmlspecialchars($report['issue_type'] ?? 'Unknown')); ?></td>
+                            <td><?php echo ucfirst(htmlspecialchars($report['damage_type'] ?? 'Unknown')); ?></td>
                             <td>
                                 <span class="status-badge status-<?php echo str_replace('_', '-', $report['status'] ?? 'unknown'); ?>">
                                     <?php echo ucfirst(str_replace('_', ' ', htmlspecialchars($report['status'] ?? 'Unknown'))); ?>
