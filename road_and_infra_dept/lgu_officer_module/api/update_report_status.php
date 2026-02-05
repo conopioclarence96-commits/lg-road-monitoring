@@ -80,12 +80,11 @@ try {
         // Generate inspection ID
         $inspection_id = 'INSP-' . date('Y') . '-' . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
         
-        // Insert into inspections table
+        // Insert into inspections table with actual column structure
         $inspection_query = "
             INSERT INTO inspections (
-                inspection_id, location, severity, 
-                description, photos, inspector_id, status, 
-                inspection_date, created_at, updated_at
+                inspection_id, location, inspection_date, inspector_id, 
+                description, severity, status, photos, created_at, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
         ";
         
@@ -106,11 +105,11 @@ try {
             'sssssssss',
             $inspection_id,
             $report_data['location'],
-            $report_data['severity'],
-            $report_data['description'],
-            $report_data['images'],
-            $inspector_id,
             $current_timestamp,
+            $inspector_id,
+            $report_data['description'],
+            $report_data['severity'],
+            $report_data['images'],
             $current_timestamp,
             $current_timestamp
         );

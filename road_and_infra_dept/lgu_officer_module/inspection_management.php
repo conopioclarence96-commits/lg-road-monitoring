@@ -274,7 +274,7 @@ try {
 try {
     error_log("Attempting to fetch inspections from database");
     
-    // Fetch all inspections and identify citizen vs regular by inspector_id
+    // Fetch all inspections from database based on actual table structure
     $query = "
         SELECT i.*, 
                CASE 
@@ -293,7 +293,7 @@ try {
     
     $inspections = [];
     
-    // Process inspections
+    // Process inspections based on actual database structure
     if ($result) {
         while ($row = $result->fetch_assoc()) {
             $photos = json_decode($row['photos'] ?? '[]', true) ?: [];
@@ -309,7 +309,7 @@ try {
                     'severity' => ucfirst($row['severity']),
                     'damage_type' => 'Unknown',
                     'reporter' => $row['reporter_name'],
-                    'coordinates' => '14.5995° N, 120.9842° E',
+                    'coordinates' => $row['inspection_date'] ?? '14.5995° N, 120.9842° E',
                     'description' => $row['description'],
                     'images' => $photos,
                     'inspection_type' => 'citizen'
@@ -320,12 +320,12 @@ try {
                     'id' => $row['inspection_id'],
                     'report_id' => 'DR-' . date('Y', strtotime($row['created_at'])) . '-' . substr($row['inspection_id'], -3),
                     'location' => $row['location'],
-                    'date' => date('M d, Y', strtotime($row['inspection_date'] ?? $row['created_at'])),
+                    'date' => date('M d, Y', strtotime($row['inspection_date'])),
                     'status' => ucfirst($row['status']),
                     'severity' => ucfirst($row['severity']),
                     'cost' => $row['estimated_cost'] ? '₱' . number_format($row['estimated_cost'], 2) : '₱0.00',
                     'reporter' => $row['reporter_name'],
-                    'coordinates' => '14.5995° N, 120.9842° E',
+                    'coordinates' => $row['inspection_date'] ?? '14.5995° N, 120.9842° E',
                     'description' => $row['description'],
                     'images' => $photos,
                     'inspection_type' => 'regular'
