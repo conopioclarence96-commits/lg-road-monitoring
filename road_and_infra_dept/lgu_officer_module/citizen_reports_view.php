@@ -19,6 +19,38 @@ $auth->requireAnyRole(['lgu_officer', 'admin']);
 
 // Log page access
 $auth->logActivity('page_access', 'Accessed citizen reports view');
+
+// Get database statistics for display
+try {
+    $database = new Database();
+    $conn = $database->getConnection();
+    
+    // Get statistics
+    $stats_query = "
+        SELECT 
+            COUNT(*) as total,
+            SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+            SUM(CASE WHEN status = 'under_review' THEN 1 ELSE 0 END) as under_review,
+            SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved,
+            SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
+            SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+            SUM(CASE WHEN severity = 'urgent' THEN 1 ELSE 0 END) as urgent,
+            SUM(CASE WHEN severity = 'high' THEN 1 ELSE 0 END) as high
+        FROM damage_reports
+    ";
+    
+    $stats_result = $conn->query($stats_query);
+    $stats = $stats_result ? $stats_result->fetch_assoc() : [
+        'total' => 0, 'pending' => 0, 'under_review' => 0, 'approved' => 0, 
+        'in_progress' => 0, 'completed' => 0, 'urgent' => 0, 'high' => 0
+    ];
+    
+} catch (Exception $e) {
+    $stats = [
+        'total' => 0, 'pending' => 0, 'under_review' => 0, 'approved' => 0, 
+        'in_progress' => 0, 'completed' => 0, 'urgent' => 0, 'high' => 0
+    ];
+}
 ?>
 
 <!DOCTYPE html>
@@ -566,9 +598,36 @@ $auth->logActivity('page_access', 'Accessed citizen reports view');
 
     <!-- Main Content -->
     <main class="main-content">
-    <div class="stats-grid" id="statsGrid">
-        <!-- Stats will be loaded here -->
-    </div>
+    <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon total">
+                    <i class="fas fa-clipboard-list"></i>
+                </div>
+                <div class="stat-number"><?php echo $stats['total']; ?></div>
+                <div class="stat-label">Total Reports</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon pending">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div class="stat-number"><?php echo $stats['pending']; ?></div>
+                <div class="stat-label">Pending</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon under_review">
+                    <i class="fas fa-search"></i>
+                </div>
+                <div class="stat-number"><?php echo $stats['under_review']; ?></div>
+                <div class="stat-label">Under Review</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon completed">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="stat-number"><?php echo $stats['completed']; ?></div>
+                <div class="stat-label">Completed</div>
+            </div>
+        </div>
 
     <div class="filters">
         <div class="filter-grid">
