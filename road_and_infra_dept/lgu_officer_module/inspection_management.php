@@ -327,7 +327,6 @@ try {
                 'id' => $row['inspection_id'],
                 'report_id' => 'CR-' . date('Y', strtotime($row['created_at'])) . '-' . substr($row['inspection_id'], -3),
                 'location' => $row['location'],
-                'barangay' => $row['barangay'],
                 'date' => date('M d, Y', strtotime($row['created_at'])),
                 'status' => ucfirst(str_replace('_', ' ', $row['status'])),
                 'severity' => ucfirst($row['severity']),
