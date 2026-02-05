@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Image Upload</title>
+</head>
+<body>
+    <h2>Test Citizen Report with Images</h2>
+    
+    <form action="road_and_infra_dept/citizen_module/api/handle_report.php" method="POST" enctype="multipart/form-data">
+        <div>
+            <label>Location:</label>
+            <input type="text" name="location" value="Test Location for Image Upload" required>
+        </div>
+        
+        <div>
+            <label>Barangay:</label>
+            <select name="barangay" required>
+                <option value="Poblacion">Poblacion</option>
+            </select>
+        </div>
+        
+        <div>
+            <label>Damage Type:</label>
+            <select name="damage_type" required>
+                <option value="pothole">Pothole</option>
+            </select>
+        </div>
+        
+        <div>
+            <label>Severity:</label>
+            <select name="severity" required>
+                <option value="medium">Medium</option>
+            </select>
+        </div>
+        
+        <div>
+            <label>Description:</label>
+            <textarea name="description" required>Test report to verify image upload and display functionality</textarea>
+        </div>
+        
+        <div>
+            <label>Images:</label>
+            <input type="file" name="images[]" multiple accept="image/*">
+        </div>
+        
+        <div>
+            <label>
+                <input type="checkbox" name="anonymous_report" value="1">
+                Submit anonymously
+            </label>
+        </div>
+        
+        <button type="submit">Submit Test Report</button>
+    </form>
+    
+    <hr>
+    
+    <h3>Check Results:</h3>
+    <p>After submitting, check the <a href="road_and_infra_dept/lgu_officer_module/citizen_reports_view.php">LGU Officer View</a> to see if images appear correctly.</p>
+    
+    <p>Or check the <a href="test_images.php">Image Test Script</a> to see database records.</p>
+</body>
+</html>

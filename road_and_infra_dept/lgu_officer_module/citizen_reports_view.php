@@ -986,8 +986,8 @@ $auth->requireRole('lgu_officer');
                         <label class="form-label">Evidence Photos</label>
                         <div class="image-gallery">
                             ${report.images.map(img => `
-                                <img src="../../uploads/reports/${img}" alt="Report Image" class="image-thumb" 
-                                     onclick="window.open('../../uploads/reports/${img}', '_blank')">
+                                <img src="../uploads/reports/${img}" alt="Report Image" class="image-thumb" 
+                                     onclick="window.open('../uploads/reports/${img}', '_blank')">
                             `).join('')}
                         </div>
                     </div>
