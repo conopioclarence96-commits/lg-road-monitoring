@@ -15,13 +15,17 @@ function sendResponse($success, $message, $extra = []) {
 }
 
 // Enhanced debugging
-error_log("=== FIXED HANDLE_REPORT START ===");
-error_log("Session status: " . (session_status() === PHP_SESSION_ACTIVE ? 'ACTIVE' : 'INACTIVE'));
-error_log("Session ID: " . session_id());
-error_log("Session data: " . print_r($_SESSION, true));
+function log_debug($message) {
+    file_put_contents('debug_upload.log', date('Y-m-d H:i:s') . ' - ' . $message . "\n", FILE_APPEND);
+}
+
+log_debug("=== FIXED HANDLE_REPORT START ===");
+log_debug("Session status: " . (session_status() === PHP_SESSION_ACTIVE ? 'ACTIVE' : 'INACTIVE'));
+log_debug("Session ID: " . session_id());
+log_debug("Session data: " . print_r($_SESSION, true));
 
 if (!$auth->isLoggedIn()) {
-    error_log("Authentication failed - user not logged in");
+    log_debug("Authentication failed - user not logged in");
     sendResponse(false, 'Session expired. Please login again.');
 }
 
@@ -34,9 +38,9 @@ try {
     }
 
     // Log all incoming data
-    error_log("POST data: " . print_r($_POST, true));
-    error_log("FILES data: " . print_r($_FILES, true));
-    error_log("Content-Type: " . ($_SERVER['CONTENT_TYPE'] ?? 'not set'));
+    log_debug("POST data: " . print_r($_POST, true));
+    log_debug("FILES data: " . print_r($_FILES, true));
+    log_debug("Content-Type: " . ($_SERVER['CONTENT_TYPE'] ?? 'not set'));
 
     $location = $_POST['location'] ?? '';
     $barangay = $_POST['barangay'] ?? '';
@@ -63,26 +67,26 @@ try {
     
     // Check if images are being uploaded
     if (isset($_FILES['images']) && is_array($_FILES['images'])) {
-        error_log("Images array found in FILES");
+        log_debug("Images array found in FILES");
         
         // Check if any files were actually uploaded
         if (!empty($_FILES['images']['name'][0])) {
-            error_log("Processing image uploads...");
+            log_debug("Processing image uploads...");
             
             $upload_dir = '../../uploads/reports/';
             
             // Ensure upload directory exists
             if (!is_dir($upload_dir)) {
                 if (mkdir($upload_dir, 0777, true)) {
-                    error_log("Created upload directory: $upload_dir");
+                    log_debug("Created upload directory: $upload_dir");
                 } else {
-                    error_log("Failed to create upload directory: $upload_dir");
+                    log_debug("Failed to create upload directory: $upload_dir");
                 }
             }
             
             // Check directory permissions
             if (!is_writable($upload_dir)) {
-                error_log("Upload directory is not writable: $upload_dir");
+                log_debug("Upload directory is not writable: $upload_dir");
                 // Try to fix permissions
                 chmod($upload_dir, 0777);
             }
@@ -97,14 +101,14 @@ try {
                     // Validate file type
                     $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
                     if (!in_array($file_ext, $allowed_extensions)) {
-                        error_log("Invalid file extension: $file_ext");
+                        log_debug("Invalid file extension: $file_ext");
                         continue;
                     }
                     
                     // Validate file size (max 5MB)
                     $max_size = 5 * 1024 * 1024;
                     if ($file_size > $max_size) {
-                        error_log("File too large: $file_name ($file_size bytes)");
+                        log_debug("File too large: $file_name ($file_size bytes)");
                         continue;
                     }
                     
@@ -112,40 +116,40 @@ try {
                     $new_file_name = $report_id . '_' . $key . '_' . time() . '.' . $file_ext;
                     $target_path = $upload_dir . $new_file_name;
                     
-                    error_log("Processing file: $file_name -> $new_file_name");
-                    error_log("Source: $tmp_name, Target: $target_path");
+                    log_debug("Processing file: $file_name -> $new_file_name");
+                    log_debug("Source: $tmp_name, Target: $target_path");
                     
                     // Move uploaded file
                     if (move_uploaded_file($tmp_name, $target_path)) {
                         $uploaded_images[] = $new_file_name;
-                        error_log("Successfully uploaded: $new_file_name");
+                        log_debug("Successfully uploaded: $new_file_name");
                         
                         // Verify file exists after upload
                         if (file_exists($target_path)) {
-                            error_log("File verified: $target_path (" . filesize($target_path) . " bytes)");
+                            log_debug("File verified: $target_path (" . filesize($target_path) . " bytes)");
                         } else {
-                            error_log("WARNING: File not found after upload: $target_path");
+                            log_debug("WARNING: File not found after upload: $target_path");
                         }
                     } else {
-                        error_log("Failed to move uploaded file: $file_name");
-                        error_log("Upload error: " . error_get_last()['message'] ?? 'unknown');
+                        log_debug("Failed to move uploaded file: $file_name");
+                        log_debug("Upload error: " . error_get_last()['message'] ?? 'unknown');
                     }
                 } else {
-                    error_log("Upload error for file $key: " . $_FILES['images']['error'][$key]);
+                    log_debug("Upload error for file $key: " . $_FILES['images']['error'][$key]);
                 }
             }
         } else {
-            error_log("No files selected for upload (empty images array)");
+            log_debug("No files selected for upload (empty images array)");
         }
     } else {
-        error_log("No images array found in FILES");
+        log_debug("No images array found in FILES");
     }
     
-    error_log("Final uploaded_images array: " . print_r($uploaded_images, true));
+    log_debug("Final uploaded_images array: " . print_r($uploaded_images, true));
 
     // Encode images for database storage
     $images_json = json_encode($uploaded_images);
-    error_log("Images JSON for database: $images_json");
+    log_debug("Images JSON for database: $images_json");
 
     // Insert into database
     $stmt = $conn->prepare("INSERT INTO damage_reports (report_id, reporter_id, location, barangay, damage_type, description, severity, estimated_size, traffic_impact, contact_number, anonymous_report, images, created_at, reported_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)");
@@ -155,7 +159,7 @@ try {
         // Log activity
         $auth->logActivity('damage_reported', "Reported road damage at $location ($report_id)");
         
-        error_log("Report successfully inserted into database: $report_id");
+        log_debug("Report successfully inserted into database: $report_id");
         sendResponse(true, 'Your report has been submitted successfully. Thank you for your cooperation!', [
             'report_id' => $report_id,
             'uploaded_images' => $uploaded_images,
@@ -165,15 +169,15 @@ try {
             ]
         ]);
     } else {
-        error_log("Database error: " . $conn->error);
+        log_debug("Database error: " . $conn->error);
         sendResponse(false, 'Database error: ' . $conn->error);
     }
 
 } catch (Exception $e) {
-    error_log("Exception in handle_report: " . $e->getMessage());
-    error_log("Stack trace: " . $e->getTraceAsString());
+    log_debug("Exception in handle_report: " . $e->getMessage());
+    log_debug("Stack trace: " . $e->getTraceAsString());
     sendResponse(false, 'System error: ' . $e->getMessage());
 }
 
-error_log("=== FIXED HANDLE_REPORT END ===");
+log_debug("=== FIXED HANDLE_REPORT END ===");
 ?>
