@@ -797,9 +797,9 @@ $auth->requireRole('lgu_officer');
                 sort: sort
             });
 
-            console.log('API URL:', 'api/get_citizen_reports_test.php?' + params.toString());
+            console.log('API URL:', 'api/get_citizen_reports.php?' + params.toString());
 
-            fetch('api/get_citizen_reports_test.php?' + params.toString())
+            fetch('api/get_citizen_reports.php?' + params.toString())
                 .then(response => {
                     console.log('Response status:', response.status);
                     console.log('Response headers:', response.headers);
