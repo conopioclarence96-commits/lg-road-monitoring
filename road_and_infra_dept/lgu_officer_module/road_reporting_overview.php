@@ -21,6 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $damage_type = trim($_POST['damage_type'] ?? '');
     $severity = trim($_POST['severity'] ?? '');
     $description = trim($_POST['description'] ?? '');
+    $photo_path = trim($_POST['photo_path'] ?? '');
     
     // Validate required fields
     if (empty($location) || empty($damage_type) || empty($severity) || empty($description)) {
@@ -31,6 +32,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = "Invalid severity level selected.";
     } else {
         try {
+            // Handle photo upload first
+            $photo_path = '';
+            if (isset($_FILES['evidence_photo']) && $_FILES['evidence_photo']['error'] === UPLOAD_ERR_OK) {
+                $upload_dir = '../uploads/evidence_photos/';
+                if (!is_dir($upload_dir)) {
+                    mkdir($upload_dir, 0755, true);
+                }
+                
+                $file = $_FILES['evidence_photo'];
+                $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                
+                if (in_array($file['type'], $allowed_types)) {
+                    $filename = time() . '_' . basename($file['name']);
+                    $filepath = $upload_dir . $filename;
+                    
+                    if (move_uploaded_file($file['tmp_name'], $filepath)) {
+                        $photo_path = $filepath;
+                    }
+                }
+            }
+            
             // Check if road_name column exists
             $column_check = $conn->query("SHOW COLUMNS FROM damage_reports LIKE 'road_name'");
             $has_road_name = $column_check->num_rows > 0;
@@ -52,25 +74,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $conn->prepare("
                     INSERT INTO damage_reports (
                         report_id, road_name, location, damage_type, severity, description, 
-                        created_at, $user_column, status
-                    ) VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, 'pending')
+                        created_at, $user_column, status, photo_path
+                    ) VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, 'pending', ?)
                     ");
                 
                 $user_id = $_SESSION['user_id'] ?? 1;
                 $temp_report_id = 'TEMP-' . time(); // Temporary unique value
-                $stmt->bind_param("ssssssi", $temp_report_id, $location, $location, $damage_type, $severity, $description, $user_id);
+                $stmt->bind_param("ssssssis", $temp_report_id, $location, $location, $damage_type, $severity, $description, $user_id, $photo_path);
             } else {
                 // Insert without road_name column (fallback)
                 $stmt = $conn->prepare("
                     INSERT INTO damage_reports (
                         report_id, location, damage_type, severity, description, 
-                        created_at, $user_column, status
-                    ) VALUES (?, ?, ?, ?, ?, NOW(), ?, 'pending')
+                        created_at, $user_column, status, photo_path
+                    ) VALUES (?, ?, ?, ?, ?, NOW(), ?, 'pending', ?)
                     ");
                 
                 $user_id = $_SESSION['user_id'] ?? 1;
                 $temp_report_id = 'TEMP-' . time(); // Temporary unique value
-                $stmt->bind_param("sssssi", $temp_report_id, $location, $damage_type, $severity, $description, $user_id);
+                $stmt->bind_param("sssssis", $temp_report_id, $location, $damage_type, $severity, $description, $user_id, $photo_path);
             }
             
             if ($stmt->execute()) {
@@ -565,11 +587,15 @@ try {
 
                 <div class="form-group">
                     <label class="form-label">Evidence Photos</label>
-                    <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; text-align: center; color: #6c757d;">
-                        <i class="fas fa-camera" style="font-size: 2rem; margin-bottom: 10px; display: block;"></i>
-                        <p style="margin: 0;">Photo upload temporarily unavailable</p>
-                        <small style="color: #868e96;">Please contact administrator to enable photo uploads</small>
+                    <div class="photo-upload-zone" style="border: 2px dashed #cbd5e1; border-radius: 10px; padding: 20px; text-align: center; background: rgba(248, 250, 252, 0.5); cursor: pointer; transition: all 0.3s ease;">
+                        <i class="fas fa-camera" style="font-size: 2rem; color: var(--text-muted); margin-bottom: 10px; display: block;"></i>
+                        <p style="margin: 8px 0 0 0; color: var(--text-muted); font-size: 0.9rem;">
+                            Drag & drop or <span style="color: var(--primary); font-weight: 600;">browse</span>
+                        </p>
+                        <input type="file" name="evidence_photo" accept="image/*" style="display: none;" id="photo-input">
                     </div>
+                    <div id="photo-preview" style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;"></div>
+                    <input type="hidden" name="photo_path" id="photo_path" value="">
                 </div>
 
                 <button type="submit" class="btn-submit">Submit Official Report</button>
@@ -640,6 +666,76 @@ try {
     </main>
 
     <script>
+        // Photo upload functionality
+        const photoInput = document.getElementById('photo-input');
+        const photoZone = document.querySelector('.photo-upload-zone');
+        const photoPreview = document.getElementById('photo-preview');
+        const photoPathInput = document.getElementById('photo_path');
+        
+        // Click to upload
+        photoZone.addEventListener('click', () => {
+            photoInput.click();
+        });
+        
+        // Handle file selection
+        photoInput.addEventListener('change', function(e) {
+            handleFiles(e.target.files);
+        });
+        
+        // Handle drag and drop
+        photoZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            photoZone.style.background = 'rgba(37, 99, 235, 0.05)';
+            photoZone.style.borderColor = 'var(--primary)';
+        });
+        
+        photoZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            photoZone.style.background = 'rgba(248, 250, 252, 0.5)';
+            photoZone.style.borderColor = '#cbd5e1';
+        });
+        
+        photoZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            photoZone.style.background = 'rgba(248, 250, 252, 0.5)';
+            photoZone.style.borderColor = '#cbd5e1';
+            
+            handleFiles(e.dataTransfer.files);
+        });
+        
+        function handleFiles(files) {
+            if (files.length === 0) return;
+            
+            const file = files[0];
+            if (!file.type.startsWith('image/')) {
+                alert('Please select an image file');
+                return;
+            }
+            
+            // Show preview
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                photoPreview.innerHTML = `
+                    <div style="position: relative; display: inline-block;">
+                        <img src="${e.target.result}" style="width: 100px; height: 100px; object-fit: cover; border-radius: 8px; border: 2px solid #e2e8f0;">
+                        <button type="button" onclick="removePhoto()" style="position: absolute; top: -5px; right: -5px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; cursor: pointer; font-size: 12px;">×</button>
+                    </div>
+                `;
+            };
+            reader.readAsDataURL(file);
+            
+            // Set the file input (for form submission)
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            photoInput.files = dataTransfer;
+        }
+        
+        function removePhoto() {
+            photoPreview.innerHTML = '';
+            photoInput.value = '';
+            photoPathInput.value = '';
+        }
+        
         // Clear any success/error messages after 5 seconds
         setTimeout(() => {
             const errorDiv = document.querySelector('[style*="background: #fee2e2"]');
