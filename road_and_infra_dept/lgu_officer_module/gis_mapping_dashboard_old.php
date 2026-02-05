@@ -1,9 +1,9 @@
 <?php
 /**
- * GIS Mapping Dashboard - LGU Officer Module
+ * GIS Mapping View - LGU Officer Module
  * 
  * Provides interactive mapping of road damage reports for LGU officers
- * Matches citizen module design and functionality
+ * Integrates with damage_reports database for real-time data display
  * 
  * @version 1.0.0
  * @author LGU Road Monitoring System
@@ -149,57 +149,97 @@ $page_description = "Interactive map showing road damage reports and infrastruct
             margin: 15px 0;
         }
 
-        /* Info Cards */
-        .info-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .info-card {
+        /* Quick Actions Bar */
+        .quick-actions {
             background: var(--glass-bg);
             backdrop-filter: blur(10px);
             border-radius: 16px;
             border: 1px solid var(--glass-border);
-            padding: 25px;
+            padding: 20px 30px;
+            margin-bottom: 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
         }
 
-        .info-card .icon {
-            width: 50px;
-            height: 50px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+        }
+
+        .action-btn {
+            padding: 10px 20px;
+            background: var(--primary);
+            color: white;
+            border: none;
             border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
             display: flex;
             align-items: center;
-            justify-content: center;
-            margin-bottom: 15px;
+            gap: 8px;
+            text-decoration: none;
         }
 
-        .info-card .icon i {
-            font-size: 1.2rem;
-            color: white;
+        .action-btn:hover {
+            background: var(--primary-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
         }
 
-        .info-card h3 {
-            color: #1e40af;
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 8px;
+        .action-btn.secondary {
+            background: #64748b;
         }
 
-        .info-card p {
-            color: var(--text-muted);
-            font-size: 0.9rem;
-            line-height: 1.5;
+        .action-btn.secondary:hover {
+            background: #475569;
         }
 
-        .info-card .number {
-            font-size: 1.8rem;
+        /* Stats Overview */
+        .stats-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+
+        .stat-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            border: 1px solid var(--glass-border);
+            padding: 20px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2rem;
             font-weight: 700;
-            color: #1e40af;
+            color: var(--primary);
             margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .stat-change {
+            font-size: 0.8rem;
+            margin-top: 5px;
+        }
+
+        .stat-change.positive {
+            color: var(--success);
+        }
+
+        .stat-change.negative {
+            color: var(--danger);
         }
 
         /* Map Container */
@@ -210,7 +250,6 @@ $page_description = "Interactive map showing road damage reports and infrastruct
             border: 1px solid var(--glass-border);
             padding: 30px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-            margin-bottom: 30px;
             flex: 1;
             display: flex;
             flex-direction: column;
@@ -235,9 +274,11 @@ $page_description = "Interactive map showing road damage reports and infrastruct
             gap: 15px;
             margin-bottom: 20px;
             flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
         }
 
-        .control-group {
+        .filter-group {
             display: flex;
             gap: 10px;
             align-items: center;
@@ -274,45 +315,6 @@ $page_description = "Interactive map showing road damage reports and infrastruct
             margin-bottom: 20px;
         }
 
-        /* Legend */
-        .legend {
-            background: #f8fafc;
-            border-radius: 12px;
-            padding: 20px;
-            margin-top: 20px;
-        }
-
-        .legend h3 {
-            color: #1e40af;
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 15px;
-        }
-
-        .legend-items {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-        }
-
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .legend-color {
-            width: 20px;
-            height: 20px;
-            border-radius: 4px;
-            border: 1px solid #e2e8f0;
-        }
-
-        .legend-text {
-            font-size: 0.9rem;
-            color: var(--text-muted);
-        }
-
         /* Report Details Panel */
         .report-details {
             background: #f8fafc;
@@ -336,7 +338,7 @@ $page_description = "Interactive map showing road damage reports and infrastruct
         .report-title {
             font-size: 1.2rem;
             font-weight: 600;
-            color: #1e40af;
+            color: #1e29af;
         }
 
         .report-status {
@@ -344,31 +346,6 @@ $page_description = "Interactive map showing road damage reports and infrastruct
             border-radius: 20px;
             font-size: 0.8rem;
             font-weight: 600;
-        }
-
-        .status-pending {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .status-under-review {
-            background: #e0e7ff;
-            color: #3730a3;
-        }
-
-        .status-approved {
-            background: #dcfce7;
-            color: #166534;
-        }
-
-        .status-in-progress {
-            background: #dbeafe;
-            color: #1e40af;
-        }
-
-        .status-completed {
-            background: #d1fae5;
-            color: #065f46;
         }
 
         .report-info {
@@ -454,29 +431,6 @@ $page_description = "Interactive map showing road damage reports and infrastruct
             100% { transform: rotate(360deg); }
         }
 
-        /* Notification */
-        .notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 15px 20px;
-            background: #3b82f6;
-            color: white;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            z-index: 10000;
-            font-size: 0.9rem;
-            max-width: 300px;
-        }
-
-        .notification.error {
-            background: #ef4444;
-        }
-
-        .notification.success {
-            background: #10b981;
-        }
-
         /* Scrollbar Styling */
         .main-content::-webkit-scrollbar {
             width: 8px;
@@ -501,64 +455,76 @@ $page_description = "Interactive map showing road damage reports and infrastruct
 
     <main class="main-content">
         <header class="module-header">
-            <h1>GIS Mapping</h1>
-            <p>Interactive map showing road damage reports and infrastructure conditions</p>
+            <h1>GIS Mapping Dashboard</h1>
+            <p>Interactive map visualization of road damage reports and infrastructure conditions</p>
             <hr class="header-divider">
         </header>
 
-        <!-- Info Cards -->
-        <div class="info-cards">
-            <div class="info-card">
-                <div class="icon">
-                    <i class="fas fa-road"></i>
-                </div>
-                <div class="number" id="total-reports">0</div>
-                <h3>Total Reports</h3>
-                <p>Comprehensive coverage of all reported road issues in the area</p>
+        <!-- Quick Actions Bar -->
+        <div class="quick-actions">
+            <div class="action-buttons">
+                <a href="road_reporting_overview.php" class="action-btn">
+                    <i class="fas fa-plus-circle"></i>
+                    New Report
+                </a>
+                <a href="#" class="action-btn secondary" onclick="exportData()">
+                    <i class="fas fa-download"></i>
+                    Export Data
+                </a>
+                <a href="#" class="action-btn secondary" onclick="refreshMap()">
+                    <i class="fas fa-sync"></i>
+                    Refresh
+                </a>
             </div>
-
-            <div class="info-card">
-                <div class="icon">
-                    <i class="fas fa-exclamation-triangle"></i>
-                </div>
-                <div class="number" id="active-issues">0</div>
-                <h3>Active Issues</h3>
-                <p>Currently reported road conditions requiring attention</p>
+            <div class="filter-group">
+                <span style="color: var(--text-muted); font-size: 0.9rem;">Last updated: <span id="last-updated">Just now</span></span>
             </div>
+        </div>
 
-            <div class="info-card">
-                <div class="icon">
-                    <i class="fas fa-hard-hat"></i>
-                </div>
-                <div class="number" id="construction-zones">0</div>
-                <h3>Construction Zones</h3>
-                <p>Areas with ongoing infrastructure development projects</p>
+        <!-- Statistics Overview -->
+        <div class="stats-overview">
+            <div class="stat-card">
+                <div class="stat-number" id="total-reports">0</div>
+                <div class="stat-label">Total Reports</div>
+                <div class="stat-change positive">+12% this month</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="pending-reports">0</div>
+                <div class="stat-label">Pending Review</div>
+                <div class="stat-change negative">+3 urgent</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="in-progress">0</div>
+                <div class="stat-label">In Progress</div>
+                <div class="stat-change positive">-2 from last week</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="completed">0</div>
+                <div class="stat-label">Completed</div>
+                <div class="stat-change positive">+8 this month</div>
             </div>
         </div>
 
         <!-- Map Section -->
         <div class="map-section">
-            <h2 class="section-title">Interactive Road Map</h2>
-            <p class="section-desc">Click on map elements to view detailed information about road conditions and projects</p>
+            <h2 class="section-title">Road Damage Reports Map</h2>
+            <p class="section-desc">Click on map markers to view detailed report information and take action</p>
             
             <!-- Map Controls -->
             <div class="map-controls">
-                <div class="control-group">
+                <div class="filter-group">
                     <button class="filter-btn active" onclick="filterMap('all')">
-                        <i class="fas fa-layer-group"></i> All Layers
+                        <i class="fas fa-layer-group"></i> All Reports
                     </button>
                     <button class="filter-btn" onclick="filterMap('issues')">
-                        <i class="fas fa-exclamation-triangle"></i> Issues
-                    </button>
-                    <button class="filter-btn" onclick="filterMap('projects')">
-                        <i class="fas fa-hard-hat"></i> Projects
+                        <i class="fas fa-exclamation-triangle"></i> Active Issues
                     </button>
                     <button class="filter-btn" onclick="filterMap('completed')">
                         <i class="fas fa-check-circle"></i> Completed
                     </button>
                 </div>
                 
-                <div class="control-group">
+                <div class="filter-group">
                     <button class="filter-btn" onclick="resetMap()">
                         <i class="fas fa-redo"></i> Reset View
                     </button>
@@ -572,86 +538,55 @@ $page_description = "Interactive map showing road damage reports and infrastruct
                 </div>
             </div>
 
-            <!-- Legend -->
-            <div class="legend">
-                <h3>Map Legend</h3>
-                <div class="legend-items">
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: #dc2626;"></div>
-                        <span class="legend-text">Critical Issues</span>
+            <!-- Report Details Panel -->
+            <div id="report-details" class="report-details">
+                <div class="report-header">
+                    <div>
+                        <div class="report-title" id="detail-title">Select a report to view details</div>
+                        <div class="report-status" id="detail-status"></div>
                     </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: #f59e0b;"></div>
-                        <span class="legend-text">Medium Priority</span>
+                    <button onclick="closeDetails()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted);">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="report-info">
+                    <div class="info-item">
+                        <span class="info-label">Report ID</span>
+                        <span class="info-value" id="detail-id">-</span>
                     </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: #10b981;"></div>
-                        <span class="legend-text">Good Condition</span>
+                    <div class="info-item">
+                        <span class="info-label">Location</span>
+                        <span class="info-value" id="detail-location">-</span>
                     </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: #3b82f6;"></div>
-                        <span class="legend-text">Construction Zone</span>
+                    <div class="info-item">
+                        <span class="info-label">Damage Type</span>
+                        <span class="info-value" id="detail-type">-</span>
                     </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: #8b5cf6;"></div>
-                        <span class="legend-text">Planned Project</span>
+                    <div class="info-item">
+                        <span class="info-label">Severity</span>
+                        <span class="info-value" id="detail-severity">-</span>
                     </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: #6b7280;"></div>
-                        <span class="legend-text">Completed Work</span>
+                    <div class="info-item">
+                        <span class="info-label">Reported By</span>
+                        <span class="info-value" id="detail-reporter">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Date Reported</span>
+                        <span class="info-value" id="detail-date">-</span>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <!-- Report Details Panel -->
-        <div id="report-details" class="report-details">
-            <div class="report-header">
-                <div>
-                    <div class="report-title" id="detail-title">Select a report to view details</div>
-                    <div class="report-status" id="detail-status"></div>
+                
+                <div class="info-item" style="margin-bottom: 15px;">
+                    <span class="info-label">Description</span>
+                    <span class="info-value" id="detail-description">-</span>
                 </div>
-                <button onclick="closeDetails()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted);">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            
-            <div class="report-info">
-                <div class="info-item">
-                    <span class="info-label">Report ID</span>
-                    <span class="info-value" id="detail-id">-</span>
+                
+                <div class="report-actions">
+                    <a href="#" class="action-link primary" id="action-view">View Full Report</a>
+                    <a href="#" class="action-link secondary" id="action-update">Update Status</a>
+                    <a href="#" class="action-link secondary" id="action-assign">Assign Team</a>
                 </div>
-                <div class="info-item">
-                    <span class="info-label">Location</span>
-                    <span class="info-value" id="detail-location">-</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Damage Type</span>
-                    <span class="info-value" id="detail-type">-</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Severity</span>
-                    <span class="info-value" id="detail-severity">-</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Reported By</span>
-                    <span class="info-value" id="detail-reporter">-</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Date Reported</span>
-                    <span class="info-value" id="detail-date">-</span>
-                </div>
-            </div>
-            
-            <div class="info-item" style="margin-bottom: 15px;">
-                <span class="info-label">Description</span>
-                <span class="info-value" id="detail-description">-</span>
-            </div>
-            
-            <div class="report-actions">
-                <a href="#" class="action-link primary" id="action-view">View Full Report</a>
-                <a href="#" class="action-link secondary" id="action-update">Update Status</a>
-                <a href="#" class="action-link secondary" id="action-assign">Assign Team</a>
             </div>
         </div>
     </main>
@@ -665,46 +600,40 @@ $page_description = "Interactive map showing road damage reports and infrastruct
         let currentFilter = 'all';
         let selectedReport = null;
 
-        function showNotification(message, type = 'info') {
-            const notification = document.createElement('div');
-            notification.className = 'notification ' + type;
-            notification.innerHTML = `<i class="fas fa-info-circle"></i> ${message}`;
-            document.body.appendChild(notification);
-            
-            setTimeout(() => {
-                if (notification.parentNode) {
-                    notification.parentNode.removeChild(notification);
-                }
-            }, 5000);
-        }
-
         function initMap() {
             try {
                 console.log('Initializing map...');
                 
+                // Check if map container exists
                 const mapContainer = document.getElementById('map');
                 if (!mapContainer) {
                     throw new Error('Map container not found');
                 }
                 
+                // Clear any loading spinner
                 mapContainer.innerHTML = '';
                 
+                // Create map centered on a default location (adjust to your area)
                 map = L.map('map').setView([14.5995, 120.9842], 13);
                 console.log('Map object created');
 
+                // Add tile layer
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     attribution: '© OpenStreetMap contributors'
                 }).addTo(map);
                 console.log('Tile layer added');
 
+                // Load data immediately
                 loadMapData('all');
                 console.log('Map initialization complete');
                 
             } catch (error) {
                 console.error('Map initialization error:', error);
-                showNotification('Failed to initialize map: ' + error.message, 'error');
+                showErrorMessage('Failed to initialize map: ' + error.message);
                 
+                // Try to load fallback data anyway
                 setTimeout(() => {
+                    console.log('Attempting to load fallback data...');
                     loadFallbackData('all');
                 }, 1000);
             }
@@ -713,6 +642,7 @@ $page_description = "Interactive map showing road damage reports and infrastruct
         function loadMapData(filter = 'all') {
             console.log('Loading map data with filter:', filter);
             
+            // Use relative path that works with PHP development server
             const apiUrl = '../api/get_gis_data_test.php?filter=' + filter;
             console.log('Fetching from:', apiUrl);
             
@@ -729,18 +659,22 @@ $page_description = "Interactive map showing road damage reports and infrastruct
                     if (data.success) {
                         updateMapWithRealData(data.data.features);
                         updateStatistics(data.data.statistics);
+                        updateLastUpdated();
                         
+                        // Show sample data notification if present
                         if (data.message) {
                             showNotification(data.message, 'info');
                         }
                     } else {
                         console.error('Error loading map data:', data.message);
-                        loadFallbackData(filter);
+                        showErrorMessage('Unable to load map data: ' + data.message);
                     }
                 })
                 .catch(error => {
                     console.error('Error fetching map data:', error);
-                    showNotification('Network error: ' + error.message + '. Loading fallback data...', 'error');
+                    showErrorMessage('Network error: ' + error.message + '. Loading fallback data...');
+                    
+                    // Load fallback sample data
                     loadFallbackData(filter);
                 });
         }
@@ -748,6 +682,7 @@ $page_description = "Interactive map showing road damage reports and infrastruct
         function loadFallbackData(filter = 'all') {
             console.log('Loading fallback data for filter:', filter);
             
+            // Ensure map exists before trying to add markers
             if (!map) {
                 console.log('Map not initialized, creating map first...');
                 try {
@@ -762,7 +697,7 @@ $page_description = "Interactive map showing road damage reports and infrastruct
                     }
                 } catch (error) {
                     console.error('Failed to create map in fallback mode:', error);
-                    showNotification('Failed to create map: ' + error.message, 'error');
+                    showErrorMessage('Failed to create map: ' + error.message);
                     return;
                 }
             }
@@ -830,20 +765,22 @@ $page_description = "Interactive map showing road damage reports and infrastruct
             const statistics = {
                 total_markers: 0,
                 active_issues: 0,
-                construction_zones: 0,
-                completed_work: 0
+                completed_work: 0,
+                in_progress: 0
             };
 
+            // Base coordinates
             const base_lat = 14.5995;
             const base_lng = 120.9842;
 
             fallbackReports.forEach((report, index) => {
+                // Apply filter
                 if (filter !== 'all') {
                     if (filter === 'issues' && !in_array(report.status, ['pending', 'under_review', 'approved'])) return;
                     if (filter === 'completed' && report.status !== 'completed') return;
-                    if (filter === 'projects' && report.damage_type !== 'landslide') return;
                 }
                 
+                // Generate coordinates
                 const lat_offset = (index % 3 - 1) * 0.02;
                 const lng_offset = (Math.floor(index / 3) % 3 - 1) * 0.02;
                 
@@ -881,14 +818,33 @@ $page_description = "Interactive map showing road damage reports and infrastruct
                     statistics.completed_work++;
                 }
                 
-                if (report.damage_type === 'landslide') {
-                    statistics.construction_zones++;
+                if (report.status === 'in_progress') {
+                    statistics.in_progress++;
                 }
             });
 
             updateMapWithRealData(features);
             updateStatistics(statistics);
+            updateLastUpdated();
             showNotification('Fallback data loaded - API connection failed', 'info');
+        }
+
+        function in_array(needle, haystack) {
+            return haystack.includes(needle);
+        }
+
+        function ucfirst(str) {
+            return str.charAt(0).toUpperCase() + str.slice(1);
+        }
+
+        function extractBarangay(location) {
+            if (location.indexOf('Barangay') !== -1) {
+                const parts = location.split('Barangay');
+                if (parts[1]) {
+                    return 'Barangay' + parts[1].split(',')[0];
+                }
+            }
+            return 'Unknown';
         }
 
         function updateMapWithRealData(features) {
@@ -903,7 +859,7 @@ $page_description = "Interactive map showing road damage reports and infrastruct
                 const coords = feature.geometry.coordinates;
                 const props = feature.properties;
                 
-                const color = getColorByType(props.type);
+                const color = getColorBySeverity(props.severity);
                 const marker = L.circleMarker([coords[1], coords[0]], {
                     radius: getMarkerSize(props.severity),
                     fillColor: color,
@@ -917,15 +873,15 @@ $page_description = "Interactive map showing road damage reports and infrastruct
                 let popupContent = `
                     <strong>${props.title}</strong><br>
                     ${props.description}<br>
-                    <small>Type: ${props.type}</small><br>
+                    <small>Status: ${props.status}</small><br>
                     <small>Severity: ${props.severity}</small>
                 `;
 
                 if (props.address) {
-                    popupContent += `<br><small>Address: ${props.address}</small>`;
+                    popupContent += `<br><small>Location: ${props.address}</small>`;
                 }
-                if (props.barangay) {
-                    popupContent += `<br><small>Barangay: ${props.barangay}</small>`;
+                if (props.reporter_name) {
+                    popupContent += `<br><small>Reported by: ${props.reporter_name}</small>`;
                 }
 
                 marker.bindPopup(popupContent);
@@ -967,7 +923,6 @@ $page_description = "Interactive map showing road damage reports and infrastruct
                 document.getElementById('action-view').href = `road_reporting_overview.php?report_id=${report.id}`;
                 document.getElementById('action-update').href = `update_report_status.php?id=${report.id}`;
                 document.getElementById('action-assign').href = `assign_team.php?id=${report.id}`;
-                document.getElementById('action-assign').style.display = 'inline-block';
             } else {
                 document.getElementById('action-view').href = `construction_details.php?id=${report.id}`;
                 document.getElementById('action-update').href = `update_construction.php?id=${report.id}`;
@@ -982,20 +937,6 @@ $page_description = "Interactive map showing road damage reports and infrastruct
             selectedReport = null;
         }
 
-        function getColorByType(type) {
-            const colors = {
-                'critical': '#dc2626',
-                'medium': '#f59e0b',
-                'low': '#10b981',
-                'high': '#ef4444',
-                'damage': '#ef4444',
-                'construction': '#3b82f6',
-                'project': '#8b5cf6',
-                'completed': '#6b7280'
-            };
-            return colors[type] || '#6b7280';
-        }
-
         function getMarkerSize(severity) {
             const sizes = {
                 'low': 6,
@@ -1006,10 +947,25 @@ $page_description = "Interactive map showing road damage reports and infrastruct
             return sizes[severity] || 8;
         }
 
+        function getColorBySeverity(severity) {
+            const colors = {
+                'low': '#10b981',
+                'medium': '#f59e0b',
+                'high': '#ef4444',
+                'critical': '#dc2626'
+            };
+            return colors[severity] || '#6b7280';
+        }
+
         function updateStatistics(stats) {
             document.getElementById('total-reports').textContent = stats.total_markers || 0;
-            document.getElementById('active-issues').textContent = stats.active_issues || 0;
-            document.getElementById('construction-zones').textContent = stats.construction_zones || 0;
+            document.getElementById('pending-reports').textContent = stats.active_issues || 0;
+            document.getElementById('in-progress').textContent = stats.in_progress || 0;
+            document.getElementById('completed').textContent = stats.completed_work || 0;
+        }
+
+        function updateLastUpdated() {
+            document.getElementById('last-updated').textContent = 'Just now';
         }
 
         function filterMap(filter) {
@@ -1026,36 +982,70 @@ $page_description = "Interactive map showing road damage reports and infrastruct
         }
 
         function resetMap() {
-            // Reset map view to default
             map.setView([14.5995, 120.9842], 13);
-            
-            // Reset filter to all
             filterMap('all');
         }
 
-        // Helper functions
-        function in_array(needle, haystack) {
-            return haystack.includes(needle);
+        function refreshMap() {
+            loadMapData(currentFilter);
         }
 
-        function ucfirst(str) {
-            return str.charAt(0).toUpperCase() + str.slice(1);
+        function exportData() {
+            window.open('../api/export_reports.php', '_blank');
         }
 
-        function extractBarangay(location) {
-            if (location.indexOf('Barangay') !== -1) {
-                const parts = location.split('Barangay');
-                if (parts[1]) {
-                    return 'Barangay' + parts[1].split(',')[0];
+        function showNotification(message, type = 'info') {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 15px 20px;
+                background: ${type === 'info' ? '#3b82f6' : '#10b981'};
+                color: white;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                z-index: 10000;
+                font-size: 0.9rem;
+                max-width: 300px;
+            `;
+            notification.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-info-circle"></i>
+                    <span>${message}</span>
+                </div>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
                 }
-            }
-            return 'Unknown';
+            }, 5000);
+        }
+
+        function showErrorMessage(message) {
+            const mapDiv = document.getElementById('map');
+            mapDiv.innerHTML = `
+                <div style="display: flex; align-items: center; justify-content: center; height: 500px; background: #fef2f2; border-radius: 12px; border: 2px solid #fecaca;">
+                    <div style="text-align: center; color: #dc2626;">
+                        <i class="fas fa-exclamation-triangle" style="font-size: 2rem; margin-bottom: 10px;"></i>
+                        <p>${message}</p>
+                    </div>
+                </div>
+            `;
         }
 
         // Initialize map when page loads
         document.addEventListener('DOMContentLoaded', function() {
             setTimeout(initMap, 1000);
         });
+
+        // Auto-refresh every 5 minutes
+        setInterval(refreshMap, 300000);
     </script>
 </body>
 </html>
