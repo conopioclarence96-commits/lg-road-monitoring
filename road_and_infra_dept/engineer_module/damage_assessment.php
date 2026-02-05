@@ -171,11 +171,11 @@ $auth->logActivity('page_access', 'Accessed damage assessment module');
         }
 
         .btn-primary {
-            background: var(--primary) !important;
+            background: var(--success) !important;
             color: white !important;
             border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
+            padding: 12px 30px;
+            border-radius: 10px;
             font-size: 0.95rem;
             font-weight: 600;
             cursor: pointer;
@@ -186,9 +186,9 @@ $auth->logActivity('page_access', 'Accessed damage assessment module');
         }
 
         .btn-primary:hover {
-            background: var(--primary-hover);
+            background: var(--success-hover) !important;
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(37, 99, 235, 0.3);
+            box-shadow: 0 5px 15px rgba(34, 197, 94, 0.3);
         }
 
         .btn-success {
@@ -261,8 +261,8 @@ $auth->logActivity('page_access', 'Accessed damage assessment module');
         }
 
         .btn-funding {
-            background: var(--primary);
-            color: white;
+            background: var(--success) !important;
+            color: white !important;
             border: none;
             padding: 12px 30px;
             border-radius: 10px;
@@ -276,9 +276,9 @@ $auth->logActivity('page_access', 'Accessed damage assessment module');
         }
 
         .btn-funding:hover {
-            background: var(--primary-hover);
+            background: var(--success-hover) !important;
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(37, 99, 235, 0.3);
+            box-shadow: 0 5px 15px rgba(34, 197, 94, 0.3);
         }
 
         /* Scrollbar Styling */
