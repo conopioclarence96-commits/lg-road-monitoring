@@ -331,39 +331,8 @@ try {
     error_log("Successfully fetched " . count($inspections) . " inspections from database");
 } catch (Exception $e) {
     error_log("Database error: " . $e->getMessage());
-    error_log("Using fallback mock data");
-    // Fallback to mock data if database fails
-    $inspections = [
-        [
-            'id' => 'INSP-1023', 
-            'report_id' => 'DR-2025-001',
-            'location' => 'Main Road, Brgy. 3', 
-            'date' => 'Dec 10, 2025', 
-            'status' => 'Pending',
-            'severity' => 'High',
-            'cost' => '₱45,000.00',
-            'reporter' => 'Juan Dela Cruz',
-            'coordinates' => '14.5995° N, 120.9842° E',
-            'description' => 'Large pothole on the main road causing traffic issues.',
-            'images' => ['damage_1.jpg', 'damage_2.jpg'],
-            'inspection_type' => 'regular'
-        ],
-        [
-            'id' => 'INSP-1024', 
-            'report_id' => 'DR-2025-002',
-            'location' => 'Market Street', 
-            'date' => 'Dec 11, 2025', 
-            'status' => 'Approved',
-            'severity' => 'Medium',
-            'cost' => '₱12,500.00',
-            'reporter' => 'Maria Santos',
-            'coordinates' => '14.6010° N, 120.9890° E',
-            'description' => 'Cracks along the side of the road near the market entrance.',
-            'images' => ['damage_3.jpg'],
-            'inspection_type' => 'regular'
-        ],
-    ];
-    $citizenReports = [];
+    // Don't use fallback data - let the page show empty if database fails
+    $inspections = [];
 }
 
 $repairs = [
@@ -869,12 +838,12 @@ $repairs = [
             <h2><i class="fas fa-file-alt"></i> Inspection Reports</h2>
             <div style="background: #f0f9ff; border: 1px solid #0ea5e9; padding: 10px; margin-bottom: 15px; border-radius: 8px;">
                 <small style="color: #0c4a6e;">
-                    <strong>DEBUG:</strong> Found <?php echo count($inspections); ?> inspections 
+                    <strong>DEBUG:</strong> Found <?php echo count($inspections); ?> inspections from database
                     <?php 
-                    if (count($inspections) <= 2) {
-                        echo "(Using fallback mock data - Database query failed)";
+                    if (count($inspections) === 0) {
+                        echo "(No inspections found in database)";
                     } else {
-                        echo "(Using real database data)";
+                        echo "(Real database data)";
                     }
                     ?>
                 </small>
