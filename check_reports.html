@@ -30,7 +30,7 @@
             resultsDiv.innerHTML = '<div class="result">🔄 Loading recent reports...</div>';
             
             try {
-                const response = await fetch('road_and_infra_dept/lgu_officer_module/api/get_citizen_reports.php');
+                const response = await fetch('road_and_infra_dept/lgu_officer_module/api/get_citizen_reports_test.php');
                 const data = await response.json();
                 
                 console.log('API Response:', data);
