@@ -7,19 +7,28 @@ require_once '../config/database.php';
 $auth->requireAnyRole(['lgu_officer', 'admin']);
 
 // Initialize database connection
-$database = new Database();
-$conn = $database->getConnection();
+try {
+    $database = new Database();
+    $conn = $database->getConnection();
+} catch (Exception $e) {
+    die("Database connection failed: " . $e->getMessage());
+}
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $location = $_POST['location'] ?? '';
-    $damage_type = $_POST['damage_type'] ?? '';
-    $severity = $_POST['severity'] ?? '';
-    $description = $_POST['description'] ?? '';
+    // Sanitize and validate inputs
+    $location = trim($_POST['location'] ?? '');
+    $damage_type = trim($_POST['damage_type'] ?? '');
+    $severity = trim($_POST['severity'] ?? '');
+    $description = trim($_POST['description'] ?? '');
     
     // Validate required fields
-    if (empty($location) || empty($damage_type) || empty($severity)) {
+    if (empty($location) || empty($damage_type) || empty($severity) || empty($description)) {
         $error = "All required fields must be filled.";
+    } elseif (!in_array($damage_type, ['pothole', 'crack', 'landslide', 'flooding', 'drainage'])) {
+        $error = "Invalid damage type selected.";
+    } elseif (!in_array($severity, ['low', 'medium', 'high', 'critical'])) {
+        $error = "Invalid severity level selected.";
     } else {
         try {
             // Check if road_name column exists
@@ -53,28 +62,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($stmt->execute()) {
                 $report_id = $conn->insert_id;
                 
-                // Handle file uploads
+                // Handle file uploads with better error checking
                 if (!empty($_FILES['photos']['name'][0])) {
                     $upload_dir = '../uploads/damage_reports/';
                     if (!is_dir($upload_dir)) {
                         mkdir($upload_dir, 0755, true);
                     }
                     
+                    $uploaded_files = [];
                     foreach ($_FILES['photos']['tmp_name'] as $key => $tmp_name) {
                         if ($_FILES['photos']['error'][$key] === UPLOAD_ERR_OK) {
                             $filename = time() . '_' . basename($_FILES['photos']['name'][$key]);
                             $filepath = $upload_dir . $filename;
                             
-                            if (move_uploaded_file($tmp_name, $filepath)) {
-                                // Insert photo record
-                                $photo_stmt = $conn->prepare("
-                                    INSERT INTO damage_report_photos (damage_report_id, photo_path, uploaded_at)
-                                    VALUES (?, ?, NOW())
-                                ");
-                                $photo_stmt->bind_param("is", $report_id, $filepath);
-                                $photo_stmt->execute();
+                            // Validate file type
+                            $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                            $file_type = $_FILES['photos']['type'][$key];
+                            
+                            if (in_array($file_type, $allowed_types)) {
+                                if (move_uploaded_file($tmp_name, $filepath)) {
+                                    $uploaded_files[] = $filepath;
+                                    
+                                    // Insert photo record
+                                    $photo_stmt = $conn->prepare("
+                                        INSERT INTO damage_report_photos (damage_report_id, photo_path, uploaded_at)
+                                        VALUES (?, ?, NOW())
+                                    ");
+                                    $photo_stmt->bind_param("is", $report_id, $filepath);
+                                    $photo_stmt->execute();
+                                }
+                            } else {
+                                $error = "Only JPEG, PNG, GIF, and WebP images are allowed.";
                             }
                         }
+                    }
+                    
+                    if (empty($uploaded_files) && !empty($_FILES['photos']['name'][0])) {
+                        $error = "Failed to upload any valid images.";
                     }
                 }
                 
@@ -113,6 +137,9 @@ $reports = [];
 try {
     // Check if road_name column exists
     $column_check = $conn->query("SHOW COLUMNS FROM damage_reports LIKE 'road_name'");
+    if ($column_check === false) {
+        throw new Exception("Failed to check database schema");
+    }
     $has_road_name = $column_check->num_rows > 0;
     
     // Build query based on available columns
@@ -120,17 +147,22 @@ try {
         "dr.id, dr.road_name, dr.issue_type, dr.severity, dr.status, dr.date_reported" :
         "dr.id, 'Unknown Location' as road_name, dr.issue_type, dr.severity, dr.status, dr.date_reported";
     
-    $stmt = $conn->prepare("
+    $sql = "
         SELECT 
             $select_fields,
             CONCAT('RD-', LPAD(dr.id, 4, '0')) as report_id,
-            u.full_name as reporter_name
+            COALESCE(u.full_name, 'Unknown User') as reporter_name
         FROM damage_reports dr
         LEFT JOIN users u ON dr.reported_by = u.id
         $where_clause
         $order_by
         LIMIT 50
-    ");
+    ";
+    
+    $stmt = $conn->prepare($sql);
+    if ($stmt === false) {
+        throw new Exception("Failed to prepare database query");
+    }
     
     if (!empty($params)) {
         $stmt->bind_param($types, ...$params);
@@ -139,11 +171,17 @@ try {
     $stmt->execute();
     $result = $stmt->get_result();
     
+    if ($result === false) {
+        throw new Exception("Failed to execute database query");
+    }
+    
     while ($row = $result->fetch_assoc()) {
         $reports[] = $row;
     }
 } catch (Exception $e) {
     $error = "Error fetching reports: " . $e->getMessage();
+    // Log the actual error for debugging
+    error_log("Database error in road_reporting_overview: " . $e->getMessage());
 }
 ?>
 <!DOCTYPE html>
@@ -571,11 +609,11 @@ try {
                         <?php foreach ($reports as $report): ?>
                         <tr>
                             <td class="id-cell"><?php echo htmlspecialchars($report['report_id']); ?></td>
-                            <td><?php echo htmlspecialchars($report['road_name']); ?></td>
-                            <td><?php echo ucfirst(htmlspecialchars($report['issue_type'])); ?></td>
+                            <td><?php echo htmlspecialchars($report['road_name'] ?? 'Unknown Location'); ?></td>
+                            <td><?php echo ucfirst(htmlspecialchars($report['issue_type'] ?? 'Unknown')); ?></td>
                             <td>
-                                <span class="status-badge status-<?php echo str_replace('_', '-', $report['status']); ?>">
-                                    <?php echo ucfirst(str_replace('_', ' ', htmlspecialchars($report['status']))); ?>
+                                <span class="status-badge status-<?php echo str_replace('_', '-', $report['status'] ?? 'unknown'); ?>">
+                                    <?php echo ucfirst(str_replace('_', ' ', htmlspecialchars($report['status'] ?? 'Unknown'))); ?>
                                 </span>
                             </td>
                         </tr>
