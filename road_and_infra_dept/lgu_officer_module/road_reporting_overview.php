@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $conn->prepare("
                     INSERT INTO damage_reports (
                         road_name, damage_type, severity, description, 
-                        created_at, user_id, status
+                        created_at, reported_by, status
                     ) VALUES (?, ?, ?, ?, NOW(), ?, 'pending')
                     ");
                 
@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $conn->prepare("
                     INSERT INTO damage_reports (
                         damage_type, severity, description, 
-                        created_at, user_id, status
+                        created_at, reported_by, status
                     ) VALUES (?, ?, ?, NOW(), ?, 'pending')
                     ");
                 
@@ -153,7 +153,7 @@ try {
             CONCAT('RD-', LPAD(dr.id, 4, '0')) as report_id,
             COALESCE(CONCAT(u.first_name, ' ', u.last_name), 'Unknown User') as reporter_name
         FROM damage_reports dr
-        LEFT JOIN users u ON dr.user_id = u.id
+        LEFT JOIN users u ON dr.reported_by = u.id
         $where_clause
         $order_by
         LIMIT 50
