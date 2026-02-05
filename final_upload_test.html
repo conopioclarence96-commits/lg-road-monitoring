@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Test Fixed Image Upload</title>
+    <title>Final Image Upload Test</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
         .section { border: 1px solid #ddd; padding: 20px; margin: 20px 0; border-radius: 8px; }
@@ -11,20 +11,20 @@
         input, button, textarea, select { padding: 10px; margin: 5px; border: 1px solid #ddd; border-radius: 4px; width: 100%; }
         button { background: #28a745; color: white; border: none; cursor: pointer; width: auto; }
         button:hover { background: #218838; }
-        .debug { background: #f1f1f1; padding: 10px; font-family: monospace; font-size: 12px; white-space: pre-wrap; }
+        .debug { background: #f1f1f1; padding: 10px; font-family: monospace; font-size: 12px; white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
     </style>
 </head>
 <body>
-    <h1>🔧 Test Fixed Image Upload</h1>
-    <p>This page tests the fixed image upload handler with enhanced debugging.</p>
+    <h1>🎯 Final Image Upload Test</h1>
+    <p><strong>This test bypasses authentication to isolate the image upload issue.</strong></p>
     
     <div class="section">
-        <h2>📝 Test Report Submission</h2>
+        <h2>📝 Submit Test Report (No Auth)</h2>
         <form id="testForm" enctype="multipart/form-data">
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                 <div>
                     <label>Location:</label>
-                    <input type="text" name="location" value="Fixed Test Location" required>
+                    <input type="text" name="location" value="Final Test Location" required>
                 </div>
                 <div>
                     <label>Barangay:</label>
@@ -47,54 +47,37 @@
             </div>
             <div style="margin: 10px 0;">
                 <label>Description:</label>
-                <textarea name="description" required>Testing the fixed image upload functionality</textarea>
+                <textarea name="description" required>Final test to confirm image upload works without authentication issues</textarea>
             </div>
             <div style="margin: 10px 0;">
                 <label><strong>📷 Upload Images:</strong></label>
                 <input type="file" name="images[]" accept="image/*" multiple required style="border: 2px solid #28a745;">
-                <small>Upload one or more images to test the fix</small>
+                <small>Upload one or more images to test the upload process</small>
             </div>
-            <div style="margin: 10px 0;">
-                <label>
-                    <input type="checkbox" name="anonymous_report" value="1" checked>
-                    Submit anonymously
-                </label>
-            </div>
-            <button type="submit">🧪 Submit Test Report</button>
+            <button type="submit">🧪 Submit Final Test</button>
         </form>
         <div id="result"></div>
     </div>
 
     <div class="section">
-        <h2>🔍 What This Tests</h2>
-        <ul>
-            <li><strong>Fixed Handler:</strong> Uses handle_report_fixed_v2.php with enhanced error handling</li>
-            <li><strong>File Validation:</strong> Checks file types, sizes, and permissions</li>
-            <li><strong>Directory Creation:</strong> Creates upload directory if needed</li>
-            <li><strong>Enhanced Debugging:</strong> Detailed logging of upload process</li>
-            <li><strong>Database Storage:</strong> Properly stores image paths in database</li>
-        </ul>
+        <h2>📋 Debug Log</h2>
+        <button onclick="checkDebugLog()" style="background: #007bff;">📄 View Debug Log</button>
+        <button onclick="clearDebugLog()" style="background: #6c757d;">🗑️ Clear Debug Log</button>
         
-        <h3>Expected Results:</h3>
-        <ul>
-            <li>✅ Success message with uploaded image filenames</li>
-            <li>✅ Images appear in uploads/reports/ directory</li>
-            <li>✅ Image paths stored in database as JSON array</li>
-            <li>✅ Debug info showing upload count and file details</li>
-        </ul>
+        <div id="debugLog" class="debug" style="display: none;"></div>
     </div>
 
     <script>
         document.getElementById('testForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             const resultDiv = document.getElementById('result');
-            resultDiv.innerHTML = '<div class="result">🔄 Testing fixed upload handler...</div>';
+            resultDiv.innerHTML = '<div class="result">🔄 Testing final upload process...</div>';
             
             try {
                 const formData = new FormData(this);
                 
-                // Debug FormData contents
-                console.log('=== FORMDATA DEBUG ===');
+                console.log('=== FINAL TEST SUBMISSION ===');
+                console.log('FormData entries:');
                 for (let [key, value] of formData.entries()) {
                     if (value instanceof File) {
                         console.log(`${key}:`, value.name, value.size, value.type);
@@ -103,7 +86,7 @@
                     }
                 }
                 
-                const response = await fetch('road_and_infra_dept/citizen_module/api/handle_report_fixed_v2.php', {
+                const response = await fetch('road_and_infra_dept/citizen_module/api/handle_report_no_auth.php', {
                     method: 'POST',
                     body: formData
                 });
@@ -122,11 +105,11 @@
                         html += `<div class="result"><strong>Report ID:</strong> ${data.report_id}</div>`;
                         
                         if (data.uploaded_images && data.uploaded_images.length > 0) {
-                            html += `<div class="result success"><strong>📸 Uploaded Images (${data.uploaded_images.length}):</strong><br>`;
+                            html += `<div class="result success"><strong>📸 Images Successfully Uploaded:</strong><br>`;
                             html += data.uploaded_images.map(img => `• ${img}`).join('<br>');
                             html += `</div>`;
                         } else {
-                            html += `<div class="result error"><strong>❌ No images were uploaded</strong></div>`;
+                            html += `<div class="result error"><strong>❌ No images uploaded</strong></div>`;
                         }
                         
                         if (data.debug_info) {
@@ -134,6 +117,9 @@
                         }
                         
                         resultDiv.innerHTML = html;
+                        
+                        // Auto-check debug log
+                        setTimeout(checkDebugLog, 1000);
                     } else {
                         resultDiv.innerHTML = `<div class="result error">❌ Error: ${data.message}</div>`;
                     }
@@ -141,11 +127,39 @@
                     resultDiv.innerHTML = `<div class="result error">❌ JSON Parse Error: ${jsonError.message}</div>`;
                     resultDiv.innerHTML += `<div class="debug">Raw Response:<br>${text}</div>`;
                 }
+                
             } catch(error) {
                 console.error('Network error:', error);
                 resultDiv.innerHTML = `<div class="result error">❌ Network Error: ${error.message}</div>`;
             }
         });
+
+        async function checkDebugLog() {
+            try {
+                const response = await fetch('road_and_infra_dept/citizen_module/api/debug_upload.log');
+                if (response.ok) {
+                    const logText = await response.text();
+                    document.getElementById('debugLog').style.display = 'block';
+                    document.getElementById('debugLog').textContent = logText;
+                } else {
+                    document.getElementById('debugLog').style.display = 'block';
+                    document.getElementById('debugLog').textContent = 'Debug log file not found or not accessible';
+                }
+            } catch(error) {
+                document.getElementById('debugLog').style.display = 'block';
+                document.getElementById('debugLog').textContent = 'Error reading debug log: ' + error.message;
+            }
+        }
+
+        async function clearDebugLog() {
+            try {
+                await fetch('road_and_infra_dept/citizen_module/api/clear_debug.php', { method: 'POST' });
+                document.getElementById('debugLog').style.display = 'none';
+                document.getElementById('debugLog').textContent = '';
+            } catch(error) {
+                console.error('Error clearing debug log:', error);
+            }
+        }
     </script>
 </body>
 </html>
