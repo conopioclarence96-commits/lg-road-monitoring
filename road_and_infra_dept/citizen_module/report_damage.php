@@ -252,7 +252,7 @@ $auth->requireAnyRole(['citizen', 'admin']);
         </header>
 
         <div class="form-card">
-            <form id="reportForm">
+            <form id="reportForm" enctype="multipart/form-data">
                 <div class="form-group">
                     <label for="location"><i class="fas fa-map-marker-alt"></i> Location / Landmark</label>
                     <input type="text" id="location" name="location" class="form-control" placeholder="e.g. Near Market, Quezon Ave cor. EDSA" required>
