@@ -614,9 +614,22 @@ $page_description = "Interactive map showing road damage reports and infrastruct
         }
 
         function loadMapData(filter = 'all') {
-            fetch('../api/get_gis_data_test.php?filter=' + filter)
-                .then(response => response.json())
+            console.log('Loading map data with filter:', filter);
+            
+            // Use absolute path to avoid path resolution issues
+            const apiUrl = '/api/get_gis_data_test.php?filter=' + filter;
+            console.log('Fetching from:', apiUrl);
+            
+            fetch(apiUrl)
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
+                    console.log('Received data:', data);
                     if (data.success) {
                         updateMapWithRealData(data.data.features);
                         updateStatistics(data.data.statistics);
@@ -628,13 +641,164 @@ $page_description = "Interactive map showing road damage reports and infrastruct
                         }
                     } else {
                         console.error('Error loading map data:', data.message);
-                        showErrorMessage('Unable to load map data. Please try again.');
+                        showErrorMessage('Unable to load map data: ' + data.message);
                     }
                 })
                 .catch(error => {
                     console.error('Error fetching map data:', error);
-                    showErrorMessage('Network error. Please check your connection.');
+                    showErrorMessage('Network error: ' + error.message + '. Loading fallback data...');
+                    
+                    // Load fallback sample data
+                    loadFallbackData(filter);
                 });
+        }
+
+        function loadFallbackData(filter = 'all') {
+            console.log('Loading fallback data for filter:', filter);
+            
+            // Fallback sample data
+            const fallbackReports = [
+                {
+                    id: 1,
+                    report_id: 'RD-0001',
+                    location: 'Main Street, Barangay Central',
+                    damage_type: 'pothole',
+                    severity: 'critical',
+                    description: 'Large pothole causing traffic hazards',
+                    status: 'pending',
+                    created_at: '2024-01-15 10:30:00',
+                    reporter_name: 'Juan Santos'
+                },
+                {
+                    id: 2,
+                    report_id: 'RD-0002',
+                    location: 'Highway 101, Barangay North',
+                    damage_type: 'crack',
+                    severity: 'medium',
+                    description: 'Surface cracks spreading across highway',
+                    status: 'under_review',
+                    created_at: '2024-01-14 14:20:00',
+                    reporter_name: 'Maria Reyes'
+                },
+                {
+                    id: 3,
+                    report_id: 'RD-0003',
+                    location: 'Market Road, Barangay South',
+                    damage_type: 'flooding',
+                    severity: 'high',
+                    description: 'Severe flooding during heavy rain',
+                    status: 'approved',
+                    created_at: '2024-01-13 09:15:00',
+                    reporter_name: 'Carlos Mendoza'
+                },
+                {
+                    id: 4,
+                    report_id: 'RD-0004',
+                    location: 'School Zone Avenue',
+                    damage_type: 'drainage',
+                    severity: 'low',
+                    description: 'Clogged drainage causing minor water accumulation',
+                    status: 'completed',
+                    created_at: '2024-01-12 16:45:00',
+                    reporter_name: 'Ana Cruz'
+                },
+                {
+                    id: 5,
+                    report_id: 'RD-0005',
+                    location: 'Industrial Road',
+                    damage_type: 'landslide',
+                    severity: 'critical',
+                    description: 'Partial landslide blocking one lane',
+                    status: 'in_progress',
+                    created_at: '2024-01-11 11:30:00',
+                    reporter_name: 'Roberto Diaz'
+                }
+            ];
+
+            const features = [];
+            const statistics = {
+                total_markers: 0,
+                active_issues: 0,
+                completed_work: 0,
+                in_progress: 0
+            };
+
+            // Base coordinates
+            const base_lat = 14.5995;
+            const base_lng = 120.9842;
+
+            fallbackReports.forEach((report, index) => {
+                // Apply filter
+                if (filter !== 'all') {
+                    if (filter === 'issues' && !in_array(report.status, ['pending', 'under_review', 'approved'])) return;
+                    if (filter === 'completed' && report.status !== 'completed') return;
+                }
+                
+                // Generate coordinates
+                const lat_offset = (index % 3 - 1) * 0.02;
+                const lng_offset = (Math.floor(index / 3) % 3 - 1) * 0.02;
+                
+                const feature = {
+                    type: 'Feature',
+                    geometry: {
+                        type: 'Point',
+                        coordinates: [base_lng + lng_offset, base_lat + lat_offset]
+                    },
+                    properties: {
+                        id: report.id,
+                        report_id: report.report_id,
+                        title: 'Road Damage: ' + ucfirst(report.damage_type),
+                        description: report.description,
+                        type: 'damage',
+                        severity: report.severity,
+                        status: report.status,
+                        address: report.location,
+                        barangay: extractBarangay(report.location),
+                        reporter_name: report.reporter_name,
+                        created_at: report.created_at,
+                        damage_type: report.damage_type,
+                        data_type: 'damage_report'
+                    }
+                };
+                
+                features.push(feature);
+                statistics.total_markers++;
+                
+                if (in_array(report.status, ['pending', 'under_review', 'approved'])) {
+                    statistics.active_issues++;
+                }
+                
+                if (report.status === 'completed') {
+                    statistics.completed_work++;
+                }
+                
+                if (report.status === 'in_progress') {
+                    statistics.in_progress++;
+                }
+            });
+
+            updateMapWithRealData(features);
+            updateStatistics(statistics);
+            updateLastUpdated();
+            showNotification('Fallback data loaded - API connection failed', 'info');
+        }
+
+        function in_array(needle, haystack) {
+            return haystack.includes(needle);
+        }
+
+        function ucfirst(str) {
+            return str.charAt(0).toUpperCase() + str.slice(1);
+        }
+
+        function extractBarangay(location) {
+            if (location.indexOf('Barangay') !== -1) {
+                const parts = location.split('Barangay');
+                if (parts[1]) {
+                    return 'Barangay' + parts[1].split(',')[0];
+                }
+            }
+            return 'Unknown';
         }
 
         function updateMapWithRealData(features) {
