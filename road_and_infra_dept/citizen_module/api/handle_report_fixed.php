@@ -45,14 +45,10 @@ try {
 
     // Handle Image Uploads
     $uploaded_images = [];
-    error_log("Image upload check: " . print_r($_FILES, true));
-    
     if (isset($_FILES['images']) && !empty($_FILES['images']['name'][0])) {
-        error_log("Images found, processing upload...");
         $upload_dir = '../../uploads/reports/';
         if (!is_dir($upload_dir)) {
             mkdir($upload_dir, 0777, true);
-            error_log("Created upload directory: " . $upload_dir);
         }
 
         foreach ($_FILES['images']['tmp_name'] as $key => $tmp_name) {
@@ -60,18 +56,11 @@ try {
             $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
             $new_file_name = $report_id . '_' . $key . '_' . time() . '.' . $file_ext;
             $target_path = $upload_dir . $new_file_name;
-            
-            error_log("Processing file: " . $file_name . " -> " . $new_file_name);
 
             if (move_uploaded_file($tmp_name, $target_path)) {
                 $uploaded_images[] = $new_file_name;
-                error_log("Successfully uploaded: " . $new_file_name);
-            } else {
-                error_log("Failed to upload: " . $file_name);
             }
         }
-    } else {
-        error_log("No images found in FILES: " . print_r($_FILES, true));
     }
 
     $images_json = json_encode($uploaded_images);
