@@ -75,6 +75,56 @@ try {
         throw new Exception("Failed to update report: " . $conn->error);
     }
 
+    // If status is being changed to 'approved', create an inspection record
+    if ($status === 'approved') {
+        // Generate inspection ID
+        $inspection_id = 'INSP-' . date('Y') . '-' . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
+        
+        // Insert into inspections table
+        $inspection_query = "
+            INSERT INTO inspections (
+                inspection_id, report_id, location, barangay, severity, damage_type, 
+                description, images, reporter, inspection_type, status, created_by, 
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ";
+        
+        // Get report details for inspection
+        $report_query = "SELECT * FROM damage_reports WHERE report_id = ?";
+        $report_stmt = $conn->prepare($report_query);
+        $report_stmt->bind_param('s', $report_id);
+        $report_stmt->execute();
+        $report_data = $report_stmt->get_result()->fetch_assoc();
+        
+        $inspection_stmt = $conn->prepare($inspection_query);
+        
+        // Create variables for bind_param
+        $reporter_name = $report_data['reporter_id'] ? 'Citizen Report' : 'Anonymous';
+        $inspection_type = 'citizen';
+        
+        $inspection_stmt->bind_param(
+            'sssssssssis',
+            $inspection_id,
+            $report_data['report_id'],
+            $report_data['location'],
+            $report_data['barangay'],
+            $report_data['severity'],
+            $report_data['damage_type'],
+            $report_data['description'],
+            $report_data['images'],
+            $reporter_name,
+            $inspection_type,
+            $officer_id
+        );
+        
+        if (!$inspection_stmt->execute()) {
+            throw new Exception("Failed to create inspection record: " . $conn->error);
+        }
+        
+        // Log inspection creation
+        $auth->logActivity('inspection_created', "Created inspection $inspection_id from approved citizen report $report_id");
+    }
+
     // Log the activity
     $activity_details = "Updated report $report_id status to $status";
     if ($lgu_notes) {
@@ -99,9 +149,17 @@ try {
 
     $conn->commit();
 
-    sendResponse(true, 'Report status updated successfully', [
-        'report' => $updated_report
-    ]);
+    $response_data = ['report' => $updated_report];
+    
+    // Include inspection details if one was created
+    if ($status === 'approved' && isset($inspection_id)) {
+        $response_data['inspection_created'] = [
+            'inspection_id' => $inspection_id,
+            'message' => 'Inspection record created successfully'
+        ];
+    }
+
+    sendResponse(true, 'Report status updated successfully', $response_data);
 
 } catch (Exception $e) {
     $conn->rollback();

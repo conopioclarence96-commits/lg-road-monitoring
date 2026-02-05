@@ -1184,7 +1184,15 @@ try {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    showToast('Report status updated successfully', 'success');
+                    let message = 'Report status updated successfully';
+                    
+                    // Check if an inspection was created
+                    if (data.data.inspection_created) {
+                        message += '. ' + data.data.inspection_created.message + ' (' + data.data.inspection_created.inspection_id + ')';
+                        message += '. You can now view this in the Inspection Management module.';
+                    }
+                    
+                    showToast(message, 'success');
                     closeModal();
                     loadReports(); // Refresh the reports list
                 } else {

@@ -307,15 +307,16 @@ try {
         $result->free();
     }
     
-    // Fetch citizen reports for inspection
+    // Fetch citizen reports that have been converted to inspections
     $citizenQuery = "
-        SELECT dr.*, 
+        SELECT i.*, 
                CONCAT(u.first_name, ' ', u.last_name) as reporter_name,
                dr.reporter_id IS NULL as is_anonymous
-        FROM damage_reports dr
+        FROM inspections i
+        LEFT JOIN damage_reports dr ON i.report_id = dr.report_id
         LEFT JOIN users u ON dr.reporter_id = u.id
-        WHERE dr.status IN ('approved', 'under_review')
-        ORDER BY dr.created_at DESC
+        WHERE i.inspection_type = 'citizen'
+        ORDER BY i.created_at DESC
     ";
     $citizenResult = $conn->query($citizenQuery);
     
@@ -325,7 +326,7 @@ try {
         while ($row = $citizenResult->fetch_assoc()) {
             $images = json_decode($row['images'] ?? '[]', true) ?: [];
             $citizenReports[] = [
-                'id' => $row['report_id'],
+                'id' => $row['inspection_id'],
                 'report_id' => $row['report_id'],
                 'location' => $row['location'],
                 'barangay' => $row['barangay'],
@@ -339,7 +340,7 @@ try {
                 'images' => $images,
                 'inspection_type' => 'citizen',
                 'anonymous' => $row['is_anonymous'],
-                'contact_number' => $row['contact_number']
+                'contact_number' => $row['contact_number'] ?? null
             ];
         }
         $citizenResult->free();
