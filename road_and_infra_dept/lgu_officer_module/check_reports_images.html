@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Check Recent Reports for Images</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .report { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 8px; }
+        .has-images { border-left: 4px solid #27ae60; }
+        .no-images { border-left: 4px solid #e74c3c; }
+        .report-id { font-weight: bold; color: #667eea; }
+        .image-count { color: #27ae60; font-weight: bold; }
+        .no-image-count { color: #e74c3c; font-weight: bold; }
+        button { background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin: 10px 5px; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Check Recent Reports for Images</h1>
+    
+    <button onclick="checkReports()">📋 Check Recent Reports</button>
+    <button onclick="window.open('../citizen_module/report_damage.php', '_blank')">📝 Submit New Report with Image</button>
+    
+    <div id="results"></div>
+    
+    <script>
+        async function checkReports() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<p>Loading...</p>';
+            
+            try {
+                const response = await fetch('check_recent_reports.php');
+                const data = await response.json();
+                
+                if (data.success) {
+                    let html = `<h2>📊 Recent Reports Analysis</h2>`;
+                    html += `<p><strong>Total Reports:</strong> ${data.total_reports}</p>`;
+                    html += `<p><strong>Reports with Images:</strong> ${data.reports_with_images}</p>`;
+                    html += `<hr>`;
+                    
+                    data.reports.forEach(report => {
+                        const hasImages = report.image_count > 0;
+                        html += `<div class="report ${hasImages ? 'has-images' : 'no-images'}">`;
+                        html += `<div class="report-id">${report.report_id}</div>`;
+                        html += `<p><strong>Location:</strong> ${report.location}</p>`;
+                        html += `<p><strong>Created:</strong> ${report.created_at}</p>`;
+                        html += `<p><strong>Images:</strong> <span class="${hasImages ? 'image-count' : 'no-image-count'}">${report.image_count}</span></p>`;
+                        
+                        if (hasImages) {
+                            html += `<p><strong>Image Files:</strong></p>`;
+                            html += `<ul>`;
+                            report.images.forEach(img => {
+                                html += `<li>${img}</li>`;
+                            });
+                            html += `</ul>`;
+                        }
+                        
+                        html += `</div>`;
+                    });
+                    
+                    resultsDiv.innerHTML = html;
+                } else {
+                    resultsDiv.innerHTML = `<p style="color: red;">Error: ${data.error}</p>`;
+                }
+            } catch(error) {
+                resultsDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>
