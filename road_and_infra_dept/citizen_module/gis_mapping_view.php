@@ -1,44 +1,108 @@
 <?php
-// GIS Mapping View - Citizen Module
+/**
+ * GIS Mapping View - Citizen Module
+ * 
+ * Provides interactive mapping of road conditions, construction zones, and infrastructure projects
+ * Integrates with database for real-time data display
+ * 
+ * @version 1.0.0
+ * @author LGU Road Monitoring System
+ */
+
+// Initialize session and security
 session_start();
 require_once '../config/auth.php';
+require_once '../config/database.php';
+
+// Security check - ensure user is authenticated
 $auth->requireAnyRole(['citizen', 'admin']);
+
+// Initialize database connection
+try {
+    $database = new Database();
+    $conn = $database->getConnection();
+} catch (Exception $e) {
+    error_log("Database connection failed: " . $e->getMessage());
+    die("System temporarily unavailable. Please try again later.");
+}
+
+// Get user information
+$user_id = $auth->getUserId();
+$user_role = $auth->getUserRole();
+$is_admin = $auth->hasRole(['admin', 'lgu_officer', 'engineer']);
+
+// Page metadata
+$page_title = "GIS Mapping | Citizen Portal";
+$page_description = "Interactive map showing road conditions, infrastructure projects, and construction zones";
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GIS Mapping | Citizen Portal</title>
+    <meta name="description" content="<?php echo htmlspecialchars($page_description); ?>">
+    <meta name="author" content="LGU Road Monitoring System">
+    <meta name="keywords" content="GIS mapping, road conditions, infrastructure, construction zones, citizen portal">
+    
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="<?php echo htmlspecialchars($page_title); ?>">
+    <meta property="og:description" content="<?php echo htmlspecialchars($page_description); ?>">
+    <meta property="og:type" content="website">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="../assets/img/favicon.ico">
+    
+    <!-- External Libraries -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Custom CSS -->
     <style>
+        /* Import Google Fonts */
         @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
         
+        /* CSS Variables */
         :root {
             --primary: #2563eb;
             --primary-hover: #1d4ed8;
+            --primary-light: #3b82f6;
+            --secondary: #64748b;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
             --glass-bg: rgba(255, 255, 255, 0.85);
             --glass-border: rgba(255, 255, 255, 0.4);
             --text-main: #1e293b;
             --text-muted: #64748b;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         }
 
+        /* Reset and Base Styles */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: "Inter", sans-serif;
+        }
+
+        html {
+            scroll-behavior: smooth;
         }
 
         body {
+            font-family: "Inter", -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             height: 100vh;
             background: url('../user_and_access_management_module/assets/img/cityhall.jpeg') center/cover no-repeat fixed;
+            background-size: cover;
+            background-position: center;
             position: relative;
             overflow: hidden;
             color: var(--text-main);
+            line-height: 1.6;
         }
 
+        /* Background Overlay */
         body::before {
             content: "";
             position: absolute;
