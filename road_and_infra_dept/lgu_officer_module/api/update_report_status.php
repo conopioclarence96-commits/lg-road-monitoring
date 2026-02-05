@@ -98,7 +98,7 @@ try {
         $inspection_stmt = $conn->prepare($inspection_query);
         
         // Create variables for bind_param
-        $inspector_id = 'citizen_report'; // Special identifier for citizen inspections
+        $inspector_id = 0; // Use 0 as special identifier for citizen inspections (integer)
         $current_timestamp = date('Y-m-d H:i:s');
         
         $inspection_stmt->bind_param(
