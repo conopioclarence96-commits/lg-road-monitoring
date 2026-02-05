@@ -130,7 +130,7 @@ if ($status_filter !== 'all') {
 $where_clause = !empty($where_conditions) ? 'WHERE ' . implode(' AND ', $where_conditions) : '';
 
 // Sorting
-$order_by = $sort_by === 'oldest' ? 'ORDER BY dr.date_reported ASC' : 'ORDER BY dr.date_reported DESC';
+$order_by = $sort_by === 'oldest' ? 'ORDER BY dr.created_at ASC' : 'ORDER BY dr.created_at DESC';
 
 // Fetch damage reports from database
 $reports = [];
@@ -144,8 +144,8 @@ try {
     
     // Build query based on available columns
     $select_fields = $has_road_name ? 
-        "dr.id, dr.road_name, dr.damage_type, dr.severity, dr.status, dr.date_reported" :
-        "dr.id, 'Unknown Location' as road_name, dr.damage_type, dr.severity, dr.status, dr.date_reported";
+        "dr.id, dr.road_name, dr.damage_type, dr.severity, dr.status, dr.created_at" :
+        "dr.id, 'Unknown Location' as road_name, dr.damage_type, dr.severity, dr.status, dr.created_at";
     
     $sql = "
         SELECT 
