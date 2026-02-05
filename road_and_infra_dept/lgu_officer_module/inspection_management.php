@@ -274,17 +274,10 @@ try {
 try {
     error_log("Attempting to fetch inspections from database");
     
-    // Fetch all inspections from database based on actual table structure
+    // Fetch all inspections from database
     $query = "
         SELECT i.*, 
-               CASE 
-                   WHEN i.inspector_id IS NULL THEN 'Citizen Report'
-                   ELSE COALESCE(u.name, 'Unknown')
-               END as reporter_name,
-               CASE 
-                   WHEN i.inspector_id IS NULL THEN 'citizen'
-                   ELSE 'regular'
-               END as inspection_type
+               COALESCE(u.name, 'Unknown') as reporter_name
         FROM inspections i 
         LEFT JOIN users u ON i.inspector_id = u.id
         ORDER BY i.created_at DESC
@@ -297,47 +290,29 @@ try {
     
     $inspections = [];
     
-    // Process inspections based on actual database structure
+    // Process inspections
     if ($result) {
         while ($row = $result->fetch_assoc()) {
             $photos = json_decode($row['photos'] ?? '[]', true) ?: [];
             
             // Debug: Log each inspection being processed
-            error_log("Processing inspection: " . $row['inspection_id'] . " - Type: " . $row['inspection_type'] . " - Inspector ID: " . $row['inspector_id']);
+            error_log("Processing inspection: " . $row['inspection_id'] . " - Inspector ID: " . $row['inspector_id']);
             
-            if ($row['inspection_type'] === 'citizen') {
-                // Citizen inspection data
-                $inspections[] = [
-                    'id' => $row['inspection_id'],
-                    'report_id' => 'CR-' . date('Y', strtotime($row['created_at'])) . '-' . substr($row['inspection_id'], -3),
-                    'location' => $row['location'],
-                    'date' => date('M d, Y', strtotime($row['created_at'])),
-                    'status' => ucfirst(str_replace('_', ' ', $row['status'])),
-                    'severity' => ucfirst($row['severity']),
-                    'damage_type' => 'Unknown',
-                    'reporter' => $row['reporter_name'],
-                    'coordinates' => $row['inspection_date'] ?? '14.5995° N, 120.9842° E',
-                    'description' => $row['description'],
-                    'images' => $photos,
-                    'inspection_type' => 'citizen'
-                ];
-            } else {
-                // Regular inspection data
-                $inspections[] = [
-                    'id' => $row['inspection_id'],
-                    'report_id' => 'DR-' . date('Y', strtotime($row['created_at'])) . '-' . substr($row['inspection_id'], -3),
-                    'location' => $row['location'],
-                    'date' => date('M d, Y', strtotime($row['inspection_date'])),
-                    'status' => ucfirst($row['status']),
-                    'severity' => ucfirst($row['severity']),
-                    'cost' => $row['estimated_cost'] ? '₱' . number_format($row['estimated_cost'], 2) : '₱0.00',
-                    'reporter' => $row['reporter_name'],
-                    'coordinates' => $row['inspection_date'] ?? '14.5995° N, 120.9842° E',
-                    'description' => $row['description'],
-                    'images' => $photos,
-                    'inspection_type' => 'regular'
-                ];
-            }
+            // Universal inspection data structure for all inspections
+            $inspections[] = [
+                'id' => $row['inspection_id'],
+                'report_id' => 'DR-' . date('Y', strtotime($row['created_at'])) . '-' . substr($row['inspection_id'], -3),
+                'location' => $row['location'],
+                'date' => date('M d, Y', strtotime($row['inspection_date'] ?? $row['created_at'])),
+                'status' => ucfirst($row['status']),
+                'severity' => ucfirst($row['severity']),
+                'cost' => $row['estimated_cost'] ? '₱' . number_format($row['estimated_cost'], 2) : '₱0.00',
+                'reporter' => $row['reporter_name'],
+                'coordinates' => '14.5995° N, 120.9842° E',
+                'description' => $row['description'],
+                'images' => $photos,
+                'inspection_type' => 'regular' // Default type for all
+            ];
         }
         $result->free();
     }
@@ -899,8 +874,8 @@ $repairs = [
                         <td><div class="loc-text"><i class="fas fa-map-pin"></i> <?php echo $ins['location']; ?></div></td>
                         <td><?php echo $ins['date']; ?></td>
                         <td>
-                            <span style="background: <?php echo $ins['inspection_type'] === 'citizen' ? '#dcfce7' : ($ins['inspection_type'] === 'lgu' ? '#dbeafe' : '#f3f4f6'); ?>; color: <?php echo $ins['inspection_type'] === 'citizen' ? '#16a34a' : ($ins['inspection_type'] === 'lgu' ? '#1e40af' : '#374151'); ?>; padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">
-                                <?php echo $ins['inspection_type'] === 'citizen' ? 'Citizen' : ($ins['inspection_type'] === 'lgu' ? 'LGU' : 'Regular'); ?>
+                            <span style="background: #f3f4f6; color: #374151; padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">
+                                Regular
                             </span>
                         </td>
                         <td>
