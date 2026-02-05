@@ -840,18 +840,12 @@ foreach ($publications as $pub) {
                                     <td><span class="status-badge severity-<?php echo $publication['severity_public']; ?>"><?php echo ucfirst($publication['severity_public']); ?></span></td>
                                     <td><span class="status-badge status-<?php echo str_replace('_', '-', $publication['status_public']); ?>"><?php echo ucfirst(str_replace('_', ' ', $publication['status_public'])); ?></span></td>
                                     <td>
-                                        <span class="status-badge approval-<?php echo $publication['approval_status']; ?>">
+                                        <span class="status-badge approval-<?php echo $publication['is_published'] ? 'published' : 'draft'; ?>">
                                             <i class="fas <?php 
-                                                echo $publication['approval_status'] === 'approved' ? 'fa-check-circle' : 
-                                                    ($publication['approval_status'] === 'pending' ? 'fa-clock' : 
-                                                    ($publication['approval_status'] === 'needs_revision' ? 'fa-edit' : 'fa-times-circle')); 
+                                                echo $publication['is_published'] ? 'fa-check-circle' : 'fa-clock'; 
                                             ?>"></i>
                                             <?php 
-                                                if ($publication['approval_status'] === 'needs_revision') {
-                                                    echo "Needs Revision";
-                                                } else {
-                                                    echo ucfirst($publication['approval_status']);
-                                                }
+                                                echo $publication['is_published'] ? 'Published' : 'Draft';
                                             ?>
                                         </span>
                                     </td>

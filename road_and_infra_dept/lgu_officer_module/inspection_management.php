@@ -27,31 +27,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     
     if ($action === 'approve') {
         error_log("Approval request received for inspection: " . $inspectionId);
+        error_log("Session user ID: " . ($_SESSION['user_id'] ?? 'not set'));
         
-        // Check if this is a regular inspection or LGU inspection
-        $isLguInspection = strpos($inspectionId, 'LGU-INSP') === 0;
+        // First check if inspection exists
+        $checkStmt = $conn->prepare("SELECT inspection_id, status FROM inspections WHERE inspection_id = ?");
+        if (!$checkStmt) {
+            error_log("Failed to prepare check statement: " . $conn->error);
+            echo json_encode([
+                'success' => false,
+                'message' => 'Database error preparing check query'
+            ]);
+            exit;
+        }
+        $checkStmt->bind_param('s', $inspectionId);
+        $checkResult = $checkStmt->execute();
+        error_log("Check query executed: " . ($checkResult ? 'success' : 'failed'));
         
-        if ($isLguInspection) {
-            // Update LGU inspection status
-            $stmt = $conn->prepare("UPDATE lgu_inspections SET status = 'approved', review_date = CURDATE(), reviewed_by = ? WHERE inspection_id = ?");
-            $stmt->bind_param('is', $_SESSION['user_id'], $inspectionId);
-            $result = $stmt->execute();
-            
-            // Create repair task for approved LGU inspection
-            if ($result && $stmt->affected_rows > 0) {
-                $taskId = 'LGU-REP-' . date('Y') . '-' . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
-                $taskStmt = $conn->prepare("
-                    INSERT INTO repair_tasks (task_id, inspection_id, assigned_to, status, priority, estimated_cost, created_date, task_type)
-                    VALUES (?, ?, ?, 'pending', 'high', (SELECT estimated_cost FROM lgu_inspections WHERE inspection_id = ?), NOW(), 'lgu_inspection')
-                ");
-                $taskStmt->bind_param('ssss', $taskId, $inspectionId, $_SESSION['user_id'], $inspectionId);
-                $taskStmt->execute();
-            }
-        } else {
-            // Update regular inspection status
-            $stmt = $conn->prepare("UPDATE inspections SET status = 'approved', review_date = CURDATE(), reviewed_by = ? WHERE inspection_id = ?");
-            $stmt->bind_param('is', $_SESSION['user_id'], $inspectionId);
-            $result = $stmt->execute();
+        $existingInspection = $checkStmt->get_result()->fetch_assoc();
+        $checkStmt->close();
+        
+        if (!$existingInspection) {
+            error_log("Inspection not found: " . $inspectionId);
+            echo json_encode([
+                'success' => false,
+                'message' => 'Inspection not found'
+            ]);
+            exit;
+        }
+        
+        error_log("Found inspection: " . $inspectionId . " with status: " . $existingInspection['status']);
+        
+        // Update inspection status
+        $stmt = $conn->prepare("UPDATE inspections SET status = 'approved', review_date = CURDATE(), reviewed_by = ? WHERE inspection_id = ?");
+        if (!$stmt) {
+            error_log("Failed to prepare update statement: " . $conn->error);
+            echo json_encode([
+                'success' => false,
+                'message' => 'Database error preparing update query'
+            ]);
+            exit;
+        }
+        $stmt->bind_param('is', $_SESSION['user_id'], $inspectionId);
+        $result = $stmt->execute();
+        error_log("Update query executed: " . ($result ? 'success' : 'failed'));
+        
+        // Create repair task for approved inspection
+        if ($result && $stmt->affected_rows > 0) {
+            $taskId = 'REP-' . date('Y') . '-' . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
+            $taskStmt = $conn->prepare("
+                INSERT INTO repair_tasks (task_id, inspection_id, assigned_to, status, priority, estimated_cost, created_date, task_type)
+                VALUES (?, ?, ?, 'pending', 'high', (SELECT estimated_cost FROM inspections WHERE inspection_id = ?), NOW(), 'inspection')
+            ");
+            $taskStmt->bind_param('ssss', $taskId, $inspectionId, $_SESSION['user_id'], $inspectionId);
+            $taskStmt->execute();
         }
         
         error_log("Update query executed. Result: " . ($result ? 'true' : 'false'));
@@ -68,16 +96,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 'completed_repairs' => 0
             ];
             
-            // Total inspections (both regular and LGU)
-            $total_regular = $conn->query("SELECT COUNT(*) as total FROM inspections")->fetch_assoc()['total'] ?? 0;
-            $total_lgu = $conn->query("SELECT COUNT(*) as total FROM lgu_inspections")->fetch_assoc()['total'] ?? 0;
-            $stats['total_inspections'] = $total_regular + $total_lgu;
+            // Total inspections
+            $total_inspections = $conn->query("SELECT COUNT(*) as total FROM inspections")->fetch_assoc()['total'] ?? 0;
+            $stats['total_inspections'] = $total_inspections;
             error_log("Total inspections: " . $stats['total_inspections']);
             
-            // Pending approvals (both regular and LGU)
-            $pending_regular = $conn->query("SELECT COUNT(*) as pending FROM inspections WHERE status = 'pending'")->fetch_assoc()['pending'] ?? 0;
-            $pending_lgu = $conn->query("SELECT COUNT(*) as pending FROM lgu_inspections WHERE status = 'pending_approval'")->fetch_assoc()['pending'] ?? 0;
-            $stats['pending_approvals'] = $pending_regular + $pending_lgu;
+            // Pending approvals
+            $pending_approvals = $conn->query("SELECT COUNT(*) as pending FROM inspections WHERE status = 'pending'")->fetch_assoc()['pending'] ?? 0;
+            $stats['pending_approvals'] = $pending_approvals;
             error_log("Pending approvals: " . $stats['pending_approvals']);
             
             // Repairs in progress
@@ -95,10 +121,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             ]);
             error_log("Response sent with stats: " . json_encode($stats));
         } else {
-            error_log("Update failed - no rows affected");
+            error_log("Update failed - no rows affected. Current status: " . $existingInspection['status']);
+            $errorMessage = 'Inspection not found or already updated';
+            if ($existingInspection['status'] === 'approved') {
+                $errorMessage = 'Inspection has already been approved';
+            } elseif ($existingInspection['status'] === 'rejected') {
+                $errorMessage = 'Inspection has already been rejected';
+            }
             echo json_encode([
                 'success' => false,
-                'message' => 'Inspection not found or already updated'
+                'message' => $errorMessage
             ]);
         }
         $stmt->close();
@@ -106,19 +138,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     } elseif ($action === 'reject') {
         $reason = $_POST['reason'] ?? '';
         
-        // Check if this is a regular inspection or LGU inspection
-        $isLguInspection = strpos($inspectionId, 'LGU-INSP') === 0;
-        
-        if ($isLguInspection) {
-            // Update LGU inspection status
-            $stmt = $conn->prepare("UPDATE lgu_inspections SET status = 'rejected', review_date = CURDATE(), reviewed_by = ?, review_notes = ? WHERE inspection_id = ?");
-            $stmt->bind_param('iss', $_SESSION['user_id'], $reason, $inspectionId);
-        } else {
-            // Update regular inspection status
-            $stmt = $conn->prepare("UPDATE inspections SET status = 'rejected', review_date = CURDATE(), reviewed_by = ?, review_notes = ? WHERE inspection_id = ?");
-            $stmt->bind_param('iss', $_SESSION['user_id'], $reason, $inspectionId);
-        }
-        
+        // Update inspection status
+        $stmt = $conn->prepare("UPDATE inspections SET status = 'rejected', review_date = CURDATE(), reviewed_by = ?, review_notes = ? WHERE inspection_id = ?");
+        $stmt->bind_param('iss', $_SESSION['user_id'], $reason, $inspectionId);
         $stmt->execute();
         
         if ($stmt->affected_rows > 0) {
@@ -147,15 +169,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 try {
     error_log("Fetching statistics from database");
     
-    // Total inspections (both regular and LGU)
-    $total_regular = $conn->query("SELECT COUNT(*) as total FROM inspections")->fetch_assoc()['total'] ?? 0;
-    $total_lgu = $conn->query("SELECT COUNT(*) as total FROM lgu_inspections")->fetch_assoc()['total'] ?? 0;
-    $total_inspections = $total_regular + $total_lgu;
+    // Total inspections
+    $total_inspections = $conn->query("SELECT COUNT(*) as total FROM inspections")->fetch_assoc()['total'] ?? 0;
     
-    // Pending approvals (both regular and LGU)
-    $pending_regular = $conn->query("SELECT COUNT(*) as pending FROM inspections WHERE status = 'pending'")->fetch_assoc()['pending'] ?? 0;
-    $pending_lgu = $conn->query("SELECT COUNT(*) as pending FROM lgu_inspections WHERE status = 'pending_approval'")->fetch_assoc()['pending'] ?? 0;
-    $pending_approvals = $pending_regular + $pending_lgu;
+    // Pending approvals
+    $pending_approvals = $conn->query("SELECT COUNT(*) as pending FROM inspections WHERE status = 'pending'")->fetch_assoc()['pending'] ?? 0;
     
     // Repairs in progress (from repair_tasks table)
     $progress_result = $conn->query("SELECT COUNT(*) as progress FROM repair_tasks WHERE status = 'in_progress'");
@@ -176,33 +194,24 @@ try {
     $completed_repairs = 105;
 }
 
-// Fetch inspections from database (both regular and LGU)
+// Fetch inspections from database
 try {
     error_log("Attempting to fetch inspections from database");
     
     // Fetch regular inspections
-    $regular_query = "
+    $query = "
         SELECT i.*, u.name as reporter_name, 'regular' as inspection_type
         FROM inspections i 
         LEFT JOIN users u ON i.inspector_id = u.id 
         ORDER BY i.created_at DESC
     ";
-    $regular_result = $conn->query($regular_query);
-    
-    // Fetch LGU inspections
-    $lgu_query = "
-        SELECT li.*, u.name as reporter_name, 'lgu' as inspection_type
-        FROM lgu_inspections li 
-        LEFT JOIN users u ON li.engineer_id = u.id 
-        ORDER BY li.submitted_at DESC
-    ";
-    $lgu_result = $conn->query($lgu_query);
+    $result = $conn->query($query);
     
     $inspections = [];
     
-    // Process regular inspections
-    if ($regular_result) {
-        while ($row = $regular_result->fetch_assoc()) {
+    // Process inspections
+    if ($result) {
+        while ($row = $result->fetch_assoc()) {
             $photos = json_decode($row['photos'] ?? '[]', true) ?: [];
             $inspections[] = [
                 'id' => $row['inspection_id'],
@@ -219,38 +228,10 @@ try {
                 'inspection_type' => 'regular'
             ];
         }
-        $regular_result->free();
+        $result->free();
     }
     
-    // Process LGU inspections
-    if ($lgu_result) {
-        while ($row = $lgu_result->fetch_assoc()) {
-            $photos = json_decode($row['photos'] ?? '[]', true) ?: [];
-            $status_display = $row['status'] === 'pending_approval' ? 'Pending Approval' : ucfirst(str_replace('_', ' ', $row['status']));
-            $inspections[] = [
-                'id' => $row['inspection_id'],
-                'report_id' => 'LGU-' . date('Y', strtotime($row['submitted_at'])) . '-' . substr($row['inspection_id'], -3),
-                'location' => $row['location'],
-                'date' => date('M d, Y', strtotime($row['inspection_date'])),
-                'status' => $status_display,
-                'severity' => ucfirst($row['severity']),
-                'cost' => $row['estimated_cost'] ? '₱' . number_format($row['estimated_cost'], 2) : '₱0.00',
-                'reporter' => $row['reporter_name'] ?? 'Unknown',
-                'coordinates' => '14.5995° N, 120.9842° E', // Default coordinates
-                'description' => $row['description'],
-                'images' => $photos,
-                'inspection_type' => 'lgu'
-            ];
-        }
-        $lgu_result->free();
-    }
-    
-    // Sort by date (newest first)
-    usort($inspections, function($a, $b) {
-        return strtotime($b['date']) - strtotime($a['date']);
-    });
-    
-    error_log("Successfully fetched " . count($inspections) . " inspections from database (regular + LGU)");
+    error_log("Successfully fetched " . count($inspections) . " inspections from database");
 } catch (Exception $e) {
     error_log("Database error: " . $e->getMessage());
     error_log("Using fallback mock data");
