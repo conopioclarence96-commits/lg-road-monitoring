@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Fixed Image Upload</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .section { border: 1px solid #ddd; padding: 20px; margin: 20px 0; border-radius: 8px; }
+        .result { background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        input, button, textarea, select { padding: 10px; margin: 5px; border: 1px solid #ddd; border-radius: 4px; width: 100%; }
+        button { background: #28a745; color: white; border: none; cursor: pointer; width: auto; }
+        button:hover { background: #218838; }
+        .debug { background: #f1f1f1; padding: 10px; font-family: monospace; font-size: 12px; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Test Fixed Image Upload</h1>
+    <p>This page tests the fixed image upload handler with enhanced debugging.</p>
+    
+    <div class="section">
+        <h2>📝 Test Report Submission</h2>
+        <form id="testForm" enctype="multipart/form-data">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div>
+                    <label>Location:</label>
+                    <input type="text" name="location" value="Fixed Test Location" required>
+                </div>
+                <div>
+                    <label>Barangay:</label>
+                    <select name="barangay" required>
+                        <option value="Poblacion">Poblacion</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Damage Type:</label>
+                    <select name="damage_type" required>
+                        <option value="pothole">Pothole</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Severity:</label>
+                    <select name="severity" required>
+                        <option value="medium">Medium</option>
+                    </select>
+                </div>
+            </div>
+            <div style="margin: 10px 0;">
+                <label>Description:</label>
+                <textarea name="description" required>Testing the fixed image upload functionality</textarea>
+            </div>
+            <div style="margin: 10px 0;">
+                <label><strong>📷 Upload Images:</strong></label>
+                <input type="file" name="images[]" accept="image/*" multiple required style="border: 2px solid #28a745;">
+                <small>Upload one or more images to test the fix</small>
+            </div>
+            <div style="margin: 10px 0;">
+                <label>
+                    <input type="checkbox" name="anonymous_report" value="1" checked>
+                    Submit anonymously
+                </label>
+            </div>
+            <button type="submit">🧪 Submit Test Report</button>
+        </form>
+        <div id="result"></div>
+    </div>
+
+    <div class="section">
+        <h2>🔍 What This Tests</h2>
+        <ul>
+            <li><strong>Fixed Handler:</strong> Uses handle_report_fixed_v2.php with enhanced error handling</li>
+            <li><strong>File Validation:</strong> Checks file types, sizes, and permissions</li>
+            <li><strong>Directory Creation:</strong> Creates upload directory if needed</li>
+            <li><strong>Enhanced Debugging:</strong> Detailed logging of upload process</li>
+            <li><strong>Database Storage:</strong> Properly stores image paths in database</li>
+        </ul>
+        
+        <h3>Expected Results:</h3>
+        <ul>
+            <li>✅ Success message with uploaded image filenames</li>
+            <li>✅ Images appear in uploads/reports/ directory</li>
+            <li>✅ Image paths stored in database as JSON array</li>
+            <li>✅ Debug info showing upload count and file details</li>
+        </ul>
+    </div>
+
+    <script>
+        document.getElementById('testForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<div class="result">🔄 Testing fixed upload handler...</div>';
+            
+            try {
+                const formData = new FormData(this);
+                
+                // Debug FormData contents
+                console.log('=== FORMDATA DEBUG ===');
+                for (let [key, value] of formData.entries()) {
+                    if (value instanceof File) {
+                        console.log(`${key}:`, value.name, value.size, value.type);
+                    } else {
+                        console.log(`${key}:`, value);
+                    }
+                }
+                
+                const response = await fetch('road_and_infra_dept/citizen_module/api/handle_report_fixed_v2.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const text = await response.text();
+                console.log('=== SERVER RESPONSE ===');
+                console.log('Status:', response.status);
+                console.log('Raw response:', text);
+                
+                try {
+                    const data = JSON.parse(text);
+                    console.log('Parsed data:', data);
+                    
+                    if (data.success) {
+                        let html = `<div class="result success">✅ ${data.message}</div>`;
+                        html += `<div class="result"><strong>Report ID:</strong> ${data.report_id}</div>`;
+                        
+                        if (data.uploaded_images && data.uploaded_images.length > 0) {
+                            html += `<div class="result success"><strong>📸 Uploaded Images (${data.uploaded_images.length}):</strong><br>`;
+                            html += data.uploaded_images.map(img => `• ${img}`).join('<br>');
+                            html += `</div>`;
+                        } else {
+                            html += `<div class="result error"><strong>❌ No images were uploaded</strong></div>`;
+                        }
+                        
+                        if (data.debug_info) {
+                            html += `<div class="debug"><strong>Debug Info:</strong><br>${JSON.stringify(data.debug_info, null, 2)}</div>`;
+                        }
+                        
+                        resultDiv.innerHTML = html;
+                    } else {
+                        resultDiv.innerHTML = `<div class="result error">❌ Error: ${data.message}</div>`;
+                    }
+                } catch(jsonError) {
+                    resultDiv.innerHTML = `<div class="result error">❌ JSON Parse Error: ${jsonError.message}</div>`;
+                    resultDiv.innerHTML += `<div class="debug">Raw Response:<br>${text}</div>`;
+                }
+            } catch(error) {
+                console.error('Network error:', error);
+                resultDiv.innerHTML = `<div class="result error">❌ Network Error: ${error.message}</div>`;
+            }
+        });
+    </script>
+</body>
+</html>

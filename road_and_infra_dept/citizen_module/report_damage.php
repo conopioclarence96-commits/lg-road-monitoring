@@ -418,9 +418,19 @@ $auth->requireAnyRole(['citizen', 'admin']);
                 btn.disabled = true;
 
                 const formData = new FormData(this);
-                console.log('Form data prepared');
+                console.log('=== FORM SUBMISSION DEBUG ===');
+                console.log('Form data entries:');
+                for (let [key, value] of formData.entries()) {
+                    if (value instanceof File) {
+                        console.log(`${key}:`, value.name, value.size, value.type);
+                    } else {
+                        console.log(`${key}:`, value);
+                    }
+                }
+                console.log('FormData has images:', formData.has('images'));
+                console.log('Images files:', formData.getAll('images'));
 
-                fetch('api/handle_report.php', {
+                fetch('api/handle_report_fixed_v2.php', {
                     method: 'POST',
                     body: formData
                 })
