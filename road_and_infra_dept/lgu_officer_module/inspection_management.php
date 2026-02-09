@@ -869,6 +869,19 @@ $repairs = [
         <!-- Inspection Reports -->
         <div class="content-card">
             <h2><i class="fas fa-file-alt"></i> Inspection Reports</h2>
+            
+            <!-- Debug Output -->
+            <div style="background: #f0f9ff; border: 1px solid #0ea5e9; padding: 10px; margin-bottom: 15px; border-radius: 6px; font-size: 0.85rem;">
+                <strong>Debug Info:</strong> 
+                Total inspections loaded: <strong><?php echo count($inspections); ?></strong>
+                <?php if (!empty($inspections)): ?>
+                    | First ID: <?php echo htmlspecialchars($inspections[0]['id']); ?>
+                    | Type: <?php echo htmlspecialchars($inspections[0]['inspection_type']); ?>
+                <?php else: ?>
+                    | <span style="color: #dc2626;">No records in $inspections array</span>
+                <?php endif; ?>
+            </div>
+            
             <table class="custom-table">
                 <thead>
                     <tr>
