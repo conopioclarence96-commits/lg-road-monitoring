@@ -274,37 +274,28 @@ try {
 try {
     error_log("Attempting to fetch inspections from database");
     
-    // Fetch all inspections and approved citizen reports from database
+    // Fetch all inspections from the inspections table only
     $query = "
-        SELECT i.*, 
-               COALESCE(u.name, 'Unknown') as reporter_name,
-               'inspection' as source_type
+        SELECT 
+            i.inspection_id, 
+            i.location, 
+            i.inspection_date, 
+            i.inspector_id, 
+            i.description, 
+            i.severity, 
+            i.status, 
+            i.photos, 
+            i.created_at, 
+            i.updated_at,
+            i.estimated_cost,
+            COALESCE(u.name, 'Unknown') as reporter_name,
+            CASE 
+                WHEN i.inspector_id IS NULL THEN 'citizen'
+                ELSE 'regular'
+            END as inspection_type
         FROM inspections i 
         LEFT JOIN users u ON i.inspector_id = u.id
-        
-        UNION ALL
-        
-        SELECT 
-            dr.report_id as inspection_id,
-            dr.location,
-            dr.created_at as inspection_date,
-            NULL as inspector_id,
-            dr.description,
-            dr.severity,
-            dr.status,
-            dr.images as photos,
-            dr.created_at,
-            dr.updated_at,
-            CASE 
-                WHEN dr.reporter_id IS NULL THEN 'Anonymous'
-                ELSE CONCAT(u.first_name, ' ', u.last_name)
-            END as reporter_name,
-            'citizen' as source_type
-        FROM damage_reports dr
-        LEFT JOIN users u ON dr.reporter_id = u.id
-        WHERE dr.status = 'approved'
-        
-        ORDER BY created_at DESC
+        ORDER BY i.created_at DESC
     ";
     
     error_log("About to execute inspections query");
@@ -325,16 +316,16 @@ try {
     
     $inspections = [];
     
-    // Process inspections and citizen reports
+    // Process inspections
     if ($result) {
         while ($row = $result->fetch_assoc()) {
             $photos = json_decode($row['photos'] ?? '[]', true) ?: [];
             
             // Debug: Log each inspection being processed
-            error_log("Processing: " . $row['inspection_id'] . " - Type: " . $row['source_type'] . " - Status: " . $row['status']);
+            error_log("Processing: " . $row['inspection_id'] . " - Type: " . $row['inspection_type'] . " - Status: " . $row['status']);
             
-            if ($row['source_type'] === 'citizen') {
-                // Citizen report data
+            if ($row['inspection_type'] === 'citizen') {
+                // Citizen report data (inspector_id is NULL)
                 $inspections[] = [
                     'id' => $row['inspection_id'],
                     'report_id' => $row['inspection_id'],
@@ -350,7 +341,7 @@ try {
                     'inspection_type' => 'citizen'
                 ];
             } else {
-                // Regular inspection data
+                // Regular inspection data (has inspector_id)
                 $inspections[] = [
                     'id' => $row['inspection_id'],
                     'report_id' => 'DR-' . date('Y', strtotime($row['created_at'])) . '-' . substr($row['inspection_id'], -3),
@@ -878,18 +869,6 @@ $repairs = [
         <!-- Inspection Reports -->
         <div class="content-card">
             <h2><i class="fas fa-file-alt"></i> Inspection Reports</h2>
-            <div style="background: #f0f9ff; border: 1px solid #0ea5e9; padding: 10px; margin-bottom: 15px; border-radius: 8px;">
-                <small style="color: #0c4a6e;">
-                    <strong>DEBUG:</strong> Found <?php echo count($inspections); ?> inspections from database
-                    <?php 
-                    if (count($inspections) === 0) {
-                        echo "(No inspections found in database)";
-                    } else {
-                        echo "(Real database data)";
-                    }
-                    ?>
-                </small>
-            </div>
             <table class="custom-table">
                 <thead>
                     <tr>
@@ -902,11 +881,18 @@ $repairs = [
                     </tr>
                 </thead>
                 <tbody>
+                    <?php if (empty($inspections)): ?>
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 20px; color: #64748b;">
+                            No inspection records found in the database.
+                        </td>
+                    </tr>
+                    <?php else: ?>
                     <?php foreach ($inspections as $ins): ?>
                     <tr>
-                        <td class="id-text"><?php echo $ins['id']; ?></td>
-                        <td><div class="loc-text"><i class="fas fa-map-pin"></i> <?php echo $ins['location']; ?></div></td>
-                        <td><?php echo $ins['date']; ?></td>
+                        <td class="id-text"><?php echo htmlspecialchars($ins['id']); ?></td>
+                        <td><div class="loc-text"><i class="fas fa-map-pin"></i> <?php echo htmlspecialchars($ins['location']); ?></div></td>
+                        <td><?php echo htmlspecialchars($ins['date']); ?></td>
                         <td>
                             <span style="background: <?php echo $ins['inspection_type'] === 'citizen' ? '#dcfce7' : '#f3f4f6'; ?>; color: <?php echo $ins['inspection_type'] === 'citizen' ? '#16a34a' : '#374151'; ?>; padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">
                                 <?php echo $ins['inspection_type'] === 'citizen' ? 'Citizen' : 'Regular'; ?>
@@ -915,7 +901,7 @@ $repairs = [
                         <td>
                             <span class="badge badge-<?php echo str_replace(' ', '', strtolower($ins['status'])); ?>">
                                 <i class="fas <?php echo strpos($ins['status'], 'Pending') !== false ? 'fa-clock' : 'fa-check'; ?>"></i>
-                                <?php echo $ins['status']; ?>
+                                <?php echo htmlspecialchars($ins['status']); ?>
                             </span>
                         </td>
                         <td>
@@ -925,6 +911,7 @@ $repairs = [
                         </td>
                     </tr>
                     <?php endforeach; ?>
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
