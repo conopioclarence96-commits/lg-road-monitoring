@@ -608,6 +608,27 @@ $repairs = [
             color: #1e40af;
         }
 
+        /* Type Badges */
+        .type-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .type-citizen {
+            background: #dcfce7;
+            color: #16a34a;
+        }
+
+        .type-regular {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
         /* Action Buttons */
         .btn-action {
             display: inline-flex;
@@ -868,45 +889,97 @@ $repairs = [
 
         <!-- Inspection Reports -->
         <div class="content-card">
-            <h2><i class="fas fa-file-alt"></i> Inspection Reports</h2>
-            <table class="custom-table">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+                <h2 style="margin: 0;"><i class="fas fa-file-alt"></i> Inspection Reports</h2>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                    <!-- Search -->
+                    <input type="text" id="searchInput" placeholder="Search ID, location..." 
+                           style="padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.9rem; width: 200px;">
+                    
+                    <!-- Status Filter -->
+                    <select id="statusFilter" style="padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.9rem;">
+                        <option value="">All Status</option>
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approved</option>
+                        <option value="under review">Under Review</option>
+                        <option value="completed">Completed</option>
+                        <option value="rejected">Rejected</option>
+                    </select>
+                    
+                    <!-- Type Filter -->
+                    <select id="typeFilter" style="padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.9rem;">
+                        <option value="">All Types</option>
+                        <option value="citizen">Citizen</option>
+                        <option value="regular">Regular</option>
+                    </select>
+                    
+                    <!-- Export Button -->
+                    <button onclick="exportTable()" class="btn-action" style="background: #3b82f6;">
+                        <i class="fas fa-download"></i> Export
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Bulk Actions Bar -->
+            <div id="bulkActionsBar" style="display: none; background: #f8fafc; padding: 10px 15px; border-radius: 6px; margin-bottom: 15px; align-items: center; gap: 15px;">
+                <span style="font-size: 0.9rem; color: #475569;"><span id="selectedCount">0</span> selected</span>
+                <button onclick="bulkApprove()" class="btn-action" style="background: #16a34a; padding: 6px 12px; font-size: 0.85rem;">
+                    <i class="fas fa-check"></i> Approve
+                </button>
+                <button onclick="bulkReject()" class="btn-action" style="background: #dc2626; padding: 6px 12px; font-size: 0.85rem;">
+                    <i class="fas fa-times"></i> Reject
+                </button>
+                <button onclick="bulkDelete()" class="btn-action" style="background: #64748b; padding: 6px 12px; font-size: 0.85rem;">
+                    <i class="fas fa-trash"></i> Delete
+                </button>
+            </div>
+            
+            <table class="custom-table" id="inspectionTable">
                 <thead>
                     <tr>
-                        <th width="120"># ID</th>
-                        <th><i class="fas fa-map-marker-alt"></i> Location</th>
-                        <th width="150"><i class="fas fa-calendar-alt"></i> Date</th>
-                        <th width="120"><i class="fas fa-tag"></i> Type</th>
-                        <th width="150"><i class="fas fa-info-circle"></i> Status</th>
-                        <th width="120"><i class="fas fa-cog"></i> Action</th>
+                        <th width="40"><input type="checkbox" id="selectAll" onclick="toggleSelectAll()"></th>
+                        <th width="120" onclick="sortTable('id')" style="cursor: pointer;"># ID <i class="fas fa-sort"></i></th>
+                        <th onclick="sortTable('location')" style="cursor: pointer;"><i class="fas fa-map-marker-alt"></i> Location <i class="fas fa-sort"></i></th>
+                        <th width="150" onclick="sortTable('date')" style="cursor: pointer;"><i class="fas fa-calendar-alt"></i> Date <i class="fas fa-sort"></i></th>
+                        <th width="120" onclick="sortTable('type')" style="cursor: pointer;"><i class="fas fa-tag"></i> Type <i class="fas fa-sort"></i></th>
+                        <th width="150" onclick="sortTable('status')" style="cursor: pointer;"><i class="fas fa-info-circle"></i> Status <i class="fas fa-sort"></i></th>
+                        <th width="180"><i class="fas fa-cog"></i> Actions</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="tableBody">
                     <?php if (empty($inspections)): ?>
                     <tr>
-                        <td colspan="6" style="text-align: center; padding: 20px; color: #64748b;">
+                        <td colspan="7" style="text-align: center; padding: 20px; color: #64748b;">
                             No inspection records found in the database.
                         </td>
                     </tr>
                     <?php else: ?>
-                    <?php foreach ($inspections as $ins): ?>
-                    <tr>
+                    <?php foreach ($inspections as $index => $ins): ?>
+                    <tr data-id="<?php echo htmlspecialchars($ins['id']); ?>">
+                        <td><input type="checkbox" class="rowCheckbox" value="<?php echo htmlspecialchars($ins['id']); ?>" onclick="updateBulkActions()"></td>
                         <td class="id-text"><?php echo htmlspecialchars($ins['id']); ?></td>
                         <td><div class="loc-text"><i class="fas fa-map-pin"></i> <?php echo htmlspecialchars($ins['location']); ?></div></td>
                         <td><?php echo htmlspecialchars($ins['date']); ?></td>
-                        <td>
-                            <span style="background: <?php echo $ins['inspection_type'] === 'citizen' ? '#dcfce7' : '#f3f4f6'; ?>; color: <?php echo $ins['inspection_type'] === 'citizen' ? '#16a34a' : '#374151'; ?>; padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">
+                        <td data-type="<?php echo $ins['inspection_type']; ?>">
+                            <span class="type-badge type-<?php echo $ins['inspection_type']; ?>">
                                 <?php echo $ins['inspection_type'] === 'citizen' ? 'Citizen' : 'Regular'; ?>
                             </span>
                         </td>
-                        <td>
+                        <td data-status="<?php echo strtolower($ins['status']); ?>">
                             <span class="badge badge-<?php echo str_replace(' ', '', strtolower($ins['status'])); ?>">
                                 <i class="fas <?php echo strpos($ins['status'], 'Pending') !== false ? 'fa-clock' : 'fa-check'; ?>"></i>
                                 <?php echo htmlspecialchars($ins['status']); ?>
                             </span>
                         </td>
                         <td>
-                            <button class="btn-action" onclick='viewInspection(<?php echo json_encode($ins); ?>)'>
-                                <i class="fas fa-eye"></i> View
+                            <button class="btn-action" onclick='viewInspection(<?php echo json_encode($ins); ?>)' title="View">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn-action" onclick='editInspection(<?php echo json_encode($ins); ?>)' style="background: #f59e0b;" title="Edit">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn-action" onclick='deleteInspection("<?php echo $ins['id']; ?>")' style="background: #dc2626;" title="Delete">
+                                <i class="fas fa-trash"></i>
                             </button>
                         </td>
                     </tr>
@@ -914,6 +987,22 @@ $repairs = [
                     <?php endif; ?>
                 </tbody>
             </table>
+            
+            <!-- Pagination -->
+            <div id="pagination" style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; padding-top: 15px; border-top: 1px solid #e2e8f0;">
+                <div style="font-size: 0.85rem; color: #64748b;">
+                    Showing <span id="showingStart">1</span> - <span id="showingEnd"><?php echo count($inspections); ?></span> of <span id="totalRecords"><?php echo count($inspections); ?></span> records
+                </div>
+                <div style="display: flex; gap: 5px;">
+                    <button onclick="changePage(-1)" id="prevBtn" class="btn-action" style="background: #e2e8f0; color: #475569; padding: 6px 12px;">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <span id="pageIndicator" style="padding: 6px 12px; font-size: 0.9rem;">Page 1 of 1</span>
+                    <button onclick="changePage(1)" id="nextBtn" class="btn-action" style="background: #e2e8f0; color: #475569; padding: 6px 12px;">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
         </div>
 
         <!-- Repair Workflow -->
@@ -1432,6 +1521,297 @@ $repairs = [
                 closeModal();
             }
         });
+
+        // ==================== TABLE FUNCTIONALITY ====================
+        
+        let currentPage = 1;
+        const rowsPerPage = 10;
+        let filteredData = [...inspectionsData];
+        let sortColumn = null;
+        let sortDirection = 'asc';
+        
+        // Initialize table functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            setupEventListeners();
+            applyFilters();
+        });
+        
+        function setupEventListeners() {
+            // Search input
+            document.getElementById('searchInput').addEventListener('input', debounce(applyFilters, 300));
+            
+            // Filters
+            document.getElementById('statusFilter').addEventListener('change', applyFilters);
+            document.getElementById('typeFilter').addEventListener('change', applyFilters);
+        }
+        
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+        
+        // Apply all filters
+        function applyFilters() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const statusFilter = document.getElementById('statusFilter').value.toLowerCase();
+            const typeFilter = document.getElementById('typeFilter').value.toLowerCase();
+            
+            filteredData = inspectionsData.filter(ins => {
+                const matchesSearch = ins.id.toLowerCase().includes(searchTerm) || 
+                                     ins.location.toLowerCase().includes(searchTerm);
+                const matchesStatus = !statusFilter || ins.status.toLowerCase().includes(statusFilter);
+                const matchesType = !typeFilter || ins.inspection_type === typeFilter;
+                
+                return matchesSearch && matchesStatus && matchesType;
+            });
+            
+            currentPage = 1;
+            renderTable();
+        }
+        
+        // Sort table
+        function sortTable(column) {
+            if (sortColumn === column) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortColumn = column;
+                sortDirection = 'asc';
+            }
+            
+            filteredData.sort((a, b) => {
+                let aVal = a[column] || '';
+                let bVal = b[column] || '';
+                
+                if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+                if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+                
+                if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+                if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+            
+            renderTable();
+        }
+        
+        // Change page
+        function changePage(direction) {
+            const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+            currentPage += direction;
+            
+            if (currentPage < 1) currentPage = 1;
+            if (currentPage > totalPages) currentPage = totalPages;
+            
+            renderTable();
+        }
+        
+        // Render table with pagination
+        function renderTable() {
+            const tbody = document.getElementById('tableBody');
+            const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+            const start = (currentPage - 1) * rowsPerPage;
+            const end = start + rowsPerPage;
+            const pageData = filteredData.slice(start, end);
+            
+            if (pageData.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 20px; color: #64748b;">
+                            No inspection records found matching your criteria.
+                        </td>
+                    </tr>
+                `;
+            } else {
+                tbody.innerHTML = pageData.map(ins => `
+                    <tr data-id="${ins.id}">
+                        <td><input type="checkbox" class="rowCheckbox" value="${ins.id}" onclick="updateBulkActions()"></td>
+                        <td class="id-text">${ins.id}</td>
+                        <td><div class="loc-text"><i class="fas fa-map-pin"></i> ${ins.location}</div></td>
+                        <td>${ins.date}</td>
+                        <td data-type="${ins.inspection_type}">
+                            <span class="type-badge type-${ins.inspection_type}">
+                                ${ins.inspection_type === 'citizen' ? 'Citizen' : 'Regular'}
+                            </span>
+                        </td>
+                        <td data-status="${ins.status.toLowerCase()}">
+                            <span class="badge badge-${ins.status.toLowerCase().replace(/\s/g, '')}">
+                                <i class="fas ${ins.status.includes('Pending') ? 'fa-clock' : 'fa-check'}"></i>
+                                ${ins.status}
+                            </span>
+                        </td>
+                        <td>
+                            <button class="btn-action" onclick='viewInspection(${JSON.stringify(ins)})' title="View">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn-action" onclick='editInspection(${JSON.stringify(ins)})' style="background: #f59e0b;" title="Edit">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn-action" onclick='deleteInspection("${ins.id}")' style="background: #dc2626;" title="Delete">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+            
+            // Update pagination info
+            document.getElementById('showingStart').textContent = filteredData.length > 0 ? start + 1 : 0;
+            document.getElementById('showingEnd').textContent = Math.min(end, filteredData.length);
+            document.getElementById('totalRecords').textContent = filteredData.length;
+            document.getElementById('pageIndicator').textContent = `Page ${currentPage} of ${totalPages || 1}`;
+            
+            // Update button states
+            document.getElementById('prevBtn').disabled = currentPage === 1;
+            document.getElementById('nextBtn').disabled = currentPage === totalPages || totalPages === 0;
+        }
+        
+        // Toggle select all checkboxes
+        function toggleSelectAll() {
+            const selectAll = document.getElementById('selectAll');
+            const checkboxes = document.querySelectorAll('.rowCheckbox');
+            checkboxes.forEach(cb => cb.checked = selectAll.checked);
+            updateBulkActions();
+        }
+        
+        // Update bulk actions visibility
+        function updateBulkActions() {
+            const selected = document.querySelectorAll('.rowCheckbox:checked');
+            const bulkBar = document.getElementById('bulkActionsBar');
+            const count = selected.length;
+            
+            document.getElementById('selectedCount').textContent = count;
+            bulkBar.style.display = count > 0 ? 'flex' : 'none';
+        }
+        
+        // Bulk actions
+        function bulkApprove() {
+            const selected = Array.from(document.querySelectorAll('.rowCheckbox:checked')).map(cb => cb.value);
+            if (confirm(`Approve ${selected.length} selected inspection(s)?`)) {
+                // Send bulk approve request
+                Promise.all(selected.map(id => 
+                    fetch('inspection_management.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: `action=approve&inspection_id=${id}`
+                    })
+                )).then(() => {
+                    alert('Selected inspections approved successfully!');
+                    location.reload();
+                });
+            }
+        }
+        
+        function bulkReject() {
+            const selected = Array.from(document.querySelectorAll('.rowCheckbox:checked')).map(cb => cb.value);
+            const reason = prompt(`Reject ${selected.length} selected inspection(s). Please provide a reason:`);
+            if (reason) {
+                Promise.all(selected.map(id => 
+                    fetch('inspection_management.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: `action=reject&inspection_id=${id}&reason=${encodeURIComponent(reason)}`
+                    })
+                )).then(() => {
+                    alert('Selected inspections rejected successfully!');
+                    location.reload();
+                });
+            }
+        }
+        
+        function bulkDelete() {
+            const selected = Array.from(document.querySelectorAll('.rowCheckbox:checked')).map(cb => cb.value);
+            if (confirm(`WARNING: Delete ${selected.length} selected inspection(s)? This action cannot be undone!`)) {
+                Promise.all(selected.map(id => 
+                    fetch('api/delete_inspection.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: `inspection_id=${id}`
+                    })
+                )).then(() => {
+                    alert('Selected inspections deleted successfully!');
+                    location.reload();
+                }).catch(() => alert('Some deletions failed. Please try again.'));
+            }
+        }
+        
+        // Edit inspection
+        function editInspection(ins) {
+            const newStatus = prompt(`Update status for ${ins.id}\n\nCurrent status: ${ins.status}\n\nEnter new status:\n- pending\n- approved\n- under review\n- completed\n- rejected`, ins.status);
+            
+            if (newStatus && newStatus !== ins.status) {
+                fetch('api/update_inspection_status.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `inspection_id=${ins.id}&status=${newStatus}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Status updated successfully!');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(() => alert('An error occurred while updating the status.'));
+            }
+        }
+        
+        // Delete single inspection
+        function deleteInspection(id) {
+            if (confirm(`WARNING: Delete inspection ${id}? This action cannot be undone!`)) {
+                fetch('api/delete_inspection.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `inspection_id=${id}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Inspection deleted successfully!');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(() => alert('An error occurred while deleting the inspection.'));
+            }
+        }
+        
+        // Export table to CSV
+        function exportTable() {
+            const headers = ['ID', 'Location', 'Date', 'Type', 'Status', 'Severity', 'Reporter'];
+            const rows = filteredData.map(ins => [
+                ins.id,
+                ins.location,
+                ins.date,
+                ins.inspection_type,
+                ins.status,
+                ins.severity,
+                ins.reporter
+            ]);
+            
+            let csv = headers.join(',') + '\n';
+            rows.forEach(row => {
+                csv += row.map(cell => `"${cell}"`).join(',') + '\n';
+            });
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `inspections_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }
     </script>
 </body>
 </html>
