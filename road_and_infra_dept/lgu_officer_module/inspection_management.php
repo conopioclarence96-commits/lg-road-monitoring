@@ -872,13 +872,19 @@ $repairs = [
             
             <!-- Debug Output -->
             <div style="background: #f0f9ff; border: 1px solid #0ea5e9; padding: 10px; margin-bottom: 15px; border-radius: 6px; font-size: 0.85rem;">
-                <strong>Debug Info:</strong> 
-                Total inspections loaded: <strong><?php echo count($inspections); ?></strong>
+                <strong>Debug Info:</strong><br>
+                <?php
+                echo "Connection: " . (isset($conn) && $conn ? "Connected" : "NOT CONNECTED") . "<br>";
+                echo "Query Result: " . (isset($result) && $result ? "Success" : "FAILED") . "<br>";
+                if (isset($conn) && $conn && !isset($result)) {
+                    echo "Error: " . htmlspecialchars($conn->error) . "<br>";
+                }
+                echo "Total inspections loaded: <strong>" . count($inspections) . "</strong><br>";
+                ?>
                 <?php if (!empty($inspections)): ?>
-                    | First ID: <?php echo htmlspecialchars($inspections[0]['id']); ?>
-                    | Type: <?php echo htmlspecialchars($inspections[0]['inspection_type']); ?>
+                    First ID: <?php echo htmlspecialchars($inspections[0]['id']); ?> | Type: <?php echo htmlspecialchars($inspections[0]['inspection_type']); ?>
                 <?php else: ?>
-                    | <span style="color: #dc2626;">No records in $inspections array</span>
+                    <span style="color: #dc2626;">No records in $inspections array</span>
                 <?php endif; ?>
             </div>
             
