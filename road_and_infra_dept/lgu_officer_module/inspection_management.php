@@ -288,7 +288,7 @@ try {
             i.created_at, 
             i.updated_at,
             i.estimated_cost,
-            COALESCE(u.name, 'Unknown') as reporter_name,
+            COALESCE(CONCAT(u.first_name, ' ', u.last_name), 'Unknown') as reporter_name,
             CASE 
                 WHEN i.inspector_id IS NULL THEN 'citizen'
                 ELSE 'regular'
