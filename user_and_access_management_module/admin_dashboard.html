@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LGU | Admin Dashboard</title>
+    <link rel="stylesheet" href="styles/style.css" />
+    <style>
+        @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap");
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Poppins", sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background: url("assets/img/cityhall.jpeg") center/cover no-repeat fixed;
+            position: relative;
+        }
+
+        body::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            backdrop-filter: blur(6px);
+            background: rgba(0, 0, 0, 0.35);
+            z-index: 0;
+        }
+
+        /* SIDEBAR */
+        .sidebar-nav {
+            position: fixed;
+            width: 250px;
+            height: 100vh;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(18px);
+            box-shadow: 0 4px 25px rgba(0, 0, 0, 0.25);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .site-logo {
+            padding: 20px;
+            text-align: center;
+        }
+
+        .site-logo img {
+            width: 120px;
+            border-radius: 10px;
+        }
+
+        .nav-list {
+            list-style: none;
+            padding: 0 20px;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 20px;
+            color: #000;
+            text-decoration: none;
+            border-radius: 8px;
+            margin-bottom: 6px;
+            transition: 0.3s;
+        }
+
+        .nav-link:hover {
+            background: #97a4c2;
+            transform: translateX(5px);
+        }
+
+        .nav-link.active {
+            background: #3762c8;
+            color: #fff;
+        }
+
+        .user-info {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .logout-btn {
+            margin-top: 8px;
+            padding: 8px 14px;
+            background: #3762c8;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        /* MAIN CONTENT */
+        .main-wrapper {
+            margin-left: 250px;
+            position: relative;
+            z-index: 1;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .dashboard-container {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .dashboard-header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-top: 20px;
+        }
+
+        .dashboard-title {
+            font-size: 28px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .dashboard-subtitle {
+            font-size: 16px;
+            color: rgba(255,255,255,0.9);
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+
+        /* SEPARATE CONTAINERS */
+        .container-section {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 18px;
+            padding: 25px;
+            backdrop-filter: blur(15px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 0;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 35px rgba(0,0,0,0.3);
+        }
+
+        .stat-number {
+            font-size: 36px;
+            font-weight: 700;
+            color: #285ccd;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .content-card {
+            background: transparent;
+            border-radius: 0;
+            padding: 0;
+            backdrop-filter: none;
+            box-shadow: none;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid rgba(40, 92, 205, 0.2);
+        }
+
+        .card-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .btn-action {
+            padding: 8px 16px;
+            background: linear-gradient(135deg, #6384d2, #285ccd);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: 0.25s ease;
+        }
+
+        .btn-action:hover {
+            background: linear-gradient(135deg, #4d76d6, #1651d0);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(43, 91, 222, 0.45);
+        }
+
+        .table-container {
+            overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+        }
+
+        th {
+            background: rgba(40, 92, 205, 0.1);
+            font-weight: 600;
+            color: #333;
+            position: sticky;
+            top: 0;
+        }
+
+        tr:hover {
+            background: rgba(40, 92, 205, 0.05);
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            display: inline-block;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-approved {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-rejected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-small {
+            padding: 4px 8px;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: 0.2s ease;
+        }
+
+        .btn-approve {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-reject {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-view {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .btn-small:hover {
+            opacity: 0.8;
+            transform: translateY(-1px);
+        }
+
+        .audit-log {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            padding: 10px;
+            border-left: 3px solid #285ccd;
+            margin-bottom: 10px;
+            background: rgba(40, 92, 205, 0.05);
+            border-radius: 0 8px 8px 0;
+        }
+
+        .log-time {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .log-action {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .log-details {
+            font-size: 14px;
+            color: #666;
+            margin-top: 3px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background: rgba(255, 255, 255, 0.95);
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 18px;
+            width: 90%;
+            max-width: 500px;
+            backdrop-filter: blur(15px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: #000;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar-nav {
+                width: 200px;
+            }
+            
+            .main-wrapper {
+                margin-left: 200px;
+            }
+            
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 600px) {
+            .sidebar-nav {
+                width: 100%;
+                height: auto;
+                position: relative;
+            }
+            
+            .main-wrapper {
+                margin-left: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- SIDEBAR -->
+    <div class="sidebar-nav">
+        <div class="sidebar-content">
+            <div>
+                <div class="site-logo">
+                    <img src="../sidebar/assets/img/logocityhall.png" />
+                </div>
+
+                <ul class="nav-list">
+                    <li>
+                        <a
+                            href="dashboard_statistics.html"
+                            class="nav-link"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="30"
+                                height="30"
+                                fill="currentColor"
+                                class="bi bi-graph-up"
+                                viewBox="0 0 16 16"
+                            >
+                                <path fill-rule="evenodd" d="M0 0h1v15h15v1H0V0Zm14.817 3.113a.5.5 0 0 1 .07.704l-4.5 5.5a.5.5 0 0 1-.74.037L7.06 6.767l-3.656 5.027a.5.5 0 0 1-.808-.588l4-5.5a.5.5 0 0 1 .758-.06l2.609 2.61 4.15-5.073a.5.5 0 0 1 .704-.07Z"/>
+                            </svg>
+                            Dashboard Statistics</a
+                        >
+                    </li>
+                    <li>
+                        <a
+                            href="pending_approvals.html"
+                            class="nav-link"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="30"
+                                height="30"
+                                fill="currentColor"
+                                class="bi bi-clock-history"
+                                viewBox="0 0 16 16"
+                            >
+                                <path d="M8.515 1.019A7 7 0 0 0 8 1V0a8 8 0 0 1 .589.022l-.074.997zm2.004.45a7.003 7.003 0 0 0-.985-.299l.219-.976c.383.086.76.2 1.126.342l-.36.933zm1.37.71a7.01 7.01 0 0 0-.439-.27l.493-.87a8.025 8.025 0 0 1 .979.654l-.615.789zm-1.4 1.46a7.01 7.01 0 0 0-.228-.088l.322-.946a8.03 8.03 0 0 1 1.662.104l-.756.93zm-1.749 1.319a7.01 7.01 0 0 0 0 .114l-.964-.267c.025-.099.046-.2.064-.302l.9.455zm-1.8 1.89a7.01 7.01 0 0 0 .114.012l-.468.944a8.03 8.03 0 0 1-.302-.064l.656-.892zm1.6 1.157a7.01 7.01 0 0 0 .27.224l-.767.846a8.03 8.03 0 0 1-.104-.078l.601-1.002zm-1.4 1.46a7.01 7.01 0 0 0 .439.299l-.516.856a8.03 8.03 0 0 1-.654-.104l.731-1.051zm-1.4 1.46a7.01 7.01 0 0 0 .985.299l-.219.976a7.003 7.003 0 0 1-1.126-.342l.36-.933zm2.004.45a7.003 7.003 0 0 0 .589.022l-.074.997a8 8 0 0 1-1.017-.045l.502-.974zm-2.004.45a7.003 7.003 0 0 0 .985-.299l.219.976a7.003 7.003 0 0 1-1.126.342l-.36-.933zm-1.4-1.46a7.01 7.01 0 0 0-.439.299l.516.856a8.03 8.03 0 0 1 .654-.104l-.731-1.051zm-1.6-1.157a7.01 7.01 0 0 0-.27.224l.767.846a8.03 8.03 0 0 1 .104-.078l-.601-1.002zm-1.8-1.89a7.01 7.01 0 0 0-.114.012l.468.944a8.03 8.03 0 0 1 .302-.064l-.656-.892zm1.6-1.157a7.01 7.01 0 0 0 .27-.224l-.767-.846a8.03 8.03 0 0 1-.104.078l.601 1.002zm1.4-1.46a7.01 7.01 0 0 0 .439-.299l-.516-.856a8.03 8.03 0 0 1-.654.104l.731 1.051zm1.4-1.46a7.01 7.01 0 0 0 .985-.299l-.219-.976a7.003 7.003 0 0 1-1.126-.342l.36.933zm2.004-.45a7.003 7.003 0 0 0 .589-.022l-.074-.997a8 8 0 0 1-1.017.045l.502.974z"/>
+                                <path d="M8 1a7 7 0 1 0 0 14 7 7 0 0 0 0-14z"/>
+                            </svg>
+                            Pending Approvals</a
+                        >
+                    </li>
+                    <li>
+                        <a
+                            href="recent_activity.html"
+                            class="nav-link"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="30"
+                                height="30"
+                                fill="currentColor"
+                                class="bi bi-activity"
+                                viewBox="0 0 16 16"
+                            >
+                                <path fill-rule="evenodd" d="M6 2a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-1 0V2.5A.5.5 0 0 1 6 2zm4 0a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-1 0V2.5A.5.5 0 0 1 10 2zM2 5a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-1 0V5.5A.5.5 0 0 1 2 5zm12 0a.5.5 0 0 1 .5.5v5a.5.5 0 0 1-1 0V5.5a.5.5 0 0 1 .5-.5z"/>
+                            </svg>
+                            Recent Activity</a
+                        >
+                    </li>
+                </ul>
+            </div>
+        </div>
+        <div class="user-info">
+            <div>Admin Panel</div>
+            <button class="logout-btn" onclick="window.location.href='login.html'">Logout</button>
+        </div>
+    </div>
+
+    <!-- MAIN WRAPPER -->
+    <div class="main-wrapper">
+        <!-- Dashboard Container -->
+        <div class="dashboard-container">
+            <div class="dashboard-header">
+                <h1 class="dashboard-title">System Administrator Dashboard</h1>
+                <p class="dashboard-subtitle">Manage LGU Officer Accounts and System Permissions</p>
+            </div>
+
+            <!-- Statistics Container -->
+            <div class="container-section">
+                <div class="card-header">
+                    <h2 class="card-title">Dashboard Statistics</h2>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number">12</div>
+                        <div class="stat-label">Total Officers</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">3</div>
+                        <div class="stat-label">Pending Approval</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">8</div>
+                        <div class="stat-label">Active Accounts</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">1</div>
+                        <div class="stat-label">Rejected Today</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content Grid -->
+            <div class="main-content">
+                <!-- Pending Approvals Container -->
+                <div class="container-section">
+                    <div class="content-card">
+                        <div class="card-header">
+                            <h2 class="card-title">Pending LGU Officer Approvals</h2>
+                            <button class="btn-action" onclick="refreshPending()">Refresh</button>
+                        </div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Email</th>
+                                        <th>Role</th>
+                                        <th>Applied</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="pendingTable">
+                                    <tr>
+                                        <td>Juan Dela Cruz</td>
+                                        <td>juan.delacruz@lgu.gov</td>
+                                        <td>Road Inspector</td>
+                                        <td>2 hours ago</td>
+                                        <td>
+                                            <div class="action-buttons">
+                                                <button class="btn-small btn-approve" onclick="approveUser('Juan Dela Cruz')">✓</button>
+                                                <button class="btn-small btn-reject" onclick="rejectUser('Juan Dela Cruz')">✗</button>
+                                                <button class="btn-small btn-view" onclick="viewUser('Juan Dela Cruz')">👁</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>Maria Santos</td>
+                                        <td>maria.santos@lgu.gov</td>
+                                        <td>Field Engineer</td>
+                                        <td>5 hours ago</td>
+                                        <td>
+                                            <div class="action-buttons">
+                                                <button class="btn-small btn-approve" onclick="approveUser('Maria Santos')">✓</button>
+                                                <button class="btn-small btn-reject" onclick="rejectUser('Maria Santos')">✗</button>
+                                                <button class="btn-small btn-view" onclick="viewUser('Maria Santos')">👁</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>Carlos Reyes</td>
+                                        <td>carlos.reyes@lgu.gov</td>
+                                        <td>Project Manager</td>
+                                        <td>1 day ago</td>
+                                        <td>
+                                            <div class="action-buttons">
+                                                <button class="btn-small btn-approve" onclick="approveUser('Carlos Reyes')">✓</button>
+                                                <button class="btn-small btn-reject" onclick="rejectUser('Carlos Reyes')">✗</button>
+                                                <button class="btn-small btn-view" onclick="viewUser('Carlos Reyes')">👁</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activity Container -->
+                <div class="container-section">
+                    <div class="content-card">
+                        <div class="card-header">
+                            <h2 class="card-title">Recent Account Activity</h2>
+                            <button class="btn-action" onclick="refreshActivity()">Refresh</button>
+                        </div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Status</th>
+                                        <th>Processed By</th>
+                                        <th>Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Ana Lopez</td>
+                                        <td><span class="status-badge status-approved">Approved</span></td>
+                                        <td>Admin</td>
+                                        <td>2024-02-13</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Roberto Tan</td>
+                                        <td><span class="status-badge status-rejected">Rejected</span></td>
+                                        <td>Admin</td>
+                                        <td>2024-02-13</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Elena Martinez</td>
+                                        <td><span class="status-badge status-approved">Approved</span></td>
+                                        <td>Admin</td>
+                                        <td>2024-02-12</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Jose Fernandez</td>
+                                        <td><span class="status-badge status-approved">Approved</span></td>
+                                        <td>Admin</td>
+                                        <td>2024-02-12</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Audit Log Container -->
+            <div class="audit-log-container">
+                <div class="card-header">
+                    <h2 class="card-title">Audit Log</h2>
+                    <button class="btn-action" onclick="exportLog()">Export</button>
+                </div>
+                <div class="audit-log">
+                    <div class="log-entry">
+                        <div class="log-time">2024-02-14 09:30:15</div>
+                        <div class="log-action">Account Approved</div>
+                        <div class="log-details">Admin approved LGU Officer account for Juan Dela Cruz (juan.delacruz@lgu.gov)</div>
+                    </div>
+                    <div class="log-entry">
+                        <div class="log-time">2024-02-14 08:45:22</div>
+                        <div class="log-action">Account Rejected</div>
+                        <div class="log-details">Admin rejected LGU Officer account for Roberto Tan (roberto.tan@lgu.gov) - Reason: Invalid credentials</div>
+                    </div>
+                    <div class="log-entry">
+                        <div class="log-time">2024-02-13 16:20:10</div>
+                        <div class="log-action">Permission Updated</div>
+                        <div class="log-details">Admin granted reporting permissions to Maria Santos (maria.santos@lgu.gov)</div>
+                    </div>
+                    <div class="log-entry">
+                        <div class="log-time">2024-02-13 14:15:33</div>
+                        <div class="log-action">Account Deactivated</div>
+                        <div class="log-details">Admin deactivated account for Former Officer (former@lgu.gov)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Details Modal -->
+    <div id="userModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2>User Details</h2>
+            <div id="userDetails">
+                <!-- User details will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Modal functions
+        function viewUser(name) {
+            const modal = document.getElementById('userModal');
+            const userDetails = document.getElementById('userDetails');
+            
+            userDetails.innerHTML = `
+                <div style="margin-top: 20px;">
+                    <p><strong>Name:</strong> ${name}</p>
+                    <p><strong>Email:</strong> ${name.toLowerCase().replace(' ', '.')}@lgu.gov</p>
+                    <p><strong>Department:</strong> Public Works</p>
+                    <p><strong>Position:</strong> LGU Officer</p>
+                    <p><strong>Application Date:</strong> 2024-02-10</p>
+                    <p><strong>Status:</strong> <span class="status-badge status-pending">Pending</span></p>
+                    <div style="margin-top: 20px;">
+                        <button class="btn-action" onclick="approveUser('${name}')">Approve</button>
+                        <button class="btn-action" style="background: #dc3545;" onclick="rejectUser('${name}')">Reject</button>
+                    </div>
+                </div>
+            `;
+            
+            modal.style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('userModal').style.display = 'none';
+        }
+
+        // Action functions
+        function approveUser(name) {
+            if (confirm(`Approve ${name}'s LGU Officer account?`)) {
+                addAuditLog('Account Approved', `Admin approved LGU Officer account for ${name}`);
+                updateTableRow(name, 'approved');
+                closeModal();
+                updateStats();
+                alert(`${name}'s account has been approved successfully!`);
+            }
+        }
+
+        function rejectUser(name) {
+            const reason = prompt(`Reject ${name}'s account. Please provide a reason:`);
+            if (reason) {
+                addAuditLog('Account Rejected', `Admin rejected LGU Officer account for ${name} - Reason: ${reason}`);
+                updateTableRow(name, 'rejected');
+                closeModal();
+                updateStats();
+                alert(`${name}'s account has been rejected.`);
+            }
+        }
+
+        function addAuditLog(action, details) {
+            const auditLog = document.querySelector('.audit-log');
+            const now = new Date();
+            const timeString = now.toLocaleString('en-US', { 
+                year: 'numeric', 
+                month: '2-digit', 
+                day: '2-digit', 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit' 
+            });
+            
+            const newEntry = document.createElement('div');
+            newEntry.className = 'log-entry';
+            newEntry.innerHTML = `
+                <div class="log-time">${timeString}</div>
+                <div class="log-action">${action}</div>
+                <div class="log-details">${details}</div>
+            `;
+            
+            auditLog.insertBefore(newEntry, auditLog.firstChild);
+        }
+
+        function updateTableRow(name, status) {
+            // Remove from pending table
+            const pendingRows = document.querySelectorAll('#pendingTable tr');
+            pendingRows.forEach(row => {
+                if (row.cells[0].textContent === name) {
+                    row.remove();
+                }
+            });
+            
+            // Add to activity table
+            const activityTable = document.querySelector('.content-card:nth-child(2) tbody');
+            const newRow = activityTable.insertRow(0);
+            const statusClass = status === 'approved' ? 'status-approved' : 'status-rejected';
+            const statusText = status.charAt(0).toUpperCase() + status.slice(1);
+            
+            newRow.innerHTML = `
+                <td>${name}</td>
+                <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                <td>Admin</td>
+                <td>${new Date().toISOString().split('T')[0]}</td>
+            `;
+        }
+
+        function updateStats() {
+            // Update statistics
+            const pendingCount = document.querySelectorAll('#pendingTable tr').length;
+            document.querySelector('.stat-card:nth-child(2) .stat-number').textContent = pendingCount;
+        }
+
+        function refreshPending() {
+            alert('Pending approvals refreshed!');
+        }
+
+        function refreshActivity() {
+            alert('Recent activity refreshed!');
+        }
+
+        function exportLog() {
+            alert('Audit log exported successfully!');
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('userModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+    </script>
+</body>
+</html>

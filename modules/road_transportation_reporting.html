@@ -1,0 +1,1075 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Road & Transportation Reporting | LGU Quezon City</title>
+    <link rel="stylesheet" href="../user_and_access_management_module/styles/style.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    <style>
+        body {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+
+            /* NEW — background image + blur */
+            background: url("../assets/img/cityhall.jpeg") center/cover no-repeat fixed;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* NEW — Blur overlay */
+        body::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+
+            backdrop-filter: blur(6px); /* actual blur */
+            background: rgba(0, 0, 0, 0.35); /* dark overlay */
+            z-index: 0; /* keeps blur behind content */
+        }
+
+        /* Make content appear ABOVE blur */
+        .header,
+        .main-container {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Header */
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 15px 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo img {
+            width: 50px;
+            height: 50px;
+            border-radius: 10px;
+        }
+
+        .logo h1 {
+            font-size: 24px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .user-section {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .user-info {
+            text-align: right;
+        }
+
+        .user-name {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .user-role {
+            font-size: 12px;
+            color: #7f8c8d;
+        }
+
+        .logout-btn {
+            padding: 8px 16px;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: 0.3s ease;
+        }
+
+        .logout-btn:hover {
+            background: #c0392b;
+        }
+
+        /* Main Container */
+        .main-container {
+            max-width: 1400px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
+        .report-form-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .form-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .form-header h2 {
+            font-size: 28px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .form-header p {
+            color: #7f8c8d;
+            font-size: 16px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            margin-bottom: 25px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-group.full-width {
+            grid-column: span 2;
+        }
+
+        .form-group label {
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 14px;
+        }
+
+        .form-group label .required {
+            color: #e74c3c;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: 0.3s ease;
+            font-family: inherit;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        .severity-buttons {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+
+        .severity-btn {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            background: white;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: 0.3s ease;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        .severity-btn:hover {
+            border-color: #3498db;
+            transform: translateY(-2px);
+        }
+
+        .severity-btn.selected {
+            border-color: #3498db;
+            background: #3498db;
+            color: white;
+        }
+
+        .severity-low { border-left: 4px solid #27ae60; }
+        .severity-moderate { border-left: 4px solid #f39c12; }
+        .severity-high { border-left: 4px solid #e67e22; }
+        .severity-critical { border-left: 4px solid #e74c3c; }
+
+        /* Map Section */
+        .map-section {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .map-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .map-header h3 {
+            font-size: 20px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .location-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .location-info h4 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .location-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+
+        .location-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: white;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .location-item .label {
+            font-weight: 600;
+            color: #7f8c8d;
+        }
+
+        .location-item .value {
+            color: #2c3e50;
+        }
+
+        #map {
+            height: 400px;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        /* Photo Upload */
+        .photo-upload-section {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .upload-area {
+            border: 3px dashed #3498db;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            background: #f8f9fa;
+            cursor: pointer;
+            transition: 0.3s ease;
+        }
+
+        .upload-area:hover {
+            background: #e3f2fd;
+            border-color: #2980b9;
+        }
+
+        .upload-area.dragover {
+            background: #e3f2fd;
+            border-color: #2980b9;
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            color: #3498db;
+            margin-bottom: 15px;
+        }
+
+        .upload-text {
+            font-size: 16px;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .upload-hint {
+            font-size: 14px;
+            color: #7f8c8d;
+        }
+
+        .photo-preview {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .photo-item {
+            position: relative;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .photo-item img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+        }
+
+        .photo-remove {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Action Buttons */
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+
+        .btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.3s ease;
+            min-width: 150px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(52, 152, 219, 0.3);
+        }
+
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #7f8c8d;
+        }
+
+        /* Validation Messages */
+        .validation-message {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .validation-error {
+            background: #ffebee;
+            color: #c62828;
+            border: 1px solid #ef5350;
+        }
+
+        .validation-warning {
+            background: #fff3e0;
+            color: #ef6c00;
+            border: 1px solid #ff9800;
+        }
+
+        .validation-success {
+            background: #e8f5e8;
+            color: #2e7d32;
+            border: 1px solid #4caf50;
+        }
+
+        /* Loading Spinner */
+        .loading {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .form-group.full-width {
+                grid-column: span 1;
+            }
+
+            .severity-buttons {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .location-details {
+                grid-template-columns: 1fr;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <img src="../assets/img/quezon-city-logo.png" alt="Quezon City Logo" />
+                <h1>Road & Transportation Reporting</h1>
+            </div>
+            <div class="user-section">
+                <div class="user-info">
+                    <div class="user-name">Juan Dela Cruz</div>
+                    <div class="user-role">LGU Officer</div>
+                </div>
+                <button class="logout-btn" onclick="logout()">Logout</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="main-container">
+        <!-- Validation Messages -->
+        <div id="validationMessage" class="validation-message"></div>
+
+        <!-- Report Form -->
+        <div class="report-form-container">
+            <div class="form-header">
+                <h2>🚧 Report Road & Transportation Issue</h2>
+                <p>Help us maintain Quezon City's roads and transportation systems</p>
+            </div>
+
+            <form id="reportForm">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="issueType">Issue Type <span class="required">*</span></label>
+                        <select id="issueType" name="issueType" required>
+                            <option value="">Select Issue Type</option>
+                            <option value="road">Road</option>
+                            <option value="transportation">Transportation</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="issueCategory">Specific Issue Category <span class="required">*</span></label>
+                        <select id="issueCategory" name="issueCategory" required>
+                            <option value="">Select Category</option>
+                            <optgroup label="Road Issues">
+                                <option value="pothole">Pothole</option>
+                                <option value="crack">Road Crack</option>
+                                <option value="erosion">Road Erosion</option>
+                                <option value="debris">Road Debris</option>
+                                <option value="flooding">Street Flooding</option>
+                            </optgroup>
+                            <optgroup label="Transportation Issues">
+                                <option value="traffic-signal">Traffic Signal Failure</option>
+                                <option value="street-light">Street Light Outage</option>
+                                <option value="congestion">Traffic Congestion</option>
+                                <option value="signage">Missing/Damaged Signage</option>
+                                <option value="crosswalk">Crosswalk Issue</option>
+                            </optgroup>
+                        </select>
+                    </div>
+
+                    <div class="form-group full-width">
+                        <label>Severity Level <span class="required">*</span></label>
+                        <div class="severity-buttons">
+                            <div class="severity-btn severity-low" data-severity="low">
+                                <div>🟢 Low</div>
+                                <small>Minor issue</small>
+                            </div>
+                            <div class="severity-btn severity-moderate" data-severity="moderate">
+                                <div>🟡 Moderate</div>
+                                <small>Needs attention</small>
+                            </div>
+                            <div class="severity-btn severity-high" data-severity="high">
+                                <div>🟠 High</div>
+                                <small>Urgent repair needed</small>
+                            </div>
+                            <div class="severity-btn severity-critical" data-severity="critical">
+                                <div>🔴 Critical</div>
+                                <small>Immediate danger</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group full-width">
+                        <label for="description">Description <span class="required">*</span></label>
+                        <textarea id="description" name="description" placeholder="Please provide detailed description of the issue..." required></textarea>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Map Section -->
+        <div class="map-section">
+            <div class="map-header">
+                <h3>📍 Location Information</h3>
+                <button type="button" class="btn btn-secondary" onclick="getCurrentLocation()">📍 Use My Location</button>
+            </div>
+
+            <div class="location-info">
+                <h4>Captured Location Details</h4>
+                <div class="location-details">
+                    <div class="location-item">
+                        <span class="label">Latitude:</span>
+                        <span class="value" id="latitude">--</span>
+                    </div>
+                    <div class="location-item">
+                        <span class="label">Longitude:</span>
+                        <span class="value" id="longitude">--</span>
+                    </div>
+                    <div class="location-item">
+                        <span class="label">Barangay:</span>
+                        <span class="value" id="barangay">--</span>
+                    </div>
+                    <div class="location-item">
+                        <span class="label">Road Name:</span>
+                        <span class="value" id="roadName">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="map"></div>
+        </div>
+
+        <!-- Photo Upload Section -->
+        <div class="photo-upload-section">
+            <div class="form-header">
+                <h3>📷 Photo Evidence <span class="required">*</span></h3>
+                <p>Upload clear photos of the issue (minimum 1 photo required)</p>
+            </div>
+
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📸</div>
+                <div class="upload-text">Click to upload or drag and drop</div>
+                <div class="upload-hint">Supported formats: JPG, PNG (Max 5MB per file)</div>
+                <input type="file" id="photoInput" accept="image/*" multiple style="display: none;">
+            </div>
+
+            <div class="photo-preview" id="photoPreview"></div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+            <button type="button" class="btn btn-secondary" onclick="saveDraft()">💾 Save Draft</button>
+            <button type="button" class="btn btn-primary" onclick="submitReport()">📤 Submit Report</button>
+        </div>
+    </main>
+
+    <!-- Loading Spinner -->
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    <script>
+        // Global variables
+        let map;
+        let currentMarker;
+        let selectedSeverity = null;
+        let uploadedPhotos = [];
+        let currentLocation = null;
+
+        // Quezon City boundaries (approximate)
+        const quezonCityBounds = {
+            north: 14.74,
+            south: 14.48,
+            east: 121.10,
+            west: 121.02
+        };
+
+        // Initialize map
+        function initMap() {
+            map = L.map('map').setView([14.65, 14.65], 12);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            // Add geocoder
+            L.Control.geocoder({
+                defaultMarkGeocode: false,
+                placeholder: 'Search location in Quezon City...',
+                errorMessage: 'Location not found. Please try again.',
+                showResultIcons: false,
+                suggestMinLength: 3,
+                suggestTimeout: 250,
+                queryMinLength: 1
+            }).on('markgeocode', function(e) {
+                const latlng = e.geocode.center;
+                validateAndSetLocation(latlng.lat, latlng.lng);
+            }).addTo(map);
+
+            // Add click handler for manual pin placement
+            map.on('click', function(e) {
+                validateAndSetLocation(e.latlng.lat, e.latlng.lng);
+            });
+
+            // Set initial view to Quezon City
+            map.fitBounds([
+                [quezonCityBounds.south, quezonCityBounds.west],
+                [quezonCityBounds.north, quezonCityBounds.east]
+            ]);
+        }
+
+        // Validate location within Quezon City
+        function validateAndSetLocation(lat, lng) {
+            if (lat < quezonCityBounds.south || lat > quezonCityBounds.north ||
+                lng < quezonCityBounds.west || lng > quezonCityBounds.east) {
+                showValidationMessage('Location is outside Quezon City boundaries. Please select a location within Quezon City.', 'error');
+                return false;
+            }
+
+            // Check for duplicate reports within 20 meters
+            checkForDuplicates(lat, lng);
+            
+            setLocation(lat, lng);
+            return true;
+        }
+
+        // Set location on map
+        function setLocation(lat, lng) {
+            currentLocation = { lat, lng };
+            
+            // Remove existing marker
+            if (currentMarker) {
+                map.removeLayer(currentMarker);
+            }
+
+            // Add new marker
+            currentMarker = L.marker([lat, lng]).addTo(map);
+            map.setView([lat, lng], 16);
+
+            // Update location display
+            updateLocationDisplay(lat, lng);
+        }
+
+        // Update location display
+        function updateLocationDisplay(lat, lng) {
+            document.getElementById('latitude').textContent = lat.toFixed(6);
+            document.getElementById('longitude').textContent = lng.toFixed(6);
+
+            // Reverse geocoding to get barangay and road name
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data && data.address) {
+                        document.getElementById('barangay').textContent = data.address.suburb || data.address.neighbourhood || 'Unknown';
+                        document.getElementById('roadName').textContent = data.address.road || 'Unknown';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error getting location details:', error);
+                });
+        }
+
+        // Check for duplicate reports
+        function checkForDuplicates(lat, lng) {
+            // This would typically check against a database
+            // For demo purposes, we'll simulate the check
+            const simulatedDuplicates = [
+                { lat: 14.6325, lng: 121.0419, reportId: 'RPT-001' },
+                { lat: 14.6487, lng: 121.0508, reportId: 'RPT-002' }
+            ];
+
+            const hasDuplicate = simulatedDuplicates.some(dup => {
+                const distance = calculateDistance(lat, lng, dup.lat, dup.lng);
+                return distance <= 20; // 20 meters
+            });
+
+            if (hasDuplicate) {
+                showValidationMessage('A report already exists within 20 meters of this location. Please check existing reports.', 'warning');
+            }
+        }
+
+        // Calculate distance between two points (Haversine formula)
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371e3; // Earth's radius in meters
+            const φ1 = lat1 * Math.PI/180;
+            const φ2 = lat2 * Math.PI/180;
+            const Δφ = (lat2-lat1) * Math.PI/180;
+            const Δλ = (lon2-lon1) * Math.PI/180;
+
+            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                      Math.cos(φ1) * Math.cos(φ2) *
+                      Math.sin(Δλ/2) * Math.sin(Δλ/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+            return R * c; // Distance in meters
+        }
+
+        // Get current location
+        function getCurrentLocation() {
+            if (navigator.geolocation) {
+                showLoading(true);
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        
+                        if (validateAndSetLocation(lat, lng)) {
+                            showValidationMessage('Location captured successfully!', 'success');
+                        }
+                        showLoading(false);
+                    },
+                    (error) => {
+                        showValidationMessage('Unable to get your location. Please enable location services.', 'error');
+                        showLoading(false);
+                    }
+                );
+            } else {
+                showValidationMessage('Geolocation is not supported by your browser.', 'error');
+            }
+        }
+
+        // Severity selection
+        document.querySelectorAll('.severity-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.severity-btn').forEach(b => b.classList.remove('selected'));
+                this.classList.add('selected');
+                selectedSeverity = this.dataset.severity;
+            });
+        });
+
+        // Photo upload
+        const uploadArea = document.getElementById('uploadArea');
+        const photoInput = document.getElementById('photoInput');
+        const photoPreview = document.getElementById('photoPreview');
+
+        uploadArea.addEventListener('click', () => photoInput.click());
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        photoInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        function handleFiles(files) {
+            Array.from(files).forEach(file => {
+                if (file.type.startsWith('image/')) {
+                    if (file.size <= 5 * 1024 * 1024) { // 5MB limit
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            addPhotoPreview(e.target.result, file.name);
+                            
+                            // Extract GPS metadata if available
+                            extractGPSMetadata(file);
+                        };
+                        reader.readAsDataURL(file);
+                    } else {
+                        showValidationMessage(`File ${file.name} is too large. Maximum size is 5MB.`, 'error');
+                    }
+                } else {
+                    showValidationMessage(`File ${file.name} is not a valid image.`, 'error');
+                }
+            });
+        }
+
+        function addPhotoPreview(src, name) {
+            const photoItem = document.createElement('div');
+            photoItem.className = 'photo-item';
+            photoItem.innerHTML = `
+                <img src="${src}" alt="${name}">
+                <button class="photo-remove" onclick="removePhoto(this)">×</button>
+            `;
+            photoPreview.appendChild(photoItem);
+            uploadedPhotos.push({ src, name });
+        }
+
+        function removePhoto(btn) {
+            const photoItem = btn.parentElement;
+            const index = Array.from(photoPreview.children).indexOf(photoItem);
+            uploadedPhotos.splice(index, 1);
+            photoItem.remove();
+        }
+
+        function extractGPSMetadata(file) {
+            // This would use EXIF library to extract GPS data
+            // For demo purposes, we'll simulate it
+            console.log('Extracting GPS metadata from:', file.name);
+        }
+
+        // Validation
+        function validateForm() {
+            let isValid = true;
+            const errors = [];
+
+            // Check issue type
+            const issueType = document.getElementById('issueType').value;
+            if (!issueType) {
+                errors.push('Please select an issue type.');
+                isValid = false;
+            }
+
+            // Check issue category
+            const issueCategory = document.getElementById('issueCategory').value;
+            if (!issueCategory) {
+                errors.push('Please select an issue category.');
+                isValid = false;
+            }
+
+            // Check severity
+            if (!selectedSeverity) {
+                errors.push('Please select a severity level.');
+                isValid = false;
+            }
+
+            // Check description
+            const description = document.getElementById('description').value.trim();
+            if (!description) {
+                errors.push('Please provide a description.');
+                isValid = false;
+            }
+
+            // Check location
+            if (!currentLocation) {
+                errors.push('Please select a location on the map.');
+                isValid = false;
+            }
+
+            // Check photos
+            if (uploadedPhotos.length === 0) {
+                errors.push('Please upload at least one photo.');
+                isValid = false;
+            }
+
+            if (!isValid) {
+                showValidationMessage(errors.join('<br>'), 'error');
+            }
+
+            return isValid;
+        }
+
+        // Show validation message
+        function showValidationMessage(message, type) {
+            const messageDiv = document.getElementById('validationMessage');
+            messageDiv.className = `validation-message validation-${type}`;
+            messageDiv.innerHTML = message;
+            messageDiv.style.display = 'block';
+
+            setTimeout(() => {
+                messageDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        // Show/hide loading
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'flex' : 'none';
+        }
+
+        // Submit report
+        function submitReport() {
+            if (!validateForm()) {
+                return;
+            }
+
+            showLoading(true);
+
+            const reportData = {
+                issueType: document.getElementById('issueType').value,
+                issueCategory: document.getElementById('issueCategory').value,
+                severity: selectedSeverity,
+                description: document.getElementById('description').value,
+                location: currentLocation,
+                photos: uploadedPhotos,
+                dateReported: new Date().toISOString(),
+                status: 'Pending Verification',
+                reportedBy: 'Juan Dela Cruz' // This would come from user session
+            };
+
+            // Simulate API call
+            setTimeout(() => {
+                console.log('Report submitted:', reportData);
+                showValidationMessage('Report submitted successfully! Status: Pending Verification', 'success');
+                showLoading(false);
+                
+                // Reset form after successful submission
+                setTimeout(() => {
+                    resetForm();
+                }, 2000);
+            }, 2000);
+        }
+
+        // Save draft
+        function saveDraft() {
+            const draftData = {
+                issueType: document.getElementById('issueType').value,
+                issueCategory: document.getElementById('issueCategory').value,
+                severity: selectedSeverity,
+                description: document.getElementById('description').value,
+                location: currentLocation,
+                photos: uploadedPhotos
+            };
+
+            localStorage.setItem('reportDraft', JSON.stringify(draftData));
+            showValidationMessage('Draft saved successfully!', 'success');
+        }
+
+        // Load draft
+        function loadDraft() {
+            const draft = localStorage.getItem('reportDraft');
+            if (draft) {
+                const draftData = JSON.parse(draft);
+                
+                document.getElementById('issueType').value = draftData.issueType || '';
+                document.getElementById('issueCategory').value = draftData.issueCategory || '';
+                document.getElementById('description').value = draftData.description || '';
+                
+                if (draftData.severity) {
+                    document.querySelector(`[data-severity="${draftData.severity}"]`).click();
+                }
+                
+                if (draftData.location) {
+                    setLocation(draftData.location.lat, draftData.location.lng);
+                }
+                
+                if (draftData.photos) {
+                    draftData.photos.forEach(photo => {
+                        addPhotoPreview(photo.src, photo.name);
+                    });
+                }
+            }
+        }
+
+        // Reset form
+        function resetForm() {
+            document.getElementById('reportForm').reset();
+            document.querySelectorAll('.severity-btn').forEach(btn => btn.classList.remove('selected'));
+            selectedSeverity = null;
+            uploadedPhotos = [];
+            photoPreview.innerHTML = '';
+            currentLocation = null;
+            
+            if (currentMarker) {
+                map.removeLayer(currentMarker);
+                currentMarker = null;
+            }
+            
+            document.getElementById('latitude').textContent = '--';
+            document.getElementById('longitude').textContent = '--';
+            document.getElementById('barangay').textContent = '--';
+            document.getElementById('roadName').textContent = '--';
+        }
+
+        // Logout
+        function logout() {
+            if (confirm('Are you sure you want to logout?')) {
+                window.location.href = '../user_and_access_management_module/login.html';
+            }
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            initMap();
+            loadDraft();
+        });
+    </script>
+</body>
+</html>
