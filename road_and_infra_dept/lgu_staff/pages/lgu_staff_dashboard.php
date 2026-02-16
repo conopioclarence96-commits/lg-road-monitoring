@@ -13,7 +13,7 @@ require_once '../config/database.php';
 // Check authentication
 function requireAuth() {
     if (!isset($_SESSION['user_id'])) {
-        header('Location: ../login.html');
+        header('Location: ../login.php');
         exit();
     }
     return $_SESSION['user_id'];
@@ -35,6 +35,13 @@ function getCurrentUser($dbHelper, $userId) {
 }
 
 $currentUser = getCurrentUser($dbHelper, $userId);
+
+// Handle case where user is not found
+if (!$currentUser) {
+    session_destroy();
+    header('Location: ../login.php?error=user_not_found');
+    exit();
+}
 
 // Get dashboard statistics
 function getDashboardStatistics($dbHelper) {
