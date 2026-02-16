@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Road Transportation Monitoring | LGU Staff</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background: url("../../assets/img/cityhall.jpeg") center/cover no-repeat fixed;
+            position: relative;
+        }
+
+        body::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            backdrop-filter: blur(6px);
+            background: rgba(0, 0, 0, 0.35);
+            z-index: 0;
+        }
+
+        .main-content {
+            margin-left: 250px;
+            padding: 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .monitoring-header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(15px);
+            padding: 25px 30px;
+            border-radius: 16px;
+            margin-bottom: 25px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .header-title h1 {
+            color: #1e3c72;
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .header-title p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .monitoring-actions {
+            display: flex;
+            gap: 15px;
+        }
+
+        .btn-action {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-action:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(55, 98, 200, 0.3);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #6c757d, #495057);
+        }
+
+        .btn-secondary:hover {
+            box-shadow: 0 6px 20px rgba(108, 117, 125, 0.3);
+        }
+
+        .monitoring-layout {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 25px;
+            margin-bottom: 25px;
+        }
+
+        .map-section {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(15px);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .map-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .map-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1e3c72;
+        }
+
+        .map-filters {
+            display: flex;
+            gap: 10px;
+        }
+
+        .filter-btn {
+            padding: 6px 12px;
+            background: rgba(55, 98, 200, 0.1);
+            color: #3762c8;
+            border: 1px solid rgba(55, 98, 200, 0.3);
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .filter-btn:hover,
+        .filter-btn.active {
+            background: #3762c8;
+            color: white;
+        }
+
+        #map {
+            height: 500px;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .sidebar-section {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+
+        .info-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(15px);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .info-card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1e3c72;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 15px 10px;
+            background: rgba(55, 98, 200, 0.05);
+            border-radius: 10px;
+            border: 1px solid rgba(55, 98, 200, 0.1);
+        }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: 700;
+            color: #3762c8;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .alert-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .alert-item {
+            display: flex;
+            align-items: flex-start;
+            padding: 12px;
+            margin-bottom: 10px;
+            background: rgba(220, 53, 69, 0.05);
+            border-left: 3px solid #dc3545;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .alert-item:hover {
+            background: rgba(220, 53, 69, 0.1);
+        }
+
+        .alert-item.warning {
+            background: rgba(255, 193, 7, 0.05);
+            border-left-color: #ffc107;
+        }
+
+        .alert-item.warning:hover {
+            background: rgba(255, 193, 7, 0.1);
+        }
+
+        .alert-icon {
+            margin-right: 12px;
+            color: #dc3545;
+            font-size: 16px;
+        }
+
+        .alert-item.warning .alert-icon {
+            color: #ffc107;
+        }
+
+        .alert-content {
+            flex: 1;
+        }
+
+        .alert-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 3px;
+        }
+
+        .alert-time {
+            font-size: 11px;
+            color: #999;
+        }
+
+        .road-status-list {
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .road-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            margin-bottom: 10px;
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .road-item:hover {
+            background: rgba(55, 98, 200, 0.1);
+            transform: translateX(5px);
+        }
+
+        .road-status {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+
+        .status-clear {
+            background: #28a745;
+        }
+
+        .status-moderate {
+            background: #ffc107;
+        }
+
+        .status-heavy {
+            background: #dc3545;
+        }
+
+        .road-info {
+            flex: 1;
+        }
+
+        .road-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 3px;
+        }
+
+        .road-condition {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .traffic-indicator {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            color: #666;
+        }
+
+        .monitoring-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+        }
+
+        .camera-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(15px);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .camera-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .camera-header {
+            padding: 15px 20px;
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+            color: white;
+        }
+
+        .camera-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .camera-location {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .camera-view {
+            height: 200px;
+            background: #f8f9fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .camera-info {
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .camera-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #28a745;
+        }
+
+        .status-dot.offline {
+            background: #dc3545;
+        }
+
+        @media (max-width: 1200px) {
+            .monitoring-layout {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar-section {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 15px;
+            }
+            
+            .monitoring-actions {
+                width: 100%;
+                justify-content: flex-start;
+            }
+            
+            .sidebar-section {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- SIDEBAR -->
+    <iframe src="../includes/sidebar.html" 
+            style="position: fixed; width: 250px; height: 100vh; border: none; z-index: 1000;" 
+            frameborder="0">
+    </iframe>
+
+    <div class="main-content">
+        <!-- Monitoring Header -->
+        <div class="monitoring-header">
+            <div class="header-content">
+                <div class="header-title">
+                    <h1>Road Transportation Monitoring</h1>
+                    <p>Real-time monitoring of road conditions and traffic flow</p>
+                </div>
+                <div class="monitoring-actions">
+                    <button class="btn-action btn-secondary">
+                        <i class="fas fa-sync-alt"></i>
+                        Refresh
+                    </button>
+                    <button class="btn-action">
+                        <i class="fas fa-download"></i>
+                        Export Report
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Monitoring Layout -->
+        <div class="monitoring-layout">
+            <!-- Map Section -->
+            <div class="map-section">
+                <div class="map-header">
+                    <h3 class="map-title">Live Road Map</h3>
+                    <div class="map-filters">
+                        <button class="filter-btn active">All</button>
+                        <button class="filter-btn">Incidents</button>
+                        <button class="filter-btn">Construction</button>
+                        <button class="filter-btn">Traffic</button>
+                    </div>
+                </div>
+                <div id="map"></div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="sidebar-section">
+                <!-- Statistics Card -->
+                <div class="info-card">
+                    <h3 class="info-card-title">
+                        <i class="fas fa-chart-line"></i>
+                        Live Statistics
+                    </h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-number">142</div>
+                            <div class="stat-label">Active Roads</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-number">8</div>
+                            <div class="stat-label">Incidents</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-number">23</div>
+                            <div class="stat-label">Under Repair</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-number">94%</div>
+                            <div class="stat-label">Clear Flow</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active Alerts -->
+                <div class="info-card">
+                    <h3 class="info-card-title">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Active Alerts
+                    </h3>
+                    <div class="alert-list">
+                        <div class="alert-item">
+                            <div class="alert-icon">
+                                <i class="fas fa-car-crash"></i>
+                            </div>
+                            <div class="alert-content">
+                                <div class="alert-title">Multi-vehicle accident on Highway 101</div>
+                                <div class="alert-time">5 minutes ago</div>
+                            </div>
+                        </div>
+                        <div class="alert-item warning">
+                            <div class="alert-icon">
+                                <i class="fas fa-tools"></i>
+                            </div>
+                            <div class="alert-content">
+                                <div class="alert-title">Road maintenance on Main Street</div>
+                                <div class="alert-time">15 minutes ago</div>
+                            </div>
+                        </div>
+                        <div class="alert-item">
+                            <div class="alert-icon">
+                                <i class="fas fa-traffic-light"></i>
+                            </div>
+                            <div class="alert-content">
+                                <div class="alert-title">Traffic light malfunction at Oak Avenue</div>
+                                <div class="alert-time">30 minutes ago</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Road Status List -->
+        <div class="info-card">
+            <h3 class="info-card-title">
+                <i class="fas fa-road"></i>
+                Major Road Status
+            </h3>
+            <div class="road-status-list">
+                <div class="road-item">
+                    <div class="road-status status-clear"></div>
+                    <div class="road-info">
+                        <div class="road-name">Highway 101</div>
+                        <div class="road-condition">Clear - Normal traffic flow</div>
+                        <div class="traffic-indicator">
+                            <i class="fas fa-car"></i>
+                            <span>Light traffic</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="road-item">
+                    <div class="road-status status-heavy"></div>
+                    <div class="road-info">
+                        <div class="road-name">Main Street</div>
+                        <div class="road-condition">Heavy congestion - Accident reported</div>
+                        <div class="traffic-indicator">
+                            <i class="fas fa-car"></i>
+                            <span>Heavy traffic</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="road-item">
+                    <div class="road-status status-moderate"></div>
+                    <div class="road-info">
+                        <div class="road-name">Oak Avenue</div>
+                        <div class="road-condition">Moderate - Road maintenance</div>
+                        <div class="traffic-indicator">
+                            <i class="fas fa-car"></i>
+                            <span>Moderate traffic</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="road-item">
+                    <div class="road-status status-clear"></div>
+                    <div class="road-info">
+                        <div class="road-name">Elm Street</div>
+                        <div class="road-condition">Clear - No issues reported</div>
+                        <div class="traffic-indicator">
+                            <i class="fas fa-car"></i>
+                            <span>Light traffic</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Traffic Cameras -->
+        <div class="info-card">
+            <h3 class="info-card-title">
+                <i class="fas fa-video"></i>
+                Traffic Cameras
+            </h3>
+            <div class="monitoring-grid">
+                <div class="camera-card">
+                    <div class="camera-header">
+                        <div class="camera-title">Camera 01</div>
+                        <div class="camera-location">Highway 101 - North</div>
+                    </div>
+                    <div class="camera-view">
+                        <i class="fas fa-video" style="font-size: 32px; opacity: 0.5;"></i>
+                    </div>
+                    <div class="camera-info">
+                        <div class="camera-status">
+                            <div class="status-dot"></div>
+                            <span>Online</span>
+                        </div>
+                        <button class="btn-action" style="padding: 6px 12px; font-size: 12px;">
+                            <i class="fas fa-expand"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="camera-card">
+                    <div class="camera-header">
+                        <div class="camera-title">Camera 02</div>
+                        <div class="camera-location">Main Street - Central</div>
+                    </div>
+                    <div class="camera-view">
+                        <i class="fas fa-video" style="font-size: 32px; opacity: 0.5;"></i>
+                    </div>
+                    <div class="camera-info">
+                        <div class="camera-status">
+                            <div class="status-dot offline"></div>
+                            <span>Offline</span>
+                        </div>
+                        <button class="btn-action" style="padding: 6px 12px; font-size: 12px;">
+                            <i class="fas fa-expand"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="camera-card">
+                    <div class="camera-header">
+                        <div class="camera-title">Camera 03</div>
+                        <div class="camera-location">Oak Avenue - East</div>
+                    </div>
+                    <div class="camera-view">
+                        <i class="fas fa-video" style="font-size: 32px; opacity: 0.5;"></i>
+                    </div>
+                    <div class="camera-info">
+                        <div class="camera-status">
+                            <div class="status-dot"></div>
+                            <span>Online</span>
+                        </div>
+                        <button class="btn-action" style="padding: 6px 12px; font-size: 12px;">
+                            <i class="fas fa-expand"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize map
+        const map = L.map('map').setView([14.5995, 120.9842], 13);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Add sample markers for incidents
+        const incidentLocations = [
+            { lat: 14.5995, lng: 120.9842, type: 'accident', title: 'Traffic Accident' },
+            { lat: 14.6095, lng: 120.9742, type: 'construction', title: 'Road Construction' },
+            { lat: 14.5895, lng: 120.9942, type: 'traffic', title: 'Heavy Traffic' }
+        ];
+
+        incidentLocations.forEach(location => {
+            const icon = L.divIcon({
+                html: `<div style="background: ${location.type === 'accident' ? '#dc3545' : location.type === 'construction' ? '#ffc107' : '#3762c8'}; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-size: 16px;">
+                    <i class="fas fa-${location.type === 'accident' ? 'car-crash' : location.type === 'construction' ? 'tools' : 'traffic-light'}"></i>
+                </div>`,
+                className: 'custom-marker',
+                iconSize: [30, 30]
+            });
+
+            L.marker([location.lat, location.lng], { icon })
+                .addTo(map)
+                .bindPopup(`<b>${location.title}</b><br>Click for more details`);
+        });
+
+        // Filter functionality
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>
