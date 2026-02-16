@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Help | LGU Citizen Portal</title>
+    <link rel="stylesheet" href="../styles/style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background: url("assets/img/cityhall.jpeg") center/cover no-repeat fixed !important;
+            position: relative !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            min-height: 100vh !important;
+            height: auto !important;
+            display: block !important;
+        }
+
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            backdrop-filter: blur(6px);
+            background: rgba(0, 0, 0, 0.35);
+            z-index: 0;
+        }
+
+        .help-container {
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 20px;
+            padding-bottom: 60px;
+            position: relative;
+            z-index: 1;
+        }
+        .help-header {
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+            color: white;
+            padding: 50px 40px;
+            border-radius: 12px;
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .help-header h1 {
+            font-size: 32px;
+            margin-bottom: 15px;
+        }
+        .help-header p {
+            font-size: 18px;
+            opacity: 0.9;
+        }
+        .search-box {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+        .search-box h2 {
+            color: #1e3c72;
+            margin-bottom: 20px;
+        }
+        .search-input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+        .search-input:focus {
+            outline: none;
+            border-color: #3762c8;
+        }
+        .help-section {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+        .help-section h2 {
+            color: #1e3c72;
+            font-size: 24px;
+            margin-bottom: 20px;
+            border-left: 4px solid #3762c8;
+            padding-left: 15px;
+        }
+        .faq-item {
+            margin-bottom: 20px;
+            border-bottom: 1px solid #f0f0f0;
+            padding-bottom: 20px;
+        }
+        .faq-item:last-child {
+            border-bottom: none;
+        }
+        .faq-question {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .faq-question:hover {
+            color: #3762c8;
+        }
+        .faq-answer {
+            color: #555;
+            line-height: 1.6;
+            display: none;
+        }
+        .faq-answer.show {
+            display: block;
+        }
+        .guide-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .guide-card {
+            background: rgba(55, 98, 200, 0.05);
+            border: 1px solid rgba(55, 98, 200, 0.1);
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        .guide-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(55, 98, 200, 0.1);
+        }
+        .guide-icon {
+            font-size: 36px;
+            color: #3762c8;
+            margin-bottom: 15px;
+        }
+        .guide-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .guide-desc {
+            color: #666;
+            font-size: 14px;
+        }
+        .contact-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .contact-option {
+            background: rgba(55, 98, 200, 0.03);
+            border: 1px solid rgba(55, 98, 200, 0.1);
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+        }
+        .contact-option h4 {
+            color: #1e3c72;
+            margin-bottom: 10px;
+        }
+        .contact-option p {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .btn-help {
+            display: inline-block;
+            padding: 8px 16px;
+            background: #3762c8;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        .btn-help:hover {
+            background: #2a4fa8;
+            transform: translateY(-1px);
+        }
+        .back-link {
+            display: inline-block;
+            margin: 20px;
+            padding: 10px 20px;
+            background: #3762c8;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+        .back-link:hover {
+            background: #2a4fa8;
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <header class="nav">
+        <div class="nav-logo">🏛️ Local Government Unit Portal</div>
+        <div class="nav-links">
+            <a href="login.html">Login</a>
+        </div>
+    </header>
+
+    <div class="help-container">
+        <div class="help-header">
+            <h1>Help Center</h1>
+            <p>Find answers to common questions and get support for the LGU Citizen Portal</p>
+        </div>
+
+        <div class="search-box">
+            <h2>🔍 Search for Help</h2>
+            <input type="text" class="search-input" placeholder="Type your question or keyword..." id="searchInput">
+            <button class="btn-help" onclick="searchHelp()">Search</button>
+        </div>
+
+        <div class="help-section">
+            <h2>📚 Quick Guides</h2>
+            <div class="guide-grid">
+                <div class="guide-card">
+                    <div class="guide-icon">📱</div>
+                    <div class="guide-title">Getting Started</div>
+                    <div class="guide-desc">Learn how to create an account and report your first issue</div>
+                    <a href="#" class="btn-help" style="margin-top: 15px;">View Guide</a>
+                </div>
+                <div class="guide-card">
+                    <div class="guide-icon">📸</div>
+                    <div class="guide-title">Reporting Issues</div>
+                    <div class="guide-desc">Step-by-step guide to reporting infrastructure problems</div>
+                    <a href="#" class="btn-help" style="margin-top: 15px;">View Guide</a>
+                </div>
+                <div class="guide-card">
+                    <div class="guide-icon">📍</div>
+                    <div class="guide-title">Location Services</div>
+                    <div class="guide-desc">How to use GPS and location features</div>
+                    <a href="#" class="btn-help" style="margin-top: 15px;">View Guide</a>
+                </div>
+                <div class="guide-card">
+                    <div class="guide-icon">📊</div>
+                    <div class="guide-title">Tracking Progress</div>
+                    <div class="guide-desc">Monitor your reports and check status updates</div>
+                    <a href="#" class="btn-help" style="margin-top: 15px;">View Guide</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="help-section">
+            <h2>❓ Frequently Asked Questions</h2>
+            
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFAQ(this)">
+                    How do I create an account?
+                    <span>+</span>
+                </div>
+                <div class="faq-answer">
+                    Creating an account is simple! Click on the "Create Account" button on the login page, fill in your personal information including your email address and phone number, and choose a secure password. You'll receive a verification email to confirm your account. Once verified, you can start reporting infrastructure issues immediately.
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFAQ(this)">
+                    What types of issues can I report?
+                    <span>+</span>
+                </div>
+                <div class="faq-answer">
+                    You can report various infrastructure issues including: potholes, road cracks, damaged street lights, flooding problems, broken traffic signs, debris on roads, bridge damage, drainage issues, and any other road or infrastructure-related problems. Each report is categorized to ensure it reaches the right department.
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFAQ(this)">
+                    How long does it take to resolve reported issues?
+                    <span>+</span>
+                </div>
+                <div class="faq-answer">
+                    Resolution time varies depending on the severity and type of issue. Emergency issues are typically addressed within 24 hours, while standard repairs may take 3-7 business days. Major infrastructure projects may take longer. You can track the status of your report in real-time through your dashboard.
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFAQ(this)">
+                    Do I need to provide photos when reporting?
+                    <span>+</span>
+                </div>
+                <div class="faq-answer">
+                    While photos are not mandatory, they are highly recommended as they help our teams better understand and prioritize issues. Clear photos can significantly speed up the verification process and ensure the right resources are allocated. You can upload up to 5 photos per report.
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFAQ(this)">
+                    How do I track the status of my report?
+                    <span>+</span>
+                </div>
+                <div class="faq-answer">
+                    After logging in, go to your dashboard where you'll see all your reported issues. Each report shows its current status (Pending, Under Review, In Progress, Resolved). You'll also receive email notifications when there are updates to your reports. Click on any report to view detailed information and timeline.
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFAQ(this)">
+                    Can I report anonymously?
+                    <span>+</span>
+                </div>
+                <div class="faq-answer">
+                    Yes, you can choose to report issues anonymously. However, creating an account provides benefits like tracking your reports, receiving updates, and providing additional information if needed. Anonymous reports are still processed with the same priority as regular reports.
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFAQ(this)">
+                    What happens after I submit a report?
+                    <span>+</span>
+                </div>
+                <div class="faq-answer">
+                    Once submitted, your report goes through a verification process where our team reviews the details and assigns it to the appropriate department. You'll receive a confirmation with a reference number. The report is then categorized by priority and scheduled for action based on urgency and resource availability.
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFAQ(this)">
+                    How do I contact support for technical issues?
+                    <span>+</span>
+                </div>
+                <div class="faq-answer">
+                    For technical support, you can email us at support@lgu.gov.ph, call our hotline at 1-800-LGU-HELP, or use the live chat feature on our website. Our support team is available Monday-Friday, 8 AM to 5 PM. For urgent issues outside these hours, please call our emergency hotline.
+                </div>
+            </div>
+        </div>
+
+        <div class="help-section">
+            <h2>🛠️ Troubleshooting</h2>
+            
+            <h3>Common Issues and Solutions</h3>
+            
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFAQ(this)">
+                    I can't log in to my account
+                    <span>+</span>
+                </div>
+                <div class="faq-answer">
+                    First, ensure you're using the correct email and password. If you've forgotten your password, click "Forgot Password" to reset it. Clear your browser cache and cookies, then try again. If issues persist, contact our support team for assistance.
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFAQ(this)">
+                    Photos won't upload
+                    <span>+</span>
+                </div>
+                <div class="faq-answer">
+                    Check that your photos are in supported formats (JPG, PNG) and under 10MB in size. Ensure you have a stable internet connection. Try refreshing the page and attempting the upload again. If using a mobile device, make sure you have granted the app permission to access your photos.
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFAQ(this)">
+                    Location services aren't working
+                    <span>+</span>
+                </div>
+                <div class="faq-answer">
+                    Make sure location services are enabled in your device settings and browser permissions. Try refreshing the page and allowing location access when prompted. You can also manually enter the address if automatic location detection fails.
+                </div>
+            </div>
+        </div>
+
+        <div class="help-section">
+            <h2>📞 Contact Support</h2>
+            <p>Can't find what you're looking for? Our support team is here to help!</p>
+            
+            <div class="contact-options">
+                <div class="contact-option">
+                    <h4>📧 Email Support</h4>
+                    <p>Get help via email</p>
+                    <p>support@lgu.gov.ph</p>
+                    <a href="mailto:support@lgu.gov.ph" class="btn-help">Send Email</a>
+                </div>
+                <div class="contact-option">
+                    <h4>📞 Phone Support</h4>
+                    <p>Speak with our team</p>
+                    <p>1-800-LGU-HELP</p>
+                    <a href="tel:18005484357" class="btn-help">Call Now</a>
+                </div>
+                <div class="contact-option">
+                    <h4>💬 Live Chat</h4>
+                    <p>Chat with support agent</p>
+                    <p>Available 9 AM - 6 PM</p>
+                    <a href="#" class="btn-help" onclick="startChat()">Start Chat</a>
+                </div>
+                <div class="contact-option">
+                    <h4>🏢 Visit Office</h4>
+                    <p>In-person assistance</p>
+                    <p>City Hall, Main Street</p>
+                    <a href="#" class="btn-help">Get Directions</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="help-section">
+            <h2>📱 Mobile App Help</h2>
+            <p>Using our mobile app? Here are some app-specific tips:</p>
+            
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFAQ(this)">
+                    How do I download the mobile app?
+                    <span>+</span>
+                </div>
+                <div class="faq-answer">
+                    Our mobile app is available for both iOS and Android. Search for "LGU Citizen Portal" in the App Store or Google Play Store, or visit our website and click the download links. The app is free to download and use.
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFAQ(this)">
+                    Enable push notifications
+                    <span>+</span>
+                </div>
+                <div class="faq-answer">
+                    To receive updates about your reports, enable push notifications in your device settings. Go to Settings > Notifications > LGU Citizen Portal and toggle notifications on. This ensures you never miss important updates about your reported issues.
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-links">
+                <a href="privacy_policy.html">Privacy Policy</a>
+                <a href="about.html">About</a>
+                <a href="help.html">Help</a>
+            </div>
+            <p>&copy; 2025 LGU Citizen Portal - All Rights Reserved</p>
+        </div>
+    </footer>
+
+    <script>
+        function toggleFAQ(element) {
+            const answer = element.nextElementSibling;
+            const span = element.querySelector('span');
+            
+            answer.classList.toggle('show');
+            span.textContent = answer.classList.contains('show') ? '-' : '+';
+        }
+        
+        function searchHelp() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const faqItems = document.querySelectorAll('.faq-item');
+            
+            faqItems.forEach(item => {
+                const question = item.querySelector('.faq-question').textContent.toLowerCase();
+                const answer = item.querySelector('.faq-answer').textContent.toLowerCase();
+                
+                if (question.includes(searchTerm) || answer.includes(searchTerm)) {
+                    item.style.display = 'block';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+        
+        function startChat() {
+            alert('Live chat feature is coming soon! Please contact us via email or phone for immediate assistance.');
+        }
+        
+        // Search on Enter key
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchHelp();
+            }
+        });
+    </script>
+</body>
+</html>
