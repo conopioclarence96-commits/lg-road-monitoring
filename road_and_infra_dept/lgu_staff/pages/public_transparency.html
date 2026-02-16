@@ -384,6 +384,217 @@
             transform: translateY(-1px);
         }
 
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 0;
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-50px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+            color: white;
+            padding: 25px 30px;
+            border-radius: 20px 20px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 24px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .modal-close {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            font-size: 24px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .modal-close:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: rotate(90deg);
+        }
+
+        .modal-body {
+            padding: 30px;
+        }
+
+        .modal-section {
+            margin-bottom: 30px;
+        }
+
+        .modal-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .modal-section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1e3c72;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .modal-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .modal-card {
+            background: rgba(55, 98, 200, 0.05);
+            border: 1px solid rgba(55, 98, 200, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .modal-card:hover {
+            background: rgba(55, 98, 200, 0.08);
+            transform: translateY(-2px);
+        }
+
+        .modal-card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .modal-card-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #3762c8;
+            margin-bottom: 5px;
+        }
+
+        .modal-card-desc {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3762c8, #1e3c72);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .chart-container {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 15px 0;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+
+        .modal-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .modal-table th {
+            background: #f8f9fa;
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #dee2e6;
+        }
+
+        .modal-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .modal-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-active { background: #d4edda; color: #155724; }
+        .status-completed { background: #cce5ff; color: #004085; }
+        .status-pending { background: #fff3cd; color: #856404; }
+        .status-delayed { background: #f8d7da; color: #721c24; }
+
         @media (max-width: 1200px) {
             .public-info-grid {
                 grid-template-columns: 1fr;
@@ -703,6 +914,380 @@
                 </div>
             </div>
         </div>
+
+        <!-- Budget Details Modal -->
+        <div id="budgetModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title">
+                        <i class="fas fa-coins"></i>
+                        Budget Details
+                    </h2>
+                    <button class="modal-close" onclick="closeModal('budgetModal')">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="modal-section">
+                        <h3 class="modal-section-title">
+                            <i class="fas fa-chart-pie"></i>
+                            Budget Allocation Overview
+                        </h3>
+                        <div class="modal-grid">
+                            <div class="modal-card">
+                                <div class="modal-card-title">Annual Budget</div>
+                                <div class="modal-card-value">₱125,000,000</div>
+                                <div class="modal-card-desc">Total allocated for 2024</div>
+                            </div>
+                            <div class="modal-card">
+                                <div class="modal-card-title">Allocated</div>
+                                <div class="modal-card-value">₱111,250,000</div>
+                                <div class="modal-card-desc">89% of total budget</div>
+                            </div>
+                            <div class="modal-card">
+                                <div class="modal-card-title">Remaining</div>
+                                <div class="modal-card-value">₱13,750,000</div>
+                                <div class="modal-card-desc">11% available</div>
+                            </div>
+                            <div class="modal-card">
+                                <div class="modal-card-title">Spent</div>
+                                <div class="modal-card-value">₱87,450,000</div>
+                                <div class="modal-card-desc">69.96% utilized</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-section">
+                        <h3 class="modal-section-title">
+                            <i class="fas fa-list"></i>
+                            Departmental Breakdown
+                        </h3>
+                        <div class="table-container">
+                            <table class="modal-table">
+                                <thead>
+                                    <tr>
+                                        <th>Department</th>
+                                        <th>Allocated</th>
+                                        <th>Spent</th>
+                                        <th>Remaining</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Road Maintenance</td>
+                                        <td>₱45,000,000</td>
+                                        <td>₱38,250,000</td>
+                                        <td>₱6,750,000</td>
+                                        <td><span class="status-badge status-active">Active</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Infrastructure Development</td>
+                                        <td>₱35,000,000</td>
+                                        <td>₱28,900,000</td>
+                                        <td>₱6,100,000</td>
+                                        <td><span class="status-badge status-active">Active</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Bridge Construction</td>
+                                        <td>₱25,000,000</td>
+                                        <td>₱15,300,000</td>
+                                        <td>₱9,700,000</td>
+                                        <td><span class="status-badge status-pending">Pending</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Street Lighting</td>
+                                        <td>₱12,500,000</td>
+                                        <td>₱3,000,000</td>
+                                        <td>₱9,500,000</td>
+                                        <td><span class="status-badge status-pending">Pending</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Drainage Systems</td>
+                                        <td>₱7,500,000</td>
+                                        <td>₱0</td>
+                                        <td>₱7,500,000</td>
+                                        <td><span class="status-badge status-pending">Pending</span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="modal-section">
+                        <h3 class="modal-section-title">
+                            <i class="fas fa-chart-line"></i>
+                            Monthly Spending Trend
+                        </h3>
+                        <div class="chart-container">
+                            <canvas id="budgetChart" width="400" height="200"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Projects Modal -->
+        <div id="projectsModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title">
+                        <i class="fas fa-hard-hat"></i>
+                        All Projects
+                    </h2>
+                    <button class="modal-close" onclick="closeModal('projectsModal')">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="modal-section">
+                        <h3 class="modal-section-title">
+                            <i class="fas fa-tasks"></i>
+                            Project Overview
+                        </h3>
+                        <div class="modal-grid">
+                            <div class="modal-card">
+                                <div class="modal-card-title">Total Projects</div>
+                                <div class="modal-card-value">70</div>
+                                <div class="modal-card-desc">All infrastructure projects</div>
+                            </div>
+                            <div class="modal-card">
+                                <div class="modal-card-title">Active Projects</div>
+                                <div class="modal-card-value">47</div>
+                                <div class="modal-card-desc">Currently in progress</div>
+                            </div>
+                            <div class="modal-card">
+                                <div class="modal-card-title">Completed</div>
+                                <div class="modal-card-value">23</div>
+                                <div class="modal-card-desc">Successfully finished</div>
+                            </div>
+                            <div class="modal-card">
+                                <div class="modal-card-title">On Schedule</div>
+                                <div class="modal-card-value">85%</div>
+                                <div class="modal-card-desc">Meeting deadlines</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-section">
+                        <h3 class="modal-section-title">
+                            <i class="fas fa-list"></i>
+                            Active Projects List
+                        </h3>
+                        <div class="table-container">
+                            <table class="modal-table">
+                                <thead>
+                                    <tr>
+                                        <th>Project Name</th>
+                                        <th>Location</th>
+                                        <th>Budget</th>
+                                        <th>Progress</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Main Street Rehabilitation</td>
+                                        <td>Downtown District</td>
+                                        <td>₱8,500,000</td>
+                                        <td>
+                                            <div class="progress-bar">
+                                                <div class="progress-fill" style="width: 75%;"></div>
+                                            </div>
+                                            75%
+                                        </td>
+                                        <td><span class="status-badge status-active">Active</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Highway 101 Expansion</td>
+                                        <td>North Corridor</td>
+                                        <td>₱12,000,000</td>
+                                        <td>
+                                            <div class="progress-bar">
+                                                <div class="progress-fill" style="width: 45%;"></div>
+                                            </div>
+                                            45%
+                                        </td>
+                                        <td><span class="status-badge status-active">Active</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Bridge Repair Project</td>
+                                        <td>River Crossing</td>
+                                        <td>₱5,200,000</td>
+                                        <td>
+                                            <div class="progress-bar">
+                                                <div class="progress-fill" style="width: 90%;"></div>
+                                            </div>
+                                            90%
+                                        </td>
+                                        <td><span class="status-badge status-active">Active</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Street Lighting Upgrade</td>
+                                        <td>Residential Areas</td>
+                                        <td>₱3,800,000</td>
+                                        <td>
+                                            <div class="progress-bar">
+                                                <div class="progress-fill" style="width: 30%;"></div>
+                                            </div>
+                                            30%
+                                        </td>
+                                        <td><span class="status-badge status-delayed">Delayed</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Drainage System Installation</td>
+                                        <td>Flood-prone Areas</td>
+                                        <td>₱7,100,000</td>
+                                        <td>
+                                            <div class="progress-bar">
+                                                <div class="progress-fill" style="width: 60%;"></div>
+                                            </div>
+                                            60%
+                                        </td>
+                                        <td><span class="status-badge status-active">Active</span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="modal-section">
+                        <h3 class="modal-section-title">
+                            <i class="fas fa-calendar-alt"></i>
+                            Project Timeline
+                        </h3>
+                        <div class="chart-container">
+                            <canvas id="projectsChart" width="400" height="200"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analytics Modal -->
+        <div id="analyticsModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title">
+                        <i class="fas fa-tachometer-alt"></i>
+                        Performance Analytics
+                    </h2>
+                    <button class="modal-close" onclick="closeModal('analyticsModal')">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="modal-section">
+                        <h3 class="modal-section-title">
+                            <i class="fas fa-chart-bar"></i>
+                            Key Performance Indicators
+                        </h3>
+                        <div class="modal-grid">
+                            <div class="modal-card">
+                                <div class="modal-card-title">Service Delivery</div>
+                                <div class="modal-card-value">94%</div>
+                                <div class="modal-card-desc">Excellent performance</div>
+                            </div>
+                            <div class="modal-card">
+                                <div class="modal-card-title">Citizen Rating</div>
+                                <div class="modal-card-value">4.6/5.0</div>
+                                <div class="modal-card-desc">High satisfaction</div>
+                            </div>
+                            <div class="modal-card">
+                                <div class="modal-card-title">Response Time</div>
+                                <div class="modal-card-value">2.3 hrs</div>
+                                <div class="modal-card-desc">Average response</div>
+                            </div>
+                            <div class="modal-card">
+                                <div class="modal-card-title">Efficiency Score</div>
+                                <div class="modal-card-value">87%</div>
+                                <div class="modal-card-desc">Resource utilization</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-section">
+                        <h3 class="modal-section-title">
+                            <i class="fas fa-star"></i>
+                            Departmental Performance
+                        </h3>
+                        <div class="table-container">
+                            <table class="modal-table">
+                                <thead>
+                                    <tr>
+                                        <th>Department</th>
+                                        <th>Performance Score</th>
+                                        <th>Citizen Rating</th>
+                                        <th>Projects Completed</th>
+                                        <th>Trend</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Road Maintenance</td>
+                                        <td>
+                                            <div class="progress-bar">
+                                                <div class="progress-fill" style="width: 92%;"></div>
+                                            </div>
+                                            92%
+                                        </td>
+                                        <td>4.7/5.0</td>
+                                        <td>12</td>
+                                        <td><span style="color: #28a745;">↑ 5%</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Infrastructure Development</td>
+                                        <td>
+                                            <div class="progress-bar">
+                                                <div class="progress-fill" style="width: 88%;"></div>
+                                            </div>
+                                            88%
+                                        </td>
+                                        <td>4.5/5.0</td>
+                                        <td>8</td>
+                                        <td><span style="color: #28a745;">↑ 3%</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Bridge Construction</td>
+                                        <td>
+                                            <div class="progress-bar">
+                                                <div class="progress-fill" style="width: 95%;"></div>
+                                            </div>
+                                            95%
+                                        </td>
+                                        <td>4.8/5.0</td>
+                                        <td>3</td>
+                                        <td><span style="color: #28a745;">↑ 8%</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Street Lighting</td>
+                                        <td>
+                                            <div class="progress-bar">
+                                                <div class="progress-fill" style="width: 78%;"></div>
+                                            </div>
+                                            78%
+                                        </td>
+                                        <td>4.2/5.0</td>
+                                        <td>0</td>
+                                        <td><span style="color: #dc3545;">↓ 2%</span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="modal-section">
+                        <h3 class="modal-section-title">
+                            <i class="fas fa-chart-line"></i>
+                            Monthly Performance Trend
+                        </h3>
+                        <div class="chart-container">
+                            <canvas id="analyticsChart" width="400" height="200"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -724,12 +1309,164 @@
             });
         });
 
-        // Info action buttons
+        // Modal functions
+        function openModal(modalId) {
+            document.getElementById(modalId).classList.add('show');
+            document.body.style.overflow = 'hidden';
+            
+            // Initialize charts when modal opens
+            if (modalId === 'budgetModal') {
+                initBudgetChart();
+            } else if (modalId === 'projectsModal') {
+                initProjectsChart();
+            } else if (modalId === 'analyticsModal') {
+                initAnalyticsChart();
+            }
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('show');
+            document.body.style.overflow = 'auto';
+        }
+
+        // Close modal when clicking outside
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeModal(this.id);
+                }
+            });
+        });
+
+        // Close modal with Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.modal.show').forEach(modal => {
+                    closeModal(modal.id);
+                });
+            }
+        });
+
+        // Chart initialization functions
+        function initBudgetChart() {
+            const ctx = document.getElementById('budgetChart');
+            if (!ctx) return;
+            
+            new Chart(ctx.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                    datasets: [{
+                        label: 'Monthly Spending',
+                        data: [12000000, 14500000, 13800000, 15200000, 14800000, 16500000],
+                        borderColor: '#3762c8',
+                        backgroundColor: 'rgba(55, 98, 200, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '₱' + (value / 1000000).toFixed(1) + 'M';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function initProjectsChart() {
+            const ctx = document.getElementById('projectsChart');
+            if (!ctx) return;
+            
+            new Chart(ctx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: ['Q1', 'Q2', 'Q3', 'Q4'],
+                    datasets: [
+                        {
+                            label: 'Completed',
+                            data: [5, 8, 6, 4],
+                            backgroundColor: '#28a745'
+                        },
+                        {
+                            label: 'In Progress',
+                            data: [12, 15, 13, 7],
+                            backgroundColor: '#3762c8'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        function initAnalyticsChart() {
+            const ctx = document.getElementById('analyticsChart');
+            if (!ctx) return;
+            
+            new Chart(ctx.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                    datasets: [
+                        {
+                            label: 'Service Delivery %',
+                            data: [88, 90, 92, 91, 93, 94],
+                            borderColor: '#3762c8',
+                            backgroundColor: 'rgba(55, 98, 200, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: 'Citizen Rating',
+                            data: [4.2, 4.3, 4.4, 4.5, 4.5, 4.6],
+                            borderColor: '#28a745',
+                            backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        // Info action buttons - open modals
         document.querySelectorAll('.btn-info').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const action = this.closest('.info-card').querySelector('.info-title').textContent;
-                console.log('Info action:', action);
-                alert(`Viewing: ${action}`);
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                const card = this.closest('.info-card');
+                const title = card.querySelector('.info-title').textContent;
+                
+                if (title.includes('Budget')) {
+                    openModal('budgetModal');
+                } else if (title.includes('Project')) {
+                    openModal('projectsModal');
+                } else if (title.includes('Performance')) {
+                    openModal('analyticsModal');
+                }
             });
         });
 
