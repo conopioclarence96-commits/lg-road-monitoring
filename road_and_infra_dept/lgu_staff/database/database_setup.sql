@@ -15,12 +15,16 @@ SET @log_file = 'database_setup.log';
 -- ========================================
 
 -- Create database if it doesn't exist
-CREATE DATABASE IF NOT EXISTS @db_name 
-CHARACTER SET utf8mb4 
-COLLATE utf8mb4_unicode_ci;
+SET @sql = CONCAT('CREATE DATABASE IF NOT EXISTS ', @db_name, ' CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- Use the database
-USE @db_name;
+SET @sql = CONCAT('USE ', @db_name);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- Set up database parameters
 SET GLOBAL innodb_file_per_table = ON;
@@ -37,15 +41,30 @@ CREATE USER IF NOT EXISTS 'lgu_app'@'localhost' IDENTIFIED BY 'SecurePassword123
 CREATE USER IF NOT EXISTS 'lgu_app'@'%' IDENTIFIED BY 'SecurePassword123!';
 
 -- Grant appropriate permissions
-GRANT SELECT, INSERT, UPDATE, DELETE ON @db_name.* TO 'lgu_app'@'localhost';
-GRANT SELECT, INSERT, UPDATE, DELETE ON @db_name.* TO 'lgu_app'@'%';
+SET @sql = CONCAT('GRANT SELECT, INSERT, UPDATE, DELETE ON ', @db_name, '.* TO \'lgu_app\'@\'localhost\'');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = CONCAT('GRANT SELECT, INSERT, UPDATE, DELETE ON ', @db_name, '.* TO \'lgu_app\'@\'%\'');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- Create read-only user for reporting
 CREATE USER IF NOT EXISTS 'lgu_report'@'localhost' IDENTIFIED BY 'ReportPassword123!';
 CREATE USER IF NOT EXISTS 'lgu_report'@'%' IDENTIFIED BY 'ReportPassword123!';
 
-GRANT SELECT ON @db_name.* TO 'lgu_report'@'localhost';
-GRANT SELECT ON @db_name.* TO 'lgu_report'@'%';
+-- Grant read-only permissions
+SET @sql = CONCAT('GRANT SELECT ON ', @db_name, '.* TO \'lgu_report\'@\'localhost\'');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = CONCAT('GRANT SELECT ON ', @db_name, '.* TO \'lgu_report\'@\'%\'');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- ========================================
 -- 3. TABLE CREATION
@@ -394,6 +413,8 @@ BEGIN
     SET backup_file = CONCAT(@backup_dir, 'lgu_road_infrastructure_', DATE_FORMAT(NOW(), '%Y%m%d_%H%i%s'), '.sql');
     
     SET @sql = CONCAT('mysqldump -u root -p ', @db_name, ' > ', backup_file);
+    -- Note: This shell command won't work within MySQL stored procedure
+    -- In production, use external backup scripts
     
     -- Log the backup attempt
     INSERT INTO activity_logs (
@@ -429,7 +450,7 @@ SELECT
     TABLE_NAME as table_name,
     TABLE_ROWS as row_count
 FROM information_schema.TABLES 
-WHERE TABLE_SCHEMA = @db_name
+WHERE TABLE_SCHEMA = DATABASE()
 ORDER BY TABLE_NAME;
 
 -- Show user accounts
