@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LGU Citizen Portal</title>
+    <link rel="stylesheet" href="styles/style.css" />
+    <link rel="stylesheet" href="styles/login.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background: url("assets/img/cityhall.jpeg") center/cover no-repeat fixed;
+            position: relative;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            backdrop-filter: blur(6px);
+            background: rgba(0, 0, 0, 0.35);
+            z-index: 0;
+        }
+
+        .landing-container {
+            position: relative;
+            z-index: 1;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 40px 20px;
+        }
+
+        .main-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 16px;
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .logo-section {
+            margin-bottom: 30px;
+        }
+
+        .logo-section img {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            border-radius: 12px;
+        }
+
+        .main-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: #1e3c72;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 40px;
+            line-height: 1.5;
+        }
+
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-top: 30px;
+        }
+
+        .btn-large {
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+            color: white;
+            padding: 18px 40px;
+            border: none;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            box-shadow: 0 8px 25px rgba(55, 98, 200, 0.3);
+            width: 100%;
+            max-width: 300px;
+        }
+
+        .btn-large:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 35px rgba(55, 98, 200, 0.4);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: #3762c8;
+            padding: 18px 40px;
+            border: 2px solid #3762c8;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            width: 100%;
+            max-width: 300px;
+        }
+
+        .btn-outline:hover {
+            background: #3762c8;
+            color: white;
+            transform: translateY(-3px);
+        }
+
+        .features-row {
+            display: flex;
+            gap: 20px;
+            margin-top: 40px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .feature-badge {
+            background: rgba(55, 98, 200, 0.1);
+            color: #3762c8;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            border: 1px solid rgba(55, 98, 200, 0.2);
+        }
+
+        .nav {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+            box-shadow: 0 4px 25px rgba(0,0,0,0.25);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            padding: 18px 60px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-logo {
+            color: white;
+            font-size: 20px;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 30px;
+        }
+
+        .nav-links a {
+            color: white;
+            text-decoration: none;
+            opacity: 0.8;
+            transition: opacity 0.2s;
+            font-weight: 500;
+        }
+
+        .nav-links a:hover {
+            opacity: 1;
+        }
+
+        .footer {
+            background: rgba(0, 0, 0, 0.3);
+            color: white;
+            text-align: center;
+            padding: 30px 20px;
+            backdrop-filter: blur(10px);
+            position: relative;
+            z-index: 1;
+        }
+
+        .footer-links {
+            margin-bottom: 20px;
+        }
+
+        .footer-links a {
+            color: white;
+            text-decoration: none;
+            margin: 0 15px;
+            opacity: 0.8;
+            transition: opacity 0.2s;
+        }
+
+        .footer-links a:hover {
+            opacity: 1;
+        }
+
+        @media (max-width: 768px) {
+            .landing-container {
+                padding: 20px;
+            }
+            
+            .main-card {
+                padding: 30px 20px;
+            }
+            
+            .main-title {
+                font-size: 28px;
+            }
+            
+            .nav {
+                padding: 15px 20px;
+            }
+            
+            .nav-links {
+                gap: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="nav">
+        <div class="nav-logo">🏛️ LGU Citizen Portal</div>
+        <div class="nav-links">
+            <a href="#about">About</a>
+            <a href="#services">Services</a>
+            <a href="login.html">Login</a>
+        </div>
+    </header>
+
+    <div class="landing-container">
+        <div class="main-card">
+            <div class="logo-section">
+                <img src="assets/img/logocityhall.png" alt="LGU Logo" />
+            </div>
+            
+            <h1 class="main-title">LGU Citizen Portal</h1>
+            <p class="subtitle">Road and Transportation Infrastructure Monitoring System</p>
+            
+            <div class="button-group">
+                <a href="login.html" class="btn-large">Sign In</a>
+                <a href="#" class="btn-outline" onclick="showRegister()">Create Account</a>
+            </div>
+            
+            <div class="features-row">
+                <span class="feature-badge">📊 Real-time Monitoring</span>
+                <span class="feature-badge">🚧 Infrastructure Tracking</span>
+                <span class="feature-badge">📱 Mobile Access</span>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div class="footer-links">
+            <a href="footer/privacy_policy.html">Privacy Policy</a>
+            <a href="footer/about.html">About</a>
+            <a href="footer/help.html">Help</a>
+        </div>
+        <div class="footer-logo">
+            © 2025 LGU Citizen Portal · All Rights Reserved
+        </div>
+    </footer>
+
+    <script>
+        function showRegister() {
+            // This would typically open registration modal or navigate to registration page
+            alert('Registration feature coming soon! For now, please contact your LGU office to create an account.');
+        }
+
+        // Smooth scrolling for navigation links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Add scroll effect to navigation
+        window.addEventListener('scroll', function() {
+            const nav = document.querySelector('.nav');
+            if (window.scrollY > 50) {
+                nav.style.background = 'rgba(0, 0, 0, 0.4)';
+            } else {
+                nav.style.background = 'rgba(255, 255, 255, 0.15)';
+            }
+        });
+    </script>
+</body>
+</html>
