@@ -350,15 +350,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_form'])) {
       </div>
     </footer>
     
-    <!-- Demo Accounts Info -->
-    <div style="position: fixed; bottom: 20px; right: 20px; background: rgba(0,0,0,0.8); color: white; padding: 15px; border-radius: 8px; font-size: 12px; z-index: 1000;">
-        <strong><i class="fas fa-info-circle"></i> Demo Accounts:</strong><br>
-        Admin: admin@lgu.gov.ph / password<br>
-        Officer: jsantos@lgu.gov.ph / password<br>
-        Staff: mreyes@lgu.gov.ph / password<br><br>
-        <a href="login.php?logout=1" style="color: #4CAF50; text-decoration: underline;">🔄 Clear Session</a>
-    </div>
-
     <script>
       function showPanel(panel) {
         const wrapper = document.querySelector(".wrapper");
