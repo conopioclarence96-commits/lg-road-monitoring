@@ -98,6 +98,161 @@
             box-shadow: 0 6px 20px rgba(108, 117, 125, 0.3);
         }
 
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal.active {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+            animation: slideIn 0.3s ease;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        @keyframes slideIn {
+            from { 
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to { 
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .modal-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #1e3c72;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .modal-close:hover {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .modal-body {
+            color: #555;
+            line-height: 1.6;
+        }
+
+        .modal-section {
+            margin-bottom: 25px;
+        }
+
+        .modal-section h3 {
+            color: #1e3c72;
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+        .modal-meta {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 15px;
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        .btn-modal {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-download {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+        }
+
+        .btn-download:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.3);
+        }
+
+        .btn-share {
+            background: linear-gradient(135deg, #17a2b8, #138496);
+            color: white;
+        }
+
+        .btn-share:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(23, 162, 184, 0.3);
+        }
+
         .transparency-stats {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -1294,10 +1449,118 @@
         // Publication card interactions
         document.querySelectorAll('.publication-card').forEach(card => {
             card.addEventListener('click', function() {
-                const title = this.querySelector('.publication-title').textContent;
-                console.log('Opening publication:', title);
-                alert(`Opening: ${title}`);
+                openModal(this);
             });
+        });
+
+        // Modal functions
+        function openModal(card) {
+            const title = card.querySelector('.publication-title').textContent;
+            const type = card.querySelector('.publication-type').textContent;
+            const date = card.querySelector('.publication-meta span:first-child').textContent.trim();
+            const views = card.querySelector('.publication-meta span:last-child').textContent.trim();
+            const description = card.querySelector('.publication-description').textContent;
+
+            // Update modal content
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalType').textContent = type;
+            document.getElementById('modalDate').textContent = date;
+            document.getElementById('modalViews').textContent = views;
+            document.getElementById('modalSummary').textContent = description;
+
+            // Update content based on publication type
+            updateModalContent(title, type);
+
+            // Show modal
+            document.getElementById('publicationModal').classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal() {
+            document.getElementById('publicationModal').classList.remove('active');
+            document.body.style.overflow = 'auto';
+        }
+
+        function updateModalContent(title, type) {
+            const findingsList = document.getElementById('modalFindings');
+            const recommendations = document.getElementById('modalRecommendations');
+
+            // Update content based on publication type
+            switch(type) {
+                case 'Annual Report':
+                    findingsList.innerHTML = `
+                        <li>Infrastructure development increased by 15% compared to previous year</li>
+                        <li>Total budget allocation: ₱2.5 billion across all departments</li>
+                        <li>47 major projects completed, 23 ongoing</li>
+                        <li>Service delivery efficiency improved by 12%</li>
+                        <li>Citizen satisfaction rating reached 4.6/5</li>
+                    `;
+                    recommendations.textContent = 'Continue focusing on infrastructure modernization and digital transformation initiatives. Increase budget allocation for road maintenance and public transportation systems.';
+                    break;
+                case 'Budget Report':
+                    findingsList.innerHTML = `
+                        <li>Q1 budget allocation: ₱625 million</li>
+                        <li>Road maintenance: 35% of total budget</li>
+                        <li>Infrastructure projects: 45% allocation</li>
+                        <li>Administrative costs: 20% allocation</li>
+                        <li>Emergency fund: 5% reserve</li>
+                    `;
+                    recommendations.textContent = 'Optimize budget allocation by increasing infrastructure project funding and reducing administrative overhead through digital transformation.';
+                    break;
+                case 'Performance Report':
+                    findingsList.innerHTML = `
+                        <li>Service delivery efficiency: 94%</li>
+                        <li>Average response time: 2.3 days</li>
+                        <li>Project completion rate: 89%</li>
+                        <li>Citizen satisfaction: 4.6/5 stars</li>
+                        <li>Staff productivity: 87% efficiency</li>
+                    `;
+                    recommendations.textContent = 'Implement performance improvement programs and enhance citizen engagement strategies to maintain high service delivery standards.';
+                    break;
+                case 'Policy Document':
+                    findingsList.innerHTML = `
+                        <li>5-year infrastructure development plan approved</li>
+                        <li>Smart city integration initiatives prioritized</li>
+                        <li>Sustainable infrastructure guidelines established</li>
+                        <li>Public-private partnership framework developed</li>
+                        <li>Digital transformation roadmap finalized</li>
+                    `;
+                    recommendations.textContent = 'Accelerate implementation of smart city technologies and strengthen public-private partnerships for infrastructure development.';
+                    break;
+                default:
+                    findingsList.innerHTML = `
+                        <li>Comprehensive analysis completed</li>
+                        <li>Key metrics identified and tracked</li>
+                        <li>Performance benchmarks established</li>
+                    `;
+                    recommendations.textContent = 'Continue monitoring and improving based on data-driven insights.';
+            }
+        }
+
+        function downloadDocument() {
+            const title = document.getElementById('modalTitle').textContent;
+            console.log('Downloading:', title);
+            alert(`Downloading: ${title}\n\nThis would initiate the PDF download for this publication.`);
+        }
+
+        function shareDocument() {
+            const title = document.getElementById('modalTitle').textContent;
+            console.log('Sharing:', title);
+            alert(`Sharing: ${title}\n\nThis would open a share dialog with options to share via email, social media, or generate a shareable link.`);
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('publicationModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+
+        // Close modal with Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
         });
 
         // Contact action buttons
@@ -1479,5 +1742,66 @@
             });
         });
     </script>
+
+    <!-- Modal Structure -->
+    <div id="publicationModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modalTitle">Publication Title</h2>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-meta">
+                    <div class="meta-item">
+                        <i class="fas fa-calendar"></i>
+                        <span id="modalDate">Date</span>
+                    </div>
+                    <div class="meta-item">
+                        <i class="fas fa-eye"></i>
+                        <span id="modalViews">Views</span>
+                    </div>
+                    <div class="meta-item">
+                        <i class="fas fa-tag"></i>
+                        <span id="modalType">Type</span>
+                    </div>
+                </div>
+
+                <div class="modal-section">
+                    <h3>Executive Summary</h3>
+                    <p id="modalSummary">This publication provides comprehensive insights into infrastructure development and management initiatives.</p>
+                </div>
+
+                <div class="modal-section">
+                    <h3>Key Findings</h3>
+                    <ul id="modalFindings">
+                        <li>Infrastructure development increased by 15% compared to previous year</li>
+                        <li>Budget allocation optimized for maximum impact</li>
+                        <li>Service delivery metrics show significant improvement</li>
+                    </ul>
+                </div>
+
+                <div class="modal-section">
+                    <h3>Recommendations</h3>
+                    <p id="modalRecommendations">Based on the analysis, we recommend continued investment in infrastructure development and improved service delivery mechanisms.</p>
+                </div>
+
+                <div class="modal-section">
+                    <h3>Download Options</h3>
+                    <p>This document is available in multiple formats for your convenience.</p>
+                </div>
+
+                <div class="modal-actions">
+                    <button class="btn-modal btn-download" onclick="downloadDocument()">
+                        <i class="fas fa-download"></i>
+                        Download PDF
+                    </button>
+                    <button class="btn-modal btn-share" onclick="shareDocument()">
+                        <i class="fas fa-share"></i>
+                        Share
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
