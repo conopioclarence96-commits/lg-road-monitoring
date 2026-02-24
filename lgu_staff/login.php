@@ -8,6 +8,20 @@ session_start();
 require_once 'includes/config.php';
 require_once 'includes/functions.php';
 
+// Dynamic base path detection for live server
+$basePath = '';
+$scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+$requestUri = $_SERVER['REQUEST_URI'] ?? '';
+
+// Detect if we're in a subdirectory
+if (strpos($scriptName, '/lgu_staff/') !== false) {
+    $basePath = '../';
+} elseif (strpos($scriptName, '/public/') !== false) {
+    $basePath = '../';
+} elseif (strpos($requestUri, '/lgu-portal/') !== false) {
+    $basePath = '';
+}
+
 // Check if user is already logged in
 if (isset($_SESSION['user_id'])) {
     // Optional: Add logout link for debugging
@@ -20,7 +34,13 @@ if (isset($_SESSION['user_id'])) {
     header('Cache-Control: no-cache, no-store, must-revalidate');
     header('Pragma: no-cache');
     header('Expires: 0');
-    header('Location: pages/lgu_staff_dashboard.php');
+    
+    // Dynamic redirect based on current path
+    if (file_exists('pages/lgu_staff_dashboard.php')) {
+        header('Location: ' . $basePath . 'pages/lgu_staff_dashboard.php');
+    } else {
+        header('Location: ' . $basePath . 'lgu_staff_dashboard.php');
+    }
     exit();
 }
 
@@ -260,17 +280,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                         switch ($user['role']) {
                             case 'system_admin':
                                 // Redirect to Admin Dashboard
-                                $redirectUrl = 'pages/admin_dashboard.php';
+                                $redirectUrl = $basePath . 'pages/admin_dashboard.php';
                                 break;
                             case 'lgu_staff':
                                 // Redirect to LGU Staff Dashboard
-                                $redirectUrl = 'pages/lgu_staff_dashboard.php';
+                                $redirectUrl = $basePath . 'pages/lgu_staff_dashboard.php';
                                 break;
                             case 'citizen':
-                                $redirectUrl = 'pages/lgu_staff_dashboard.php';
+                                $redirectUrl = $basePath . 'pages/lgu_staff_dashboard.php';
                                 break;
                             default:
-                                $redirectUrl = 'pages/lgu_staff_dashboard.php';
+                                $redirectUrl = $basePath . 'pages/lgu_staff_dashboard.php';
                         }
                         
                         // Redirect to appropriate dashboard
@@ -306,8 +326,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LGU | Login</title>
-    <link rel="stylesheet" href="../styles/style.css" />
-    <link rel="stylesheet" href="../styles/login.css" />
+    <link rel="stylesheet" href="<?php echo $basePath; ?>../styles/style.css" />
+    <link rel="stylesheet" href="<?php echo $basePath; ?>../styles/login.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -325,7 +345,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
         <!-- LOGIN -->
         <div class="panel login">
           <div class="card">
-            <img src="../assets/img/logocityhall.png" class="icon-top" />
+            <img src="<?php echo $basePath; ?>../assets/img/logocityhall.png" class="icon-top" />
             <h2 class="title">LGU Login</h2>
             <p class="subtitle">
               Road and Transportation Infrastructure Monitoring
@@ -485,9 +505,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
 
     <footer class="footer">
       <div class="footer-links">
-        <a href="../footer/privacy_policy.html">Privacy Policy</a>
-        <a href="../footer/about.html">About</a>
-        <a href="../footer/help.html">Help</a>
+        <a href="<?php echo $basePath; ?>../footer/privacy_policy.html">Privacy Policy</a>
+        <a href="<?php echo $basePath; ?>../footer/about.html">About</a>
+        <a href="<?php echo $basePath; ?>../footer/help.html">Help</a>
       </div>
 
       <div class="footer-logo">
