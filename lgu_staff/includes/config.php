@@ -93,14 +93,26 @@ if ($server_name === 'localhost' || $server_name === '127.0.0.1' || strpos($serv
     }
 }
 
-// Create database connection
-$conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+// Use the working connection or create final connection with constants
+if ($conn && !$conn->connect_error) {
+    // We already have a working connection from the credential testing
+    // No need to create a new one
+} else {
+    // Create database connection with defined constants (may fail gracefully)
+    try {
+        $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+    } catch (Exception $e) {
+        // Connection failed, but don't crash
+        $conn = null;
+    }
+}
 
 // Check connection
-if ($conn->connect_error) {
+if ($conn === null || $conn->connect_error) {
     // Show user-friendly error on live server, detailed error on localhost
     if ($server_name === 'localhost' || strpos($server_name, '.local') !== false) {
-        die("Connection failed: " . $conn->connect_error);
+        $error_msg = $conn ? $conn->connect_error : "Unable to establish database connection";
+        die("Connection failed: " . $error_msg);
     } else {
         die("Database connection failed. Please contact administrator.");
     }
