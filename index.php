@@ -1,50 +1,24 @@
 <?php
 /**
- * Public landing page – no login required.
- * This is the main domain root file that includes the home page
+ * Main domain root file - redirects to appropriate page
  */
 
-// Session settings
-ini_set('session.cookie_httponly', 1);
-ini_set('session.use_only_cookies', 1);
-ini_set('session.cookie_secure', 0);
-
-session_start();
-
-// Dynamic base path detection
-$basePath = '';
-$scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
-$requestUri = $_SERVER['REQUEST_URI'] ?? '';
-
-// Detect if we're in a subdirectory
-if (strpos($scriptName, '/lgu_staff/') !== false) {
-    $basePath = '../';
-} elseif (strpos($scriptName, '/public/') !== false) {
-    $basePath = '../';
-} elseif (strpos($requestUri, '/lgu-portal/') !== false) {
-    $basePath = '';
+// Check if we should show the home page
+$showHome = true;
+if (isset($_GET['login']) || isset($_GET['register']) || isset($_GET['public'])) {
+    $showHome = false;
 }
 
-// Check if we should include the home page directly
-$homePagePath = __DIR__ . '/lgu-portal/public/login.php';
-if (file_exists($homePagePath) && !isset($_GET['login']) && !isset($_GET['register']) && !isset($_GET['public'])) {
-    // Directly include the home page (no redirect)
-    require_once $homePagePath;
-    exit();
+// If showing home page, include it directly
+if ($showHome) {
+    $homePagePath = __DIR__ . '/lgu-portal/public/login.php';
+    if (file_exists($homePagePath)) {
+        require_once $homePagePath;
+        exit();
+    }
 }
 
-// Try to include database files with error handling
-$database_available = false;
-$conn = null;
-
-try {
-    require_once 'lgu_staff/includes/config.php';
-    require_once 'lgu_staff/includes/functions.php';
-    $database_available = true;
-} catch (Exception $e) {
-    // Database not available, continue without it
-    $database_available = false;
-}
+// Otherwise, continue with the original landing page
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -200,7 +174,7 @@ try {
         </section>
 
         <div class="staff-login-link">
-            <a href="<?php echo $basePath; ?>lgu_staff/login.php">LGU Staff Login</a>
+            <a href="lgu_staff/login.php">LGU Staff Login</a>
         </div>
     </div>
 </body>
