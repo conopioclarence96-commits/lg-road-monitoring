@@ -1,10 +1,5 @@
 <?php
-// Session settings (must be set before session_start)
-ini_set('session.cookie_httponly', 1);
-ini_set('session.use_only_cookies', 1);
-ini_set('session.cookie_secure', 0); // Set to 1 if using HTTPS
-
-session_start();
+require_once '../includes/session_config.php';
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
@@ -331,13 +326,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         .verification-header {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(15px);
+            background: #ffffff;
             padding: 25px 30px;
             border-radius: 16px;
             margin-bottom: 25px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid #e0e0e0;
         }
 
         .header-content {
@@ -393,12 +387,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         .workflow-card {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(15px);
+            background: #ffffff;
             border-radius: 16px;
             padding: 25px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid #e0e0e0;
         }
 
         .workflow-content {
@@ -803,14 +796,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             display: flex;
             gap: 10px;
             margin-bottom: 20px;
-            border-bottom: 2px solid rgba(55, 98, 200, 0.1);
+            padding: 15px 20px;
+            background: #ffffff;
+            border-radius: 16px;
+            border: 1px solid #e0e0e0;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
         }
 
         .filter-tab {
             padding: 10px 20px;
             background: transparent;
             border: none;
-            color: #666;
+            color: #1e3c72;
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
@@ -825,7 +822,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         .filter-tab.active {
             color: #3762c8;
-            border-bottom-color: #3762c8;
+            border-bottom: 3px solid #3762c8;
+            font-weight: 600;
+            background: rgba(55, 98, 200, 0.05);
+            border-radius: 8px 8px 0 0;
         }
 
         .notification {
@@ -1287,6 +1287,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <button class="filter-tab" onclick="showPending()">Pending Review</button>
             <button class="filter-tab" onclick="showApproved()">Approved</button>
             <button class="filter-tab" onclick="showRejected()">Rejected</button>
+            <button class="filter-tab" onclick="showStaffReports()">LGU Staff</button>
+            <button class="filter-tab" onclick="showCIMReports()">CIM Reports</button>
         </div>
 
         <!-- Workflow Container -->
@@ -1314,7 +1316,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             elseif ($report['status'] === 'pending') $status_class = 'pending';
                             elseif ($report['status'] === 'in-progress') $status_class = 'in-progress';
                         ?>
-                            <div class="verification-item" data-status="<?php echo htmlspecialchars($report['status']); ?>" data-source="<?php echo htmlspecialchars($report['source']); ?>">
+                            <div class="verification-item" data-status="<?php echo htmlspecialchars($report['status']); ?>" data-source="<?php echo htmlspecialchars($report['source']); ?>" data-created-by="<?php echo htmlspecialchars($report['created_by'] ?? ''); ?>" data-reporter-name="<?php echo htmlspecialchars($report['reporter_name'] ?? ''); ?>">
                                 <div class="verification-priority priority-<?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?>"></div>
                                 <div class="verification-icon">
                                     <i class="fas fa-<?php echo getReportIcon($report['report_type']); ?>"></i>
@@ -1752,6 +1754,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 }
             });
             document.getElementById('section-title').textContent = 'Rejected Reports';
+            document.getElementById('section-badge').textContent = count;
+        }
+
+        function showStaffReports() {
+            document.querySelectorAll('.filter-tab').forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+            const items = document.querySelectorAll('.verification-item');
+            let count = 0;
+            
+            items.forEach(item => {
+                if (item.dataset.createdBy && item.dataset.createdBy !== '0' && item.dataset.createdBy !== '') {
+                    item.style.display = 'flex';
+                    count++;
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+            document.getElementById('section-title').textContent = 'LGU Staff Reports';
+            document.getElementById('section-badge').textContent = count;
+        }
+
+        function showCIMReports() {
+            document.querySelectorAll('.filter-tab').forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+            const items = document.querySelectorAll('.verification-item');
+            let count = 0;
+            
+            items.forEach(item => {
+                if (item.dataset.reporterName && item.dataset.reporterName.toLowerCase().includes('cim')) {
+                    item.style.display = 'flex';
+                    count++;
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+            document.getElementById('section-title').textContent = 'CIM Reports';
+            document.getElementById('section-badge').textContent = count;
+        }
+
+        function showLGUOfficerReports() {
+            document.querySelectorAll('.filter-tab').forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+            const items = document.querySelectorAll('.verification-item');
+            let count = 0;
+            
+            items.forEach(item => {
+                if (item.dataset.reporterName && item.dataset.reporterName.toLowerCase().includes('officer')) {
+                    item.style.display = 'flex';
+                    count++;
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+            document.getElementById('section-title').textContent = 'LGU Officer Reports';
             document.getElementById('section-badge').textContent = count;
         }
 

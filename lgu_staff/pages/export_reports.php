@@ -1,4 +1,10 @@
 <?php
+// Session settings (must be set before session_start)
+ini_set('session.cookie_httponly', 1);
+ini_set('session.use_only_cookies', 1);
+ini_set('session.cookie_secure', 0); // Set to 1 if using HTTPS
+
+session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
@@ -16,9 +22,9 @@ function get_export_reports($status_filter, $type_filter) {
     
     $reports = [];
     
-    // Build queries
-    $transport_query = "SELECT id, title, description, location, priority, status, assigned_to, created_at, updated_at, 'transportation' as report_type FROM road_transportation_reports";
-    $maintenance_query = "SELECT id, title, description, location, priority, status, maintenance_team as assigned_to, created_at, updated_at, 'maintenance' as report_type FROM road_maintenance_reports";
+    // Build queries with source/receiver information
+    $transport_query = "SELECT id, title, description, location, priority, status, assigned_to, created_at, updated_at, 'transportation' as report_type, 'LGU System' as source, 'Internal' as receiver FROM road_transportation_reports";
+    $maintenance_query = "SELECT id, title, description, location, priority, status, maintenance_team as assigned_to, created_at, updated_at, 'maintenance' as report_type, 'LGU System' as source, 'Internal' as receiver FROM road_maintenance_reports";
     
     $where_conditions = [];
     $params = [];
@@ -72,7 +78,7 @@ function get_export_reports($status_filter, $type_filter) {
 $reports = get_export_reports($status_filter, $type_filter);
 
 // Prepare CSV data
-$headers = ['ID', 'Title', 'Description', 'Location', 'Type', 'Priority', 'Status', 'Assigned To', 'Created At', 'Updated At'];
+$headers = ['ID', 'Title', 'Description', 'Location', 'Type', 'Priority', 'Status', 'Assigned To', 'Source', 'Receiver', 'Created At', 'Updated At'];
 $csv_data = [];
 
 foreach ($reports as $report) {
@@ -85,6 +91,8 @@ foreach ($reports as $report) {
         ucfirst($report['priority']),
         ucfirst(str_replace('_', ' ', $report['status'])),
         $report['assigned_to'] ?? 'Not assigned',
+        $report['source'],
+        $report['receiver'],
         format_date($report['created_at']),
         $report['updated_at'] ? format_date($report['updated_at']) : 'Not updated'
     ];
