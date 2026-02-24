@@ -15,7 +15,7 @@ require_once 'functions.php';
 
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
-    header('Location: ../login.php');
+    header('Location: /lg-road-monitoring/lgu_staff/login.php');
     exit();
 }
 
@@ -44,13 +44,13 @@ function getNavigationItems($user_role) {
     $base_items = [
         'main' => [
             [
-                'href' => '../pages/lgu_staff_dashboard.php',
+                'href' => '/lg-road-monitoring/lgu_staff/pages/lgu_staff_dashboard.php',
                 'icon' => 'speedometer2',
                 'title' => 'Staff Dashboard',
                 'roles' => ['lgu_staff', 'supervisor', 'citizen']
             ],
             [
-                'href' => '../pages/admin_dashboard.php',
+                'href' => '/lg-road-monitoring/lgu_staff/pages/admin_dashboard.php',
                 'icon' => 'speedometer2',
                 'title' => 'Admin Dashboard',
                 'roles' => ['system_admin']
@@ -58,13 +58,13 @@ function getNavigationItems($user_role) {
         ],
         'monitoring' => [
             [
-                'href' => '../pages/road_transportation_monitoring.php',
+                'href' => '/lg-road-monitoring/lgu_staff/pages/road_transportation_monitoring.php',
                 'icon' => 'map',
                 'title' => 'Road and Transportation Monitoring',
                 'roles' => ['lgu_staff', 'supervisor', 'citizen']
             ],
             [
-                'href' => '../pages/verification_monitoring.php',
+                'href' => '/lg-road-monitoring/lgu_staff/pages/verification_monitoring.php',
                 'icon' => 'shield-check',
                 'title' => 'Verification & Monitoring Reports',
                 'roles' => ['lgu_staff', 'supervisor', 'citizen']
@@ -72,7 +72,7 @@ function getNavigationItems($user_role) {
         ],
         'transparency' => [
             [
-                'href' => '../pages/public_transparency.php',
+                'href' => '/lg-road-monitoring/lgu_staff/pages/public_transparency.php',
                 'icon' => 'eye',
                 'title' => 'Public Transparency',
                 'roles' => ['lgu_staff', 'citizen']
@@ -85,13 +85,13 @@ function getNavigationItems($user_role) {
         return [
             'main' => [
                 [
-                    'href' => '../pages/admin_dashboard.php',
+                    'href' => '/lg-road-monitoring/lgu_staff/pages/admin_dashboard.php',
                     'icon' => 'speedometer2',
                     'title' => 'Accounts Approval',
                     'roles' => ['system_admin']
                 ],
                 [
-                    'href' => '../pages/manage_accounts.php',
+                    'href' => '/lg-road-monitoring/lgu_staff/pages/manage_accounts.php',
                     'icon' => 'users',
                     'title' => 'Manage Accounts',
                     'roles' => ['system_admin']
@@ -366,27 +366,27 @@ $notification_count = getNotificationCount();
                 <div class="nav-section">
                     <div class="nav-section-title">Main</div>
                     <ul style="list-style: none;">
-                        <li><a href="../pages/lgu_staff_dashboard.php" class="nav-link" target="_parent">📊 Staff Dashboard</a></li>
+                        <li><a href="/lg-road-monitoring/lgu_staff/pages/lgu_staff_dashboard.php" class="nav-link" target="_parent">📊 Staff Dashboard</a></li>
                     </ul>
                 </div>
                 <div class="nav-section">
                     <div class="nav-section-title">Monitoring</div>
                     <ul style="list-style: none;">
-                        <li><a href="../pages/road_transportation_monitoring.php" class="nav-link" target="_parent">🗺️ Road and Transportation Monitoring</a></li>
-                        <li><a href="../pages/verification_monitoring.php" class="nav-link" target="_parent">✅ Verification & Monitoring Reports</a></li>
+                        <li><a href="/lg-road-monitoring/lgu_staff/pages/road_transportation_monitoring.php" class="nav-link" target="_parent">🗺️ Road and Transportation Monitoring</a></li>
+                        <li><a href="/lg-road-monitoring/lgu_staff/pages/verification_monitoring.php" class="nav-link" target="_parent">✅ Verification & Monitoring Reports</a></li>
                     </ul>
                 </div>
                 <div class="nav-section">
                     <div class="nav-section-title">Transparency</div>
                     <ul style="list-style: none;">
-                        <li><a href="../pages/public_transparency.php" class="nav-link" target="_parent">👁️ Public Transparency</a></li>
+                        <li><a href="/lg-road-monitoring/lgu_staff/pages/public_transparency.php" class="nav-link" target="_parent">👁️ Public Transparency</a></li>
                     </ul>
                 </div>
                 <div class="nav-section">
                     <div class="nav-section-title">Account</div>
                     <ul style="list-style: none;">
                         <li>
-                            <a href="../logout.php" class="nav-link nav-link-logout" target="_parent">
+                            <a href="/lg-road-monitoring/lgu_staff/logout.php" class="nav-link nav-link-logout" target="_parent">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-box-arrow-right" viewBox="0 0 16 16">
                                     <path fill-rule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2z"/>
                                     <path fill-rule="evenodd" d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z"/>
@@ -439,7 +439,7 @@ $notification_count = getNotificationCount();
                 <div class="nav-section-title">Account</div>
                 <ul style="list-style: none;">
                     <li>
-                        <a href="../logout.php" class="nav-link nav-link-logout" target="_parent">
+                        <a href="/lg-road-monitoring/lgu_staff/logout.php" class="nav-link nav-link-logout" target="_parent">
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-box-arrow-right" viewBox="0 0 16 16">
                                 <path fill-rule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2z"/>
                                 <path fill-rule="evenodd" d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z"/>
