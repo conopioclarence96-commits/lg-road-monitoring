@@ -455,7 +455,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                 <label>Role *</label>
                 <select name="role" required>
                   <option value="">Select role</option>
-                  <option value="system_admin" <?php echo (isset($_POST['role']) && $_POST['role'] == 'system_admin') ? 'selected' : ''; ?>>System Admin</option>
+            
                   <option value="lgu_staff" <?php echo (isset($_POST['role']) && $_POST['role'] == 'lgu_staff') ? 'selected' : ''; ?>>LGU Staff</option>
                   <option value="citizen" <?php echo (isset($_POST['role']) && $_POST['role'] == 'citizen') ? 'selected' : ''; ?>>Citizen</option>
                 </select>
