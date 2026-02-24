@@ -11,24 +11,38 @@ if ($server_name === 'localhost' || $server_name === '127.0.0.1' || strpos($serv
 } else {
     // Live server environment - try multiple credential options
     $live_config = require_once __DIR__ . '/live_db_config.php';
+    $conn = null;
     
     // Try the primary credentials first
-    $conn = @new mysqli($live_config['host'], $live_config['user'], $live_config['pass'], $live_config['name']);
+    try {
+        $conn = new mysqli($live_config['host'], $live_config['user'], $live_config['pass'], $live_config['name']);
+        if ($conn->connect_error) {
+            $conn = null;
+        }
+    } catch (Exception $e) {
+        $conn = null;
+    }
     
     // If primary fails, try common alternatives
-    if ($conn->connect_error) {
+    if ($conn === null || $conn->connect_error) {
         // Try Option 1: root with common passwords
         $common_passwords = ['', 'password', '123456', 'root', 'mysql'];
         foreach ($common_passwords as $pass) {
-            $conn = @new mysqli('localhost', 'root', $pass, $live_config['name']);
-            if (!$conn->connect_error) {
-                break;
+            try {
+                $test_conn = new mysqli('localhost', 'root', $pass, $live_config['name']);
+                if (!$test_conn->connect_error) {
+                    $conn = $test_conn;
+                    break;
+                }
+                $test_conn->close();
+            } catch (Exception $e) {
+                continue;
             }
         }
     }
     
     // If still failing, try Option 2: common hosting usernames
-    if ($conn->connect_error) {
+    if ($conn === null || ($conn && $conn->connect_error)) {
         $hosting_users = [
             ['user' => 'rgmapinf_lgu', 'pass' => 'lguroad2024'],
             ['user' => 'rgmapinf_lgu_user', 'pass' => 'rgmapinf123'],
@@ -37,25 +51,41 @@ if ($server_name === 'localhost' || $server_name === '127.0.0.1' || strpos($serv
         ];
         
         foreach ($hosting_users as $creds) {
-            $conn = @new mysqli('localhost', $creds['user'], $creds['pass'], $live_config['name']);
-            if (!$conn->connect_error) {
-                break;
+            try {
+                $test_conn = new mysqli('localhost', $creds['user'], $creds['pass'], $live_config['name']);
+                if (!$test_conn->connect_error) {
+                    $conn = $test_conn;
+                    break;
+                }
+                $test_conn->close();
+            } catch (Exception $e) {
+                continue;
             }
         }
     }
     
     // If all fail, try Option 3: database user with same name as database
-    if ($conn->connect_error) {
-        $conn = @new mysqli('localhost', $live_config['name'], '', $live_config['name']);
+    if ($conn === null || ($conn && $conn->connect_error)) {
+        try {
+            $test_conn = new mysqli('localhost', $live_config['name'], '', $live_config['name']);
+            if (!$test_conn->connect_error) {
+                $conn = $test_conn;
+            } else {
+                $test_conn->close();
+            }
+        } catch (Exception $e) {
+            // Connection failed, continue
+        }
     }
     
-    // Define constants with working credentials
-    if (!$conn->connect_error) {
+    // Define constants with working credentials or fallback
+    if ($conn && !$conn->connect_error) {
         define('DB_HOST', 'localhost');
-        define('DB_USER', $conn->user ?? $live_config['user']);
-        define('DB_PASS', $conn->pass ?? $live_config['pass']);
+        define('DB_USER', $live_config['user']);
+        define('DB_PASS', $live_config['pass']);
         define('DB_NAME', $live_config['name']);
     } else {
+        // Fallback to config values (will show error but won't crash)
         define('DB_HOST', $live_config['host']);
         define('DB_USER', $live_config['user']);
         define('DB_PASS', $live_config['pass']);
