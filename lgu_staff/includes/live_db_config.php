@@ -4,34 +4,43 @@
 
 return [
     'host' => 'localhost', // Your live database host (usually localhost)
-    'user' => 'rgmapinf_lgu_user', // Replace with actual database username
-    'pass' => 'YourSecurePassword123!', // Replace with actual database password
+    'user' => 'rgmapinf_lgu_user', // This user exists but password needs to be updated
+    'pass' => '', // Leave empty for now, or use the actual password
     'name' => 'lg_road_monitoring'      // Database name from your SQL dump
 ];
 
 /*
-HOW TO FIND YOUR LIVE DATABASE CREDENTIALS:
+CURRENT ISSUE:
+- User 'rgmapinf_lgu_user' exists on the server
+- But the password in config doesn't match the actual password
+- Error changed from "using password: NO" to "using password: YES"
 
-1. cPanel:
-   - Login to cPanel at yourdomain.com/cpanel
-   - Go to "MySQL Databases" or "MySQL Database Wizard"
-   - Look for existing databases and users
-   - Note the database name, username, and password
+SOLUTIONS:
 
-2. Plesk:
-   - Login to Plesk
-   - Go to "Databases" > "MySQL Databases"
-   - Find your database and click on the user to see credentials
+1. FIND THE ACTUAL PASSWORD:
+   - Check your hosting control panel (cPanel/Plesk)
+   - Look for MySQL Database section
+   - Find the user 'rgmapinf_lgu_user' and view/reset password
+   - Update the 'pass' value above with the correct password
 
-3. Hosting Control Panel:
-   - Look for "Database Management" or "MySQL" section
-   - Find database users and reset password if needed
+2. RESET THE PASSWORD:
+   - In cPanel: MySQL Databases > Current Users > Click on user > Change Password
+   - In Plesk: Databases > Database Users > Click on user > Change Password
+   - Set a new password and update it in the config above
 
-4. Create New Database User (if needed):
-   - Create database: lg_road_monitoring
-   - Create user: rgmapinf_lgu_user
-   - Set password: Choose a strong password
-   - Grant all privileges to user on database
+3. CREATE NEW USER (if you can't reset password):
+   - Create a new database user
+   - Grant privileges to lg_road_monitoring database
+   - Update the 'user' and 'pass' values above
+
+4. USE ROOT ACCESS (temporary):
+   - Temporarily change user to 'root' and pass to ''
+   - This will connect but is not secure for production
+   - Use only to create proper user credentials
+
+TESTING:
+After updating the password, test the connection by visiting your login page.
+If it works, the error will disappear.
 
 5. Import Your SQL Dump:
    - Use phpMyAdmin to import: lg_road_monitoring (5).sql
