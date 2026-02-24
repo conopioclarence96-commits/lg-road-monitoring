@@ -1,16 +1,33 @@
 <?php
-// Database configuration
-define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_NAME', 'lg_road_monitoring');
+// Environment-based database configuration
+$server_name = $_SERVER['SERVER_NAME'] ?? 'localhost';
+
+if ($server_name === 'localhost' || $server_name === '127.0.0.1' || strpos($server_name, '.local') !== false) {
+    // Local development environment
+    define('DB_HOST', 'localhost');
+    define('DB_USER', 'root');
+    define('DB_PASS', '');
+    define('DB_NAME', 'lg_road_monitoring');
+} else {
+    // Live server environment - load from live config file
+    $live_config = require_once __DIR__ . '/live_db_config.php';
+    define('DB_HOST', $live_config['host']);
+    define('DB_USER', $live_config['user']);
+    define('DB_PASS', $live_config['pass']);
+    define('DB_NAME', $live_config['name']);
+}
 
 // Create database connection
 $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 
 // Check connection
 if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+    // Show user-friendly error on live server, detailed error on localhost
+    if ($server_name === 'localhost' || strpos($server_name, '.local') !== false) {
+        die("Connection failed: " . $conn->connect_error);
+    } else {
+        die("Database connection failed. Please contact administrator.");
+    }
 }
 
 // Set charset to utf8mb4
