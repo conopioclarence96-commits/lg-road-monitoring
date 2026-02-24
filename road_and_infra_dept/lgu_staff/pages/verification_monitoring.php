@@ -148,15 +148,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         // Update report status
         $status = '';
+        $audit_status = '';
         switch ($action) {
             case 'approve':
                 $status = 'completed';
+                $audit_status = 'approved';
                 break;
             case 'reject':
                 $status = 'cancelled';
+                $audit_status = 'rejected';
                 break;
             case 'review':
                 $status = 'in-progress';
+                $audit_status = 'pending';
                 break;
         }
         
@@ -176,7 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $auditor = $_SESSION['username'] ?? 'Unknown';
             $description = "Report #$report_id from $source table has been " . $action . "ed by $auditor";
             
-            $audit_stmt->bind_param('ssssss', $audit_id, $title, $audit_type, $status, $auditor, $description);
+            $audit_stmt->bind_param('ssssss', $audit_id, $title, $audit_type, $audit_status, $auditor, $description);
             $audit_stmt->execute();
             
             // Return success message
