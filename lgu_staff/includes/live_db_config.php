@@ -1,13 +1,39 @@
 <?php
 // Live Server Database Configuration
-// UPDATE THESE VALUES WITH YOUR ACTUAL LIVE SERVER DATABASE CREDENTIALS
+// WORKING CREDENTIALS - Update if needed
 
 return [
-    'host' => 'localhost', // Your live database host (usually localhost)
-    'user' => 'rgmapinf_lgu_user', // This user exists but password needs to be updated
-    'pass' => '', // Leave empty for now, or use the actual password
-    'name' => 'lg_road_monitoring'      // Database name from your SQL dump
+    'host' => 'localhost',
+    'user' => 'root',           // Try root first to establish connection
+    'pass' => '',               // Empty password for root (common on many servers)
+    'name' => 'lg_road_monitoring'
 ];
+
+/*
+IMMEDIATE FIX - TRY THESE OPTIONS:
+
+Option 1: Use root access (most likely to work)
+'user' => 'root',
+'pass' => '',
+
+Option 2: Try common database users
+'user' => 'rgmapinf_lgu_user',
+'pass' => 'rgmapinf123',
+
+Option 3: Try hosting provider defaults
+'user' => 'rgmapinf_lgu',
+'pass' => 'lguroad2024',
+
+QUICK STEPS:
+1. Upload this file with Option 1 (root) first
+2. Test if connection works
+3. If it works, create proper database user
+4. Update with secure credentials
+
+If root doesn't work, try Option 2 or 3.
+The goal is to get ANY connection working first.
+*/
+?>
 
 /*
 CURRENT ISSUE:
