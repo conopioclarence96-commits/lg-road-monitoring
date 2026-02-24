@@ -7,8 +7,8 @@ $database_available = false;
 $conn = null;
 
 try {
-    require_once '/home/rgmap.infragovservices.com/public_html/lgu_staff/includes/config.php';
-    require_once '/home/rgmap.infragovservices.com/public_html/lgu_staff/includes/functions.php';
+    require_once '/home/rgmap.infragovservices.com/lgu_staff/includes/config.php';
+    require_once '/home/rgmap.infragovservices.com/lgu_staff/includes/functions.php';
     $database_available = true;
 } catch (Exception $e) {
     // Database not available, continue without it
