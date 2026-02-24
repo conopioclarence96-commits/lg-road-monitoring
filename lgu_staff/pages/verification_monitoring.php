@@ -275,7 +275,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 // Upload photo for completed project (AJAX, multipart)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'upload_completed_project_photo' && !empty($_FILES['photo'])) {
     header('Content-Type: application/json');
-    $upload_dir = __DIR__ . '/../../../uploads/completed_projects';
+    $upload_dir = __DIR__ . '/../../uploads/completed_projects';
     $upload_dir = str_replace('\\', '/', $upload_dir);
     if (!is_dir($upload_dir)) {
         mkdir($upload_dir, 0755, true);
@@ -1356,9 +1356,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                         if (is_array($attachments) && !empty($attachments)) {
                                             foreach ($attachments as $attachment) {
                                                 if (isset($attachment['type']) && $attachment['type'] === 'image' && isset($attachment['file_path'])) {
-                                                    // Path from pages/ directory: ../../../ goes to project root
+                                                    // Path from pages/ directory: ../../ goes to project root
                                                     echo '<div style="margin-top: 12px;">';
-                                                    echo '<img src="../../../' . htmlspecialchars($attachment['file_path']) . '" alt="Report Image" style="max-width: 100%; max-height: 200px; border-radius: 8px; border: 1px solid rgba(55, 98, 200, 0.3); cursor: pointer;" onclick="window.open(this.src, \'_blank\')" title="Click to view full size" />';
+                                                    echo '<img src="../../' . htmlspecialchars($attachment['file_path']) . '" alt="Report Image" style="max-width: 100%; max-height: 200px; border-radius: 8px; border: 1px solid rgba(55, 98, 200, 0.3); cursor: pointer;" onclick="window.open(this.src, \'_blank\')" title="Click to view full size" />';
                                                     echo '</div>';
                                                     break; // Show first image only
                                                 }
@@ -1407,7 +1407,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                 <div style="margin-top: 12px; display: flex; gap: 15px; flex-wrap: wrap;">
                                                     <?php foreach ($attachments as $attachment): 
                                                         if (isset($attachment['type']) && $attachment['type'] === 'image' && isset($attachment['file_path'])): ?>
-                                                        <img src="../../../<?php echo htmlspecialchars($attachment['file_path']); ?>" 
+                                                        <img src="../../<?php echo htmlspecialchars($attachment['file_path']); ?>" 
                                                              alt="Report Image" 
                                                              style="max-width: 300px; max-height: 300px; border-radius: 8px; border: 1px solid rgba(55, 98, 200, 0.3); cursor: pointer;" 
                                                              onclick="window.open(this.src, '_blank')" 
@@ -1545,7 +1545,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                      data-rep-photo="<?php echo htmlspecialchars($rep_photo); ?>">
                     <div class="repaired-card-image">
                         <?php if (!empty($rep_photo)): ?>
-                            <img src="../../../<?php echo htmlspecialchars($rep_photo); ?>" alt="<?php echo htmlspecialchars($rep['title']); ?>">
+                            <img src="../../<?php echo htmlspecialchars($rep_photo); ?>" alt="<?php echo htmlspecialchars($rep['title']); ?>">
                         <?php else: ?>
                             <div class="repaired-image-placeholder">
                                 <i class="fas fa-road"></i>
@@ -1807,7 +1807,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             var imgWrap = card.querySelector('.repaired-card-image');
             if (!imgWrap) return;
             if (photoPath) {
-                imgWrap.innerHTML = '<img src="../../../' + photoPath.replace(/^\/+/, '') + '" alt="Project" style="width:100%;height:100%;object-fit:cover;">';
+                imgWrap.innerHTML = '<img src="../../' + photoPath.replace(/^\/+/, '') + '" alt="Project" style="width:100%;height:100%;object-fit:cover;">';
             } else {
                 imgWrap.innerHTML = '<div class="repaired-image-placeholder"><i class="fas fa-road"></i><span>Project photo</span></div>';
             }

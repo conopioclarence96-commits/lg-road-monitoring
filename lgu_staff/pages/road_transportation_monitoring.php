@@ -232,7 +232,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $attachments = [];
                 if (isset($_FILES['report_image']) && $_FILES['report_image']['error'] === UPLOAD_ERR_OK) {
                     // Use absolute path from script location
-                    $upload_dir = __DIR__ . '/../../../uploads/report_images';
+                    $upload_dir = __DIR__ . '/../../uploads/report_images';
                     // Normalize path separators for Windows
                     $upload_dir = str_replace('\\', '/', $upload_dir);
                     $upload_result = handle_file_upload($_FILES['report_image'], $upload_dir, ['jpg', 'jpeg', 'png']);

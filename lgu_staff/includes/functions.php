@@ -106,14 +106,25 @@ function handle_file_upload($file, $upload_dir, $allowed_types = null) {
     
     // Create upload directory if it doesn't exist
     if (!is_dir($upload_dir)) {
-        mkdir($upload_dir, 0755, true);
+        if (!mkdir($upload_dir, 0777, true)) {
+            return ['success' => false, 'error' => 'Failed to create upload directory: ' . $upload_dir];
+        }
+        // Try to set permissions
+        chmod($upload_dir, 0777);
+    }
+    
+    // Check if directory is writable
+    if (!is_writable($upload_dir)) {
+        return ['success' => false, 'error' => 'Upload directory is not writable: ' . $upload_dir];
     }
     
     // Move file
     if (move_uploaded_file($file['tmp_name'], $filepath)) {
+        // Set file permissions
+        chmod($filepath, 0644);
         return ['success' => true, 'filename' => $filename, 'filepath' => $filepath];
     } else {
-        return ['success' => false, 'error' => 'Failed to move uploaded file'];
+        return ['success' => false, 'error' => 'Failed to move uploaded file to: ' . $filepath];
     }
 }
 
