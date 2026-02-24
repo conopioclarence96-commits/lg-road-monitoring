@@ -2,32 +2,44 @@
 // Home Page for LGU Portal - Domain Root
 // This file is included by login.php when accessing the domain root
 
-require_once '../../lgu_staff/includes/config.php';
-require_once '../../lgu_staff/includes/functions.php';
+// Try to include database files with error handling
+$database_available = false;
+$conn = null;
 
-// Check if user is already logged in
-if (isset($_SESSION['user_id'])) {
+try {
+    require_once '../../lgu_staff/includes/config.php';
+    require_once '../../lgu_staff/includes/functions.php';
+    $database_available = true;
+} catch (Exception $e) {
+    // Database not available, continue without it
+    $database_available = false;
+}
+
+// Check if user is already logged in (only if database is available)
+if ($database_available && isset($_SESSION['user_id'])) {
     header('Location: ../lgu_staff/pages/lgu_staff_dashboard.php');
     exit();
 }
 
-// Get recent reports for display
+// Get recent reports for display (only if database is available)
 $recent_reports = [];
-try {
-    $query = "(SELECT 'transport' as source, id, report_id, title, department, priority, status, created_at FROM road_transportation_reports ORDER BY created_at DESC LIMIT 5)
-              UNION ALL
-              (SELECT 'maintenance' as source, id, report_id, title, department, priority, status, created_at FROM road_maintenance_reports ORDER BY created_at DESC LIMIT 5)
-              ORDER BY created_at DESC LIMIT 5";
-    $result = $conn->query($query);
-    if ($result) {
-        $recent_reports = $result->fetch_all(MYSQLI_ASSOC);
+if ($database_available) {
+    try {
+        $query = "(SELECT 'transport' as source, id, report_id, title, department, priority, status, created_at FROM road_transportation_reports ORDER BY created_at DESC LIMIT 5)
+                  UNION ALL
+                  (SELECT 'maintenance' as source, id, report_id, title, department, priority, status, created_at FROM road_maintenance_reports ORDER BY created_at DESC LIMIT 5)
+                  ORDER BY created_at DESC LIMIT 5";
+        $result = $conn->query($query);
+        if ($result) {
+            $recent_reports = $result->fetch_all(MYSQLI_ASSOC);
+        }
+    } catch (Exception $e) {
+        // Handle database error gracefully
+        $recent_reports = [];
     }
-} catch (Exception $e) {
-    // Handle database error gracefully
-    $recent_reports = [];
 }
 
-// Get statistics
+// Get statistics (only if database is available)
 $stats = [
     'total_reports' => 0,
     'pending' => 0,
@@ -35,36 +47,38 @@ $stats = [
     'in_progress' => 0
 ];
 
-try {
-    $transport_query = "SELECT COUNT(*) as total, 
-                     SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
-                     SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
-                     SUM(CASE WHEN status = 'in-progress' THEN 1 ELSE 0 END) as in_progress
-                     FROM road_transportation_reports";
-    $transport_result = $conn->query($transport_query);
-    if ($transport_result) {
-        $transport_stats = $transport_result->fetch_assoc();
-        $stats['total_reports'] += $transport_stats['total'];
-        $stats['pending'] += $transport_stats['pending'];
-        $stats['completed'] += $transport_stats['completed'];
-        $stats['in_progress'] += $transport_stats['in_progress'];
+if ($database_available) {
+    try {
+        $transport_query = "SELECT COUNT(*) as total, 
+                         SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+                         SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+                         SUM(CASE WHEN status = 'in-progress' THEN 1 ELSE 0 END) as in_progress
+                         FROM road_transportation_reports";
+        $transport_result = $conn->query($transport_query);
+        if ($transport_result) {
+            $transport_stats = $transport_result->fetch_assoc();
+            $stats['total_reports'] += $transport_stats['total'];
+            $stats['pending'] += $transport_stats['pending'];
+            $stats['completed'] += $transport_stats['completed'];
+            $stats['in_progress'] += $transport_stats['in_progress'];
+        }
+        
+        $maintenance_query = "SELECT COUNT(*) as total, 
+                            SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+                            SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+                            SUM(CASE WHEN status = 'in-progress' THEN 1 ELSE 0 END) as in_progress
+                            FROM road_maintenance_reports";
+        $maintenance_result = $conn->query($maintenance_query);
+        if ($maintenance_result) {
+            $maintenance_stats = $maintenance_result->fetch_assoc();
+            $stats['total_reports'] += $maintenance_stats['total'];
+            $stats['pending'] += $maintenance_stats['pending'];
+            $stats['completed'] += $maintenance_stats['completed'];
+            $stats['in_progress'] += $maintenance_stats['in_progress'];
+        }
+    } catch (Exception $e) {
+        // Handle database error gracefully
     }
-    
-    $maintenance_query = "SELECT COUNT(*) as total, 
-                        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
-                        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
-                        SUM(CASE WHEN status = 'in-progress' THEN 1 ELSE 0 END) as in_progress
-                        FROM road_maintenance_reports";
-    $maintenance_result = $conn->query($maintenance_query);
-    if ($maintenance_result) {
-        $maintenance_stats = $maintenance_result->fetch_assoc();
-        $stats['total_reports'] += $maintenance_stats['total'];
-        $stats['pending'] += $maintenance_stats['pending'];
-        $stats['completed'] += $maintenance_stats['completed'];
-        $stats['in_progress'] += $maintenance_stats['in_progress'];
-    }
-} catch (Exception $e) {
-    // Handle database error gracefully
 }
 
 ?>
@@ -287,6 +301,13 @@ try {
         </main>
         
         <section class="stats-section">
+            <?php if (!$database_available): ?>
+                <div style="background: rgba(220, 53, 69, 0.2); border: 1px solid rgba(220, 53, 69, 0.5); padding: 15px; border-radius: 8px; margin-bottom: 20px; color: white;">
+                    <strong>⚠️ Database Connection Issue</strong><br>
+                    The system is currently experiencing database connectivity issues. Some features may be unavailable.
+                </div>
+            <?php endif; ?>
+            
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-number"><?php echo number_format($stats['total_reports']); ?></div>
@@ -325,8 +346,12 @@ try {
                     <?php endforeach; ?>
                 <?php else: ?>
                     <div class="report-item">
-                        <div class="report-title">No recent reports available</div>
-                        <div class="report-meta">Check back later for updates</div>
+                        <div class="report-title">
+                            <?php echo $database_available ? 'No recent reports available' : 'Reports unavailable due to database connection issue'; ?>
+                        </div>
+                        <div class="report-meta">
+                            <?php echo $database_available ? 'Check back later for updates' : 'Please contact administrator'; ?>
+                        </div>
                     </div>
                 <?php endif; ?>
             </div>
