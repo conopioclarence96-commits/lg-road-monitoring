@@ -24,116 +24,280 @@ if (isset($_SESSION['user_id'])) {
     exit();
 }
 
-// Handle login form submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login_form'])) {
-    $email = sanitize_input($_POST['email'] ?? '');
+// Handle Step 1 Registration (Email & Password)
+$registerMessage = '';
+$registerMessageType = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_register'])) {
+    $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL);
     $password = $_POST['password'] ?? '';
     
     // Validate input
-    $errors = [];
-    if (empty($email)) {
-        $errors['email'] = 'Email is required';
-    } elseif (!validate_email($email)) {
-        $errors['email'] = 'Invalid email format';
-    }
-    
-    if (empty($password)) {
-        $errors['password'] = 'Password is required';
-    }
-    
-    if (empty($errors)) {
-        // Check user credentials
-        $stmt = $conn->prepare("SELECT id, username, email, password, full_name, role, department FROM users WHERE email = ? AND is_active = 1");
-        $stmt->bind_param("s", $email);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        
-        if ($result->num_rows === 1) {
-            $user = $result->fetch_assoc();
+    if (empty($email) || empty($password)) {
+        $registerMessage = 'Please fill in all fields';
+        $registerMessageType = 'error';
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $registerMessage = 'Invalid email format';
+        $registerMessageType = 'error';
+    } elseif (strlen($password) < 6) {
+        $registerMessage = 'Password must be at least 6 characters';
+        $registerMessageType = 'error';
+    } else {
+        try {
+            // Check if email already exists
+            $checkStmt = $conn->prepare("SELECT id FROM users WHERE email = ?");
+            $checkStmt->bind_param("s", $email);
+            $checkStmt->execute();
+            $existingUser = $checkStmt->get_result()->num_rows > 0;
+            $checkStmt->close();
             
-            // Verify password (using password_verify for hashed passwords)
-            if (password_verify($password, $user['password'])) {
-                // Set session variables
-                $_SESSION['user_id'] = $user['id'];
-                $_SESSION['username'] = $user['username'];
-                $_SESSION['email'] = $user['email'];
-                $_SESSION['full_name'] = $user['full_name'];
-                $_SESSION['role'] = $user['role'];
-                $_SESSION['department'] = $user['department'];
-                
-                // Log the login
-                log_audit_action($user['id'], 'User login', 'User logged in successfully');
-                
-                // Redirect to dashboard
-                header('Cache-Control: no-cache, no-store, must-revalidate');
-                header('Pragma: no-cache');
-                header('Expires: 0');
-                header('Location: pages/lgu_staff_dashboard.php');
-                exit();
+            if ($existingUser) {
+                $registerMessage = 'Email address already registered';
+                $registerMessageType = 'error';
             } else {
-                $login_error = 'Invalid email or password';
+                // Store registration data in session for step 2
+                $_SESSION['registration_data'] = [
+                    'email' => $email,
+                    'password' => password_hash($password, PASSWORD_DEFAULT)
+                ];
+                
+                $registerMessage = 'Please proceed to provide additional information.';
+                $registerMessageType = 'success';
+                
+                // Auto-switch to additional info panel after successful step 1
+                echo '<script>
+                    document.addEventListener("DOMContentLoaded", function() {
+                        setTimeout(() => showPanel("additional"), 1000);
+                    });
+                </script>';
             }
-        } else {
-            $login_error = 'Invalid email or password';
+        } catch (Exception $e) {
+            error_log("Registration error: " . $e->getMessage());
+            $registerMessage = 'An error occurred during registration';
+            $registerMessageType = 'error';
         }
     }
 }
 
-// Handle registration form submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_form'])) {
-    $email = sanitize_input($_POST['email'] ?? '');
-    $password = $_POST['password'] ?? '';
-    $first_name = sanitize_input($_POST['first_name'] ?? '');
-    $middle_name = sanitize_input($_POST['middle_name'] ?? '');
-    $last_name = sanitize_input($_POST['last_name'] ?? '');
-    $birthday = $_POST['birthday'] ?? '';
-    $address = sanitize_input($_POST['address'] ?? '');
-    $civil_status = sanitize_input($_POST['civil_status'] ?? '');
-    $role = sanitize_input($_POST['role'] ?? '');
-    
-    // Validate registration
-    $errors = [];
-    if (empty($email)) $errors['email'] = 'Email is required';
-    elseif (!validate_email($email)) $errors['email'] = 'Invalid email format';
-    
-    if (empty($password)) $errors['password'] = 'Password is required';
-    elseif (strlen($password) < 6) $errors['password'] = 'Password must be at least 6 characters';
-    
-    if (empty($first_name)) $errors['first_name'] = 'First name is required';
-    if (empty($last_name)) $errors['last_name'] = 'Last name is required';
-    if (empty($role)) $errors['role'] = 'Role is required';
-    
-    // Handle file upload
-    $id_file_path = '';
-    if (isset($_FILES['id_file']) && $_FILES['id_file']['error'] === UPLOAD_ERR_OK) {
-        $upload_result = handle_file_upload($_FILES['id_file'], 'uploads/ids/', ['jpg', 'jpeg', 'png']);
-        if ($upload_result['success']) {
-            $id_file_path = $upload_result['filepath'];
+// Handle Step 2 Registration (Additional Information)
+$additionalMessage = '';
+$additionalMessageType = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional'])) {
+    // Check if we have registration data from step 1
+    if (!isset($_SESSION['registration_data'])) {
+        $additionalMessage = 'Registration session expired. Please start over.';
+        $additionalMessageType = 'error';
+        echo '<script>
+            document.addEventListener("DOMContentLoaded", function() {
+                showPanel("register");
+            });
+        </script>';
+    } else {
+        // Collect form data
+        $first_name = sanitize_input($_POST['first_name'] ?? '');
+        $middle_name = sanitize_input($_POST['middle_name'] ?? '');
+        $last_name = sanitize_input($_POST['last_name'] ?? '');
+        $birthday = sanitize_input($_POST['birthday'] ?? '');
+        $address = sanitize_input($_POST['address'] ?? '');
+        $civil_status = sanitize_input($_POST['civil_status'] ?? '');
+        $role = sanitize_input($_POST['role'] ?? '');
+        
+        // Validate required fields
+        if (empty($first_name) || empty($last_name) || empty($role)) {
+            $additionalMessage = 'Please fill in all required fields (First Name, Last Name, Role)';
+            $additionalMessageType = 'error';
         } else {
-            $errors['id_file'] = $upload_result['error'];
-        }
-    }
-    
-    if (empty($errors)) {
-        // Hash password
-        $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-        
-        // Insert new user
-        $stmt = $conn->prepare("INSERT INTO users (username, email, password, full_name, role, department) VALUES (?, ?, ?, ?, ?, ?)");
-        $username = $first_name . ' ' . $last_name;
-        $full_name = "$first_name $middle_name $last_name";
-        $department = ($role === 'lgu_officer') ? 'LGU Services' : 'Citizen Services';
-        
-        $stmt->bind_param("ssssss", $username, $email, $hashed_password, $full_name, $role, $department);
-        
-        if ($stmt->execute()) {
-            $register_success = 'Registration successful! Please wait for account approval.';
-            log_audit_action(0, 'User registration', "New user registered: $email");
-        } else {
-            $register_error = 'Registration failed. Please try again.';
+            try {
+                // Get registration data from session
+                $email = $_SESSION['registration_data']['email'];
+                $hashedPassword = $_SESSION['registration_data']['password'];
+                
+                // Create full name from first, middle, and last names
+                $full_name = trim($first_name . ' ' . $middle_name . ' ' . $last_name);
+                $full_name = preg_replace('/\s+/', ' ', $full_name); // Remove extra spaces
+                
+                // Create username from email (before @)
+                $username = explode('@', $email)[0];
+                
+                // Set department based on role
+                $department = ($role === 'system_admin') ? 'Admin' : (($role === 'lgu_staff') ? 'LGU Services' : 'Citizen Services');
+                
+                // Insert new user with all information
+                $idFilePath = null;
+                
+                // Handle file upload if provided
+                if (isset($_FILES['id_file']) && $_FILES['id_file']['error'] === UPLOAD_ERR_OK) {
+                    $uploadDir = __DIR__ . '/uploads/ids/';
+                    
+                    // Create directory if it doesn't exist
+                    if (!is_dir($uploadDir)) {
+                        mkdir($uploadDir, 0755, true);
+                    }
+                    
+                    // Generate unique filename
+                    $fileExt = pathinfo($_FILES['id_file']['name'], PATHINFO_EXTENSION);
+                    $uniqueFilename = uniqid() . '_' . time() . '.' . $fileExt;
+                    $targetFile = $uploadDir . $uniqueFilename;
+                    
+                    // Move uploaded file
+                    if (move_uploaded_file($_FILES['id_file']['tmp_name'], $targetFile)) {
+                        $idFilePath = 'uploads/ids/' . $uniqueFilename;
+                    }
+                }
+                
+                $stmt = $conn->prepare("
+                    INSERT INTO users (
+                        username, email, password, full_name, role, department, 
+                        address, birthday, civil_status, id_file_path, account_status, is_active, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ");
+                
+                if ($stmt) {
+                    $stmt->bind_param("ssssssssss", 
+                        $username, $email, $hashedPassword, $full_name, $role, $department,
+                        $address, $birthday, $civil_status, $idFilePath
+                    );
+                    
+                    if ($stmt->execute()) {
+                        $fileMessage = $idFilePath ? ' ID file uploaded successfully.' : '';
+                        $additionalMessage = 'Account created successfully!' . $fileMessage . ' Please wait for admin approval.';
+                        $additionalMessageType = 'success';
+                        
+                        // Clear registration session data
+                        unset($_SESSION['registration_data']);
+                        
+                        // Redirect back to login after 3 seconds
+                        echo '<script>
+                            document.addEventListener("DOMContentLoaded", function() {
+                                setTimeout(() => {
+                                    showPanel("login");
+                                    // Clear any form data
+                                    document.querySelector(".panel.additional form").reset();
+                                }, 3000);
+                            });
+                        </script>';
+                        
+                    } else {
+                        $additionalMessage = 'Failed to create account';
+                        $additionalMessageType = 'error';
+                    }
+                    $stmt->close();
+                } else {
+                    $additionalMessage = 'Database error occurred';
+                    $additionalMessageType = 'error';
+                }
+            } catch (Exception $e) {
+                error_log("Registration completion error: " . $e->getMessage());
+                $additionalMessage = 'An error occurred while creating your account';
+                $additionalMessageType = 'error';
+            }
         }
     }
 }
+
+// Handle login form submission
+$loginMessage = '';
+$messageType = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) && !isset($_POST['submit_additional'])) {
+    $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL);
+    $password = $_POST['password'] ?? '';
+    
+    // Validate input
+    if (empty($email) || empty($password)) {
+        $loginMessage = 'Please fill in all fields';
+        $messageType = 'error';
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $loginMessage = 'Invalid email format';
+        $messageType = 'error';
+    } else {
+        try {
+            // Prepare statement to prevent SQL injection
+            $stmt = $conn->prepare("
+                SELECT id, email, password, full_name, role, is_active, account_status
+                FROM users 
+                WHERE email = ?
+            ");
+            
+            if (!$stmt) {
+                throw new Exception("Database preparation failed");
+            }
+            
+            $stmt->bind_param("s", $email);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            
+            if ($result->num_rows === 1) {
+                $user = $result->fetch_assoc();
+                
+                // Verify password
+                if (password_verify($password, $user['password'])) {
+                    
+                    // Check account status
+                    if ($user['account_status'] === 'pending') {
+                        $loginMessage = 'Your account is pending approval. Please wait for admin approval.';
+                        $messageType = 'error';
+                    }
+                    elseif ($user['account_status'] === 'rejected') {
+                        $loginMessage = 'Your account has been rejected. Please contact administrator.';
+                        $messageType = 'error';
+                    }
+                    elseif (!$user['is_active']) {
+                        $loginMessage = 'Account is not active. Please contact administrator.';
+                        $messageType = 'error';
+                    }
+                    else {
+                        // Login successful - set session variables
+                        $_SESSION['user_id'] = $user['id'];
+                        $_SESSION['email'] = $user['email'];
+                        $_SESSION['full_name'] = $user['full_name'];
+                        $_SESSION['role'] = $user['role'];
+                        $_SESSION['logged_in'] = true;
+                        $_SESSION['login_time'] = time();
+                        
+                        // Determine redirect based on user role
+                        switch ($user['role']) {
+                            case 'system_admin':
+                                // Redirect to Admin Dashboard
+                                $redirectUrl = 'pages/admin_dashboard.php';
+                                break;
+                            case 'lgu_staff':
+                                // Redirect to LGU Staff Dashboard
+                                $redirectUrl = 'pages/lgu_staff_dashboard.php';
+                                break;
+                            case 'citizen':
+                                $redirectUrl = 'pages/lgu_staff_dashboard.php';
+                                break;
+                            default:
+                                $redirectUrl = 'pages/lgu_staff_dashboard.php';
+                        }
+                        
+                        // Redirect to appropriate dashboard
+                        header('Location: ' . $redirectUrl);
+                        exit;
+                    }
+                } else {
+                    // Invalid password
+                    $loginMessage = 'Invalid email or password';
+                    $messageType = 'error';
+                }
+            } else {
+                // User not found
+                $loginMessage = 'Invalid email or password';
+                $messageType = 'error';
+            }
+            
+            $stmt->close();
+            
+        } catch (Exception $e) {
+            error_log("Login error: " . $e->getMessage());
+            $loginMessage = 'An error occurred. Please try again later.';
+            $messageType = 'error';
+        }
+    }
+}
+
 ?>
 
 <!DOCTYPE html>
@@ -167,36 +331,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_form'])) {
               Road and Transportation Infrastructure Monitoring
             </p>
 
-            <?php if (isset($login_error)): ?>
-                <div class="error-message" style="background: #fee; color: #c33; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
-                    <?php echo htmlspecialchars($login_error); ?>
-                </div>
-            <?php endif; ?>
-
-            <?php if (isset($register_success)): ?>
-                <div class="success-message" style="background: #efe; color: #3c3; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
-                    <?php echo htmlspecialchars($register_success); ?>
+            <?php if (!empty($loginMessage)): ?>
+                <div class="<?php echo $messageType === 'error' ? 'error-message' : 'success-message'; ?>" style="background: <?php echo $messageType === 'error' ? '#fee' : '#efe'; ?>; color: <?php echo $messageType === 'error' ? '#c33' : '#060'; ?>; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+                    <?php echo htmlspecialchars($loginMessage); ?>
                 </div>
             <?php endif; ?>
 
             <form method="POST">
-              <input type="hidden" name="login_form" value="1">
               <div class="input-box">
                 <label>Email Address</label>
-                <input type="email" name="email" placeholder="name@lgu.gov.ph" value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>" />
+                <input type="email" name="email" placeholder="name@lgu.gov.ph" value="<?php echo isset($_POST['email']) && !isset($_POST['submit_register']) && !isset($_POST['submit_additional']) ? htmlspecialchars($_POST['email']) : ''; ?>" />
                 <span class="icon">📧</span>
-                <?php if (isset($errors['email'])): ?>
-                    <div class="field-error" style="color: #dc3545; font-size: 12px; margin-top: 5px;"><?php echo htmlspecialchars($errors['email']); ?></div>
-                <?php endif; ?>
               </div>
 
               <div class="input-box">
                 <label>Password</label>
                 <input type="password" name="password" placeholder="•••••••" />
                 <span class="icon">🔒</span>
-                <?php if (isset($errors['password'])): ?>
-                    <div class="field-error" style="color: #dc3545; font-size: 12px; margin-top: 5px;"><?php echo htmlspecialchars($errors['password']); ?></div>
-                <?php endif; ?>
               </div>
 
               <button class="btn-primary">Sign In</button>
@@ -211,43 +362,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_form'])) {
           </div>
         </div>
 
-        <!-- REGISTER -->
+        <!-- REGISTER STEP 1 -->
         <div class="panel register">
           <div class="card">
-            <h2 class="title">Create Account</h2>
-            <p class="subtitle">Register for LGU services.</p>
+            <h2 class="title">Create Account - Step 1</h2>
+            <p class="subtitle">Enter your email and password.</p>
 
-            <?php if (isset($register_error)): ?>
-                <div class="error-message" style="background: #fee; color: #c33; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
-                    <?php echo htmlspecialchars($register_error); ?>
+            <?php if (!empty($registerMessage)): ?>
+                <div class="<?php echo $registerMessageType === 'error' ? 'error-message' : 'success-message'; ?>" style="background: <?php echo $registerMessageType === 'error' ? '#fee' : '#efe'; ?>; color: <?php echo $registerMessageType === 'error' ? '#c33' : '#060'; ?>; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+                    <?php echo htmlspecialchars($registerMessage); ?>
                 </div>
             <?php endif; ?>
 
-            <form method="POST" enctype="multipart/form-data">
-              <input type="hidden" name="register_form" value="1">
+            <form method="POST">
+              <input type="hidden" name="submit_register" value="1">
               <div class="input-box">
                 <label>Email Address</label>
-                <input type="email" name="email" value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>" />
-                <?php if (isset($errors['email'])): ?>
-                    <div class="field-error" style="color: #dc3545; font-size: 12px; margin-top: 5px;"><?php echo htmlspecialchars($errors['email']); ?></div>
-                <?php endif; ?>
+                <input type="email" name="email" placeholder="name@lgu.gov.ph" value="<?php echo isset($_POST['email']) && isset($_POST['submit_register']) ? htmlspecialchars($_POST['email']) : ''; ?>" required />
+                <span class="icon">📧</span>
               </div>
 
               <div class="input-box">
                 <label>Password</label>
-                <input type="password" name="password" />
-                <?php if (isset($errors['password'])): ?>
-                    <div class="field-error" style="color: #dc3545; font-size: 12px; margin-top: 5px;"><?php echo htmlspecialchars($errors['password']); ?></div>
-                <?php endif; ?>
+                <input type="password" name="password" placeholder="•••••••" required />
+                <span class="icon">🔒</span>
               </div>
 
-              <button
-                class="btn-primary"
-                type="button"
-                onclick="showPanel('additional')"
-              >
-                Next
-              </button>
+              <button class="btn-primary" type="submit">Next Step</button>
 
               <p class="small-text">
                 Already have an account?
@@ -259,19 +400,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_form'])) {
           </div>
         </div>
 
-        <!-- ADDITIONAL INFO PANEL -->
+        <!-- ADDITIONAL INFO PANEL - STEP 2 -->
         <div class="panel additional">
           <div class="card wide">
-            <h2 class="title">Additional Information</h2>
+            <h2 class="title">Create Account - Step 2</h2>
+            <p class="subtitle">Complete your profile information.</p>
+
+            <?php if (!empty($additionalMessage)): ?>
+                <div class="<?php echo $additionalMessageType === 'error' ? 'error-message' : 'success-message'; ?>" style="background: <?php echo $additionalMessageType === 'error' ? '#fee' : '#efe'; ?>; color: <?php echo $additionalMessageType === 'error' ? '#c33' : '#060'; ?>; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+                    <?php echo htmlspecialchars($additionalMessage); ?>
+                </div>
+            <?php endif; ?>
 
             <form method="POST" enctype="multipart/form-data" class="two-column-form">
-              <input type="hidden" name="register_form" value="1">
+              <input type="hidden" name="submit_additional" value="1">
+              
               <div class="input-box">
-                <label>First Name</label>
-                <input type="text" name="first_name" value="<?php echo isset($_POST['first_name']) ? htmlspecialchars($_POST['first_name']) : ''; ?>" />
-                <?php if (isset($errors['first_name'])): ?>
-                    <div class="field-error" style="color: #dc3545; font-size: 12px; margin-top: 5px;"><?php echo htmlspecialchars($errors['first_name']); ?></div>
-                <?php endif; ?>
+                <label>First Name *</label>
+                <input type="text" name="first_name" value="<?php echo isset($_POST['first_name']) ? htmlspecialchars($_POST['first_name']) : ''; ?>" required />
               </div>
 
               <div class="input-box">
@@ -280,11 +426,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_form'])) {
               </div>
 
               <div class="input-box">
-                <label>Last Name</label>
-                <input type="text" name="last_name" value="<?php echo isset($_POST['last_name']) ? htmlspecialchars($_POST['last_name']) : ''; ?>" />
-                <?php if (isset($errors['last_name'])): ?>
-                    <div class="field-error" style="color: #dc3545; font-size: 12px; margin-top: 5px;"><?php echo htmlspecialchars($errors['last_name']); ?></div>
-                <?php endif; ?>
+                <label>Last Name *</label>
+                <input type="text" name="last_name" value="<?php echo isset($_POST['last_name']) ? htmlspecialchars($_POST['last_name']) : ''; ?>" required />
               </div>
 
               <div class="input-box">
@@ -299,36 +442,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_form'])) {
 
               <div class="input-box">
                 <label>Civil Status</label>
-                <input type="text" name="civil_status" value="<?php echo isset($_POST['civil_status']) ? htmlspecialchars($_POST['civil_status']) : ''; ?>" />
+                <select name="civil_status">
+                  <option value="">Select status</option>
+                  <option value="single" <?php echo (isset($_POST['civil_status']) && $_POST['civil_status'] == 'single') ? 'selected' : ''; ?>>Single</option>
+                  <option value="married" <?php echo (isset($_POST['civil_status']) && $_POST['civil_status'] == 'married') ? 'selected' : ''; ?>>Married</option>
+                  <option value="divorced" <?php echo (isset($_POST['civil_status']) && $_POST['civil_status'] == 'divorced') ? 'selected' : ''; ?>>Divorced</option>
+                  <option value="widowed" <?php echo (isset($_POST['civil_status']) && $_POST['civil_status'] == 'widowed') ? 'selected' : ''; ?>>Widowed</option>
+                </select>
               </div>
 
               <div class="input-box">
-                <label>Role</label>
-                <select name="role">
+                <label>Role *</label>
+                <select name="role" required>
                   <option value="">Select role</option>
-                  <option value="lgu_officer" <?php echo (isset($_POST['role']) && $_POST['role'] == 'lgu_officer') ? 'selected' : ''; ?>>LGU Staff</option>
+                  <option value="system_admin" <?php echo (isset($_POST['role']) && $_POST['role'] == 'system_admin') ? 'selected' : ''; ?>>System Admin</option>
+                  <option value="lgu_staff" <?php echo (isset($_POST['role']) && $_POST['role'] == 'lgu_staff') ? 'selected' : ''; ?>>LGU Staff</option>
                   <option value="citizen" <?php echo (isset($_POST['role']) && $_POST['role'] == 'citizen') ? 'selected' : ''; ?>>Citizen</option>
                 </select>
-                <?php if (isset($errors['role'])): ?>
-                    <div class="field-error" style="color: #dc3545; font-size: 12px; margin-top: 5px;"><?php echo htmlspecialchars($errors['role']); ?></div>
-                <?php endif; ?>
               </div>
 
               <!-- UPLOAD ID -->
               <div class="input-box">
-                <label>Upload Valid ID</label>
-                <input type="file" name="id_file" accept="image/*" />
-                <?php if (isset($errors['id_file'])): ?>
-                    <div class="field-error" style="color: #dc3545; font-size: 12px; margin-top: 5px;"><?php echo htmlspecialchars($errors['id_file']); ?></div>
-                <?php endif; ?>
+                <label>Upload Valid ID (Optional)</label>
+                <input type="file" name="id_file" accept="image/*,.pdf" />
+                <small>Supported formats: JPG, PNG, PDF</small>
               </div>
 
               <!-- FULL WIDTH BUTTON -->
               <div class="form-actions">
-                <button class="btn-primary" type="submit">Submit</button>
+                <button class="btn-primary" type="submit">Complete Registration</button>
                 <p class="small-text">
                   <a href="#" class="link" onclick="showPanel('register')"
-                    >Back</a
+                    >Back to Step 1</a
                   >
                 </p>
               </div>

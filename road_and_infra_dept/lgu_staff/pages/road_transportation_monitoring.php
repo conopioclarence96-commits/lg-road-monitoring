@@ -1,4 +1,8 @@
 <?php
+// Enable error reporting for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 // Session settings (must be set before session_start)
 ini_set('session.cookie_httponly', 1);
 ini_set('session.use_only_cookies', 1);
@@ -20,27 +24,57 @@ function getMonitoringStatistics() {
     $stats = [];
     
     if ($conn) {
-        // Get active roads count
-        $result = $conn->query("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status != 'completed'");
-        $stats['active_roads'] = $result->fetch_assoc()['count'];
-        
-        // Get incident count
-        $result = $conn->query("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'pending' AND priority = 'high'");
-        $stats['incidents'] = $result->fetch_assoc()['count'];
-        
-        // Get under repair count
-        $result = $conn->query("SELECT COUNT(*) as count FROM road_maintenance_reports WHERE status = 'in-progress'");
-        $stats['under_repair'] = $result->fetch_assoc()['count'];
-        
-        // Calculate clear flow percentage
-        $total_result = $conn->query("SELECT COUNT(*) as count FROM road_transportation_reports");
-        $total = $total_result->fetch_assoc()['count'];
-        
-        $clear_result = $conn->query("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'completed'");
-        $clear = $clear_result->fetch_assoc()['count'];
-        
-        $stats['clear_flow'] = $total > 0 ? round(($clear / $total) * 100, 0) : 94;
-        
+        try {
+            // Get active roads count
+            $result = $conn->query("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status != 'completed'");
+            if ($result) {
+                $stats['active_roads'] = $result->fetch_assoc()['count'];
+            } else {
+                $stats['active_roads'] = 0;
+            }
+            
+            // Get incident count
+            $result = $conn->query("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'pending' AND priority = 'high'");
+            if ($result) {
+                $stats['incidents'] = $result->fetch_assoc()['count'];
+            } else {
+                $stats['incidents'] = 0;
+            }
+            
+            // Get under repair count
+            $result = $conn->query("SELECT COUNT(*) as count FROM road_maintenance_reports WHERE status = 'in-progress'");
+            if ($result) {
+                $stats['under_repair'] = $result->fetch_assoc()['count'];
+            } else {
+                $stats['under_repair'] = 0;
+            }
+            
+            // Calculate clear flow percentage
+            $total_result = $conn->query("SELECT COUNT(*) as count FROM road_transportation_reports");
+            if ($total_result) {
+                $total = $total_result->fetch_assoc()['count'];
+                
+                $clear_result = $conn->query("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'completed'");
+                if ($clear_result) {
+                    $clear = $clear_result->fetch_assoc()['count'];
+                    $stats['clear_flow'] = $total > 0 ? round(($clear / $total) * 100, 0) : 94;
+                } else {
+                    $stats['clear_flow'] = 94;
+                }
+            } else {
+                $stats['clear_flow'] = 94;
+            }
+            
+        } catch (Exception $e) {
+            error_log("Statistics query error: " . $e->getMessage());
+            // Return sample data if database queries fail
+            $stats = [
+                'active_roads' => 142,
+                'incidents' => 8,
+                'under_repair' => 23,
+                'clear_flow' => 94
+            ];
+        }
     } else {
         // Return sample data if database is not available
         $stats = [
@@ -152,28 +186,138 @@ function getTrafficLevel($status) {
     }
 }
 
+// Quezon City center for map
+define('QC_LAT', 14.6500);
+define('QC_LNG', 121.0500);
+
+// Handle AJAX: get map markers (reports with lat/lng)
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'get_markers') {
+    header('Content-Type: application/json');
+    $markers = [];
+    if ($conn) {
+        $sql = "SELECT id, report_id, title, report_type, description, status, priority, severity, latitude, longitude, created_at 
+                FROM road_transportation_reports 
+                WHERE latitude IS NOT NULL AND longitude IS NOT NULL 
+                ORDER BY created_at DESC";
+        $res = $conn->query($sql);
+        while ($row = $res->fetch_assoc()) {
+            $markers[] = $row;
+        }
+    }
+    echo json_encode($markers);
+    exit;
+}
+
 // Handle AJAX requests
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     switch ($_POST['action']) {
-        case 'refresh_data':
+        case 'submit_report':
+            // Start output buffering to catch any errors
+            ob_start();
             header('Content-Type: application/json');
-            echo json_encode([
-                'stats' => getMonitoringStatistics(),
-                'alerts' => getActiveAlerts(),
-                'roads' => getRoadStatus()
-            ]);
-            exit;
-            
-        case 'export_report':
-            // Handle report export
-            header('Content-Type: application/json');
-            echo json_encode(['success' => true, 'message' => 'Report exported successfully']);
+            try {
+                
+                $lat = isset($_POST['latitude']) ? (float)$_POST['latitude'] : null;
+                $lng = isset($_POST['longitude']) ? (float)$_POST['longitude'] : null;
+                $issue_type = isset($_POST['issue_type']) ? trim($_POST['issue_type']) : '';
+                $description = isset($_POST['description']) ? trim($_POST['description']) : '';
+                $severity = isset($_POST['severity']) ? trim($_POST['severity']) : 'medium';
+                
+                if ($lat === null || $lng === null || $issue_type === '' || $description === '') {
+                    echo json_encode(['success' => false, 'message' => 'Missing required fields.']);
+                    exit;
+                }
+                
+                // Handle image upload
+                $attachments = [];
+                if (isset($_FILES['report_image']) && $_FILES['report_image']['error'] === UPLOAD_ERR_OK) {
+                    // Use absolute path from script location
+                    $upload_dir = __DIR__ . '/../../../uploads/report_images';
+                    // Normalize path separators for Windows
+                    $upload_dir = str_replace('\\', '/', $upload_dir);
+                    $upload_result = handle_file_upload($_FILES['report_image'], $upload_dir, ['jpg', 'jpeg', 'png']);
+                    
+                    if ($upload_result['success']) {
+                        // Store relative path for web access (from project root)
+                        $attachments[] = [
+                            'type' => 'image',
+                            'filename' => $upload_result['filename'],
+                            'original_name' => $_FILES['report_image']['name'],
+                            'file_path' => 'uploads/report_images/' . $upload_result['filename'],
+                            'uploaded_at' => date('Y-m-d H:i:s')
+                        ];
+                    } else {
+                        $error_msg = $upload_result['error'] ?? 'Unknown upload error';
+                        echo json_encode(['success' => false, 'message' => 'Image upload failed: ' . $error_msg]);
+                        exit;
+                    }
+                } elseif (isset($_FILES['report_image']) && $_FILES['report_image']['error'] !== UPLOAD_ERR_NO_FILE) {
+                    // File upload error (but not "no file")
+                    $upload_errors = [
+                        UPLOAD_ERR_INI_SIZE => 'File exceeds upload_max_filesize',
+                        UPLOAD_ERR_FORM_SIZE => 'File exceeds MAX_FILE_SIZE',
+                        UPLOAD_ERR_PARTIAL => 'File was only partially uploaded',
+                        UPLOAD_ERR_NO_TMP_DIR => 'Missing temporary folder',
+                        UPLOAD_ERR_CANT_WRITE => 'Failed to write file to disk',
+                        UPLOAD_ERR_EXTENSION => 'File upload stopped by extension'
+                    ];
+                    $error_code = $_FILES['report_image']['error'];
+                    $error_msg = $upload_errors[$error_code] ?? 'Unknown upload error (code: ' . $error_code . ')';
+                    echo json_encode(['success' => false, 'message' => 'Image upload error: ' . $error_msg]);
+                    exit;
+                }
+                
+                // Map issue_type to report_type: transportation -> traffic, roads -> road_damage
+                $report_type = ($issue_type === 'roads') ? 'road_damage' : 'traffic';
+                // Map severity: severe -> critical
+                $severity_db = ($severity === 'severe') ? 'critical' : $severity;
+                $priority = ($severity_db === 'critical' || $severity_db === 'high') ? 'high' : ($severity_db === 'medium' ? 'medium' : 'low');
+                $report_id = 'RPT-' . date('Ymd-His') . '-' . substr(uniqid(), -5);
+                $title = ucfirst($issue_type) . ' issue at pinned location';
+                $user_id = $_SESSION['user_id'] ?? null;
+                // Set department explicitly to prevent truncation
+                $department = 'Road and Transportation';
+                
+                // Validate department is not empty
+                if (empty($department)) {
+                    $department = 'Road and Transportation';
+                }
+                $location_str = 'Quezon City (GIS)';
+                $attachments_json = !empty($attachments) ? json_encode($attachments) : null;
+                // Extract image path for the new image_path column
+                $image_path = !empty($attachments) ? $attachments[0]['file_path'] : null;
+                
+                $stmt = $conn->prepare("INSERT INTO road_transportation_reports 
+                    (report_id, report_type, title, department, priority, status, created_date, description, location, latitude, longitude, severity, attachments, image_path, created_by) 
+                    VALUES (?, ?, ?, ?, ?, 'pending', CURDATE(), ?, ?, ?, ?, ?, ?, ?, ?)");
+                
+                if (!$stmt) {
+                    echo json_encode(['success' => false, 'message' => 'Database prepare failed: ' . $conn->error]);
+                    exit;
+                }
+                
+                // Parameters: report_id, report_type, title, department, priority, description, location, lat, lng, severity, attachments, image_path, user_id
+                $stmt->bind_param("sssssssddssis", $report_id, $report_type, $title, $department, $priority, $description, $location_str, $lat, $lng, $severity_db, $attachments_json, $image_path, $user_id);
+                
+                if ($stmt->execute()) {
+                    ob_end_clean(); // Clear any output before JSON
+                    echo json_encode(['success' => true, 'message' => (!empty($attachments) ? 'Report submitted with image' : 'Report submitted') . '. It will appear in Verification and Monitoring.', 'report_id' => $report_id]);
+                } else {
+                    ob_end_clean();
+                    echo json_encode(['success' => false, 'message' => 'Failed to save report: ' . $stmt->error]);
+                }
+            } catch (Exception $e) {
+                ob_end_clean();
+                echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
+            } catch (Error $e) {
+                ob_end_clean();
+                echo json_encode(['success' => false, 'message' => 'Fatal error: ' . $e->getMessage()]);
+            }
             exit;
     }
 }
 
 // Get data for the page
-$stats = getMonitoringStatistics();
 $alerts = getActiveAlerts();
 $roads = getRoadStatus();
 ?>
@@ -182,7 +326,7 @@ $roads = getRoadStatus();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Road Transportation Monitoring | LGU Staff</title>
+    <title>Road and Transportation Monitoring | LGU Staff</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -244,11 +388,6 @@ $roads = getRoadStatus();
         .header-title p {
             color: #666;
             font-size: 14px;
-        }
-
-        .monitoring-actions {
-            display: flex;
-            gap: 15px;
         }
 
         .btn-action {
@@ -330,10 +469,52 @@ $roads = getRoadStatus();
             color: white;
         }
 
+        .map-hint {
+            font-size: 13px;
+            color: #666;
+            margin-top: 4px;
+        }
         #map {
             height: 500px;
             border-radius: 12px;
             overflow: hidden;
+        }
+        .report-form-panel {
+            margin-top: 16px;
+            padding: 20px;
+            background: rgba(255,255,255,0.95);
+            border-radius: 12px;
+            border: 1px solid rgba(55, 98, 200, 0.2);
+        }
+        .report-form-panel h4 {
+            color: #1e3c72;
+            margin-bottom: 16px;
+            font-size: 16px;
+        }
+        .report-form-panel label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #333;
+            margin-top: 10px;
+            margin-bottom: 4px;
+        }
+        .report-form-panel select,
+        .report-form-panel textarea,
+        .report-form-panel input[type="file"] {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid rgba(55, 98, 200, 0.3);
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .report-form-panel input[type="file"] {
+            cursor: pointer;
+        }
+        .report-form-panel .form-actions {
+            margin-top: 16px;
+            display: flex;
+            gap: 10px;
         }
 
         .sidebar-section {
@@ -359,33 +540,6 @@ $roads = getRoadStatus();
             display: flex;
             align-items: center;
             gap: 10px;
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }
-
-        .stat-item {
-            text-align: center;
-            padding: 15px 10px;
-            background: rgba(55, 98, 200, 0.05);
-            border-radius: 10px;
-            border: 1px solid rgba(55, 98, 200, 0.1);
-        }
-
-        .stat-number {
-            font-size: 24px;
-            font-weight: 700;
-            color: #3762c8;
-            margin-bottom: 5px;
-        }
-
-        .stat-label {
-            font-size: 12px;
-            color: #666;
-            font-weight: 500;
         }
 
         .alert-list {
@@ -526,18 +680,10 @@ $roads = getRoadStatus();
                 gap: 15px;
             }
             
-            .monitoring-actions {
-                width: 100%;
-                justify-content: flex-start;
-            }
-            
             .sidebar-section {
                 grid-template-columns: 1fr;
             }
             
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
         }
     </style>
 </head>
@@ -555,18 +701,8 @@ $roads = getRoadStatus();
         <div class="monitoring-header">
             <div class="header-content">
                 <div class="header-title">
-                    <h1>Road Transportation Monitoring</h1>
+                    <h1>Road and Transportation Monitoring</h1>
                     <p>Real-time monitoring of road conditions and traffic flow</p>
-                </div>
-                <div class="monitoring-actions">
-                    <button class="btn-action btn-secondary" onclick="refreshData()">
-                        <i class="fas fa-sync-alt"></i>
-                        Refresh
-                    </button>
-                    <button class="btn-action" onclick="exportReport()">
-                        <i class="fas fa-download"></i>
-                        Export Report
-                    </button>
                 </div>
             </div>
         </div>
@@ -576,45 +712,50 @@ $roads = getRoadStatus();
             <!-- Map Section -->
             <div class="map-section">
                 <div class="map-header">
-                    <h3 class="map-title">Live Road Map</h3>
-                    <div class="map-filters">
-                        <button class="filter-btn active">All</button>
-                        <button class="filter-btn">Incidents</button>
-                        <button class="filter-btn">Construction</button>
-                        <button class="filter-btn">Traffic</button>
-                    </div>
+                    <h3 class="map-title">Live Road Map — Quezon City</h3>
+                    <p class="map-hint">Click on the map to pin a location, then fill the form and submit your report.</p>
                 </div>
                 <div id="map"></div>
+                <!-- Report form (shown after pinning) -->
+                <div id="report-form-panel" class="report-form-panel" style="display: none;">
+                    <h4><i class="fas fa-map-pin"></i> Report issue at pinned location</h4>
+                    <form id="report-form">
+                        <input type="hidden" id="pin-lat" name="latitude">
+                        <input type="hidden" id="pin-lng" name="longitude">
+                        <label>Issue type</label>
+                        <select id="issue-type" name="issue_type" required>
+                            <option value="">— Select —</option>
+                            <option value="transportation">Transportation</option>
+                            <option value="roads">Roads</option>
+                        </select>
+                        <label>Severity</label>
+                        <select id="severity" name="severity" required>
+                            <option value="low">Low</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="high">High</option>
+                            <option value="severe">Severe</option>
+                        </select>
+                        <label>Description</label>
+                        <textarea id="description" name="description" rows="3" required placeholder="Describe the issue..."></textarea>
+                        <label>Upload Photo (Optional)</label>
+                        <input type="file" id="report-image" name="report_image" accept="image/*" />
+                        <small style="color: #666; font-size: 12px; display: block; margin-top: 4px;">Max size: 5MB. Formats: JPG, PNG</small>
+                        <div id="image-preview" style="margin-top: 10px; display: none;">
+                            <img id="preview-img" src="" alt="Preview" style="max-width: 100%; max-height: 200px; border-radius: 8px; border: 1px solid rgba(55, 98, 200, 0.3);" />
+                            <button type="button" id="remove-image-btn" style="margin-top: 8px; padding: 4px 12px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                                <i class="fas fa-times"></i> Remove Image
+                            </button>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" class="btn-action btn-secondary" id="cancel-pin-btn">Cancel</button>
+                            <button type="submit" class="btn-action" id="submit-report-btn"><i class="fas fa-paper-plane"></i> Send report</button>
+                        </div>
+                    </form>
+                </div>
             </div>
 
             <!-- Sidebar -->
             <div class="sidebar-section">
-                <!-- Statistics Card -->
-                <div class="info-card">
-                    <h3 class="info-card-title">
-                        <i class="fas fa-chart-line"></i>
-                        Live Statistics
-                    </h3>
-                    <div class="stats-grid">
-                        <div class="stat-item">
-                            <div class="stat-number"><?php echo $stats['active_roads']; ?></div>
-                            <div class="stat-label">Active Roads</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-number"><?php echo $stats['incidents']; ?></div>
-                            <div class="stat-label">Incidents</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-number"><?php echo $stats['under_repair']; ?></div>
-                            <div class="stat-label">Under Repair</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-number"><?php echo $stats['clear_flow']; ?>%</div>
-                            <div class="stat-label">Clear Flow</div>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Active Alerts -->
                 <div class="info-card">
                     <h3 class="info-card-title">
@@ -667,89 +808,139 @@ $roads = getRoadStatus();
     </div>
 
     <script>
-        // Initialize map
-        const map = L.map('map').setView([14.5995, 120.9842], 13);
+        // Quezon City center
+        const QC_CENTER = [14.6500, 121.0500];
+        const map = L.map('map').setView(QC_CENTER, 13);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // Add sample markers for incidents
-        const incidentLocations = [
-            { lat: 14.5995, lng: 120.9842, type: 'accident', title: 'Traffic Accident' },
-            { lat: 14.6095, lng: 120.9742, type: 'construction', title: 'Road Construction' },
-            { lat: 14.5895, lng: 120.9942, type: 'traffic', title: 'Heavy Traffic' }
-        ];
+        let pinMarker = null;
+        const reportMarkersLayer = L.layerGroup().addTo(map);
+        const reportPanel = document.getElementById('report-form-panel');
+        const form = document.getElementById('report-form');
+        const pinLat = document.getElementById('pin-lat');
+        const pinLng = document.getElementById('pin-lng');
 
-        incidentLocations.forEach(location => {
-            const icon = L.divIcon({
-                html: `<div style="background: ${location.type === 'accident' ? '#dc3545' : location.type === 'construction' ? '#ffc107' : '#3762c8'}; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-size: 16px;">
-                    <i class="fas fa-${location.type === 'accident' ? 'car-crash' : location.type === 'construction' ? 'tools' : 'traffic-light'}"></i>
-                </div>`,
-                className: 'custom-marker',
-                iconSize: [30, 30]
-            });
-
-            L.marker([location.lat, location.lng], { icon })
-                .addTo(map)
-                .bindPopup(`<b>${location.title}</b><br>Click for more details`);
-        });
-
-        // Filter functionality
-        document.querySelectorAll('.filter-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-            });
-        });
-
-        // Refresh data function
-        function refreshData() {
-            fetch('', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: 'action=refresh_data'
-            })
-            .then(response => response.json())
-            .then(data => {
-                // Update statistics
-                const statsElements = document.querySelectorAll('.stat-number');
-                statsElements[0].textContent = data.stats.active_roads;
-                statsElements[1].textContent = data.stats.incidents;
-                statsElements[2].textContent = data.stats.under_repair;
-                statsElements[3].textContent = data.stats.clear_flow + '%';
-                
-                // Update alerts (you can implement dynamic alert updates here)
-                console.log('Data refreshed successfully');
-            })
-            .catch(error => {
-                console.error('Error refreshing data:', error);
-            });
+        // Load existing report markers
+        function loadMarkers() {
+            reportMarkersLayer.clearLayers();
+            fetch('?action=get_markers')
+                .then(r => r.json())
+                .then(markers => {
+                    markers.forEach(m => {
+                        const sev = (m.severity || m.priority || 'low').toLowerCase();
+                        const color = (sev === 'critical' || sev === 'high') ? '#dc3545' : sev === 'medium' ? '#ffc107' : '#6c757d';
+                        const icon = L.divIcon({
+                            html: `<div style="background:${color};color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);"><i class="fas fa-${m.report_type === 'road_damage' ? 'road' : 'traffic-light'}"></i></div>`,
+                            className: '',
+                            iconSize: [28, 28]
+                        });
+                        const sevLabel = m.severity || m.priority || 'low';
+                        L.marker([parseFloat(m.latitude), parseFloat(m.longitude)], { icon })
+                            .addTo(reportMarkersLayer)
+                            .bindPopup(`<b>${escapeHtml(m.title)}</b><br><small>${escapeHtml(m.description || '')}</small><br><span style="color:${color}">${sevLabel} • ${m.status}</span>`);
+                    });
+                })
+                .catch(e => console.error('Load markers error', e));
         }
+        function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t || ''; return d.innerHTML; }
 
-        // Export report function
-        function exportReport() {
-            fetch('', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: 'action=export_report'
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert('Report exported successfully!');
-                } else {
-                    alert('Error exporting report: ' + data.message);
+        // Map click: place pin and show form
+        map.on('click', function(e) {
+            const { lat, lng } = e.latlng;
+            if (pinMarker) map.removeLayer(pinMarker);
+            pinMarker = L.marker([lat, lng], {
+                draggable: true
+            }).addTo(map);
+            pinMarker.on('dragend', function() {
+                const pos = pinMarker.getLatLng();
+                pinLat.value = pos.lat;
+                pinLng.value = pos.lng;
+            });
+            pinLat.value = lat;
+            pinLng.value = lng;
+            reportPanel.style.display = 'block';
+            form.reset();
+            pinLat.value = lat;
+            pinLng.value = lng;
+            document.getElementById('severity').value = 'medium';
+        });
+
+        document.getElementById('cancel-pin-btn').addEventListener('click', function() {
+            if (pinMarker) { map.removeLayer(pinMarker); pinMarker = null; }
+            reportPanel.style.display = 'none';
+        });
+
+        // Image preview
+        const imageInput = document.getElementById('report-image');
+        const imagePreview = document.getElementById('image-preview');
+        const previewImg = document.getElementById('preview-img');
+        const removeImageBtn = document.getElementById('remove-image-btn');
+        
+        imageInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                if (file.size > 5 * 1024 * 1024) {
+                    alert('Image size exceeds 5MB limit.');
+                    e.target.value = '';
+                    return;
                 }
-            })
-            .catch(error => {
-                console.error('Error exporting report:', error);
-            });
-        }
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    previewImg.src = e.target.result;
+                    imagePreview.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        removeImageBtn.addEventListener('click', function() {
+            imageInput.value = '';
+            previewImg.src = '';
+            imagePreview.style.display = 'none';
+        });
+
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const btn = document.getElementById('submit-report-btn');
+            btn.disabled = true;
+            const fd = new FormData(form);
+            fd.set('action', 'submit_report');
+            fetch('', { method: 'POST', body: fd })
+                .then(r => {
+                    if (!r.ok) {
+                        throw new Error('HTTP error: ' + r.status);
+                    }
+                    return r.text();
+                })
+                .then(text => {
+                    try {
+                        const data = JSON.parse(text);
+                        if (data.success) {
+                            alert(data.message);
+                            if (pinMarker) { map.removeLayer(pinMarker); pinMarker = null; }
+                            reportPanel.style.display = 'none';
+                            form.reset();
+                            imagePreview.style.display = 'none';
+                            loadMarkers();
+                        } else {
+                            alert(data.message || 'Failed to submit.');
+                        }
+                    } catch (e) {
+                        console.error('Response:', text);
+                        alert('Server error. Check console for details.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Fetch error:', error);
+                    alert('Network error: ' + error.message);
+                })
+                .finally(() => { btn.disabled = false; });
+        });
+
+        loadMarkers();
     </script>
 </body>
 </html>

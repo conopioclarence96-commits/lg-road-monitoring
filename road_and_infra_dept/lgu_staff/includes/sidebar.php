@@ -35,7 +35,7 @@ function getUserInfo() {
         'username' => 'Staff User',
         'full_name' => 'LGU Staff',
         'email' => 'staff@lgu.gov.ph',
-        'role' => 'staff'
+        'role' => 'lgu_staff'
     ];
 }
 
@@ -47,35 +47,27 @@ function getNavigationItems($user_role) {
                 'href' => '../pages/lgu_staff_dashboard.php',
                 'icon' => 'speedometer2',
                 'title' => 'Staff Dashboard',
-                'roles' => ['admin', 'manager', 'supervisor', 'staff']
+                'roles' => ['lgu_staff', 'supervisor', 'citizen']
+            ],
+            [
+                'href' => '../pages/admin_dashboard.php',
+                'icon' => 'speedometer2',
+                'title' => 'Admin Dashboard',
+                'roles' => ['system_admin']
             ]
         ],
         'monitoring' => [
             [
                 'href' => '../pages/road_transportation_monitoring.php',
                 'icon' => 'map',
-                'title' => 'Road Transportation Monitoring',
-                'roles' => ['admin', 'manager', 'supervisor', 'staff']
+                'title' => 'Road and Transportation Monitoring',
+                'roles' => ['lgu_staff', 'supervisor', 'citizen']
             ],
             [
                 'href' => '../pages/verification_monitoring.php',
                 'icon' => 'shield-check',
-                'title' => 'Verification & Monitoring',
-                'roles' => ['admin', 'manager', 'supervisor', 'staff']
-            ]
-        ],
-        'reports' => [
-            [
-                'href' => '../pages/road_transportation_reporting.php',
-                'icon' => 'file-earmark-text',
-                'title' => 'Road Transportation Reporting',
-                'roles' => ['admin', 'manager', 'supervisor', 'staff']
-            ],
-            [
-                'href' => '../pages/verification_reporting.php',
-                'icon' => 'clipboard-check',
-                'title' => 'Verification Reporting',
-                'roles' => ['admin', 'manager', 'supervisor', 'staff']
+                'title' => 'Verification & Monitoring Reports',
+                'roles' => ['lgu_staff', 'supervisor', 'citizen']
             ]
         ],
         'transparency' => [
@@ -83,10 +75,30 @@ function getNavigationItems($user_role) {
                 'href' => '../pages/public_transparency.php',
                 'icon' => 'eye',
                 'title' => 'Public Transparency',
-                'roles' => ['admin', 'manager', 'staff']
+                'roles' => ['lgu_staff', 'citizen']
             ]
         ]
     ];
+    
+    // For system_admin, only show Admin Dashboard
+    if ($user_role === 'system_admin') {
+        return [
+            'main' => [
+                [
+                    'href' => '../pages/admin_dashboard.php',
+                    'icon' => 'speedometer2',
+                    'title' => 'Accounts Approval',
+                    'roles' => ['system_admin']
+                ],
+                [
+                    'href' => '../pages/manage_accounts.php',
+                    'icon' => 'users',
+                    'title' => 'Manage Accounts',
+                    'roles' => ['system_admin']
+                ]
+            ]
+        ];
+    }
     
     // Filter items based on user role
     $filtered_items = [];
@@ -123,7 +135,8 @@ function getNotificationCount() {
 
 // Get user data
 $user_info = getUserInfo();
-$nav_items = getNavigationItems($user_info['role']);
+$user_role = $_SESSION['role'] ?? $user_info['role'] ?? 'citizen'; // Use session role first
+$nav_items = getNavigationItems($user_role);
 $notification_count = getNotificationCount();
 ?>
 <!DOCTYPE html>
@@ -293,6 +306,16 @@ $notification_count = getNotificationCount();
             background: #c82333;
         }
 
+        .nav-link.nav-link-logout {
+            color: #c82333;
+            margin-top: 8px;
+        }
+        .nav-link.nav-link-logout:hover {
+            background: rgba(220, 53, 69, 0.1);
+            border-left-color: #dc3545;
+            color: #c82333;
+        }
+
         /* Scrollbar styling */
         .sidebar-content::-webkit-scrollbar {
             width: 4px;
@@ -316,7 +339,7 @@ $notification_count = getNotificationCount();
     <div class="sidebar">
         <div class="sidebar-header">
             <h2>LGU Staff Portal</h2>
-            <p>Road & Infrastructure Dept</p>
+            <p>Road and Transportation Department</p>
             <div class="user-info">
                 <div class="user-name"><?php echo htmlspecialchars($user_info['full_name']); ?></div>
                 <div class="user-role"><?php echo htmlspecialchars(ucfirst($user_info['role'])); ?></div>
@@ -324,6 +347,59 @@ $notification_count = getNotificationCount();
         </div>
 
         <div class="sidebar-content">
+            <?php 
+            // Debug output
+            error_log("User role: " . $user_role);
+            error_log("Nav items: " . json_encode($nav_items));
+            
+            // Test if nav_items is empty
+            $total_items = 0;
+            foreach ($nav_items as $section => $items) {
+                $total_items += count($items);
+            }
+            error_log("Total nav items: " . $total_items);
+            
+            // If empty, show all items regardless of role (temporary debug)
+            if ($total_items === 0) {
+                error_log("Nav items empty! Showing all items for debugging.");
+                ?>
+                <div class="nav-section">
+                    <div class="nav-section-title">Main</div>
+                    <ul style="list-style: none;">
+                        <li><a href="../pages/lgu_staff_dashboard.php" class="nav-link" target="_parent">📊 Staff Dashboard</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Monitoring</div>
+                    <ul style="list-style: none;">
+                        <li><a href="../pages/road_transportation_monitoring.php" class="nav-link" target="_parent">🗺️ Road and Transportation Monitoring</a></li>
+                        <li><a href="../pages/verification_monitoring.php" class="nav-link" target="_parent">✅ Verification & Monitoring Reports</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Transparency</div>
+                    <ul style="list-style: none;">
+                        <li><a href="../pages/public_transparency.php" class="nav-link" target="_parent">👁️ Public Transparency</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Account</div>
+                    <ul style="list-style: none;">
+                        <li>
+                            <a href="../logout.php" class="nav-link nav-link-logout" target="_parent">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-box-arrow-right" viewBox="0 0 16 16">
+                                    <path fill-rule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2z"/>
+                                    <path fill-rule="evenodd" d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z"/>
+                                </svg>
+                                Logout
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                <?php
+                return;
+            }
+            ?>
             <?php foreach ($nav_items as $section => $items): ?>
                 <?php if (!empty($items)): ?>
                     <!-- <?php echo ucfirst($section); ?> Section -->
@@ -358,17 +434,22 @@ $notification_count = getNotificationCount();
                     </div>
                 <?php endif; ?>
             <?php endforeach; ?>
-        </div>
 
-        <form method="POST" action="../logout.php" target="_parent" style="margin: 20px auto; display: block; width: fit-content;">
-            <button type="submit" class="logout-btn">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-box-arrow-right" viewBox="0 0 16 16" style="margin-right: 8px;">
-                    <path fill-rule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2z"/>
-                    <path fill-rule="evenodd" d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z"/>
-                </svg>
-                Logout
-            </button>
-        </form>
+            <div class="nav-section">
+                <div class="nav-section-title">Account</div>
+                <ul style="list-style: none;">
+                    <li>
+                        <a href="../logout.php" class="nav-link nav-link-logout" target="_parent">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-box-arrow-right" viewBox="0 0 16 16">
+                                <path fill-rule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2z"/>
+                                <path fill-rule="evenodd" d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z"/>
+                            </svg>
+                            Logout
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -377,9 +458,6 @@ $notification_count = getNotificationCount();
             const currentPath = window.parent.location.pathname;
             const currentFile = currentPath.split('/').pop();
             
-            // Debug logging
-            console.log('Current path:', currentPath);
-            console.log('Current file:', currentFile);
             
             // Remove active class from all links
             document.querySelectorAll('.nav-link').forEach(link => {
@@ -392,13 +470,10 @@ $notification_count = getNotificationCount();
                 const href = link.getAttribute('href');
                 const hrefFile = href.split('/').pop();
                 
-                console.log('Checking link:', hrefFile, 'against current:', currentFile);
-                
                 // Check if current file matches the href file
                 if (currentFile === hrefFile) {
                     link.classList.add('active');
                     foundActive = true;
-                    console.log('Found active link:', hrefFile);
                 }
             });
             
@@ -407,7 +482,6 @@ $notification_count = getNotificationCount();
                 const dashboardLink = document.querySelector('a[href*="lgu_staff_dashboard.php"]');
                 if (dashboardLink) {
                     dashboardLink.classList.add('active');
-                    console.log('Set dashboard as active (fallback)');
                 }
             }
             

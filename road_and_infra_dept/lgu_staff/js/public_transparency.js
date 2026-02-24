@@ -81,8 +81,12 @@ function refreshData() {
         },
         body: 'action=refresh_data'
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) throw new Error('Network error');
+        return response.json();
+    })
     .then(data => {
+        if (!data || typeof data.documents === 'undefined') throw new Error('Invalid data');
         // Update statistics
         document.querySelector('.transparency-stats').innerHTML = `
             <div class="transparency-stat">
@@ -113,12 +117,16 @@ function refreshData() {
     });
 }
 
+// Chart instances (destroy before re-creating to avoid duplicates)
+let budgetChartInstance, projectsChartInstance, analyticsChartInstance;
+
 // Chart initialization functions
 function initBudgetChart() {
     const ctx = document.getElementById('budgetChart');
     if (!ctx) return;
+    if (budgetChartInstance) budgetChartInstance.destroy();
     
-    new Chart(ctx.getContext('2d'), {
+    budgetChartInstance = new Chart(ctx.getContext('2d'), {
         type: 'line',
         data: {
             labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
@@ -154,8 +162,9 @@ function initBudgetChart() {
 function initProjectsChart() {
     const ctx = document.getElementById('projectsChart');
     if (!ctx) return;
+    if (projectsChartInstance) projectsChartInstance.destroy();
     
-    new Chart(ctx.getContext('2d'), {
+    projectsChartInstance = new Chart(ctx.getContext('2d'), {
         type: 'bar',
         data: {
             labels: ['Q1', 'Q2', 'Q3', 'Q4'],
@@ -185,8 +194,9 @@ function initProjectsChart() {
 function initAnalyticsChart() {
     const ctx = document.getElementById('analyticsChart');
     if (!ctx) return;
+    if (analyticsChartInstance) analyticsChartInstance.destroy();
     
-    new Chart(ctx.getContext('2d'), {
+    analyticsChartInstance = new Chart(ctx.getContext('2d'), {
         type: 'line',
         data: {
             labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
@@ -226,7 +236,7 @@ document.querySelectorAll('.btn-action').forEach(btn => {
         console.log('Header action:', action);
         
         if (action.includes('Public View')) {
-            window.open('/public-transparency-view', '_blank');
+            window.open('public_transparency.php', '_blank');
         } else if (action.includes('Filter')) {
             alert('Filter functionality coming soon!');
         } else if (action.includes('Export All')) {

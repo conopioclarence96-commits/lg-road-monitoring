@@ -195,7 +195,7 @@ $chart_data = getWeeklyChartData($conn);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LGU Staff Dashboard | Road & Infrastructure Dept</title>
+    <title>LGU Staff Dashboard | Road and Transportation Department</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -499,7 +499,7 @@ $chart_data = getWeeklyChartData($conn);
             <div class="welcome-section">
                 <div class="welcome-text">
                     <h1>Welcome back, <?php echo htmlspecialchars($_SESSION['username'] ?? 'Staff'); ?></h1>
-                    <p>Here's what's happening with the Road & Infrastructure Department today</p>
+                    <p>Here's what's happening with the Road and Transportation Department today</p>
                 </div>
                 <div class="date-time">
                     <div id="currentDate"></div>

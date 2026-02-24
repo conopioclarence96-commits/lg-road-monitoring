@@ -34,10 +34,10 @@ function get_user_role($user_id) {
 
 function has_permission($user_role, $required_role) {
     $role_hierarchy = [
-        'admin' => 4,
-        'manager' => 3,
+        'system_admin' => 4,
+        'lgu_staff' => 3,
         'supervisor' => 2,
-        'staff' => 1
+        'citizen' => 1
     ];
     
     return ($role_hierarchy[$user_role] ?? 0) >= ($role_hierarchy[$required_role] ?? 0);

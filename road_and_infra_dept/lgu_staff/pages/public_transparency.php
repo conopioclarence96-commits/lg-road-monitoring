@@ -1,97 +1,70 @@
 <?php
-// Database configuration
-define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_NAME', 'lgu_road_monitoring');
+require_once __DIR__ . '/../includes/config.php';
 
-// Database connection function
-function connectDB() {
-    try {
-        $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-        if ($conn->connect_error) {
-            throw new Exception("Connection failed: " . $conn->connect_error);
-        }
-        return $conn;
-    } catch (Exception $e) {
-        // Return null if database doesn't exist or connection fails
-        return null;
-    }
+// Default stats when transparency tables are missing
+function getDefaultTransparencyStats() {
+    return [
+        'documents' => 156,
+        'views' => 2847,
+        'downloads' => 423,
+        'score' => 98.5
+    ];
 }
 
-// Function to get transparency statistics
+// Function to get transparency statistics (uses project DB: lg_road_monitoring)
 function getTransparencyStats() {
-    $conn = connectDB();
-    $stats = [];
+    global $conn;
+    $stats = getDefaultTransparencyStats();
     
-    if ($conn) {
-        // Get document count
-        $result = $conn->query("SELECT COUNT(*) as count FROM public_documents");
-        $stats['documents'] = $result->fetch_assoc()['count'];
-        
-        // Get total views
-        $result = $conn->query("SELECT SUM(views) as total FROM document_views");
-        $stats['views'] = $result->fetch_assoc()['total'] ?: 0;
-        
-        // Get downloads
-        $result = $conn->query("SELECT COUNT(*) as count FROM document_downloads");
-        $stats['downloads'] = $result->fetch_assoc()['count'];
-        
-        // Calculate transparency score
-        $stats['score'] = calculateTransparencyScore($conn);
-        
-        $conn->close();
-    } else {
-        // Return sample data if database is not available
-        $stats = [
-            'documents' => 156,
-            'views' => 2847,
-            'downloads' => 423,
-            'score' => 98.5
-        ];
+    if (!$conn) {
+        return $stats;
+    }
+    
+    $r = @$conn->query("SELECT COUNT(*) as count FROM public_documents");
+    if ($r && $row = $r->fetch_assoc()) {
+        $stats['documents'] = (int) $row['count'];
+    }
+    
+    $r = @$conn->query("SELECT SUM(views) as total FROM document_views");
+    if ($r && $row = $r->fetch_assoc() && isset($row['total']) && $row['total'] !== null) {
+        $stats['views'] = (int) $row['total'];
+    }
+    
+    $r = @$conn->query("SELECT COUNT(*) as count FROM document_downloads");
+    if ($r && $row = $r->fetch_assoc()) {
+        $stats['downloads'] = (int) $row['count'];
+    }
+    
+    $r = @$conn->query("SELECT COUNT(*) as total FROM documents");
+    $total_docs = 0;
+    $public_docs = 0;
+    if ($r && $row = $r->fetch_assoc()) {
+        $total_docs = (int) $row['total'];
+    }
+    $r = @$conn->query("SELECT COUNT(*) as public FROM documents WHERE is_published = 1");
+    if ($r && $row = $r->fetch_assoc()) {
+        $public_docs = (int) $row['public'];
+    }
+    if ($total_docs > 0) {
+        $stats['score'] = round(($public_docs / $total_docs) * 100, 1);
     }
     
     return $stats;
 }
 
-// Function to calculate transparency score
-function calculateTransparencyScore($conn) {
-    $total_docs = 0;
-    $public_docs = 0;
-    
-    $result = $conn->query("SELECT COUNT(*) as total FROM documents");
-    if ($result) {
-        $total_docs = $result->fetch_assoc()['total'];
-    }
-    
-    $result = $conn->query("SELECT COUNT(*) as public FROM documents WHERE is_public = 1");
-    if ($result) {
-        $public_docs = $result->fetch_assoc()['public'];
-    }
-    
-    if ($total_docs > 0) {
-        return round(($public_docs / $total_docs) * 100, 1);
-    }
-    return 98.5; // Default sample score
-}
-
 // Function to get budget data
 function getBudgetData() {
-    $conn = connectDB();
-    $budget = [];
+    global $conn;
+    $budget = [
+        'annual_budget' => 125000000,
+        'allocation_percentage' => 89
+    ];
     
     if ($conn) {
-        $result = $conn->query("SELECT * FROM budget_allocation WHERE year = YEAR(CURRENT_DATE)");
+        $result = @$conn->query("SELECT * FROM budget_allocation WHERE year = YEAR(CURRENT_DATE)");
         if ($result && $result->num_rows > 0) {
-            $budget = $result->fetch_assoc();
+            $budget = array_merge($budget, $result->fetch_assoc());
         }
-        $conn->close();
-    } else {
-        // Return sample budget data
-        $budget = [
-            'annual_budget' => 125000000,
-            'allocation_percentage' => 89
-        ];
     }
     
     return $budget;
@@ -99,61 +72,47 @@ function getBudgetData() {
 
 // Function to get projects data
 function getProjectsData() {
-    $conn = connectDB();
-    $projects = [];
+    global $conn;
+    $projects = [
+        ['id' => 1, 'name' => 'Main Street Rehabilitation', 'location' => 'Downtown District', 'budget' => 8500000, 'progress' => 75, 'status' => 'active'],
+        ['id' => 2, 'name' => 'Highway 101 Expansion', 'location' => 'North Corridor', 'budget' => 12000000, 'progress' => 45, 'status' => 'active'],
+        ['id' => 3, 'name' => 'Bridge Repair Project', 'location' => 'River Crossing', 'budget' => 5200000, 'progress' => 90, 'status' => 'active'],
+        ['id' => 4, 'name' => 'Street Lighting Upgrade', 'location' => 'Residential Areas', 'budget' => 3800000, 'progress' => 30, 'status' => 'delayed'],
+        ['id' => 5, 'name' => 'Drainage System Installation', 'location' => 'Flood-prone Areas', 'budget' => 7100000, 'progress' => 60, 'status' => 'active'],
+        ['id' => 6, 'name' => 'Park Avenue Reconstruction', 'location' => 'Central District', 'budget' => 4500000, 'progress' => 100, 'status' => 'completed'],
+        ['id' => 7, 'name' => 'Sidewalk Improvement Project', 'location' => 'Suburban Areas', 'budget' => 2300000, 'progress' => 100, 'status' => 'completed']
+    ];
     
     if ($conn) {
-        $result = $conn->query("SELECT * FROM infrastructure_projects ORDER BY start_date DESC");
-        if ($result) {
+        $result = @$conn->query("SELECT * FROM infrastructure_projects ORDER BY start_date DESC");
+        if ($result && $result->num_rows > 0) {
+            $projects = [];
             while ($row = $result->fetch_assoc()) {
                 $projects[] = $row;
             }
         }
-        $conn->close();
-    } else {
-        // Return sample projects data
-        $projects = [
-            ['id' => 1, 'name' => 'Main Street Rehabilitation', 'location' => 'Downtown District', 'budget' => 8500000, 'progress' => 75, 'status' => 'active'],
-            ['id' => 2, 'name' => 'Highway 101 Expansion', 'location' => 'North Corridor', 'budget' => 12000000, 'progress' => 45, 'status' => 'active'],
-            ['id' => 3, 'name' => 'Bridge Repair Project', 'location' => 'River Crossing', 'budget' => 5200000, 'progress' => 90, 'status' => 'active'],
-            ['id' => 4, 'name' => 'Street Lighting Upgrade', 'location' => 'Residential Areas', 'budget' => 3800000, 'progress' => 30, 'status' => 'delayed'],
-            ['id' => 5, 'name' => 'Drainage System Installation', 'location' => 'Flood-prone Areas', 'budget' => 7100000, 'progress' => 60, 'status' => 'active'],
-            ['id' => 6, 'name' => 'Park Avenue Reconstruction', 'location' => 'Central District', 'budget' => 4500000, 'progress' => 100, 'status' => 'completed'],
-            ['id' => 7, 'name' => 'Sidewalk Improvement Project', 'location' => 'Suburban Areas', 'budget' => 2300000, 'progress' => 100, 'status' => 'completed']
-        ];
     }
     
     return $projects;
 }
 
-// Function to get publications
+// Function to get publications (from publications table if it exists; no dummy data)
 function getPublications() {
-    $conn = connectDB();
+    global $conn;
     $publications = [];
-    
     if ($conn) {
-        $result = $conn->query("SELECT * FROM publications ORDER BY publish_date DESC LIMIT 10");
-        if ($result) {
+        $result = @$conn->query("SELECT * FROM publications ORDER BY publish_date DESC LIMIT 10");
+        if ($result && $result->num_rows > 0) {
             while ($row = $result->fetch_assoc()) {
                 $publications[] = $row;
             }
         }
-        $conn->close();
-    } else {
-        // Return sample publications data
-        $publications = [
-            ['id' => 1, 'type' => 'Annual Report', 'title' => 'Infrastructure Development Report 2024', 'description' => 'Comprehensive annual report on infrastructure development, maintenance, and future planning initiatives.', 'publish_date' => '2024-02-10', 'views' => 1234],
-            ['id' => 2, 'type' => 'Budget Report', 'title' => 'Q1 2024 Budget Allocation', 'description' => 'Detailed breakdown of first quarter budget allocation across all infrastructure departments and projects.', 'publish_date' => '2024-02-05', 'views' => 892],
-            ['id' => 3, 'type' => 'Performance Report', 'title' => 'Service Delivery Performance Metrics', 'description' => 'Monthly performance metrics showing service delivery efficiency and citizen satisfaction scores.', 'publish_date' => '2024-01-31', 'views' => 567],
-            ['id' => 4, 'type' => 'Policy Document', 'title' => 'Infrastructure Development Policy 2024-2028', 'description' => 'Long-term infrastructure development policy framework with strategic goals and implementation guidelines.', 'publish_date' => '2024-01-15', 'views' => 2145]
-        ];
     }
-    
     return $publications;
 }
 
 // Handle form submissions
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
         switch ($_POST['action']) {
             case 'refresh_data':
@@ -169,19 +128,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     logDownload($doc_id);
                 }
                 break;
+
+            case 'remove_published_project':
+                // Remove (unpublish) a project from public view – staff only
+                if (isset($_POST['id']) && $conn) {
+                    $id = (int) $_POST['id'];
+                    if ($id > 0) {
+                        $stmt = $conn->prepare("DELETE FROM published_completed_projects WHERE id = ?");
+                        if ($stmt) {
+                            $stmt->bind_param("i", $id);
+                            $stmt->execute();
+                            $stmt->close();
+                        }
+                    }
+                }
+                header('Location: public_transparency.php');
+                exit;
         }
     }
 }
 
 // Function to log document download
 function logDownload($doc_id) {
-    $conn = connectDB();
-    $stmt = $conn->prepare("INSERT INTO document_downloads (document_id, download_date, ip_address) VALUES (?, NOW(), ?)");
-    $ip = $_SERVER['REMOTE_ADDR'];
-    $stmt->bind_param("is", $doc_id, $ip);
-    $stmt->execute();
-    $stmt->close();
-    $conn->close();
+    global $conn;
+    if (!$conn) return;
+    $stmt = @$conn->prepare("INSERT INTO document_downloads (document_id, download_date, ip_address) VALUES (?, NOW(), ?)");
+    if ($stmt) {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+        $stmt->bind_param("is", $doc_id, $ip);
+        $stmt->execute();
+        $stmt->close();
+    }
 }
 
 // Get data for the page
@@ -208,7 +185,7 @@ $publications = getPublications();
             style="position: fixed; width: 250px; height: 100vh; border: none; z-index: 1000;" 
             frameborder="0"
             name="sidebar-frame"
-            scrolling="no">
+            scrolling="yes">
     </iframe>
 
     <div class="main-content">
@@ -224,10 +201,10 @@ $publications = getPublications();
                         <i class="fas fa-sync"></i>
                         Refresh Data
                     </button>
-                    <button class="btn-action">
+                    <a href="../../public_transparency_view.php" class="btn-action" target="_blank" rel="noopener">
                         <i class="fas fa-globe"></i>
                         Public View
-                    </button>
+                    </a>
                 </div>
             </div>
         </div>
@@ -342,8 +319,43 @@ $publications = getPublications();
             </div>
         </div>
 
-        <!-- Publications Section -->
-        <div class="publications-section">
+        <!-- Completed Projects (published from Verification & Monitoring) – scrolling feed -->
+        <?php
+        $published_projects = [];
+        if ($conn) {
+            @$conn->query("CREATE TABLE IF NOT EXISTS published_completed_projects (
+                id int(11) unsigned NOT NULL AUTO_INCREMENT,
+                title varchar(255) NOT NULL,
+                description text,
+                location varchar(255) DEFAULT NULL,
+                completed_date date DEFAULT NULL,
+                cost decimal(12,2) DEFAULT NULL,
+                completed_by varchar(255) DEFAULT NULL,
+                photo varchar(500) DEFAULT NULL,
+                created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                KEY created_at (created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            $res = @$conn->query("SELECT id, title, description, location, completed_date, cost, completed_by, photo, created_at FROM published_completed_projects ORDER BY created_at DESC");
+            if ($res && $res->num_rows > 0) {
+                while ($row = $res->fetch_assoc()) {
+                    $published_projects[] = [
+                        'id' => (int) $row['id'],
+                        'title' => $row['title'],
+                        'description' => $row['description'] ?? '',
+                        'location' => $row['location'] ?? '',
+                        'completed_date' => $row['completed_date'] ? date('Y-m-d', strtotime($row['completed_date'])) : '',
+                        'cost' => (float) ($row['cost'] ?? 0),
+                        'completed_by' => $row['completed_by'] ?? '',
+                        'photo' => !empty($row['photo']) ? $row['photo'] : null,
+                    ];
+                }
+            }
+        }
+        ?>
+
+        <!-- Recent Publications – card-style feed (isolated from other publication styles) -->
+        <div class="publications-section publications-feed-section">
             <div class="section-header">
                 <h3 class="section-title">
                     <i class="fas fa-newspaper"></i>
@@ -361,20 +373,48 @@ $publications = getPublications();
                 </div>
             </div>
 
-            <div class="publications-grid">
-                <?php foreach ($publications as $pub): ?>
-                <div class="publication-card" onclick="viewPublication(<?php echo $pub['id']; ?>)">
-                    <span class="publication-type"><?php echo htmlspecialchars($pub['type']); ?></span>
-                    <div class="publication-title"><?php echo htmlspecialchars($pub['title']); ?></div>
-                    <div class="publication-meta">
-                        <span><i class="fas fa-calendar"></i> <?php echo date('F d, Y', strtotime($pub['publish_date'])); ?></span>
-                        <span><i class="fas fa-eye"></i> <?php echo number_format($pub['views']); ?> views</span>
-                    </div>
-                    <div class="publication-description">
-                        <?php echo htmlspecialchars($pub['description']); ?>
-                    </div>
+            <div class="publication-feed-list" role="feed" aria-label="Published projects">
+                <?php if (empty($published_projects)): ?>
+                <div class="publication-feed-empty">
+                    <p>No publications yet. Completed projects published from Verification &amp; Monitoring will appear here.</p>
                 </div>
+                <?php else: ?>
+                <?php foreach ($published_projects as $proj): ?>
+                <article class="publication-feed-card">
+                    <div class="publication-feed-card__image">
+                        <?php if (!empty($proj['photo'])): ?>
+                            <img src="../../../<?php echo htmlspecialchars($proj['photo']); ?>" alt="<?php echo htmlspecialchars($proj['title']); ?>">
+                        <?php else: ?>
+                            <div class="publication-feed-card__placeholder">
+                                <i class="fas fa-road"></i>
+                                <span>Project photo</span>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                    <div class="publication-feed-card__body">
+                        <h4 class="publication-feed-card__title"><?php echo htmlspecialchars($proj['title']); ?></h4>
+                        <div class="publication-feed-card__meta">
+                            <span><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($proj['location'] ?: '—'); ?></span>
+                            <span><i class="fas fa-calendar"></i> <?php echo !empty($proj['completed_date']) ? date('Y-m-d', strtotime($proj['completed_date'])) : '—'; ?></span>
+                        </div>
+                        <p class="publication-feed-card__desc"><?php echo nl2br(htmlspecialchars($proj['description'])); ?></p>
+                        <div class="publication-feed-card__footer">
+                            <div class="publication-feed-card__cost"><strong>Cost:</strong> ₱<?php echo number_format($proj['cost'], 0); ?></div>
+                            <div class="publication-feed-card__by"><strong>Completed by:</strong> <?php echo htmlspecialchars($proj['completed_by'] ?: '—'); ?></div>
+                            <?php if (!empty($proj['id'])): ?>
+                            <form method="post" class="publication-feed-card__remove" onsubmit="return confirm('Remove this project from public view?');">
+                                <input type="hidden" name="action" value="remove_published_project">
+                                <input type="hidden" name="id" value="<?php echo (int) $proj['id']; ?>">
+                                <button type="submit" class="btn-remove-publication">
+                                    <i class="fas fa-times-circle"></i> Remove from publications
+                                </button>
+                            </form>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </article>
                 <?php endforeach; ?>
+                <?php endif; ?>
             </div>
         </div>
 
