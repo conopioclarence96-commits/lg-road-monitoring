@@ -4,36 +4,50 @@
 
 return [
     'host' => 'localhost', // Your live database host (usually localhost)
-    'user' => 'your_live_db_username', // Replace with actual database username
-    'pass' => 'your_live_db_password', // Replace with actual database password
-    'name' => 'your_live_db_name'      // Replace with actual database name
+    'user' => 'rgmapinf_lgu_user', // Replace with actual database username
+    'pass' => 'YourSecurePassword123!', // Replace with actual database password
+    'name' => 'lg_road_monitoring'      // Database name from your SQL dump
 ];
 
 /*
 HOW TO FIND YOUR LIVE DATABASE CREDENTIALS:
 
 1. cPanel:
-   - Login to cPanel
-   - Go to "MySQL Databases" or "Database Wizard"
-   - Note the database name, username, and password you created
+   - Login to cPanel at yourdomain.com/cpanel
+   - Go to "MySQL Databases" or "MySQL Database Wizard"
+   - Look for existing databases and users
+   - Note the database name, username, and password
 
 2. Plesk:
    - Login to Plesk
-   - Go to "Databases"
-   - Find your database and note the credentials
+   - Go to "Databases" > "MySQL Databases"
+   - Find your database and click on the user to see credentials
 
-3. Other Hosting Panels:
-   - Look for "Database" section
-   - Find database users and credentials
+3. Hosting Control Panel:
+   - Look for "Database Management" or "MySQL" section
+   - Find database users and reset password if needed
 
-4. Contact Hosting Support:
-   - Ask for database connection details
-   - They'll provide host, username, password, and database name
+4. Create New Database User (if needed):
+   - Create database: lg_road_monitoring
+   - Create user: rgmapinf_lgu_user
+   - Set password: Choose a strong password
+   - Grant all privileges to user on database
 
-EXAMPLE CREDENTIALS (replace with yours):
-- Host: localhost
-- User: rgmapinf_lgu_user
-- Pass: MySecurePassword123!
-- Name: rgmapinf_lgu_monitoring
+5. Import Your SQL Dump:
+   - Use phpMyAdmin to import: lg_road_monitoring (5).sql
+   - Or use command line: mysql -u username -p lg_road_monitoring < file.sql
+
+TROUBLESHOOTING:
+- If you get "Access denied", check username and password
+- If you get "Unknown database", create the database first
+- If you get "Can't connect", check the host (sometimes it's not localhost)
+- Contact hosting support if you're unsure about credentials
+
+COMMON HOSTING PROVIDERS:
+- Bluehost: Host = localhost
+- HostGator: Host = localhost  
+- GoDaddy: Host = localhost or specific hostname
+- SiteGround: Host = localhost
+- Others: Check hosting documentation
 */
 ?>
