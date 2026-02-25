@@ -1715,6 +1715,46 @@ if (!empty($reports)) {
                 }, 100);
             }
         }
+
+        // Handle edit report form submission
+        document.getElementById('editReportForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
+            submitBtn.disabled = true;
+            
+            fetch('', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+                
+                if (data.success) {
+                    showNotification('Report updated successfully', 'success');
+                    closeModal('editReportModal');
+                    
+                    // Refresh the report list to show updated estimation
+                    setTimeout(() => {
+                        loadReports();
+                    }, 1000);
+                } else {
+                    showNotification(data.message || 'Failed to update report', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Error updating report', 'error');
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            });
+        });
     </script>
 </body>
 </html>
