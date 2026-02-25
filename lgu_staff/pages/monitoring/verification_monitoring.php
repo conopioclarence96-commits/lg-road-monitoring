@@ -46,7 +46,16 @@ function getVerificationStatistics($conn) {
 
 // Function to get pending verifications
 function getPendingVerifications($conn) {
-    $query = "(SELECT 'transport' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at FROM road_transportation_reports WHERE status = 'pending')
+    $query = "(SELECT 'transport' as source, id, report_id, title, 
+                     CASE 
+                        WHEN report_type IN ('traffic_jam', 'accident', 'road_closure', 'traffic_light_outage', 'congestion', 'parking_violation', 'public_transport_issue') 
+                        THEN 'Transportation'
+                        WHEN report_type IN ('potholes', 'road_damage', 'cracks', 'erosion', 'flooding', 'debris', 'shoulder_damage', 'marking_fade') 
+                        THEN 'Roads'
+                        ELSE report_type
+                     END as report_type,
+                     department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at 
+              FROM road_transportation_reports WHERE status = 'pending')
               UNION ALL
               (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at FROM road_maintenance_reports WHERE status = 'pending')
               ORDER BY created_at DESC";
@@ -59,7 +68,16 @@ function getPendingVerifications($conn) {
 
 // Function to get approved reports
 function getApprovedReports($conn) {
-    $query = "(SELECT 'transport' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at FROM road_transportation_reports WHERE status = 'completed')
+    $query = "(SELECT 'transport' as source, id, report_id, title, 
+                     CASE 
+                        WHEN report_type IN ('traffic_jam', 'accident', 'road_closure', 'traffic_light_outage', 'congestion', 'parking_violation', 'public_transport_issue') 
+                        THEN 'Transportation'
+                        WHEN report_type IN ('potholes', 'road_damage', 'cracks', 'erosion', 'flooding', 'debris', 'shoulder_damage', 'marking_fade') 
+                        THEN 'Roads'
+                        ELSE report_type
+                     END as report_type,
+                     department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at 
+              FROM road_transportation_reports WHERE status = 'completed')
               UNION ALL
               (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at FROM road_maintenance_reports WHERE status = 'completed')
               ORDER BY updated_at DESC";
@@ -72,7 +90,16 @@ function getApprovedReports($conn) {
 
 // Function to get rejected reports
 function getRejectedReports($conn) {
-    $query = "(SELECT 'transport' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at FROM road_transportation_reports WHERE status = 'cancelled')
+    $query = "(SELECT 'transport' as source, id, report_id, title, 
+                     CASE 
+                        WHEN report_type IN ('traffic_jam', 'accident', 'road_closure', 'traffic_light_outage', 'congestion', 'parking_violation', 'public_transport_issue') 
+                        THEN 'Transportation'
+                        WHEN report_type IN ('potholes', 'road_damage', 'cracks', 'erosion', 'flooding', 'debris', 'shoulder_damage', 'marking_fade') 
+                        THEN 'Roads'
+                        ELSE report_type
+                     END as report_type,
+                     department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at 
+              FROM road_transportation_reports WHERE status = 'cancelled')
               UNION ALL
               (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at FROM road_maintenance_reports WHERE status = 'cancelled')
               ORDER BY updated_at DESC";
@@ -85,7 +112,16 @@ function getRejectedReports($conn) {
 
 // Function to get all reports (for filtering)
 function getAllReports($conn) {
-    $query = "(SELECT 'transport' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at FROM road_transportation_reports)
+    $query = "(SELECT 'transport' as source, id, report_id, title, 
+                     CASE 
+                        WHEN report_type IN ('traffic_jam', 'accident', 'road_closure', 'traffic_light_outage', 'congestion', 'parking_violation', 'public_transport_issue') 
+                        THEN 'Transportation'
+                        WHEN report_type IN ('potholes', 'road_damage', 'cracks', 'erosion', 'flooding', 'debris', 'shoulder_damage', 'marking_fade') 
+                        THEN 'Roads'
+                        ELSE report_type
+                     END as report_type,
+                     department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at 
+              FROM road_transportation_reports)
               UNION ALL
               (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at FROM road_maintenance_reports)
               ORDER BY created_at DESC";
@@ -111,7 +147,16 @@ function getRecentApprovals($conn) {
 
 // Function to get activity timeline
 function getActivityTimeline($conn) {
-    $query = "(SELECT 'transport' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at FROM road_transportation_reports)
+    $query = "(SELECT 'transport' as source, id, report_id, title, 
+                     CASE 
+                        WHEN report_type IN ('traffic_jam', 'accident', 'road_closure', 'traffic_light_outage', 'congestion', 'parking_violation', 'public_transport_issue') 
+                        THEN 'Transportation'
+                        WHEN report_type IN ('potholes', 'road_damage', 'cracks', 'erosion', 'flooding', 'debris', 'shoulder_damage', 'marking_fade') 
+                        THEN 'Roads'
+                        ELSE report_type
+                     END as report_type,
+                     department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at 
+              FROM road_transportation_reports)
               UNION ALL
               (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at FROM road_maintenance_reports)
               ORDER BY updated_at DESC LIMIT 5";
