@@ -37,14 +37,9 @@ if (file_exists($homePagePath) && !isset($_GET['login']) && !isset($_GET['regist
 $database_available = false;
 $conn = null;
 
-try {
-    require_once 'lgu_staff/includes/config.php';
-    require_once 'lgu_staff/includes/functions.php';
-    $database_available = true;
-} catch (Exception $e) {
-    // Database not available, continue without it
-    $database_available = false;
-}
+require_once 'lgu_staff/includes/config.php';
+require_once 'lgu_staff/includes/functions.php';
+$database_available = true;
 ?>
 <!DOCTYPE html>
 <html lang="en">
