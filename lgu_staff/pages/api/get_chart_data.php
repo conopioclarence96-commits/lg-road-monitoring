@@ -170,6 +170,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['period'])) {
 }
 
 // If not an AJAX request, redirect
-header('Location: lgu_staff_dashboard.php');
+header('Location: ../main/lgu_staff_dashboard.php');
 exit();
 ?>

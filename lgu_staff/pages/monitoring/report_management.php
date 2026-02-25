@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if (!verify_csrf_token($csrf_token)) {
         set_flash_message('error', 'Invalid CSRF token');
-        header('Location: report_management.php');
+        header('Location: ../monitoring/report_management.php');
         exit();
     }
     
@@ -1211,12 +1211,12 @@ $flash_message = get_flash_message();
         function exportReports() {
             const status = document.getElementById('statusFilter').value;
             const type = document.getElementById('typeFilter').value;
-            const url = `export_reports.php?status=${status}&type=${type}`;
+            const url = `../api/export_reports.php?status=${status}&type=${type}`;
             window.open(url, '_blank');
         }
 
         function viewReport(id, type) {
-            fetch(`get_report_details.php?id=${id}&type=${type}`)
+            fetch(`../api/get_report_details.php?id=${id}&type=${type}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -1255,7 +1255,7 @@ $flash_message = get_flash_message();
         }
 
         function editReport(id, type) {
-            fetch(`get_report_details.php?id=${id}&type=${type}`)
+            fetch(`../api/get_report_details.php?id=${id}&type=${type}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {

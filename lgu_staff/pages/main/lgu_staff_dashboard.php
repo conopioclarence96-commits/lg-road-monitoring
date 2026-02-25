@@ -661,7 +661,7 @@ $chart_data = getWeeklyChartData($conn);
 
         // Function to update chart data based on selected period
         function updateChartData(period) {
-            fetch(`get_chart_data.php?period=${period}`)
+            fetch(`../api/get_chart_data.php?period=${period}`)
                 .then(response => response.json())
                 .then(data => {
                     reportsChart.data.datasets[0].data = data.reports;

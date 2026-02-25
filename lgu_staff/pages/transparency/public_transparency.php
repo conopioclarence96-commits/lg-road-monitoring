@@ -142,7 +142,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
                         }
                     }
                 }
-                header('Location: public_transparency.php');
+                header('Location: ../transparency/public_transparency.php');
                 exit;
         }
     }

@@ -137,7 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param('i', $report_id);
             $stmt->execute();
             $_SESSION['verification_message'] = 'Report removed successfully.';
-            header('Location: verification_monitoring.php');
+            header('Location: ../monitoring/verification_monitoring.php');
             exit();
         }
         
@@ -182,7 +182,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['verification_message'] = 'Report ' . $action . 'd successfully!';
         }
         
-        header('Location: verification_monitoring.php');
+        header('Location: ../monitoring/verification_monitoring.php');
         exit();
     }
 }
