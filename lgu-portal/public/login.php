@@ -7,8 +7,8 @@ $database_available = false;
 $conn = null;
 
 try {
-    require_once '../../lgu_staff/includes/config.php';
-    require_once '../../lgu_staff/includes/functions.php';
+    require_once '/home/rgmap.infragovservices.com/lgu_staff/includes/config.php';
+    require_once '/home/rgmap.infragovservices.com/lgu_staff/includes/functions.php';
     $database_available = true;
 } catch (Exception $e) {
     // Database not available, continue without it
@@ -17,7 +17,7 @@ try {
 
 // Check if user is already logged in (only if database is available)
 if ($database_available && isset($_SESSION['user_id'])) {
-    header('Location: ../../lgu_staff/pages/lgu_staff_dashboard.php');
+    header('Location: ../lgu_staff/pages/lgu_staff_dashboard.php');
     exit();
 }
 
