@@ -47,13 +47,7 @@ function getVerificationStatistics($conn) {
 // Function to get pending verifications
 function getPendingVerifications($conn) {
     $query = "(SELECT 'transport' as source, id, report_id, title, 
-                     CASE 
-                        WHEN report_type IN ('traffic_jam', 'accident', 'road_closure', 'traffic_light_outage', 'congestion', 'parking_violation', 'public_transport_issue') 
-                        THEN 'Transportation'
-                        WHEN report_type IN ('potholes', 'road_damage', 'cracks', 'erosion', 'flooding', 'debris', 'shoulder_damage', 'marking_fade') 
-                        THEN 'Roads'
-                        ELSE report_type
-                     END as report_type,
+                     COALESCE(specific_type, report_type) as report_type,
                      department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at 
               FROM road_transportation_reports WHERE status = 'pending')
               UNION ALL
