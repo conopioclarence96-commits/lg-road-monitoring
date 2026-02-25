@@ -109,12 +109,26 @@ if ($conn && !$conn->connect_error) {
 
 // Check connection
 if ($conn === null || $conn->connect_error) {
-    // Show user-friendly error on live server, detailed error on localhost
+    // Show detailed error for debugging
     if ($server_name === 'localhost' || strpos($server_name, '.local') !== false) {
         $error_msg = $conn ? $conn->connect_error : "Unable to establish database connection";
         die("Connection failed: " . $error_msg);
     } else {
-        die("Database connection failed. Please contact administrator.");
+        // On live server, show more helpful error without exposing credentials
+        $error_details = [];
+        if ($conn) {
+            $error_details[] = "MySQL Error: " . $conn->connect_error;
+            $error_details[] = "MySQL Error Code: " . $conn->connect_errno;
+        } else {
+            $error_details[] = "Connection object is null";
+        }
+        $error_details[] = "Database: " . DB_NAME;
+        $error_details[] = "Host: " . DB_HOST;
+        
+        // Log the error details (you can uncomment this for debugging)
+        // error_log("Database connection failed: " . implode(" | ", $error_details));
+        
+        die("Database connection failed. Please contact administrator. (Error: " . ($conn ? $conn->connect_errno : 'UNKNOWN') . ")");
     }
 }
 
