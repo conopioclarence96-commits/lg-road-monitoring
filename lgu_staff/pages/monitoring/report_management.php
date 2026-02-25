@@ -93,13 +93,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     $action = $_POST['action'] ?? '';
+    $report_type = $_POST['report_type'] ?? '';
 
     switch ($action) {
         case 'receive_report':
             handle_receive_report();
             break;
         case 'update_report':
-            handle_update_report();
+            handle_update_report($report_type);
             break;
         case 'delete_report':
             handle_delete_report();
@@ -158,11 +159,10 @@ function handle_receive_report() {
     }
 }
 
-function handle_update_report() {
+function handle_update_report($report_type) {
     global $conn, $user_id;
     
     $report_id = intval($_POST['report_id'] ?? 0);
-    $report_type = sanitize_input($_POST['report_type'] ?? '');
     $status = sanitize_input($_POST['status'] ?? '');
     $priority = sanitize_input($_POST['priority'] ?? '');
     $assigned_to = sanitize_input($_POST['assigned_to'] ?? '');
