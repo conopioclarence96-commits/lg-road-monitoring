@@ -5,8 +5,8 @@ ini_set('session.use_only_cookies', 1);
 ini_set('session.cookie_secure', 0); // Set to 1 if using HTTPS
 
 session_start();
-require_once '../includes/config.php';
-require_once '../includes/functions.php';
+require_once '../../includes/config.php';
+require_once '../../includes/functions.php';
 
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {

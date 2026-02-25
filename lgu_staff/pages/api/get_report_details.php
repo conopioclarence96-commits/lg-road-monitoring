@@ -1,7 +1,7 @@
 <?php
-require_once '../includes/session_config.php';
-require_once '../includes/config.php';
-require_once '../includes/functions.php';
+require_once '../../includes/session_config.php';
+require_once '../../includes/config.php';
+require_once '../../includes/functions.php';
 
 // Check if user is logged in
 if (!is_logged_in()) {

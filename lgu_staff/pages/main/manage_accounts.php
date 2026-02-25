@@ -9,12 +9,12 @@ ini_set('session.use_only_cookies', 1);
 ini_set('session.cookie_secure', 0);
 
 session_start();
-require_once '../includes/config.php';
-require_once '../includes/functions.php';
+require_once '../../includes/config.php';
+require_once '../../includes/functions.php';
 
 // Check if user is logged in and is system admin
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'system_admin') {
-    header('Location: ../login.php');
+    header('Location: ../../login.php');
     exit();
 }
 

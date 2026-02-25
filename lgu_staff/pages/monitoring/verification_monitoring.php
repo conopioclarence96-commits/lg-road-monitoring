@@ -1,11 +1,11 @@
 <?php
-require_once '../includes/session_config.php';
-require_once '../includes/config.php';
-require_once '../includes/functions.php';
+require_once '../../includes/session_config.php';
+require_once '../../includes/config.php';
+require_once '../../includes/functions.php';
 
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
-    header('Location: ../login.php');
+    header('Location: ../../login.php');
     exit();
 }
 

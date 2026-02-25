@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../includes/config.php';
+require_once __DIR__ . '/../../includes/config.php';
 
 // Default stats when transparency tables are missing
 function getDefaultTransparencyStats() {
