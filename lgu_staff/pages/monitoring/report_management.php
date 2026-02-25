@@ -375,26 +375,31 @@ $flash_message = get_flash_message();
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Poppins', sans-serif;
-        }
-
         body {
-            min-height: 100vh;
-            background: url("../../assets/img/cityhall.jpeg") center/cover no-repeat fixed;
+            background: url("../../../assets/img/cityhall.jpeg") center/cover no-repeat fixed;
             position: relative;
+            min-height: 100vh;
         }
-
+        
         body::before {
             content: "";
             position: absolute;
             inset: 0;
             backdrop-filter: blur(6px);
             background: rgba(0, 0, 0, 0.35);
-            z-index: 0;
+            z-index: -1;
+        }
+        
+        .main-content {
+            position: relative;
+            z-index: 1;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
         }
 
         .main-content {

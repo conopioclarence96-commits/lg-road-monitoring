@@ -295,6 +295,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        body {
+            background: url("../../../assets/img/cityhall.jpeg") center/cover no-repeat fixed;
+            position: relative;
+            min-height: 100vh;
+        }
+        
+        body::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            backdrop-filter: blur(6px);
+            background: rgba(0, 0, 0, 0.35);
+            z-index: -1;
+        }
+        
+        .main-content {
+            position: relative;
+            z-index: 1;
+        }
+        
         * {
             margin: 0;
             padding: 0;
@@ -303,11 +323,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         html { scroll-behavior: smooth; }
-        body {
-            min-height: 100vh;
-            background: url("../../assets/img/cityhall.jpeg") center/cover no-repeat fixed;
-            position: relative;
-        }
 
         body::before {
             content: "";
