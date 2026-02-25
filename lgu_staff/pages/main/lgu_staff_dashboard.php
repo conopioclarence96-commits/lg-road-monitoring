@@ -238,10 +238,32 @@ $chart_data = getWeeklyChartData($conn);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            gap: 30px;
         }
 
-        .welcome-text h1 {
+        .welcome-content {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex: 1;
+        }
+
+        .logo-container {
+            width: 80px;
+            height: 80px;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            border: 3px solid rgba(255, 255, 255, 0.9);
+            flex-shrink: 0;
+        }
+
+        .logo-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+            .welcome-text h1 {
             color: #1e3c72;
             font-size: 32px;
             font-weight: 700;
@@ -492,9 +514,14 @@ $chart_data = getWeeklyChartData($conn);
         <!-- Dashboard Header -->
         <div class="dashboard-header">
             <div class="welcome-section">
-                <div class="welcome-text">
-                    <h1>Welcome back, <?php echo htmlspecialchars($_SESSION['username'] ?? 'Staff'); ?></h1>
-                    <p>Here's what's happening with the Road and Transportation Department today</p>
+                <div class="welcome-content">
+                    <div class="logo-container">
+                        <img src="../../assets/img/logocityhall.png" alt="LGU Logo">
+                    </div>
+                    <div class="welcome-text">
+                        <h1>Welcome back, <?php echo htmlspecialchars($_SESSION['username'] ?? 'Staff'); ?></h1>
+                        <p>Here's what's happening with the Road and Transportation Department today</p>
+                    </div>
                 </div>
                 <div class="date-time">
                     <div id="currentDate"></div>
