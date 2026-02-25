@@ -25,13 +25,8 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
     $basePath = '';
 }
 
-// Check if we should include the home page directly
-$homePagePath = __DIR__ . '/lgu_staff/login.php';
-if (file_exists($homePagePath) && !isset($_GET['login']) && !isset($_GET['register']) && !isset($_GET['public'])) {
-    // Directly include the home page (no redirect)
-    require_once $homePagePath;
-    exit();
-}
+// Bypass lgu_staff/login.php - work directly with index.php
+// No inclusion of login.php - handle everything here
 
 // Try to include database files with error handling
 $database_available = false;
