@@ -817,9 +817,20 @@ $roads = getRoadStatus();
         const QC_CENTER = [14.6500, 121.0500];
         const map = L.map('map').setView(QC_CENTER, 13);
 
+        // Define Quezon City boundaries (approximate)
+        const QC_BOUNDS = [
+            [14.35, 120.85], // Southwest corner
+            [14.95, 121.25]  // Northeast corner
+        ];
+
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
+
+        // Restrict map to Quezon City bounds
+        map.setMaxBounds(QC_BOUNDS);
+        map.setMinZoom(11);
+        map.setMaxZoom(18);
 
         let pinMarker = null;
         const reportMarkersLayer = L.layerGroup().addTo(map);
@@ -855,12 +866,30 @@ $roads = getRoadStatus();
         // Map click: place pin and show form
         map.on('click', function(e) {
             const { lat, lng } = e.latlng;
+            
+            // Check if clicked location is within Quezon City bounds
+            if (lat < QC_BOUNDS[0][0] || lat > QC_BOUNDS[1][0] || 
+                lng < QC_BOUNDS[0][1] || lng > QC_BOUNDS[1][1]) {
+                showNotification('Please select a location within Quezon City boundaries', 'error');
+                return;
+            }
+            
             if (pinMarker) map.removeLayer(pinMarker);
             pinMarker = L.marker([lat, lng], {
                 draggable: true
             }).addTo(map);
             pinMarker.on('dragend', function() {
                 const pos = pinMarker.getLatLng();
+                
+                // Validate dragged position is still within bounds
+                if (pos.lat < QC_BOUNDS[0][0] || pos.lat > QC_BOUNDS[1][0] || 
+                    pos.lng < QC_BOUNDS[0][1] || pos.lng > QC_BOUNDS[1][1]) {
+                    showNotification('Please keep the marker within Quezon City boundaries', 'error');
+                    // Reset to previous valid position
+                    pinMarker.setLatLng([lat, lng]);
+                    return;
+                }
+                
                 pinLat.value = pos.lat;
                 pinLng.value = pos.lng;
             });
