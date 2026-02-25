@@ -272,8 +272,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 }
                 
                 // Use the specific type if provided, otherwise use general type
-                $report_type = ($issue_type === 'roads') ? 'road_damage' : 'traffic'; // General category
-                $specific_type_value = $full_issue_type; // Specific type from form
+                $report_type = $full_issue_type; // This contains the specific type from the form
                 // Map severity: severe -> critical
                 $severity_db = ($severity === 'severe') ? 'critical' : $severity;
                 $priority = ($severity_db === 'critical' || $severity_db === 'high') ? 'high' : ($severity_db === 'medium' ? 'medium' : 'low');
@@ -293,16 +292,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $image_path = !empty($attachments) ? $attachments[0]['file_path'] : null;
                 
                 $stmt = $conn->prepare("INSERT INTO road_transportation_reports 
-                    (report_id, report_type, specific_type, title, department, priority, status, created_date, description, location, latitude, longitude, severity, attachments, image_path, created_by) 
-                    VALUES (?, ?, ?, ?, ?, 'pending', CURDATE(), ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    (report_id, report_type, title, department, priority, status, created_date, description, location, latitude, longitude, severity, attachments, image_path, created_by) 
+                    VALUES (?, ?, ?, ?, ?, 'pending', CURDATE(), ?, ?, ?, ?, ?, ?, ?, ?)");
                 
                 if (!$stmt) {
                     echo json_encode(['success' => false, 'message' => 'Database prepare failed: ' . $conn->error]);
                     exit;
                 }
                 
-                // Parameters: report_id, report_type, specific_type, title, department, priority, description, location, lat, lng, severity, attachments, image_path, user_id
-                $stmt->bind_param("sssssssssddssis", $report_id, $report_type, $specific_type_value, $title, $department, $priority, $description, $location_str, $lat, $lng, $severity_db, $attachments_json, $image_path, $user_id);
+                // Parameters: report_id, report_type, title, department, priority, description, location, lat, lng, severity, attachments, image_path, user_id
+                $stmt->bind_param("sssssssddssis", $report_id, $report_type, $title, $department, $priority, $description, $location_str, $lat, $lng, $severity_db, $attachments_json, $image_path, $user_id);
                 
                 if ($stmt->execute()) {
                     ob_end_clean(); // Clear any output before JSON
