@@ -1279,7 +1279,7 @@ if (!empty($reports)) {
                     <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
                     <input type="hidden" name="action" value="update_report">
                     <input type="hidden" name="report_id" id="editReportId">
-                    <input type="hidden" name="report_type" id="editReportType" value="<?php echo 'transportation'; ?>">
+                    <input type="hidden" name="report_type" id="editReportType" value="<?php echo $report_type; ?>">
                     
                     <div style="display: flex; gap: 15px;">
                         <div class="form-group" style="flex: 1;">
