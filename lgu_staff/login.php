@@ -275,17 +275,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                         switch ($user['role']) {
                             case 'system_admin':
                                 // Redirect to LGU Staff Dashboard (admin_dashboard.php no longer exists)
-                                $redirectUrl = $basePath . 'pages/lgu_staff_dashboard.php';
+                                $redirectUrl = $basePath . 'lgu_staff/pages/lgu_staff_dashboard.php';
                                 break;
                             case 'lgu_staff':
                                 // Redirect to LGU Staff Dashboard
-                                $redirectUrl = $basePath . 'pages/lgu_staff_dashboard.php';
+                                $redirectUrl = $basePath . 'lgu_staff/pages/lgu_staff_dashboard.php';
                                 break;
                             case 'citizen':
-                                $redirectUrl = $basePath . 'pages/lgu_staff_dashboard.php';
+                                $redirectUrl = $basePath . 'lgu_staff/pages/lgu_staff_dashboard.php';
                                 break;
                             default:
-                                $redirectUrl = $basePath . 'pages/lgu_staff_dashboard.php';
+                                $redirectUrl = $basePath . 'lgu_staff/pages/lgu_staff_dashboard.php';
                         }
                         
                         // Redirect to appropriate dashboard
