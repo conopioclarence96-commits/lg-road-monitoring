@@ -520,7 +520,7 @@ $chart_data = getWeeklyChartData($conn);
                         <img src="../../../assets/img/logocityhall.png" alt="LGU Logo">
                     </div>
                     <div class="welcome-text">
-                        <h1>Welcome back, <?php echo htmlspecialchars($_SESSION['username'] ?? 'Admin'); ?></h1>
+                        <h1>Welcome back, <?php echo htmlspecialchars($_SESSION['username'] ?? 'Staff'); ?></h1>
                         <p>Here's what's happening with the Road and Transportation Department today</p>
                     </div>
                 </div>
