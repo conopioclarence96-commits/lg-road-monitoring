@@ -175,7 +175,7 @@ function handle_update_report() {
     }
     
     // Update the report
-    $table = ($report_type === 'transportation') ? 'road_transportation_reports' : 'road_maintenance_reports';
+    $table = ($report_type === 'transportation') ? 'road_maintenance_reports' : 'road_transportation_reports';
     
     // Check if estimation column exists
     $estimation_column_exists = true;
