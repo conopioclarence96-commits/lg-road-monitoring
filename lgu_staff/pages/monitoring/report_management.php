@@ -256,12 +256,34 @@ function get_reports($status_filter = 'all', $type_filter = 'all', $limit = 50, 
     
     $reports = [];
     
+    // Check if estimation column exists
+    $transport_estimation_exists = false;
+    $maintenance_estimation_exists = false;
+    
+    $result = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'estimation'");
+    if ($result && $result->num_rows > 0) {
+        $transport_estimation_exists = true;
+    }
+    
+    $result = $conn->query("SHOW COLUMNS FROM road_maintenance_reports LIKE 'estimation'");
+    if ($result && $result->num_rows > 0) {
+        $maintenance_estimation_exists = true;
+    }
+    
     // Get transportation reports
-    $transport_query = "SELECT id, title, description, location, latitude, longitude, priority, status, assigned_to, resolution_notes as notes, created_at, updated_at, 'transportation' as report_type FROM road_transportation_reports";
+    if ($transport_estimation_exists) {
+        $transport_query = "SELECT id, title, description, location, latitude, longitude, priority, status, assigned_to, estimation, resolution_notes as notes, created_at, updated_at, 'transportation' as report_type FROM road_transportation_reports";
+    } else {
+        $transport_query = "SELECT id, title, description, location, latitude, longitude, priority, status, assigned_to, 0 as estimation, resolution_notes as notes, created_at, updated_at, 'transportation' as report_type FROM road_transportation_reports";
+    }
     $transport_params = [];
     
     // Get maintenance reports
-    $maintenance_query = "SELECT id, title, description, location, priority, status, maintenance_team as assigned_to, created_at, updated_at, 'maintenance' as report_type FROM road_maintenance_reports";
+    if ($maintenance_estimation_exists) {
+        $maintenance_query = "SELECT id, title, description, location, priority, status, maintenance_team as assigned_to, estimation, created_at, updated_at, 'maintenance' as report_type FROM road_maintenance_reports";
+    } else {
+        $maintenance_query = "SELECT id, title, description, location, priority, status, maintenance_team as assigned_to, 0 as estimation, created_at, updated_at, 'maintenance' as report_type FROM road_maintenance_reports";
+    }
     $maintenance_params = [];
     
     // Apply filters
@@ -381,6 +403,16 @@ $reports = get_reports($status_filter, $type_filter, $per_page, $offset);
 $stats = get_report_stats();
 $csrf_token = generate_csrf_token();
 $flash_message = get_flash_message();
+
+// Debug: Check if estimation values are present
+if (!empty($reports)) {
+    foreach ($reports as $index => $report) {
+        if (isset($report['estimation']) && $report['estimation'] > 0) {
+            // Found a report with estimation
+            error_log("Report ID {$report['id']} has estimation: {$report['estimation']}");
+        }
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -1061,6 +1093,8 @@ $flash_message = get_flash_message();
                                         <i class="fas fa-flag"></i> Priority: <?php echo ucfirst($report['priority']); ?> • 
                                         <?php if (!empty($report['estimation']) && isset($report['estimation']) && $report['estimation'] > 0): ?>
                                         <i class="fas fa-peso-sign"></i> Estimation: ₱<?php echo number_format($report['estimation'], 2); ?> • 
+                                        <?php else: ?>
+                                        <i class="fas fa-peso-sign" style="opacity: 0.3;"></i> No Estimation • 
                                         <?php endif; ?>
                                         <i class="fas fa-clock"></i> <?php echo format_datetime($report['created_at']); ?>
                                     </div>
