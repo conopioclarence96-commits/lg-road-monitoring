@@ -1,9 +1,9 @@
 <?php
-// Live Server Database Configuration
+// Live Server Database Configuration for rgmap.infragovservices.com
 return [
     'host' => 'localhost',
-    'user' => 'rgmap_road_user',      // CyberPanel database user
-    'pass' => 'lguroad2024',          // Common CyberPanel password - update if different
-    'name' => 'rgmap_road_monitoring'   // Your actual database name
+    'user' => 'rgmap_root',                    // Exact user from CyberPanel
+    'pass' => 'root123',        // **REPLACE with password you set in CyberPanel**
+    'name' => 'rgmap_lg_road_monitoring'       // Exact database name from CyberPanel
 ];
 ?>
