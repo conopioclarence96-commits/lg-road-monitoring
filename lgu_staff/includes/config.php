@@ -6,8 +6,8 @@ if ($server_name === 'localhost' || $server_name === '127.0.0.1' || strpos($serv
     // Local development environment
     define('DB_HOST', 'localhost');
     define('DB_USER', 'root');
-    define('DB_PASS', '');
-    define('DB_NAME', 'lg_road_monitoring');
+    define('DB_PASS', 'root123');
+    define('DB_NAME', 'rgmap_lg_road_monitoring');
 } else {
     // Live server environment
     $live_config = require_once __DIR__ . '/live_db_config.php';
