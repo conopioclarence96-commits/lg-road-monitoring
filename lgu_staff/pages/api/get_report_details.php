@@ -27,6 +27,7 @@ try {
     }
     
     if ($report_type === 'transportation') {
+        alert($estimation_column_exists);
         if ($estimation_column_exists) {
             $query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, 
                              assigned_to, estimation, resolution_notes as notes, reporter_name, reporter_email, 
