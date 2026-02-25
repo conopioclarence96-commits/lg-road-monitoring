@@ -204,7 +204,7 @@ $chart_data = getWeeklyChartData($conn);
 
         body {
             min-height: 100vh;
-            background: url("../../assets/img/cityhall.jpeg") center/cover no-repeat fixed;
+            background: url("../../../assets/img/cityhall.jpeg") center/cover no-repeat fixed;
             position: relative;
         }
 
@@ -263,7 +263,8 @@ $chart_data = getWeeklyChartData($conn);
             height: 100%;
             object-fit: cover;
         }
-            .welcome-text h1 {
+
+        .welcome-text h1 {
             color: #1e3c72;
             font-size: 32px;
             font-weight: 700;
@@ -516,7 +517,7 @@ $chart_data = getWeeklyChartData($conn);
             <div class="welcome-section">
                 <div class="welcome-content">
                     <div class="logo-container">
-                        <img src="../../assets/img/logocityhall.png" alt="LGU Logo">
+                        <img src="../../../assets/img/logocityhall.png" alt="LGU Logo">
                     </div>
                     <div class="welcome-text">
                         <h1>Welcome back, <?php echo htmlspecialchars($_SESSION['username'] ?? 'Staff'); ?></h1>
