@@ -26,7 +26,7 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
 }
 
 // Check if we should include the home page directly
-$homePagePath = __DIR__ . '/lgu-portal/public/login.php';
+$homePagePath = __DIR__ . '/lgu_staff/login.php';
 if (file_exists($homePagePath) && !isset($_GET['login']) && !isset($_GET['register']) && !isset($_GET['public'])) {
     // Directly include the home page (no redirect)
     require_once $homePagePath;
