@@ -20,11 +20,11 @@ $table = ($report_type === 'transportation') ? 'road_transportation_reports' : '
 try {
     if ($report_type === 'transportation') {
         $query = "SELECT id, title, description, location, latitude, longitude, priority, status, 
-                         assigned_to, resolution_notes as notes, reporter_name, reporter_email, 
+                         assigned_to, estimation, resolution_notes as notes, reporter_name, reporter_email, 
                          created_at, updated_at 
                   FROM road_transportation_reports WHERE id = ?";
     } else {
-        $query = "SELECT id, title, description, location, priority, status, 
+        $query = "SELECT id, title, description, location, priority, status, estimation,
                          maintenance_team as assigned_to, created_at, updated_at,
                          '' as notes, '' as reporter_name, '' as reporter_email,
                          0 as latitude, 0 as longitude
