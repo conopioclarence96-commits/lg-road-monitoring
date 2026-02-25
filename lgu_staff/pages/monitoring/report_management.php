@@ -1431,6 +1431,7 @@ if (!empty($reports)) {
             fetch(`../api/get_report_details.php?id=${id}&type=${type}`)
                 .then(response => response.json())
                 .then(data => {
+                    alert(type);
                     if (data.success) {
                         document.getElementById('editReportId').value = data.report.id;
                         document.getElementById('editReportType').value = data.report.report_type;
