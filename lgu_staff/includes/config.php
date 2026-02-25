@@ -1,8 +1,13 @@
 <?php
-// Database Configuration
-$server_name = $_SERVER['SERVER_NAME'] ?? 'localhost';
+// Enable mysqli error reporting for proper exception handling
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
-if ($server_name === 'localhost' || $server_name === '127.0.0.1' || strpos($server_name, '.local') !== false) {
+// Environment detection
+$server_name = $_SERVER['SERVER_NAME'] ?? 'localhost';
+$is_local = ($server_name === 'localhost' || $server_name === '127.0.0.1' || strpos($server_name, '.local') !== false);
+
+// Database configuration based on environment
+if ($is_local) {
     // Local development environment
     define('DB_HOST', 'localhost');
     define('DB_USER', 'root');
@@ -17,68 +22,59 @@ if ($server_name === 'localhost' || $server_name === '127.0.0.1' || strpos($serv
     define('DB_NAME', $live_config['name']);
 }
 
-// Create database connection
-try {
-    // Temporary debugging - remove after fixing
-    if ($server_name !== 'localhost' && strpos($server_name, '.local') === false) {
-        echo "<!-- DEBUG: Host=" . DB_HOST . ", User=" . DB_USER . ", DB=" . DB_NAME . " -->";
-    }
-    
-    $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-} catch (Exception $e) {
-    // Temporary debugging - remove after fixing
-    if ($server_name !== 'localhost' && strpos($server_name, '.local') === false) {
-        echo "<!-- DEBUG Exception: " . $e->getMessage() . " -->";
-    }
-    $conn = null;
-}
+// Initialize connection variable
+$conn = null;
 
-// Check connection
-if ($conn === null || $conn->connect_error) {
-    // Temporary full error output for debugging - REMOVE AFTER FIXING
-    if ($server_name !== 'localhost' && strpos($server_name, '.local') === false) {
-        echo "<div style='background:#ffebee;padding:10px;margin:10px;border:1px solid #f44336;'>";
-        echo "<h3>Database Connection Debug Info:</h3>";
-        echo "<p><strong>Error Code:</strong> " . ($conn ? $conn->connect_errno : 'UNKNOWN') . "</p>";
-        echo "<p><strong>Error Message:</strong> " . ($conn ? $conn->connect_error : 'Connection object is null') . "</p>";
-        echo "<p><strong>Host:</strong> " . DB_HOST . "</p>";
-        echo "<p><strong>Database:</strong> " . DB_NAME . "</p>";
-        echo "<p><strong>User:</strong> " . DB_USER . "</p>";
-        echo "</div>";
-        die("Debug mode enabled - Fix the issue above and remove debug code");
-    }
+// Create database connection with proper error handling
+try {
+    $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
     
-    // Log detailed error for debugging (safe - doesn't expose credentials)
+    // Set charset to UTF-8
+    $conn->set_charset("utf8mb4");
+    
+} catch (mysqli_sql_exception $e) {
+    // Log error without exposing credentials
     $error_details = [
         'timestamp' => date('Y-m-d H:i:s'),
-        'error_code' => $conn ? $conn->connect_errno : 'UNKNOWN',
-        'error_msg' => $conn ? $conn->connect_error : 'Connection object is null',
+        'error_code' => $e->getCode(),
+        'error_msg' => $e->getMessage(),
         'database' => DB_NAME,
         'host' => DB_HOST
     ];
     
-    // Log to file (check this file for debugging)
     error_log("Database connection failed: " . json_encode($error_details));
     
-    // Show user-friendly error
-    if ($server_name === 'localhost' || strpos($server_name, '.local') !== false) {
-        $error_msg = $conn ? $conn->connect_error : "Unable to establish database connection";
-        die("Connection failed: " . $error_msg);
+    // Show appropriate error message
+    if ($is_local) {
+        die("Database connection failed: " . $e->getMessage() . " (Error Code: " . $e->getCode() . ")");
     } else {
-        die("Database connection failed. Please contact administrator. (Error: " . ($conn ? $conn->connect_errno : 'UNKNOWN') . ")");
+        die("Database connection failed. Please contact administrator. (Error Code: " . $e->getCode() . ")");
+    }
+} catch (Exception $e) {
+    // Handle other exceptions
+    error_log("Unexpected database error: " . $e->getMessage());
+    
+    if ($is_local) {
+        die("Unexpected database error: " . $e->getMessage());
+    } else {
+        die("Database error occurred. Please contact administrator.");
     }
 }
 
-// Set charset to utf8mb4
-$conn->set_charset("utf8mb4");
+// Error reporting configuration
+if ($is_local) {
+    // Show all errors in development
+    error_reporting(E_ALL);
+    ini_set('display_errors', 1);
+} else {
+    // Hide errors in production
+    error_reporting(0);
+    ini_set('display_errors', 0);
+}
 
 // Application settings
 define('APP_NAME', 'LGU Road Monitoring System');
 define('APP_VERSION', '1.0.0');
-
-// Error reporting (disable in production)
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
 
 // Timezone
 date_default_timezone_set('Asia/Manila');
@@ -94,7 +90,7 @@ define('ALLOWED_FILE_TYPES', ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'jpg',
 // Pagination settings
 define('ITEMS_PER_PAGE', 20);
 
-// Email settings (configure as needed)
+// Email settings
 define('SMTP_HOST', 'localhost');
 define('SMTP_PORT', 587);
 define('SMTP_USERNAME', '');
