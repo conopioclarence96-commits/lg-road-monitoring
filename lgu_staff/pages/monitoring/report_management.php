@@ -1759,7 +1759,7 @@ if (!empty($reports)) {
                     
                     // Refresh the report list to show updated estimation
                     setTimeout(() => {
-                        loadReports();
+                        location.reload(); // Simple page reload to show updated data
                     }, 1000);
                 } else {
                     showNotification(data.message || 'Failed to update report', 'error');
