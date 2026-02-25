@@ -274,8 +274,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                         // Determine redirect based on user role
                         switch ($user['role']) {
                             case 'system_admin':
-                                // Redirect to Admin Dashboard
-                                $redirectUrl = $basePath . 'pages/admin_dashboard.php';
+                                // Redirect to LGU Staff Dashboard (admin_dashboard.php no longer exists)
+                                $redirectUrl = $basePath . 'pages/lgu_staff_dashboard.php';
                                 break;
                             case 'lgu_staff':
                                 // Redirect to LGU Staff Dashboard
