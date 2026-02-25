@@ -827,10 +827,32 @@ $roads = getRoadStatus();
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // Restrict map to Quezon City bounds
-        map.setMaxBounds(QC_BOUNDS);
+        // Add visual boundary rectangle for Quezon City
+        const boundaryRectangle = L.rectangle(QC_BOUNDS, {
+            color: '#3762c8',
+            weight: 2,
+            opacity: 0.8,
+            fillOpacity: 0.1,
+            fillColor: '#3762c8'
+        }).addTo(map);
+
+        // Restrict map to Quezon City bounds with padding
+        map.setMaxBounds([
+            [14.30, 120.80], // Slightly padded bounds
+            [15.00, 121.30]
+        ]);
         map.setMinZoom(11);
         map.setMaxZoom(18);
+
+        // Force map back to Quezon City if user tries to pan out
+        map.on('moveend', function() {
+            const center = map.getCenter();
+            if (center.lat < 14.30 || center.lat > 15.00 || 
+                center.lng < 120.80 || center.lng > 121.30) {
+                map.setView(QC_CENTER, 13);
+                showNotification('Map view restricted to Quezon City area', 'info');
+            }
+        });
 
         let pinMarker = null;
         const reportMarkersLayer = L.layerGroup().addTo(map);
