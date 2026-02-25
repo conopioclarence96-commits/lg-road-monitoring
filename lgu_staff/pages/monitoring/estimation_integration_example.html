@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cost Estimation Integration Example</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .form-group { margin-bottom: 15px; }
+        .form-label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-control { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-secondary { background: #6c757d; color: white; margin-left: 10px; }
+        .success { color: green; margin: 10px 0; }
+        .error { color: red; margin: 10px 0; }
+        .loading { opacity: 0.6; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <h2>Cost Estimation Integration Example</h2>
+    
+    <!-- Edit Report Modal Form -->
+    <form id="editReportForm">
+        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+        <input type="hidden" name="report_id" id="editReportId" value="1">
+        <input type="hidden" name="report_type" id="editReportType" value="transportation">
+        
+        <div class="form-group">
+            <label for="editEstimation" class="form-label">Cost Estimation (₱)</label>
+            <input type="number" 
+                   class="form-control" 
+                   name="estimation" 
+                   id="editEstimation" 
+                   placeholder="Enter estimated cost" 
+                   min="0" 
+                   step="1000"
+                   required>
+            <small style="color: #666; font-size: 12px;">Provide cost estimation for this project</small>
+        </div>
+        
+        <button type="submit" class="btn btn-primary" id="updateBtn">Update Cost Estimation</button>
+        <button type="button" class="btn btn-secondary" onclick="resetForm()">Reset</button>
+    </form>
+    
+    <div id="resultMessage"></div>
+    
+    <!-- View Report Modal Display -->
+    <div style="margin-top: 30px; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+        <h3>View Report Modal Display</h3>
+        <p><strong>Current Cost Estimation:</strong> <span id="viewEstimation">Not set</span></p>
+    </div>
+
+    <script>
+        // Front-end JavaScript for cost estimation integration
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('editReportForm');
+            const updateBtn = document.getElementById('updateBtn');
+            const resultDiv = document.getElementById('resultMessage');
+            const viewEstimationSpan = document.getElementById('viewEstimation');
+            
+            // Form submission handler
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // Get form data
+                const formData = new FormData(form);
+                const estimationValue = formData.get('estimation');
+                
+                // Client-side validation
+                if (!estimationValue || estimationValue.trim() === '') {
+                    showMessage('Please enter a cost estimation', 'error');
+                    return;
+                }
+                
+                const estimationFloat = parseFloat(estimationValue);
+                if (isNaN(estimationFloat)) {
+                    showMessage('Cost estimation must be a valid number', 'error');
+                    return;
+                }
+                
+                if (estimationFloat < 0) {
+                    showMessage('Cost estimation cannot be negative', 'error');
+                    return;
+                }
+                
+                if (estimationFloat > 10000000) {
+                    showMessage('Cost estimation cannot exceed ₱10,000,000', 'error');
+                    return;
+                }
+                
+                // Show loading state
+                updateBtn.classList.add('loading');
+                updateBtn.textContent = 'Updating...';
+                updateBtn.disabled = true;
+                
+                // Send AJAX request to backend
+                fetch('../api/update_estimation.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    updateBtn.classList.remove('loading');
+                    updateBtn.textContent = 'Update Cost Estimation';
+                    updateBtn.disabled = false;
+                    
+                    if (data.success) {
+                        // Success: Update view modal and show success message
+                        showMessage(data.message, 'success');
+                        
+                        // Update the view estimation span with formatted value
+                        viewEstimationSpan.textContent = data.formatted_estimation;
+                        viewEstimationSpan.style.color = '#28a745';
+                        viewEstimationSpan.style.fontWeight = 'bold';
+                        
+                        // Optional: Clear the form
+                        form.reset();
+                        
+                    } else {
+                        // Error: Show error message
+                        showMessage(data.error || 'Failed to update cost estimation', 'error');
+                    }
+                })
+                .catch(error => {
+                    updateBtn.classList.remove('loading');
+                    updateBtn.textContent = 'Update Cost Estimation';
+                    updateBtn.disabled = false;
+                    showMessage('Network error: ' + error.message, 'error');
+                });
+            });
+            
+            // Real-time input validation
+            const estimationInput = document.getElementById('editEstimation');
+            estimationInput.addEventListener('input', function() {
+                const value = parseFloat(this.value);
+                if (!isNaN(value) && value >= 0) {
+                    // Show live preview in view modal
+                    const formatted = '₱' + value.toLocaleString('en-PH', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    });
+                    viewEstimationSpan.textContent = formatted;
+                    viewEstimationSpan.style.color = '#666';
+                }
+            });
+            
+            // Helper functions
+            function showMessage(message, type) {
+                resultDiv.innerHTML = `<div class="${type}">${message}</div>`;
+                setTimeout(() => {
+                    resultDiv.innerHTML = '';
+                }, 5000);
+            }
+            
+            function resetForm() {
+                form.reset();
+                viewEstimationSpan.textContent = 'Not set';
+                viewEstimationSpan.style.color = '#666';
+                resultDiv.innerHTML = '';
+            }
+        });
+    </script>
+</body>
+</html>
