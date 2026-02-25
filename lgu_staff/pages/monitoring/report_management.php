@@ -1764,7 +1764,19 @@ if (!empty($reports)) {
                     showNotification('Report updated successfully', 'success');
                     closeModal('editReportModal');
                     
-                    // Refresh the report list to show updated estimation
+                    // Update the viewEstimation span with the new value
+                    const estimationValue = formData.get('estimation');
+                    const viewEstimationSpan = document.getElementById('viewEstimation');
+                    if (viewEstimationSpan && estimationValue) {
+                        const formattedEstimation = parseFloat(estimationValue).toLocaleString('en-PH', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                        });
+                        viewEstimationSpan.textContent = `₱${formattedEstimation}`;
+                        viewEstimationSpan.style.display = 'inline';
+                    }
+                    
+                    // Refresh report list to show updated estimation
                     setTimeout(() => {
                         location.reload(); // Simple page reload to show updated data
                     }, 1000);
