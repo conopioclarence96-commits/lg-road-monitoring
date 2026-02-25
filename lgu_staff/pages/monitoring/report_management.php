@@ -169,13 +169,25 @@ function handle_update_report() {
     $estimation = floatval($_POST['estimation'] ?? 0);
     $notes = sanitize_input($_POST['notes'] ?? '');
     
+    // Debug: Log incoming data
+    error_log("UPDATE REPORT DEBUG - ID: $report_id, Type: $report_type, Status: $status, Priority: $priority, Assigned: $assigned_to, Estimation: $estimation");
+    
     if ($report_id <= 0 || empty($report_type) || empty($status)) {
+        error_log("UPDATE REPORT ERROR - Invalid data: ID=$report_id, Type=$report_type, Status=$status");
         set_flash_message('error', 'Invalid report data');
         return;
     }
     
     // Update the report
     $table = ($report_type === 'transportation') ? 'road_transportation_reports' : 'road_maintenance_reports';
+    
+    // Debug: Check if table exists
+    $table_check = $conn->query("SHOW TABLES LIKE '$table'");
+    if (!$table_check || $table_check->num_rows === 0) {
+        error_log("UPDATE REPORT ERROR - Table '$table' does not exist");
+        set_flash_message('error', "Table '$table' does not exist");
+        return;
+    }
     
     // Check if estimation column exists
     $estimation_column_exists = false;
@@ -184,44 +196,80 @@ function handle_update_report() {
         $estimation_column_exists = true;
     }
     
+    error_log("UPDATE REPORT DEBUG - Table: $table, Estimation column exists: " . ($estimation_column_exists ? 'YES' : 'NO'));
+    
+    $stmt = null;
+    $sql = "";
+    
     if ($report_type === 'transportation') {
         if ($estimation_column_exists) {
-            $stmt = $conn->prepare("UPDATE {$table} SET status = ?, priority = ?, assigned_to = ?, estimation = ?, resolution_notes = ?, updated_at = NOW() WHERE id = ?");
-            $stmt->bind_param("sssssi", $status, $priority, $assigned_to, $estimation, $notes, $report_id);
+            $sql = "UPDATE {$table} SET status = ?, priority = ?, assigned_to = ?, estimation = ?, resolution_notes = ?, updated_at = NOW() WHERE id = ?";
+            $stmt = $conn->prepare($sql);
+            if ($stmt) {
+                $stmt->bind_param("sssssi", $status, $priority, $assigned_to, $estimation, $notes, $report_id);
+            }
         } else {
-            $stmt = $conn->prepare("UPDATE {$table} SET status = ?, priority = ?, assigned_to = ?, resolution_notes = ?, updated_at = NOW() WHERE id = ?");
-            $stmt->bind_param("ssssi", $status, $priority, $assigned_to, $notes, $report_id);
+            $sql = "UPDATE {$table} SET status = ?, priority = ?, assigned_to = ?, resolution_notes = ?, updated_at = NOW() WHERE id = ?";
+            $stmt = $conn->prepare($sql);
+            if ($stmt) {
+                $stmt->bind_param("ssssi", $status, $priority, $assigned_to, $notes, $report_id);
+            }
         }
     } else {
         if ($estimation_column_exists) {
-            $stmt = $conn->prepare("UPDATE {$table} SET status = ?, priority = ?, maintenance_team = ?, estimation = ?, updated_at = NOW() WHERE id = ?");
-            $stmt->bind_param("ssssi", $status, $priority, $assigned_to, $estimation, $report_id);
+            $sql = "UPDATE {$table} SET status = ?, priority = ?, maintenance_team = ?, estimation = ?, updated_at = NOW() WHERE id = ?";
+            $stmt = $conn->prepare($sql);
+            if ($stmt) {
+                $stmt->bind_param("ssssi", $status, $priority, $assigned_to, $estimation, $report_id);
+            }
         } else {
-            $stmt = $conn->prepare("UPDATE {$table} SET status = ?, priority = ?, maintenance_team = ?, updated_at = NOW() WHERE id = ?");
-            $stmt->bind_param("sssi", $status, $priority, $assigned_to, $report_id);
+            $sql = "UPDATE {$table} SET status = ?, priority = ?, maintenance_team = ?, updated_at = NOW() WHERE id = ?";
+            $stmt = $conn->prepare($sql);
+            if ($stmt) {
+                $stmt->bind_param("sssi", $status, $priority, $assigned_to, $report_id);
+            }
         }
     }
     
+    // Debug: Check if statement prepared successfully
+    if (!$stmt) {
+        $error_msg = "Failed to prepare statement: " . $conn->error;
+        error_log("UPDATE REPORT ERROR - $error_msg");
+        error_log("UPDATE REPORT ERROR - SQL: $sql");
+        set_flash_message('error', $error_msg);
+        return;
+    }
+    
+    error_log("UPDATE REPORT DEBUG - SQL: $sql");
+    error_log("UPDATE REPORT DEBUG - Bound params: status='$status', priority='$priority', assigned_to='$assigned_to', estimation=$estimation, notes='$notes', report_id=$report_id");
+    
     if ($stmt->execute()) {
+        $affected_rows = $stmt->affected_rows;
+        error_log("UPDATE REPORT SUCCESS - Affected rows: $affected_rows");
         log_audit_action($user_id, "Updated {$report_type} report", "Report ID: {$report_id}, New Status: {$status}, Estimation: ₱" . number_format($estimation, 2));
-        set_flash_message('success', 'Report updated successfully');
+        set_flash_message('success', "Report updated successfully. Affected rows: $affected_rows");
         
         // Return JSON response for AJAX requests
         if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
             header('Content-Type: application/json');
-            echo json_encode(['success' => true, 'message' => 'Report updated successfully']);
+            echo json_encode(['success' => true, 'message' => 'Report updated successfully', 'affected_rows' => $affected_rows]);
             exit;
         }
     } else {
-        set_flash_message('error', 'Failed to update report: ' . $conn->error);
+        $error_msg = "Failed to update report: " . $stmt->error;
+        error_log("UPDATE REPORT ERROR - $error_msg");
+        error_log("UPDATE REPORT ERROR - SQL: $sql");
+        set_flash_message('error', $error_msg);
         
         // Return JSON response for AJAX requests
         if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
             header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'message' => 'Failed to update report: ' . $conn->error]);
+            echo json_encode(['success' => false, 'message' => $error_msg]);
             exit;
         }
     }
+    
+    $stmt->close();
 }
 
 function handle_delete_report() {
