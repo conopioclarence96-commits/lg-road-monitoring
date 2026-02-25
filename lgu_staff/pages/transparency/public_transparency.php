@@ -1,5 +1,17 @@
 <?php
+// Session settings
+ini_set('session.cookie_httponly', 1);
+ini_set('session.use_only_cookies', 1);
+ini_set('session.cookie_secure', 0);
+
+session_start();
 require_once __DIR__ . '/../../includes/config.php';
+
+// Check if user is logged in
+if (!isset($_SESSION['user_id'])) {
+    header('Location: ../../login.php');
+    exit();
+}
 
 // Default stats when transparency tables are missing
 function getDefaultTransparencyStats() {
@@ -26,8 +38,11 @@ function getTransparencyStats() {
     }
     
     $r = @$conn->query("SELECT SUM(views) as total FROM document_views");
-    if ($r && $row = $r->fetch_assoc() && isset($row['total']) && $row['total'] !== null) {
-        $stats['views'] = (int) $row['total'];
+    if ($r && $row = $r->fetch_assoc()) {
+        $total = $row['total'] ?? 0;
+        if ($total !== null) {
+            $stats['views'] = (int) $total;
+        }
     }
     
     $r = @$conn->query("SELECT COUNT(*) as count FROM document_downloads");
