@@ -190,8 +190,7 @@ function handle_update_report() {
         $stmt->bind_param("sssdsi", $status, $priority, $assigned_to, $estimation, $notes, $report_id);
     } else {
         $stmt = $conn->prepare("UPDATE {$table} SET status = ?, priority = ?, maintenance_team = ?, updated_at = NOW() WHERE id = ?");
-            $stmt->bind_param("sssi", $status, $priority, $assigned_to, $report_id);
-        }
+        $stmt->bind_param("sssi", $status, $priority, $assigned_to, $report_id);
     }
     
     if ($stmt->execute()) {
