@@ -308,7 +308,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     echo json_encode(['success' => true, 'message' => (!empty($attachments) ? 'Report submitted with image' : 'Report submitted') . '. It will appear in Verification and Monitoring.', 'report_id' => $report_id]);
                 } else {
                     ob_end_clean();
-                    echo json_encode(['success' => false, 'message' => 'Failed to save report: ' . $stmt->error]);
+                    $error_details = $stmt->error;
+                    error_log("Statement execution failed: " . $error_details);
+                    error_log("Bound parameters: report_id=$report_id, report_type=$report_type, title=$title, department=$department, priority=$priority, description=$description, location=$location_str, lat=$lat, lng=$lng, severity=$severity_db, attachments=$attachments_json, image_path=$image_path, user_id=$user_id");
+                    echo json_encode(['success' => false, 'message' => 'Failed to save report: ' . $error_details]);
                 }
             } catch (Exception $e) {
                 ob_end_clean();
