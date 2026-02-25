@@ -895,6 +895,19 @@ if (!empty($reports)) {
             box-shadow: 0 0 0 3px rgba(55, 98, 200, 0.1);
         }
 
+        select.form-control {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23373c72'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 0.7rem center;
+            background-size: 1.2em;
+            padding-right: 2.5rem;
+        }
+
+        select.form-control option {
+            background: white;
+            color: #333;
+        }
+
         .form-section {
             background: #f8f9fa;
             border-radius: 10px;
@@ -1108,6 +1121,13 @@ if (!empty($reports)) {
                                 <?php echo htmlspecialchars($report['description']); ?>
                             </div>
                             
+                            <?php if (!empty($report['assigned_to'])): ?>
+                            <div class="assignment-info" style="margin-bottom: 10px; padding: 8px 12px; background: rgba(55, 98, 200, 0.1); border-radius: 6px; border-left: 3px solid #3762c8;">
+                                <i class="fas fa-user-hard-hat"></i> 
+                                <strong>Assigned to:</strong> <?php echo htmlspecialchars($report['assigned_to']); ?>
+                            </div>
+                            <?php endif; ?>
+                            
                             <div class="report-actions">
                                 <button class="btn-action btn-view" onclick="viewReport(<?php echo $report['id']; ?>, '<?php echo $report['report_type']; ?>')">
                                     <i class="fas fa-eye"></i> View
@@ -1197,8 +1217,19 @@ if (!empty($reports)) {
                     </div>
                     
                     <div class="form-group">
-                        <label for="editAssignedTo" class="form-label">Assigned To</label>
-                        <input type="text" class="form-control" name="assigned_to" id="editAssignedTo" placeholder="Enter assignee name">
+                        <label for="editAssignedTo" class="form-label">Assign To *</label>
+                        <select class="form-control" name="assigned_to" id="editAssignedTo" required>
+                            <option value="">Select Assignee</option>
+                            <option value="CIM Engineer 1">CIM Engineer 1</option>
+                            <option value="CIM Engineer 2">CIM Engineer 2</option>
+                            <option value="CIM Engineer 3">CIM Engineer 3</option>
+                            <option value="CIM Engineer 4">CIM Engineer 4</option>
+                            <option value="CIM Engineer 5">CIM Engineer 5</option>
+                            <option value="Maintenance Team">Maintenance Team</option>
+                            <option value="Road Inspector">Road Inspector</option>
+                            <option value="Project Manager">Project Manager</option>
+                        </select>
+                        <small style="color: #666; font-size: 12px;">Select the team member responsible for this report</small>
                     </div>
                     
                     <div class="form-group">
@@ -1329,7 +1360,26 @@ if (!empty($reports)) {
                         document.getElementById('editReportType').value = data.report.report_type;
                         document.getElementById('editStatus').value = data.report.status;
                         document.getElementById('editPriority').value = data.report.priority;
-                        document.getElementById('editAssignedTo').value = data.report.assigned_to || '';
+                        
+                        // Auto-assign based on priority if no assignment exists
+                        const assignedToSelect = document.getElementById('editAssignedTo');
+                        if (!data.report.assigned_to || data.report.assigned_to === '') {
+                            const priority = data.report.priority;
+                            let autoAssign = '';
+                            
+                            if (priority === 'high') {
+                                autoAssign = 'CIM Engineer 1'; // Senior engineer for high priority
+                            } else if (priority === 'medium') {
+                                autoAssign = 'CIM Engineer 2'; // Mid-level engineer for medium priority
+                            } else {
+                                autoAssign = 'CIM Engineer 3'; // Junior engineer for low priority
+                            }
+                            
+                            assignedToSelect.value = autoAssign;
+                        } else {
+                            assignedToSelect.value = data.report.assigned_to;
+                        }
+                        
                         document.getElementById('editEstimation').value = data.report.estimation || '';
                         document.getElementById('editNotes').value = data.report.notes || '';
                         openModal('editReportModal');
