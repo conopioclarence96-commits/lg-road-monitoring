@@ -113,12 +113,29 @@ function handle_update_report() {
     // Update the report
     $table = ($report_type === 'transportation') ? 'road_transportation_reports' : 'road_maintenance_reports';
     
+    // Check if estimation column exists
+    $estimation_column_exists = false;
+    $result = $conn->query("SHOW COLUMNS FROM {$table} LIKE 'estimation'");
+    if ($result && $result->num_rows > 0) {
+        $estimation_column_exists = true;
+    }
+    
     if ($report_type === 'transportation') {
-        $stmt = $conn->prepare("UPDATE {$table} SET status = ?, priority = ?, assigned_to = ?, estimation = ?, resolution_notes = ?, updated_at = NOW() WHERE id = ?");
-        $stmt->bind_param("sssssi", $status, $priority, $assigned_to, $estimation, $notes, $report_id);
+        if ($estimation_column_exists) {
+            $stmt = $conn->prepare("UPDATE {$table} SET status = ?, priority = ?, assigned_to = ?, estimation = ?, resolution_notes = ?, updated_at = NOW() WHERE id = ?");
+            $stmt->bind_param("sssssi", $status, $priority, $assigned_to, $estimation, $notes, $report_id);
+        } else {
+            $stmt = $conn->prepare("UPDATE {$table} SET status = ?, priority = ?, assigned_to = ?, resolution_notes = ?, updated_at = NOW() WHERE id = ?");
+            $stmt->bind_param("ssssi", $status, $priority, $assigned_to, $notes, $report_id);
+        }
     } else {
-        $stmt = $conn->prepare("UPDATE {$table} SET status = ?, priority = ?, maintenance_team = ?, estimation = ?, updated_at = NOW() WHERE id = ?");
-        $stmt->bind_param("ssssi", $status, $priority, $assigned_to, $estimation, $report_id);
+        if ($estimation_column_exists) {
+            $stmt = $conn->prepare("UPDATE {$table} SET status = ?, priority = ?, maintenance_team = ?, estimation = ?, updated_at = NOW() WHERE id = ?");
+            $stmt->bind_param("ssssi", $status, $priority, $assigned_to, $estimation, $report_id);
+        } else {
+            $stmt = $conn->prepare("UPDATE {$table} SET status = ?, priority = ?, maintenance_team = ?, updated_at = NOW() WHERE id = ?");
+            $stmt->bind_param("sssi", $status, $priority, $assigned_to, $report_id);
+        }
     }
     
     if ($stmt->execute()) {
@@ -1042,7 +1059,7 @@ $flash_message = get_flash_message();
                                         <i class="fas fa-tag"></i> <?php echo ucfirst($report['report_type']); ?> • 
                                         <i class="fas fa-geo-alt"></i> <?php echo htmlspecialchars($report['location']); ?> • 
                                         <i class="fas fa-flag"></i> Priority: <?php echo ucfirst($report['priority']); ?> • 
-                                        <?php if (!empty($report['estimation']) && $report['estimation'] > 0): ?>
+                                        <?php if (!empty($report['estimation']) && isset($report['estimation']) && $report['estimation'] > 0): ?>
                                         <i class="fas fa-peso-sign"></i> Estimation: ₱<?php echo number_format($report['estimation'], 2); ?> • 
                                         <?php endif; ?>
                                         <i class="fas fa-clock"></i> <?php echo format_datetime($report['created_at']); ?>
