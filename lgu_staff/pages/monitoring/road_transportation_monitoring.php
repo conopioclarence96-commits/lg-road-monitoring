@@ -713,7 +713,7 @@ $roads = getRoadStatus();
         <div class="monitoring-header">
             <div class="header-content">
                 <div class="header-title">
-                    <h1>Road and Transportation Monitoring</h1>
+                    <h1>Road and Transportation Reporting</h1>
                     <p>Real-time monitoring of road conditions and traffic flow</p>
                 </div>
             </div>
