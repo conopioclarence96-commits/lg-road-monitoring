@@ -271,13 +271,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     exit;
                 }
                 
-                // Map issue_type to report_type: transportation -> traffic, roads -> road_damage
-                $report_type = ($issue_type === 'roads') ? 'road_damage' : 'traffic';
+                // Use the specific type if provided, otherwise use general type
+                $report_type = $full_issue_type; // This contains the specific type from the form
                 // Map severity: severe -> critical
                 $severity_db = ($severity === 'severe') ? 'critical' : $severity;
                 $priority = ($severity_db === 'critical' || $severity_db === 'high') ? 'high' : ($severity_db === 'medium' ? 'medium' : 'low');
                 $report_id = 'RPT-' . date('Ymd-His') . '-' . substr(uniqid(), -5);
-                $title = ucfirst($issue_type) . ' issue at pinned location';
+                $title = ucfirst($full_issue_type) . ' issue at pinned location';
                 $user_id = $_SESSION['user_id'] ?? null;
                 // Set department explicitly to prevent truncation
                 $department = 'Road and Transportation';
