@@ -1464,7 +1464,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                 <strong>Report ID:</strong> <?php echo htmlspecialchars($report['report_id'] ?? 'N/A'); ?>
                                             </div>
                                             <div class="detail-item">
-                                                <strong>Type:</strong> <?php echo htmlspecialchars($report['report_type'] ?? 'N/A'); ?>
+                                                <strong>Type:</strong> 
+                                                <?php 
+                                                $report_type = $report['report_type'] ?? '';
+                                                $specific_types = [
+                                                    'traffic_jam' => 'Traffic Jam',
+                                                    'accident' => 'Vehicle Accident',
+                                                    'road_closure' => 'Road Closure',
+                                                    'traffic_light_outage' => 'Traffic Light Outage',
+                                                    'congestion' => 'Heavy Congestion',
+                                                    'parking_violation' => 'Illegal Parking',
+                                                    'public_transport_issue' => 'Public Transport Issue',
+                                                    'potholes' => 'Potholes',
+                                                    'road_damage' => 'Road Damage',
+                                                    'cracks' => 'Road Cracks',
+                                                    'erosion' => 'Road Erosion',
+                                                    'flooding' => 'Street Flooding',
+                                                    'debris' => 'Road Debris',
+                                                    'shoulder_damage' => 'Shoulder Damage',
+                                                    'marking_fade' => 'Faded Road Markings'
+                                                ];
+                                                
+                                                if (isset($specific_types[$report_type])) {
+                                                    echo $specific_types[$report_type];
+                                                } else {
+                                                    echo ucfirst($report_type);
+                                                }
+                                                ?>
                                             </div>
                                             <div class="detail-item">
                                                 <strong>Priority:</strong> <span class="workflow-badge priority-<?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?>"><?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?></span>
