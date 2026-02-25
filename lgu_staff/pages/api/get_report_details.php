@@ -27,18 +27,11 @@ try {
     }
     
     if ($report_type === 'transportation') {
-        alert($estimation_column_exists);
-        if ($estimation_column_exists) {
-            $query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, 
-                             assigned_to, estimation, resolution_notes as notes, reporter_name, reporter_email, 
-                             department, created_date, created_at, updated_at 
-                      FROM road_transportation_reports WHERE id = ?";
-        } else {
-            $query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, 
-                             assigned_to, resolution_notes as notes, reporter_name, reporter_email, 
-                             department, created_date, created_at, updated_at 
-                      FROM road_transportation_reports WHERE id = ?";
-        }
+        $query = "SELECT id, report_id, report_type, title, department, priority, status, created_date, due_date, description,
+                    location, latitude, longitude, reporter_name, reporter_email, severity, reported_date, resolved_date, assigned_to,
+                    resolution_notes as notes, attachments, created_by, updated_at, image_path 
+                    FROM road_transportation_reports WHERE id = ?";
+        
     } else {
         if ($estimation_column_exists) {
             $query = "SELECT id, report_id, title, description, location, priority, status, estimation,
