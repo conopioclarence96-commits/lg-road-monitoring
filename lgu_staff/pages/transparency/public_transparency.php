@@ -181,7 +181,7 @@ $publications = getPublications();
 </head>
 <body>
     <!-- SIDEBAR -->
-    <iframe src="../includes/sidebar.php" 
+    <iframe src="../../includes/sidebar.php" 
             style="position: fixed; width: 250px; height: 100vh; border: none; z-index: 1000;" 
             frameborder="0"
             name="sidebar-frame"
