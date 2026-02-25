@@ -27,7 +27,7 @@ try {
     }
     
     if ($report_type === 'transportation') {
-        $query = "SELECT id, report_id, report_type, title, department, priority, status, created_date, due_date, description, 
+        $query = "SELECT id, report_id, report_type, title, department, priority, status, created_date, due_date, description,
                     location, latitude, longitude, reporter_name, reporter_email, severity, reported_date, resolved_date, assigned_to,
                     resolution_notes as notes, estimation, attachments, created_by, updated_at, image_path 
                     FROM road_transportation_reports WHERE id = ?";
