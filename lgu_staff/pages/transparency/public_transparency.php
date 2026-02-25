@@ -23,7 +23,7 @@ function getDefaultTransparencyStats() {
     ];
 }
 
-// Function to get transparency statistics (uses project DB: lg_road_monitoring)
+// Function to get transparency statistics (uses new transparency portal tables)
 function getTransparencyStats() {
     global $conn;
     $stats = getDefaultTransparencyStats();
@@ -32,12 +32,14 @@ function getTransparencyStats() {
         return $stats;
     }
     
-    $r = @$conn->query("SELECT COUNT(*) as count FROM public_documents");
+    // Get publications count from new publications table
+    $r = @$conn->query("SELECT COUNT(*) as count FROM publications WHERE is_published = 1");
     if ($r && $row = $r->fetch_assoc()) {
         $stats['documents'] = (int) $row['count'];
     }
     
-    $r = @$conn->query("SELECT SUM(views) as total FROM document_views");
+    // Get total views from publications table
+    $r = @$conn->query("SELECT SUM(view_count) as total FROM publications WHERE is_published = 1");
     if ($r && $row = $r->fetch_assoc()) {
         $total = $row['total'] ?? 0;
         if ($total !== null) {
@@ -45,23 +47,34 @@ function getTransparencyStats() {
         }
     }
     
-    $r = @$conn->query("SELECT COUNT(*) as count FROM document_downloads");
+    // Get total downloads from publications table
+    $r = @$conn->query("SELECT SUM(download_count) as total FROM publications WHERE is_published = 1");
     if ($r && $row = $r->fetch_assoc()) {
-        $stats['downloads'] = (int) $row['count'];
+        $total = $row['total'] ?? 0;
+        if ($total !== null) {
+            $stats['downloads'] = (int) $total;
+        }
     }
     
-    $r = @$conn->query("SELECT COUNT(*) as total FROM documents");
-    $total_docs = 0;
-    $public_docs = 0;
+    // Calculate transparency score from transparency_scores table
+    $r = @$conn->query("SELECT overall_score FROM transparency_scores ORDER BY score_date DESC LIMIT 1");
     if ($r && $row = $r->fetch_assoc()) {
-        $total_docs = (int) $row['total'];
-    }
-    $r = @$conn->query("SELECT COUNT(*) as public FROM documents WHERE is_published = 1");
-    if ($r && $row = $r->fetch_assoc()) {
-        $public_docs = (int) $row['public'];
-    }
-    if ($total_docs > 0) {
-        $stats['score'] = round(($public_docs / $total_docs) * 100, 1);
+        $stats['score'] = (float) $row['overall_score'];
+    } else {
+        // Fallback calculation using publications data
+        $r = @$conn->query("SELECT COUNT(*) as total FROM publications");
+        $total_docs = 0;
+        $public_docs = 0;
+        if ($r && $row = $r->fetch_assoc()) {
+            $total_docs = (int) $row['total'];
+        }
+        $r = @$conn->query("SELECT COUNT(*) as public FROM publications WHERE is_published = 1");
+        if ($r && $row = $r->fetch_assoc()) {
+            $public_docs = (int) $row['public'];
+        }
+        if ($total_docs > 0) {
+            $stats['score'] = round(($public_docs / $total_docs) * 100, 1);
+        }
     }
     
     return $stats;
@@ -198,15 +211,30 @@ function getPerformanceMetrics() {
     return $metrics;
 }
 
-// Function to get publications (from publications table if it exists; no dummy data)
+// Function to get publications (from new publications table)
 function getPublications() {
     global $conn;
     $publications = [];
     if ($conn) {
-        $result = @$conn->query("SELECT * FROM publications ORDER BY publish_date DESC LIMIT 10");
+        $result = @$conn->query("SELECT * FROM publications WHERE is_published = 1 ORDER BY publish_date DESC LIMIT 10");
         if ($result && $result->num_rows > 0) {
             while ($row = $result->fetch_assoc()) {
-                $publications[] = $row;
+                $publications[] = [
+                    'id' => (int) $row['id'],
+                    'publication_id' => $row['publication_id'],
+                    'title' => $row['title'],
+                    'description' => $row['description'],
+                    'publication_type' => $row['publication_type'],
+                    'category' => $row['category'],
+                    'department' => $row['department'],
+                    'author' => $row['author'],
+                    'publish_date' => $row['publish_date'],
+                    'file_path' => $row['file_path'],
+                    'file_name' => $row['file_name'],
+                    'view_count' => (int) $row['view_count'],
+                    'download_count' => (int) $row['download_count'],
+                    'is_featured' => (bool) $row['is_featured']
+                ];
             }
         }
     }
@@ -497,42 +525,51 @@ $publications = getPublications();
                 </div>
             </div>
 
-            <div class="publication-feed-list" role="feed" aria-label="Published projects">
-                <?php if (empty($published_projects)): ?>
+            <div class="publication-feed-list" role="feed" aria-label="Publications">
+                <?php if (empty($publications)): ?>
                 <div class="publication-feed-empty">
-                    <p>No publications yet. Completed projects published from Verification &amp; Monitoring will appear here.</p>
+                    <p>No publications yet. Published documents and reports will appear here.</p>
                 </div>
                 <?php else: ?>
-                <?php foreach ($published_projects as $proj): ?>
+                <?php foreach ($publications as $pub): ?>
                 <article class="publication-feed-card">
                     <div class="publication-feed-card__image">
-                        <?php if (!empty($proj['photo'])): ?>
-                            <img src="../../../<?php echo htmlspecialchars($proj['photo']); ?>" alt="<?php echo htmlspecialchars($proj['title']); ?>">
+                        <?php if (!empty($pub['file_path'])): ?>
+                            <div class="publication-feed-card__file">
+                                <i class="fas fa-file-pdf"></i>
+                                <span>Document</span>
+                            </div>
                         <?php else: ?>
                             <div class="publication-feed-card__placeholder">
-                                <i class="fas fa-road"></i>
-                                <span>Project photo</span>
+                                <i class="fas fa-newspaper"></i>
+                                <span>Publication</span>
                             </div>
                         <?php endif; ?>
                     </div>
                     <div class="publication-feed-card__body">
-                        <h4 class="publication-feed-card__title"><?php echo htmlspecialchars($proj['title']); ?></h4>
+                        <h4 class="publication-feed-card__title"><?php echo htmlspecialchars($pub['title']); ?></h4>
                         <div class="publication-feed-card__meta">
-                            <span><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($proj['location'] ?: '—'); ?></span>
-                            <span><i class="fas fa-calendar"></i> <?php echo !empty($proj['completed_date']) ? date('Y-m-d', strtotime($proj['completed_date'])) : '—'; ?></span>
+                            <span><i class="fas fa-building"></i> <?php echo htmlspecialchars($pub['department'] ?: '—'); ?></span>
+                            <span><i class="fas fa-calendar"></i> <?php echo !empty($pub['publish_date']) ? date('Y-m-d', strtotime($pub['publish_date'])) : '—'; ?></span>
+                            <?php if (!empty($pub['category'])): ?>
+                            <span><i class="fas fa-tag"></i> <?php echo htmlspecialchars($pub['category']); ?></span>
+                            <?php endif; ?>
                         </div>
-                        <p class="publication-feed-card__desc"><?php echo nl2br(htmlspecialchars($proj['description'])); ?></p>
+                        <p class="publication-feed-card__desc"><?php echo nl2br(htmlspecialchars(substr($pub['description'], 0, 200) . (strlen($pub['description']) > 200 ? '...' : ''))); ?></p>
                         <div class="publication-feed-card__footer">
-                            <div class="publication-feed-card__cost"><strong>Cost:</strong> ₱<?php echo number_format($proj['cost'], 0); ?></div>
-                            <div class="publication-feed-card__by"><strong>Completed by:</strong> <?php echo htmlspecialchars($proj['completed_by'] ?: '—'); ?></div>
-                            <?php if (!empty($proj['id'])): ?>
-                            <form method="post" class="publication-feed-card__remove" onsubmit="return confirm('Remove this project from public view?');">
-                                <input type="hidden" name="action" value="remove_published_project">
-                                <input type="hidden" name="id" value="<?php echo (int) $proj['id']; ?>">
-                                <button type="submit" class="btn-remove-publication">
-                                    <i class="fas fa-times-circle"></i> Remove from publications
-                                </button>
-                            </form>
+                            <div class="publication-feed-card__stats">
+                                <span><i class="fas fa-eye"></i> <?php echo number_format($pub['view_count']); ?> views</span>
+                                <span><i class="fas fa-download"></i> <?php echo number_format($pub['download_count']); ?> downloads</span>
+                            </div>
+                            <div class="publication-feed-card__type">
+                                <span class="pub-type-badge pub-type-<?php echo $pub['publication_type']; ?>"><?php echo ucfirst(str_replace('_', ' ', $pub['publication_type'])); ?></span>
+                            </div>
+                            <?php if (!empty($pub['file_path'])): ?>
+                            <div class="publication-feed-card__actions">
+                                <a href="../../../<?php echo htmlspecialchars($pub['file_path']); ?>" class="btn-download" target="_blank">
+                                    <i class="fas fa-download"></i> Download
+                                </a>
+                            </div>
                             <?php endif; ?>
                         </div>
                     </div>
