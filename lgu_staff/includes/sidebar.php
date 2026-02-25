@@ -50,9 +50,15 @@ function getNavigationItems($user_role) {
                 'roles' => ['lgu_staff', 'supervisor', 'citizen']
             ],
             [
-                'href' => '/lg-road-monitoring/lgu_staff/pages/admin_dashboard.php',
+                'href' => '../pages/admin_dashboard.php',
                 'icon' => 'speedometer2',
                 'title' => 'Admin Dashboard',
+                'roles' => ['system_admin']
+            ],
+            [
+                'href' => '../pages/manage_accounts.php',
+                'icon' => 'users',
+                'title' => 'Manage Accounts',
                 'roles' => ['system_admin']
             ]
         ],
@@ -91,13 +97,13 @@ function getNavigationItems($user_role) {
         return [
             'main' => [
                 [
-                    'href' => '/lg-road-monitoring/lgu_staff/pages/admin_dashboard.php',
+                    'href' => '../pages/admin_dashboard.php',
                     'icon' => 'speedometer2',
                     'title' => 'Accounts Approval',
                     'roles' => ['system_admin']
                 ],
                 [
-                    'href' => '/lg-road-monitoring/lgu_staff/pages/manage_accounts.php',
+                    'href' => '../pages/manage_accounts.php',
                     'icon' => 'users',
                     'title' => 'Manage Accounts',
                     'roles' => ['system_admin']
@@ -373,6 +379,8 @@ $notification_count = getNotificationCount();
                     <div class="nav-section-title">Main</div>
                     <ul style="list-style: none;">
                         <li><a href="../pages/lgu_staff_dashboard.php" class="nav-link" target="_parent">📊 Staff Dashboard</a></li>
+                        <li><a href="../pages/admin_dashboard.php" class="nav-link" target="_parent">🔧 Admin Dashboard</a></li>
+                        <li><a href="../pages/manage_accounts.php" class="nav-link" target="_parent">👥 Manage Accounts</a></li>
                     </ul>
                 </div>
                 <div class="nav-section">
@@ -426,7 +434,8 @@ $notification_count = getNotificationCount();
                                                 'file-earmark-text' => '<path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/><path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>',
                                                 'clipboard-check' => '<path fill-rule="evenodd" d="M10.854 7.146a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L7.5 9.793l2.646-2.647a.5.5 0 0 1 .708 0z"/><path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/><path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/>',
                                                 'clipboard-data' => '<path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/><path d="M4 11a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm4-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm0 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm4-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/><path d="M7 10.5v.5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1-.5-.5v-.5a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5zm0-2v.5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1-.5-.5v-.5a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5zm4 0v.5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1-.5-.5v-.5a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5z"/>',
-                                                'eye' => '<path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/><path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>'
+                                                'eye' => '<path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/><path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>',
+                                                'users' => '<path d="M15 14s1 0 1-1-1-4-5-4-5 3-5 4 1 1 1 1h8zm-7.978-1A.261.261 0 0 1 7 12.996c.001-.264.167-1.03.76-1.72C8.312 10.629 9.282 10 11 10c1.717 0 2.687.63 3.24 1.276.593.69.758 1.457.76 1.72l-.008.002a.274.274 0 0 1-.014.002H7.022zM11 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm3-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM6.936 9.28a5.88 5.88 0 0 0-1.23-.247A7.35 7.35 0 0 0 5 9c-4 0-5 3-5 4 0 .667.333 1 1 1h4.216A2.238 2.238 0 0 1 5 13c0-1.01.377-2.042 1.09-2.904.243-.294.526-.569.846-.816zM4.92 10A5.493 5.493 0 0 0 4 13H1c0-.26.164-1.03.76-1.724.545-.636 1.492-1.256 3.16-1.275zM1.5 5.5a3 3 0 1 1 6 0 3 3 0 0 1-6 0zm3-2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/>'
                                             ];
                                             echo $icon_paths[$item['icon']] ?? '';
                                             ?>
