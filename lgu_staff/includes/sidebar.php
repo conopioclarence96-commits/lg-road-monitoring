@@ -386,7 +386,7 @@ $notification_count = getNotificationCount();
                 <div class="nav-section">
                     <div class="nav-section-title">Monitoring</div>
                     <ul style="list-style: none;">
-                        <li><a href="../pages/monitoring/road_transportation_monitoring.php" class="nav-link" target="_parent">🗺️ Road and Transportation Monitoring</a></li>
+                        <li><a href="../pages/monitoring/road_transportation_monitoring.php" class="nav-link" target="_parent">🗺️ Road and Transportation Reporting</a></li>
                         <li><a href="../pages/monitoring/verification_monitoring.php" class="nav-link" target="_parent">✅ Verification & Monitoring Reports</a></li>
                         <li><a href="../pages/monitoring/report_management.php" class="nav-link" target="_parent">📊 Report Management</a></li>
                     </ul>
