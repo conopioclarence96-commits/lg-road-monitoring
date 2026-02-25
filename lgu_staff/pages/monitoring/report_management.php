@@ -18,6 +18,70 @@ if (!$user_info) {
     $user_info = ['username' => 'Staff', 'full_name' => 'LGU Staff', 'email' => 'staff@lgu.gov.ph'];
 }
 
+// Check database connection and required tables
+if (!$conn) {
+    echo '<div style="background: #f8d7da; color: white; padding: 20px; text-align: center; border-radius: 8px; margin: 20px;">
+        <h3>⚠️ Database Connection Required</h3>
+        <p>Please ensure the database is properly configured and the following tables exist:</p>
+        <ul style="text-align: left; margin: 20px 0;">
+            <li><strong>road_transportation_reports</strong> - with estimation column</li>
+            <li><strong>road_maintenance_reports</strong> - with estimation column</li>
+        </ul>
+        <p><strong>Required SQL:</strong></p>
+        <pre style="background: #fff; padding: 15px; border-radius: 4px; text-align: left;">
+-- Add estimation column if it doesn\'t exist
+ALTER TABLE road_transportation_reports 
+ADD COLUMN IF NOT EXISTS estimation DECIMAL(10,2) DEFAULT 0.00 
+AFTER resolution_notes;
+
+ALTER TABLE road_maintenance_reports 
+ADD COLUMN IF NOT EXISTS estimation DECIMAL(10,2) DEFAULT 0.00 
+AFTER updated_at;
+        </pre>
+        <p style="margin-top: 15px;">After running the SQL, refresh this page.</p>
+    </div>';
+    exit;
+}
+
+// Check if estimation column exists
+$estimation_column_exists = false;
+$result = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'estimation'");
+if ($result && $result->num_rows > 0) {
+    $estimation_column_exists = true;
+}
+
+$result = $conn->query("SHOW COLUMNS FROM road_maintenance_reports LIKE 'estimation'");
+if ($result && $result->num_rows > 0) {
+    $maintenance_estimation_exists = true;
+}
+
+// Show warning if estimation columns don't exist
+if (!$estimation_column_exists || !$maintenance_estimation_exists) {
+    echo '<div style="background: #fff3cd; color: #856404; padding: 15px; text-align: center; border-radius: 8px; margin: 20px;">
+        <h3>⚠️ Database Update Required</h3>
+        <p>The <strong>estimation</strong> column is missing from one or both database tables.</p>
+        <p><strong>Current Status:</strong></p>
+        <ul style="text-align: left; margin: 20px 0;">
+            <li>Transportation Reports: ' . ($estimation_column_exists ? '✅ Available' : '❌ Missing') . '</li>
+            <li>Maintenance Reports: ' . ($maintenance_estimation_exists ? '✅ Available' : '❌ Missing') . '</li>
+        </ul>
+        <p style="margin-top: 15px;"><strong>Required SQL:</strong></p>
+        <pre style="background: #fff; padding: 15px; border-radius: 4px; text-align: left;">
+-- Add estimation column if it doesn\'t exist
+ALTER TABLE road_transportation_reports 
+ADD COLUMN IF NOT EXISTS estimation DECIMAL(10,2) DEFAULT 0.00 
+AFTER resolution_notes;
+
+ALTER TABLE road_maintenance_reports 
+ADD COLUMN IF NOT EXISTS estimation DECIMAL(10,2) DEFAULT 0.00 
+AFTER updated_at;
+        </pre>
+        <p style="margin-top: 15px;">After running the SQL, refresh this page.</p>
+        <button onclick="location.reload()" style="background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer;">Refresh Page</button>
+    </div>';
+    exit;
+}
+
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $csrf_token = $_POST['csrf_token'] ?? '';
