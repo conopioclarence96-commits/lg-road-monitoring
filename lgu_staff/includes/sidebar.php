@@ -44,7 +44,7 @@ function getNavigationItems($user_role) {
     $base_items = [
         'main' => [
             [
-                'href' => '/lg-road-monitoring/lgu_staff/pages/lgu_staff_dashboard.php',
+                'href' => 'lgu_staff_dashboard.php',
                 'icon' => 'speedometer2',
                 'title' => 'Staff Dashboard',
                 'roles' => ['lgu_staff', 'supervisor', 'citizen']
@@ -58,19 +58,19 @@ function getNavigationItems($user_role) {
         ],
         'monitoring' => [
             [
-                'href' => '/lg-road-monitoring/lgu_staff/pages/road_transportation_monitoring.php',
+                'href' => 'road_transportation_monitoring.php',
                 'icon' => 'map',
                 'title' => 'Road and Transportation Monitoring',
                 'roles' => ['lgu_staff', 'supervisor', 'citizen']
             ],
             [
-                'href' => '/lg-road-monitoring/lgu_staff/pages/verification_monitoring.php',
+                'href' => 'verification_monitoring.php',
                 'icon' => 'shield-check',
                 'title' => 'Verification & Monitoring Reports',
                 'roles' => ['lgu_staff', 'supervisor', 'citizen']
             ],
             [
-                'href' => '/lg-road-monitoring/lgu_staff/pages/report_management.php',
+                'href' => 'report_management.php',
                 'icon' => 'clipboard-data',
                 'title' => 'Report Management',
                 'roles' => ['lgu_staff', 'supervisor']
@@ -78,7 +78,7 @@ function getNavigationItems($user_role) {
         ],
         'transparency' => [
             [
-                'href' => '/lg-road-monitoring/lgu_staff/pages/public_transparency.php',
+                'href' => 'public_transparency.php',
                 'icon' => 'eye',
                 'title' => 'Public Transparency',
                 'roles' => ['lgu_staff', 'citizen']
@@ -372,21 +372,21 @@ $notification_count = getNotificationCount();
                 <div class="nav-section">
                     <div class="nav-section-title">Main</div>
                     <ul style="list-style: none;">
-                        <li><a href="/lg-road-monitoring/lgu_staff/pages/lgu_staff_dashboard.php" class="nav-link" target="_parent">📊 Staff Dashboard</a></li>
+                        <li><a href="lgu_staff_dashboard.php" class="nav-link" target="_parent">📊 Staff Dashboard</a></li>
                     </ul>
                 </div>
                 <div class="nav-section">
                     <div class="nav-section-title">Monitoring</div>
                     <ul style="list-style: none;">
-                        <li><a href="/lg-road-monitoring/lgu_staff/pages/road_transportation_monitoring.php" class="nav-link" target="_parent">🗺️ Road and Transportation Monitoring</a></li>
-                        <li><a href="/lg-road-monitoring/lgu_staff/pages/verification_monitoring.php" class="nav-link" target="_parent">✅ Verification & Monitoring Reports</a></li>
-                        <li><a href="/lg-road-monitoring/lgu_staff/pages/report_management.php" class="nav-link" target="_parent">📊 Report Management</a></li>
+                        <li><a href="road_transportation_monitoring.php" class="nav-link" target="_parent">🗺️ Road and Transportation Monitoring</a></li>
+                        <li><a href="verification_monitoring.php" class="nav-link" target="_parent">✅ Verification & Monitoring Reports</a></li>
+                        <li><a href="report_management.php" class="nav-link" target="_parent">📊 Report Management</a></li>
                     </ul>
                 </div>
                 <div class="nav-section">
                     <div class="nav-section-title">Transparency</div>
                     <ul style="list-style: none;">
-                        <li><a href="/lg-road-monitoring/lgu_staff/pages/public_transparency.php" class="nav-link" target="_parent">👁️ Public Transparency</a></li>
+                        <li><a href="public_transparency.php" class="nav-link" target="_parent">👁️ Public Transparency</a></li>
                     </ul>
                 </div>
                 <div class="nav-section">
