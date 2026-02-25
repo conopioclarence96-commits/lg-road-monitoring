@@ -1,20 +1,14 @@
 <?php
 // Session settings (must be set before session_start)
-ini_set('session.cookie_httponly', 1);
-ini_set('session.use_only_cookies', 1);
-ini_set('session.cookie_secure', 0); // Set to 1 if using HTTPS
+if (session_status() === PHP_SESSION_NONE) {
+    ini_set('session.cookie_httponly', 1);
+    ini_set('session.use_only_cookies', 1);
+    ini_set('session.cookie_secure', 0); // Set to 1 if using HTTPS
+    session_start();
+}
 
-session_start();
 require_once 'includes/config.php';
 require_once 'includes/functions.php';
-
-// Check if we should include the home page directly
-$homePagePath = __DIR__ . '/lgu-portal/public/login.php';
-if (file_exists($homePagePath) && !isset($_GET['login']) && !isset($_GET['register'])) {
-    // Directly include the home page (no redirect)
-    require_once $homePagePath;
-    exit();
-}
 
 // Dynamic base path detection for live server
 $basePath = '';
