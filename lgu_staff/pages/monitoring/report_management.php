@@ -141,8 +141,22 @@ function handle_update_report() {
     if ($stmt->execute()) {
         log_audit_action($user_id, "Updated {$report_type} report", "Report ID: {$report_id}, New Status: {$status}, Estimation: ₱" . number_format($estimation, 2));
         set_flash_message('success', 'Report updated successfully');
+        
+        // Return JSON response for AJAX requests
+        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true, 'message' => 'Report updated successfully']);
+            exit;
+        }
     } else {
         set_flash_message('error', 'Failed to update report: ' . $conn->error);
+        
+        // Return JSON response for AJAX requests
+        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => 'Failed to update report: ' . $conn->error]);
+            exit;
+        }
     }
 }
 
@@ -1729,6 +1743,9 @@ if (!empty($reports)) {
             
             fetch('', {
                 method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
                 body: formData
             })
             .then(response => response.json())
