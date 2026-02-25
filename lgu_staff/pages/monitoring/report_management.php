@@ -1340,10 +1340,13 @@ if (!empty($reports)) {
                             <div style="line-height: 1.6;">
                                 <h6 style="color: #1e3c72; margin-bottom: 15px;">${data.report.title}</h6>
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                                    ${data.report.report_id ? `<div><strong>Report ID:</strong> ${data.report.report_id}</div>` : ''}
+                                    ${data.report.department ? `<div><strong>Department:</strong> ${data.report.department}</div>` : ''}
                                     <div><strong>Type:</strong> ${data.report.report_type}</div>
                                     <div><strong>Status:</strong> <span class="status-badge status-${data.report.status.replace('_', '-')}">${data.report.status}</span></div>
                                     <div><strong>Priority:</strong> ${data.report.priority}</div>
                                     <div><strong>Location:</strong> ${data.report.location}</div>
+                                    ${data.report.estimation && data.report.estimation > 0 ? `<div><strong>Cost Estimation:</strong> ₱${parseFloat(data.report.estimation).toLocaleString('en-PH', {minimumFractionDigits: 2})}</div>` : '<div><strong>Cost Estimation:</strong> Not specified</div>'}
                                 </div>
                                 <div style="margin-bottom: 20px;">
                                     <strong>Description:</strong>
