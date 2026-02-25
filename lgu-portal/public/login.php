@@ -2,6 +2,9 @@
 // Home Page for LGU Portal - Domain Root
 // This file is included by login.php when accessing the domain root
 
+// Start session for user authentication
+session_start();
+
 // Try to include database files with error handling
 $database_available = false;
 $conn = null;
