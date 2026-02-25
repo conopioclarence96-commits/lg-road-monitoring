@@ -28,28 +28,28 @@ try {
     
     if ($report_type === 'transportation') {
         if ($estimation_column_exists) {
-            $query = "SELECT id, title, description, location, latitude, longitude, priority, status, 
+            $query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, 
                              assigned_to, estimation, resolution_notes as notes, reporter_name, reporter_email, 
-                             created_at, updated_at 
+                             department, created_date, created_at, updated_at 
                       FROM road_transportation_reports WHERE id = ?";
         } else {
-            $query = "SELECT id, title, description, location, latitude, longitude, priority, status, 
+            $query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, 
                              assigned_to, resolution_notes as notes, reporter_name, reporter_email, 
-                             created_at, updated_at 
+                             department, created_date, created_at, updated_at 
                       FROM road_transportation_reports WHERE id = ?";
         }
     } else {
         if ($estimation_column_exists) {
-            $query = "SELECT id, title, description, location, priority, status, estimation,
+            $query = "SELECT id, report_id, title, description, location, priority, status, estimation,
                              maintenance_team as assigned_to, created_at, updated_at,
                              '' as notes, '' as reporter_name, '' as reporter_email,
-                             0 as latitude, 0 as longitude
+                             department, created_date, 0 as latitude, 0 as longitude
                       FROM road_maintenance_reports WHERE id = ?";
         } else {
-            $query = "SELECT id, title, description, location, priority, status,
+            $query = "SELECT id, report_id, title, description, location, priority, status,
                              maintenance_team as assigned_to, created_at, updated_at,
                              '' as notes, '' as reporter_name, '' as reporter_email,
-                             0 as latitude, 0 as longitude
+                             department, created_date, 0 as latitude, 0 as longitude
                       FROM road_maintenance_reports WHERE id = ?";
         }
     }
