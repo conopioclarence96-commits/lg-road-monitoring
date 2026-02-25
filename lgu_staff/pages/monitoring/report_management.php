@@ -1823,7 +1823,7 @@ if (!empty($reports)) {
             .then(data => {
                 submitBtn.innerHTML = originalText;
                 submitBtn.disabled = false;
-                
+                console.log(data);
                 if (data.success) {
                     showNotification('Report updated successfully', 'success');
                     closeModal('editReportModal');
