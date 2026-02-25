@@ -1471,12 +1471,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                             </form>
                                         <?php elseif ($report['status'] === 'completed'): ?>
                                             <span class="workflow-badge approved" style="margin-right: 10px;">Approved</span>
-                                            <button type="button" onclick="toggleDetails(<?php echo $report['id']; ?>)" class="btn-review">
-                                                <i class="fas fa-eye" id="icon-<?php echo $report['id']; ?>"></i>
+                                            <button type="button" onclick="viewDetails(<?php echo $report['id']; ?>, '<?php echo $report['source']; ?>')" class="btn-details" data-report-id="<?php echo $report['id']; ?>">
                                                 <span id="text-<?php echo $report['id']; ?>">View Details</span>
-                                            </button>
-                                            <button type="button" onclick="sendToMaintenance()" class="btn-maintenance">
-                                                <i class="fas fa-paper-plane"></i> Send to Maintenance
                                             </button>
                                         <?php elseif ($report['status'] === 'cancelled'): ?>
                                             <span class="workflow-badge rejected" style="margin-right: 10px;">Rejected</span>
@@ -1626,22 +1622,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         <p>No recent activity to display.</p>
                     </div>
                 <?php endif; ?>
-            </div>
-        </div>
-    </div>
-
-    <!-- Sent to Maintenance confirmation modal -->
-    <div id="sentToMaintenanceModal" class="modal-overlay">
-        <div class="modal-content" style="max-width: 420px;">
-            <div class="modal-header">
-                <h2><i class="fas fa-check-circle" style="color: #28a745;"></i> Sent</h2>
-                <button type="button" class="modal-close" onclick="closeSentModal()" aria-label="Close">&times;</button>
-            </div>
-            <div class="modal-body">
-                <p style="font-size: 16px; color: #333;">Report sent to Maintenance Department.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn-verify" onclick="closeSentModal()">OK</button>
             </div>
         </div>
     </div>
@@ -1843,14 +1823,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
         }
 
-        function sendToMaintenance() {
-            document.getElementById('sentToMaintenanceModal').classList.add('active');
-        }
-
-        function closeSentModal() {
-            document.getElementById('sentToMaintenanceModal').classList.remove('active');
-        }
-
         function openEditRepairedModal(index) {
             var card = document.querySelector('.repaired-card[data-rep-index="' + index + '"]');
             if (!card) return;
@@ -2014,10 +1986,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             });
         }
 
-        // Close sent-to-maintenance modal when clicking overlay
-        document.getElementById('sentToMaintenanceModal').addEventListener('click', function(e) {
-            if (e.target === this) closeSentModal();
-        });
         document.getElementById('editRepairedModal').addEventListener('click', function(e) {
             if (e.target === this) closeEditRepairedModal();
         });
