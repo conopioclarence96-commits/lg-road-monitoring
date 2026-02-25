@@ -24,26 +24,19 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
     $basePath = '';
 }
 
-// Check if user is already logged in
+// Check if user is already logged in and show logout option
 if (isset($_SESSION['user_id'])) {
-    // Optional: Add logout link for debugging
+    // Allow logout if explicitly requested
     if (isset($_GET['logout'])) {
         session_destroy();
         setcookie(session_name(), '', time() - 3600, '/');
         header('Location: login.php');
         exit();
     }
-    header('Cache-Control: no-cache, no-store, must-revalidate');
-    header('Pragma: no-cache');
-    header('Expires: 0');
     
-    // Dynamic redirect based on current path
-    if (file_exists('pages/lgu_staff_dashboard.php')) {
-        header('Location: ' . $basePath . 'pages/lgu_staff_dashboard.php');
-    } else {
-        header('Location: ' . $basePath . 'lgu_staff_dashboard.php');
-    }
-    exit();
+    // Show message that user is already logged in and provide logout option
+    $loginMessage = 'You are already logged in as ' . htmlspecialchars($_SESSION['full_name'] ?? 'User') . '. <a href="login.php?logout=1" style="color: #0066cc; text-decoration: underline;">Click here to logout</a>';
+    $messageType = 'success';
 }
 
 // Handle Step 1 Registration (Email & Password)
