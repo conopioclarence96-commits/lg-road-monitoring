@@ -47,19 +47,19 @@ function getNavigationItems($user_role) {
                 'href' => '../pages/main/lgu_staff_dashboard.php',
                 'icon' => 'speedometer2',
                 'title' => 'Staff Dashboard',
-                'roles' => ['lgu_staff', 'supervisor', 'citizen']
+                'roles' => ['lgu_staff']
             ],
             [
                 'href' => '../pages/main/admin_dashboard.php',
                 'icon' => 'speedometer2',
                 'title' => 'Admin Dashboard',
-                'roles' => ['system_admin']
+                'roles' => ['lgu_staff']
             ],
             [
                 'href' => '../pages/main/manage_accounts.php',
                 'icon' => 'users',
                 'title' => 'Manage Accounts',
-                'roles' => ['system_admin']
+                'roles' => ['lgu_staff']
             ]
         ],
         'monitoring' => [
@@ -67,19 +67,19 @@ function getNavigationItems($user_role) {
                 'href' => '../pages/monitoring/road_transportation_monitoring.php',
                 'icon' => 'map',
                 'title' => 'Road and Transportation Monitoring',
-                'roles' => ['lgu_staff', 'supervisor', 'citizen']
+                'roles' => ['lgu_staff']
             ],
             [
                 'href' => '../pages/monitoring/verification_monitoring.php',
                 'icon' => 'shield-check',
                 'title' => 'Verification & Monitoring Reports',
-                'roles' => ['lgu_staff', 'supervisor', 'citizen']
+                'roles' => ['lgu_staff']
             ],
             [
                 'href' => '../pages/monitoring/report_management.php',
                 'icon' => 'clipboard-data',
                 'title' => 'Report Management',
-                'roles' => ['lgu_staff', 'supervisor']
+                'roles' => ['lgu_staff']
             ]
         ],
         'transparency' => [
@@ -87,30 +87,10 @@ function getNavigationItems($user_role) {
                 'href' => '../pages/transparency/public_transparency.php',
                 'icon' => 'eye',
                 'title' => 'Public Transparency',
-                'roles' => ['lgu_staff', 'citizen']
+                'roles' => ['lgu_staff']
             ]
         ]
     ];
-    
-    // For system_admin, only show Admin Dashboard
-    if ($user_role === 'system_admin') {
-        return [
-            'main' => [
-                [
-                    'href' => '../pages/main/admin_dashboard.php',
-                    'icon' => 'speedometer2',
-                    'title' => 'Accounts Approval',
-                    'roles' => ['system_admin']
-                ],
-                [
-                    'href' => '../pages/main/manage_accounts.php',
-                    'icon' => 'users',
-                    'title' => 'Manage Accounts',
-                    'roles' => ['system_admin']
-                ]
-            ]
-        ];
-    }
     
     // Filter items based on user role
     $filtered_items = [];
