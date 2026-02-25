@@ -176,7 +176,7 @@ function handle_update_report() {
     }
     
     // Update the report
-    $table = ($report_type === 'transportation') ? 'road_maintenance_reports' : 'road_transportation_reports';
+    $table = ($report_type === 'transportation') ? 'road_transportation_reports' : 'road_maintenance_reports';
     
     if ($table === 'road_transportation_reports') {
         $stmt = $conn->prepare("UPDATE {$table} SET status = ?, priority = ?, assigned_to = ?, estimation = ?, resolution_notes = ?, updated_at = NOW() WHERE id = ?");
@@ -1425,7 +1425,6 @@ if (!empty($reports)) {
             fetch(`../api/get_report_details.php?id=${id}&type=${type}`)
                 .then(response => response.json())
                 .then(data => {
-                    alert(type);
                     if (data.success) {
                         document.getElementById('editReportId').value = data.report.id;
                         document.getElementById('editReportType').value = type;
