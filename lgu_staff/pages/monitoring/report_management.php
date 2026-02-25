@@ -186,7 +186,7 @@ function handle_update_report() {
     
     if ($report_type === 'transportation') {
         $stmt = $conn->prepare("UPDATE {$table} SET status = ?, priority = ?, assigned_to = ?, estimation = ?, resolution_notes = ?, updated_at = NOW() WHERE id = ?");
-        $stmt->bind_param("sssssi", $status, $priority, $assigned_to, $estimation, $notes, $report_id);
+        $stmt->bind_param("sssdsi", $status, $priority, $assigned_to, $estimation, $notes, $report_id);
         // if ($estimation_column_exists) {
         //     $stmt = $conn->prepare("UPDATE {$table} SET status = ?, priority = ?, assigned_to = ?, estimation = ?, resolution_notes = ?, updated_at = NOW() WHERE id = ?");
         //     $stmt->bind_param("sssssi", $status, $priority, $assigned_to, $estimation, $notes, $report_id);
@@ -197,7 +197,7 @@ function handle_update_report() {
     } else {
         if ($estimation_column_exists) {
             $stmt = $conn->prepare("UPDATE {$table} SET status = ?, priority = ?, maintenance_team = ?, estimation = ?, updated_at = NOW() WHERE id = ?");
-            $stmt->bind_param("ssssi", $status, $priority, $assigned_to, $estimation, $report_id);
+            $stmt->bind_param("sssdi", $status, $priority, $assigned_to, $estimation, $report_id);
         } else {
             $stmt = $conn->prepare("UPDATE {$table} SET status = ?, priority = ?, maintenance_team = ?, updated_at = NOW() WHERE id = ?");
             $stmt->bind_param("sssi", $status, $priority, $assigned_to, $report_id);
