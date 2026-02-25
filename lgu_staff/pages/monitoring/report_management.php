@@ -163,6 +163,7 @@ function handle_update_report() {
     
     $report_id = intval($_POST['report_id'] ?? 0);
     $report_type = sanitize_input($_POST['report_type'] ?? '');
+    $report_type_from_db = sanitize_input($_POST['report_type_from_db'] ?? '');
     $status = sanitize_input($_POST['status'] ?? '');
     $priority = sanitize_input($_POST['priority'] ?? '');
     $assigned_to = sanitize_input($_POST['assigned_to'] ?? '');
@@ -175,15 +176,7 @@ function handle_update_report() {
     }
     
     // Update the report
-    // $table = ($report_type === 'transportation') ? 'road_maintenance_reports' : 'road_transportation_reports';
-    $table = 'road_transportation_reports';
-    
-    // Check if estimation column exists
-    $estimation_column_exists = true;
-    // $result = $conn->query("SHOW COLUMNS FROM {$table} LIKE 'estimation'");
-    // if ($result && $result->num_rows > 0) {
-    //     $estimation_column_exists = true;
-    // }
+    $table = ($report_type === 'transportation') ? 'road_maintenance_reports' : 'road_transportation_reports';
     
     if ($table === 'road_transportation_reports') {
         $stmt = $conn->prepare("UPDATE {$table} SET status = ?, priority = ?, assigned_to = ?, estimation = ?, resolution_notes = ?, updated_at = NOW() WHERE id = ?");
@@ -194,7 +187,7 @@ function handle_update_report() {
     }
     
     if ($stmt->execute()) {
-        log_audit_action($user_id, "Updated {$report_type} report", "Report ID: {$report_id}, New Status: {$status}, Estimation: ₱" . number_format($estimation, 2));
+        log_audit_action($user_id, "Updated {$report_type_from_db} report", "Report ID: {$report_id}, New Status: {$status}, Estimation: ₱" . number_format($estimation, 2));
         set_flash_message('success', 'Report updated successfully');
         
         // Return JSON response for AJAX requests
@@ -1268,7 +1261,8 @@ if (!empty($reports)) {
                     <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
                     <input type="hidden" name="action" value="update_report">
                     <input type="hidden" name="report_id" id="editReportId">
-                    <input type="hidden" name="report_type" id="editReportType" value="'<?php echo $report['report_type']; ?>'">
+                    <input type="hidden" name="report_type" id="editReportType">
+                    <input type="hidden" name="report_type_from_db" id="editReportTypeFromDB">
                     
                     <div style="display: flex; gap: 15px;">
                         <div class="form-group" style="flex: 1;">
@@ -1433,13 +1427,11 @@ if (!empty($reports)) {
                 .then(data => {
                     if (data.success) {
                         document.getElementById('editReportId').value = data.report.id;
-                        document.getElementById('editReportType').value = data.report.report_type;
+                        document.getElementById('editReportType').value = type;
+                        document.getElementById('editReportTypeFromDB').value = data.report.report_type;
                         document.getElementById('editStatus').value = data.report.status;
                         document.getElementById('editPriority').value = data.report.priority;
 
-
-                        alert(data.report.report_type);
-                        
                         // Auto-assign based on priority if no assignment exists
                         const assignedToSelect = document.getElementById('editAssignedTo');
                         if (!data.report.assigned_to || data.report.assigned_to === '') {
