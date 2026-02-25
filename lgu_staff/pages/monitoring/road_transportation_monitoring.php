@@ -219,10 +219,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 
                 $lat = isset($_POST['latitude']) ? (float)$_POST['latitude'] : null;
                 $lng = isset($_POST['longitude']) ? (float)$_POST['longitude'] : null;
-                $issue_type = isset($_POST['issue_type']) ? trim($_POST['issue_type']) : '';
-                $description = isset($_POST['description']) ? trim($_POST['description']) : '';
-                $severity = isset($_POST['severity']) ? trim($_POST['severity']) : 'medium';
-                
+                $issue_type = sanitize_input($_POST['issue_type'] ?? '');
+                $specific_type = sanitize_input($_POST['specific_type'] ?? '');
+                $severity = sanitize_input($_POST['severity'] ?? '');
+                $description = sanitize_input($_POST['description'] ?? '');
+
+                // Combine issue type and specific type for detailed reporting
+                $full_issue_type = $specific_type ? $specific_type : $issue_type;
+
                 if ($lat === null || $lng === null || $issue_type === '' || $description === '') {
                     echo json_encode(['success' => false, 'message' => 'Missing required fields.']);
                     exit;
@@ -728,10 +732,36 @@ $roads = getRoadStatus();
                         <input type="hidden" id="pin-lat" name="latitude">
                         <input type="hidden" id="pin-lng" name="longitude">
                         <label>Issue type</label>
-                        <select id="issue-type" name="issue_type" required>
+                        <select id="issue-type" name="issue_type" required onchange="updateSpecificTypes()">
                             <option value="">— Select —</option>
                             <option value="transportation">Transportation</option>
                             <option value="roads">Roads</option>
+                        </select>
+                        
+                        <label id="specific-type-label" style="display: none; margin-top: 10px;">Specific Issue Type</label>
+                        <select id="specific-type" name="specific_type" style="display: none;" required>
+                            <!-- Transportation specific types -->
+                            <optgroup id="transportation-options" label="Transportation Issues" style="display: none;">
+                                <option value="traffic_jam">Traffic Jam</option>
+                                <option value="accident">Vehicle Accident</option>
+                                <option value="road_closure">Road Closure</option>
+                                <option value="traffic_light_outage">Traffic Light Outage</option>
+                                <option value="congestion">Heavy Congestion</option>
+                                <option value="parking_violation">Illegal Parking</option>
+                                <option value="public_transport_issue">Public Transport Issue</option>
+                            </optgroup>
+                            
+                            <!-- Roads specific types -->
+                            <optgroup id="roads-options" label="Road Issues" style="display: none;">
+                                <option value="potholes">Potholes</option>
+                                <option value="road_damage">Road Damage</option>
+                                <option value="cracks">Road Cracks</option>
+                                <option value="erosion">Road Erosion</option>
+                                <option value="flooding">Street Flooding</option>
+                                <option value="debris">Road Debris</option>
+                                <option value="shoulder_damage">Shoulder Damage</option>
+                                <option value="marking_fade">Faded Road Markings</option>
+                            </optgroup>
                         </select>
                         <label>Severity</label>
                         <select id="severity" name="severity" required>
@@ -885,6 +915,36 @@ $roads = getRoadStatus();
         }
         function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t || ''; return d.innerHTML; }
 
+        // Function to update specific issue types based on main category
+        function updateSpecificTypes() {
+            const issueType = document.getElementById('issue-type').value;
+            const specificTypeLabel = document.getElementById('specific-type-label');
+            const specificType = document.getElementById('specific-type');
+            const transportOptions = document.getElementById('transportation-options');
+            const roadOptions = document.getElementById('roads-options');
+            
+            // Hide all options first
+            transportOptions.style.display = 'none';
+            roadOptions.style.display = 'none';
+            
+            if (issueType === 'transportation') {
+                specificTypeLabel.style.display = 'block';
+                specificType.style.display = 'block';
+                transportOptions.style.display = 'block';
+                specificType.required = true;
+            } else if (issueType === 'roads') {
+                specificTypeLabel.style.display = 'block';
+                specificType.style.display = 'block';
+                roadOptions.style.display = 'block';
+                specificType.required = true;
+            } else {
+                specificTypeLabel.style.display = 'none';
+                specificType.style.display = 'none';
+                specificType.required = false;
+                specificType.value = '';
+            }
+        }
+
         // Map click: place pin and show form
         map.on('click', function(e) {
             const { lat, lng } = e.latlng;
@@ -922,6 +982,8 @@ $roads = getRoadStatus();
             pinLat.value = lat;
             pinLng.value = lng;
             document.getElementById('severity').value = 'medium';
+            // Reset specific type dropdown
+            updateSpecificTypes();
         });
 
         document.getElementById('cancel-pin-btn').addEventListener('click', function() {
