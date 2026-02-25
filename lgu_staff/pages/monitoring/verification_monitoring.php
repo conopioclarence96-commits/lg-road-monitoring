@@ -1340,6 +1340,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     <div class="verification-title"><?php echo htmlspecialchars($report['title']); ?></div>
                                     <div class="verification-meta">
                                         <div class="meta-item">
+                                            <i class="fas fa-tag"></i>
+                                            <?php 
+                                            $report_type = $report['report_type'] ?? '';
+                                            $specific_types = [
+                                                'traffic_jam' => 'Traffic Jam',
+                                                'accident' => 'Vehicle Accident',
+                                                'road_closure' => 'Road Closure',
+                                                'traffic_light_outage' => 'Traffic Light Outage',
+                                                'congestion' => 'Heavy Congestion',
+                                                'parking_violation' => 'Illegal Parking',
+                                                'public_transport_issue' => 'Public Transport Issue',
+                                                'potholes' => 'Potholes',
+                                                'road_damage' => 'Road Damage',
+                                                'cracks' => 'Road Cracks',
+                                                'erosion' => 'Road Erosion',
+                                                'flooding' => 'Street Flooding',
+                                                'debris' => 'Road Debris',
+                                                'shoulder_damage' => 'Shoulder Damage',
+                                                'marking_fade' => 'Faded Road Markings'
+                                            ];
+                                            
+                                            if (isset($specific_types[$report_type])) {
+                                                echo $specific_types[$report_type];
+                                            } else {
+                                                echo ucfirst($report_type);
+                                            }
+                                            ?>
+                                        </div>
+                                        <div class="meta-item">
                                             <i class="fas fa-user"></i>
                                             <?php echo htmlspecialchars($report['department'] . ' Dept'); ?>
                                         </div>
