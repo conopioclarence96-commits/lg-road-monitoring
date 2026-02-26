@@ -35,7 +35,7 @@ function getUserInfo() {
         'username' => 'Staff User',
         'full_name' => 'LGU Staff',
         'email' => 'staff@lgu.gov.ph',
-        'role' => 'lgu_staff'
+        'role' => 'lgu_admin'
     ];
 }
 
