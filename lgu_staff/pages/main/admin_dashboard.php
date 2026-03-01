@@ -12,6 +12,22 @@ ini_set('session.use_only_cookies', 1);
 ini_set('session.cookie_secure', 0);
 
 session_start();
+
+// Session timeout configuration
+$session_timeout = 5 * 60; // 5 minutes in seconds
+
+// Check if session has expired
+if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
+    // Session expired, destroy and redirect to login
+    session_destroy();
+    setcookie(session_name(), '', time() - 3600, '/');
+    header('Location: ../../login.php?timeout=1');
+    exit();
+}
+
+// Update last activity time
+$_SESSION['last_activity'] = time();
+
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 
