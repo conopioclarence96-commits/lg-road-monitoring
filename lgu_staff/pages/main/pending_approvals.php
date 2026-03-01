@@ -470,7 +470,7 @@ try {
     <?php include '../includes/header.php'; ?>
     
     <div class="main-content">
-        <?php include '../includes/sidebar.php'; ?>
+        <?php include 'sidebar.php'; ?>
         
         <main>
             <div class="dashboard-header">
