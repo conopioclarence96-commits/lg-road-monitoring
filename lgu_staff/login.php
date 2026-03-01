@@ -104,8 +104,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['resend_otp'])) {
     }
 }
 
-// Function to send OTP via email
+// Function to send OTP via email using Gmail SMTP
 function sendOTPToEmail($email, $otpCode) {
+    // Gmail SMTP configuration
+    $smtpHost = 'smtp.gmail.com';
+    $smtpPort = 587;
+    $smtpUsername = 'conopioclarence96@gmail.com'; // Your Gmail
+    $smtpPassword = 'INSERT-YOUR-APP-PASSWORD-HERE'; // Use App Password from Google Account settings
+    $fromEmail = 'conopioclarence96@gmail.com';
+    $fromName = 'LGU Portal';
+    
     $subject = "LGU Portal - Email Verification Code";
     $message = "
     <html>
@@ -132,19 +140,103 @@ function sendOTPToEmail($email, $otpCode) {
     </html>
     ";
     
-    // Set headers for HTML email
-    $headers = "MIME-Version: 1.0" . "\r\n";
-    $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
-    $headers .= "From: LGU Portal <noreply@lgu.gov.ph>" . "\r\n";
-    $headers .= "Reply-To: noreply@lgu.gov.ph" . "\r\n";
+    // Create email headers
+    $boundary = uniqid('np');
+    $headers = "From: $fromName <$fromEmail>\r\n";
+    $headers .= "MIME-Version: 1.0\r\n";
+    $headers .= "Content-Type: multipart/alternative; boundary=\"$boundary\"\r\n";
     
-    // Send email
-    $sent = mail($email, $subject, $message, $headers);
+    // Plain text version
+    $plainText = "LGU Portal - Email Verification\n\nYour verification code is: $otpCode\n\nThis code will expire in 5 minutes.\n\n© 2025 LGU Citizen Portal · All Rights Reserved";
     
-    // Log the result for debugging
-    error_log("Email OTP sent to: " . $email . " - Success: " . ($sent ? 'true' : 'false'));
+    // HTML version
+    $htmlMessage = "--$boundary\r\n";
+    $htmlMessage .= "Content-Type: text/html; charset=UTF-8\r\n\r\n";
+    $htmlMessage .= $message . "\r\n\r\n";
     
-    return $sent;
+    // Plain text version
+    $textMessage = "--$boundary\r\n";
+    $textMessage .= "Content-Type: text/plain; charset=UTF-8\r\n\r\n";
+    $textMessage .= $plainText . "\r\n\r\n";
+    
+    // Final boundary
+    $finalBoundary = "--$boundary--\r\n";
+    
+    $fullMessage = $htmlMessage . $textMessage . $finalBoundary;
+    
+    try {
+        // Connect to Gmail SMTP
+        $socket = fsockopen($smtpHost, $smtpPort, $errno, $errstr, 30);
+        
+        if (!$socket) {
+            error_log("SMTP Connection failed: $errstr ($errno)");
+            return false;
+        }
+        
+        // Read greeting
+        fgets($socket, 512);
+        
+        // Say hello
+        fputs($socket, "EHLO " . $smtpHost . "\r\n");
+        fgets($socket, 512);
+        
+        // Start TLS
+        fputs($socket, "STARTTLS\r\n");
+        fgets($socket, 512);
+        
+        // Enable crypto
+        stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
+        
+        // Say hello again
+        fputs($socket, "EHLO " . $smtpHost . "\r\n");
+        fgets($socket, 512);
+        
+        // Authenticate
+        fputs($socket, "AUTH LOGIN\r\n");
+        fgets($socket, 512);
+        fputs($socket, base64_encode($smtpUsername) . "\r\n");
+        fgets($socket, 512);
+        fputs($socket, base64_encode($smtpPassword) . "\r\n");
+        $authResponse = fgets($socket, 512);
+        
+        if (substr($authResponse, 0, 3) != '235') {
+            error_log("SMTP Authentication failed: $authResponse");
+            return false;
+        }
+        
+        // Set sender
+        fputs($socket, "MAIL FROM: <$fromEmail>\r\n");
+        fgets($socket, 512);
+        
+        // Set recipient
+        fputs($socket, "RCPT TO: <$email>\r\n");
+        fgets($socket, 512);
+        
+        // Start data
+        fputs($socket, "DATA\r\n");
+        fgets($socket, 512);
+        
+        // Send headers and message
+        fputs($socket, "To: $email\r\n");
+        fputs($socket, "Subject: $subject\r\n");
+        fputs($socket, $headers . "\r\n");
+        fputs($socket, $fullMessage . "\r\n.\r\n");
+        
+        $response = fgets($socket, 512);
+        
+        // Quit
+        fputs($socket, "QUIT\r\n");
+        fclose($socket);
+        
+        $success = substr($response, 0, 3) == '250';
+        error_log("Email OTP sent to: $email - Success: " . ($success ? 'true' : 'false'));
+        
+        return $success;
+        
+    } catch (Exception $e) {
+        error_log("Email sending error: " . $e->getMessage());
+        return false;
+    }
 }
 
 // Function to send OTP via SMS for 2FA
