@@ -11,7 +11,7 @@ if ($is_local) {
     // Local development environment
     define('DB_HOST', 'localhost');
     define('DB_USER', 'root');
-    define('DB_PASS', 'root123');
+    define('DB_PASS', '');
     define('DB_NAME', 'rgmap_lg_road_monitoring');
 } else {
     // Live server environment
