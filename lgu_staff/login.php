@@ -106,15 +106,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['resend_otp'])) {
 
 // Function to send OTP via email API
 function sendOTPToEmail($email, $otpCode) {
-    $apiKey = 'sk-2b10kwefyvhbibuanyy7kz9vuovguoim'; // Replace with your actual API key
     
     // Note: Using the SMS API endpoint as provided - check if it supports email
     // For email OTP, you might need to adjust the recipient parameter
-    $ch = curl_init('https://smsapiph.onrender.com/api/v1/send/email');
+    $ch = curl_init('https://smsapiph.onrender.com/api/v1/send/sms');
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'x-api-key: ' . $apiKey,
+        'x-api-key: sk-2b10kwefyvhbibuanyy7kz9vuovguoim', // API KEY
         'Content-Type: application/json'
     ]);
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
