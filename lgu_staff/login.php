@@ -68,6 +68,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['resend_otp'])) {
             'expiry' => time() + 300 // 5 minutes expiry
         ];
         
+        // Send OTP via API
+        sendOTPToEmail($email, $otpCode);
+        
+        $registerMessage = 'A new OTP has been sent to your email.';
+        $registerMessageType = 'success';
+        $showOTPModal = true;
+        
+        echo '<script>
+            document.addEventListener("DOMContentLoaded", function() {
+                openOTPModal();
+            });
+        </script>';
+    }
+}
+
+// Function to send OTP via email API
+function sendOTPToEmail($email, $otpCode) {
+    $apiKey = 'sk-2b10kwefyvhbibuanyy7kz9vuovguoim'; // Replace with your actual API key
+    
+    // Note: Using the SMS API endpoint as provided - check if it supports email
+    // For email OTP, you might need to adjust the recipient parameter
+    $ch = curl_init('https://smsapiph.onrender.com/api/v1/send/email');
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'x-api-key: ' . $apiKey,
+        'Content-Type: application/json'
+    ]);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+        'recipient' => $email,  // Using email as recipient
+        'message' => 'Your LGU Portal verification code is: ' . $otpCode . '. This code will expire in 5 minutes.'
+    ]));
+    
+    $response = curl_exec($ch);
+    curl_close($ch);
+    
+    // Log the response for debugging
+    error_log("OTP API Response: " . $response);
+    
+    return json_decode($response, true);
+}
         // Send new OTP
         if (sendOTPToEmail($email, $otpCode)) {
             echo "New verification code sent";
