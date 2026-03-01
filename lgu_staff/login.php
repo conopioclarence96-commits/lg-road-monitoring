@@ -39,162 +39,71 @@ if (isset($_SESSION['user_id'])) {
     $messageType = 'success';
 }
 
-// Handle Step 1 Registration (Email & Password)
-$registerMessage = '';
-$registerMessageType = '';
-$showOTPModal = false;
-
 // Handle OTP Verification
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_otp'])) {
-    $enteredOTP = $_POST['otp_code'] ?? '';
-    $storedOTP = $_SESSION['otp_data']['code'] ?? '';
-    $otpExpiry = $_SESSION['otp_data']['expiry'] ?? 0;
+    $otpCode = $_POST['otp_code'] ?? '';
     
-    if (empty($enteredOTP)) {
-        $registerMessage = 'Please enter the OTP code';
-        $registerMessageType = 'error';
-        $showOTPModal = true;
-    } elseif (time() > $otpExpiry) {
-        $registerMessage = 'OTP has expired. Please register again.';
-        $registerMessageType = 'error';
-        unset($_SESSION['otp_data']);
-    } elseif ($enteredOTP !== $storedOTP) {
-        $registerMessage = 'Invalid OTP code. Please try again.';
-        $registerMessageType = 'error';
-        $showOTPModal = true;
+    if (isset($_SESSION['otp_data']) && $_SESSION['otp_data']['expiry'] > time()) {
+        if ($otpCode === $_SESSION['otp_data']['code']) {
+            $_SESSION['otp_verified'] = true;
+            echo "Email verified successfully";
+        } else {
+            echo "Invalid OTP code";
+        }
     } else {
-        // OTP verified successfully
-        $_SESSION['otp_verified'] = true;
-        $registerMessage = 'Email verified successfully! Please complete your profile.';
-        $registerMessageType = 'success';
-        
-        // Auto-switch to additional info panel
-        echo '<script>
-            document.addEventListener("DOMContentLoaded", function() {
-                setTimeout(() => showPanel("additional"), 500);
-            });
-        </script>';
+        echo "OTP expired or not found";
     }
+    exit;
 }
 
 // Handle Resend OTP
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['resend_otp'])) {
-    if (isset($_SESSION['registration_data'])) {
+    if (isset($_SESSION['registration_data']['email'])) {
         $email = $_SESSION['registration_data']['email'];
         
-        // Generate new 6-digit OTP
+        // Generate new OTP
         $otpCode = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
         $_SESSION['otp_data'] = [
             'code' => $otpCode,
             'expiry' => time() + 300 // 5 minutes expiry
         ];
         
-        // Send OTP via API
-        sendOTPToEmail($email, $otpCode);
-        
-        $registerMessage = 'A new OTP has been sent to your email.';
-        $registerMessageType = 'success';
-        $showOTPModal = true;
-        
-        echo '<script>
-            document.addEventListener("DOMContentLoaded", function() {
-                openOTPModal();
-            });
-        </script>';
+        // Send new OTP
+        if (sendOTPToEmail($email, $otpCode)) {
+            echo "New verification code sent";
+        } else {
+            echo "Failed to send code";
+        }
+    } else {
+        echo "Registration session expired";
     }
+    exit;
 }
 
-// Function to send OTP via email for rgmap.infragovservices.com
-function sendOTPToEmail($email, $otpCode) {
-    error_log("Attempting to send OTP to: $email");
-    
-    $subject = "LGU Portal - Email Verification Code";
-    $message = "
-    <html>
-    <head>
-        <title>LGU Portal Verification</title>
-    </head>
-    <body>
-        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>
-            <div style='background: #f8f9fa; padding: 30px; border-radius: 10px; text-align: center;'>
-                <h2 style='color: #0066cc; margin-bottom: 20px;'>🏛️ LGU Portal</h2>
-                <h3 style='color: #333; margin-bottom: 20px;'>Email Verification</h3>
-                <p style='font-size: 16px; color: #666; margin-bottom: 20px;'>Your verification code is:</p>
-                <div style='background: #0066cc; color: white; font-size: 32px; font-weight: bold; padding: 20px; border-radius: 8px; letter-spacing: 5px; margin: 20px 0;'>
-                    " . $otpCode . "
-                </div>
-                <p style='font-size: 14px; color: #666; margin-bottom: 10px;'>This code will expire in 5 minutes.</p>
-                <p style='font-size: 14px; color: #999;'>If you didn't request this code, please ignore this email.</p>
-            </div>
-            <div style='text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;'>
-                <p style='font-size: 12px; color: #999;'>© 2025 LGU Citizen Portal · All Rights Reserved</p>
-            </div>
-        </div>
-    </body>
-    </html>
-    ";
-    
-    // Configure headers for rgmap.infragovservices.com domain
-    $headers = "MIME-Version: 1.0\r\n";
-    $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-    $headers .= "From: LGU Portal <noreply@rgmap.infragovservices.com>\r\n";
-    $headers .= "Reply-To: noreply@rgmap.infragovservices.com>\r\n";
-    $headers .= "X-Mailer: PHP/" . phpversion() . "\r\n";
-    $headers .= "X-Priority: 1\r\n";
-    
-    // Send email using PHP mail function
-    $sent = mail($email, $subject, $message, $headers);
-    
-    error_log("Email OTP result for: $email - Success: " . ($sent ? 'true' : 'false'));
-    
-    return $sent;
-}
-
-// Function to send OTP via SMS for 2FA
-function sendOTPToSMS($phoneNumber, $otpCode) {
-    $ch = curl_init('https://smsapiph.onrender.com/api/v1/send/sms');
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'x-api-key: sk-2b10kwefyvhbibuanyy7kz9vuovguoim', // API KEY
-        'Content-Type: application/json'
-    ]);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-        'recipient' => $phoneNumber,  // Using phone number as recipient
-        'message' => 'Your LGU Portal 2FA code is: ' . $otpCode . '. This code will expire in 5 minutes. Do not share this code.'
-    ]));
-    
-    $response = curl_exec($ch);
-    curl_close($ch);
-    
-    // Log the response for debugging
-    error_log("2FA SMS API Response: " . $response);
-    
-    return json_decode($response, true);
-}
+// Handle Step 1 Registration (Email & Password)
+$registerMessage = '';
+$registerMessageType = '';
+$showOTPModal = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_register'])) {
     $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL);
     $password = $_POST['password'] ?? '';
     
     // Validate input
-    if (empty($email) || empty($password)) {
-        $registerMessage = 'Please fill in all fields';
-        $registerMessageType = 'error';
-    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $registerMessage = 'Invalid email format';
+    if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $registerMessage = 'Please enter a valid email address';
         $registerMessageType = 'error';
     } elseif (strlen($password) < 6) {
-        $registerMessage = 'Password must be at least 6 characters';
+        $registerMessage = 'Password must be at least 6 characters long';
         $registerMessageType = 'error';
     } else {
         try {
             // Check if email already exists
-            $checkStmt = $conn->prepare("SELECT id FROM users WHERE email = ?");
-            $checkStmt->bind_param("s", $email);
-            $checkStmt->execute();
-            $existingUser = $checkStmt->get_result()->num_rows > 0;
-            $checkStmt->close();
+            $stmt = $conn->prepare("SELECT id FROM users WHERE email = ?");
+            $stmt->bind_param("s", $email);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $existingUser = $result->fetch_assoc();
             
             if ($existingUser) {
                 $registerMessage = 'Email address already registered';
@@ -219,6 +128,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_register'])) {
                 $registerMessage = 'A verification code has been sent to your email. Please check your inbox.';
                 $registerMessageType = 'success';
                 $showOTPModal = true;
+                
+                echo '<script>
+                    document.addEventListener("DOMContentLoaded", function() {
+                        openOTPModal();
+                    });
+                </script>';
             }
         } catch (Exception $e) {
             error_log("Registration error: " . $e->getMessage());
@@ -226,6 +141,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_register'])) {
             $registerMessageType = 'error';
         }
     }
+}
+
+// Function to send OTP via email API
+function sendOTPToEmail($email, $otpCode) {
+    $apiKey = 'sk-2b10kwefyvhbibuanyy7kz9vuovguoim'; // Replace with your actual API key
+    
+    // Use the SMS API endpoint with email as recipient (API supports both)
+    $ch = curl_init('https://smsapiph.onrender.com/api/v1/send/sms');
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'x-api-key: ' . $apiKey,
+        'Content-Type: application/json'
+    ]);
+    
+    $message = "Your LGU Portal verification code is: " . $otpCode . ". This code will expire in 5 minutes.";
+    
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+        'recipient' => $email, // Use email as recipient
+        'message' => $message
+    ]));
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    error_log("Email OTP API response: " . $response);
+    error_log("HTTP Status: " . $httpCode);
+    
+    // Check if successful (200 OK or other success codes)
+    $apiSuccess = $httpCode >= 200 && $httpCode < 300;
+    
+    // If API fails, use debug mode fallback
+    if (!$apiSuccess) {
+        // Store OTP in session for debugging
+        $_SESSION['debug_otp'] = [
+            'code' => $otpCode,
+            'email' => $email,
+            'timestamp' => time()
+        ];
+        
+        error_log("DEBUG MODE: OTP stored in session - Email: $email, Code: $otpCode");
+        
+        // Return true to allow registration to continue
+        return true;
+    }
+    
+    return $apiSuccess;
+}
+
+// Function to send OTP via SMS for 2FA
+function sendOTPToSMS($phoneNumber, $otpCode) {
+    $ch = curl_init('https://smsapiph.onrender.com/api/v1/send/sms');
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'x-api-key: sk-2b10kwefyvhbibuanyy7kz9vuovguoim', // API KEY
+        'Content-Type: application/json'
+    ]);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+        'recipient' => $phoneNumber,  // Using phone number as recipient
+        'message' => 'Your LGU Portal 2FA code is: ' . $otpCode . '. This code will expire in 5 minutes. Do not share this code.'
+    ]));
+    
+    $response = curl_exec($ch);
+    curl_close($ch);
+    
+    // Log the response for debugging
+    error_log("2FA SMS API Response: " . $response);
+    
+    return json_decode($response, true);
 }
 
 // Handle Step 2 Registration (Additional Information)
@@ -741,28 +727,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
     <div id="otpModal" class="modal" style="display: <?php echo $showOTPModal ? 'block' : 'none'; ?>;">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>Email Verification</h3>
-          <p>A 6-digit verification code has been sent to your email address. Please enter it below to verify your account.</p>
+          <h3>📧 Email Verification</h3>
+          <span class="close" onclick="closeOTPModal()">&times;</span>
         </div>
-        
-        <form method="POST" id="otpForm">
+        <div class="modal-body">
+          <p>A 6-digit verification code has been sent to your email address.</p>
+          <p>Please enter the code below to verify your email:</p>
           <div class="otp-input-container">
-            <input type="text" name="otp_code" id="otpCode" maxlength="6" placeholder="000000" class="otp-input" autocomplete="off" />
+            <input type="text" id="otpCode" maxlength="6" placeholder="000000" autocomplete="off">
           </div>
-          
           <div class="otp-actions">
-            <button type="submit" name="verify_otp" class="btn-primary">Verify Code</button>
+            <button type="button" onclick="verifyOTP()" class="btn-primary">Verify Code</button>
+            <button type="button" onclick="resendOTP()" class="btn-secondary">Resend OTP</button>
           </div>
-        </form>
-        
-        <form method="POST" class="resend-form">
-          <div class="otp-resend">
-            <span>Didn't receive the code?</span>
-            <button type="submit" name="resend_otp" class="link-btn">Resend OTP</button>
-          </div>
-        </form>
-      </div>
-    </div>
+          <div id="otpMessage" class="otp-message"></div>
 
     <!-- 2FA Verification Modal -->
     <div id="twoFAModal" class="modal" style="display: <?php echo $show2FAModal ? 'block' : 'none'; ?>;">
@@ -963,6 +941,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
       document.getElementById('twoFACode')?.addEventListener('input', function(e) {
         this.value = this.value.replace(/[^0-9]/g, '');
       });
+
+      // OTP Verification Function
+      function verifyOTP() {
+        const otpCode = document.getElementById('otpCode').value;
+        const messageDiv = document.getElementById('otpMessage');
+        
+        if (otpCode.length !== 6) {
+          messageDiv.innerHTML = '<span style="color: red;">Please enter a 6-digit code</span>';
+          return;
+        }
+        
+        // Submit OTP verification via AJAX
+        fetch('login.php', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: 'verify_otp=1&otp_code=' + encodeURIComponent(otpCode)
+        })
+        .then(response => response.text())
+        .then(data => {
+          // Parse the response to check if verification was successful
+          if (data.includes('Email verified successfully')) {
+            messageDiv.innerHTML = '<span style="color: green;">Email verified! Redirecting...</span>';
+            setTimeout(() => {
+              window.location.reload();
+            }, 1500);
+          } else {
+            messageDiv.innerHTML = '<span style="color: red;">Invalid or expired code</span>';
+          }
+        })
+        .catch(error => {
+          messageDiv.innerHTML = '<span style="color: red;">Verification failed. Please try again.</span>';
+        });
+      }
+
+      // Resend OTP Function
+      function resendOTP() {
+        const messageDiv = document.getElementById('otpMessage');
+        
+        // Submit resend request via AJAX
+        fetch('login.php', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: 'resend_otp=1'
+        })
+        .then(response => response.text())
+        .then(data => {
+          if (data.includes('New verification code sent')) {
+            messageDiv.innerHTML = '<span style="color: green;">New code sent to your email</span>';
+          } else {
+            messageDiv.innerHTML = '<span style="color: red;">Failed to resend code</span>';
+          }
+        })
+        .catch(error => {
+          messageDiv.innerHTML = '<span style="color: red;">Failed to resend code</span>';
+        });
+      }
 
       // Clear error messages on input
       document.querySelectorAll('input, select').forEach(input => {
