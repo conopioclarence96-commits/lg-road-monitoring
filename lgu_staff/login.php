@@ -42,6 +42,94 @@ if (isset($_SESSION['user_id'])) {
 // Handle Step 1 Registration (Email & Password)
 $registerMessage = '';
 $registerMessageType = '';
+$showOTPModal = false;
+
+// Handle OTP Verification
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_otp'])) {
+    $enteredOTP = $_POST['otp_code'] ?? '';
+    $storedOTP = $_SESSION['otp_data']['code'] ?? '';
+    $otpExpiry = $_SESSION['otp_data']['expiry'] ?? 0;
+    
+    if (empty($enteredOTP)) {
+        $registerMessage = 'Please enter the OTP code';
+        $registerMessageType = 'error';
+        $showOTPModal = true;
+    } elseif (time() > $otpExpiry) {
+        $registerMessage = 'OTP has expired. Please register again.';
+        $registerMessageType = 'error';
+        unset($_SESSION['otp_data']);
+    } elseif ($enteredOTP !== $storedOTP) {
+        $registerMessage = 'Invalid OTP code. Please try again.';
+        $registerMessageType = 'error';
+        $showOTPModal = true;
+    } else {
+        // OTP verified successfully
+        $_SESSION['otp_verified'] = true;
+        $registerMessage = 'Email verified successfully! Please complete your profile.';
+        $registerMessageType = 'success';
+        
+        // Auto-switch to additional info panel
+        echo '<script>
+            document.addEventListener("DOMContentLoaded", function() {
+                setTimeout(() => showPanel("additional"), 500);
+            });
+        </script>';
+    }
+}
+
+// Handle Resend OTP
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['resend_otp'])) {
+    if (isset($_SESSION['registration_data'])) {
+        $email = $_SESSION['registration_data']['email'];
+        
+        // Generate new 6-digit OTP
+        $otpCode = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+        $_SESSION['otp_data'] = [
+            'code' => $otpCode,
+            'expiry' => time() + 300 // 5 minutes expiry
+        ];
+        
+        // Send OTP via API
+        sendOTPToEmail($email, $otpCode);
+        
+        $registerMessage = 'A new OTP has been sent to your email.';
+        $registerMessageType = 'success';
+        $showOTPModal = true;
+        
+        echo '<script>
+            document.addEventListener("DOMContentLoaded", function() {
+                openOTPModal();
+            });
+        </script>';
+    }
+}
+
+// Function to send OTP via email API
+function sendOTPToEmail($email, $otpCode) {
+    $apiKey = 'sk-2b10kwefyvhbibuanyy7kz9vuovguoim'; // Replace with your actual API key
+    
+    // Note: Using the SMS API endpoint as provided - check if it supports email
+    // For email OTP, you might need to adjust the recipient parameter
+    $ch = curl_init('https://smsapiph.onrender.com/api/v1/send/email');
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'x-api-key: ' . $apiKey,
+        'Content-Type: application/json'
+    ]);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+        'recipient' => $email,  // Using email as recipient
+        'message' => 'Your LGU Portal verification code is: ' . $otpCode . '. This code will expire in 5 minutes.'
+    ]));
+    
+    $response = curl_exec($ch);
+    curl_close($ch);
+    
+    // Log the response for debugging
+    error_log("OTP API Response: " . $response);
+    
+    return json_decode($response, true);
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_register'])) {
     $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL);
@@ -76,15 +164,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_register'])) {
                     'password' => password_hash($password, PASSWORD_DEFAULT)
                 ];
                 
-                $registerMessage = 'Please proceed to provide additional information.';
-                $registerMessageType = 'success';
+                // Generate 6-digit OTP
+                $otpCode = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+                $_SESSION['otp_data'] = [
+                    'code' => $otpCode,
+                    'expiry' => time() + 300 // 5 minutes expiry
+                ];
                 
-                // Auto-switch to additional info panel after successful step 1
-                echo '<script>
-                    document.addEventListener("DOMContentLoaded", function() {
-                        setTimeout(() => showPanel("additional"), 1000);
-                    });
-                </script>';
+                // Send OTP to email
+                sendOTPToEmail($email, $otpCode);
+                
+                $registerMessage = 'A verification code has been sent to your email. Please check your inbox.';
+                $registerMessageType = 'success';
+                $showOTPModal = true;
             }
         } catch (Exception $e) {
             error_log("Registration error: " . $e->getMessage());
@@ -99,9 +191,17 @@ $additionalMessage = '';
 $additionalMessageType = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional'])) {
-    // Check if we have registration data from step 1
+    // Check if we have registration data from step 1 and OTP is verified
     if (!isset($_SESSION['registration_data'])) {
         $additionalMessage = 'Registration session expired. Please start over.';
+        $additionalMessageType = 'error';
+        echo '<script>
+            document.addEventListener("DOMContentLoaded", function() {
+                showPanel("register");
+            });
+        </script>';
+    } elseif (!isset($_SESSION['otp_verified']) || $_SESSION['otp_verified'] !== true) {
+        $additionalMessage = 'Please verify your email with OTP first.';
         $additionalMessageType = 'error';
         echo '<script>
             document.addEventListener("DOMContentLoaded", function() {
@@ -181,6 +281,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
                         
                         // Clear registration session data
                         unset($_SESSION['registration_data']);
+                        unset($_SESSION['otp_data']);
+                        unset($_SESSION['otp_verified']);
                         
                         // Redirect back to login after 3 seconds
                         echo '<script>
@@ -498,6 +600,120 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
       </div>
     </div>
 
+    <!-- OTP Verification Modal -->
+    <div id="otpModal" class="modal" style="display: <?php echo $showOTPModal ? 'block' : 'none'; ?>;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Email Verification</h3>
+          <p>A 6-digit verification code has been sent to your email address. Please enter it below to verify your account.</p>
+        </div>
+        
+        <form method="POST" id="otpForm">
+          <div class="otp-input-container">
+            <input type="text" name="otp_code" id="otpCode" maxlength="6" placeholder="000000" class="otp-input" autocomplete="off" />
+          </div>
+          
+          <div class="otp-actions">
+            <button type="submit" name="verify_otp" class="btn-primary">Verify Code</button>
+          </div>
+        </form>
+        
+        <form method="POST" class="resend-form">
+          <div class="otp-resend">
+            <span>Didn't receive the code?</span>
+            <button type="submit" name="resend_otp" class="link-btn">Resend OTP</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <style>
+      .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+      }
+      
+      .modal-content {
+        background: white;
+        padding: 30px;
+        border-radius: 10px;
+        max-width: 400px;
+        width: 90%;
+        text-align: center;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      }
+      
+      .modal-header h3 {
+        margin: 0 0 10px 0;
+        color: #333;
+      }
+      
+      .modal-header p {
+        color: #666;
+        font-size: 14px;
+        margin-bottom: 25px;
+      }
+      
+      .otp-input-container {
+        margin: 20px 0;
+      }
+      
+      .otp-input {
+        width: 180px;
+        height: 50px;
+        font-size: 24px;
+        text-align: center;
+        letter-spacing: 8px;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        outline: none;
+      }
+      
+      .otp-input:focus {
+        border-color: #0066cc;
+      }
+      
+      .otp-actions {
+        margin: 20px 0;
+      }
+      
+      .otp-resend {
+        margin-top: 15px;
+        font-size: 13px;
+        color: #666;
+      }
+      
+      .otp-resend span {
+        margin-right: 5px;
+      }
+      
+      .link-btn {
+        background: none;
+        border: none;
+        color: #0066cc;
+        text-decoration: underline;
+        cursor: pointer;
+        font-size: 13px;
+        padding: 0;
+      }
+      
+      .link-btn:hover {
+        color: #0055aa;
+      }
+      
+      .resend-form {
+        display: inline;
+      }
+    </style>
+
     <footer class="footer">
       <div class="footer-links">
         <a href="<?php echo $basePath; ?>../footer/privacy_policy.html">Privacy Policy</a>
@@ -519,11 +735,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
         if (panel === "register") wrapper.classList.add("show-register");
         if (panel === "additional") wrapper.classList.add("show-additional");
       }
+      
+      function openOTPModal() {
+        document.getElementById('otpModal').style.display = 'flex';
+        document.getElementById('otpCode').focus();
+      }
+      
+      function closeOTPModal() {
+        document.getElementById('otpModal').style.display = 'none';
+      }
 
       // Auto-focus on email field for login
       document.addEventListener('DOMContentLoaded', function() {
         const emailInput = document.querySelector('.panel.login input[name="email"]');
         if (emailInput) emailInput.focus();
+        
+        <?php if ($showOTPModal): ?>
+        openOTPModal();
+        <?php endif; ?>
+      });
+      
+      // OTP input - only allow numbers
+      document.getElementById('otpCode')?.addEventListener('input', function(e) {
+        this.value = this.value.replace(/[^0-9]/g, '');
       });
 
       // Clear error messages on input
