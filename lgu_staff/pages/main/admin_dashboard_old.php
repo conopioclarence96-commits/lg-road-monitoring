@@ -3,6 +3,15 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    ini_set('display_errors', 0);
+}
+
+// Session settings
+ini_set('session.cookie_httponly', 1);
+ini_set('session.use_only_cookies', 1);
+ini_set('session.cookie_secure', 0);
+
+session_start();
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 
@@ -18,22 +27,201 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'system_admin') {
     exit();
 }
 
-// Fetch dashboard statistics
+// Handle account actions
+$message = '';
+$messageType = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json; charset=utf-8');
+    $action = $_POST['action'] ?? '';
+    $user_id = $_POST['user_id'] ?? 0;
+    $remarks = $_POST['remarks'] ?? '';
+
+    if ($action === 'approve' && $user_id > 0) {
+        // Approve account
+        $stmt = $conn->prepare("UPDATE users SET is_active = 1, account_status = 'verified' WHERE id = ?");
+        if (!$stmt) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Failed to prepare approval query']);
+            exit;
+        }
+        $stmt->bind_param("i", $user_id);
+
+        if ($stmt->execute()) {
+            // Get user details for audit log
+            $user_stmt = $conn->prepare("SELECT email, full_name FROM users WHERE id = ?");
+            if (!$user_stmt) {
+                $stmt->close();
+                http_response_code(500);
+                echo json_encode(['success' => false, 'message' => 'Failed to prepare user lookup query']);
+                exit;
+            }
+            $user_stmt->bind_param("i", $user_id);
+            if (!$user_stmt->execute()) {
+                $stmt->close();
+                $user_stmt->close();
+                http_response_code(500);
+                echo json_encode(['success' => false, 'message' => 'Failed to lookup user details']);
+                exit;
+            }
+            $user_result = $user_stmt->get_result();
+            $user_data = $user_result ? $user_result->fetch_assoc() : null;
+
+            // Log audit action
+            if ($user_data) {
+                log_audit_action($_SESSION['user_id'], 'Account Approved', 
+                    "Approved account for {$user_data['full_name']} ({$user_data['email']}). Remarks: $remarks");
+            }
+
+            echo json_encode(['success' => true, 'message' => 'Account approved successfully']);
+            if ($user_stmt) {
+                $user_stmt->close();
+            }
+        } else {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Failed to approve account']);
+        }
+        $stmt->close();
+        exit;
+
+    } elseif ($action === 'reject' && $user_id > 0) {
+        // Reject account (keep as inactive)
+        $stmt = $conn->prepare("UPDATE users SET is_active = 0, account_status = 'rejected' WHERE id = ?");
+        if (!$stmt) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Failed to prepare rejection query']);
+            exit;
+        }
+        $stmt->bind_param("i", $user_id);
+
+        if ($stmt->execute()) {
+            // Get user details for audit log
+            $user_stmt = $conn->prepare("SELECT email, full_name FROM users WHERE id = ?");
+            if (!$user_stmt) {
+                $stmt->close();
+                http_response_code(500);
+                echo json_encode(['success' => false, 'message' => 'Failed to prepare user lookup query']);
+                exit;
+            }
+            $user_stmt->bind_param("i", $user_id);
+            if (!$user_stmt->execute()) {
+                $stmt->close();
+                if ($user_stmt) {
+                    $user_stmt->close();
+                }
+                http_response_code(500);
+                echo json_encode(['success' => false, 'message' => 'Failed to lookup user details']);
+                exit;
+            }
+            $user_result = $user_stmt->get_result();
+            $user_data = $user_result ? $user_result->fetch_assoc() : null;
+
+            // Log audit action
+            if ($user_data) {
+                log_audit_action($_SESSION['user_id'], 'Account Rejected', 
+                    "Rejected account for {$user_data['full_name']} ({$user_data['email']}). Remarks: $remarks");
+            }
+
+            echo json_encode(['success' => true, 'message' => 'Account rejected successfully']);
+            if ($user_stmt) {
+                $user_stmt->close();
+            }
+        } else {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Failed to reject account']);
+        }
+        $stmt->close();
+        exit;
+
+    } elseif ($action === 'deactivate' && $user_id > 0) {
+        // Deactivate account
+        $stmt = $conn->prepare("UPDATE users SET is_active = 0 WHERE id = ?");
+        $stmt->bind_param("i", $user_id);
+
+        
+        if ($stmt->execute()) {
+            // Get user details for audit log
+            $user_stmt = $conn->prepare("SELECT email, full_name FROM users WHERE id = ?");
+            $user_stmt->bind_param("i", $user_id);
+            $user_stmt->execute();
+            $user_result = $user_stmt->get_result();
+            $user_data = $user_result->fetch_assoc();
+            
+            // Log audit action
+            log_audit_action($_SESSION['user_id'], 'Account Deactivated', 
+                "Deactivated account for {$user_data['full_name']} ({$user_data['email']}). Remarks: $remarks");
+            
+            $message = "Account for {$user_data['full_name']} has been deactivated.";
+            $messageType = 'warning';
+        } else {
+            $message = "Failed to deactivate account. Please try again.";
+            $messageType = 'error';
+        }
+        $stmt->close();
+        $user_stmt->close();
+        
+    } elseif ($action === 'deactivate_user' && $user_id > 0) {
+        // Deactivate account (new version)
+        $stmt = $conn->prepare("UPDATE users SET is_active = 0 WHERE id = ?");
+        $stmt->bind_param("i", $user_id);
+        
+        if ($stmt->execute()) {
+            // Get user details for audit log
+            $user_stmt = $conn->prepare("SELECT email, full_name FROM users WHERE id = ?");
+            $user_stmt->bind_param("i", $user_id);
+            $user_stmt->execute();
+            $user_result = $user_stmt->get_result();
+            $user_data = $user_result->fetch_assoc();
+            
+            // Log audit action
+            log_audit_action($_SESSION['user_id'], 'Account Deactivated', 
+                "Deactivated account for {$user_data['full_name']} ({$user_data['email']}). Remarks: $remarks");
+            
+            echo json_encode(['success' => true, 'message' => 'Account deactivated successfully']);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Failed to deactivate account']);
+        }
+        $stmt->close();
+        $user_stmt->close();
+        exit;
+        
+    } elseif ($action === 'activate_user' && $user_id > 0) {
+        // Activate account
+        $stmt = $conn->prepare("UPDATE users SET is_active = 1 WHERE id = ?");
+        $stmt->bind_param("i", $user_id);
+        
+        if ($stmt->execute()) {
+            // Get user details for audit log
+            $user_stmt = $conn->prepare("SELECT email, full_name FROM users WHERE id = ?");
+            $user_stmt->bind_param("i", $user_id);
+            $user_stmt->execute();
+            $user_result = $user_stmt->get_result();
+            $user_data = $user_result->fetch_assoc();
+            
+            // Log audit action
+            log_audit_action($_SESSION['user_id'], 'Account Activated', 
+                "Activated account for {$user_data['full_name']} ({$user_data['email']}). Remarks: $remarks");
+            
+            echo json_encode(['success' => true, 'message' => 'Account activated successfully']);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Failed to activate account']);
+        }
+        $stmt->close();
+        $user_stmt->close();
+        exit;
+    }
+}
+
+// Get dashboard statistics
 $stats = [];
 try {
     // Report statistics
-    $stmt = $conn->prepare("
-        SELECT 
-            COUNT(*) as total_reports,
-            SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_reports,
-            SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress_reports,
-            SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_reports
-        FROM (
-            SELECT status FROM road_transportation_reports
-            UNION ALL
-            SELECT status FROM road_maintenance_reports
-        ) reports
-        WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+    $stmt = $conn->prepare("SELECT 
+        COUNT(*) as total_reports,
+        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_reports,
+        SUM(CASE WHEN status = 'in-progress' THEN 1 ELSE 0 END) as in_progress_reports,
+        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_reports
+    FROM road_transportation_reports 
     WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
     ");
     $stmt->execute();
