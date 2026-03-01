@@ -35,7 +35,7 @@ function getUserInfo() {
         'username' => 'Staff User',
         'full_name' => 'LGU Staff',
         'email' => 'staff@lgu.gov.ph',
-        'role' => 'lgu_admin'
+        'role' => 'lgu_staff'
     ];
 }
 
@@ -53,13 +53,13 @@ function getNavigationItems($user_role) {
                 'href' => '../pages/main/admin_dashboard.php',
                 'icon' => 'speedometer2',
                 'title' => 'Admin Dashboard',
-                'roles' => ['lgu_staff']
+                'roles' => ['system_admin']
             ],
             [
                 'href' => '../pages/main/manage_accounts.php',
                 'icon' => 'users',
                 'title' => 'Manage Accounts',
-                'roles' => ['lgu_staff']
+                'roles' => ['system_admin']
             ]
         ],
         'monitoring' => [
@@ -73,13 +73,13 @@ function getNavigationItems($user_role) {
                 'href' => '../pages/monitoring/verification_monitoring.php',
                 'icon' => 'shield-check',
                 'title' => 'Verification & Monitoring Reports',
-                'roles' => ['lgu_staff']
+                'roles' => ['system_admin']
             ],
             [
                 'href' => '../pages/monitoring/report_management.php',
                 'icon' => 'clipboard-data',
                 'title' => 'Report Management',
-                'roles' => ['lgu_staff']
+                'roles' => ['system_admin']
             ]
         ],
         'transparency' => [
@@ -87,7 +87,7 @@ function getNavigationItems($user_role) {
                 'href' => '../pages/transparency/public_transparency.php',
                 'icon' => 'eye',
                 'title' => 'Public Transparency',
-                'roles' => ['lgu_staff']
+                'roles' => ['system_admin', 'lgu_staff']
             ]
         ]
     ];

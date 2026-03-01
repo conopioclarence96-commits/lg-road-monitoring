@@ -8,7 +8,13 @@ session_start();
 require_once __DIR__ . '/../../includes/config.php';
 
 // Check if user is logged in
-if (!isset($_SESSION['user_id'])) {
+if (!isset($_SESSION['user_id']) || ($_SESSION['role'] !== 'system_admin' && $_SESSION['role'] !== 'lgu_staff')) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code(401);
+        echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+        exit;
+    }
     header('Location: ../../login.php');
     exit();
 }
