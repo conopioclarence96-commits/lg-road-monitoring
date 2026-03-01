@@ -104,30 +104,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['resend_otp'])) {
     }
 }
 
-// Function to send OTP via email API
+// Function to send OTP via email
 function sendOTPToEmail($email, $otpCode) {
+    $subject = "LGU Portal - Email Verification Code";
+    $message = "
+    <html>
+    <head>
+        <title>LGU Portal Verification</title>
+    </head>
+    <body>
+        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>
+            <div style='background: #f8f9fa; padding: 30px; border-radius: 10px; text-align: center;'>
+                <h2 style='color: #0066cc; margin-bottom: 20px;'>🏛️ LGU Portal</h2>
+                <h3 style='color: #333; margin-bottom: 20px;'>Email Verification</h3>
+                <p style='font-size: 16px; color: #666; margin-bottom: 20px;'>Your verification code is:</p>
+                <div style='background: #0066cc; color: white; font-size: 32px; font-weight: bold; padding: 20px; border-radius: 8px; letter-spacing: 5px; margin: 20px 0;'>
+                    " . $otpCode . "
+                </div>
+                <p style='font-size: 14px; color: #666; margin-bottom: 10px;'>This code will expire in 5 minutes.</p>
+                <p style='font-size: 14px; color: #999;'>If you didn't request this code, please ignore this email.</p>
+            </div>
+            <div style='text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;'>
+                <p style='font-size: 12px; color: #999;'>© 2025 LGU Citizen Portal · All Rights Reserved</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    ";
     
-    // Note: Using the SMS API endpoint as provided - check if it supports email
-    // For email OTP, you might need to adjust the recipient parameter
-    $ch = curl_init('https://smsapiph.onrender.com/api/v1/send/sms');
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'x-api-key: sk-2b10kwefyvhbibuanyy7kz9vuovguoim', // API KEY
-        'Content-Type: application/json'
-    ]);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-        'recipient' => $email,  // Using email as recipient
-        'message' => 'Your LGU Portal verification code is: ' . $otpCode . '. This code will expire in 5 minutes.'
-    ]));
+    // Set headers for HTML email
+    $headers = "MIME-Version: 1.0" . "\r\n";
+    $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
+    $headers .= "From: LGU Portal <noreply@lgu.gov.ph>" . "\r\n";
+    $headers .= "Reply-To: noreply@lgu.gov.ph" . "\r\n";
     
-    $response = curl_exec($ch);
-    curl_close($ch);
+    // Send email
+    $sent = mail($email, $subject, $message, $headers);
     
-    // Log the response for debugging
-    error_log("OTP API Response: " . $response);
+    // Log the result for debugging
+    error_log("Email OTP sent to: " . $email . " - Success: " . ($sent ? 'true' : 'false'));
     
-    return json_decode($response, true);
+    return $sent;
 }
 
 // Function to send OTP via SMS for 2FA
