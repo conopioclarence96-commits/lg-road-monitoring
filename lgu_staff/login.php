@@ -130,6 +130,29 @@ function sendOTPToEmail($email, $otpCode) {
     return json_decode($response, true);
 }
 
+// Function to send OTP via SMS for 2FA
+function sendOTPToSMS($phoneNumber, $otpCode) {
+    $ch = curl_init('https://smsapiph.onrender.com/api/v1/send/sms');
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'x-api-key: sk-2b10kwefyvhbibuanyy7kz9vuovguoim', // API KEY
+        'Content-Type: application/json'
+    ]);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+        'recipient' => $phoneNumber,  // Using phone number as recipient
+        'message' => 'Your LGU Portal 2FA code is: ' . $otpCode . '. This code will expire in 5 minutes. Do not share this code.'
+    ]));
+    
+    $response = curl_exec($ch);
+    curl_close($ch);
+    
+    // Log the response for debugging
+    error_log("2FA SMS API Response: " . $response);
+    
+    return json_decode($response, true);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_register'])) {
     $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL);
     $password = $_POST['password'] ?? '';
@@ -215,11 +238,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
         $birthday = sanitize_input($_POST['birthday'] ?? '');
         $address = sanitize_input($_POST['address'] ?? '');
         $civil_status = sanitize_input($_POST['civil_status'] ?? '');
+        $phone_number = sanitize_input($_POST['phone_number'] ?? '');
         $role = sanitize_input($_POST['role'] ?? '');
         
         // Validate required fields
-        if (empty($first_name) || empty($last_name) || empty($role)) {
-            $additionalMessage = 'Please fill in all required fields (First Name, Last Name, Role)';
+        if (empty($first_name) || empty($last_name) || empty($role) || empty($phone_number)) {
+            $additionalMessage = 'Please fill in all required fields (First Name, Last Name, Role, Phone Number)';
+            $additionalMessageType = 'error';
+        } elseif (!preg_match('/^09[0-9]{9}$/', $phone_number)) {
+            $additionalMessage = 'Please enter a valid Philippine mobile number (09XXXXXXXXX)';
             $additionalMessageType = 'error';
         } else {
             try {
@@ -263,14 +290,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
                 $stmt = $conn->prepare("
                     INSERT INTO users (
                         username, email, password, full_name, role, department, 
-                        address, birthday, civil_status, id_file_path, account_status, is_active, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        address, birthday, civil_status, phone_number, id_file_path, account_status, is_active, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 ");
                 
                 if ($stmt) {
-                    $stmt->bind_param("ssssssssss", 
+                    $stmt->bind_param("sssssssssss", 
                         $username, $email, $hashedPassword, $full_name, $role, $department,
-                        $address, $birthday, $civil_status, $idFilePath
+                        $address, $birthday, $civil_status, $phone_number, $idFilePath
                     );
                     
                     if ($stmt->execute()) {
@@ -312,6 +339,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
     }
 }
 
+// Handle 2FA verification for login
+$show2FAModal = false;
+$login2FAMessage = '';
+$login2FAMessageType = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_2fa'])) {
+    $entered2FA = $_POST['2fa_code'] ?? '';
+    $stored2FA = $_SESSION['2fa_data']['code'] ?? '';
+    $twoFaExpiry = $_SESSION['2fa_data']['expiry'] ?? 0;
+    $userId = $_SESSION['2fa_data']['user_id'] ?? '';
+    
+    if (empty($entered2FA)) {
+        $login2FAMessage = 'Please enter the 2FA code';
+        $login2FAMessageType = 'error';
+        $show2FAModal = true;
+    } elseif (time() > $twoFaExpiry) {
+        $login2FAMessage = '2FA code has expired. Please login again.';
+        $login2FAMessageType = 'error';
+        unset($_SESSION['2fa_data']);
+        unset($_SESSION['temp_login_data']);
+    } elseif ($entered2FA !== $stored2FA) {
+        $login2FAMessage = 'Invalid 2FA code. Please try again.';
+        $login2FAMessageType = 'error';
+        $show2FAModal = true;
+    } else {
+        // 2FA verified successfully - complete login
+        $tempUserData = $_SESSION['temp_login_data'];
+        $_SESSION['user_id'] = $tempUserData['id'];
+        $_SESSION['email'] = $tempUserData['email'];
+        $_SESSION['full_name'] = $tempUserData['full_name'];
+        $_SESSION['role'] = $tempUserData['role'];
+        $_SESSION['logged_in'] = true;
+        $_SESSION['login_time'] = time();
+        
+        // Clear temporary 2FA data
+        unset($_SESSION['2fa_data']);
+        unset($_SESSION['temp_login_data']);
+        
+        // Determine redirect based on user role
+        switch ($tempUserData['role']) {
+            case 'system_admin':
+                $redirectUrl = $basePath . 'lgu_staff/pages/main/admin_dashboard.php';
+                break;
+            case 'lgu_staff':
+                $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
+                break;
+            case 'citizen':
+                $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
+                break;
+            default:
+                $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
+        }
+        
+        // Redirect to appropriate dashboard
+        header('Location: ' . $redirectUrl);
+        exit;
+    }
+}
+
 // Handle login form submission
 $loginMessage = '';
 $messageType = '';
@@ -331,7 +417,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
         try {
             // Prepare statement to prevent SQL injection
             $stmt = $conn->prepare("
-                SELECT id, email, password, full_name, role, is_active, account_status
+                SELECT id, email, password, full_name, role, is_active, account_status, phone_number
                 FROM users 
                 WHERE email = ?
             ");
@@ -364,34 +450,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                         $messageType = 'error';
                     }
                     else {
-                        // Login successful - set session variables
-                        $_SESSION['user_id'] = $user['id'];
-                        $_SESSION['email'] = $user['email'];
-                        $_SESSION['full_name'] = $user['full_name'];
-                        $_SESSION['role'] = $user['role'];
-                        $_SESSION['logged_in'] = true;
-                        $_SESSION['login_time'] = time();
-                        
-                        // Determine redirect based on user role
-                        switch ($user['role']) {
-                            case 'system_admin':
-                                // Redirect to Admin Dashboard
-                                $redirectUrl = $basePath . 'lgu_staff/pages/main/admin_dashboard.php';
-                                break;
-                            case 'lgu_staff':
-                                // Redirect to LGU Staff Dashboard
-                                $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
-                                break;
-                            case 'citizen':
-                                $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
-                                break;
-                            default:
-                                $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
+                        // Login successful - check if 2FA is needed
+                        if (!empty($user['phone_number'])) {
+                            // User has phone number - send 2FA code
+                            $otpCode = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+                            $_SESSION['2fa_data'] = [
+                                'code' => $otpCode,
+                                'expiry' => time() + 300, // 5 minutes expiry
+                                'user_id' => $user['id']
+                            ];
+                            
+                            // Store user data temporarily
+                            $_SESSION['temp_login_data'] = [
+                                'id' => $user['id'],
+                                'email' => $user['email'],
+                                'full_name' => $user['full_name'],
+                                'role' => $user['role']
+                            ];
+                            
+                            // Send 2FA code via SMS
+                            sendOTPToSMS($user['phone_number'], $otpCode);
+                            
+                            $loginMessage = 'A 2FA code has been sent to your phone number. Please enter it to complete login.';
+                            $messageType = 'success';
+                            $show2FAModal = true;
+                        } else {
+                            // No phone number - complete login without 2FA
+                            $_SESSION['user_id'] = $user['id'];
+                            $_SESSION['email'] = $user['email'];
+                            $_SESSION['full_name'] = $user['full_name'];
+                            $_SESSION['role'] = $user['role'];
+                            $_SESSION['logged_in'] = true;
+                            $_SESSION['login_time'] = time();
+                            
+                            // Determine redirect based on user role
+                            switch ($user['role']) {
+                                case 'system_admin':
+                                    // Redirect to Admin Dashboard
+                                    $redirectUrl = $basePath . 'lgu_staff/pages/main/admin_dashboard.php';
+                                    break;
+                                case 'lgu_staff':
+                                    // Redirect to LGU Staff Dashboard
+                                    $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
+                                    break;
+                                case 'citizen':
+                                    $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
+                                    break;
+                                default:
+                                    $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
+                            }
+                            
+                            // Redirect to appropriate dashboard
+                            header('Location: ' . $redirectUrl);
+                            exit;
                         }
-                        
-                        // Redirect to appropriate dashboard
-                        header('Location: ' . $redirectUrl);
-                        exit;
                     }
                 } else {
                     // Invalid password
@@ -568,6 +680,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
               </div>
 
               <div class="input-box">
+                <label>Phone Number *</label>
+                <input type="tel" name="phone_number" value="<?php echo isset($_POST['phone_number']) ? htmlspecialchars($_POST['phone_number']) : ''; ?>" placeholder="09XXXXXXXXX" pattern="09[0-9]{9}" required />
+                <small>Format: 09XXXXXXXXX (Philippine mobile number)</small>
+              </div>
+
+              <div class="input-box">
                 <label>Role *</label>
                 <select name="role" required>
                   <option value="">Select role</option>
@@ -621,6 +739,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
           <div class="otp-resend">
             <span>Didn't receive the code?</span>
             <button type="submit" name="resend_otp" class="link-btn">Resend OTP</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 2FA Verification Modal -->
+    <div id="twoFAModal" class="modal" style="display: <?php echo $show2FAModal ? 'block' : 'none'; ?>;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Two-Factor Authentication</h3>
+          <p>A 6-digit verification code has been sent to your phone number. Please enter it below to complete your login.</p>
+        </div>
+        
+        <?php if (!empty($login2FAMessage)): ?>
+            <div class="<?php echo $login2FAMessageType === 'error' ? 'error-message' : 'success-message'; ?>" style="background: <?php echo $login2FAMessageType === 'error' ? '#fee' : '#efe'; ?>; color: <?php echo $login2FAMessageType === 'error' ? '#c33' : '#060'; ?>; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+                <?php echo htmlspecialchars($login2FAMessage); ?>
+            </div>
+        <?php endif; ?>
+        
+        <form method="POST" id="twoFAForm">
+          <div class="otp-input-container">
+            <input type="text" name="2fa_code" id="twoFACode" maxlength="6" placeholder="000000" class="otp-input" autocomplete="off" />
+          </div>
+          
+          <div class="otp-actions">
+            <button type="submit" name="verify_2fa" class="btn-primary">Verify Code</button>
+            <button type="button" class="btn-secondary" onclick="cancel2FA()">Cancel</button>
           </div>
         </form>
       </div>
@@ -708,6 +853,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
         color: #0055aa;
       }
       
+      .btn-secondary {
+        background: #6c757d;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 14px;
+        margin-left: 10px;
+      }
+      
+      .btn-secondary:hover {
+        background: #5a6268;
+      }
+      
       .resend-form {
         display: inline;
       }
@@ -743,6 +903,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
       function closeOTPModal() {
         document.getElementById('otpModal').style.display = 'none';
       }
+      
+      function open2FAModal() {
+        document.getElementById('twoFAModal').style.display = 'flex';
+        document.getElementById('twoFACode').focus();
+      }
+      
+      function close2FAModal() {
+        document.getElementById('twoFAModal').style.display = 'none';
+      }
+      
+      function cancel2FA() {
+        // Clear 2FA session data and close modal
+        close2FAModal();
+        // Optionally redirect to login or clear form
+        window.location.href = 'login.php';
+      }
 
       // Auto-focus on email field for login
       document.addEventListener('DOMContentLoaded', function() {
@@ -752,10 +928,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
         <?php if ($showOTPModal): ?>
         openOTPModal();
         <?php endif; ?>
+        
+        <?php if ($show2FAModal): ?>
+        open2FAModal();
+        <?php endif; ?>
       });
       
       // OTP input - only allow numbers
       document.getElementById('otpCode')?.addEventListener('input', function(e) {
+        this.value = this.value.replace(/[^0-9]/g, '');
+      });
+      
+      // 2FA input - only allow numbers
+      document.getElementById('twoFACode')?.addEventListener('input', function(e) {
         this.value = this.value.replace(/[^0-9]/g, '');
       });
 
