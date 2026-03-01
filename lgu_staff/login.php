@@ -104,11 +104,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['resend_otp'])) {
     }
 }
 
-// Function to send OTP via email using PHPMailer
+// Function to send OTP via email for rgmap.infragovservices.com
 function sendOTPToEmail($email, $otpCode) {
     error_log("Attempting to send OTP to: $email");
-    
-    require_once '../PHPMailer/src/PHPMailer.php';
     
     $subject = "LGU Portal - Email Verification Code";
     $message = "
@@ -136,12 +134,16 @@ function sendOTPToEmail($email, $otpCode) {
     </html>
     ";
     
-    $mail = new PHPMailer();
-    $mail->To = $email;
-    $mail->Subject = $subject;
-    $mail->Body = $message;
+    // Configure headers for rgmap.infragovservices.com domain
+    $headers = "MIME-Version: 1.0\r\n";
+    $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+    $headers .= "From: LGU Portal <noreply@rgmap.infragovservices.com>\r\n";
+    $headers .= "Reply-To: noreply@rgmap.infragovservices.com>\r\n";
+    $headers .= "X-Mailer: PHP/" . phpversion() . "\r\n";
+    $headers .= "X-Priority: 1\r\n";
     
-    $sent = $mail->send();
+    // Send email using PHP mail function
+    $sent = mail($email, $subject, $message, $headers);
     
     error_log("Email OTP result for: $email - Success: " . ($sent ? 'true' : 'false'));
     
