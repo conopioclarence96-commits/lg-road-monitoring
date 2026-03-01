@@ -8,7 +8,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 // Session timeout configuration
-$session_timeout = 30 * 60; // 30 minutes in seconds
+$session_timeout = 5 * 60; // 5 minutes in seconds
 
 // Check if session has expired
 if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
@@ -785,7 +785,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
       
       // Session timeout functionality
       let sessionTimeout = <?php echo $session_timeout * 1000; ?>; // Convert to milliseconds
-      let warningTimeout = sessionTimeout - (5 * 60 * 1000); // 5 minutes before expiry
+      let warningTimeout = sessionTimeout - (1 * 60 * 1000); // 1 minute before expiry
       let timeoutWarning;
       
       function updateSessionActivity() {
@@ -802,7 +802,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
       function showSessionWarning() {
         if (!timeoutWarning) {
           timeoutWarning = setTimeout(() => {
-            alert('Your session will expire in 5 minutes due to inactivity. Please save your work.');
+            alert('Your session will expire in 1 minute due to inactivity. Please save your work.');
           }, warningTimeout);
         }
       }
