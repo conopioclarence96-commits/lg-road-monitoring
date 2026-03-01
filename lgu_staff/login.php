@@ -7,6 +7,21 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Session timeout configuration
+$session_timeout = 30 * 60; // 30 minutes in seconds
+
+// Check if session has expired
+if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
+    // Session expired, destroy and redirect to login
+    session_destroy();
+    setcookie(session_name(), '', time() - 3600, '/');
+    header('Location: login.php?timeout=1');
+    exit();
+}
+
+// Update last activity time
+$_SESSION['last_activity'] = time();
+
 require_once 'includes/config.php';
 require_once 'includes/functions.php';
 
@@ -37,6 +52,20 @@ if (isset($_SESSION['user_id'])) {
     // Show message that user is already logged in and provide logout option
     $loginMessage = 'You are already logged in as ' . htmlspecialchars($_SESSION['full_name'] ?? 'User') . '. <a href="login.php?logout=1" style="color: #0066cc; text-decoration: underline;">Click here to logout</a>';
     $messageType = 'success';
+}
+
+// Show timeout message if user was logged out due to inactivity
+if (isset($_GET['timeout']) && $_GET['timeout'] == '1') {
+    $loginMessage = 'Your session has expired due to inactivity. Please login again.';
+    $messageType = 'error';
+}
+
+// Handle session activity update
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_activity'])) {
+    // Update last activity time to keep session alive
+    $_SESSION['last_activity'] = time();
+    echo json_encode(['success' => true, 'last_activity' => $_SESSION['last_activity']]);
+    exit;
 }
 
 // Handle Step 1 Registration (Email & Password)
@@ -752,6 +781,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
         <?php if ($showOTPModal): ?>
         openOTPModal();
         <?php endif; ?>
+      });
+      
+      // Session timeout functionality
+      let sessionTimeout = <?php echo $session_timeout * 1000; ?>; // Convert to milliseconds
+      let warningTimeout = sessionTimeout - (5 * 60 * 1000); // 5 minutes before expiry
+      let timeoutWarning;
+      
+      function updateSessionActivity() {
+        // Send AJAX request to update last activity
+        fetch('login.php', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: 'update_activity=1'
+        });
+      }
+      
+      function showSessionWarning() {
+        if (!timeoutWarning) {
+          timeoutWarning = setTimeout(() => {
+            alert('Your session will expire in 5 minutes due to inactivity. Please save your work.');
+          }, warningTimeout);
+        }
+      }
+      
+      // Update activity on user interactions
+      document.addEventListener('click', updateSessionActivity);
+      document.addEventListener('keypress', updateSessionActivity);
+      document.addEventListener('scroll', updateSessionActivity);
+      
+      // Show warning and start countdown
+      showSessionWarning();
+      
+      // Clear timeout warning on page unload
+      window.addEventListener('beforeunload', function() {
+        if (timeoutWarning) {
+          clearTimeout(timeoutWarning);
+        }
       });
       
       // OTP input - only allow numbers
