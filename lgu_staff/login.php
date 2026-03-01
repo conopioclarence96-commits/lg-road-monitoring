@@ -39,6 +39,60 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
     $basePath = '';
 }
 
+// Create dump LGU staff account (for testing purposes)
+if (isset($_GET['create_dump_account']) && $_GET['create_dump_account'] === 'lgu_staff') {
+    try {
+        // Check if dump account already exists
+        $checkStmt = $conn->prepare("SELECT id FROM users WHERE email = 'staff@lgu.gov.ph'");
+        $checkStmt->execute();
+        $existing = $checkStmt->get_result();
+        
+        if ($existing->num_rows === 0) {
+            // Create dump LGU staff account
+            $hashedPassword = password_hash('staff123', PASSWORD_DEFAULT);
+            
+            $stmt = $conn->prepare("
+                INSERT INTO users (
+                    username, email, password, full_name, role, department, 
+                    address, birthday, civil_status, id_file_path, account_status, is_active, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'verified', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ");
+            
+            $username = 'lgu_staff';
+            $email = 'staff@lgu.gov.ph';
+            $full_name = 'LGU Staff Test Account';
+            $role = 'lgu_staff';
+            $department = 'Road and Transportation';
+            $address = 'City Hall, Main Street';
+            $birthday = '1990-01-01';
+            $civil_status = 'Single';
+            $idFilePath = '';
+            
+            $stmt->bind_param("ssssssssss", 
+                $username, $email, $hashedPassword, $full_name, $role, $department,
+                $address, $birthday, $civil_status, $idFilePath
+            );
+            
+            if ($stmt->execute()) {
+                $loginMessage = 'Dump LGU Staff account created successfully!<br>Email: staff@lgu.gov.ph<br>Password: staff123<br>Role: lgu_staff<br><a href="login.php">Click here to login</a>';
+                $messageType = 'success';
+            } else {
+                $loginMessage = 'Error creating dump account';
+                $messageType = 'error';
+            }
+            $stmt->close();
+        } else {
+            $loginMessage = 'Dump LGU Staff account already exists!<br>Email: staff@lgu.gov.ph<br>Password: staff123<br><a href="login.php">Click here to login</a>';
+            $messageType = 'info';
+        }
+        $checkStmt->close();
+        
+    } catch (Exception $e) {
+        $loginMessage = 'Database error: ' . $e->getMessage();
+        $messageType = 'error';
+    }
+}
+
 // Check if user is already logged in and show logout option
 if (isset($_SESSION['user_id'])) {
     // Allow logout if explicitly requested
