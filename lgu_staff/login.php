@@ -516,7 +516,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
     <header class="nav">
       <div class="nav-logo">🏛️ Local Government Unit Portal</div>
       <div class="nav-links">
-        <a href="">Home</a>
+        <a href="../index.php">Home</a>
       </div>
     </header>
     <div class="wrapper">
