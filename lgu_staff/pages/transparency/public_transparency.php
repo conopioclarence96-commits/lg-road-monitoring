@@ -514,7 +514,7 @@ $publications = getPublications();
                         <i class="fas fa-sync"></i>
                         Refresh Data
                     </button>
-                    <a href="../../public_transparency_view.php" class="btn-action" target="_blank" rel="noopener">
+                    <a href="../public_transparency_view.php" class="btn-action" target="_blank" rel="noopener">
                         <i class="fas fa-globe"></i>
                         Public View
                     </a>
