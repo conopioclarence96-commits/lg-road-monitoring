@@ -59,7 +59,8 @@ $database_available = true;
             min-height: 100vh;
             overflow-x: hidden;
         }
-        body::before {
+
+        .background-overlay {
             content: "";
             position: absolute;
             inset: 0;
@@ -67,6 +68,11 @@ $database_available = true;
             -webkit-backdrop-filter: blur(6px);
             background: rgba(0, 0, 0, 0.35);
             z-index: 0;
+        }
+
+        .main-content {
+            position: relative;
+            z-index: 1;
         }
 
         /* Navigation */
@@ -468,6 +474,8 @@ $database_available = true;
     </style>
 </head>
 <body>
+    <div class="background-overlay"></div>
+    <div class="main-content">
     <!-- Navigation -->
     <nav id="navbar">
         <div class="nav-container">
@@ -628,5 +636,6 @@ $database_available = true;
             });
         });
     </script>
+    </div>
 </body>
 </html>
