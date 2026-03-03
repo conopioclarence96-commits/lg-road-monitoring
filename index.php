@@ -448,9 +448,6 @@ if ($database_available && $conn) {
                         <a class="nav-link" href="#report">Report Issue</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="<?php echo $basePath; ?>lgu_staff/login.php">Dashboard</a>
-                    </li>
-                    <li class="nav-item">
                         <a class="nav-link" href="#about">About</a>
                     </li>
                     <li class="nav-item">
