@@ -107,7 +107,6 @@ $database_available = true;
         .logo img {
             height: 40px;
             width: auto;
-            filter: brightness(0) invert(1);
         }
 
         .nav-links {
