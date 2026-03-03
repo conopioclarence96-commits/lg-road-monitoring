@@ -112,8 +112,7 @@ $database_available = true;
             flex-direction: column;
             cursor: pointer;
             padding: 5px;
-            margin-right: auto;
-            margin-left: 10px;
+            margin-right: 10px;
         }
 
         .bar {
@@ -590,14 +589,14 @@ $database_available = true;
     <nav id="navbar">
         <div class="nav-container">
             <div class="nav-left">
-                <div class="logo">
-                    <img src="assets/img/logocityhall.png" alt="LGU Logo">
-                    <span>Road and Transportation Department</span>
-                </div>
                 <div class="menu-toggle" id="mobile-menu">
                     <span class="bar"></span>
                     <span class="bar"></span>
                     <span class="bar"></span>
+                </div>
+                <div class="logo">
+                    <img src="assets/img/logocityhall.png" alt="LGU Logo">
+                    <span>Road and Transportation Department</span>
                 </div>
                 <ul class="nav-links">
                     <li><a href="#home">Home</a></li>
