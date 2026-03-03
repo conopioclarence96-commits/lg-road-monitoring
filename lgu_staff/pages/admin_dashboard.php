@@ -484,6 +484,21 @@ try {
             color: #dc2626;
         }
 
+        .status-active {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-inactive {
+            background: #fef3c7;
+            color: #d97706;
+        }
+
+        .status-rejected {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
         .action-buttons {
             display: flex;
             gap: 8px;
@@ -526,7 +541,7 @@ try {
         .modal {
             display: none;
             position: fixed;
-            z-index: 1000;
+            z-index: 10000;
             left: 0;
             top: 0;
             width: 100%;
@@ -694,7 +709,7 @@ try {
     .modal {
             display: none;
             position: fixed;
-            z-index: 1000;
+            z-index: 10000;
             left: 0;
             top: 0;
             width: 100%;
@@ -835,22 +850,28 @@ try {
                                     <th>Role</th>
                                     <th>Department</th>
                                     <th>Registered</th>
+                                    <th>Status</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php if (empty($users)): ?>
                                     <tr>
-                                        <td colspan="6" style="text-align: center; color: #64748b;">No users found</td>
+                                        <td colspan="7" style="text-align: center; color: #64748b;">No users found</td>
                                     </tr>
                                 <?php else: ?>
                                     <?php foreach ($users as $user): ?>
-                                        <tr>
+                                        <tr data-user-id="<?php echo $user['id']; ?>">
                                             <td><?php echo htmlspecialchars($user['full_name']); ?></td>
                                             <td><?php echo htmlspecialchars($user['email']); ?></td>
                                             <td><?php echo htmlspecialchars($user['role']); ?></td>
                                             <td><?php echo htmlspecialchars($user['department'] ?? 'N/A'); ?></td>
                                             <td><?php echo date('M d, Y', strtotime($user['created_at'])); ?></td>
+                                            <td>
+                                                <span class="status-badge <?php echo $user['is_active'] ? 'status-active' : 'status-inactive'; ?>">
+                                                    <?php echo $user['is_active'] ? 'Active' : 'Inactive'; ?>
+                                                </span>
+                                            </td>
                                             <td>
                                                 <div class="action-buttons">
                                                     <button class="btn-sm btn-manage" onclick="showUserModal(<?php echo $user['id']; ?>)">Manage</button>
@@ -1047,7 +1068,9 @@ try {
                 .then(result => {
                     if (result.success) {
                         closeUserModal();
-                        location.reload();
+                        // Update the specific user row instead of reloading
+                        updateUserRow(currentUserId, 'approved');
+                        showSuccessMessage('Account approved successfully');
                     } else {
                         alert(result.message);
                     }
@@ -1078,7 +1101,9 @@ try {
                 .then(result => {
                     if (result.success) {
                         closeUserModal();
-                        location.reload();
+                        // Update the specific user row instead of reloading
+                        updateUserRow(currentUserId, 'rejected');
+                        showSuccessMessage('Account rejected successfully');
                     } else {
                         alert(result.message);
                     }
@@ -1217,6 +1242,52 @@ try {
                 alert.style.display = 'none';
             });
         }, 5000);
+        
+        // Helper functions to prevent page reload blinking
+        function updateUserRow(userId, status) {
+            const userRow = document.querySelector(`tr[data-user-id="${userId}"]`);
+            if (userRow) {
+                const statusCell = userRow.querySelector('.status-badge');
+                if (statusCell) {
+                    statusCell.textContent = status === 'approved' ? 'Active' : 'Rejected';
+                    statusCell.className = `status-badge ${status === 'approved' ? 'status-active' : 'status-rejected'}`;
+                }
+                
+                // Hide action buttons for processed accounts
+                const actionButtons = userRow.querySelector('.action-buttons');
+                if (actionButtons) {
+                    actionButtons.style.display = 'none';
+                }
+            }
+        }
+        
+        function showSuccessMessage(message) {
+            // Create or update success message
+            let successDiv = document.querySelector('.success-message');
+            if (!successDiv) {
+                successDiv = document.createElement('div');
+                successDiv.className = 'success-message';
+                successDiv.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    background: #4CAF50;
+                    color: white;
+                    padding: 15px 20px;
+                    border-radius: 5px;
+                    z-index: 10001;
+                    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                `;
+                document.body.appendChild(successDiv);
+            }
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+            
+            // Hide after 3 seconds
+            setTimeout(() => {
+                successDiv.style.display = 'none';
+            }, 3000);
+        }
     </script>
 </body>
 </html>
