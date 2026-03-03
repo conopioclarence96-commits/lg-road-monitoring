@@ -507,6 +507,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
     <title>LGU | Login</title>
     <link rel="stylesheet" href="<?php echo $basePath; ?>../styles/style.css" />
     <link rel="stylesheet" href="<?php echo $basePath; ?>../styles/login.css" />
+    <link rel="stylesheet" href="<?php echo $basePath; ?>../styles/transition.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -888,6 +889,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
           if (errorMsg) errorMsg.remove();
         });
       });
+    </script>
+    
+    <!-- Page Transition Overlay -->
+    <div class="page-transition-overlay" id="pageTransitionOverlay">
+        <div class="transition-content">
+            <div class="transition-spinner">
+                <i class="fas fa-spinner"></i>
+            </div>
+            <div class="transition-text">Loading...</div>
+        </div>
+    </div>
+    
+    <script>
+        // Page transition for home link
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('a[href*="index.php"]').forEach(link => {
+                link.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const overlay = document.getElementById('pageTransitionOverlay');
+                    overlay.classList.add('active');
+                    
+                    setTimeout(() => {
+                        window.location.href = this.href;
+                    }, 800);
+                });
+            });
+        });
     </script>
   </body>
 </html>
