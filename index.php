@@ -104,7 +104,6 @@ $database_available = true;
         .nav-left {
             display: flex;
             align-items: center;
-            justify-content: space-between;
             width: 100%;
         }
 
@@ -113,7 +112,8 @@ $database_available = true;
             flex-direction: column;
             cursor: pointer;
             padding: 5px;
-            margin-left: 20px;
+            margin-right: auto;
+            margin-left: 10px;
         }
 
         .bar {
