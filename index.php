@@ -504,10 +504,6 @@ $database_available = true;
                 Comprehensive LGU system for monitoring road conditions, traffic flow, infrastructure projects, and transportation services to ensure safe and efficient public road networks.
             </p>
             <div class="hero-buttons">
-                <a href="<?php echo $basePath; ?>lgu_staff/login.php" class="btn-primary">
-                    <i class="fas fa-sign-in-alt"></i>
-                    Staff Portal
-                </a>
                 <a href="#features" class="btn-secondary">
                     <i class="fas fa-info-circle"></i>
                     Learn More
