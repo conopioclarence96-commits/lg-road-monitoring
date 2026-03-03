@@ -538,7 +538,7 @@ $database_available = true;
             <div class="nav-left">
                 <div class="logo">
                     <img src="assets/img/logocityhall.png" alt="LGU Logo">
-                    <span>LGU Road Infrastructure & Transportation Monitoring</span>
+                    <span>Road Infrastructure & Transportation Monitoring</span>
                 </div>
                 <ul class="nav-links">
                     <li><a href="#home">Home</a></li>
