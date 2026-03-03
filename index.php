@@ -421,8 +421,61 @@ $database_available = true;
             justify-content: center;
         }
 
+        /* Page Transition Overlay */
+        .page-transition-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.5s ease, visibility 0.5s ease;
+        }
+
+        .page-transition-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .transition-content {
+            text-align: center;
+            color: white;
+        }
+
+        .transition-spinner {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            animation: pulse 1.5s infinite ease-in-out;
+        }
+
+        .transition-spinner i {
+            color: #4CAF50;
+        }
+
+        .transition-text {
+            font-size: 1.2rem;
+            font-weight: 600;
+            opacity: 0.9;
+            animation: fadeInUp 0.8s ease;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.1);
+                opacity: 0.8;
+            }
+        }
         /* Responsive Design */
-        @media (max-width: 768px) {
             .nav-links {
                 display: none;
             }
@@ -631,7 +684,30 @@ $database_available = true;
                 }
             });
         });
+
+        // Page transition for login links
+        document.querySelectorAll('a[href*="login.php"]').forEach(link => {
+            link.addEventListener('click', function (e) {
+                e.preventDefault();
+                const overlay = document.getElementById('pageTransitionOverlay');
+                overlay.classList.add('active');
+                
+                setTimeout(() => {
+                    window.location.href = this.href;
+                }, 800);
+            });
+        });
     </script>
+    </div>
+    
+    <!-- Page Transition Overlay -->
+    <div class="page-transition-overlay" id="pageTransitionOverlay">
+        <div class="transition-content">
+            <div class="transition-spinner">
+                <i class="fas fa-spinner"></i>
+            </div>
+            <div class="transition-text">Loading...</div>
+        </div>
     </div>
 </body>
 </html>
