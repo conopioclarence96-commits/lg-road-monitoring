@@ -135,7 +135,7 @@ $database_available = true;
             font-size: 1.5rem;
             font-weight: 600;
             margin-right: 30px;
-            margin-left: 20px;
+            margin-left: 0px;
         }
 
         .logo img {
@@ -590,7 +590,7 @@ $database_available = true;
             <div class="nav-left">
                 <div class="logo">
                     <img src="assets/img/logocityhall.png" alt="LGU Logo">
-                    <span>Road Infrastructure & Transportation Monitoring</span>
+                    <span>Road and Transportation Department</span>
                 </div>
                 <div class="menu-toggle" id="mobile-menu">
                     <span class="bar"></span>
@@ -609,7 +609,7 @@ $database_available = true;
     <!-- Hero Section -->
     <section class="hero" id="home">
         <div class="hero-content">
-            <h1>Road Infrastructure & Transportation Monitoring</h1>
+            <h1>Road and Transportation Department</h1>
             <p class="subtitle">
                 Comprehensive LGU system for monitoring road conditions, traffic flow, infrastructure projects, and transportation services to ensure safe and efficient public road networks.
             </p>
