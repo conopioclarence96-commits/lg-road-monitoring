@@ -480,14 +480,14 @@ $database_available = true;
     <!-- Hero Section -->
     <section class="hero" id="home">
         <div class="hero-content">
-            <h1>LGU Transport Monitoring System</h1>
+            <h1>Road Infrastructure & Transportation Monitoring</h1>
             <p class="subtitle">
-                Empowering cities with intelligent road infrastructure and transportation management solutions for safer, more efficient urban mobility.
+                Comprehensive LGU system for monitoring road conditions, traffic flow, infrastructure projects, and transportation services to ensure safe and efficient public road networks.
             </p>
             <div class="hero-buttons">
                 <a href="<?php echo $basePath; ?>lgu_staff/login.php" class="btn-primary">
                     <i class="fas fa-sign-in-alt"></i>
-                    Access System
+                    Staff Portal
                 </a>
                 <a href="#features" class="btn-secondary">
                     <i class="fas fa-info-circle"></i>
@@ -510,52 +510,52 @@ $database_available = true;
     <!-- Features Section -->
     <section class="features" id="features">
         <div class="features-container">
-            <h2>Comprehensive Transport Management</h2>
+            <h2>Road Infrastructure Management</h2>
             <p class="features-subtitle">
-                Our integrated system provides real-time monitoring and management solutions for modern urban transportation challenges.
+                Advanced monitoring and management system for road infrastructure, traffic operations, maintenance scheduling, and transportation services across the LGU jurisdiction.
             </p>
             <div class="features-grid">
                 <div class="feature-card">
                     <div class="feature-icon">
+                        <i class="fas fa-road"></i>
+                    </div>
+                    <h3>Road Infrastructure</h3>
+                    <p>Monitor road conditions, track infrastructure projects, manage construction schedules, and maintain comprehensive road asset databases.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
                         <i class="fas fa-traffic-light"></i>
                     </div>
-                    <h3>Traffic Management</h3>
-                    <p>Real-time traffic monitoring, signal optimization, and incident response for smoother traffic flow throughout the city.</p>
+                    <h3>Traffic Control</h3>
+                    <p>Real-time traffic monitoring, signal management, incident response, and traffic flow optimization across major road networks.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">
                         <i class="fas fa-tools"></i>
                     </div>
-                    <h3>Road Maintenance</h3>
-                    <p>Comprehensive road maintenance scheduling, hazard reporting, and infrastructure project management system.</p>
+                    <h3>Maintenance Operations</h3>
+                    <p>Schedule road repairs, track maintenance crews, manage work orders, and coordinate infrastructure rehabilitation projects.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">
                         <i class="fas fa-chart-line"></i>
                     </div>
-                    <h3>Analytics & Insights</h3>
-                    <p>Advanced data analytics and reporting tools for informed decision-making and transport planning optimization.</p>
+                    <h3>Performance Analytics</h3>
+                    <p>Road condition assessments, traffic pattern analysis, maintenance cost tracking, and infrastructure performance reporting.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">
                         <i class="fas fa-mobile-alt"></i>
                     </div>
-                    <h3>Mobile Access</h3>
-                    <p>Access the system from anywhere with our mobile-responsive platform designed for field operations.</p>
+                    <h3>Field Operations</h3>
+                    <p>Mobile-enabled inspections, on-site reporting, GPS tracking of maintenance vehicles, and real-time field data collection.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">
                         <i class="fas fa-shield-alt"></i>
                     </div>
-                    <h3>Secure System</h3>
-                    <p>Enterprise-grade security with role-based access control and encrypted data transmission.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i class="fas fa-users"></i>
-                    </div>
-                    <h3>Multi-Department</h3>
-                    <p>Integrated platform supporting multiple departments with customized workflows and permissions.</p>
+                    <h3>Compliance & Safety</h3>
+                    <p>Safety compliance monitoring, regulatory reporting, incident documentation, and road safety audit management.</p>
                 </div>
             </div>
         </div>
@@ -566,19 +566,19 @@ $database_available = true;
         <div class="stats-container">
             <div class="stat-item">
                 <div class="stat-number">24/7</div>
-                <div class="stat-label">System Monitoring</div>
+                <div class="stat-label">Road Monitoring</div>
             </div>
             <div class="stat-item">
-                <div class="stat-number">500+</div>
-                <div class="stat-label">Road Segments</div>
+                <div class="stat-number">1,200+</div>
+                <div class="stat-label">Road KM Managed</div>
             </div>
             <div class="stat-item">
-                <div class="stat-number">50K</div>
-                <div class="stat-label">Daily Updates</div>
+                <div class="stat-number">365</div>
+                <div class="stat-label">Annual Reports</div>
             </div>
             <div class="stat-item">
                 <div class="stat-number">99.9%</div>
-                <div class="stat-label">Uptime</div>
+                <div class="stat-label">System Reliability</div>
             </div>
         </div>
     </section>
@@ -595,8 +595,8 @@ $database_available = true;
                 <a href="#">Terms of Service</a>
             </div>
             <div class="footer-bottom">
-                <p>&copy; 2024 LGU Transport Monitoring System. All rights reserved.</p>
-                <p>City Hall Building, Government Complex | Email: info@lgu-transport.gov.ph | Phone: (123) 456-7890</p>
+                <p>&copy; 2024 LGU Road Infrastructure Monitoring System. All rights reserved.</p>
+                <p>Department of Public Works - Road Management Division | Email: roads@lgu.gov.ph | Phone: (123) 456-7890</p>
             </div>
         </div>
     </footer>
