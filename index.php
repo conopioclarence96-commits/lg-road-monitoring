@@ -25,9 +25,6 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
     $basePath = '';
 }
 
-// Bypass lgu_staff/login.php - work directly with index.php
-// No inclusion of login.php - handle everything here
-
 // Try to include database files with error handling
 $database_available = false;
 $conn = null;
@@ -35,694 +32,808 @@ $conn = null;
 require_once 'lgu_staff/includes/config.php';
 require_once 'lgu_staff/includes/functions.php';
 $database_available = true;
+
+// Get latest road updates for display
+$road_updates = [];
+if ($database_available && $conn) {
+    try {
+        $stmt = $conn->prepare("SELECT * FROM road_reports ORDER BY created_at DESC LIMIT 3");
+        $stmt->execute();
+        $result = $stmt->get_result();
+        while ($row = $result->fetch_assoc()) {
+            $road_updates[] = $row;
+        }
+        $stmt->close();
+    } catch (Exception $e) {
+        // Handle database errors gracefully
+        $road_updates = [];
+    }
+}
+
+// Get statistics
+$stats = [
+    'total_reports' => 0,
+    'ongoing_repairs' => 0,
+    'resolved_issues' => 0,
+    'pending_reports' => 0
+];
+
+if ($database_available && $conn) {
+    try {
+        // Total reports
+        $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_reports");
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $stats['total_reports'] = $result->fetch_assoc()['count'];
+        $stmt->close();
+        
+        // Ongoing repairs
+        $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_reports WHERE status = 'in_progress'");
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $stats['ongoing_repairs'] = $result->fetch_assoc()['count'];
+        $stmt->close();
+        
+        // Resolved issues
+        $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_reports WHERE status = 'resolved'");
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $stats['resolved_issues'] = $result->fetch_assoc()['count'];
+        $stmt->close();
+        
+        // Pending reports
+        $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_reports WHERE status = 'pending'");
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $stats['pending_reports'] = $result->fetch_assoc()['count'];
+        $stmt->close();
+    } catch (Exception $e) {
+        // Handle database errors gracefully
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LGU Transport Monitoring System</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <title>Road and Transportation Department Monitoring System</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
     <style>
+        :root {
+            --primary-color: #1e3c72;
+            --secondary-color: #2a5298;
+            --accent-color: #4CAF50;
+            --light-bg: #f8f9fa;
+            --dark-text: #2c3e50;
+        }
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Poppins', sans-serif;
         }
-        html { scroll-behavior: smooth; }
+
         body {
             font-family: 'Poppins', sans-serif;
-            background: url("assets/img/cityhall.jpeg") center/cover no-repeat fixed;
-            position: relative;
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
-
-        .background-overlay {
-            content: "";
-            position: absolute;
-            inset: 0;
-            backdrop-filter: blur(6px);
-            -webkit-backdrop-filter: blur(6px);
-            background: rgba(0, 0, 0, 0.35);
-            z-index: 0;
-        }
-
-        .main-content {
-            position: relative;
-            z-index: 1;
+            color: var(--dark-text);
+            line-height: 1.6;
         }
 
         /* Navigation */
-        nav {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
+        .navbar {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             padding: 1rem 0;
-            position: fixed;
-            width: 100%;
-            top: 0;
-            z-index: 1000;
-            transition: background 0.3s ease, backdrop-filter 0.3s ease;
         }
 
-        nav.scrolled {
-            background: linear-gradient(135deg, rgba(30, 60, 114, 0.95) 0%, rgba(42, 82, 152, 0.95) 100%);
-            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
-        }
-
-        .nav-container {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 40px;
-        }
-
-        .nav-left {
-            display: flex;
-            align-items: center;
-            width: 100%;
-        }
-
-        .menu-toggle {
-            display: flex;
-            flex-direction: column;
-            cursor: pointer;
-            padding: 5px;
-            margin-right: 10px;
-        }
-
-        .bar {
-            width: 25px;
-            height: 3px;
-            background-color: white;
-            margin: 3px 0;
-            transition: 0.3s;
-        }
-
-        .menu-toggle:hover .bar {
-            background-color: #4CAF50;
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            color: white;
-            font-size: 1.5rem;
+        .navbar-brand {
             font-weight: 600;
-            margin-right: 30px;
-            margin-left: 0px;
-        }
-
-        .logo img {
-            height: 40px;
-            width: auto;
-        }
-
-        .nav-links {
+            font-size: 1.5rem;
+            color: white !important;
             display: flex;
-            gap: 30px;
-            list-style: none;
-            margin: 0;
-            margin-left: auto;
+            align-items: center;
+            gap: 10px;
         }
 
-        .nav-links a {
-            color: white;
-            text-decoration: none;
+        .navbar-nav .nav-link {
+            color: white !important;
             font-weight: 500;
+            margin: 0 10px;
             transition: color 0.3s ease;
         }
 
-        .nav-links a:hover {
-            color: #4CAF50;
+        .navbar-nav .nav-link:hover {
+            color: var(--accent-color) !important;
         }
 
-        .login-btn-nav {
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        .btn-login {
+            background: var(--accent-color);
             color: white;
-            padding: 10px 25px;
             border: none;
+            padding: 8px 20px;
             border-radius: 25px;
             font-weight: 600;
-            cursor: pointer;
             transition: all 0.3s ease;
-            text-decoration: none;
         }
 
-        .login-btn-nav:hover {
-            background: linear-gradient(135deg, #2a5298 0%, #1e3c72 100%);
+        .btn-login:hover {
+            background: #45a049;
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(30, 60, 114, 0.3);
         }
 
         /* Hero Section */
         .hero {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
+            background: linear-gradient(rgba(30, 60, 114, 0.8), rgba(42, 82, 152, 0.8)),
+                        url('assets/img/cityhall.jpeg') center/cover no-repeat;
             color: white;
-            padding: 100px 20px 50px;
-            position: relative;
-            z-index: 1;
-        }
-
-        .hero-content {
-            max-width: 800px;
-            animation: fadeInUp 1s ease;
-        }
-
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            padding: 120px 0 80px;
+            text-align: center;
         }
 
         .hero h1 {
-            font-size: clamp(28px, 5vw, 42px);
-            margin-bottom: 20px;
+            font-size: 3rem;
             font-weight: 700;
-            line-height: 1.2;
-        }
-
-        .hero .subtitle {
-            font-size: 18px;
-            margin-bottom: 30px;
-            opacity: 0.9;
-            line-height: 1.6;
-        }
-
-        .hero-buttons {
-            display: flex;
-            gap: 20px;
-            justify-content: center;
-            flex-wrap: wrap;
-            margin-top: 40px;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            color: white;
-            padding: 15px 35px;
-            border: none;
-            border-radius: 30px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .btn-primary:hover {
-            background: linear-gradient(135deg, #2a5298 0%, #1e3c72 100%);
-            transform: translateY(-3px);
-            box-shadow: 0 10px 25px rgba(30, 60, 114, 0.3);
-            color: #fff;
-        }
-
-        .btn-secondary {
-            background: transparent;
-            color: white;
-            padding: 15px 35px;
-            border: 2px solid white;
-            border-radius: 30px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .btn-secondary:hover {
-            background: white;
-            color: #1e3c72;
-            transform: translateY(-3px);
-        }
-
-        /* Features Section */
-        .features {
-            padding: 80px 20px;
-            background: white;
-        }
-
-        .features-container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .features h2 {
-            text-align: center;
-            font-size: 2.5rem;
-            color: #1e3c72;
             margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
         }
 
-        .features-subtitle {
-            text-align: center;
-            font-size: 1.1rem;
-            color: #666;
-            margin-bottom: 60px;
+        .hero p {
+            font-size: 1.2rem;
+            margin-bottom: 30px;
             max-width: 600px;
             margin-left: auto;
             margin-right: auto;
         }
 
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 40px;
-            margin-top: 50px;
-        }
-
-        .feature-card {
-            text-align: center;
-            padding: 30px;
-            border-radius: 15px;
+        .btn-hero {
+            padding: 15px 30px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 30px;
+            margin: 10px;
             transition: all 0.3s ease;
-            background: #f8f9fa;
         }
 
-        .feature-card:hover {
-            transform: translateY(-10px);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-        }
-
-        .feature-icon {
-            width: 80px;
-            height: 80px;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 20px;
-            font-size: 2rem;
+        .btn-primary-hero {
+            background: var(--accent-color);
+            border: none;
             color: white;
         }
 
-        .feature-card h3 {
-            color: #1e3c72;
-            margin-bottom: 15px;
-            font-size: 1.3rem;
+        .btn-primary-hero:hover {
+            background: #45a049;
+            transform: translateY(-3px);
         }
 
-        .feature-card p {
-            color: #666;
-            line-height: 1.6;
-        }
-
-        /* Stats Section */
-        .stats {
-            padding: 60px 20px;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #1e3c72 100%);
+        .btn-secondary-hero {
+            background: transparent;
+            border: 2px solid white;
             color: white;
         }
 
-        .stats-container {
-            max-width: 1200px;
-            margin: 0 auto;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 40px;
+        .btn-secondary-hero:hover {
+            background: white;
+            color: var(--primary-color);
+        }
+
+        /* Section Styles */
+        .section {
+            padding: 80px 0;
+        }
+
+        .section-title {
             text-align: center;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 20px;
         }
 
-        .stat-item {
-            padding: 20px;
+        .section-subtitle {
+            text-align: center;
+            font-size: 1.1rem;
+            color: #666;
+            margin-bottom: 60px;
+        }
+
+        /* Road Updates Cards */
+        .update-card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            height: 100%;
+        }
+
+        .update-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        }
+
+        .update-card .card-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border-radius: 15px 15px 0 0 !important;
+            font-weight: 600;
+        }
+
+        .update-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .badge-maintenance {
+            background: #ff9800;
+            color: white;
+        }
+
+        .badge-advisory {
+            background: #2196f3;
+            color: white;
+        }
+
+        .badge-closure {
+            background: #f44336;
+            color: white;
+        }
+
+        /* Statistics Cards */
+        .stat-card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-icon {
+            font-size: 3rem;
+            color: var(--accent-color);
+            margin-bottom: 20px;
         }
 
         .stat-number {
-            font-size: 3rem;
+            font-size: 2.5rem;
             font-weight: 700;
+            color: var(--primary-color);
             margin-bottom: 10px;
-            color: #4CAF50;
         }
 
         .stat-label {
             font-size: 1.1rem;
-            opacity: 0.9;
+            color: #666;
+        }
+
+        /* Services Section */
+        .service-card {
+            text-align: center;
+            padding: 30px;
+            border-radius: 15px;
+            background: white;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            height: 100%;
+        }
+
+        .service-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        }
+
+        .service-icon {
+            font-size: 3rem;
+            color: var(--primary-color);
+            margin-bottom: 20px;
+        }
+
+        .service-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 15px;
+        }
+
+        /* Report Form */
+        .report-form {
+            background: white;
+            border-radius: 15px;
+            padding: 40px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .form-control, .form-select {
+            border-radius: 10px;
+            border: 1px solid #ddd;
+            padding: 12px;
+        }
+
+        .form-control:focus, .form-select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.2rem rgba(30, 60, 114, 0.25);
+        }
+
+        /* Contact Section */
+        .contact-section {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+        }
+
+        .contact-info {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .contact-icon {
+            font-size: 2rem;
+            margin-bottom: 15px;
+            color: var(--accent-color);
         }
 
         /* Footer */
         footer {
             background: #0f2341;
             color: white;
-            padding: 40px 20px 20px;
-            text-align: center;
+            padding: 40px 0 20px;
         }
 
-        .footer-content {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .footer-links {
-            display: flex;
-            justify-content: center;
-            gap: 30px;
-            margin-bottom: 30px;
-            flex-wrap: wrap;
-        }
-
-        .footer-links a {
+        .social-icons a {
             color: white;
-            text-decoration: none;
+            font-size: 1.5rem;
+            margin: 0 10px;
             transition: color 0.3s ease;
         }
 
-        .footer-links a:hover {
-            color: #4CAF50;
+        .social-icons a:hover {
+            color: var(--accent-color);
         }
 
-        .footer-bottom {
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            padding-top: 20px;
-            opacity: 0.8;
-        }
-
-        /* Public Transparency card on hero */
-        .transparency-card {
-            width: 100%;
-            max-width: 560px;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
-            border-radius: 16px;
-            padding: 32px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-            border: 1px solid rgba(255,255,255,0.3);
-            margin: 40px auto;
-        }
-        .transparency-card h2 {
-            font-size: 22px;
-            font-weight: 700;
-            color: #1e3c72;
-            margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .transparency-card h2 i { color: #3762c8; }
-        .transparency-card p {
-            color: #555;
-            font-size: 15px;
-            line-height: 1.6;
-            margin-bottom: 24px;
-        }
-        .transparency-card .btn-primary {
-            width: 100%;
-            justify-content: center;
-        }
-
-        /* Page Transition Overlay */
-        .page-transition-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            z-index: 9999;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.5s ease, visibility 0.5s ease;
-        }
-
-        .page-transition-overlay.active {
-            opacity: 1;
-            visibility: visible;
-        }
-
-        .transition-content {
-            text-align: center;
-            color: white;
-        }
-
-        .transition-spinner {
-            font-size: 3rem;
-            margin-bottom: 20px;
-            animation: spin 1.5s linear infinite;
-        }
-
-        .transition-spinner i {
-            color: #4CAF50;
-        }
-
-        .transition-text {
-            font-size: 1.2rem;
-            font-weight: 600;
-            opacity: 0.9;
-            animation: fadeInUp 0.8s ease;
-        }
-
-        @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-            100% {
-                transform: rotate(360deg);
-            }
-        }
-        /* Responsive Design */
-            @media (max-width: 768px) {
-            .nav-left {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-
-            .nav-links {
-                display: none;
-                position: absolute;
-                top: 100%;
-                left: 0;
-                width: 100%;
-                background: rgba(30, 60, 114, 0.95);
-                backdrop-filter: blur(10px);
-                flex-direction: column;
-                padding: 20px;
-                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-            }
-
-            .nav-links.active {
-                display: flex;
-            }
-
-            .logo {
-                margin-bottom: 20px;
-            }
-
-            .menu-toggle {
-                display: flex;
-            }
-        }
-
-            .hero h1 {
-                font-size: 2.5rem;
-            }
-
-            .hero .subtitle {
-                font-size: 1.1rem;
-            }
-
-            .hero-buttons {
-                flex-direction: column;
-                align-items: center;
-            }
-
-            .btn-primary, .btn-secondary {
-                width: 250px;
-                justify-content: center;
-            }
-
-            .features h2 {
-                font-size: 2rem;
-            }
-
-            .stat-number {
-                font-size: 2.5rem;
-            }
-        }
-
-        @media (max-width: 480px) {
+        /* Responsive */
+        @media (max-width: 768px) {
             .hero h1 {
                 font-size: 2rem;
             }
-
-            .hero .subtitle {
+            
+            .hero p {
                 font-size: 1rem;
             }
-
-            .features-grid {
-                grid-template-columns: 1fr;
+            
+            .section-title {
+                font-size: 2rem;
             }
-
-            .stats-container {
-                grid-template-columns: 1fr;
+            
+            .stat-number {
+                font-size: 2rem;
             }
         }
     </style>
 </head>
 <body>
-    <div class="background-overlay"></div>
-    <div class="main-content">
     <!-- Navigation -->
-    <nav id="navbar">
-        <div class="nav-container">
-            <div class="nav-left">
-                <div class="menu-toggle" id="mobile-menu">
-                    <span class="bar"></span>
-                    <span class="bar"></span>
-                    <span class="bar"></span>
-                </div>
-                <div class="logo">
-                    <img src="assets/img/logocityhall.png" alt="LGU Logo">
-                    <span>Road and Transportation Department</span>
-                </div>
+    <nav class="navbar navbar-expand-lg navbar-dark fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="#home">
+                <i class="fas fa-road"></i>
+                Road & Transportation Department
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#home">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#updates">Road Updates</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#report">Report Issue</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="<?php echo $basePath; ?>lgu_staff/login.php">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#about">About</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#contact">Contact</a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="<?php echo $basePath; ?>lgu_staff/login.php" class="btn btn-login">Login</a>
+                    </li>
+                </ul>
             </div>
+        </div>
     </nav>
 
     <!-- Hero Section -->
     <section class="hero" id="home">
-        <div class="hero-content">
-            <h1>Road and Transportation Department</h1>
-            <p class="subtitle">
-                Comprehensive LGU system for monitoring road conditions, traffic flow, infrastructure projects, and transportation services to ensure safe and efficient public road networks.
+        <div class="container">
+            <h1>Road and Transportation Monitoring System</h1>
+            <p class="lead">
+                Monitor road conditions in real-time and report road problems to help us maintain safe and efficient transportation infrastructure for our community.
             </p>
             <div class="hero-buttons">
-                <a href="#features" class="btn-secondary">
-                    <i class="fas fa-info-circle"></i>
-                    Learn More
+                <a href="#report" class="btn btn-primary-hero btn-hero">
+                    <i class="fas fa-exclamation-triangle"></i> Report Road Issue
+                </a>
+                <a href="#updates" class="btn btn-secondary-hero btn-hero">
+                    <i class="fas fa-eye"></i> View Road Status
                 </a>
             </div>
-
-                    </div>
+        </div>
     </section>
 
-    <!-- Features Section -->
-    <section class="features" id="features">
-        <div class="features-container">
-            <h2>Road Infrastructure Management</h2>
-            <p class="features-subtitle">
-                Advanced monitoring and management system for road infrastructure, traffic operations, maintenance scheduling, and transportation services across the LGU jurisdiction.
-            </p>
-            <div class="features-grid">
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i class="fas fa-road"></i>
+    <!-- Road Updates Section -->
+    <section class="section" id="updates">
+        <div class="container">
+            <h2 class="section-title">Road Updates & Announcements</h2>
+            <p class="section-subtitle">Stay informed about the latest road conditions and maintenance activities</p>
+            
+            <div class="row g-4">
+                <?php if (!empty($road_updates)): ?>
+                    <?php foreach ($road_updates as $update): ?>
+                        <div class="col-md-4">
+                            <div class="card update-card">
+                                <div class="card-header position-relative">
+                                    <?php echo htmlspecialchars($update['title'] ?? 'Road Update'); ?>
+                                    <span class="update-badge badge-<?php echo strtolower($update['category'] ?? 'advisory'); ?>">
+                                        <?php echo ucfirst($update['category'] ?? 'Advisory'); ?>
+                                    </span>
+                                </div>
+                                <div class="card-body">
+                                    <p class="card-text">
+                                        <?php echo htmlspecialchars(substr($update['description'] ?? 'No description available', 0, 100)) . '...'; ?>
+                                    </p>
+                                    <small class="text-muted">
+                                        <i class="fas fa-calendar"></i> 
+                                        <?php echo date('M d, Y', strtotime($update['created_at'] ?? 'now')); ?>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <!-- Default updates when database is not available -->
+                    <div class="col-md-4">
+                        <div class="card update-card">
+                            <div class="card-header position-relative">
+                                Road Maintenance
+                                <span class="update-badge badge-maintenance">Maintenance</span>
+                            </div>
+                            <div class="card-body">
+                                <p class="card-text">
+                                    Scheduled maintenance on Main Street Bridge. Expect minor delays between 9 AM - 4 PM.
+                                </p>
+                                <small class="text-muted">
+                                    <i class="fas fa-calendar"></i> March 4, 2026
+                                </small>
+                            </div>
+                        </div>
                     </div>
-                    <h3>Road Infrastructure</h3>
-                    <p>Monitor road conditions, track infrastructure projects, manage construction schedules, and maintain comprehensive road asset databases.</p>
+                    <div class="col-md-4">
+                        <div class="card update-card">
+                            <div class="card-header position-relative">
+                                Traffic Advisory
+                                <span class="update-badge badge-advisory">Advisory</span>
+                            </div>
+                            <div class="card-body">
+                                <p class="card-text">
+                                    Heavy traffic expected on Highway 101 due to ongoing construction. Use alternate routes when possible.
+                                </p>
+                                <small class="text-muted">
+                                    <i class="fas fa-calendar"></i> March 3, 2026
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card update-card">
+                            <div class="card-header position-relative">
+                                Road Closure
+                                <span class="update-badge badge-closure">Closure</span>
+                            </div>
+                            <div class="card-body">
+                                <p class="card-text">
+                                    Oak Avenue closed between 2nd and 4th Street for emergency repairs. Detour available.
+                                </p>
+                                <small class="text-muted">
+                                    <i class="fas fa-calendar"></i> March 2, 2026
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </section>
+
+    <!-- Statistics Section -->
+    <section class="section bg-light">
+        <div class="container">
+            <h2 class="section-title">Monitoring Statistics</h2>
+            <p class="section-subtitle">Real-time overview of road monitoring activities</p>
+            
+            <div class="row g-4">
+                <div class="col-md-3 col-sm-6">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-clipboard-list"></i>
+                        </div>
+                        <div class="stat-number"><?php echo number_format($stats['total_reports']); ?></div>
+                        <div class="stat-label">Total Reports</div>
+                    </div>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i class="fas fa-traffic-light"></i>
+                <div class="col-md-3 col-sm-6">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-tools"></i>
+                        </div>
+                        <div class="stat-number"><?php echo number_format($stats['ongoing_repairs']); ?></div>
+                        <div class="stat-label">Ongoing Repairs</div>
                     </div>
-                    <h3>Traffic Control</h3>
-                    <p>Real-time traffic monitoring, signal management, incident response, and traffic flow optimization across major road networks.</p>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i class="fas fa-tools"></i>
+                <div class="col-md-3 col-sm-6">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="stat-number"><?php echo number_format($stats['resolved_issues']); ?></div>
+                        <div class="stat-label">Resolved Issues</div>
                     </div>
-                    <h3>Maintenance Operations</h3>
-                    <p>Schedule road repairs, track maintenance crews, manage work orders, and coordinate infrastructure rehabilitation projects.</p>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i class="fas fa-chart-line"></i>
+                <div class="col-md-3 col-sm-6">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="stat-number"><?php echo number_format($stats['pending_reports']); ?></div>
+                        <div class="stat-label">Pending Reports</div>
                     </div>
-                    <h3>Performance Analytics</h3>
-                    <p>Road condition assessments, traffic pattern analysis, maintenance cost tracking, and infrastructure performance reporting.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i class="fas fa-mobile-alt"></i>
-                    </div>
-                    <h3>Field Operations</h3>
-                    <p>Mobile-enabled inspections, on-site reporting, GPS tracking of maintenance vehicles, and real-time field data collection.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i class="fas fa-shield-alt"></i>
-                    </div>
-                    <h3>Compliance & Safety</h3>
-                    <p>Safety compliance monitoring, regulatory reporting, incident documentation, and road safety audit management.</p>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Stats Section -->
-    <section class="stats" id="stats">
-        <div class="stats-container">
-            <div class="stat-item">
-                <div class="stat-number">24/7</div>
-                <div class="stat-label">Road Monitoring</div>
+    <!-- Services Section -->
+    <section class="section" id="services">
+        <div class="container">
+            <h2 class="section-title">Our Services</h2>
+            <p class="section-subtitle">Comprehensive road management and transportation services</p>
+            
+            <div class="row g-4">
+                <div class="col-md-3 col-sm-6">
+                    <div class="service-card">
+                        <div class="service-icon">
+                            <i class="fas fa-road"></i>
+                        </div>
+                        <h3 class="service-title">Road Condition Monitoring</h3>
+                        <p>Real-time monitoring of road conditions using advanced sensors and citizen reports to ensure safe travel.</p>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <div class="service-card">
+                        <div class="service-icon">
+                            <i class="fas fa-hard-hat"></i>
+                        </div>
+                        <h3 class="service-title">Infrastructure Maintenance</h3>
+                        <p>Regular maintenance and repair of roads, bridges, and transportation infrastructure to extend their lifespan.</p>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <div class="service-card">
+                        <div class="service-icon">
+                            <i class="fas fa-traffic-light"></i>
+                        </div>
+                        <h3 class="service-title">Traffic Management</h3>
+                        <p>Intelligent traffic control systems and management strategies to optimize traffic flow and reduce congestion.</p>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <div class="service-card">
+                        <div class="service-icon">
+                            <i class="fas fa-ambulance"></i>
+                        </div>
+                        <h3 class="service-title">Emergency Road Response</h3>
+                        <p>24/7 emergency response team for road accidents, hazards, and urgent maintenance needs.</p>
+                    </div>
+                </div>
             </div>
-            <div class="stat-item">
-                <div class="stat-number">1,200+</div>
-                <div class="stat-label">Road KM Managed</div>
+        </div>
+    </section>
+
+    <!-- Report Road Problem Section -->
+    <section class="section bg-light" id="report">
+        <div class="container">
+            <h2 class="section-title">Report Road Problem</h2>
+            <p class="section-subtitle">Help us maintain safe roads by reporting issues you encounter</p>
+            
+            <div class="row justify-content-center">
+                <div class="col-lg-8">
+                    <div class="report-form">
+                        <form id="roadReportForm" method="POST" enctype="multipart/form-data">
+                            <div class="row g-3">
+                                <div class="col-md-12">
+                                    <label for="location" class="form-label">Location *</label>
+                                    <input type="text" class="form-control" id="location" name="location" required 
+                                           placeholder="Enter the specific location or address">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="issue_type" class="form-label">Issue Type *</label>
+                                    <select class="form-select" id="issue_type" name="issue_type" required>
+                                        <option value="">Select Issue Type</option>
+                                        <option value="pothole">Pothole</option>
+                                        <option value="flooding">Flooding</option>
+                                        <option value="road_crack">Road Crack</option>
+                                        <option value="broken_traffic_light">Broken Traffic Light</option>
+                                        <option value="debris">Road Debris</option>
+                                        <option value="sign_damage">Sign Damage</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="urgency" class="form-label">Urgency Level</label>
+                                    <select class="form-select" id="urgency" name="urgency">
+                                        <option value="low">Low</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="high">High</option>
+                                        <option value="emergency">Emergency</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-12">
+                                    <label for="description" class="form-label">Description *</label>
+                                    <textarea class="form-control" id="description" name="description" rows="4" required 
+                                              placeholder="Provide detailed description of the road issue"></textarea>
+                                </div>
+                                <div class="col-md-12">
+                                    <label for="image" class="form-label">Upload Image (Optional)</label>
+                                    <input type="file" class="form-control" id="image" name="image" accept="image/*">
+                                    <small class="text-muted">Upload a photo of the road issue (max 5MB)</small>
+                                </div>
+                                <div class="col-md-12">
+                                    <label for="reporter_name" class="form-label">Your Name (Optional)</label>
+                                    <input type="text" class="form-control" id="reporter_name" name="reporter_name" 
+                                           placeholder="Your name for follow-up">
+                                </div>
+                                <div class="col-md-12">
+                                    <label for="reporter_contact" class="form-label">Contact Number (Optional)</label>
+                                    <input type="tel" class="form-control" id="reporter_contact" name="reporter_contact" 
+                                           placeholder="Your contact number for follow-up">
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="anonymous" name="anonymous">
+                                        <label class="form-check-label" for="anonymous">
+                                            Report anonymously
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-12 text-center">
+                                    <button type="submit" class="btn btn-primary btn-lg px-5">
+                                        <i class="fas fa-paper-plane"></i> Submit Report
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             </div>
-            <div class="stat-item">
-                <div class="stat-number">365</div>
-                <div class="stat-label">Annual Reports</div>
+        </div>
+    </section>
+
+    <!-- About Section -->
+    <section class="section" id="about">
+        <div class="container">
+            <h2 class="section-title">About Road and Transportation Department</h2>
+            <p class="section-subtitle">Our commitment to safe and efficient transportation infrastructure</p>
+            
+            <div class="row justify-content-center">
+                <div class="col-lg-8">
+                    <div class="text-center">
+                        <p class="lead">
+                            The Road and Transportation Department is dedicated to maintaining and improving our community's transportation infrastructure. 
+                            Through advanced monitoring systems and citizen engagement, we ensure safe, reliable, and efficient road networks for all users.
+                        </p>
+                        <p>
+                            Our monitoring system leverages technology to track road conditions, manage maintenance schedules, and respond quickly to emerging issues. 
+                            By combining professional expertise with community participation, we create a comprehensive approach to road management that serves 
+                            the needs of our growing community.
+                        </p>
+                        <p>
+                            We are committed to transparency, accountability, and excellence in public service. Every report we receive helps us identify and address 
+                            issues faster, preventing accidents and improving the quality of life for all residents.
+                        </p>
+                    </div>
+                </div>
             </div>
-            <div class="stat-item">
-                <div class="stat-number">99.9%</div>
-                <div class="stat-label">System Reliability</div>
+        </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section class="section contact-section" id="contact">
+        <div class="container">
+            <h2 class="section-title text-white">Contact Us</h2>
+            <p class="section-subtitle text-white">Get in touch with our team for assistance and inquiries</p>
+            
+            <div class="row g-4">
+                <div class="col-md-4">
+                    <div class="contact-info">
+                        <div class="contact-icon">
+                            <i class="fas fa-phone"></i>
+                        </div>
+                        <h4>Phone</h4>
+                        <p>Main Office: (123) 456-7890<br>
+                           Emergency Hotline: (123) 456-9999</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="contact-info">
+                        <div class="contact-icon">
+                            <i class="fas fa-envelope"></i>
+                        </div>
+                        <h4>Email</h4>
+                        <p>General: roads@lgu.gov.ph<br>
+                           Emergency: emergency@lgu.gov.ph</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="contact-info">
+                        <div class="contact-icon">
+                            <i class="fas fa-map-marker-alt"></i>
+                        </div>
+                        <h4>Office Location</h4>
+                        <p>Road & Transportation Dept.<br>
+                           City Hall Building<br>
+                           Quezon City, Philippines</p>
+                    </div>
+                </div>
             </div>
         </div>
     </section>
 
     <!-- Footer -->
-    <footer id="contact">
-        <div class="footer-content">
-            <div class="footer-links">
-                <a href="#home">Home</a>
-                <a href="#features">Features</a>
-                <a href="#stats">Statistics</a>
-                <a href="<?php echo $basePath; ?>lgu_staff/login.php">Login</a>
-                <a href="#">Privacy Policy</a>
-                <a href="#">Terms of Service</a>
-            </div>
-            <div class="footer-bottom">
-                <p>&copy; 2024 LGU Road Infrastructure Monitoring System. All rights reserved.</p>
-                <p>Department of Public Works - Road Management Division | Email: roads@lgu.gov.ph | Phone: (123) 456-7890</p>
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <p>&copy; 2026 Road and Transportation Department. All rights reserved.</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <a href="#" class="text-white me-3">Privacy Policy</a>
+                    <a href="#" class="text-white me-3">Terms of Service</a>
+                    <div class="social-icons d-inline-block">
+                        <a href="#"><i class="fab fa-facebook"></i></a>
+                        <a href="#"><i class="fab fa-twitter"></i></a>
+                        <a href="#"><i class="fab fa-instagram"></i></a>
+                    </div>
+                </div>
             </div>
         </div>
     </footer>
 
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Custom JavaScript -->
     <script>
-        // Navbar scroll effect
-        window.addEventListener('scroll', function() {
-            const navbar = document.getElementById('navbar');
-            if (window.scrollY > 50) {
-                navbar.classList.add('scrolled');
-            } else {
-                navbar.classList.remove('scrolled');
-            }
-        });
-
         // Smooth scrolling for navigation links
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function (e) {
@@ -737,35 +848,98 @@ $database_available = true;
             });
         });
 
-        // Mobile menu toggle
-        document.getElementById('mobile-menu')?.addEventListener('click', function() {
-            const navLinks = document.querySelector('.nav-links');
-            navLinks.classList.toggle('active');
+        // Form submission handler
+        document.getElementById('roadReportForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Get form data
+            const formData = new FormData(this);
+            
+            // Simple client-side validation
+            const location = formData.get('location');
+            const issueType = formData.get('issue_type');
+            const description = formData.get('description');
+            
+            if (!location || !issueType || !description) {
+                alert('Please fill in all required fields.');
+                return;
+            }
+            
+            // Show loading state
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+            submitBtn.disabled = true;
+            
+            // Simulate form submission (replace with actual endpoint)
+            setTimeout(() => {
+                // Reset form
+                this.reset();
+                
+                // Restore button
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+                
+                // Show success message
+                alert('Thank you for your report! We will review it and take appropriate action.');
+                
+                // Scroll to top
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }, 2000);
         });
 
-        // Page transition for login links
-        document.querySelectorAll('a[href*="login.php"]').forEach(link => {
-            link.addEventListener('click', function (e) {
-                e.preventDefault();
-                const overlay = document.getElementById('pageTransitionOverlay');
-                overlay.classList.add('active');
+        // Handle file upload validation
+        document.getElementById('image').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                // Check file size (5MB limit)
+                if (file.size > 5 * 1024 * 1024) {
+                    alert('File size must be less than 5MB.');
+                    this.value = '';
+                    return;
+                }
                 
-                setTimeout(() => {
-                    window.location.href = this.href;
-                }, 800);
+                // Check file type
+                if (!file.type.startsWith('image/')) {
+                    alert('Please select an image file.');
+                    this.value = '';
+                    return;
+                }
+            }
+        });
+
+        // Navbar background on scroll
+        window.addEventListener('scroll', function() {
+            const navbar = document.querySelector('.navbar');
+            if (window.scrollY > 100) {
+                navbar.style.background = 'linear-gradient(135deg, rgba(30, 60, 114, 0.95) 0%, rgba(42, 82, 152, 0.95) 100%)';
+            } else {
+                navbar.style.background = 'linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%)';
+            }
+        });
+
+        // Animate elements on scroll
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver(function(entries) {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
             });
+        }, observerOptions);
+
+        // Observe all cards
+        document.querySelectorAll('.update-card, .stat-card, .service-card').forEach(card => {
+            card.style.opacity = '0';
+            card.style.transform = 'translateY(20px)';
+            card.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+            observer.observe(card);
         });
     </script>
-    </div>
-    
-    <!-- Page Transition Overlay -->
-    <div class="page-transition-overlay" id="pageTransitionOverlay">
-        <div class="transition-content">
-            <div class="transition-spinner">
-                <i class="fas fa-spinner"></i>
-            </div>
-            <div class="transition-text">Loading...</div>
-        </div>
-    </div>
 </body>
 </html>
