@@ -54,9 +54,19 @@ $database_available = true;
         html { scroll-behavior: smooth; }
         body {
             font-family: 'Poppins', sans-serif;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #1e3c72 100%);
+            background: url("assets/img/cityhall.jpeg") center/cover no-repeat fixed;
+            position: relative;
             min-height: 100vh;
             overflow-x: hidden;
+        }
+        body::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            background: rgba(0, 0, 0, 0.35);
+            z-index: 0;
         }
 
         /* Navigation */
@@ -94,9 +104,10 @@ $database_available = true;
             font-weight: 600;
         }
 
-        .logo i {
-            font-size: 2rem;
-            color: #4CAF50;
+        .logo img {
+            height: 40px;
+            width: auto;
+            filter: brightness(0) invert(1);
         }
 
         .nav-links {
@@ -144,6 +155,7 @@ $database_available = true;
             color: white;
             padding: 100px 20px 50px;
             position: relative;
+            z-index: 1;
         }
 
         .hero-content {
@@ -461,7 +473,7 @@ $database_available = true;
     <nav id="navbar">
         <div class="nav-container">
             <div class="logo">
-                <i class="fas fa-road"></i>
+                <img src="assets/img/logocityhall.png" alt="LGU Logo">
                 <span>LGU Transport</span>
             </div>
             <ul class="nav-links">
