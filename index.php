@@ -104,6 +104,8 @@ $database_available = true;
         .nav-left {
             display: flex;
             align-items: center;
+            justify-content: space-between;
+            width: 100%;
         }
 
         .menu-toggle {
@@ -145,6 +147,7 @@ $database_available = true;
             display: flex;
             gap: 30px;
             list-style: none;
+            margin: 0;
         }
 
         .nav-links a {
@@ -501,8 +504,9 @@ $database_available = true;
         }
         /* Responsive Design */
             @media (max-width: 768px) {
-            .menu-toggle {
-                display: flex;
+            .nav-left {
+                flex-direction: column;
+                align-items: flex-start;
             }
 
             .nav-links {
@@ -522,14 +526,14 @@ $database_available = true;
                 display: flex;
             }
 
-            .nav-left {
-                width: 100%;
-                justify-content: space-between;
+            .logo {
+                margin-bottom: 20px;
             }
 
-            .logo {
-                flex: 1;
+            .menu-toggle {
+                display: flex;
             }
+        }
 
             .hero h1 {
                 font-size: 2.5rem;
