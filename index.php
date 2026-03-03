@@ -495,16 +495,7 @@ $database_available = true;
                 </a>
             </div>
 
-            <!-- Public Transparency Card -->
-            <section id="public-transparency" class="transparency-card" aria-label="Public Transparency">
-                <h2><i class="fas fa-university"></i> Public Transparency</h2>
-                <p>Access budget information, project status, and recent completed road projects published by the LGU.</p>
-                <a href="public_transparency_view.php" class="btn-primary">
-                    <i class="fas fa-external-link-alt"></i>
-                    Open Public Transparency
-                </a>
-            </section>
-        </div>
+                    </div>
     </section>
 
     <!-- Features Section -->
