@@ -451,7 +451,7 @@ $database_available = true;
         .transition-spinner {
             font-size: 3rem;
             margin-bottom: 20px;
-            animation: pulse 1.5s infinite ease-in-out;
+            animation: spin 1.5s linear infinite;
         }
 
         .transition-spinner i {
@@ -465,14 +465,12 @@ $database_available = true;
             animation: fadeInUp 0.8s ease;
         }
 
-        @keyframes pulse {
-            0%, 100% {
-                transform: scale(1);
-                opacity: 1;
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
             }
-            50% {
-                transform: scale(1.1);
-                opacity: 0.8;
+            100% {
+                transform: rotate(360deg);
             }
         }
         /* Responsive Design */
