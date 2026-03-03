@@ -598,12 +598,6 @@ $database_available = true;
                     <img src="assets/img/logocityhall.png" alt="LGU Logo">
                     <span>Road and Transportation Department</span>
                 </div>
-                <ul class="nav-links">
-                    <li><a href="#home">Home</a></li>
-                    <li><a href="#features">Features</a></li>
-                    <li><a href="#stats">Statistics</a></li>
-                    <li><a href="#contact">Contact</a></li>
-                </ul>
             </div>
     </nav>
 
