@@ -109,10 +109,11 @@ $database_available = true;
         }
 
         .menu-toggle {
-            display: none;
+            display: flex;
             flex-direction: column;
             cursor: pointer;
             padding: 5px;
+            margin-left: 20px;
         }
 
         .bar {
@@ -148,6 +149,7 @@ $database_available = true;
             gap: 30px;
             list-style: none;
             margin: 0;
+            margin-left: auto;
         }
 
         .nav-links a {
