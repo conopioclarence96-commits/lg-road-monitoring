@@ -84,7 +84,7 @@ $database_available = true;
             width: 100%;
             top: 0;
             z-index: 1000;
-            transition: all 0.3s ease;
+            transition: background 0.3s ease, backdrop-filter 0.3s ease;
         }
 
         nav.scrolled {
