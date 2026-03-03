@@ -600,11 +600,6 @@ $database_available = true;
                     <li><a href="#contact">Contact</a></li>
                 </ul>
             </div>
-            <a href="<?php echo $basePath; ?>lgu_staff/login.php" class="login-btn-nav">
-                <i class="fas fa-sign-in-alt"></i>
-                Login
-            </a>
-        </div>
     </nav>
 
     <!-- Hero Section -->
