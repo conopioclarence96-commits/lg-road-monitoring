@@ -140,6 +140,15 @@ $notification_count = getNotificationCount();
     <meta http-equiv="Pragma" content="cache">
     <meta http-equiv="Expires" content="3600">
     <title>LGU Staff Sidebar</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="../styles/style.css" rel="stylesheet">
+    <link href="../styles/sidebar.css" rel="stylesheet">
+    <link href="../styles/transition.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * {
             margin: 0;
@@ -465,11 +474,26 @@ $notification_count = getNotificationCount();
     </div>
 
     <script>
+        // Page transition for logout link
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('a[href*="logout.php"]').forEach(link => {
+                link.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const overlay = document.getElementById('pageTransitionOverlay');
+                    overlay.classList.add('active');
+                    
+                    setTimeout(() => {
+                        window.location.href = this.href;
+                    }, 800);
+                });
+            });
+        });
+    </script>
+    <script>
         // Set active navigation based on current page
         document.addEventListener('DOMContentLoaded', function() {
             const currentPath = window.parent.location.pathname;
             const currentFile = currentPath.split('/').pop();
-            
             
             // Remove active class from all links
             document.querySelectorAll('.nav-link').forEach(link => {
@@ -509,5 +533,16 @@ $notification_count = getNotificationCount();
             });
         });
     </script>
+</div>
+    
+<!-- Page Transition Overlay -->
+<div class="page-transition-overlay" id="pageTransitionOverlay">
+    <div class="transition-content">
+        <div class="transition-spinner">
+            <i class="fas fa-spinner"></i>
+        </div>
+        <div class="transition-text">Loading...</div>
+    </div>
+</div>
 </body>
 </html>
