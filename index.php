@@ -101,6 +101,11 @@ $database_available = true;
             align-items: center;
         }
 
+        .nav-left {
+            display: flex;
+            align-items: center;
+        }
+
         .logo {
             display: flex;
             align-items: center;
@@ -530,16 +535,18 @@ $database_available = true;
     <!-- Navigation -->
     <nav id="navbar">
         <div class="nav-container">
-            <div class="logo">
-                <img src="assets/img/logocityhall.png" alt="LGU Logo">
-                <span>LGU Transport</span>
+            <div class="nav-left">
+                <div class="logo">
+                    <img src="assets/img/logocityhall.png" alt="LGU Logo">
+                    <span>LGU Transport</span>
+                </div>
+                <ul class="nav-links">
+                    <li><a href="#home">Home</a></li>
+                    <li><a href="#features">Features</a></li>
+                    <li><a href="#stats">Statistics</a></li>
+                    <li><a href="#contact">Contact</a></li>
+                </ul>
             </div>
-            <ul class="nav-links">
-                <li><a href="#home">Home</a></li>
-                <li><a href="#features">Features</a></li>
-                <li><a href="#stats">Statistics</a></li>
-                <li><a href="#contact">Contact</a></li>
-            </ul>
             <a href="<?php echo $basePath; ?>lgu_staff/login.php" class="login-btn-nav">
                 <i class="fas fa-sign-in-alt"></i>
                 Login
