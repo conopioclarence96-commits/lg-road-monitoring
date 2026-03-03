@@ -133,6 +133,7 @@ $database_available = true;
             font-size: 1.5rem;
             font-weight: 600;
             margin-right: 30px;
+            margin-left: 20px;
         }
 
         .logo img {
