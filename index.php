@@ -106,6 +106,25 @@ $database_available = true;
             align-items: center;
         }
 
+        .menu-toggle {
+            display: none;
+            flex-direction: column;
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        .bar {
+            width: 25px;
+            height: 3px;
+            background-color: white;
+            margin: 3px 0;
+            transition: 0.3s;
+        }
+
+        .menu-toggle:hover .bar {
+            background-color: #4CAF50;
+        }
+
         .logo {
             display: flex;
             align-items: center;
@@ -479,8 +498,35 @@ $database_available = true;
             }
         }
         /* Responsive Design */
+            @media (max-width: 768px) {
+            .menu-toggle {
+                display: flex;
+            }
+
             .nav-links {
                 display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                width: 100%;
+                background: rgba(30, 60, 114, 0.95);
+                backdrop-filter: blur(10px);
+                flex-direction: column;
+                padding: 20px;
+                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            }
+
+            .nav-links.active {
+                display: flex;
+            }
+
+            .nav-left {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .logo {
+                flex: 1;
             }
 
             .hero h1 {
@@ -539,6 +585,11 @@ $database_available = true;
                 <div class="logo">
                     <img src="assets/img/logocityhall.png" alt="LGU Logo">
                     <span>Road Infrastructure & Transportation Monitoring</span>
+                </div>
+                <div class="menu-toggle" id="mobile-menu">
+                    <span class="bar"></span>
+                    <span class="bar"></span>
+                    <span class="bar"></span>
                 </div>
                 <ul class="nav-links">
                     <li><a href="#home">Home</a></li>
@@ -688,6 +739,12 @@ $database_available = true;
                     });
                 }
             });
+        });
+
+        // Mobile menu toggle
+        document.getElementById('mobile-menu')?.addEventListener('click', function() {
+            const navLinks = document.querySelector('.nav-links');
+            navLinks.classList.toggle('active');
         });
 
         // Page transition for login links
