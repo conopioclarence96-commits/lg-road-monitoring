@@ -503,14 +503,18 @@ if ($database_available && $conn) {
                                     
                                     <?php if (!empty($update['attachments'])): 
                                         $attachments = json_decode($update['attachments'], true);
+                                        // Debug: Uncomment to see attachment structure
+                                        // echo '<!-- Attachments: ' . print_r($attachments, true) . ' -->';
                                         if (is_array($attachments) && !empty($attachments)):
                                             foreach ($attachments as $attachment):
                                                 if (isset($attachment['type']) && $attachment['type'] === 'image' && isset($attachment['file_path'])): ?>
                                                     <div class="mt-3">
                                                         <img src="<?php echo htmlspecialchars($attachment['file_path']); ?>" 
                                                              alt="Report Image" 
-                                                             class="img-fluid rounded"
-                                                             style="max-height: 150px; object-fit: cover; width: 100%;">
+                                                             class="img-fluid rounded shadow-sm"
+                                                             style="max-height: 200px; object-fit: cover; width: 100%; cursor: pointer;"
+                                                             onclick="window.open(this.src, '_blank')"
+                                                             title="Click to view full size">
                                                     </div>
                                                 <?php endif;
                                             endforeach;
