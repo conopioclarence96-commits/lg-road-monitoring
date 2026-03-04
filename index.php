@@ -37,7 +37,7 @@ $database_available = true;
 $road_updates = [];
 if ($database_available && $conn) {
     try {
-        $stmt = $conn->prepare("SELECT id, report_id, title, description, report_type, priority, status, location, reported_date FROM road_transportation_reports ORDER BY reported_date DESC LIMIT 3");
+        $stmt = $conn->prepare("SELECT id, report_id, title, description, report_type, priority, status, location, reported_date, attachments FROM road_transportation_reports ORDER BY reported_date DESC LIMIT 3");
         $stmt->execute();
         $result = $stmt->get_result();
         while ($row = $result->fetch_assoc()) {
@@ -500,6 +500,23 @@ if ($database_available && $conn) {
                                     <p class="card-text">
                                         <?php echo htmlspecialchars(substr($update['description'] ?? 'No description available', 0, 100)) . '...'; ?>
                                     </p>
+                                    
+                                    <?php if (!empty($update['attachments'])): 
+                                        $attachments = json_decode($update['attachments'], true);
+                                        if (is_array($attachments) && !empty($attachments)):
+                                            foreach ($attachments as $attachment):
+                                                if (isset($attachment['type']) && $attachment['type'] === 'image' && isset($attachment['file_path'])): ?>
+                                                    <div class="mt-3">
+                                                        <img src="<?php echo htmlspecialchars($attachment['file_path']); ?>" 
+                                                             alt="Report Image" 
+                                                             class="img-fluid rounded"
+                                                             style="max-height: 150px; object-fit: cover; width: 100%;">
+                                                    </div>
+                                                <?php endif;
+                                            endforeach;
+                                        endif;
+                                    endif; ?>
+                                    
                                     <small class="text-muted">
                                         <i class="fas fa-calendar"></i> 
                                         <?php echo date('M d, Y', strtotime($update['reported_date'] ?? 'now')); ?>
