@@ -503,12 +503,21 @@ if ($database_available && $conn) {
                                     
                                     <?php if (!empty($update['attachments'])): 
                                         $attachments = json_decode($update['attachments'], true);
-                                        // Debug: Uncomment to see attachment structure
-                                        // echo '<!-- Attachments: ' . print_r($attachments, true) . ' -->';
+                                        // Debug: Show attachment structure
+                                        echo '<div class="alert alert-info mt-2" style="font-size: 0.8em;">';
+                                        echo '<strong>Debug - Attachments:</strong><br>';
+                                        echo '<pre>' . print_r($attachments, true) . '</pre>';
+                                        echo '</div>';
+                                        
                                         if (is_array($attachments) && !empty($attachments)):
                                             foreach ($attachments as $attachment):
                                                 if (isset($attachment['type']) && $attachment['type'] === 'image' && isset($attachment['file_path'])): ?>
                                                     <div class="mt-3">
+                                                        <div class="alert alert-warning" style="font-size: 0.8em;">
+                                                            <strong>Debug - File Path:</strong> <?php echo htmlspecialchars($attachment['file_path']); ?><br>
+                                                            <strong>File Exists:</strong> <?php echo file_exists($attachment['file_path']) ? 'YES' : 'NO'; ?><br>
+                                                            <strong>Full Path:</strong> <?php echo htmlspecialchars(realpath($attachment['file_path']) ?: 'Path not found'); ?>
+                                                        </div>
                                                         <img src="<?php echo htmlspecialchars($attachment['file_path']); ?>" 
                                                              alt="Report Image" 
                                                              class="img-fluid rounded shadow-sm"
@@ -518,8 +527,16 @@ if ($database_available && $conn) {
                                                     </div>
                                                 <?php endif;
                                             endforeach;
-                                        endif;
-                                    endif; ?>
+                                        else: ?>
+                                            <div class="alert alert-warning mt-2">
+                                                <strong>Debug:</strong> No valid image attachments found
+                                            </div>
+                                        <?php endif;
+                                    else: ?>
+                                        <div class="alert alert-secondary mt-2" style="font-size: 0.8em;">
+                                            <strong>Debug:</strong> No attachments data for this report
+                                        </div>
+                                    <?php endif; ?>
                                     
                                     <small class="text-muted">
                                         <i class="fas fa-calendar"></i> 
