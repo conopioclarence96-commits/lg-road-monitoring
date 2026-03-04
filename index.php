@@ -37,7 +37,7 @@ $database_available = true;
 $road_updates = [];
 if ($database_available && $conn) {
     try {
-        $stmt = $conn->prepare("SELECT * FROM road_reports ORDER BY created_at DESC LIMIT 3");
+        $stmt = $conn->prepare("SELECT id, report_id, title, description, report_type, priority, status, location, reported_date FROM road_transportation_reports ORDER BY reported_date DESC LIMIT 3");
         $stmt->execute();
         $result = $stmt->get_result();
         while ($row = $result->fetch_assoc()) {
@@ -61,28 +61,28 @@ $stats = [
 if ($database_available && $conn) {
     try {
         // Total reports
-        $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_reports");
+        $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports");
         $stmt->execute();
         $result = $stmt->get_result();
         $stats['total_reports'] = $result->fetch_assoc()['count'];
         $stmt->close();
         
-        // Ongoing repairs
-        $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_reports WHERE status = 'in_progress'");
+        // Ongoing repairs (in-progress status)
+        $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'in-progress'");
         $stmt->execute();
         $result = $stmt->get_result();
         $stats['ongoing_repairs'] = $result->fetch_assoc()['count'];
         $stmt->close();
         
-        // Resolved issues
-        $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_reports WHERE status = 'resolved'");
+        // Resolved issues (completed status)
+        $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'completed'");
         $stmt->execute();
         $result = $stmt->get_result();
         $stats['resolved_issues'] = $result->fetch_assoc()['count'];
         $stmt->close();
         
         // Pending reports
-        $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_reports WHERE status = 'pending'");
+        $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'pending'");
         $stmt->execute();
         $result = $stmt->get_result();
         $stats['pending_reports'] = $result->fetch_assoc()['count'];
@@ -492,8 +492,8 @@ if ($database_available && $conn) {
                             <div class="card update-card">
                                 <div class="card-header position-relative">
                                     <?php echo htmlspecialchars($update['title'] ?? 'Road Update'); ?>
-                                    <span class="update-badge badge-<?php echo strtolower($update['category'] ?? 'advisory'); ?>">
-                                        <?php echo ucfirst($update['category'] ?? 'Advisory'); ?>
+                                    <span class="update-badge badge-<?php echo strtolower($update['report_type'] ?? 'advisory'); ?>">
+                                        <?php echo ucfirst(str_replace('_', ' ', $update['report_type'] ?? 'Advisory')); ?>
                                     </span>
                                 </div>
                                 <div class="card-body">
@@ -502,7 +502,7 @@ if ($database_available && $conn) {
                                     </p>
                                     <small class="text-muted">
                                         <i class="fas fa-calendar"></i> 
-                                        <?php echo date('M d, Y', strtotime($update['created_at'] ?? 'now')); ?>
+                                        <?php echo date('M d, Y', strtotime($update['reported_date'] ?? 'now')); ?>
                                     </small>
                                 </div>
                             </div>
