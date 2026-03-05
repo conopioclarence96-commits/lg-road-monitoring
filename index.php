@@ -569,8 +569,8 @@ if ($database_available && $conn) {
                     <div class="col-12">
                         <div class="alert alert-warning text-center">
                             <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
-                            <h5>Database Connection Unavailable</h5>
-                            <p class="mb-0">Unable to load latest road updates. Please check back later or contact the administrator.</p>
+                            <h5>No Upload Reports</h5>
+                            <p class="mb-0">No reports have been uploaded yet. Please check back later.</p>
                         </div>
                     </div>
                 <?php endif; ?>
