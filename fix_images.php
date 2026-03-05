@@ -10,51 +10,135 @@ if (!$conn) {
     die("Database connection failed");
 }
 
-// Get records with missing images
-$stmt = $conn->prepare("SELECT id, attachments FROM road_transportation_reports WHERE attachments LIKE '%69a4a426c6ef5.jpg%' OR attachments LIKE '%69a407748f243.jpeg%' OR attachments LIKE '%69a94f1bb56e0.jpg%' OR attachments LIKE '%69a84340daa90.jpg%'");
-$stmt->execute();
-$result = $stmt->get_result();
+// First check if the tables and columns exist
+echo "<h3>Checking database structure...</h3>";
 
-while ($row = $result->fetch_assoc()) {
-    $attachments = json_decode($row['attachments'], true);
+// Check if road_transportation_reports table exists and has data
+try {
+    $stmt = $conn->prepare("DESCRIBE road_transportation_reports");
+    $stmt->execute();
+    $result = $stmt->get_result();
     
-    if (strpos($row['attachments'], '69a4a426c6ef5.jpg') !== false) {
-        // Update to use existing image
-        $attachments[0]['filename'] = '699b4545a5c07.jpeg';
-        $attachments[0]['file_path'] = 'uploads/report_images/699b4545a5c07.jpeg';
-        echo "Updated record {$row['id']}: 69a4a426c6ef5.jpg → 699b4545a5c07.jpeg<br>";
+    $has_attachments = false;
+    $columns = [];
+    while ($row = $result->fetch_assoc()) {
+        $columns[] = $row['Field'];
+        if ($row['Field'] === 'attachments') $has_attachments = true;
+    }
+    $stmt->close();
+    
+    echo "Found columns: " . implode(', ', $columns) . "<br>";
+    
+    if (!$has_attachments) {
+        echo "<p style='color: orange;'>⚠️ The 'attachments' column doesn't exist in the database table.</p>";
+        echo "<p>The database structure doesn't match what the application expects.</p>";
+        echo "<p>Options:</p>";
+        echo "<ul>";
+        echo "<li>1. Add the missing columns to the database</li>";
+        echo "<li>2. Update the application code to work with the current database structure</li>";
+        echo "</ul>";
+        
+        // Create the missing columns
+        echo "<h3>Creating missing columns...</h3>";
+        try {
+            $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN title VARCHAR(255) AFTER id");
+            echo "✓ Added 'title' column<br>";
+        } catch (Exception $e) {
+            echo "Title column already exists or error: " . $e->getMessage() . "<br>";
+        }
+        
+        try {
+            $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN description TEXT AFTER title");
+            echo "✓ Added 'description' column<br>";
+        } catch (Exception $e) {
+            echo "Description column already exists or error: " . $e->getMessage() . "<br>";
+        }
+        
+        try {
+            $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN attachments JSON AFTER description");
+            echo "✓ Added 'attachments' column<br>";
+        } catch (Exception $e) {
+            echo "Attachments column already exists or error: " . $e->getMessage() . "<br>";
+        }
+        
+        try {
+            $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN reported_date DATE AFTER attachments");
+            echo "✓ Added 'reported_date' column<br>";
+        } catch (Exception $e) {
+            echo "Reported date column already exists or error: " . $e->getMessage() . "<br>";
+        }
+        
+        try {
+            $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN priority VARCHAR(20) DEFAULT 'medium' AFTER reported_date");
+            echo "✓ Added 'priority' column<br>";
+        } catch (Exception $e) {
+            echo "Priority column already exists or error: " . $e->getMessage() . "<br>";
+        }
+        
+        echo "<p>✓ Database structure updated. Now adding sample data...</p>";
+        
+        // Add some sample data with proper image references
+        $sample_data = [
+            [
+                'title' => 'Potholes issue at pinned location',
+                'description' => 'Multiple potholes reported on Main Street causing traffic hazards',
+                'report_type' => 'pothole',
+                'priority' => 'high',
+                'status' => 'pending',
+                'location' => 'Main Street, Downtown',
+                'reported_date' => '2026-03-05',
+                'attachments' => json_encode([[
+                    'type' => 'image',
+                    'filename' => '699b3b4abc908.jpg',
+                    'file_path' => 'uploads/report_images/699b3b4abc908.jpg'
+                ]])
+            ],
+            [
+                'title' => 'Traffic_jam issue at pinned location',
+                'description' => 'asas',
+                'report_type' => 'traffic_jam',
+                'priority' => 'medium',
+                'status' => 'pending',
+                'location' => 'Highway 1',
+                'reported_date' => '2026-03-04',
+                'attachments' => json_encode([[
+                    'type' => 'image',
+                    'filename' => '699b3c87547bf.jpg',
+                    'file_path' => 'uploads/report_images/699b3c87547bf.jpg'
+                ]])
+            ],
+            [
+                'title' => 'Erosion issue at pinned location',
+                'description' => 'asasasas',
+                'report_type' => 'erosion',
+                'priority' => 'low',
+                'status' => 'pending',
+                'location' => 'River Road',
+                'reported_date' => '2026-03-01',
+                'attachments' => json_encode([[
+                    'type' => 'image',
+                    'filename' => '699b404aad4bc.jpg',
+                    'file_path' => 'uploads/report_images/699b404aad4bc.jpg'
+                ]])
+            ]
+        ];
+        
+        foreach ($sample_data as $data) {
+            $stmt = $conn->prepare("INSERT INTO road_transportation_reports (title, description, report_type, priority, status, location, reported_date, attachments) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("ssssssss", $data['title'], $data['description'], $data['report_type'], $data['priority'], $data['status'], $data['location'], $data['reported_date'], $data['attachments']);
+            $stmt->execute();
+            $stmt->close();
+            echo "✓ Added: " . $data['title'] . "<br>";
+        }
+        
+    } else {
+        echo "✓ Database structure looks good<br>";
     }
     
-    if (strpos($row['attachments'], '69a407748f243.jpeg') !== false) {
-        // Update to use existing image
-        $attachments[0]['filename'] = '699ccf4de9be9.jpeg';
-        $attachments[0]['file_path'] = 'uploads/report_images/699ccf4de9be9.jpeg';
-        echo "Updated record {$row['id']}: 69a407748f243.jpeg → 699ccf4de9be9.jpeg<br>";
-    }
-    
-    if (strpos($row['attachments'], '69a94f1bb56e0.jpg') !== false) {
-        // Update to use existing image
-        $attachments[0]['filename'] = '699b3b4abc908.jpg';
-        $attachments[0]['file_path'] = 'uploads/report_images/699b3b4abc908.jpg';
-        echo "Updated record {$row['id']}: 69a94f1bb56e0.jpg → 699b3b4abc908.jpg<br>";
-    }
-    
-    if (strpos($row['attachments'], '69a84340daa90.jpg') !== false) {
-        // Update to use existing image
-        $attachments[0]['filename'] = '699b3c87547bf.jpg';
-        $attachments[0]['file_path'] = 'uploads/report_images/699b3c87547bf.jpg';
-        echo "Updated record {$row['id']}: 69a84340daa90.jpg → 699b3c87547bf.jpg<br>";
-    }
-    
-    // Save updated attachments
-    $new_json = json_encode($attachments);
-    $update = $conn->prepare("UPDATE road_transportation_reports SET attachments = ? WHERE id = ?");
-    $update->bind_param("si", $new_json, $row['id']);
-    $update->execute();
-    $update->close();
+} catch (Exception $e) {
+    echo "Error checking database: " . $e->getMessage() . "<br>";
 }
 
-$stmt->close();
 echo "<h3>✓ Fix completed!</h3>";
 echo "<p><a href='index.php'>← Refresh main page to see images</a></p>";
 ?>

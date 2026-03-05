@@ -37,7 +37,35 @@ $database_available = true;
 $road_updates = [];
 if ($database_available && $conn) {
     try {
-        $stmt = $conn->prepare("SELECT id, report_id, title, description, report_type, priority, status, location, reported_date, attachments FROM road_transportation_reports ORDER BY reported_date DESC LIMIT 3");
+        // Check if the expected columns exist
+        $stmt = $conn->prepare("DESCRIBE road_transportation_reports");
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        $has_attachments = false;
+        $has_title = false;
+        $has_description = false;
+        $has_reported_date = false;
+        
+        while ($row = $result->fetch_assoc()) {
+            if ($row['Field'] === 'attachments') $has_attachments = true;
+            if ($row['Field'] === 'title') $has_title = true;
+            if ($row['Field'] === 'description') $has_description = true;
+            if ($row['Field'] === 'reported_date') $has_reported_date = true;
+        }
+        $stmt->close();
+        
+        // Build query based on available columns
+        $select_fields = "id";
+        if ($has_title) $select_fields .= ", title";
+        if ($has_description) $select_fields .= ", description";
+        if ($has_reported_date) $select_fields .= ", reported_date";
+        if ($has_attachments) $select_fields .= ", attachments";
+        if ($has_title) $select_fields .= ", report_type, priority, status, location";
+        
+        $order_field = $has_reported_date ? "reported_date" : "created_at";
+        
+        $stmt = $conn->prepare("SELECT $select_fields FROM road_transportation_reports ORDER BY $order_field DESC LIMIT 3");
         $stmt->execute();
         $result = $stmt->get_result();
         while ($row = $result->fetch_assoc()) {
