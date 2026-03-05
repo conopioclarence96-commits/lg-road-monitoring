@@ -46,11 +46,10 @@ function getVerificationStatistics($conn) {
 
 // Function to get pending verifications
 function getPendingVerifications($conn) {
-    $query = "(SELECT 'transport' as source, id, report_id, title, report_type,
-                     department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at 
+    $query = "(SELECT 'transport' as source, id, report_type, location, status, created_at, updated_at 
               FROM road_transportation_reports WHERE status = 'pending')
               UNION ALL
-              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at FROM road_maintenance_reports WHERE status = 'pending')
+              (SELECT 'maintenance' as source, id, report_type, location, status, created_at, updated_at FROM road_maintenance_reports WHERE status = 'pending')
               ORDER BY created_at DESC";
     $result = $conn->query($query);
     if (!$result) {
@@ -61,12 +60,11 @@ function getPendingVerifications($conn) {
 
 // Function to get approved reports
 function getApprovedReports($conn) {
-    $query = "(SELECT 'transport' as source, id, report_id, title, report_type,
-                     department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at 
+    $query = "(SELECT 'transport' as source, id, report_type, location, status, created_at, updated_at 
               FROM road_transportation_reports WHERE status = 'completed')
               UNION ALL
-              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at FROM road_maintenance_reports WHERE status = 'completed')
-              ORDER BY updated_at DESC";
+              (SELECT 'maintenance' as source, id, report_type, location, status, created_at, updated_at FROM road_maintenance_reports WHERE status = 'completed')
+              ORDER BY created_at DESC";
     $result = $conn->query($query);
     if (!$result) {
         error_log("Query error in getApprovedReports: " . $conn->error);
@@ -76,12 +74,11 @@ function getApprovedReports($conn) {
 
 // Function to get rejected reports
 function getRejectedReports($conn) {
-    $query = "(SELECT 'transport' as source, id, report_id, title, report_type,
-                     department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at 
+    $query = "(SELECT 'transport' as source, id, report_type, location, status, created_at, updated_at 
               FROM road_transportation_reports WHERE status = 'cancelled')
               UNION ALL
-              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at FROM road_maintenance_reports WHERE status = 'cancelled')
-              ORDER BY updated_at DESC";
+              (SELECT 'maintenance' as source, id, report_type, location, status, created_at, updated_at FROM road_maintenance_reports WHERE status = 'cancelled')
+              ORDER BY created_at DESC";
     $result = $conn->query($query);
     if (!$result) {
         error_log("Query error in getRejectedReports: " . $conn->error);
@@ -91,11 +88,10 @@ function getRejectedReports($conn) {
 
 // Function to get all reports (for filtering)
 function getAllReports($conn) {
-    $query = "(SELECT 'transport' as source, id, report_id, title, report_type,
-                     department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at 
+    $query = "(SELECT 'transport' as source, id, report_type, location, status, created_at, updated_at 
               FROM road_transportation_reports)
               UNION ALL
-              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at FROM road_maintenance_reports)
+              (SELECT 'maintenance' as source, id, report_type, location, status, created_at, updated_at FROM road_maintenance_reports)
               ORDER BY created_at DESC";
     $result = $conn->query($query);
     if (!$result) {
@@ -106,9 +102,10 @@ function getAllReports($conn) {
 
 // Function to get recent approvals (for timeline)
 function getRecentApprovals($conn) {
-    $query = "(SELECT 'transport' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at FROM road_transportation_reports WHERE status = 'completed')
+    $query = "(SELECT 'transport' as source, id, report_type, location, status, created_at, updated_at 
+              FROM road_transportation_reports WHERE status = 'completed')
               UNION ALL
-              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at FROM road_maintenance_reports WHERE status = 'completed')
+              (SELECT 'maintenance' as source, id, report_type, location, status, created_at, updated_at FROM road_maintenance_reports WHERE status = 'completed')
               ORDER BY updated_at DESC LIMIT 10";
     $result = $conn->query($query);
     if (!$result) {
@@ -119,11 +116,10 @@ function getRecentApprovals($conn) {
 
 // Function to get activity timeline
 function getActivityTimeline($conn) {
-    $query = "(SELECT 'transport' as source, id, report_id, title, report_type,
-                     department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at 
+    $query = "(SELECT 'transport' as source, id, report_type, location, status, created_at, updated_at 
               FROM road_transportation_reports)
               UNION ALL
-              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at FROM road_maintenance_reports)
+              (SELECT 'maintenance' as source, id, report_type, location, status, created_at, updated_at FROM road_maintenance_reports)
               ORDER BY updated_at DESC LIMIT 5";
     $result = $conn->query($query);
     if (!$result) {
@@ -2048,6 +2044,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         document.getElementById('publishRepairedModal').addEventListener('click', function(e) {
             if (e.target === this) closePublishRepairedModal();
         });
+
+        // View Details function
+        function viewDetails(reportId, source) {
+            // You can implement this function to show report details
+            // For now, let's show an alert with the report information
+            alert('Viewing details for Report ID: ' + reportId + ' from ' + source);
+            
+            // Alternatively, you could open a modal or redirect to a details page
+            // window.location.href = 'report_details.php?id=' + reportId + '&source=' + source;
+        }
     </script>
 </body>
 </html>
