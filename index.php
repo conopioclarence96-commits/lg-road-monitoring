@@ -565,77 +565,12 @@ if ($database_available && $conn) {
                         </div>
                     <?php endforeach; ?>
                 <?php else: ?>
-                    <!-- Default updates when database is not available -->
-                    <div class="col-md-4">
-                        <div class="card update-card">
-                            <div class="card-header position-relative">
-                                Traffic Accident on Highway 1
-                                <span class="update-badge badge-closure">Infrastructure issue</span>
-                            </div>
-                            <div class="card-body">
-                                <p class="card-text">
-                                    Multi-vehicle accident reported on Highway 1 near KM 45. Emergency services are on site. Expect significant delays. Alternative routes advised.
-                                </p>
-                                <div class="mt-3">
-                                    <img src="https://via.placeholder.com/400x200/ff6b6b/ffffff?text=Traffic+Accident" 
-                                         alt="Traffic Accident" 
-                                         class="img-fluid rounded shadow-sm"
-                                         style="max-height: 200px; object-fit: cover; width: 100%; cursor: pointer;"
-                                         onclick="window.open(this.src, '_blank')"
-                                         title="Click to view full size">
-                                </div>
-                                <small class="text-muted">
-                                    <i class="fas fa-calendar"></i> Mar 05, 2026
-                                </small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="card update-card">
-                            <div class="card-header position-relative">
-                                Traffic_jam issue at pinned location
-                                <span class="update-badge badge-advisory">Traffic jam</span>
-                            </div>
-                            <div class="card-body">
-                                <p class="card-text">
-                                    asas
-                                </p>
-                                <div class="mt-3">
-                                    <img src="https://via.placeholder.com/400x200/ffa500/ffffff?text=Traffic+Jam" 
-                                         alt="Traffic Jam" 
-                                         class="img-fluid rounded shadow-sm"
-                                         style="max-height: 200px; object-fit: cover; width: 100%; cursor: pointer;"
-                                         onclick="window.open(this.src, '_blank')"
-                                         title="Click to view full size">
-                                </div>
-                                <small class="text-muted">
-                                    <i class="fas fa-calendar"></i> Mar 04, 2026
-                                </small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="card update-card">
-                            <div class="card-header position-relative">
-                                Erosion issue at pinned location
-                                <span class="update-badge badge-maintenance">Erosion</span>
-                            </div>
-                            <div class="card-body">
-                                <p class="card-text">
-                                    asasasas
-                                </p>
-                                <div class="mt-3">
-                                    <img src="https://via.placeholder.com/400x200/8b4513/ffffff?text=Erosion+Issue" 
-                                         alt="Erosion Issue" 
-                                         class="img-fluid rounded shadow-sm"
-                                         style="max-height: 200px; object-fit: cover; width: 100%; cursor: pointer;"
-                                         onclick="window.open(this.src, '_blank')"
-                                         title="Click to view full size">
-                                </div>
-                                <small class="text-muted">
-                                    <i class="fas fa-calendar"></i> Mar 01, 2026
-                                </small>
-                            </div>
+                    <!-- No database connection - show empty state -->
+                    <div class="col-12">
+                        <div class="alert alert-warning text-center">
+                            <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+                            <h5>Database Connection Unavailable</h5>
+                            <p class="mb-0">Unable to load latest road updates. Please check back later or contact the administrator.</p>
                         </div>
                     </div>
                 <?php endif; ?>
