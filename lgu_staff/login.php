@@ -189,19 +189,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['resend_otp'])) {
 
 // Function to send OTP via email API
 function sendOTPToEmail($email, $otpCode) {
-    
-    // Note: Using the SMS API endpoint as provided - check if it supports email
-    // For email OTP, you might need to adjust the recipient parameter
-    $ch = curl_init('https://smsapiph.onrender.com/api/v1/send/sms');
+    $envFile = __DIR__ . '/../.env';
+    $envVariables = file_exists($envFile) ? parse_ini_file($envFile) : [];
+    $apiKey = $envVariables['BREVO_API_KEY'] ?? getenv('BREVO_API_KEY');
+    $senderName = $envVariables['BREVO_SENDER_NAME'] ?? getenv('BREVO_SENDER_NAME');
+    $senderEmail = $envVariables['BREVO_SENDER_EMAIL'] ?? getenv('BREVO_SENDER_EMAIL');
+
+    $ch = curl_init('https://api.brevo.com/v3/smtp/email');
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'x-api-key: sk-2b10kwefyvhbibuanyy7kz9vuovguoim', // API KEY
-        'Content-Type: application/json'
+        'accept: application/json',
+        'api-key: ' . $apiKey,
+        'content-type: application/json'
     ]);
+
+    $htmlContent = "
+    <html>
+        <body style='font-family: Arial, sans-serif; color: #333;'>
+            <div style='max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;'>
+                <h2 style='color: #0066cc;'>Hello from Road and Transportation Department!</h2>
+                <p>You requested to sign in or register on the LGU Portal. Use the verification code below to complete your process.</p>
+                <div style='background-color: #f4f4f4; padding: 15px; text-align: center; border-radius: 5px; margin: 20px 0;'>
+                    <span style='font-size: 24px; font-weight: bold; letter-spacing: 5px;'>" . $otpCode . "</span>
+                </div>
+                <p>This code will expire in <strong>5 minutes</strong>.</p>
+                <p style='font-size: 12px; color: #999; margin-top: 30px;'>If you did not request this email, please ignore it.</p>
+            </div>
+        </body>
+    </html>";
+
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-        'recipient' => $email,  // Using email as recipient
-        'message' => 'Your LGU Portal verification code is: ' . $otpCode . '. This code will expire in 5 minutes.'
+        'sender' => [
+            'name' => $senderName,
+            'email' => $senderEmail
+        ],
+        'to' => [
+            [
+                'email' => $email,
+                'name' => $email
+            ]
+        ],
+        'subject' => 'Hello from Road and Transportation Department!',
+        'htmlContent' => $htmlContent
     ]));
     
     $response = curl_exec($ch);
