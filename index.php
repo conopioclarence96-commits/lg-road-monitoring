@@ -517,10 +517,37 @@ if ($database_available && $conn) {
                                                                  onclick="window.open(this.src, '_blank')"
                                                                  title="Click to view full size">
                                                         <?php else: ?>
-                                                            <div class="text-center p-3 bg-light rounded">
-                                                                <i class="fas fa-image fa-3x text-muted mb-2"></i>
-                                                                <p class="text-muted small mb-0">Image not available</p>
-                                                                <p class="text-muted small mb-0"><?php echo htmlspecialchars(basename($image_path)); ?></p>
+                                                            <?php 
+                                                            // Try to find a replacement image from existing uploads
+                                                            $replacement_images = [
+                                                                'uploads/report_images/699b3b4abc908.jpg',
+                                                                'uploads/report_images/699b3c87547bf.jpg',
+                                                                'uploads/report_images/699b404aad4bc.jpg',
+                                                                'uploads/report_images/699b4313b3933.jpg',
+                                                                'uploads/report_images/699b448c16f31.jpg'
+                                                            ];
+                                                            $replacement_image = $replacement_images[array_rand($replacement_images)];
+                                                            $replacement_exists = file_exists($replacement_image);
+                                                            ?>
+                                                            <div class="mt-3">
+                                                                <?php if ($replacement_exists): ?>
+                                                                    <img src="<?php echo $basePath . htmlspecialchars($replacement_image); ?>" 
+                                                                         alt="Report Image" 
+                                                                         class="img-fluid rounded shadow-sm"
+                                                                         style="max-height: 200px; object-fit: cover; width: 100%; cursor: pointer;"
+                                                                         onclick="window.open(this.src, '_blank')"
+                                                                         title="Click to view full size">
+                                                                <?php else: ?>
+                                                                    <img src="https://via.placeholder.com/400x200/6c757d/ffffff?text=Image+Not+Available" 
+                                                                         alt="Image not available" 
+                                                                         class="img-fluid rounded shadow-sm"
+                                                                         style="max-height: 200px; object-fit: cover; width: 100%; cursor: pointer;"
+                                                                         onclick="window.open(this.src, '_blank')"
+                                                                         title="Click to view full size">
+                                                                <?php endif; ?>
+                                                                <p class="text-muted small mt-2 mb-0 text-center">
+                                                                    <i class="fas fa-exclamation-triangle"></i> Original image not found: <?php echo htmlspecialchars(basename($image_path)); ?>
+                                                                </p>
                                                             </div>
                                                         <?php endif; ?>
                                                     </div>
@@ -542,15 +569,23 @@ if ($database_available && $conn) {
                     <div class="col-md-4">
                         <div class="card update-card">
                             <div class="card-header position-relative">
-                                Road Maintenance
-                                <span class="update-badge badge-maintenance">Maintenance</span>
+                                Traffic Accident on Highway 1
+                                <span class="update-badge badge-closure">Infrastructure issue</span>
                             </div>
                             <div class="card-body">
                                 <p class="card-text">
-                                    Scheduled maintenance on Main Street Bridge. Expect minor delays between 9 AM - 4 PM.
+                                    Multi-vehicle accident reported on Highway 1 near KM 45. Emergency services are on site. Expect significant delays. Alternative routes advised.
                                 </p>
+                                <div class="mt-3">
+                                    <img src="https://via.placeholder.com/400x200/ff6b6b/ffffff?text=Traffic+Accident" 
+                                         alt="Traffic Accident" 
+                                         class="img-fluid rounded shadow-sm"
+                                         style="max-height: 200px; object-fit: cover; width: 100%; cursor: pointer;"
+                                         onclick="window.open(this.src, '_blank')"
+                                         title="Click to view full size">
+                                </div>
                                 <small class="text-muted">
-                                    <i class="fas fa-calendar"></i> March 4, 2026
+                                    <i class="fas fa-calendar"></i> Mar 05, 2026
                                 </small>
                             </div>
                         </div>
@@ -558,15 +593,23 @@ if ($database_available && $conn) {
                     <div class="col-md-4">
                         <div class="card update-card">
                             <div class="card-header position-relative">
-                                Traffic Advisory
-                                <span class="update-badge badge-advisory">Advisory</span>
+                                Traffic_jam issue at pinned location
+                                <span class="update-badge badge-advisory">Traffic jam</span>
                             </div>
                             <div class="card-body">
                                 <p class="card-text">
-                                    Heavy traffic expected on Highway 101 due to ongoing construction. Use alternate routes when possible.
+                                    asas
                                 </p>
+                                <div class="mt-3">
+                                    <img src="https://via.placeholder.com/400x200/ffa500/ffffff?text=Traffic+Jam" 
+                                         alt="Traffic Jam" 
+                                         class="img-fluid rounded shadow-sm"
+                                         style="max-height: 200px; object-fit: cover; width: 100%; cursor: pointer;"
+                                         onclick="window.open(this.src, '_blank')"
+                                         title="Click to view full size">
+                                </div>
                                 <small class="text-muted">
-                                    <i class="fas fa-calendar"></i> March 3, 2026
+                                    <i class="fas fa-calendar"></i> Mar 04, 2026
                                 </small>
                             </div>
                         </div>
@@ -574,15 +617,23 @@ if ($database_available && $conn) {
                     <div class="col-md-4">
                         <div class="card update-card">
                             <div class="card-header position-relative">
-                                Road Closure
-                                <span class="update-badge badge-closure">Closure</span>
+                                Erosion issue at pinned location
+                                <span class="update-badge badge-maintenance">Erosion</span>
                             </div>
                             <div class="card-body">
                                 <p class="card-text">
-                                    Oak Avenue closed between 2nd and 4th Street for emergency repairs. Detour available.
+                                    asasasas
                                 </p>
+                                <div class="mt-3">
+                                    <img src="https://via.placeholder.com/400x200/8b4513/ffffff?text=Erosion+Issue" 
+                                         alt="Erosion Issue" 
+                                         class="img-fluid rounded shadow-sm"
+                                         style="max-height: 200px; object-fit: cover; width: 100%; cursor: pointer;"
+                                         onclick="window.open(this.src, '_blank')"
+                                         title="Click to view full size">
+                                </div>
                                 <small class="text-muted">
-                                    <i class="fas fa-calendar"></i> March 2, 2026
+                                    <i class="fas fa-calendar"></i> Mar 01, 2026
                                 </small>
                             </div>
                         </div>
