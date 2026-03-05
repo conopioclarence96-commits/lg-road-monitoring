@@ -171,6 +171,7 @@ $notification_count = getNotificationCount();
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
             box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+            position: relative;
         }
 
         .sidebar-header {

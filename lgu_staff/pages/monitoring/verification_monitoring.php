@@ -309,31 +309,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             background: url("../../../assets/img/cityhall.jpeg") center/cover no-repeat fixed;
             position: relative;
             min-height: 100vh;
-        }
-        
-        body::before {
-            content: "";
-            position: absolute;
-            inset: 0;
-            backdrop-filter: blur(6px);
-            background: rgba(0, 0, 0, 0.35);
-            z-index: -1;
-        }
-        
-        .main-content {
-            position: relative;
-            z-index: 1;
-        }
-        
-        * {
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
-            font-family: 'Poppins', sans-serif;
         }
-
-        html { scroll-behavior: smooth; }
-
+        
         body::before {
             content: "";
             position: absolute;
@@ -342,12 +321,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             background: rgba(0, 0, 0, 0.35);
             z-index: 0;
         }
+        
+
+        html { scroll-behavior: smooth; }
 
         .main-content {
             margin-left: 250px;
             padding: 20px;
             position: relative;
             z-index: 1;
+            min-height: 100vh;
+            background: #f8f9fa;
         }
 
         .verification-header {
