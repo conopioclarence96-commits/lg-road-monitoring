@@ -11,7 +11,7 @@ if (!$conn) {
 }
 
 // Get records with missing images
-$stmt = $conn->prepare("SELECT id, attachments FROM road_transportation_reports WHERE attachments LIKE '%69a4a426c6ef5.jpg%' OR attachments LIKE '%69a407748f243.jpeg%'");
+$stmt = $conn->prepare("SELECT id, attachments FROM road_transportation_reports WHERE attachments LIKE '%69a4a426c6ef5.jpg%' OR attachments LIKE '%69a407748f243.jpeg%' OR attachments LIKE '%69a94f1bb56e0.jpg%' OR attachments LIKE '%69a84340daa90.jpg%'");
 $stmt->execute();
 $result = $stmt->get_result();
 
@@ -30,6 +30,20 @@ while ($row = $result->fetch_assoc()) {
         $attachments[0]['filename'] = '699ccf4de9be9.jpeg';
         $attachments[0]['file_path'] = 'uploads/report_images/699ccf4de9be9.jpeg';
         echo "Updated record {$row['id']}: 69a407748f243.jpeg → 699ccf4de9be9.jpeg<br>";
+    }
+    
+    if (strpos($row['attachments'], '69a94f1bb56e0.jpg') !== false) {
+        // Update to use existing image
+        $attachments[0]['filename'] = '699b3b4abc908.jpg';
+        $attachments[0]['file_path'] = 'uploads/report_images/699b3b4abc908.jpg';
+        echo "Updated record {$row['id']}: 69a94f1bb56e0.jpg → 699b3b4abc908.jpg<br>";
+    }
+    
+    if (strpos($row['attachments'], '69a84340daa90.jpg') !== false) {
+        // Update to use existing image
+        $attachments[0]['filename'] = '699b3c87547bf.jpg';
+        $attachments[0]['file_path'] = 'uploads/report_images/699b3c87547bf.jpg';
+        echo "Updated record {$row['id']}: 69a84340daa90.jpg → 699b3c87547bf.jpg<br>";
     }
     
     // Save updated attachments
