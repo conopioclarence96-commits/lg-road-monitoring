@@ -306,7 +306,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body {
-            background: url("../../../assets/img/cityhall.jpeg") center/cover no-repeat fixed;
+        background: url("../../../assets/img/cityhall.jpeg") center/cover no-repeat fixed;
             position: relative;
             min-height: 100vh;
             margin: 0;
