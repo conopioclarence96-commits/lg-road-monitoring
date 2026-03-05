@@ -2057,6 +2057,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         document.getElementById('publishRepairedModal').addEventListener('click', function(e) {
             if (e.target === this) closePublishRepairedModal();
         });
+
+        // View Details function
+        function viewDetails(reportId, source) {
+            // You can implement this function to show report details
+            // For now, let's show an alert with the report information
+            alert('Viewing details for Report ID: ' + reportId + ' from ' + source);
+            
+            // Alternatively, you could open a modal or redirect to a details page
+            // window.location.href = 'report_details.php?id=' + reportId + '&source=' + source;
+        }
     </script>
 </body>
 </html>
