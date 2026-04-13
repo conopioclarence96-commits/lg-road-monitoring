@@ -133,6 +133,8 @@ if ($database_available && $conn) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Transition CSS -->
+    <link rel="stylesheet" href="styles/transition.css">
     
     <style>
         :root {
@@ -838,6 +840,29 @@ if ($database_available && $conn) {
             card.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
             observer.observe(card);
         });
+
+        // Page transition for login button
+        document.querySelectorAll('a[href*="login.php"]').forEach(link => {
+            link.addEventListener('click', function (e) {
+                e.preventDefault();
+                const overlay = document.getElementById('pageTransitionOverlay');
+                overlay.classList.add('active');
+                
+                setTimeout(() => {
+                    window.location.href = this.href;
+                }, 1000);
+            });
+        });
     </script>
+    
+    <!-- Page Transition Overlay -->
+    <div class="page-transition-overlay" id="pageTransitionOverlay">
+        <div class="transition-content">
+            <div class="transition-spinner">
+                <i class="fas fa-spinner"></i>
+            </div>
+            <div class="transition-text">Loading...</div>
+        </div>
+    </div>
 </body>
 </html>
