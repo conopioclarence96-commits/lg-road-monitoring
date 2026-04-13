@@ -472,10 +472,7 @@ if ($database_available && $conn) {
                     <li class="nav-item">
                         <a class="nav-link" href="#updates">Road Updates</a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#report">Report Issue</a>
-                    </li>
-                    <li class="nav-item">
+                                        <li class="nav-item">
                         <a class="nav-link" href="#about">About</a>
                     </li>
                     <li class="nav-item">
@@ -497,10 +494,7 @@ if ($database_available && $conn) {
                 Monitor road conditions in real-time and report road problems to help us maintain safe and efficient transportation infrastructure for our community.
             </p>
             <div class="hero-buttons">
-                <a href="#report" class="btn btn-primary-hero btn-hero">
-                    <i class="fas fa-exclamation-triangle"></i> Report Road Issue
-                </a>
-                <a href="#updates" class="btn btn-secondary-hero btn-hero">
+                <a href="#updates" class="btn btn-primary-hero btn-hero">
                     <i class="fas fa-eye"></i> View Road Status
                 </a>
             </div>
@@ -700,85 +694,7 @@ if ($database_available && $conn) {
         </div>
     </section>
 
-    <!-- Report Road Problem Section -->
-    <section class="section bg-light" id="report">
-        <div class="container">
-            <h2 class="section-title">Report Road Problem</h2>
-            <p class="section-subtitle">Help us maintain safe roads by reporting issues you encounter</p>
-            
-            <div class="row justify-content-center">
-                <div class="col-lg-8">
-                    <div class="report-form">
-                        <form id="roadReportForm" method="POST" enctype="multipart/form-data">
-                            <div class="row g-3">
-                                <div class="col-md-12">
-                                    <label for="location" class="form-label">Location *</label>
-                                    <input type="text" class="form-control" id="location" name="location" required 
-                                           placeholder="Enter the specific location or address">
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="issue_type" class="form-label">Issue Type *</label>
-                                    <select class="form-select" id="issue_type" name="issue_type" required>
-                                        <option value="">Select Issue Type</option>
-                                        <option value="pothole">Pothole</option>
-                                        <option value="flooding">Flooding</option>
-                                        <option value="road_crack">Road Crack</option>
-                                        <option value="broken_traffic_light">Broken Traffic Light</option>
-                                        <option value="debris">Road Debris</option>
-                                        <option value="sign_damage">Sign Damage</option>
-                                        <option value="other">Other</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="urgency" class="form-label">Urgency Level</label>
-                                    <select class="form-select" id="urgency" name="urgency">
-                                        <option value="low">Low</option>
-                                        <option value="medium">Medium</option>
-                                        <option value="high">High</option>
-                                        <option value="emergency">Emergency</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-12">
-                                    <label for="description" class="form-label">Description *</label>
-                                    <textarea class="form-control" id="description" name="description" rows="4" required 
-                                              placeholder="Provide detailed description of the road issue"></textarea>
-                                </div>
-                                <div class="col-md-12">
-                                    <label for="image" class="form-label">Upload Image (Optional)</label>
-                                    <input type="file" class="form-control" id="image" name="image" accept="image/*">
-                                    <small class="text-muted">Upload a photo of the road issue (max 5MB)</small>
-                                </div>
-                                <div class="col-md-12">
-                                    <label for="reporter_name" class="form-label">Your Name (Optional)</label>
-                                    <input type="text" class="form-control" id="reporter_name" name="reporter_name" 
-                                           placeholder="Your name for follow-up">
-                                </div>
-                                <div class="col-md-12">
-                                    <label for="reporter_contact" class="form-label">Contact Number (Optional)</label>
-                                    <input type="tel" class="form-control" id="reporter_contact" name="reporter_contact" 
-                                           placeholder="Your contact number for follow-up">
-                                </div>
-                                <div class="col-12">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="anonymous" name="anonymous">
-                                        <label class="form-check-label" for="anonymous">
-                                            Report anonymously
-                                        </label>
-                                    </div>
-                                </div>
-                                <div class="col-12 text-center">
-                                    <button type="submit" class="btn btn-primary btn-lg px-5">
-                                        <i class="fas fa-paper-plane"></i> Submit Report
-                                    </button>
-                                </div>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
+    
     <!-- About Section -->
     <section class="section" id="about">
         <div class="container">
@@ -888,66 +804,8 @@ if ($database_available && $conn) {
             });
         });
 
-        // Form submission handler
-        document.getElementById('roadReportForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            // Get form data
-            const formData = new FormData(this);
-            
-            // Simple client-side validation
-            const location = formData.get('location');
-            const issueType = formData.get('issue_type');
-            const description = formData.get('description');
-            
-            if (!location || !issueType || !description) {
-                alert('Please fill in all required fields.');
-                return;
-            }
-            
-            // Show loading state
-            const submitBtn = this.querySelector('button[type="submit"]');
-            const originalText = submitBtn.innerHTML;
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
-            submitBtn.disabled = true;
-            
-            // Simulate form submission (replace with actual endpoint)
-            setTimeout(() => {
-                // Reset form
-                this.reset();
-                
-                // Restore button
-                submitBtn.innerHTML = originalText;
-                submitBtn.disabled = false;
-                
-                // Show success message
-                alert('Thank you for your report! We will review it and take appropriate action.');
-                
-                // Scroll to top
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            }, 2000);
-        });
-
-        // Handle file upload validation
-        document.getElementById('image').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                // Check file size (5MB limit)
-                if (file.size > 5 * 1024 * 1024) {
-                    alert('File size must be less than 5MB.');
-                    this.value = '';
-                    return;
-                }
-                
-                // Check file type
-                if (!file.type.startsWith('image/')) {
-                    alert('Please select an image file.');
-                    this.value = '';
-                    return;
-                }
-            }
-        });
-
+        
+        
         // Navbar background on scroll
         window.addEventListener('scroll', function() {
             const navbar = document.querySelector('.navbar');
