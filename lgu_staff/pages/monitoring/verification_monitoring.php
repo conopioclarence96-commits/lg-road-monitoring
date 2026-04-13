@@ -620,38 +620,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             margin-bottom: 5px;
             font-size: 13px;
         }
-        
-        .detail-header {
-            padding-bottom: 15px;
-            border-bottom: 2px solid rgba(55, 98, 200, 0.1);
-            margin-bottom: 20px;
-        }
-        
-        .report-details-container .detail-item {
-            padding: 15px;
-            background: rgba(255, 255, 255, 0.8);
-            border-radius: 8px;
-            border: 1px solid rgba(55, 98, 200, 0.1);
-            transition: all 0.3s ease;
-        }
-        
-        .report-details-container .detail-item:hover {
-            background: rgba(55, 98, 200, 0.05);
-            border-color: rgba(55, 98, 200, 0.2);
-        }
-        
-        .report-details-container .detail-item strong {
-            color: #1e3c72;
-            display: block;
-            margin-bottom: 8px;
-            font-size: 14px;
-            font-weight: 600;
-        }
-        
-        .report-details-container .detail-item strong i {
-            margin-right: 8px;
-            color: #3762c8;
-        }
 
         .verification-actions {
             display: flex;
@@ -1779,26 +1747,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         </div>
     </div>
 
-    <!-- Report Details Modal -->
-    <div id="reportDetailsModal" class="modal-overlay">
-        <div class="modal-content" style="max-width: 800px;">
-            <div class="modal-header">
-                <h2><i class="fas fa-file-alt"></i> Report Details</h2>
-                <button type="button" class="modal-close" onclick="closeReportDetailsModal()" aria-label="Close">&times;</button>
-            </div>
-            <div class="modal-body" id="reportDetailsContent">
-                <!-- Report details will be loaded here -->
-                <div style="text-align: center; padding: 40px;">
-                    <i class="fas fa-spinner fa-spin" style="font-size: 24px; color: #3762c8;"></i>
-                    <p style="margin-top: 10px; color: #666;">Loading report details...</p>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn-review" onclick="closeReportDetailsModal()">Close</button>
-            </div>
-        </div>
-    </div>
-
     <script>
         // Filter functionality
         function showAll() {
@@ -2054,180 +2002,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             document.getElementById('publishRepairedModal').classList.remove('active');
         }
 
-        // View Details function for completed reports
-        function viewDetails(reportId, source) {
-            const modal = document.getElementById('reportDetailsModal');
-            const content = document.getElementById('reportDetailsContent');
-            
-            // Show loading state
-            content.innerHTML = `
-                <div style="text-align: center; padding: 40px;">
-                    <i class="fas fa-spinner fa-spin" style="font-size: 24px; color: #3762c8;"></i>
-                    <p style="margin-top: 10px; color: #666;">Loading report details...</p>
-                </div>
-            `;
-            
-            // Show modal
-            modal.classList.add('active');
-            
-            // Fetch report details via AJAX
-            fetch(`${window.location.pathname}?action=get_report_details&report_id=${reportId}&source=${source}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        displayReportDetails(data.report, source);
-                    } else {
-                        content.innerHTML = `
-                            <div style="text-align: center; padding: 40px;">
-                                <i class="fas fa-exclamation-triangle" style="font-size: 24px; color: #dc3545;"></i>
-                                <p style="margin-top: 10px; color: #666;">${data.message || 'Failed to load report details'}</p>
-                            </div>
-                        `;
-                    }
-                })
-                .catch(error => {
-                    console.error('Error fetching report details:', error);
-                    content.innerHTML = `
-                        <div style="text-align: center; padding: 40px;">
-                            <i class="fas fa-exclamation-triangle" style="font-size: 24px; color: #dc3545;"></i>
-                            <p style="margin-top: 10px; color: #666;">Network error. Please try again.</p>
-                        </div>
-                    `;
-                });
-        }
-        
-        // Display report details in modal
-        function displayReportDetails(report, source) {
-            const content = document.getElementById('reportDetailsContent');
-            const statusColor = report.status === 'completed' ? '#28a745' : 
-                              report.status === 'cancelled' ? '#dc3545' : 
-                              report.status === 'in-progress' ? '#ffc107' : '#6c757d';
-            
-            const priorityColor = report.priority === 'high' ? '#dc3545' : 
-                                report.priority === 'medium' ? '#ffc107' : '#28a745';
-            
-            let attachmentsHtml = '';
-            if (report.attachments) {
-                const attachments = JSON.parse(report.attachments);
-                if (attachments && attachments.length > 0) {
-                    attachmentsHtml = `
-                        <div class="detail-item full-width">
-                            <strong><i class="fas fa-paperclip"></i> Attachments</strong>
-                            <div style="margin-top: 10px;">
-                                ${attachments.map(att => `
-                                    <div style="margin-bottom: 8px;">
-                                        <a href="../../${att.file_path}" target="_blank" style="color: #3762c8; text-decoration: none; display: inline-flex; align-items: center; gap: 8px;">
-                                            <i class="fas fa-download"></i>
-                                            ${att.file_name}
-                                        </a>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-                    `;
-                }
-            }
-            
-            let locationHtml = '';
-            if (report.latitude && report.longitude) {
-                locationHtml = `
-                    <div style="margin-top: 10px;">
-                        <a href="https://maps.google.com/?q=${report.latitude},${report.longitude}" target="_blank" style="color: #3762c8; text-decoration: none; display: inline-flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-map-marker-alt"></i>
-                            View on Google Maps
-                        </a>
-                    </div>
-                `;
-            }
-            
-            content.innerHTML = `
-                <div class="report-details-container">
-                    <div class="detail-header">
-                        <h3 style="color: #1e3c72; margin-bottom: 15px; font-size: 20px;">
-                            <i class="fas fa-${getReportIcon(report.report_type)}" style="margin-right: 10px;"></i>
-                            ${report.title || 'Untitled Report'}
-                        </h3>
-                        <div style="display: flex; gap: 15px; margin-bottom: 20px;">
-                            <span style="background: ${statusColor}; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500;">
-                                ${report.status === 'completed' ? 'Approved' : report.status === 'cancelled' ? 'Rejected' : report.status}
-                            </span>
-                            <span style="background: ${priorityColor}; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500;">
-                                ${report.priority ? report.priority.toUpperCase() : 'NORMAL'} Priority
-                            </span>
-                            <span style="background: #3762c8; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500;">
-                                ${source === 'transport' ? 'Transportation' : 'Maintenance'}
-                            </span>
-                        </div>
-                    </div>
-                    
-                    <div class="detail-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 20px;">
-                        <div class="detail-item">
-                            <strong><i class="fas fa-hashtag"></i> Report ID</strong>
-                            <div style="margin-top: 5px; color: #666;">${report.report_id || 'N/A'}</div>
-                        </div>
-                        <div class="detail-item">
-                            <strong><i class="fas fa-tag"></i> Report Type</strong>
-                            <div style="margin-top: 5px; color: #666;">${report.report_type || 'N/A'}</div>
-                        </div>
-                        <div class="detail-item">
-                            <strong><i class="fas fa-building"></i> Department</strong>
-                            <div style="margin-top: 5px; color: #666;">${report.department || 'N/A'}</div>
-                        </div>
-                        <div class="detail-item">
-                            <strong><i class="fas fa-calendar"></i> Created Date</strong>
-                            <div style="margin-top: 5px; color: #666;">${report.created_date ? new Date(report.created_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}</div>
-                        </div>
-                        ${report.due_date ? `
-                        <div class="detail-item">
-                            <strong><i class="fas fa-calendar-check"></i> Due Date</strong>
-                            <div style="margin-top: 5px; color: #666;">${new Date(report.due_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
-                        </div>
-                        ` : ''}
-                        <div class="detail-item">
-                            <strong><i class="fas fa-clock"></i> Last Updated</strong>
-                            <div style="margin-top: 5px; color: #666;">${report.updated_at ? new Date(report.updated_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}</div>
-                        </div>
-                        <div class="detail-item full-width">
-                            <strong><i class="fas fa-map-marker-alt"></i> Location</strong>
-                            <div style="margin-top: 5px; color: #666;">${report.location || 'N/A'}</div>
-                            ${locationHtml}
-                        </div>
-                        <div class="detail-item full-width">
-                            <strong><i class="fas fa-align-left"></i> Description</strong>
-                            <div style="margin-top: 5px; color: #666; line-height: 1.6;">${report.description || 'No description provided.'}</div>
-                        </div>
-                        ${attachmentsHtml}
-                    </div>
-                </div>
-            `;
-        }
-        
-        // Close report details modal
-        function closeReportDetailsModal() {
-            document.getElementById('reportDetailsModal').classList.remove('active');
-        }
-        
-        // Helper function to get report icon
-        function getReportIcon(reportType) {
-            const icons = {
-                'monthly' => 'calendar',
-                'traffic' => 'traffic-light',
-                'maintenance' => 'tools',
-                'safety' => 'shield-alt',
-                'budget' => 'dollar-sign',
-                'road_damage' => 'road',
-                'infrastructure_issue' => 'map-marker-alt',
-                'traffic_violation' => 'car-crash',
-                'maintenance_request' => 'wrench',
-                'routine' => 'wrench',
-                'emergency' => 'exclamation-triangle',
-                'preventive' => 'shield-alt',
-                'corrective' => 'tools',
-                'scheduled' => 'calendar-alt'
-            };
-            return icons[reportType] || 'file-alt';
-        }
-
         // Show notification
         function showNotification(message, type = 'info') {
             const notification = document.createElement('div');
@@ -2273,9 +2047,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         });
         document.getElementById('publishRepairedModal').addEventListener('click', function(e) {
             if (e.target === this) closePublishRepairedModal();
-        });
-        document.getElementById('reportDetailsModal').addEventListener('click', function(e) {
-            if (e.target === this) closeReportDetailsModal();
         });
     </script>
 </body>
