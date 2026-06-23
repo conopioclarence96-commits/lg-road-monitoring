@@ -13,7 +13,10 @@ require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 
 // Check if user is logged in
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'lgu_staff') {
+if (
+    !isset($_SESSION['user_id']) ||
+    !in_array($_SESSION['role'], ['lgu_staff', 'system_admin'])
+) {
     header('Location: ../../login.php');
     exit();
 }

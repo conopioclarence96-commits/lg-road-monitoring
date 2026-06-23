@@ -67,7 +67,7 @@ function getNavigationItems($user_role) {
                 'href' => '../pages/monitoring/road_transportation_monitoring.php',
                 'icon' => 'map',
                 'title' => 'Road and Transportation Monitoring',
-                'roles' => ['lgu_staff']
+                'roles' => ['lgu_staff', 'system_admin']
             ],
             [
                 'href' => '../pages/monitoring/verification_monitoring.php',
