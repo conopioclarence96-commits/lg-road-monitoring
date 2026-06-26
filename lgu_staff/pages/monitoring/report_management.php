@@ -1058,6 +1058,11 @@ if (!empty($reports)) {
                     <h1><i class="fas fa-clipboard-data"></i> Report Management</h1>
                     <p>Receive, update, and monitor road reports all in one place</p>
                 </div>
+                <div>
+                    <button class="btn-primary-custom" onclick="openModal('receivedReportsModal')">
+                        <i class="fas fa-inbox"></i> View Received Reports
+                    </button>
+                </div>
             </div>
         </div>
 
