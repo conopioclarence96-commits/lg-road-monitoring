@@ -1016,9 +1016,14 @@ try {
                 const idFileImg = document.getElementById('modalIdFile');
                 const idFileNone = document.getElementById('modalIdFileNone');
                 if (user.id_file_path) {
-                    idFileImg.src = '../' + user.id_file_path;
+                    idFileImg.src = '../uploads/ids/' + user.id_file_path.split('/').pop();
                     idFileImg.style.display = 'block';
                     idFileNone.style.display = 'none';
+                    idFileImg.onerror = function() {
+                        this.style.display = 'none';
+                        idFileNone.style.display = 'block';
+                        idFileNone.textContent = 'Error loading ID file';
+                    };
                 } else {
                     idFileImg.style.display = 'none';
                     idFileNone.style.display = 'block';
