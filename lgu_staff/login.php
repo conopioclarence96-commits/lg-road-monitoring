@@ -685,10 +685,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
               <div class="input-box">
                 <label>Role *</label>
                 <select name="role" required>
-                  <option value="">Select role</option>
-            
+                  <option value="">Select this role</option>
                   <option value="lgu_staff" <?php echo (isset($_POST['role']) && $_POST['role'] == 'lgu_staff') ? 'selected' : ''; ?>>LGU Staff</option>
-                  <option value="citizen" <?php echo (isset($_POST['role']) && $_POST['role'] == 'citizen') ? 'selected' : ''; ?>>Citizen</option>
                 </select>
               </div>
 
