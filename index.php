@@ -649,62 +649,6 @@ if ($database_available && $conn) {
         </div>
     </section>
 
-    <!-- Services Section -->
-    <section class="section" id="services">
-        <div class="container">
-            <h2 class="section-title">Our Services</h2>
-            <p class="section-subtitle">Comprehensive road management and transportation services</p>
-            
-            <div class="row g-4">
-                <div class="col-md-3 col-sm-6">
-                    <a href="<?php echo $basePath; ?>service-road-condition-monitoring.php" class="text-decoration-none">
-                        <div class="service-card">
-                            <div class="service-icon">
-                                <i class="fas fa-road"></i>
-                            </div>
-                            <h3 class="service-title">Road Condition Monitoring</h3>
-                            <p>Real-time monitoring of road conditions using advanced sensors and citizen reports to ensure safe travel.</p>
-                        </div>
-                    </a>
-                </div>
-                <div class="col-md-3 col-sm-6">
-                    <a href="<?php echo $basePath; ?>service-infrastructure-maintenance.php" class="text-decoration-none">
-                        <div class="service-card">
-                            <div class="service-icon">
-                                <i class="fas fa-hard-hat"></i>
-                            </div>
-                            <h3 class="service-title">Infrastructure Maintenance</h3>
-                            <p>Regular maintenance and repair of roads, bridges, and transportation infrastructure to extend their lifespan.</p>
-                        </div>
-                    </a>
-                </div>
-                <div class="col-md-3 col-sm-6">
-                    <a href="<?php echo $basePath; ?>service-traffic-management.php" class="text-decoration-none">
-                        <div class="service-card">
-                            <div class="service-icon">
-                                <i class="fas fa-traffic-light"></i>
-                            </div>
-                            <h3 class="service-title">Traffic Management</h3>
-                            <p>Intelligent traffic control systems and management strategies to optimize traffic flow and reduce congestion.</p>
-                        </div>
-                    </a>
-                </div>
-                <div class="col-md-3 col-sm-6">
-                    <a href="<?php echo $basePath; ?>service-emergency-road-response.php" class="text-decoration-none">
-                        <div class="service-card">
-                            <div class="service-icon">
-                                <i class="fas fa-ambulance"></i>
-                            </div>
-                            <h3 class="service-title">Emergency Road Response</h3>
-                            <p>24/7 emergency response team for road accidents, hazards, and urgent maintenance needs.</p>
-                        </div>
-                    </a>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    
     <!-- About Section -->
     <section class="section" id="about">
         <div class="container">
