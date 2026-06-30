@@ -467,6 +467,7 @@ $publications = getPublications();
     <title>Public Transparency | LGU Staff</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../../../styles/transition.css">
     <link rel="stylesheet" href="../../css/public_transparency.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="../../js/public_transparency.js"></script>
@@ -1153,6 +1154,16 @@ $publications = getPublications();
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+    
+    <!-- Page Transition Overlay -->
+    <div class="page-transition-overlay" id="pageTransitionOverlay">
+        <div class="transition-content">
+            <div class="transition-spinner">
+                <i class="fas fa-spinner"></i>
+            </div>
+            <div class="transition-text">Loading...</div>
         </div>
     </div>
 </body>

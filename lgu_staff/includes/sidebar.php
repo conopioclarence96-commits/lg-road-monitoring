@@ -507,14 +507,25 @@ $notification_count = getNotificationCount();
                 }
             }
             
-            // Navigation without transition effect
+            // Navigation with transition effect
             document.querySelectorAll('.nav-link').forEach(link => {
                 link.addEventListener('click', function(e) {
                     e.preventDefault();
                     const href = this.getAttribute('href');
                     
-                    // Direct navigation without transition effect
-                    window.parent.location.href = href;
+                    // Show transition overlay
+                    const overlay = document.getElementById('pageTransitionOverlay');
+                    if (overlay) {
+                        overlay.classList.add('active');
+                        
+                        // Navigate after transition delay
+                        setTimeout(() => {
+                            window.parent.location.href = href;
+                        }, 800);
+                    } else {
+                        // Fallback: direct navigation if overlay not found
+                        window.parent.location.href = href;
+                    }
                 });
             });
         });
