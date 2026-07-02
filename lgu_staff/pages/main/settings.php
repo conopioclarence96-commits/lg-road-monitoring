@@ -143,6 +143,26 @@ if ($result) {
         $settings[$row['setting_key']] = $row['setting_value'];
     }
 }
+
+// Get activity log with user info
+$activity_log = [];
+try {
+    $log_result = $conn->query("
+        SELECT a.id, a.user_id, a.action, a.details, a.created_at,
+               u.full_name, u.role as user_role
+        FROM audit_logs a
+        LEFT JOIN users u ON a.user_id = u.id
+        ORDER BY a.created_at DESC
+        LIMIT 200
+    ");
+    if ($log_result) {
+        while ($row = $log_result->fetch_assoc()) {
+            $activity_log[] = $row;
+        }
+    }
+} catch (Exception $e) {
+    $activity_log = [];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -285,6 +305,69 @@ if ($result) {
         .restriction-grid {
             display: grid; grid-template-columns: 1fr 1fr; gap: 15px;
         }
+        .activity-filter-bar {
+            display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+            margin-bottom: 20px; padding: 15px; background: #f8f9fa;
+            border-radius: 10px; border: 1px solid #e9ecef;
+        }
+        .activity-filter-bar select, .activity-filter-bar input {
+            padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px;
+            font-size: 13px; background: white;
+        }
+        .activity-filter-bar select:focus, .activity-filter-bar input:focus {
+            border-color: #3762c8; outline: none;
+        }
+        .activity-filter-bar .filter-label {
+            font-size: 13px; font-weight: 500; color: #555;
+        }
+        .activity-log-list {
+            max-height: 500px; overflow-y: auto;
+        }
+        .activity-log-list::-webkit-scrollbar { width: 6px; }
+        .activity-log-list::-webkit-scrollbar-track { background: rgba(55,98,200,0.05); border-radius: 3px; }
+        .activity-log-list::-webkit-scrollbar-thumb { background: rgba(55,98,200,0.2); border-radius: 3px; }
+        .activity-log-item {
+            display: flex; align-items: flex-start; gap: 12px;
+            padding: 14px 16px; border-bottom: 1px solid #f0f0f0;
+            transition: background 0.15s;
+        }
+        .activity-log-item:hover { background: rgba(55,98,200,0.03); }
+        .activity-log-item:last-child { border-bottom: none; }
+        .activity-log-icon {
+            width: 36px; height: 36px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; color: white; flex-shrink: 0; margin-top: 2px;
+        }
+        .activity-log-icon.admin { background: linear-gradient(135deg, #3762c8, #1e3c72); }
+        .activity-log-icon.staff { background: linear-gradient(135deg, #17a2b8, #138496); }
+        .activity-log-icon.system { background: linear-gradient(135deg, #6c757d, #495057); }
+        .activity-log-body { flex: 1; min-width: 0; }
+        .activity-log-action {
+            font-size: 14px; font-weight: 600; color: #1e293b; margin-bottom: 3px;
+        }
+        .activity-log-details {
+            font-size: 13px; color: #64748b; margin-bottom: 4px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .activity-log-meta {
+            display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+        }
+        .activity-log-meta span {
+            font-size: 12px; color: #94a3b8; display: flex; align-items: center; gap: 4px;
+        }
+        .activity-log-meta .role-badge {
+            padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500;
+        }
+        .role-badge.system_admin { background: rgba(55,98,200,0.1); color: #3762c8; }
+        .role-badge.lgu_staff { background: rgba(23,162,184,0.1); color: #17a2b8; }
+        .role-badge.citizen { background: rgba(108,117,125,0.1); color: #6c757d; }
+        .activity-count {
+            font-size: 13px; color: #64748b; margin-bottom: 15px;
+        }
+        .activity-empty {
+            text-align: center; padding: 40px; color: #94a3b8;
+        }
+        .activity-empty i { font-size: 36px; margin-bottom: 10px; display: block; }
         @media (max-width: 768px) {
             .main-content { margin-left: 0; padding: 15px; }
             .restriction-grid { grid-template-columns: 1fr; }
@@ -323,6 +406,9 @@ if ($result) {
                 </button>
                 <button class="tab-btn" data-tab="access">
                     <i class="fas fa-lock"></i> Access Control
+                </button>
+                <button class="tab-btn" data-tab="activity">
+                    <i class="fas fa-history"></i> Activity Log
                 </button>
             </div>
 
@@ -493,6 +579,86 @@ if ($result) {
                     </div>
                 </form>
             </div>
+
+            <!-- Tab 3: Activity Log -->
+            <div class="tab-content" id="tab-activity">
+                <div class="form-section">
+                    <h3><i class="fas fa-history"></i> System Activity Log</h3>
+                    <p style="font-size:13px; color:#64748b; margin-bottom:15px;">Track all user actions across the system. Use filters to narrow down by role or search keywords.</p>
+
+                    <div class="activity-filter-bar">
+                        <span class="filter-label"><i class="fas fa-filter"></i> Filter:</span>
+                        <select id="activityRoleFilter">
+                            <option value="all">All Roles</option>
+                            <option value="system_admin">Admin</option>
+                            <option value="lgu_staff">LGU Staff</option>
+                            <option value="citizen">Citizen</option>
+                        </select>
+                        <input type="text" id="activitySearch" placeholder="Search actions..." style="min-width:200px;">
+                        <input type="date" id="activityDateFrom" title="From date">
+                        <input type="date" id="activityDateTo" title="To date">
+                        <button class="btn btn-primary btn-sm" onclick="filterActivityLog()"><i class="fas fa-search"></i> Filter</button>
+                        <button class="btn btn-secondary btn-sm" onclick="resetActivityFilter()"><i class="fas fa-undo"></i> Reset</button>
+                    </div>
+
+                    <div class="activity-count" id="activityCount">
+                        Showing <?php echo count($activity_log); ?> of <?php echo count($activity_log); ?> activities
+                    </div>
+
+                    <div class="activity-log-list" id="activityLogList">
+                        <?php if (empty($activity_log)): ?>
+                            <div class="activity-empty">
+                                <i class="fas fa-inbox"></i>
+                                <p>No activity recorded yet.</p>
+                            </div>
+                        <?php else: ?>
+                            <?php foreach ($activity_log as $log):
+                                $user_role = $log['user_role'] ?? '';
+                                $icon_class = 'system';
+                                if ($user_role === 'system_admin') $icon_class = 'admin';
+                                elseif ($user_role === 'lgu_staff' || $user_role === 'citizen') $icon_class = 'staff';
+
+                                $fa_icon = 'fa-cog';
+                                $action_lower = strtolower($log['action'] ?? '');
+                                if (strpos($action_lower, 'login') !== false) $fa_icon = 'fa-sign-in-alt';
+                                elseif (strpos($action_lower, 'logout') !== false) $fa_icon = 'fa-sign-out-alt';
+                                elseif (strpos($action_lower, 'password') !== false) $fa_icon = 'fa-key';
+                                elseif (strpos($action_lower, 'profile') !== false || strpos($action_lower, 'updated') !== false) $fa_icon = 'fa-user-edit';
+                                elseif (strpos($action_lower, 'deactivat') !== false) $fa_icon = 'fa-user-slash';
+                                elseif (strpos($action_lower, 'activat') !== false) $fa_icon = 'fa-user-check';
+                                elseif (strpos($action_lower, 'restrict') !== false || strpos($action_lower, 'setting') !== false) $fa_icon = 'fa-shield-alt';
+                                elseif (strpos($action_lower, 'register') !== false || strpos($action_lower, 'sign') !== false) $fa_icon = 'fa-user-plus';
+                                elseif (strpos($action_lower, 'report') !== false) $fa_icon = 'fa-file-alt';
+                                elseif (strpos($action_lower, 'approv') !== false) $fa_icon = 'fa-check-circle';
+                                elseif (strpos($action_lower, 'reject') !== false) $fa_icon = 'fa-times-circle';
+                                elseif (strpos($action_lower, 'delete') !== false) $fa_icon = 'fa-trash-alt';
+                            ?>
+                                <div class="activity-log-item"
+                                     data-role="<?php echo htmlspecialchars($user_role); ?>"
+                                     data-action="<?php echo htmlspecialchars(strtolower($log['action'])); ?>"
+                                     data-details="<?php echo htmlspecialchars(strtolower($log['details'])); ?>"
+                                     data-name="<?php echo htmlspecialchars(strtolower($log['full_name'])); ?>"
+                                     data-date="<?php echo htmlspecialchars($log['created_at']); ?>">
+                                    <div class="activity-log-icon <?php echo $icon_class; ?>">
+                                        <i class="fas <?php echo $fa_icon; ?>"></i>
+                                    </div>
+                                    <div class="activity-log-body">
+                                        <div class="activity-log-action"><?php echo htmlspecialchars($log['action']); ?></div>
+                                        <div class="activity-log-details"><?php echo htmlspecialchars($log['details']); ?></div>
+                                        <div class="activity-log-meta">
+                                            <span><i class="fas fa-user"></i> <?php echo htmlspecialchars($log['full_name'] ?? 'System'); ?></span>
+                                            <?php if ($user_role): ?>
+                                                <span class="role-badge <?php echo htmlspecialchars($user_role); ?>"><?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $user_role))); ?></span>
+                                            <?php endif; ?>
+                                            <span><i class="fas fa-clock"></i> <?php echo htmlspecialchars(date('M d, Y h:i A', strtotime($log['created_at']))); ?></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -526,6 +692,62 @@ if ($result) {
         if (privateToggle) {
             privateToggle.addEventListener('change', toggleSectionVisibility);
             toggleSectionVisibility();
+        }
+
+        // Activity Log filter
+        function filterActivityLog() {
+            const role = document.getElementById('activityRoleFilter').value;
+            const search = document.getElementById('activitySearch').value.toLowerCase().trim();
+            const dateFrom = document.getElementById('activityDateFrom').value;
+            const dateTo = document.getElementById('activityDateTo').value;
+            const items = document.querySelectorAll('.activity-log-item');
+            let visible = 0;
+
+            items.forEach(item => {
+                const itemRole = item.dataset.role;
+                const itemAction = item.dataset.action;
+                const itemDetails = item.dataset.details;
+                const itemName = item.dataset.name;
+                const itemDate = item.dataset.date;
+
+                let show = true;
+
+                if (role !== 'all' && itemRole !== role) {
+                    show = false;
+                }
+
+                if (search && !itemAction.includes(search) && !itemDetails.includes(search) && !itemName.includes(search)) {
+                    show = false;
+                }
+
+                if (dateFrom) {
+                    const from = new Date(dateFrom);
+                    const itemD = new Date(itemDate);
+                    if (itemD < from) show = false;
+                }
+
+                if (dateTo) {
+                    const to = new Date(dateTo + 'T23:59:59');
+                    const itemD = new Date(itemDate);
+                    if (itemD > to) show = false;
+                }
+
+                item.style.display = show ? '' : 'none';
+                if (show) visible++;
+            });
+
+            const total = items.length;
+            document.getElementById('activityCount').textContent = 'Showing ' + visible + ' of ' + total + ' activities';
+        }
+
+        function resetActivityFilter() {
+            document.getElementById('activityRoleFilter').value = 'all';
+            document.getElementById('activitySearch').value = '';
+            document.getElementById('activityDateFrom').value = '';
+            document.getElementById('activityDateTo').value = '';
+            const items = document.querySelectorAll('.activity-log-item');
+            items.forEach(item => item.style.display = '');
+            document.getElementById('activityCount').textContent = 'Showing ' + items.length + ' of ' + items.length + ' activities';
         }
 
         // Auto-dismiss alerts
