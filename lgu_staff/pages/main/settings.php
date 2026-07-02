@@ -123,8 +123,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             } else {
                 $error_msg = 'Invalid file type. Allowed: jpg, jpeg, png, gif, webp';
-            }
         }
+    }
+
+    if ($action === 'clear_activity_log') {
+        $conn->query("TRUNCATE TABLE audit_logs");
+        log_audit_action($user_id, 'Activity Log Cleared', 'All activity log history has been deleted');
+        header('Content-Type: application/json');
+        echo json_encode(['success' => true]);
+        exit;
     }
 }
 
@@ -604,6 +611,7 @@ try {
                         <input type="date" id="activityDateTo" title="To date">
                         <button type="button" class="btn btn-primary btn-sm" onclick="filterActivityLog()"><i class="fas fa-search"></i> Filter</button>
                         <button type="button" class="btn btn-secondary btn-sm" onclick="resetActivityFilter()"><i class="fas fa-undo"></i> Reset</button>
+                        <button type="button" class="btn btn-danger btn-sm" onclick="clearActivityLog()" style="margin-left:auto;"><i class="fas fa-trash-alt"></i> Clear History</button>
                     </div>
 
                     <div class="activity-count" id="activityCount">
@@ -771,6 +779,26 @@ try {
                 items[i].classList.remove('collapsed');
             }
             document.getElementById('activityCount').textContent = 'Showing ' + total + ' of ' + total + ' activities';
+        }
+
+        function clearActivityLog() {
+            if (!confirm('Are you sure you want to delete all activity log history? This cannot be undone.')) return;
+
+            var formData = new FormData();
+            formData.append('action', 'clear_activity_log');
+
+            fetch('', { method: 'POST', body: formData })
+                .then(function(r) { return r.json(); })
+                .then(function(result) {
+                    if (result.success) {
+                        var list = document.getElementById('activityLogList');
+                        list.innerHTML = '<div class="activity-empty"><i class="fas fa-inbox"></i><p>No activity recorded yet.</p></div>';
+                        document.getElementById('activityCount').textContent = 'Showing 0 of 0 activities';
+                    } else {
+                        alert(result.message || 'Failed to clear log.');
+                    }
+                })
+                .catch(function() { alert('An error occurred. Please try again.'); });
         }
 
         // Auto-dismiss alerts
