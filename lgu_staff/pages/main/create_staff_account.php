@@ -243,6 +243,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background: #fff;
         }
 
+        .form-group select:disabled {
+            background: #e2e8f0;
+            color: #475569;
+            cursor: not-allowed;
+        }
+
         .form-group.full-width {
             grid-column: 1 / -1;
         }
@@ -434,8 +440,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <input type="text" id="full_name" name="full_name" required placeholder="e.g. Juan Dela Cruz">
                         </div>
                         <div class="form-group">
-                            <label for="department">Department</label>
-                            <input type="text" id="department" name="department" placeholder="e.g. Road and Transportation">
+                            <label for="department">Department / LGU Service</label>
+                            <select id="department" name="department" disabled>
+                                <option value="Road and Transportation" selected>Road and Transportation</option>
+                                <option value="Engineering">Engineering</option>
+                                <option value="Planning">Planning</option>
+                                <option value="Maintenance">Maintenance</option>
+                                <option value="Finance">Finance</option>
+                                <option value="IT / System Administration">IT / System Administration</option>
+                                <option value="LGU Services">LGU Services</option>
+                                <option value="Citizen Services">Citizen Services</option>
+                            </select>
                         </div>
                         <div class="form-group full-width">
                             <label for="role">Role</label>
@@ -533,6 +548,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         function resetForm() {
             document.getElementById('createForm').reset();
+            document.getElementById('department').value = 'Road and Transportation';
             document.getElementById('role').value = 'lgu_staff';
             document.getElementById('alertContainer').innerHTML = '';
         }
