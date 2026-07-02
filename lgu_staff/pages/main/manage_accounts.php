@@ -64,6 +64,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if ($action === 'update_user') {
+        $full_name = $_POST['full_name'] ?? '';
+        $role = $_POST['role'] ?? '';
+        $department = $_POST['department'] ?? '';
+        $address = $_POST['address'] ?? '';
+        $birthday = $_POST['birthday'] ?? '';
+        $civil_status = $_POST['civil_status'] ?? '';
+
+        if (empty($full_name) || empty($role)) {
+            echo json_encode(['success' => false, 'message' => 'Full name and role are required.']);
+            exit;
+        }
+
+        $stmt = $conn->prepare("UPDATE users SET full_name = ?, role = ?, department = ?, address = ?, birthday = ?, civil_status = ?, updated_at = NOW() WHERE id = ?");
+        $birthday_val = ($birthday !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $birthday)) ? $birthday : null;
+        $stmt->bind_param("ssssssi", $full_name, $role, $department, $address, $birthday_val, $civil_status, $userId);
+        $stmt->execute();
+        $stmt->close();
+
+        $log = $conn->prepare("INSERT INTO audit_logs (user_id, action, details) VALUES (?, 'Account Updated', ?)");
+        $details = "Updated account #$userId: $full_name";
+        $log->bind_param("is", $_SESSION['user_id'], $details);
+        $log->execute();
+        $log->close();
+
+        echo json_encode(['success' => true]);
+        exit;
+    }
+
     echo json_encode(['success' => false, 'message' => 'Unknown action']);
     exit;
 }
@@ -370,6 +399,43 @@ try {
             background: #475569;
         }
 
+        .btn-edit {
+            background: #3762c8;
+            color: white;
+        }
+
+        .btn-edit:hover {
+            background: #2a4a9a;
+        }
+
+        .btn-save {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-save:hover {
+            background: #059669;
+        }
+
+        .btn-deactivate {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-deactivate:hover {
+            background: #dc2626;
+        }
+
+        .editable-field {
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .editable-field.editing {
+            border-color: #3762c8 !important;
+            box-shadow: 0 0 0 2px rgba(55, 98, 200, 0.2);
+            background: #f8faff;
+        }
+
         .audit-log {
             max-height: 400px;
             overflow-y: auto;
@@ -456,27 +522,33 @@ try {
                     </div>
                     <div class="form-group">
                         <label>Full Name:</label>
-                        <input type="text" id="modalFullName" disabled>
+                        <input type="text" id="modalFullName" class="editable-field" disabled>
                     </div>
                     <div class="form-group">
                         <label>Role:</label>
-                        <input type="text" id="modalRole" disabled>
+                        <input type="text" id="modalRole" class="editable-field" disabled>
                     </div>
                     <div class="form-group">
                         <label>Department:</label>
-                        <input type="text" id="modalDepartment" disabled>
+                        <input type="text" id="modalDepartment" class="editable-field" disabled>
                     </div>
                     <div class="form-group">
                         <label>Address:</label>
-                        <input type="text" id="modalAddress" disabled>
+                        <input type="text" id="modalAddress" class="editable-field" disabled>
                     </div>
                     <div class="form-group">
                         <label>Birthday:</label>
-                        <input type="text" id="modalBirthday" disabled>
+                        <input type="date" id="modalBirthday" class="editable-field" disabled>
                     </div>
                     <div class="form-group">
                         <label>Civil Status:</label>
-                        <input type="text" id="modalCivilStatus" disabled>
+                        <select id="modalCivilStatus" class="editable-field" disabled>
+                            <option value="">-- Select --</option>
+                            <option value="single">Single</option>
+                            <option value="married">Married</option>
+                            <option value="widowed">Widowed</option>
+                            <option value="separated">Separated</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label>Account Status:</label>
@@ -495,6 +567,8 @@ try {
                     </div>
                 </div>
                 <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                    <button type="button" id="editButton" class="btn-sm btn-edit" onclick="toggleEditFields()"><i class="fas fa-edit"></i> Edit</button>
+                    <button type="button" id="saveButton" class="btn-sm btn-save" onclick="saveUser()" style="display:none;"><i class="fas fa-save"></i> Save</button>
                     <button type="button" id="actionButton" class="btn-sm btn-approve"></button>
                     <button type="button" class="btn-sm btn-placeholder" onclick="closeUserModal()">Close</button>
                 </div>
@@ -560,6 +634,15 @@ try {
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 box-sizing: border-box;
+            }
+
+            select.editable-field {
+                width: 100%;
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                box-sizing: border-box;
+                background: white;
             }
             
             .modal-form-grid {
@@ -724,11 +807,15 @@ try {
 
     <script>
         let currentUserId = null;
+        let isEditing = false;
         let usersData = <?php echo json_encode($users); ?>;
         
+        const editableFields = ['modalFullName', 'modalRole', 'modalDepartment', 'modalAddress', 'modalBirthday', 'modalCivilStatus'];
+
         function showUserModal(userId) {
             console.log('Opening modal for user ID:', userId);
             currentUserId = userId;
+            isEditing = false;
             const user = usersData.find(u => u.id == userId);
             
             if (user) {
@@ -736,10 +823,10 @@ try {
                 document.getElementById('modalEmail').value = user.email;
                 document.getElementById('modalFullName').value = user.full_name;
                 document.getElementById('modalRole').value = user.role;
-                document.getElementById('modalDepartment').value = user.department || 'N/A';
-                document.getElementById('modalAddress').value = user.address || 'N/A';
-                document.getElementById('modalBirthday').value = user.birthday || 'N/A';
-                document.getElementById('modalCivilStatus').value = user.civil_status ? user.civil_status.charAt(0).toUpperCase() + user.civil_status.slice(1) : 'N/A';
+                document.getElementById('modalDepartment').value = user.department || '';
+                document.getElementById('modalAddress').value = user.address || '';
+                document.getElementById('modalBirthday').value = user.birthday || '';
+                document.getElementById('modalCivilStatus').value = user.civil_status || '';
                 document.getElementById('modalAccountStatus').value = user.is_active ? 'Active' : 'Inactive';
                 document.getElementById('modalCreatedAt').value = user.created_at;
                 
@@ -754,6 +841,11 @@ try {
                     idFileImg.style.display = 'none';
                     idFileNone.style.display = 'block';
                 }
+                
+                // Reset edit mode
+                setFieldsDisabled(true);
+                document.getElementById('editButton').style.display = '';
+                document.getElementById('saveButton').style.display = 'none';
                 
                 // Set dynamic button
                 const actionButton = document.getElementById('actionButton');
@@ -773,12 +865,68 @@ try {
             }
         }
 
+        function setFieldsDisabled(disabled) {
+            editableFields.forEach(function(id) {
+                const el = document.getElementById(id);
+                el.disabled = disabled;
+                el.classList.toggle('editing', !disabled);
+            });
+        }
+
+        function toggleEditFields() {
+            isEditing = true;
+            setFieldsDisabled(false);
+            document.getElementById('editButton').style.display = 'none';
+            document.getElementById('saveButton').style.display = '';
+        }
+
         function closeUserModal() {
             const modal = document.getElementById('userModal');
             if (modal) {
                 modal.style.display = 'none';
             }
             currentUserId = null;
+            isEditing = false;
+        }
+
+        function saveUser() {
+            if (!currentUserId) return;
+
+            const formData = new FormData();
+            formData.append('action', 'update_user');
+            formData.append('user_id', currentUserId);
+            formData.append('full_name', document.getElementById('modalFullName').value.trim());
+            formData.append('role', document.getElementById('modalRole').value.trim());
+            formData.append('department', document.getElementById('modalDepartment').value.trim());
+            formData.append('address', document.getElementById('modalAddress').value.trim());
+            formData.append('birthday', document.getElementById('modalBirthday').value);
+            formData.append('civil_status', document.getElementById('modalCivilStatus').value);
+
+            const saveBtn = document.getElementById('saveButton');
+            saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+            saveBtn.disabled = true;
+
+            fetch('', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(result => {
+                saveBtn.innerHTML = '<i class="fas fa-save"></i> Save';
+                saveBtn.disabled = false;
+                if (result.success) {
+                    closeUserModal();
+                    location.reload();
+                } else {
+                    alert(result.message || 'Failed to update account.');
+                }
+            })
+            .catch(error => {
+                saveBtn.innerHTML = '<i class="fas fa-save"></i> Save';
+                saveBtn.disabled = false;
+                console.error('Error:', error);
+                alert('An error occurred. Please try again.');
+            });
         }
 
         function deactivateAccount() {
