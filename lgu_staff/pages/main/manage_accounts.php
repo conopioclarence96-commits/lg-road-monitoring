@@ -943,6 +943,7 @@ try {
                 
                 // Set dynamic button
                 const actionButton = document.getElementById('actionButton');
+                actionButton.style.display = '';
                 if (user.is_active) {
                     actionButton.textContent = 'Deactivate Account';
                     actionButton.className = 'btn-sm btn-deactivate';
