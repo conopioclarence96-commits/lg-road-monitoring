@@ -167,7 +167,7 @@ if ($result) {
         }
         .main-content { margin-left: 250px; padding: 20px; position: relative; z-index: 1; }
         .settings-container {
-            max-width: 900px; margin: 0 auto;
+            width: 100%;
             background: rgba(255,255,255,0.95);
             backdrop-filter: blur(15px);
             border-radius: 16px;
