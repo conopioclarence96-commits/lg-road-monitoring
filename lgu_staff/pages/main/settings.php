@@ -597,8 +597,8 @@ try {
                         <input type="text" id="activitySearch" placeholder="Search actions..." style="min-width:200px;">
                         <input type="date" id="activityDateFrom" title="From date">
                         <input type="date" id="activityDateTo" title="To date">
-                        <button class="btn btn-primary btn-sm" onclick="filterActivityLog()"><i class="fas fa-search"></i> Filter</button>
-                        <button class="btn btn-secondary btn-sm" onclick="resetActivityFilter()"><i class="fas fa-undo"></i> Reset</button>
+                        <button type="button" class="btn btn-primary btn-sm" onclick="filterActivityLog()"><i class="fas fa-search"></i> Filter</button>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="resetActivityFilter()"><i class="fas fa-undo"></i> Reset</button>
                     </div>
 
                     <div class="activity-count" id="activityCount">
@@ -741,13 +741,16 @@ try {
         }
 
         function resetActivityFilter() {
-            document.getElementById('activityRoleFilter').value = 'all';
+            document.getElementById('activityRoleFilter').selectedIndex = 0;
             document.getElementById('activitySearch').value = '';
             document.getElementById('activityDateFrom').value = '';
             document.getElementById('activityDateTo').value = '';
-            const items = document.querySelectorAll('.activity-log-item');
-            items.forEach(item => item.style.display = '');
-            document.getElementById('activityCount').textContent = 'Showing ' + items.length + ' of ' + items.length + ' activities';
+            var items = document.querySelectorAll('.activity-log-item');
+            var total = items.length;
+            for (var i = 0; i < total; i++) {
+                items[i].removeAttribute('style');
+            }
+            document.getElementById('activityCount').textContent = 'Showing ' + total + ' of ' + total + ' activities';
         }
 
         // Auto-dismiss alerts
