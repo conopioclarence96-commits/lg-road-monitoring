@@ -89,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    $stmt = $conn->prepare("INSERT INTO users (username, email, password, full_name, role, department, address, birthday, civil_status, id_file_path, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)");
+    $stmt = $conn->prepare("INSERT INTO users (username, email, password, full_name, role, department, address, birthday, civil_status, id_file_path, account_status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1)");
     $stmt->bind_param("ssssssssss", $username, $email, $hashed_password, $full_name, $role, $department, $address, $birthday, $civil_status, $id_file_path);
 
     if ($stmt->execute()) {
