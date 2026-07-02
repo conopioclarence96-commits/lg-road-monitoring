@@ -239,6 +239,24 @@ $stmt->execute();
 $users = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
+// Get verified users inactive for 2+ weeks
+$inactive_2weeks_users = [];
+try {
+    $inactive_stmt = $conn->prepare("
+        SELECT id, username, email, full_name, role, department, last_login, created_at, updated_at
+        FROM users 
+        WHERE account_status = 'verified' 
+        AND (last_login IS NULL OR last_login < DATE_SUB(NOW(), INTERVAL 14 DAY))
+        ORDER BY last_login ASC
+    ");
+    $inactive_stmt->execute();
+    $inactive_2weeks_users = $inactive_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $inactive_stmt->close();
+} catch (Exception $e) {
+    error_log("Inactive users query error: " . $e->getMessage());
+    $inactive_2weeks_users = [];
+}
+
 // Get audit log for account actions
 try {
     $audit_stmt = $conn->prepare("
@@ -281,13 +299,19 @@ try {
     $stmt->execute();
     $stats['deactivated_users'] = $stmt->get_result()->fetch_assoc()['count'];
     
+    // Inactive users (no login in 2 weeks)
+    $stmt = $conn->prepare("SELECT COUNT(*) as count FROM users WHERE account_status = 'verified' AND is_active = 1 AND (last_login IS NULL OR last_login < DATE_SUB(NOW(), INTERVAL 14 DAY))");
+    $stmt->execute();
+    $stats['inactive_2weeks'] = $stmt->get_result()->fetch_assoc()['count'];
+    
 } catch (Exception $e) {
     error_log("Dashboard stats error: " . $e->getMessage());
     $stats = [
         'pending_users' => 0,
         'approved_users' => 0,
         'active_reports' => 0,
-        'deactivated_users' => 0
+        'deactivated_users' => 0,
+        'inactive_2weeks' => 0
     ];
 }
 ?>
@@ -841,6 +865,13 @@ try {
                 <div class="stat-number"><?php echo $stats['approved_users']; ?></div>
                 <div class="stat-label">Approved Users</div>
             </div>
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-user-slash"></i>
+                </div>
+                <div class="stat-number"><?php echo $stats['inactive_2weeks']; ?></div>
+                <div class="stat-label">Inactive (2+ Weeks)</div>
+            </div>
         </div>
 
         <!-- Workflow Container -->
@@ -886,6 +917,52 @@ try {
                                                     <button class="btn-sm btn-manage" onclick="showUserModal(<?php echo $user['id']; ?>)">Manage</button>
                                                 </div>
                                             </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Inactive Users (2+ Weeks) -->
+            <div class="workflow-card">
+                <div class="workflow-header">
+                    <h3 class="workflow-title">
+                        <i class="fas fa-user-slash"></i>
+                        <span>Inactive Users (2+ Weeks)</span>
+                        <span class="workflow-badge"><?php echo count($inactive_2weeks_users); ?></span>
+                    </h3>
+                </div>
+                
+                <div class="workflow-content">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Department</th>
+                                    <th>Last Login</th>
+                                    <th>Registered</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (empty($inactive_2weeks_users)): ?>
+                                    <tr>
+                                        <td colspan="6" style="text-align: center; color: #64748b;">No inactive users found</td>
+                                    </tr>
+                                <?php else: ?>
+                                    <?php foreach ($inactive_2weeks_users as $user): ?>
+                                        <tr>
+                                            <td><?php echo htmlspecialchars($user['full_name']); ?></td>
+                                            <td><?php echo htmlspecialchars($user['email']); ?></td>
+                                            <td><?php echo htmlspecialchars($user['role']); ?></td>
+                                            <td><?php echo htmlspecialchars($user['department'] ?? 'N/A'); ?></td>
+                                            <td><?php echo $user['last_login'] ? date('M d, Y', strtotime($user['last_login'])) : 'Never'; ?></td>
+                                            <td><?php echo date('M d, Y', strtotime($user['created_at'])); ?></td>
                                         </tr>
                                     <?php endforeach; ?>
                                 <?php endif; ?>

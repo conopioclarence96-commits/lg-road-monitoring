@@ -32,6 +32,13 @@ try {
     // Set charset to UTF-8
     $conn->set_charset("utf8mb4");
     
+    // Ensure last_login column exists
+    try {
+        $conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP NULL AFTER updated_at");
+    } catch (Exception $e) {
+        // Column may already exist, ignore
+    }
+    
 } catch (mysqli_sql_exception $e) {
     // Log error without exposing credentials
     $error_details = [

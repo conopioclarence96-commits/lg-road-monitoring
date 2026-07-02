@@ -502,6 +502,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                         $_SESSION['logged_in'] = true;
                         $_SESSION['login_time'] = time();
                         
+                        // Update last_login timestamp
+                        $login_update = $conn->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
+                        $login_update->bind_param("i", $user['id']);
+                        $login_update->execute();
+                        $login_update->close();
+                        
                         // Determine redirect based on user role
                         switch ($user['role']) {
                             case 'system_admin':
