@@ -97,7 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->close();
 
         // Audit log
-        $log = $conn->prepare("INSERT INTO audit_logs (user_id, action, details, ip_address, user_agent) VALUES (?, 'Staff Account Created', ?, ?, ?)");
+        $log = $conn->prepare("INSERT INTO audit_logs (user_id, action, details, ip_address, user_agent, created_at) VALUES (?, 'Staff Account Created', ?, ?, ?, NOW())");
         $details = "Created account for $full_name ($username) with role $role";
         $ip = $_SERVER['REMOTE_ADDR'] ?? 'Unknown';
         $ua = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';

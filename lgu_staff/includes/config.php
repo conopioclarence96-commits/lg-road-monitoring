@@ -32,6 +32,9 @@ try {
     // Set charset to UTF-8
     $conn->set_charset("utf8mb4");
     
+    // Sync MySQL timezone with PHP timezone
+    $conn->query("SET time_zone = '+08:00'");
+    
     // Ensure last_login column exists
     try {
         $conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP NULL AFTER updated_at");

@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute();
 
         // audit log
-        $log = $conn->prepare("INSERT INTO audit_logs (user_id, action, details) VALUES (?, 'Account Deactivated', ?)");
+        $log = $conn->prepare("INSERT INTO audit_logs (user_id, action, details, created_at) VALUES (?, 'Account Deactivated', ?, NOW())");
         $log->bind_param("is", $_SESSION['user_id'], $remarks);
         $log->execute();
 
@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute();
 
         // audit log
-        $log = $conn->prepare("INSERT INTO audit_logs (user_id, action, details) VALUES (?, 'Account Activated', ?)");
+        $log = $conn->prepare("INSERT INTO audit_logs (user_id, action, details, created_at) VALUES (?, 'Account Activated', ?, NOW())");
         $log->bind_param("is", $_SESSION['user_id'], $remarks);
         $log->execute();
 
@@ -83,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute();
         $stmt->close();
 
-        $log = $conn->prepare("INSERT INTO audit_logs (user_id, action, details) VALUES (?, 'Account Updated', ?)");
+        $log = $conn->prepare("INSERT INTO audit_logs (user_id, action, details, created_at) VALUES (?, 'Account Updated', ?, NOW())");
         $details = "Updated account #$userId: $full_name";
         $log->bind_param("is", $_SESSION['user_id'], $details);
         $log->execute();
