@@ -276,6 +276,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             cursor: not-allowed;
         }
 
+        .form-group .locked-select {
+            background: #e2e8f0;
+            color: #475569;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
         .file-input-wrapper {
             position: relative;
             border: 2px dashed #d1d5db;
@@ -523,7 +530,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                         <div class="form-group">
                             <label for="department">Department</label>
-                            <select id="department" name="department" disabled>
+                            <select id="department" name="department" class="locked-select">
                                 <option value="LGU Services" selected>LGU Services</option>
                                 <option value="Engineering">Engineering</option>
                                 <option value="Planning">Planning</option>
@@ -536,7 +543,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                         <div class="form-group">
                             <label for="role">Role</label>
-                            <select id="role" name="role" disabled>
+                            <select id="role" name="role" class="locked-select">
                                 <option value="lgu_staff" selected>LGU Staff</option>
                             </select>
                         </div>
