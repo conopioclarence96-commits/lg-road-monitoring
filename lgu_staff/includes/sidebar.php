@@ -343,106 +343,6 @@ $notification_count = getNotificationCount();
         .sidebar-content::-webkit-scrollbar-thumb:hover {
             background: #555;
         }
-
-        /* Logout Confirmation Modal */
-        .logout-modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 10000;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .logout-modal.active {
-            display: flex;
-        }
-
-        .logout-modal-content {
-            background: white;
-            border-radius: 10px;
-            width: 90%;
-            max-width: 380px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-            overflow: hidden;
-        }
-
-        .logout-modal-header {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 20px 24px 0;
-        }
-
-        .logout-modal-icon {
-            width: 44px;
-            height: 44px;
-            background: rgba(220, 53, 69, 0.1);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-
-        .logout-modal-icon svg {
-            width: 22px;
-            height: 22px;
-            color: #dc3545;
-        }
-
-        .logout-modal-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: #333;
-            margin: 0;
-        }
-
-        .logout-modal-body {
-            padding: 16px 24px;
-            font-size: 14px;
-            color: #666;
-            line-height: 1.5;
-        }
-
-        .logout-modal-footer {
-            display: flex;
-            gap: 10px;
-            padding: 0 24px 20px;
-            justify-content: flex-end;
-        }
-
-        .logout-modal-btn {
-            padding: 8px 20px;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            border: none;
-            transition: background 0.2s, opacity 0.2s;
-        }
-
-        .logout-modal-btn-cancel {
-            background: #f0f0f0;
-            color: #555;
-        }
-
-        .logout-modal-btn-cancel:hover {
-            background: #e0e0e0;
-        }
-
-        .logout-modal-btn-confirm {
-            background: #dc3545;
-            color: white;
-        }
-
-        .logout-modal-btn-confirm:hover {
-            background: #c82333;
-        }
     </style>
 </head>
 <body>
@@ -499,7 +399,7 @@ $notification_count = getNotificationCount();
                     <div class="nav-section-title">Account</div>
                     <ul style="list-style: none;">
                         <li>
-                            <a href="javascript:void(0)" class="nav-link nav-link-logout" onclick="showLogoutModal(event)">
+                            <a href="../logout.php" class="nav-link nav-link-logout" target="_parent">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-box-arrow-right" viewBox="0 0 16 16">
                                     <path fill-rule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2z"/>
                                     <path fill-rule="evenodd" d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z"/>
@@ -555,7 +455,7 @@ $notification_count = getNotificationCount();
                 <div class="nav-section-title">Account</div>
                 <ul style="list-style: none;">
                     <li>
-                        <a href="javascript:void(0)" class="nav-link nav-link-logout" onclick="showLogoutModal(event)">
+                        <a href="../logout.php" class="nav-link nav-link-logout" target="_parent">
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-box-arrow-right" viewBox="0 0 16 16">
                                 <path fill-rule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2z"/>
                                 <path fill-rule="evenodd" d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z"/>
@@ -569,29 +469,18 @@ $notification_count = getNotificationCount();
     </div>
 
     <script>
-        // Logout confirmation modal
-        function showLogoutModal(e) {
-            if (e) e.preventDefault();
-            document.getElementById('logoutModal').classList.add('active');
-        }
-
-        function closeLogoutModal() {
-            document.getElementById('logoutModal').classList.remove('active');
-        }
-
-        function confirmLogout() {
-            closeLogoutModal();
-            const overlay = document.getElementById('pageTransitionOverlay');
-            overlay.classList.add('active');
-            setTimeout(() => {
-                window.location.href = '../logout.php';
-            }, 800);
-        }
-
-        // Close modal on backdrop click
+        // Page transition for logout link
         document.addEventListener('DOMContentLoaded', function() {
-            document.getElementById('logoutModal').addEventListener('click', function(e) {
-                if (e.target === this) closeLogoutModal();
+            document.querySelectorAll('a[href*="logout.php"]').forEach(link => {
+                link.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const overlay = document.getElementById('pageTransitionOverlay');
+                    overlay.classList.add('active');
+                    
+                    setTimeout(() => {
+                        window.location.href = this.href;
+                    }, 800);
+                });
             });
         });
     </script>
@@ -630,7 +519,6 @@ $notification_count = getNotificationCount();
             // Navigation with transition effect
             document.querySelectorAll('.nav-link').forEach(link => {
                 link.addEventListener('click', function(e) {
-                    if (this.classList.contains('nav-link-logout')) return;
                     e.preventDefault();
                     const href = this.getAttribute('href');
                     
@@ -660,28 +548,6 @@ $notification_count = getNotificationCount();
             <i class="fas fa-spinner"></i>
         </div>
         <div class="transition-text">Loading...</div>
-    </div>
-</div>
-
-<!-- Logout Confirmation Modal -->
-<div class="logout-modal" id="logoutModal">
-    <div class="logout-modal-content">
-        <div class="logout-modal-header">
-            <div class="logout-modal-icon">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16">
-                    <path fill-rule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2z"/>
-                    <path fill-rule="evenodd" d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z"/>
-                </svg>
-            </div>
-            <h3 class="logout-modal-title">Confirm Logout</h3>
-        </div>
-        <div class="logout-modal-body">
-            Are you sure you want to logout?
-        </div>
-        <div class="logout-modal-footer">
-            <button class="logout-modal-btn logout-modal-btn-cancel" onclick="closeLogoutModal()">Cancel</button>
-            <button class="logout-modal-btn logout-modal-btn-confirm" onclick="confirmLogout()">Yes, Logout</button>
-        </div>
     </div>
 </div>
 </body>
