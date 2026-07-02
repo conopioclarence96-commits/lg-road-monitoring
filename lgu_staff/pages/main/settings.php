@@ -329,7 +329,12 @@ try {
         .activity-log-item {
             display: flex; align-items: flex-start; gap: 12px;
             padding: 14px 16px; border-bottom: 1px solid #f0f0f0;
-            transition: background 0.15s;
+            transition: background 0.15s, opacity 0.35s ease, max-height 0.35s ease, margin 0.35s ease, padding 0.35s ease;
+            max-height: 120px; overflow: hidden; opacity: 1;
+        }
+        .activity-log-item.collapsed {
+            max-height: 0; opacity: 0; padding-top: 0; padding-bottom: 0;
+            margin-top: 0; margin-bottom: 0; border-bottom: 0;
         }
         .activity-log-item:hover { background: rgba(55,98,200,0.03); }
         .activity-log-item:last-child { border-bottom: none; }
@@ -703,7 +708,7 @@ try {
             const items = document.querySelectorAll('.activity-log-item');
             let visible = 0;
 
-            items.forEach(item => {
+            items.forEach(function(item) {
                 const itemRole = (item.getAttribute('data-role') || '').trim().toLowerCase();
                 const itemAction = (item.getAttribute('data-action') || '').trim().toLowerCase();
                 const itemDetails = (item.getAttribute('data-details') || '').trim().toLowerCase();
@@ -721,22 +726,36 @@ try {
                 }
 
                 if (dateFrom) {
-                    const from = new Date(dateFrom);
-                    const itemD = new Date(itemDate);
+                    var from = new Date(dateFrom);
+                    var itemD = new Date(itemDate);
                     if (itemD < from) show = false;
                 }
 
                 if (dateTo) {
-                    const to = new Date(dateTo + 'T23:59:59');
-                    const itemD = new Date(itemDate);
+                    var to = new Date(dateTo + 'T23:59:59');
+                    var itemD = new Date(itemDate);
                     if (itemD > to) show = false;
                 }
 
-                item.style.display = show ? '' : 'none';
-                if (show) visible++;
+                if (show) {
+                    item.classList.remove('collapsed');
+                    item.style.display = '';
+                    visible++;
+                } else {
+                    item.classList.add('collapsed');
+                }
             });
 
-            const total = items.length;
+            // After transition completes, hide collapsed items from layout
+            setTimeout(function() {
+                items.forEach(function(item) {
+                    if (item.classList.contains('collapsed')) {
+                        item.style.display = 'none';
+                    }
+                });
+            }, 360);
+
+            var total = items.length;
             document.getElementById('activityCount').textContent = 'Showing ' + visible + ' of ' + total + ' activities';
         }
 
@@ -748,7 +767,8 @@ try {
             var items = document.querySelectorAll('.activity-log-item');
             var total = items.length;
             for (var i = 0; i < total; i++) {
-                items[i].removeAttribute('style');
+                items[i].style.display = '';
+                items[i].classList.remove('collapsed');
             }
             document.getElementById('activityCount').textContent = 'Showing ' + total + ' of ' + total + ' activities';
         }
