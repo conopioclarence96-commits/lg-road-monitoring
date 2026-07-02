@@ -456,6 +456,13 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             color: var(--accent-color);
         }
 
+        footer .btn-login {
+            margin-left: 15px;
+            vertical-align: middle;
+            padding: 6px 18px;
+            font-size: 0.9rem;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .hero h1 {
@@ -537,9 +544,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                     <li class="nav-item">
                         <a class="nav-link" href="#contact">Contact</a>
                     </li>
-                    <li class="nav-item">
-                        <a href="<?php echo $basePath; ?>lgu_staff/login.php" class="btn btn-login">Login</a>
-                    </li>
+
                 </ul>
             </div>
         </div>
@@ -790,6 +795,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         <a href="#"><i class="fab fa-facebook"></i></a>
                         <a href="#"><i class="fab fa-twitter"></i></a>
                         <a href="#"><i class="fab fa-instagram"></i></a>
+                        <a href="<?php echo $basePath; ?>lgu_staff/login.php" class="btn btn-login">Login</a>
                     </div>
                 </div>
             </div>
