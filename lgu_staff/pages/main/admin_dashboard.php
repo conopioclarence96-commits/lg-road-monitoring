@@ -246,7 +246,9 @@ try {
         SELECT id, username, email, full_name, role, department, last_login, created_at, updated_at
         FROM users 
         WHERE account_status = 'verified' 
-        AND (last_login IS NULL OR last_login < DATE_SUB(NOW(), INTERVAL 14 DAY))
+        AND is_active = 1
+        AND last_login IS NOT NULL 
+        AND last_login < DATE_SUB(NOW(), INTERVAL 14 DAY)
         ORDER BY last_login ASC
     ");
     $inactive_stmt->execute();
@@ -299,8 +301,8 @@ try {
     $stmt->execute();
     $stats['deactivated_users'] = $stmt->get_result()->fetch_assoc()['count'];
     
-    // Inactive users (no login in 2 weeks)
-    $stmt = $conn->prepare("SELECT COUNT(*) as count FROM users WHERE account_status = 'verified' AND is_active = 1 AND (last_login IS NULL OR last_login < DATE_SUB(NOW(), INTERVAL 14 DAY))");
+    // Inactive users (logged in before but not in 2 weeks)
+    $stmt = $conn->prepare("SELECT COUNT(*) as count FROM users WHERE account_status = 'verified' AND is_active = 1 AND last_login IS NOT NULL AND last_login < DATE_SUB(NOW(), INTERVAL 14 DAY)");
     $stmt->execute();
     $stats['inactive_2weeks'] = $stmt->get_result()->fetch_assoc()['count'];
     
