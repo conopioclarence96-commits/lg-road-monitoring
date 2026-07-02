@@ -327,9 +327,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             inset: 0;
             backdrop-filter: blur(6px);
             background: rgba(0, 0, 0, 0.35);
-            z-index: 0;
+            z-index: -1;
         }
-        
 
         html { scroll-behavior: smooth; }
 
@@ -338,10 +337,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             padding: 20px;
             position: relative;
             z-index: 1;
-            min-height: 100vh;
-            background: #f8f9fa;
         }
-
         .verification-header {
             background: #ffffff;
             padding: 25px 30px;
