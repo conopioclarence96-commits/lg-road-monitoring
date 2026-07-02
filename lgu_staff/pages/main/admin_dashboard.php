@@ -314,6 +314,43 @@ try {
         'inactive_2weeks' => 0
     ];
 }
+
+// Report statistics for charts
+$report_stats = [
+    'by_status' => [],
+    'by_type' => [],
+    'by_month' => []
+];
+
+try {
+    // Reports by status
+    $rstmt = $conn->prepare("SELECT status, COUNT(*) as count FROM road_transportation_reports GROUP BY status ORDER BY count DESC");
+    $rstmt->execute();
+    $report_stats['by_status'] = $rstmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $rstmt->close();
+
+    // Reports by report_type
+    $rstmt = $conn->prepare("SELECT report_type, COUNT(*) as count FROM road_transportation_reports GROUP BY report_type ORDER BY count DESC");
+    $rstmt->execute();
+    $report_stats['by_type'] = $rstmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $rstmt->close();
+
+    // Reports by month (last 6 months)
+    $rstmt = $conn->prepare("
+        SELECT DATE_FORMAT(created_at, '%Y-%m') as month_label, 
+               DATE_FORMAT(created_at, '%b %Y') as month_name, 
+               COUNT(*) as count 
+        FROM road_transportation_reports 
+        WHERE created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+        GROUP BY month_label, month_name 
+        ORDER BY month_label ASC
+    ");
+    $rstmt->execute();
+    $report_stats['by_month'] = $rstmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $rstmt->close();
+} catch (Exception $e) {
+    error_log("Report stats error: " . $e->getMessage());
+}
 ?>
 
 <!DOCTYPE html>
@@ -662,6 +699,50 @@ try {
             background: #dc2626;
         }
 
+        .charts-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .chart-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(15px);
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .chart-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid rgba(55, 98, 200, 0.1);
+        }
+
+        .chart-card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1e3c72;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-height: 300px;
+        }
+
+        .chart-full {
+            grid-column: 1 / -1;
+        }
+
         .workflow-container {
             display: grid;
             grid-template-columns: 1fr;
@@ -732,6 +813,9 @@ try {
             .workflow-container {
                 grid-template-columns: 1fr;
             }
+            .charts-section {
+                grid-template-columns: 1fr;
+            }
         }
 
         @media (max-width: 768px) {
@@ -743,6 +827,10 @@ try {
             .date-time {
                 text-align: left;
                 margin-top: 10px;
+            }
+
+            .charts-section {
+                grid-template-columns: 1fr;
             }
         }
     .modal {
@@ -871,6 +959,48 @@ try {
                 </div>
                 <div class="stat-number"><?php echo $stats['inactive_2weeks']; ?></div>
                 <div class="stat-label">Inactive (2+ Weeks)</div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="charts-section">
+            <!-- User Accounts Overview -->
+            <div class="chart-card">
+                <div class="chart-card-header">
+                    <h3 class="chart-card-title">
+                        <i class="fas fa-chart-pie"></i>
+                        <span>User Accounts Overview</span>
+                    </h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="userAccountsChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Reports by Status -->
+            <div class="chart-card">
+                <div class="chart-card-header">
+                    <h3 class="chart-card-title">
+                        <i class="fas fa-chart-bar"></i>
+                        <span>Reports by Status</span>
+                    </h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="reportsByStatusChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Reports Trend (Last 6 Months) -->
+            <div class="chart-card chart-full">
+                <div class="chart-card-header">
+                    <h3 class="chart-card-title">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Reports Trend (Last 6 Months)</span>
+                    </h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="reportsTrendChart"></canvas>
+                </div>
             </div>
         </div>
 
@@ -1316,6 +1446,140 @@ try {
         
         updateDateTime();
         setInterval(updateDateTime, 1000);
+
+        // Chart Data from PHP
+        const userStats = {
+            pending: <?php echo $stats['pending_users']; ?>,
+            approved: <?php echo $stats['approved_users']; ?>,
+            inactive: <?php echo $stats['inactive_2weeks']; ?>,
+            deactivated: <?php echo $stats['deactivated_users']; ?>
+        };
+
+        const reportsByStatus = <?php echo json_encode($report_stats['by_status']); ?>;
+        const reportsByMonth = <?php echo json_encode($report_stats['by_month']); ?>;
+        const reportsByType = <?php echo json_encode($report_stats['by_type']); ?>;
+
+        // Color palette
+        const chartColors = {
+            pending: '#f59e0b',
+            approved: '#10b981',
+            inactive: '#6b7280',
+            deactivated: '#ef4444',
+            statusColors: ['#f59e0b', '#3b82f6', '#10b981', '#6b7280', '#ef4444', '#8b5cf6'],
+            typeColors: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316']
+        };
+
+        // User Accounts Doughnut Chart
+        const userAccountsCtx = document.getElementById('userAccountsChart').getContext('2d');
+        new Chart(userAccountsCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Pending', 'Approved', 'Inactive (2+ Weeks)', 'Deactivated'],
+                datasets: [{
+                    data: [userStats.pending, userStats.approved, userStats.inactive, userStats.deactivated],
+                    backgroundColor: [chartColors.pending, chartColors.approved, chartColors.inactive, chartColors.deactivated],
+                    borderWidth: 2,
+                    borderColor: '#fff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 15,
+                            usePointStyle: true,
+                            font: { size: 12 }
+                        }
+                    }
+                },
+                cutout: '60%'
+            }
+        });
+
+        // Reports by Status Bar Chart
+        const reportsByStatusCtx = document.getElementById('reportsByStatusChart').getContext('2d');
+        const statusLabels = reportsByStatus.map(r => r.status.charAt(0).toUpperCase() + r.status.slice(1));
+        const statusData = reportsByStatus.map(r => r.count);
+        new Chart(reportsByStatusCtx, {
+            type: 'bar',
+            data: {
+                labels: statusLabels,
+                datasets: [{
+                    label: 'Reports',
+                    data: statusData,
+                    backgroundColor: chartColors.statusColors.slice(0, statusLabels.length),
+                    borderRadius: 8,
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { stepSize: 1, font: { size: 12 } },
+                        grid: { color: 'rgba(0,0,0,0.05)' }
+                    },
+                    x: {
+                        ticks: { font: { size: 11 } },
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+
+        // Reports Trend Line Chart
+        const reportsTrendCtx = document.getElementById('reportsTrendChart').getContext('2d');
+        const monthLabels = reportsByMonth.map(r => r.month_name);
+        const monthData = reportsByMonth.map(r => r.count);
+        new Chart(reportsTrendCtx, {
+            type: 'line',
+            data: {
+                labels: monthLabels.length > 0 ? monthLabels : ['No Data'],
+                datasets: [{
+                    label: 'Reports Submitted',
+                    data: monthData.length > 0 ? monthData : [0],
+                    borderColor: '#3762c8',
+                    backgroundColor: 'rgba(55, 98, 200, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: '#3762c8',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: { usePointStyle: true, font: { size: 12 } }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { stepSize: 1, font: { size: 12 } },
+                        grid: { color: 'rgba(0,0,0,0.05)' }
+                    },
+                    x: {
+                        ticks: { font: { size: 12 } },
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
         
         // Auto-hide messages after 5 seconds
         setTimeout(() => {
