@@ -151,7 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     } elseif ($action === 'deactivate' && $user_id > 0) {
         // Deactivate account
-        $stmt = $conn->prepare("UPDATE users SET is_active = 0 WHERE id = ?");
+        $stmt = $conn->prepare("UPDATE users SET is_active = 0, account_status = 'deactivated' WHERE id = ?");
         $stmt->bind_param("i", $user_id);
 
         
@@ -178,7 +178,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
     } elseif ($action === 'deactivate_user' && $user_id > 0) {
         // Deactivate account (new version)
-        $stmt = $conn->prepare("UPDATE users SET is_active = 0 WHERE id = ?");
+        $stmt = $conn->prepare("UPDATE users SET is_active = 0, account_status = 'deactivated' WHERE id = ?");
         $stmt->bind_param("i", $user_id);
         
         if ($stmt->execute()) {
@@ -203,7 +203,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
     } elseif ($action === 'activate_user' && $user_id > 0) {
         // Activate account
-        $stmt = $conn->prepare("UPDATE users SET is_active = 1 WHERE id = ?");
+        $stmt = $conn->prepare("UPDATE users SET is_active = 1, account_status = 'verified' WHERE id = ?");
         $stmt->bind_param("i", $user_id);
         
         if ($stmt->execute()) {

@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'deactivate_user') {
-        $stmt = $conn->prepare("UPDATE users SET is_active = 0 WHERE id = ?");
+        $stmt = $conn->prepare("UPDATE users SET is_active = 0, account_status = 'deactivated' WHERE id = ?");
         $stmt->bind_param("i", $userId);
         $stmt->execute();
 
@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'activate_user') {
-        $stmt = $conn->prepare("UPDATE users SET is_active = 1 WHERE id = ?");
+        $stmt = $conn->prepare("UPDATE users SET is_active = 1, account_status = 'verified' WHERE id = ?");
         $stmt->bind_param("i", $userId);
         $stmt->execute();
 
