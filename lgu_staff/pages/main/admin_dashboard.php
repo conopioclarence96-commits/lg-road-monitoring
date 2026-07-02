@@ -1025,7 +1025,7 @@ try {
                 const idFileImg = document.getElementById('modalIdFile');
                 const idFileNone = document.getElementById('modalIdFileNone');
                 if (user.id_file_path) {
-                    idFileImg.src = '../' + user.id_file_path;
+                    idFileImg.src = '../../' + user.id_file_path;
                     idFileImg.style.display = 'block';
                     idFileNone.style.display = 'none';
                 } else {
