@@ -634,10 +634,10 @@ try {
                                 elseif (strpos($action_lower, 'delete') !== false) $fa_icon = 'fa-trash-alt';
                             ?>
                                 <div class="activity-log-item"
-                                     data-role="<?php echo htmlspecialchars($user_role); ?>"
-                                     data-action="<?php echo htmlspecialchars(strtolower($log['action'])); ?>"
-                                     data-details="<?php echo htmlspecialchars(strtolower($log['details'])); ?>"
-                                     data-name="<?php echo htmlspecialchars(strtolower($log['full_name'])); ?>"
+                                     data-role="<?php echo htmlspecialchars(strtolower(trim($user_role))); ?>"
+                                     data-action="<?php echo htmlspecialchars(strtolower(trim($log['action'] ?? ''))); ?>"
+                                     data-details="<?php echo htmlspecialchars(strtolower(trim($log['details'] ?? ''))); ?>"
+                                     data-name="<?php echo htmlspecialchars(strtolower(trim($log['full_name'] ?? ''))); ?>"
                                      data-date="<?php echo htmlspecialchars($log['created_at']); ?>">
                                     <div class="activity-log-icon <?php echo $icon_class; ?>">
                                         <i class="fas <?php echo $fa_icon; ?>"></i>
@@ -696,7 +696,7 @@ try {
 
         // Activity Log filter
         function filterActivityLog() {
-            const role = document.getElementById('activityRoleFilter').value;
+            const role = document.getElementById('activityRoleFilter').value.trim().toLowerCase();
             const search = document.getElementById('activitySearch').value.toLowerCase().trim();
             const dateFrom = document.getElementById('activityDateFrom').value;
             const dateTo = document.getElementById('activityDateTo').value;
@@ -704,11 +704,11 @@ try {
             let visible = 0;
 
             items.forEach(item => {
-                const itemRole = item.dataset.role;
-                const itemAction = item.dataset.action;
-                const itemDetails = item.dataset.details;
-                const itemName = item.dataset.name;
-                const itemDate = item.dataset.date;
+                const itemRole = (item.getAttribute('data-role') || '').trim().toLowerCase();
+                const itemAction = (item.getAttribute('data-action') || '').trim().toLowerCase();
+                const itemDetails = (item.getAttribute('data-details') || '').trim().toLowerCase();
+                const itemName = (item.getAttribute('data-name') || '').trim().toLowerCase();
+                const itemDate = item.getAttribute('data-date') || '';
 
                 let show = true;
 
