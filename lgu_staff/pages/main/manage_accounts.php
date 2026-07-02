@@ -108,6 +108,17 @@ $stmt->execute();
 $users = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
+// Get unverified/rejected accounts
+$stmt2 = $conn->prepare("
+    SELECT id, username, email, full_name, role, department, address, birthday, civil_status, is_active, account_status, created_at, updated_at, id_file_path 
+    FROM users 
+    WHERE role IN ('lgu_staff', 'citizen') AND account_status IN ('pending', 'rejected')
+    ORDER BY created_at DESC
+");
+$stmt2->execute();
+$unverified_users = $stmt2->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt2->close();
+
 // Calculate stats
 $active_accounts = 0;
 $inactive_accounts = 0;
@@ -373,6 +384,16 @@ try {
             font-weight: 600;
             border: 2px solid #495057;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .status-pending {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .status-rejected {
+            background: #ef4444;
+            color: white;
         }
 
         .action-buttons {
@@ -699,6 +720,13 @@ try {
                 <div class="stat-number"><?php echo $inactive_accounts; ?></div>
                 <div class="stat-label">Total Inactive Accounts</div>
             </div>
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-user-clock"></i>
+                </div>
+                <div class="stat-number"><?php echo count($unverified_users); ?></div>
+                <div class="stat-label">Pending/Rejected Accounts</div>
+            </div>
         </div>
 
         <div class="workflow-container">
@@ -771,6 +799,71 @@ try {
                 </div>
             </div>
 
+            <!-- Pending/Rejected Accounts -->
+            <div class="workflow-card">
+                <div class="workflow-header">
+                    <h3 class="workflow-title">
+                        <i class="fas fa-user-clock"></i>
+                        <span>Pending/Rejected Accounts</span>
+                        <span class="workflow-badge"><?php echo count($unverified_users); ?></span>
+                    </h3>
+                    <div class="filter-section">
+                        <label for="unverifiedStatusFilter" style="font-size: 14px; color: #64748b;">Filter by:</label>
+                        <select id="unverifiedStatusFilter" class="filter-dropdown">
+                            <option value="all">All</option>
+                            <option value="pending">Pending</option>
+                            <option value="rejected">Rejected</option>
+                        </select>
+                        <button class="filter-button" onclick="applyUnverifiedFilter()">Go</button>
+                    </div>
+                </div>
+                
+                <div class="workflow-content">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Department</th>
+                                    <th>Status</th>
+                                    <th>Registered</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (empty($unverified_users)): ?>
+                                    <tr>
+                                        <td colspan="7" style="text-align: center; color: #64748b;">No pending or rejected accounts found</td>
+                                    </tr>
+                                <?php else: ?>
+                                    <?php foreach ($unverified_users as $user): ?>
+                                        <tr>
+                                            <td><?php echo htmlspecialchars($user['full_name']); ?></td>
+                                            <td><?php echo htmlspecialchars($user['email']); ?></td>
+                                            <td><?php echo htmlspecialchars($user['role']); ?></td>
+                                            <td><?php echo htmlspecialchars($user['department'] ?? 'N/A'); ?></td>
+                                            <td>
+                                                <span class="status-badge status-<?php echo $user['account_status'] === 'pending' ? 'pending' : 'rejected'; ?>">
+                                                    <?php echo ucfirst($user['account_status']); ?>
+                                                </span>
+                                            </td>
+                                            <td><?php echo date('M d, Y', strtotime($user['created_at'])); ?></td>
+                                            <td>
+                                                <div class="action-buttons">
+                                                    <button class="btn-sm btn-placeholder" onclick="showUnverifiedUserModal(<?php echo $user['id']; ?>)">Manage</button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <!-- Audit Log -->
             <div class="workflow-card">
                 <div class="workflow-header">
@@ -809,6 +902,7 @@ try {
         let currentUserId = null;
         let isEditing = false;
         let usersData = <?php echo json_encode($users); ?>;
+        let unverifiedUsersData = <?php echo json_encode($unverified_users); ?>;
         
         const editableFields = ['modalFullName', 'modalRole', 'modalDepartment', 'modalAddress', 'modalBirthday', 'modalCivilStatus'];
 
@@ -1017,6 +1111,68 @@ try {
             const badge = document.querySelector('.workflow-badge');
             if (badge) {
                 badge.textContent = visibleRows.length;
+            }
+        }
+
+        function showUnverifiedUserModal(userId) {
+            currentUserId = userId;
+            isEditing = false;
+            const user = unverifiedUsersData.find(u => u.id == userId);
+            
+            if (user) {
+                document.getElementById('modalEmail').value = user.email;
+                document.getElementById('modalFullName').value = user.full_name;
+                document.getElementById('modalRole').value = user.role;
+                document.getElementById('modalDepartment').value = user.department || '';
+                document.getElementById('modalAddress').value = user.address || '';
+                document.getElementById('modalBirthday').value = user.birthday || '';
+                document.getElementById('modalCivilStatus').value = user.civil_status || '';
+                document.getElementById('modalAccountStatus').value = user.account_status.charAt(0).toUpperCase() + user.account_status.slice(1);
+                document.getElementById('modalCreatedAt').value = user.created_at;
+                
+                const idFileImg = document.getElementById('modalIdFile');
+                const idFileNone = document.getElementById('modalIdFileNone');
+                if (user.id_file_path) {
+                    idFileImg.src = '../../' + user.id_file_path;
+                    idFileImg.style.display = 'block';
+                    idFileNone.style.display = 'none';
+                } else {
+                    idFileImg.style.display = 'none';
+                    idFileNone.style.display = 'block';
+                }
+                
+                setFieldsDisabled(true);
+                document.getElementById('editButton').style.display = '';
+                document.getElementById('saveButton').style.display = 'none';
+                
+                const actionButton = document.getElementById('actionButton');
+                actionButton.style.display = 'none';
+                
+                const modal = document.getElementById('userModal');
+                modal.style.display = 'block';
+            }
+        }
+
+        function applyUnverifiedFilter() {
+            const filterValue = document.getElementById('unverifiedStatusFilter').value;
+            const table = document.querySelectorAll('.workflow-card')[1].querySelector('tbody');
+            if (!table) return;
+            const rows = table.querySelectorAll('tr');
+            
+            rows.forEach(row => {
+                if (filterValue === 'all') {
+                    row.style.display = '';
+                } else {
+                    const statusCell = row.querySelector('td:nth-child(5)');
+                    const status = statusCell ? statusCell.textContent.trim().toLowerCase() : '';
+                    row.style.display = (status === filterValue) ? '' : 'none';
+                }
+            });
+            
+            const visibleRows = Array.from(rows).filter(row => row.style.display !== 'none');
+            const badges = document.querySelectorAll('.workflow-badge');
+            if (badges[1]) {
+                badges[1].textContent = visibleRows.length;
             }
         }
 
