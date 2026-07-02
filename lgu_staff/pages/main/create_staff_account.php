@@ -32,11 +32,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $username = trim($_POST['username'] ?? '');
     $email = trim($_POST['email'] ?? '');
-    $full_name = trim($_POST['full_name'] ?? '');
+    $first_name = trim($_POST['first_name'] ?? '');
+    $middle_name = trim($_POST['middle_name'] ?? '');
+    $last_name = trim($_POST['last_name'] ?? '');
+    $birthday = trim($_POST['birthday'] ?? '');
+    $address = trim($_POST['address'] ?? '');
+    $civil_status = trim($_POST['civil_status'] ?? '');
     $department = trim($_POST['department'] ?? '');
 
-    if (empty($username) || empty($email) || empty($full_name)) {
-        echo json_encode(['success' => false, 'message' => 'Username, email, and full name are required.']);
+    if (empty($username) || empty($email) || empty($first_name) || empty($last_name)) {
+        echo json_encode(['success' => false, 'message' => 'Username, email, first name, and last name are required.']);
         exit;
     }
 
@@ -56,14 +61,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $check->close();
 
+    // Combine name fields into full_name
+    $full_name = trim($first_name . ' ' . $middle_name . ' ' . $last_name);
+    $full_name = preg_replace('/\s+/', ' ', $full_name);
+
     // Generate a random password
     $raw_password = bin2hex(random_bytes(6));
     $hashed_password = password_hash($raw_password, PASSWORD_DEFAULT);
 
     $role = 'lgu_staff';
 
-    $stmt = $conn->prepare("INSERT INTO users (username, email, password, full_name, role, department, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)");
-    $stmt->bind_param("ssssss", $username, $email, $hashed_password, $full_name, $role, $department);
+    // Handle ID file upload
+    $id_file_path = null;
+    if (isset($_FILES['id_file']) && $_FILES['id_file']['error'] === UPLOAD_ERR_OK) {
+        $uploadDir = __DIR__ . '/../../uploads/ids/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+        $fileExt = strtolower(pathinfo($_FILES['id_file']['name'], PATHINFO_EXTENSION));
+        $allowed = ['jpg', 'jpeg', 'png', 'pdf'];
+        if (in_array($fileExt, $allowed)) {
+            $uniqueFilename = uniqid() . '_' . time() . '.' . $fileExt;
+            $targetFile = $uploadDir . $uniqueFilename;
+            if (move_uploaded_file($_FILES['id_file']['tmp_name'], $targetFile)) {
+                $id_file_path = 'uploads/ids/' . $uniqueFilename;
+            }
+        }
+    }
+
+    $stmt = $conn->prepare("INSERT INTO users (username, email, password, full_name, role, department, address, birthday, civil_status, id_file_path, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)");
+    $stmt->bind_param("ssssssssss", $username, $email, $hashed_password, $full_name, $role, $department, $address, $birthday, $civil_status, $id_file_path);
 
     if ($stmt->execute()) {
         $new_user_id = $stmt->insert_id;
@@ -249,6 +276,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             cursor: not-allowed;
         }
 
+        .file-input-wrapper {
+            position: relative;
+            border: 2px dashed #d1d5db;
+            border-radius: 8px;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+
+        .file-input-wrapper:hover {
+            border-color: #3762c8;
+        }
+
+        .file-input-wrapper input[type="file"] {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+            z-index: 2;
+        }
+
+        .file-input-display {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: #64748b;
+            text-align: center;
+        }
+
+        .file-input-display i {
+            font-size: 28px;
+            color: #3762c8;
+            margin-bottom: 8px;
+        }
+
+        .file-input-display span {
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .file-input-display small {
+            font-size: 11px;
+            color: #94a3b8;
+            margin-top: 4px;
+        }
+
+        .file-input-display.has-file i {
+            color: #10b981;
+        }
+
+        .file-input-display.has-file span {
+            color: #065f46;
+            font-weight: 600;
+        }
+
         .form-group.full-width {
             grid-column: 1 / -1;
         }
@@ -414,7 +500,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
 
         <div class="workflow-container">
-            <!-- Create Account Form -->
+            <!-- Account Details -->
             <div class="workflow-card">
                 <div class="workflow-header">
                     <h3 class="workflow-title">
@@ -425,7 +511,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 <div id="alertContainer"></div>
 
-                <form id="createForm" onsubmit="return handleCreate(event)">
+                <form id="createForm" onsubmit="return handleCreate(event)" enctype="multipart/form-data">
                     <div class="form-grid">
                         <div class="form-group">
                             <label for="username">Username *</label>
@@ -434,10 +520,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="form-group">
                             <label for="email">Email Address *</label>
                             <input type="email" id="email" name="email" required placeholder="e.g. juan@lgu.gov.ph">
-                        </div>
-                        <div class="form-group">
-                            <label for="full_name">Full Name *</label>
-                            <input type="text" id="full_name" name="full_name" required placeholder="e.g. Juan Dela Cruz">
                         </div>
                         <div class="form-group">
                             <label for="department">Department / LGU Service</label>
@@ -452,11 +534,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <option value="Citizen Services">Citizen Services</option>
                             </select>
                         </div>
-                        <div class="form-group full-width">
+                        <div class="form-group">
                             <label for="role">Role</label>
                             <select id="role" name="role" disabled>
                                 <option value="lgu_staff" selected>LGU Staff</option>
                             </select>
+                        </div>
+                    </div>
+            </div>
+
+            <!-- Other Information -->
+            <div class="workflow-card">
+                <div class="workflow-header">
+                    <h3 class="workflow-title">
+                        <i class="fas fa-user"></i>
+                        <span>Other Information</span>
+                    </h3>
+                </div>
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="first_name">First Name *</label>
+                            <input type="text" id="first_name" name="first_name" required placeholder="e.g. Juan">
+                        </div>
+                        <div class="form-group">
+                            <label for="middle_name">Middle Name</label>
+                            <input type="text" id="middle_name" name="middle_name" placeholder="e.g. Reyes">
+                        </div>
+                        <div class="form-group">
+                            <label for="last_name">Last Name *</label>
+                            <input type="text" id="last_name" name="last_name" required placeholder="e.g. Dela Cruz">
+                        </div>
+                        <div class="form-group">
+                            <label for="birthday">Birthday</label>
+                            <input type="date" id="birthday" name="birthday">
+                        </div>
+                        <div class="form-group">
+                            <label for="address">Address</label>
+                            <input type="text" id="address" name="address" placeholder="e.g. Brgy. San Isidro, Manila">
+                        </div>
+                        <div class="form-group">
+                            <label for="civil_status">Civil Status</label>
+                            <select id="civil_status" name="civil_status">
+                                <option value="">Select status</option>
+                                <option value="single">Single</option>
+                                <option value="married">Married</option>
+                                <option value="divorced">Divorced</option>
+                                <option value="widowed">Widowed</option>
+                            </select>
+                        </div>
+                        <div class="form-group full-width">
+                            <label for="id_file">Upload Valid ID (Optional)</label>
+                            <div class="file-input-wrapper">
+                                <input type="file" id="id_file" name="id_file" accept="image/*,.pdf" onchange="handleFileSelect(event)">
+                                <div class="file-input-display" id="fileDisplay">
+                                    <i class="fas fa-cloud-upload-alt"></i>
+                                    <span>Choose a file or drag it here</span>
+                                    <small>JPG, PNG, or PDF (Max 5MB)</small>
+                                </div>
+                            </div>
                         </div>
                         <div class="form-actions">
                             <button type="button" class="btn btn-secondary" onclick="resetForm()">Clear</button>
@@ -471,6 +607,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <script>
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            const display = document.getElementById('fileDisplay');
+            if (file) {
+                display.classList.add('has-file');
+                display.innerHTML = `
+                    <i class="fas fa-file-check"></i>
+                    <span>${file.name}</span>
+                    <small>${(file.size / 1024).toFixed(1)} KB</small>
+                `;
+            } else {
+                display.classList.remove('has-file');
+                display.innerHTML = `
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <span>Choose a file or drag it here</span>
+                    <small>JPG, PNG, or PDF (Max 5MB)</small>
+                `;
+            }
+        }
+
         function handleCreate(e) {
             e.preventDefault();
 
@@ -504,7 +660,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     `;
                     document.getElementById('createForm').reset();
+                    document.getElementById('department').value = 'Road and Transportation';
                     document.getElementById('role').value = 'lgu_staff';
+                    resetFileDisplay();
                 } else {
                     container.innerHTML = `
                         <div class="error-box">
@@ -546,11 +704,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
         }
 
+        function resetFileDisplay() {
+            const display = document.getElementById('fileDisplay');
+            display.classList.remove('has-file');
+            display.innerHTML = `
+                <i class="fas fa-cloud-upload-alt"></i>
+                <span>Choose a file or drag it here</span>
+                <small>JPG, PNG, or PDF (Max 5MB)</small>
+            `;
+        }
+
         function resetForm() {
             document.getElementById('createForm').reset();
             document.getElementById('department').value = 'Road and Transportation';
             document.getElementById('role').value = 'lgu_staff';
             document.getElementById('alertContainer').innerHTML = '';
+            resetFileDisplay();
         }
 
         function updateDateTime() {
