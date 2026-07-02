@@ -42,6 +42,16 @@ try {
         // Column may already exist, ignore
     }
     
+    // Ensure account_status supports 'deactivated' value
+    try {
+        $row = $conn->query("SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'users' AND COLUMN_NAME = 'account_status' AND TABLE_SCHEMA = '" . DB_NAME . "'")->fetch_assoc();
+        if ($row && strpos($row['COLUMN_TYPE'], 'deactivated') === false) {
+            $conn->query("ALTER TABLE users MODIFY COLUMN account_status VARCHAR(20) DEFAULT 'pending'");
+        }
+    } catch (Exception $e) {
+        // Ignore
+    }
+    
 } catch (mysqli_sql_exception $e) {
     // Log error without exposing credentials
     $error_details = [

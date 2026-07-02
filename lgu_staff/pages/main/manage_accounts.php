@@ -9,6 +9,12 @@ ini_set('session.use_only_cookies', 1);
 ini_set('session.cookie_secure', 0);
 
 session_start();
+
+// Suppress display_errors for AJAX/POST requests to preserve JSON response
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    ini_set('display_errors', 0);
+    error_reporting(0);
+}
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 
