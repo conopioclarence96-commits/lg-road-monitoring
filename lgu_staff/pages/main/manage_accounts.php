@@ -70,6 +70,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if ($action === 'reactivate_user') {
+        $stmt = $conn->prepare("UPDATE users SET is_active = 1, account_status = 'verified' WHERE id = ?");
+        $stmt->bind_param("i", $userId);
+        $stmt->execute();
+
+        // audit log
+        $log = $conn->prepare("INSERT INTO audit_logs (user_id, action, details, created_at) VALUES (?, 'Account Reactivated', ?, NOW())");
+        $log->bind_param("is", $_SESSION['user_id'], $remarks);
+        $log->execute();
+
+        echo json_encode(['success' => true]);
+        exit;
+    }
+
     if ($action === 'update_user') {
         $full_name = $_POST['full_name'] ?? '';
         $role = $_POST['role'] ?? '';
@@ -124,6 +138,17 @@ $stmt2 = $conn->prepare("
 $stmt2->execute();
 $unverified_users = $stmt2->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt2->close();
+
+// Get deactivated accounts
+$stmt3 = $conn->prepare("
+    SELECT id, username, email, full_name, role, department, address, birthday, civil_status, is_active, account_status, created_at, updated_at, id_file_path 
+    FROM users 
+    WHERE role IN ('lgu_staff', 'citizen') AND account_status = 'deactivated'
+    ORDER BY updated_at DESC
+");
+$stmt3->execute();
+$deactivated_users = $stmt3->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt3->close();
 
 // Calculate stats
 $active_accounts = 0;
@@ -399,6 +424,11 @@ try {
 
         .status-rejected {
             background: #ef4444;
+            color: white;
+        }
+
+        .status-deactivated {
+            background: #6c757d;
             color: white;
         }
 
@@ -733,6 +763,13 @@ try {
                 <div class="stat-number"><?php echo count($unverified_users); ?></div>
                 <div class="stat-label">Pending/Rejected Accounts</div>
             </div>
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-user-xmark"></i>
+                </div>
+                <div class="stat-number"><?php echo count($deactivated_users); ?></div>
+                <div class="stat-label">Deactivated Accounts</div>
+            </div>
         </div>
 
         <div class="workflow-container">
@@ -859,6 +896,60 @@ try {
                                             <td>
                                                 <div class="action-buttons">
                                                     <button class="btn-sm btn-placeholder" onclick="showUnverifiedUserModal(<?php echo $user['id']; ?>)">Manage</button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Deactivated Accounts -->
+            <div class="workflow-card">
+                <div class="workflow-header">
+                    <h3 class="workflow-title">
+                        <i class="fas fa-user-xmark"></i>
+                        <span>Deactivated Accounts</span>
+                        <span class="workflow-badge"><?php echo count($deactivated_users); ?></span>
+                    </h3>
+                </div>
+                
+                <div class="workflow-content">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Department</th>
+                                    <th>Status</th>
+                                    <th>Deactivated On</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (empty($deactivated_users)): ?>
+                                    <tr>
+                                        <td colspan="7" style="text-align: center; color: #64748b;">No deactivated accounts found</td>
+                                    </tr>
+                                <?php else: ?>
+                                    <?php foreach ($deactivated_users as $user): ?>
+                                        <tr>
+                                            <td><?php echo htmlspecialchars($user['full_name']); ?></td>
+                                            <td><?php echo htmlspecialchars($user['email']); ?></td>
+                                            <td><?php echo htmlspecialchars($user['role']); ?></td>
+                                            <td><?php echo htmlspecialchars($user['department'] ?? 'N/A'); ?></td>
+                                            <td>
+                                                <span class="status-badge status-deactivated">Deactivated</span>
+                                            </td>
+                                            <td><?php echo date('M d, Y', strtotime($user['updated_at'])); ?></td>
+                                            <td>
+                                                <div class="action-buttons">
+                                                    <button class="btn-sm btn-approve" onclick="reactivateAccount(<?php echo $user['id']; ?>)"><i class="fas fa-rotate-right"></i> Reactivate</button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -1083,6 +1174,32 @@ try {
                         location.reload();
                     } else {
                         alert(result.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred. Please try again.');
+                });
+            }
+        }
+
+        function reactivateAccount(userId) {
+            if (confirm('Are you sure you want to reactivate this account?')) {
+                const formData = new FormData();
+                formData.append('action', 'reactivate_user');
+                formData.append('user_id', userId);
+                formData.append('remarks', 'Reactivated by admin from Manage Accounts');
+                
+                fetch('', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        location.reload();
+                    } else {
+                        alert(result.message || 'Failed to reactivate account.');
                     }
                 })
                 .catch(error => {
