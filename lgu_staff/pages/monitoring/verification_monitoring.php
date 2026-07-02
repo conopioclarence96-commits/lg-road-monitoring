@@ -1300,8 +1300,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <button class="filter-tab" onclick="showPending()">Pending Review</button>
             <button class="filter-tab" onclick="showApproved()">Approved</button>
             <button class="filter-tab" onclick="showRejected()">Rejected</button>
-            <button class="filter-tab" onclick="showStaffReports()">LGU Staff</button>
-            <button class="filter-tab" onclick="showCIMReports()">CIM Reports</button>
+
         </div>
 
         <!-- Workflow Container -->
@@ -1805,59 +1804,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             document.getElementById('section-badge').textContent = count;
         }
 
-        function showStaffReports() {
-            document.querySelectorAll('.filter-tab').forEach(tab => tab.classList.remove('active'));
-            event.target.classList.add('active');
-            const items = document.querySelectorAll('.verification-item');
-            let count = 0;
-            
-            items.forEach(item => {
-                if (item.dataset.createdBy && item.dataset.createdBy !== '0' && item.dataset.createdBy !== '') {
-                    item.style.display = 'flex';
-                    count++;
-                } else {
-                    item.style.display = 'none';
-                }
-            });
-            document.getElementById('section-title').textContent = 'LGU Staff Reports';
-            document.getElementById('section-badge').textContent = count;
-        }
 
-        function showCIMReports() {
-            document.querySelectorAll('.filter-tab').forEach(tab => tab.classList.remove('active'));
-            event.target.classList.add('active');
-            const items = document.querySelectorAll('.verification-item');
-            let count = 0;
-            
-            items.forEach(item => {
-                if (item.dataset.reporterName && item.dataset.reporterName.toLowerCase().includes('cim')) {
-                    item.style.display = 'flex';
-                    count++;
-                } else {
-                    item.style.display = 'none';
-                }
-            });
-            document.getElementById('section-title').textContent = 'CIM Reports';
-            document.getElementById('section-badge').textContent = count;
-        }
-
-        function showLGUOfficerReports() {
-            document.querySelectorAll('.filter-tab').forEach(tab => tab.classList.remove('active'));
-            event.target.classList.add('active');
-            const items = document.querySelectorAll('.verification-item');
-            let count = 0;
-            
-            items.forEach(item => {
-                if (item.dataset.reporterName && item.dataset.reporterName.toLowerCase().includes('officer')) {
-                    item.style.display = 'flex';
-                    count++;
-                } else {
-                    item.style.display = 'none';
-                }
-            });
-            document.getElementById('section-title').textContent = 'LGU Officer Reports';
-            document.getElementById('section-badge').textContent = count;
-        }
 
         // Toggle expanded details inline
         function toggleDetails(reportId) {
