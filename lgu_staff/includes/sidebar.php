@@ -98,6 +98,12 @@ function getNavigationItems($user_role) {
         ],
         'system' => [
             [
+                'href' => '../pages/main/notifications.php',
+                'icon' => 'bell',
+                'title' => 'Notifications',
+                'roles' => ['system_admin']
+            ],
+            [
                 'href' => '../pages/main/settings.php',
                 'icon' => 'gear',
                 'title' => 'Settings',
@@ -121,22 +127,33 @@ function getNavigationItems($user_role) {
 function getNotificationCount() {
     global $conn;
     
+    $count = 0;
+    
     if ($conn) {
-        // Count pending reports for the user's role
-        $user_role = $_SESSION['user_role'] ?? 'staff';
-        
-        if ($user_role === 'staff') {
+        // Count pending reports (from other departments)
+        try {
             $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'pending'");
-        } else {
-            $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'pending' AND priority = 'high'");
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $count += $result->fetch_assoc()['count'];
+            $stmt->close();
+        } catch (Exception $e) {
+            // Ignore errors
         }
         
-        $stmt->execute();
-        $result = $stmt->get_result();
-        return $result->fetch_assoc()['count'];
+        // Count pending account requests from users
+        try {
+            $stmt = $conn->prepare("SELECT COUNT(*) as count FROM users WHERE account_status = 'pending'");
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $count += $result->fetch_assoc()['count'];
+            $stmt->close();
+        } catch (Exception $e) {
+            // Ignore errors
+        }
     }
     
-    return 0;
+    return $count;
 }
 
 // Get user data
@@ -441,13 +458,14 @@ $notification_count = getNotificationCount();
                                                 'clipboard-data' => '<path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/><path d="M4 11a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm4-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm0 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm4-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/><path d="M7 10.5v.5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1-.5-.5v-.5a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5zm0-2v.5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1-.5-.5v-.5a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5zm4 0v.5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1-.5-.5v-.5a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5z"/>',
                                                 'eye' => '<path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/><path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>',
                                                 'users' => '<path d="M15 14s1 0 1-1-1-4-5-4-5 3-5 4 1 1 1 1h8zm-7.978-1A.261.261 0 0 1 7 12.996c.001-.264.167-1.03.76-1.72C8.312 10.629 9.282 10 11 10c1.717 0 2.687.63 3.24 1.276.593.69.758 1.457.76 1.72l-.008.002a.274.274 0 0 1-.014.002H7.022zM11 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm3-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM6.936 9.28a5.88 5.88 0 0 0-1.23-.247A7.35 7.35 0 0 0 5 9c-4 0-5 3-5 4 0 .667.333 1 1 1h4.216A2.238 2.238 0 0 1 5 13c0-1.01.377-2.042 1.09-2.904.243-.294.526-.569.846-.816zM4.92 10A5.493 5.493 0 0 0 4 13H1c0-.26.164-1.03.76-1.724.545-.636 1.492-1.256 3.16-1.275zM1.5 5.5a3 3 0 1 1 6 0 3 3 0 0 1-6 0zm3-2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/>',
-                                                'person-plus' => '<path d="M6 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H4s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C9.516 10.68 8.289 10 6 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z"/><path fill-rule="evenodd" d="M13.5 5a.5.5 0 0 1 .5.5V7h1.5a.5.5 0 0 1 0 1H14v1.5a.5.5 0 0 1-1 0V8h-1.5a.5.5 0 0 1 0-1H13V5.5a.5.5 0 0 1 .5-.5"/>'
+                                                'person-plus' => '<path d="M6 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H4s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C9.516 10.68 8.289 10 6 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z"/><path fill-rule="evenodd" d="M13.5 5a.5.5 0 0 1 .5.5V7h1.5a.5.5 0 0 1 0 1H14v1.5a.5.5 0 0 1-1 0V8h-1.5a.5.5 0 0 1 0-1H13V5.5a.5.5 0 0 1 .5-.5"/>',
+                                                'bell' => '<path d="M8 16a2 2 0 0 0 1.985-1.75c.017-.137-.097-.25-.235-.25h-3.5c-.138 0-.252.113-.235.25A2 2 0 0 0 8 16zM3 5a5 5 0 0 1 10 0v2.947c0 .05.015.098.042.139l1.703 2.555A1.519 1.519 0 0 1 13.482 13H2.518a1.516 1.516 0 0 1-1.263-2.36l1.703-2.554A.255.255 0 0 0 3 7.947V5zm5-3.5A3.5 3.5 0 0 0 4.5 5v2.947c0 .346-.102.683-.294.97l-1.703 2.556a.017.017 0 0 0-.003.01l.001.006c0 .002.002.004.004.006l.006.004.007.001h10.964l.007-.001.006-.004.004-.006.001-.007a.017.017 0 0 0-.003-.01l-1.703-2.554a1.745 1.745 0 0 1-.294-.97V5A3.5 3.5 0 0 0 8 1.5z"/>'
                                             ];
                                             echo $icon_paths[$item['icon']] ?? '';
                                             ?>
                                         </svg>
                                         <?php echo htmlspecialchars($item['title']); ?>
-                                        <?php if ($notification_count > 0 && $item['href'] === '../pages/verification_monitoring.php'): ?>
+                                        <?php if ($notification_count > 0 && $item['icon'] === 'bell'): ?>
                                             <span class="notification-badge"><?php echo $notification_count; ?></span>
                                         <?php endif; ?>
                                     </a>
