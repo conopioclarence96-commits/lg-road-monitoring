@@ -119,6 +119,27 @@ if ($database_available && $conn) {
         // Handle database errors gracefully
     }
 }
+
+// Load access control settings
+$access_settings = [];
+if ($database_available && $conn) {
+    try {
+        $result = $conn->query("SELECT setting_key, setting_value FROM site_settings");
+        if ($result) {
+            while ($row = $result->fetch_assoc()) {
+                $access_settings[$row['setting_key']] = $row['setting_value'];
+            }
+        }
+    } catch (Exception $e) {
+        // Settings table may not exist yet
+    }
+}
+
+$is_private = ($access_settings['landing_page_private'] ?? '0') === '1';
+$is_logged_in = isset($_SESSION['user_id']);
+$restricted = $is_private && !$is_logged_in;
+$custom_message = $access_settings['custom_message'] ?? '';
+$redirect_url = $access_settings['redirect_url'] ?? '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -456,6 +477,42 @@ if ($database_available && $conn) {
     </style>
 </head>
 <body>
+    <?php if ($restricted): ?>
+    <style>
+        .restricted-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 9999; backdrop-filter: blur(8px);
+        }
+        .restricted-card {
+            background: white; border-radius: 16px; padding: 40px;
+            max-width: 480px; width: 90%; text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .restricted-card i { font-size: 48px; color: #dc3545; margin-bottom: 20px; }
+        .restricted-card h2 { font-size: 24px; color: #1e3c72; margin-bottom: 10px; }
+        .restricted-card p { color: #666; margin-bottom: 25px; line-height: 1.6; }
+        .restricted-card .btn-login {
+            display: inline-block; background: #3762c8; color: white;
+            padding: 12px 32px; border-radius: 25px; text-decoration: none;
+            font-weight: 600; transition: all 0.3s;
+        }
+        .restricted-card .btn-login:hover { background: #2a4fa8; transform: translateY(-2px); }
+    </style>
+    <div class="restricted-overlay" id="restrictedOverlay">
+        <div class="restricted-card">
+            <i class="fas fa-lock"></i>
+            <h2>Access Restricted</h2>
+            <p><?php echo !empty($custom_message) ? htmlspecialchars($custom_message) : 'This page is currently private. Please log in to continue.'; ?></p>
+            <?php if (!empty($redirect_url)): ?>
+                <a href="<?php echo htmlspecialchars($redirect_url); ?>" class="btn-login"><i class="fas fa-external-link-alt"></i> Go to Redirect</a>
+            <?php else: ?>
+                <a href="lgu_staff/login.php" class="btn-login"><i class="fas fa-sign-in-alt"></i> Login to Access</a>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark fixed-top">
         <div class="container">
@@ -489,7 +546,7 @@ if ($database_available && $conn) {
     </nav>
 
     <!-- Hero Section -->
-    <section class="hero" id="home">
+    <section class="hero" id="home" <?php echo ($access_settings['hide_hero'] ?? '0') === '1' ? 'style="display:none"' : ''; ?>>
         <div class="container">
             <h1>Road and Transportation Monitoring System</h1>
             <p class="lead">
@@ -504,7 +561,7 @@ if ($database_available && $conn) {
     </section>
 
     <!-- Road Updates Section -->
-    <section class="section" id="updates">
+    <section class="section" id="updates" <?php echo ($access_settings['hide_updates'] ?? '0') === '1' ? 'style="display:none"' : ''; ?>>
         <div class="container">
             <h2 class="section-title">Road Updates & Announcements</h2>
             <p class="section-subtitle">Stay informed about the latest road conditions and maintenance activities</p>
@@ -603,7 +660,7 @@ if ($database_available && $conn) {
     </section>
 
     <!-- Statistics Section -->
-    <section class="section bg-light">
+    <section class="section bg-light" <?php echo ($access_settings['hide_stats'] ?? '0') === '1' ? 'style="display:none"' : ''; ?>>
         <div class="container">
             <h2 class="section-title">Monitoring Statistics</h2>
             <p class="section-subtitle">Real-time overview of road monitoring activities</p>
@@ -650,7 +707,7 @@ if ($database_available && $conn) {
     </section>
 
     <!-- About Section -->
-    <section class="section" id="about">
+    <section class="section" id="about" <?php echo ($access_settings['hide_about'] ?? '0') === '1' ? 'style="display:none"' : ''; ?>>
         <div class="container">
             <h2 class="section-title">About Road and Transportation Department</h2>
             <p class="section-subtitle">Our commitment to safe and efficient transportation infrastructure</p>
@@ -678,7 +735,7 @@ if ($database_available && $conn) {
     </section>
 
     <!-- Contact Section -->
-    <section class="section contact-section" id="contact">
+    <section class="section contact-section" id="contact" <?php echo ($access_settings['hide_contact'] ?? '0') === '1' ? 'style="display:none"' : ''; ?>>
         <div class="container">
             <h2 class="section-title text-white">Contact Us</h2>
             <p class="section-subtitle text-white">Get in touch with our team for assistance and inquiries</p>
