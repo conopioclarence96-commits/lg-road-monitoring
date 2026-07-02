@@ -522,9 +522,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <input type="email" id="email" name="email" required placeholder="e.g. juan@lgu.gov.ph">
                         </div>
                         <div class="form-group">
-                            <label for="department">Department / LGU Service</label>
+                            <label for="department">Department</label>
                             <select id="department" name="department" disabled>
-                                <option value="Road and Transportation" selected>Road and Transportation</option>
+                                <option value="LGU Services" selected>LGU Services</option>
                                 <option value="Engineering">Engineering</option>
                                 <option value="Planning">Planning</option>
                                 <option value="Maintenance">Maintenance</option>
@@ -660,7 +660,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     `;
                     document.getElementById('createForm').reset();
-                    document.getElementById('department').value = 'Road and Transportation';
+                    document.getElementById('department').value = 'LGU Services';
                     document.getElementById('role').value = 'lgu_staff';
                     resetFileDisplay();
                 } else {
@@ -716,7 +716,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         function resetForm() {
             document.getElementById('createForm').reset();
-            document.getElementById('department').value = 'Road and Transportation';
+            document.getElementById('department').value = 'LGU Services';
             document.getElementById('role').value = 'lgu_staff';
             document.getElementById('alertContainer').innerHTML = '';
             resetFileDisplay();
