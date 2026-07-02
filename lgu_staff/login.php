@@ -39,6 +39,23 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
     $basePath = '';
 }
 
+// Load access control settings
+$disable_signup = false;
+$custom_message = '';
+$redirect_url = '';
+if ($conn) {
+    try {
+        $result = $conn->query("SELECT setting_key, setting_value FROM site_settings");
+        if ($result) {
+            while ($row = $result->fetch_assoc()) {
+                if ($row['setting_key'] === 'disable_signup') $disable_signup = $row['setting_value'] === '1';
+                if ($row['setting_key'] === 'custom_message') $custom_message = $row['setting_value'];
+                if ($row['setting_key'] === 'redirect_url') $redirect_url = $row['setting_value'];
+            }
+        }
+    } catch (Exception $e) {}
+}
+
 // Create dump LGU staff account (for testing purposes)
 if (isset($_GET['create_dump_account']) && $_GET['create_dump_account'] === 'lgu_staff') {
     try {
@@ -583,18 +600,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
 
               <button class="btn-primary">Sign In</button>
 
+              <?php if (!$disable_signup): ?>
               <p class="small-text">
                 Don't have an account?
                 <a href="#" class="link" onclick="showPanel('register')"
                   >Create one</a
                 >
               </p>
+              <?php else: ?>
+              <p class="small-text" style="color:#999;">
+                Registration is currently disabled.
+              </p>
+              <?php endif; ?>
             </form>
           </div>
         </div>
 
         <!-- REGISTER STEP 1 -->
-        <div class="panel register">
+        <div class="panel register" <?php echo $disable_signup ? 'style="display:none"' : ''; ?>>
           <div class="card">
             <h2 class="title">Create Account - Step 1</h2>
             <p class="subtitle">Enter your email and password.</p>

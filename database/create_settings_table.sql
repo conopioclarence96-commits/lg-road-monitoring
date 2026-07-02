@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS site_settings (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_picture VARCHAR(255) DEFAULT NULL AFTER email;
+
 INSERT IGNORE INTO site_settings (setting_key, setting_value) VALUES
 ('landing_page_private', '0'),
 ('hide_hero', '0'),

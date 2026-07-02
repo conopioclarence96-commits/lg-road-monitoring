@@ -17,6 +17,14 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'system_admin') {
 
 $user_id = $_SESSION['user_id'];
 
+// Ensure profile_picture column exists
+try {
+    $check_col = $conn->query("SHOW COLUMNS FROM users LIKE 'profile_picture'");
+    if ($check_col->num_rows === 0) {
+        $conn->query("ALTER TABLE users ADD COLUMN profile_picture VARCHAR(255) DEFAULT NULL AFTER email");
+    }
+} catch (Exception $e) {}
+
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
