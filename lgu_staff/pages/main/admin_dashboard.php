@@ -739,6 +739,67 @@ try {
             max-height: 300px;
         }
 
+        .chart-body {
+            display: flex;
+            align-items: center;
+            gap: 25px;
+        }
+
+        .chart-body .chart-container {
+            flex: 0 0 55%;
+            max-height: 260px;
+        }
+
+        .chart-summary {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .chart-summary-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            background: rgba(241, 245, 249, 0.7);
+            transition: background 0.2s;
+        }
+
+        .chart-summary-item:hover {
+            background: rgba(241, 245, 249, 1);
+        }
+
+        .summary-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .summary-info {
+            flex: 1;
+        }
+
+        .summary-label {
+            font-size: 12px;
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        .summary-count {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1e3c72;
+        }
+
+        .summary-percent {
+            font-size: 13px;
+            font-weight: 600;
+            color: #94a3b8;
+        }
+
         .chart-full {
             grid-column: 1 / -1;
         }
@@ -828,6 +889,15 @@ try {
 
             .charts-section {
                 grid-template-columns: 1fr;
+            }
+
+            .chart-body {
+                flex-direction: column;
+            }
+
+            .chart-body .chart-container {
+                flex: 0 0 auto;
+                max-height: 260px;
             }
         }
     .modal {
@@ -968,9 +1038,34 @@ try {
                         <i class="fas fa-chart-pie"></i>
                         <span>User Accounts Overview</span>
                     </h3>
+                    <span class="workflow-badge"><?php echo $stats['pending_users'] + $stats['approved_users'] + $stats['inactive_2weeks'] + $stats['deactivated_users']; ?> Total</span>
                 </div>
-                <div class="chart-container">
-                    <canvas id="userAccountsChart"></canvas>
+                <div class="chart-body">
+                    <div class="chart-container">
+                        <canvas id="userAccountsChart"></canvas>
+                    </div>
+                    <div class="chart-summary">
+                        <?php
+                        $total_users = $stats['pending_users'] + $stats['approved_users'] + $stats['inactive_2weeks'] + $stats['deactivated_users'];
+                        $summary_items = [
+                            ['label' => 'Pending', 'count' => $stats['pending_users'], 'color' => '#f59e0b'],
+                            ['label' => 'Approved', 'count' => $stats['approved_users'], 'color' => '#10b981'],
+                            ['label' => 'Inactive (2+ Weeks)', 'count' => $stats['inactive_2weeks'], 'color' => '#6b7280'],
+                            ['label' => 'Deactivated', 'count' => $stats['deactivated_users'], 'color' => '#ef4444'],
+                        ];
+                        foreach ($summary_items as $item):
+                            $pct = $total_users > 0 ? round(($item['count'] / $total_users) * 100) : 0;
+                        ?>
+                        <div class="chart-summary-item">
+                            <span class="summary-dot" style="background: <?php echo $item['color']; ?>;"></span>
+                            <div class="summary-info">
+                                <div class="summary-label"><?php echo $item['label']; ?></div>
+                            </div>
+                            <div class="summary-count"><?php echo $item['count']; ?></div>
+                            <div class="summary-percent"><?php echo $pct; ?>%</div>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
                 </div>
             </div>
 
