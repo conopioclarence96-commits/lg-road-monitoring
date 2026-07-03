@@ -590,7 +590,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
 
               <div class="input-box">
                 <label>Password</label>
-                <input type="password" name="password" placeholder="•••••••" />
+                <input type="password" name="password" id="loginPassword" placeholder="•••••••" />
+                <button type="button" class="password-toggle" onclick="togglePassword('loginPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
                 <span class="icon">🔒</span>
               </div>
 
@@ -634,7 +635,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
 
               <div class="input-box">
                 <label>Password</label>
-                <input type="password" name="password" placeholder="•••••••" required />
+                <input type="password" name="password" id="registerPassword" placeholder="•••••••" required />
+                <button type="button" class="password-toggle" onclick="togglePassword('registerPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
                 <span class="icon">🔒</span>
               </div>
 
@@ -842,6 +844,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
       .otp-input:focus {
         border-color: #0066cc;
       }
+
+      .password-toggle {
+        position: absolute;
+        right: 38px;
+        top: 45px;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: #888;
+        padding: 4px;
+        font-size: 16px;
+        line-height: 1;
+        z-index: 2;
+        transition: color 0.2s;
+      }
+      .password-toggle:hover {
+        color: #333;
+      }
       
       .otp-actions {
         margin: 20px 0;
@@ -905,6 +926,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
       
       function closeOTPModal() {
         document.getElementById('otpModal').style.display = 'none';
+      }
+
+      function togglePassword(inputId, btn) {
+        var input = document.getElementById(inputId);
+        if (input.type === 'password') {
+          input.type = 'text';
+          btn.querySelector('i').className = 'fas fa-eye-slash';
+        } else {
+          input.type = 'password';
+          btn.querySelector('i').className = 'fas fa-eye';
+        }
       }
 
       // Auto-focus on email field for login

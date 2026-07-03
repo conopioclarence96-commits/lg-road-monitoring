@@ -504,6 +504,31 @@ try {
         .security-divider {
             height: 1px; background: #f0f2f4; margin: 20px 0;
         }
+        .password-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        .password-wrapper .form-control {
+            padding-right: 40px;
+        }
+        .password-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #888;
+            padding: 4px;
+            font-size: 16px;
+            line-height: 1;
+            transition: color 0.2s;
+        }
+        .password-toggle:hover {
+            color: #333;
+        }
         .twofa-section {
             display: flex; align-items: center; justify-content: space-between;
             padding: 16px 20px;
@@ -581,6 +606,8 @@ try {
             border-color: #60a5fa;
             box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.15);
         }
+        body.dark-mode .password-toggle { color: #6b7280; }
+        body.dark-mode .password-toggle:hover { color: #e4e6ea; }
         body.dark-mode .profile-info h2 { color: #e4e6ea; }
         body.dark-mode .profile-info .profile-meta span { color: #9ca3af; }
         body.dark-mode .profile-meta .role-badge-header {
@@ -744,15 +771,24 @@ try {
                                 <div class="form-grid-3">
                                     <div class="form-group">
                                         <label>Current Password</label>
-                                        <input type="password" name="current_password" class="form-control" placeholder="Enter current password" required>
+                                        <div class="password-wrapper">
+                                            <input type="password" name="current_password" id="currentPassword" class="form-control" placeholder="Enter current password" required>
+                                            <button type="button" class="password-toggle" onclick="togglePassword('currentPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
+                                        </div>
                                     </div>
                                     <div class="form-group">
                                         <label>New Password</label>
-                                        <input type="password" name="new_password" class="form-control" placeholder="Min. 8 characters" required minlength="8">
+                                        <div class="password-wrapper">
+                                            <input type="password" name="new_password" id="newPassword" class="form-control" placeholder="Min. 8 characters" required minlength="8">
+                                            <button type="button" class="password-toggle" onclick="togglePassword('newPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
+                                        </div>
                                     </div>
                                     <div class="form-group">
                                         <label>Confirm New Password</label>
-                                        <input type="password" name="confirm_password" class="form-control" placeholder="Repeat new password" required minlength="8">
+                                        <div class="password-wrapper">
+                                            <input type="password" name="confirm_password" id="confirmPassword" class="form-control" placeholder="Repeat new password" required minlength="8">
+                                            <button type="button" class="password-toggle" onclick="togglePassword('confirmPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="form-actions">
@@ -975,6 +1011,16 @@ try {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        function togglePassword(inputId, btn) {
+            var input = document.getElementById(inputId);
+            if (input.type === 'password') {
+                input.type = 'text';
+                btn.querySelector('i').className = 'fas fa-eye-slash';
+            } else {
+                input.type = 'password';
+                btn.querySelector('i').className = 'fas fa-eye';
+            }
+        }
         // Tab switching
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.addEventListener('click', function() {
