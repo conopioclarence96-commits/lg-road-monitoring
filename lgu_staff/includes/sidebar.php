@@ -50,6 +50,12 @@ function getNavigationItems($user_role) {
                 'roles' => ['lgu_staff']
             ],
             [
+                'href' => '../pages/main/change_info.php',
+                'icon' => 'user-edit',
+                'title' => 'Change Information',
+                'roles' => ['lgu_staff']
+            ],
+            [
                 'href' => '../pages/main/admin_dashboard.php',
                 'icon' => 'speedometer2',
                 'title' => 'Admin Dashboard',
@@ -59,6 +65,12 @@ function getNavigationItems($user_role) {
                 'href' => '../pages/main/manage_accounts.php',
                 'icon' => 'users',
                 'title' => 'Manage Accounts',
+                'roles' => ['system_admin']
+            ],
+            [
+                'href' => '../pages/main/account_approvals.php',
+                'icon' => 'clipboard-check',
+                'title' => 'Account Approvals',
                 'roles' => ['system_admin']
             ],
             [
@@ -101,13 +113,13 @@ function getNavigationItems($user_role) {
                 'href' => '../pages/main/notifications.php',
                 'icon' => 'bell',
                 'title' => 'Notifications',
-                'roles' => ['system_admin']
+                'roles' => ['system_admin', 'lgu_staff']
             ],
             [
                 'href' => '../pages/main/settings.php',
                 'icon' => 'gear',
                 'title' => 'Settings',
-                'roles' => ['system_admin']
+                'roles' => ['system_admin','lgu_staff']
             ]
         ]
     ];
@@ -124,12 +136,13 @@ function getNavigationItems($user_role) {
 }
 
 // Function to get notification count
-function getNotificationCount() {
+function getNotificationCount($user_role = '', $user_id = 0) {
     global $conn;
     
     $count = 0;
     
     if ($conn) {
+<<<<<<< HEAD
         try {
             $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'pending'");
             $stmt->execute();
@@ -148,6 +161,65 @@ function getNotificationCount() {
             $stmt->close();
         } catch (Exception $e) {
             // Ignore errors
+=======
+        if ($user_role === 'system_admin') {
+            // Count pending reports (from other departments)
+            try {
+                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'pending'");
+                $stmt->execute();
+                $result = $stmt->get_result();
+                $count += $result->fetch_assoc()['count'];
+                $stmt->close();
+            } catch (Exception $e) {
+                // Ignore errors
+            }
+            
+            // Count pending account requests from users
+            try {
+                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM users WHERE account_status = 'pending'");
+                $stmt->execute();
+                $result = $stmt->get_result();
+                $count += $result->fetch_assoc()['count'];
+                $stmt->close();
+            } catch (Exception $e) {
+                // Ignore errors
+            }
+            
+            // Count pending change requests
+            try {
+                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM change_requests WHERE status = 'pending'");
+                $stmt->execute();
+                $result = $stmt->get_result();
+                $count += $result->fetch_assoc()['count'];
+                $stmt->close();
+            } catch (Exception $e) {
+                // Ignore errors
+            }
+        } elseif ($user_role === 'lgu_staff' && $user_id > 0) {
+            // Count staff's own reviewed change requests
+            try {
+                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM change_requests WHERE user_id = ? AND status != 'pending'");
+                $stmt->bind_param("i", $user_id);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                $count += $result->fetch_assoc()['count'];
+                $stmt->close();
+            } catch (Exception $e) {
+                // Ignore errors
+            }
+
+            // Count staff's own report status updates
+            try {
+                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE created_by = ? AND status IN ('completed', 'cancelled')");
+                $stmt->bind_param("i", $user_id);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                $count += $result->fetch_assoc()['count'];
+                $stmt->close();
+            } catch (Exception $e) {
+                // Ignore errors
+            }
+>>>>>>> 79b223bdeaf045e9d43c129843416b9e8d63afda
         }
     }
     
@@ -199,8 +271,12 @@ function getNotifications() {
 $user_info = getUserInfo();
 $user_role = $_SESSION['role'] ?? $user_info['role'] ?? 'citizen'; // Use session role first
 $nav_items = getNavigationItems($user_role);
+<<<<<<< HEAD
 $notification_count = getNotificationCount();
 $notifications = ($user_role === 'system_admin') ? getNotifications() : ['reports' => [], 'users' => []];
+=======
+$notification_count = getNotificationCount($user_role, $_SESSION['user_id'] ?? 0);
+>>>>>>> 79b223bdeaf045e9d43c129843416b9e8d63afda
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -407,6 +483,7 @@ $notifications = ($user_role === 'system_admin') ? getNotifications() : ['report
             background: #555;
         }
 
+<<<<<<< HEAD
         /* Notification Dropdown */
         .notification-wrapper {
             position: relative;
@@ -736,10 +813,103 @@ $notifications = ($user_role === 'system_admin') ? getNotifications() : ['report
             justify-content: center;
             border: 2px solid white;
             line-height: 1;
+=======
+        body.dark-mode {
+            background: #1a1d23 !important;
+        }
+
+        body.dark-mode .sidebar {
+            background: linear-gradient(135deg, #1a1d23 0%, #22262e 100%) !important;
+        }
+
+        body.dark-mode .sidebar-header {
+            border-color: #2d323b !important;
+        }
+
+        body.dark-mode .sidebar-header h2 {
+            color: #e4e6ea !important;
+        }
+
+        body.dark-mode .sidebar-header p {
+            color: #9ca3af !important;
+        }
+
+        body.dark-mode .user-info {
+            background: rgba(255,255,255,0.05) !important;
+        }
+
+        body.dark-mode .user-info span {
+            color: #e4e6ea !important;
+        }
+
+        body.dark-mode .user-info small {
+            color: #9ca3af !important;
+        }
+
+        body.dark-mode .nav-section {
+            color: #6b7280 !important;
+        }
+
+        body.dark-mode .nav-link {
+            color: #ffffff !important;
+        }
+
+        body.dark-mode .nav-link:hover {
+            background: rgba(255,255,255,0.08) !important;
+            color: #ffffff !important;
+            border-left-color: #60a5fa !important;
+        }
+
+        body.dark-mode .nav-link.active {
+            background: rgba(96,165,250,0.15) !important;
+            color: #ffffff !important;
+            border-left-color: #60a5fa !important;
+        }
+
+        body.dark-mode .nav-link svg,
+        body.dark-mode .nav-link i {
+            color: #d1d5db !important;
+        }
+
+        body.dark-mode .nav-link:hover svg,
+        body.dark-mode .nav-link.active svg,
+        body.dark-mode .nav-link:hover i,
+        body.dark-mode .nav-link.active i {
+            color: #ffffff !important;
+        }
+
+        body.dark-mode .nav-link .badge {
+            background: #2563eb !important;
+            color: white !important;
+        }
+
+        body.dark-mode .sidebar-footer {
+            border-color: #2d323b !important;
+        }
+
+        body.dark-mode .sidebar-footer a {
+            color: #9ca3af !important;
+        }
+
+        body.dark-mode .sidebar-footer a:hover {
+            color: #f87171 !important;
+        }
+
+        body.dark-mode .sidebar-content::-webkit-scrollbar-track {
+            background: #1a1d23 !important;
+        }
+
+        body.dark-mode .sidebar-content::-webkit-scrollbar-thumb {
+            background: #2d323b !important;
+        }
+
+        body.dark-mode .sidebar-content::-webkit-scrollbar-thumb:hover {
+            background: #3d4350 !important;
+>>>>>>> 79b223bdeaf045e9d43c129843416b9e8d63afda
         }
     </style>
 </head>
-<body>
+<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
     <div class="sidebar">
         <div class="sidebar-header">
             <h2>LGU Staff Portal</h2>
@@ -866,6 +1036,7 @@ $notifications = ($user_role === 'system_admin') ? getNotifications() : ['report
         </div>
     </div>
 
+<<<<<<< HEAD
     <!-- Notification Overlay -->
     <div class="notif-overlay" id="notifOverlay" onclick="closeNotificationDropdown()"></div>
 
@@ -963,10 +1134,15 @@ $notifications = ($user_role === 'system_admin') ? getNotifications() : ['report
 
     <!-- Page Transition Overlay -->
         // Page transition for logout link
+=======
+    <script>
+        // Page transition for logout link with confirmation
+>>>>>>> 79b223bdeaf045e9d43c129843416b9e8d63afda
         document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('a[href*="logout.php"]').forEach(link => {
                 link.addEventListener('click', function (e) {
                     e.preventDefault();
+                    if (!confirm('Are you sure you want to log out?')) return;
                     const overlay = document.getElementById('pageTransitionOverlay');
                     overlay.classList.add('active');
                     
