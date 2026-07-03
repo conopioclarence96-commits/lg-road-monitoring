@@ -1196,49 +1196,6 @@ try {
                     </div>
                 </div>
             </div>
-
-            <!-- Audit Log -->
-            <div class="workflow-card">
-                <div class="workflow-header">
-                    <h3 class="workflow-title">
-                        <i class="fas fa-history"></i>
-                        <span>Recent Admin Actions</span>
-                        <span class="workflow-badge"><?php echo count($audit_log); ?></span>
-                    </h3>
-                </div>
-                
-                <div class="workflow-content">
-                    <?php if (empty($audit_log)): ?>
-                        <div class="log-entry">
-                            <div class="log-action">No admin actions found</div>
-                        </div>
-                    <?php else: ?>
-                        <?php foreach ($audit_log as $action): ?>
-                            <div class="log-entry">
-                                <div class="log-action"><?php echo htmlspecialchars($action['action']); ?></div>
-                                <div class="log-details">
-                                    <?php echo htmlspecialchars($action['details']); ?>
-                                    <?php if ($action['admin_name']): ?>
-                                        by <?php echo htmlspecialchars($action['admin_name']); ?>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="log-time"><?php echo date('M d, Y H:i', strtotime($action['created_at'])); ?></div>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                <input type="hidden" name="action" id="modalAction">
-                <input type="hidden" name="user_id" id="modalUserId">
-                
-                <div class="form-group">
-                    <label for="remarks">Remarks (Optional)</label>
-                    <textarea name="remarks" id="remarks" rows="3" placeholder="Add any notes about this action..."></textarea>
-                </div>
-                
-                <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                    <button type="button" class="btn-sm" onclick="closeModal()">Cancel</button>
-                    <button type="submit" class="btn-sm" id="modalSubmitBtn">Confirm</button>
-                </div>
-            </form>
         </div>
     </div>
 

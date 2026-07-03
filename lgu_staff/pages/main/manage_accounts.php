@@ -961,37 +961,6 @@ try {
                 </div>
             </div>
 
-            <!-- Audit Log -->
-            <div class="workflow-card">
-                <div class="workflow-header">
-                    <h3 class="workflow-title">
-                        <i class="fas fa-history"></i>
-                        <span>Recent Admin Actions</span>
-                        <span class="workflow-badge"><?php echo count($audit_log); ?></span>
-                    </h3>
-                </div>
-                
-                <div class="workflow-content audit-log">
-                    <?php if (empty($audit_log)): ?>
-                        <div class="log-entry">
-                            <div class="log-action">No admin actions found</div>
-                        </div>
-                    <?php else: ?>
-                        <?php foreach ($audit_log as $action): ?>
-                            <div class="log-entry">
-                                <div class="log-action"><?php echo htmlspecialchars($action['action']); ?></div>
-                                <div class="log-details">
-                                    <?php echo htmlspecialchars($action['details']); ?>
-                                    <?php if ($action['admin_name']): ?>
-                                        by <?php echo htmlspecialchars($action['admin_name']); ?>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="log-time"><?php echo date('M d, Y H:i', strtotime($action['created_at'])); ?></div>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
-            </div>
         </div>
     </div>
 
