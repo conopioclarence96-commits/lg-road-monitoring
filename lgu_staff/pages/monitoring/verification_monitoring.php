@@ -332,20 +332,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         body {
-            background: url("../../../assets/img/cityhall.jpeg") center/cover no-repeat fixed;
-            position: relative;
+            background: #ffffff;
             min-height: 100vh;
             margin: 0;
             padding: 0;
-        }
-        
-        body::before {
-            content: "";
-            position: absolute;
-            inset: 0;
-            backdrop-filter: blur(6px);
-            background: rgba(0, 0, 0, 0.35);
-            z-index: -1;
         }
 
         html { scroll-behavior: smooth; }

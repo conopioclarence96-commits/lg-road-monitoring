@@ -194,15 +194,8 @@ try {
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
         body {
-            background: url("../../../assets/img/cityhall.jpeg") center/cover no-repeat fixed;
+            background: #ffffff;
             min-height: 100vh;
-            position: relative;
-        }
-        body::before {
-            content: ""; position: absolute; inset: 0;
-            backdrop-filter: blur(6px);
-            background: rgba(0, 0, 0, 0.35);
-            z-index: -1;
         }
         .main-content { margin-left: 250px; padding: 20px; position: relative; z-index: 1; }
         .settings-container {

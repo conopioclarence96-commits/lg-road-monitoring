@@ -130,18 +130,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="../../../styles/transition.css">
     <style>
         body {
-            background: url("../../../assets/img/cityhall.jpeg") center/cover no-repeat fixed;
-            position: relative;
+            background: #ffffff;
             min-height: 100vh;
-        }
-
-        body::before {
-            content: "";
-            position: absolute;
-            inset: 0;
-            backdrop-filter: blur(6px);
-            background: rgba(0, 0, 0, 0.35);
-            z-index: -1;
         }
 
         .main-content {

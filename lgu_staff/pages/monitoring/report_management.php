@@ -496,18 +496,8 @@ if (!empty($reports)) {
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
-            background: url("../../../assets/img/cityhall.jpeg") center/cover no-repeat fixed;
-            position: relative;
+            background: #ffffff;
             min-height: 100vh;
-        }
-        
-        body::before {
-            content: "";
-            position: absolute;
-            inset: 0;
-            backdrop-filter: blur(6px);
-            background: rgba(0, 0, 0, 0.35);
-            z-index: -1;
         }
         
         .main-content {

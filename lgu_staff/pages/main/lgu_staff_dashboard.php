@@ -210,18 +210,8 @@ $chart_data = getWeeklyChartData($conn);
         }
 
         body {
+            background: #ffffff;
             min-height: 100vh;
-            background: url("../../../assets/img/cityhall.jpeg") center/cover no-repeat fixed;
-            position: relative;
-        }
-
-        body::before {
-            content: "";
-            position: absolute;
-            inset: 0;
-            backdrop-filter: blur(6px);
-            background: rgba(0, 0, 0, 0.35);
-            z-index: 0;
         }
 
         .main-content {
