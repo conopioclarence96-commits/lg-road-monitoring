@@ -392,10 +392,146 @@ try {
             text-align: center; padding: 40px; color: #94a3b8;
         }
         .activity-empty i { font-size: 36px; margin-bottom: 10px; display: block; }
+
+        /* --- Admin Account Tab Redesign --- */
+        .profile-header {
+            display: flex; align-items: center; gap: 24px;
+            padding: 28px 32px;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a4fa8 100%);
+            border-radius: 14px; margin-bottom: 28px;
+            color: white; position: relative; overflow: hidden;
+        }
+        .profile-header::before {
+            content: ''; position: absolute; top: -50%; right: -20%;
+            width: 300px; height: 300px;
+            background: rgba(255,255,255,0.04);
+            border-radius: 50%;
+        }
+        .profile-header::after {
+            content: ''; position: absolute; bottom: -40%; left: 30%;
+            width: 200px; height: 200px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 50%;
+        }
+        .profile-avatar {
+            width: 80px; height: 80px; border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 36px; overflow: hidden;
+            border: 3px solid rgba(255,255,255,0.4);
+            flex-shrink: 0; position: relative; z-index: 1;
+        }
+        .profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .profile-info { flex: 1; min-width: 0; position: relative; z-index: 1; }
+        .profile-info h2 {
+            font-size: 22px; font-weight: 700; margin: 0 0 4px;
+        }
+        .profile-info .profile-meta {
+            display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+        }
+        .profile-info .profile-meta span {
+            font-size: 13px; opacity: 0.85;
+            display: flex; align-items: center; gap: 5px;
+        }
+        .role-badge-header {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 3px 12px; border-radius: 20px;
+            font-size: 12px; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+        .account-cards { display: flex; flex-direction: column; gap: 22px; }
+        .account-card {
+            background: white;
+            border-radius: 14px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+            border: 1px solid #eef0f2;
+            overflow: hidden;
+        }
+        .account-card-header {
+            display: flex; align-items: center; gap: 10px;
+            padding: 18px 28px;
+            border-bottom: 1px solid #f0f2f4;
+            background: #fafbfc;
+        }
+        .account-card-header i {
+            font-size: 18px; color: #3762c8;
+            width: 32px; height: 32px;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(55,98,200,0.08);
+            border-radius: 8px;
+        }
+        .account-card-header h3 {
+            font-size: 15px; font-weight: 600; color: #1e293b; margin: 0;
+        }
+        .account-card-body { padding: 24px 28px; }
+        .account-card-body .form-group { margin-bottom: 18px; }
+        .account-card-body .form-group:last-child { margin-bottom: 0; }
+        .avatar-upload-row {
+            display: flex; align-items: center; gap: 20px;
+            padding-bottom: 20px; margin-bottom: 20px;
+            border-bottom: 1px solid #f0f2f4;
+        }
+        .avatar-upload-row .avatar-preview-sm {
+            width: 64px; height: 64px; border-radius: 50%;
+            background: #f1f3f5; display: flex; align-items: center;
+            justify-content: center; font-size: 28px; color: #94a3b8;
+            overflow: hidden; border: 2px solid #e9ecef; flex-shrink: 0;
+        }
+        .avatar-upload-row .avatar-preview-sm img { width: 100%; height: 100%; object-fit: cover; }
+        .avatar-upload-row .upload-controls { display: flex; align-items: center; gap: 10px; flex: 1; }
+        .avatar-upload-row .upload-controls input[type="file"] {
+            font-size: 13px; color: #555; flex: 1;
+        }
+        .form-grid-2 {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
+        }
+        .form-grid-3 {
+            display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px;
+        }
+        .btn-outline {
+            background: white; color: #3762c8;
+            border: 1px solid #3762c8;
+        }
+        .btn-outline:hover { background: rgba(55,98,200,0.06); }
+        .security-divider {
+            height: 1px; background: #f0f2f4; margin: 20px 0;
+        }
+        .twofa-section {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 20px;
+            background: #f8fafc;
+            border-radius: 10px;
+            border: 1px solid #eef0f2;
+        }
+        .twofa-section .twofa-info { flex: 1; }
+        .twofa-section .twofa-info strong {
+            display: block; font-size: 14px; color: #1e293b; margin-bottom: 2px;
+        }
+        .twofa-section .twofa-info small {
+            font-size: 12px; color: #94a3b8;
+        }
+        .twofa-section .switch { margin-left: 16px; }
+        .twofa-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;
+        }
+        .twofa-badge.on { background: rgba(40,167,69,0.1); color: #28a745; }
+        .twofa-badge.off { background: rgba(108,117,125,0.1); color: #6c757d; }
+        .field-hint {
+            font-size: 12px; color: #94a3b8; margin-top: 4px;
+        }
         @media (max-width: 768px) {
             .main-content { margin-left: 0; padding: 15px; }
             .restriction-grid { grid-template-columns: 1fr; }
             .tabs { flex-wrap: wrap; }
+            .form-grid-2 { grid-template-columns: 1fr; gap: 12px; }
+            .form-grid-3 { grid-template-columns: 1fr; gap: 12px; }
+            .profile-header { flex-direction: column; text-align: center; padding: 20px; }
+            .profile-header .profile-meta { justify-content: center; }
+            .avatar-upload-row { flex-direction: column; text-align: center; }
+            .avatar-upload-row .upload-controls { flex-direction: column; }
         }
     </style>
 </head>
@@ -438,99 +574,137 @@ try {
 
             <!-- Tab 1: Admin Account -->
             <div class="tab-content active" id="tab-account">
-                <form method="POST" enctype="multipart/form-data">
-                    <input type="hidden" name="action" value="upload_avatar">
-                    <div class="form-section">
-                        <h3><i class="fas fa-id-card"></i> Profile Information</h3>
-                        <div class="avatar-section">
-                            <div class="avatar-preview">
-                                <?php if (!empty($user_data['profile_picture']) && file_exists('../../uploads/profile_pictures/' . $user_data['profile_picture'])): ?>
-                                    <img src="../../uploads/profile_pictures/<?php echo htmlspecialchars($user_data['profile_picture']); ?>" alt="Avatar">
-                                <?php else: ?>
-                                    <i class="fas fa-user"></i>
-                                <?php endif; ?>
-                            </div>
-                            <div>
-                                <div class="form-group" style="margin-bottom:5px;">
-                                    <input type="file" name="avatar" accept="image/*" class="form-control" style="padding:8px;">
+
+                <!-- Profile Header -->
+                <div class="profile-header">
+                    <div class="profile-avatar">
+                        <?php if (!empty($user_data['profile_picture']) && file_exists('../../uploads/profile_pictures/' . $user_data['profile_picture'])): ?>
+                            <img src="../../uploads/profile_pictures/<?php echo htmlspecialchars($user_data['profile_picture']); ?>" alt="Avatar">
+                        <?php else: ?>
+                            <i class="fas fa-user"></i>
+                        <?php endif; ?>
+                    </div>
+                    <div class="profile-info">
+                        <h2><?php echo htmlspecialchars($user_data['full_name'] ?? 'Admin'); ?></h2>
+                        <div class="profile-meta">
+                            <span><i class="fas fa-envelope"></i> <?php echo htmlspecialchars($user_data['email'] ?? ''); ?></span>
+                            <span class="role-badge-header"><i class="fas fa-shield-alt"></i> <?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $user_data['role'] ?? ''))); ?></span>
+                            <?php if (($user_data['twofa'] ?? 0) == 1): ?>
+                                <span class="twofa-badge on"><i class="fas fa-check-circle"></i> 2FA On</span>
+                            <?php else: ?>
+                                <span class="twofa-badge off"><i class="fas fa-times-circle"></i> 2FA Off</span>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cards -->
+                <div class="account-cards">
+
+                    <!-- Edit Profile Card -->
+                    <div class="account-card">
+                        <div class="account-card-header">
+                            <i class="fas fa-id-card"></i>
+                            <h3>Edit Profile</h3>
+                        </div>
+                        <div class="account-card-body">
+                            <!-- Avatar upload as part of this card -->
+                            <form method="POST" enctype="multipart/form-data">
+                                <input type="hidden" name="action" value="upload_avatar">
+                                <div class="avatar-upload-row">
+                                    <div class="avatar-preview-sm">
+                                        <?php if (!empty($user_data['profile_picture']) && file_exists('../../uploads/profile_pictures/' . $user_data['profile_picture'])): ?>
+                                            <img src="../../uploads/profile_pictures/<?php echo htmlspecialchars($user_data['profile_picture']); ?>" alt="Avatar">
+                                        <?php else: ?>
+                                            <i class="fas fa-user"></i>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="upload-controls">
+                                        <input type="file" name="avatar" accept="image/*" class="form-control" style="padding:8px;">
+                                        <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-upload"></i> Upload</button>
+                                    </div>
                                 </div>
-                                <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-upload"></i> Upload Photo</button>
-                            </div>
-                        </div>
-                    </div>
-                </form>
+                            </form>
 
-                <form method="POST">
-                    <input type="hidden" name="action" value="update_profile">
-                    <div class="form-section">
-                        <div class="row" style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
-                            <div class="form-group">
-                                <label>Full Name</label>
-                                <input type="text" name="full_name" class="form-control" value="<?php echo htmlspecialchars($user_data['full_name'] ?? ''); ?>" required>
-                            </div>
-                            <div class="form-group">
-                                <label>Email</label>
-                                <input type="email" name="email" class="form-control" value="<?php echo htmlspecialchars($user_data['email'] ?? ''); ?>" required>
-                            </div>
-                            <div class="form-group">
-                                <label>Username</label>
-                                <input type="text" class="form-control" value="<?php echo htmlspecialchars($user_data['username'] ?? ''); ?>" disabled>
-                            </div>
-                            <div class="form-group">
-                                <label>Role</label>
-                                <input type="text" class="form-control" value="<?php echo htmlspecialchars(ucfirst($user_data['role'] ?? '')); ?>" disabled>
-                            </div>
-                        </div>
-                        <div class="form-actions">
-                            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Changes</button>
-                            <button type="reset" class="btn btn-secondary"><i class="fas fa-times"></i> Cancel</button>
+                            <form method="POST">
+                                <input type="hidden" name="action" value="update_profile">
+                                <div class="form-grid-2">
+                                    <div class="form-group">
+                                        <label>Full Name</label>
+                                        <input type="text" name="full_name" class="form-control" value="<?php echo htmlspecialchars($user_data['full_name'] ?? ''); ?>" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Email</label>
+                                        <input type="email" name="email" class="form-control" value="<?php echo htmlspecialchars($user_data['email'] ?? ''); ?>" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Username</label>
+                                        <input type="text" class="form-control" value="<?php echo htmlspecialchars($user_data['username'] ?? ''); ?>" disabled>
+                                        <div class="field-hint">Username cannot be changed</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Role</label>
+                                        <input type="text" class="form-control" value="<?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $user_data['role'] ?? ''))); ?>" disabled>
+                                        <div class="field-hint">Assigned by system administrator</div>
+                                    </div>
+                                </div>
+                                <div class="form-actions">
+                                    <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Changes</button>
+                                    <button type="reset" class="btn btn-secondary"><i class="fas fa-times"></i> Cancel</button>
+                                </div>
+                            </form>
                         </div>
                     </div>
-                </form>
 
-                <form method="POST">
-                    <input type="hidden" name="action" value="change_password">
-                    <div class="form-section">
-                        <h3><i class="fas fa-key"></i> Change Password</h3>
-                        <div class="row" style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
-                            <div class="form-group">
-                                <label>Current Password</label>
-                                <input type="password" name="current_password" class="form-control" required>
-                            </div>
-                            <div class="form-group">
-                                <label>New Password</label>
-                                <input type="password" name="new_password" class="form-control" required minlength="8">
-                            </div>
-                            <div class="form-group">
-                                <label>Confirm New Password</label>
-                                <input type="password" name="confirm_password" class="form-control" required minlength="8">
-                            </div>
+                    <!-- Security Card -->
+                    <div class="account-card">
+                        <div class="account-card-header">
+                            <i class="fas fa-lock"></i>
+                            <h3>Security</h3>
                         </div>
-                        <div class="form-actions">
-                            <button type="submit" class="btn btn-primary"><i class="fas fa-key"></i> Update Password</button>
-                        </div>
-                    </div>
-                </form>
+                        <div class="account-card-body">
+                            <!-- Password Change -->
+                            <form method="POST">
+                                <input type="hidden" name="action" value="change_password">
+                                <div class="form-grid-3">
+                                    <div class="form-group">
+                                        <label>Current Password</label>
+                                        <input type="password" name="current_password" class="form-control" placeholder="Enter current password" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>New Password</label>
+                                        <input type="password" name="new_password" class="form-control" placeholder="Min. 8 characters" required minlength="8">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Confirm New Password</label>
+                                        <input type="password" name="confirm_password" class="form-control" placeholder="Repeat new password" required minlength="8">
+                                    </div>
+                                </div>
+                                <div class="form-actions">
+                                    <button type="submit" class="btn btn-primary"><i class="fas fa-key"></i> Update Password</button>
+                                </div>
+                            </form>
 
-                <form method="POST">
-                    <input type="hidden" name="action" value="toggle_twofa">
-                    <div class="form-section">
-                        <h3><i class="fas fa-shield-alt"></i> Two-Factor Authentication</h3>
-                        <p style="font-size:13px; color:#64748b; margin-bottom:15px;">
-                            Secure your account with an extra layer of protection. When enabled, you'll receive a one-time verification code via email each time you log in.
-                        </p>
-                        <div class="toggle-group">
-                            <div class="toggle-label">
-                                <strong>Enable 2FA</strong>
-                                <small>Require OTP verification on every login</small>
-                            </div>
-                            <label class="switch">
-                                <input type="checkbox" name="twofa" value="1" onchange="this.form.submit()" <?php echo ($user_data['twofa'] ?? 0) == 1 ? 'checked' : ''; ?>>
-                                <span class="slider"></span>
-                            </label>
+                            <div class="security-divider"></div>
+
+                            <!-- 2FA Toggle -->
+                            <form method="POST">
+                                <input type="hidden" name="action" value="toggle_twofa">
+                                <div class="twofa-section">
+                                    <div class="twofa-info">
+                                        <strong><i class="fas fa-shield-alt" style="color:#3762c8; margin-right:6px;"></i> Two-Factor Authentication</strong>
+                                        <small>When enabled, you'll need a one-time verification code from your email to log in.</small>
+                                    </div>
+                                    <label class="switch">
+                                        <input type="checkbox" name="twofa" value="1" onchange="this.form.submit()" <?php echo ($user_data['twofa'] ?? 0) == 1 ? 'checked' : ''; ?>>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </form>
                         </div>
                     </div>
-                </form>
+
+                </div>
             </div>
 
             <!-- Tab 2: Access Control -->
