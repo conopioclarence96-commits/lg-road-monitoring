@@ -404,26 +404,26 @@ $notification_count = getNotificationCount();
         }
 
         body.dark-mode .nav-item {
-            color: #9ca3af !important;
+            color: #ffffff !important;
         }
 
         body.dark-mode .nav-item:hover {
             background: rgba(255,255,255,0.08) !important;
-            color: #e4e6ea !important;
+            color: #ffffff !important;
         }
 
         body.dark-mode .nav-item.active {
             background: rgba(96,165,250,0.15) !important;
-            color: #60a5fa !important;
+            color: #ffffff !important;
         }
 
         body.dark-mode .nav-item i {
-            color: #6b7280 !important;
+            color: #d1d5db !important;
         }
 
         body.dark-mode .nav-item:hover i,
         body.dark-mode .nav-item.active i {
-            color: #60a5fa !important;
+            color: #ffffff !important;
         }
 
         body.dark-mode .nav-item .badge {
