@@ -143,112 +143,122 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_activity'])) {
 $registerMessage = '';
 $registerMessageType = '';
 $showOTPModal = false;
-$showLoginOTPModal = false;
 
-// Handle Registration OTP Verification
+// Handle OTP Verification
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_otp'])) {
     $enteredOTP = $_POST['otp_code'] ?? '';
-    $result = verify_otp_code($enteredOTP, 'registration');
+    $storedOTP = $_SESSION['otp_data']['code'] ?? '';
+    $otpExpiry = $_SESSION['otp_data']['expiry'] ?? 0;
     
-    if ($result['success']) {
+    if (empty($enteredOTP)) {
+        $registerMessage = 'Please enter the OTP code';
+        $registerMessageType = 'error';
+        $showOTPModal = true;
+    } elseif (time() > $otpExpiry) {
+        $registerMessage = 'OTP has expired. Please register again.';
+        $registerMessageType = 'error';
+        unset($_SESSION['otp_data']);
+    } elseif ($enteredOTP !== $storedOTP) {
+        $registerMessage = 'Invalid OTP code. Please try again.';
+        $registerMessageType = 'error';
+        $showOTPModal = true;
+    } else {
+        // OTP verified successfully
         $_SESSION['otp_verified'] = true;
         $registerMessage = 'Email verified successfully! Please complete your profile.';
         $registerMessageType = 'success';
         
+        // Auto-switch to additional info panel
         echo '<script>
             document.addEventListener("DOMContentLoaded", function() {
                 setTimeout(() => showPanel("additional"), 500);
             });
         </script>';
-    } else {
-        $registerMessage = $result['message'];
-        $registerMessageType = 'error';
-        if ($result['message'] !== 'OTP has expired. Please try again.') {
-            $showOTPModal = true;
-        }
-    }
-}
-
-// Handle Login OTP Verification
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_login_otp'])) {
-    $enteredOTP = $_POST['otp_code'] ?? '';
-
-    if (!isset($_SESSION['login_verify_data'])) {
-        $loginMessage = 'Login session expired. Please login again.';
-        $messageType = 'error';
-    } else {
-        $result = verify_otp_code($enteredOTP, 'login');
-
-        if ($result['success']) {
-            $user = $_SESSION['login_verify_data'];
-
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['email'] = $user['email'];
-            $_SESSION['full_name'] = $user['full_name'];
-            $_SESSION['role'] = $user['role'];
-            $_SESSION['darkmode'] = $user['darkmode'] ?? 0;
-            $_SESSION['logged_in'] = true;
-            $_SESSION['login_time'] = time();
-
-            $login_update = $conn->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
-            $login_update->bind_param("i", $user['id']);
-            $login_update->execute();
-            $login_update->close();
-
-            unset($_SESSION['login_verify_data']);
-
-            switch ($user['role']) {
-                case 'system_admin':
-                    $redirectUrl = $basePath . 'lgu_staff/pages/main/admin_dashboard.php';
-                    break;
-                case 'lgu_staff':
-                    $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
-                    break;
-                case 'citizen':
-                    $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
-                    break;
-                default:
-                    $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
-            }
-
-            header('Location: ' . $redirectUrl);
-            exit;
-        } else {
-            $loginMessage = $result['message'];
-            $messageType = 'error';
-            if ($result['message'] !== 'OTP has expired. Please try again.') {
-                $showLoginOTPModal = true;
-            }
-        }
     }
 }
 
 // Handle Resend OTP
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['resend_otp'])) {
-    $otpPurpose = $_SESSION['otp_data']['purpose'] ?? '';
-
-    if ($otpPurpose === 'login' && isset($_SESSION['login_verify_data'])) {
-        $email = $_SESSION['login_verify_data']['email'];
-        handle_login_otp($email);
-        $loginMessage = 'A new OTP has been sent to your email.';
-        $messageType = 'success';
-        $showLoginOTPModal = true;
-    } elseif (isset($_SESSION['registration_data'])) {
+    if (isset($_SESSION['registration_data'])) {
         $email = $_SESSION['registration_data']['email'];
-        handle_registration_otp($email);
+        
+        // Generate new 6-digit OTP
+        $otpCode = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+        $_SESSION['otp_data'] = [
+            'code' => $otpCode,
+            'expiry' => time() + 300 // 5 minutes expiry
+        ];
+        
+        // Send OTP via API
+        sendOTPToEmail($email, $otpCode);
+        
         $registerMessage = 'A new OTP has been sent to your email.';
         $registerMessageType = 'success';
         $showOTPModal = true;
+        
+        echo '<script>
+            document.addEventListener("DOMContentLoaded", function() {
+                openOTPModal();
+            });
+        </script>';
     }
-
-    echo '<script>
-        document.addEventListener("DOMContentLoaded", function() {
-            openOTPModal();
-        });
-    </script>';
 }
 
+// Function to send OTP via email API
+function sendOTPToEmail($email, $otpCode) {
+    $envFile = __DIR__ . '/../.env';
+    $envVariables = file_exists($envFile) ? parse_ini_file($envFile) : [];
+    $apiKey = $envVariables['BREVO_API_KEY'] ?? getenv('BREVO_API_KEY');
+    $senderName = $envVariables['BREVO_SENDER_NAME'] ?? getenv('BREVO_SENDER_NAME');
+    $senderEmail = $envVariables['BREVO_SENDER_EMAIL'] ?? getenv('BREVO_SENDER_EMAIL');
 
+    $ch = curl_init('https://api.brevo.com/v3/smtp/email');
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'accept: application/json',
+        'api-key: ' . $apiKey,
+        'content-type: application/json'
+    ]);
+
+    $htmlContent = "
+    <html>
+        <body style='font-family: Arial, sans-serif; color: #333;'>
+            <div style='max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;'>
+                <h2 style='color: #0066cc;'>Hello from Road and Transportation Department!</h2>
+                <p>You requested to sign in or register on the LGU Portal. Use the verification code below to complete your process.</p>
+                <div style='background-color: #f4f4f4; padding: 15px; text-align: center; border-radius: 5px; margin: 20px 0;'>
+                    <span style='font-size: 24px; font-weight: bold; letter-spacing: 5px;'>" . $otpCode . "</span>
+                </div>
+                <p>This code will expire in <strong>5 minutes</strong>.</p>
+                <p style='font-size: 12px; color: #999; margin-top: 30px;'>If you did not request this email, please ignore it.</p>
+            </div>
+        </body>
+    </html>";
+
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+        'sender' => [
+            'name' => $senderName,
+            'email' => $senderEmail
+        ],
+        'to' => [
+            [
+                'email' => $email,
+                'name' => $email
+            ]
+        ],
+        'subject' => 'Hello from Road and Transportation Department!',
+        'htmlContent' => $htmlContent
+    ]));
+    
+    $response = curl_exec($ch);
+    curl_close($ch);
+    
+    // Log the response for debugging
+    error_log("OTP API Response: " . $response);
+    
+    return json_decode($response, true);
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_register'])) {
     $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL);
@@ -283,8 +293,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_register'])) {
                     'password' => password_hash($password, PASSWORD_DEFAULT)
                 ];
                 
-                // Generate and send OTP
-                handle_registration_otp($email);
+                // Generate 6-digit OTP
+                $otpCode = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+                $_SESSION['otp_data'] = [
+                    'code' => $otpCode,
+                    'expiry' => time() + 300 // 5 minutes expiry
+                ];
+                
+                // Send OTP to email
+                sendOTPToEmail($email, $otpCode);
                 
                 $registerMessage = 'A verification code has been sent to your email. Please check your inbox.';
                 $registerMessageType = 'success';
@@ -429,7 +446,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
 $loginMessage = '';
 $messageType = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) && !isset($_POST['submit_additional']) && !isset($_POST['verify_otp']) && !isset($_POST['resend_otp']) && !isset($_POST['verify_login_otp'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) && !isset($_POST['submit_additional'])) {
     $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL);
     $password = $_POST['password'] ?? '';
     
@@ -444,7 +461,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
         try {
             // Prepare statement to prevent SQL injection
             $stmt = $conn->prepare("
-                SELECT id, email, password, full_name, role, is_active, account_status, twofa, darkmode
+                SELECT id, email, password, full_name, role, is_active, account_status
                 FROM users 
                 WHERE email = ?
             ");
@@ -477,47 +494,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                         $messageType = 'error';
                     }
                     else {
-                        if (!empty($user['twofa']) && $user['twofa'] == 1) {
-                            // 2FA enabled - send OTP for verification
-                            handle_login_otp($user['email']);
-
-                            $_SESSION['login_verify_data'] = $user;
-
-                            $loginMessage = 'A verification code has been sent to your email. Please check your inbox.';
-                            $messageType = 'success';
-                            $showLoginOTPModal = true;
-                        } else {
-                            // No 2FA - log in directly
-                            $_SESSION['user_id'] = $user['id'];
-                            $_SESSION['email'] = $user['email'];
-                            $_SESSION['full_name'] = $user['full_name'];
-                            $_SESSION['role'] = $user['role'];
-                            $_SESSION['darkmode'] = $user['darkmode'] ?? 0;
-                            $_SESSION['logged_in'] = true;
-                            $_SESSION['login_time'] = time();
-
-                            $login_update = $conn->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
-                            $login_update->bind_param("i", $user['id']);
-                            $login_update->execute();
-                            $login_update->close();
-
-                            switch ($user['role']) {
-                                case 'system_admin':
-                                    $redirectUrl = $basePath . 'lgu_staff/pages/main/admin_dashboard.php';
-                                    break;
-                                case 'lgu_staff':
-                                    $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
-                                    break;
-                                case 'citizen':
-                                    $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
-                                    break;
-                                default:
-                                    $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
-                            }
-
-                            header('Location: ' . $redirectUrl);
-                            exit;
+                        // Login successful - set session variables
+                        $_SESSION['user_id'] = $user['id'];
+                        $_SESSION['email'] = $user['email'];
+                        $_SESSION['full_name'] = $user['full_name'];
+                        $_SESSION['role'] = $user['role'];
+                        $_SESSION['logged_in'] = true;
+                        $_SESSION['login_time'] = time();
+                        
+                        // Update last_login timestamp
+                        $login_update = $conn->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
+                        $login_update->bind_param("i", $user['id']);
+                        $login_update->execute();
+                        $login_update->close();
+                        
+                        // Determine redirect based on user role
+                        switch ($user['role']) {
+                            case 'system_admin':
+                                // Redirect to Admin Dashboard
+                                $redirectUrl = $basePath . 'lgu_staff/pages/main/admin_dashboard.php';
+                                break;
+                            case 'lgu_staff':
+                                // Redirect to LGU Staff Dashboard
+                                $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
+                                break;
+                            case 'citizen':
+                                $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
+                                break;
+                            default:
+                                $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
                         }
+                        
+                        // Redirect to appropriate dashboard
+                        header('Location: ' . $redirectUrl);
+                        exit;
                     }
                 } else {
                     // Invalid password
@@ -581,7 +591,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                 </div>
             <?php endif; ?>
 
-            <form method="POST" onsubmit="return confirm('Are you sure you want to sign in?')">
+            <form method="POST">
               <div class="input-box">
                 <label>Email Address</label>
                 <input type="email" name="email" placeholder="name@lgu.gov.ph" value="<?php echo isset($_POST['email']) && !isset($_POST['submit_register']) && !isset($_POST['submit_additional']) ? htmlspecialchars($_POST['email']) : ''; ?>" />
@@ -590,8 +600,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
 
               <div class="input-box">
                 <label>Password</label>
-                <input type="password" name="password" id="loginPassword" placeholder="•••••••" />
-                <button type="button" class="password-toggle" onclick="togglePassword('loginPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
+                <input type="password" name="password" placeholder="•••••••" />
                 <span class="icon">🔒</span>
               </div>
 
@@ -635,8 +644,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
 
               <div class="input-box">
                 <label>Password</label>
-                <input type="password" name="password" id="registerPassword" placeholder="•••••••" required />
-                <button type="button" class="password-toggle" onclick="togglePassword('registerPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
+                <input type="password" name="password" placeholder="•••••••" required />
                 <span class="icon">🔒</span>
               </div>
 
@@ -734,12 +742,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
     </div>
 
     <!-- OTP Verification Modal -->
-    <div id="otpModal" class="modal" style="display: <?php echo ($showOTPModal || $showLoginOTPModal) ? 'block' : 'none'; ?>;">
+    <div id="otpModal" class="modal" style="display: <?php echo $showOTPModal ? 'block' : 'none'; ?>;">
       <div class="modal-content">
         <div class="modal-header">
-          <button type="button" class="modal-close-btn" onclick="closeOTPModal()">&times;</button>
-          <h3><?php echo $showLoginOTPModal ? 'Login Verification' : 'Email Verification'; ?></h3>
-          <p>A 6-digit verification code has been sent to your email address. Please enter it below to continue.</p>
+          <h3>Email Verification</h3>
+          <p>A 6-digit verification code has been sent to your email address. Please enter it below to verify your account.</p>
         </div>
         
         <form method="POST" id="otpForm">
@@ -748,11 +755,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
           </div>
           
           <div class="otp-actions">
-            <?php if ($showLoginOTPModal): ?>
-              <button type="submit" name="verify_login_otp" class="btn-primary">Verify & Login</button>
-            <?php else: ?>
-              <button type="submit" name="verify_otp" class="btn-primary">Verify Code</button>
-            <?php endif; ?>
+            <button type="submit" name="verify_otp" class="btn-primary">Verify Code</button>
           </div>
         </form>
         
@@ -789,35 +792,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
         box-shadow: 0 4px 20px rgba(0,0,0,0.3);
       }
       
-      .modal-header {
-        position: relative;
-      }
       .modal-header h3 {
         margin: 0 0 10px 0;
         color: #333;
-      }
-      .modal-close-btn {
-        position: absolute;
-        top: -15px;
-        right: -15px;
-        background: #ef4444;
-        color: white;
-        border: none;
-        border-radius: 50%;
-        width: 32px;
-        height: 32px;
-        font-size: 20px;
-        line-height: 1;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-        transition: background 0.2s;
-        z-index: 10;
-      }
-      .modal-close-btn:hover {
-        background: #dc2626;
       }
       
       .modal-header p {
@@ -843,25 +820,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
       
       .otp-input:focus {
         border-color: #0066cc;
-      }
-
-      .password-toggle {
-        position: absolute;
-        right: 38px;
-        top: 45px;
-        transform: translateY(-50%);
-        background: none;
-        border: none;
-        cursor: pointer;
-        color: #888;
-        padding: 4px;
-        font-size: 16px;
-        line-height: 1;
-        z-index: 2;
-        transition: color 0.2s;
-      }
-      .password-toggle:hover {
-        color: #333;
       }
       
       .otp-actions {
@@ -928,23 +886,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
         document.getElementById('otpModal').style.display = 'none';
       }
 
-      function togglePassword(inputId, btn) {
-        var input = document.getElementById(inputId);
-        if (input.type === 'password') {
-          input.type = 'text';
-          btn.querySelector('i').className = 'fas fa-eye-slash';
-        } else {
-          input.type = 'password';
-          btn.querySelector('i').className = 'fas fa-eye';
-        }
-      }
-
       // Auto-focus on email field for login
       document.addEventListener('DOMContentLoaded', function() {
         const emailInput = document.querySelector('.panel.login input[name="email"]');
         if (emailInput) emailInput.focus();
         
-        <?php if ($showOTPModal || $showLoginOTPModal): ?>
+        <?php if ($showOTPModal): ?>
         openOTPModal();
         <?php endif; ?>
       });

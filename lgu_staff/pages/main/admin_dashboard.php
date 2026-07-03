@@ -56,6 +56,202 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'system_admin') {
     exit();
 }
 
+// Handle account actions
+$message = '';
+$messageType = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json; charset=utf-8');
+    $action = $_POST['action'] ?? '';
+    $user_id = $_POST['user_id'] ?? 0;
+    $remarks = $_POST['remarks'] ?? '';
+
+    if ($action === 'approve' && $user_id > 0) {
+        // Approve account
+        $stmt = $conn->prepare("UPDATE users SET is_active = 1, account_status = 'verified', approved_at = NOW() WHERE id = ?");
+        if (!$stmt) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Failed to prepare approval query']);
+            exit;
+        }
+        $stmt->bind_param("i", $user_id);
+
+        if ($stmt->execute()) {
+            // Get user details for audit log
+            $user_stmt = $conn->prepare("SELECT email, full_name FROM users WHERE id = ?");
+            if (!$user_stmt) {
+                $stmt->close();
+                http_response_code(500);
+                echo json_encode(['success' => false, 'message' => 'Failed to prepare user lookup query']);
+                exit;
+            }
+            $user_stmt->bind_param("i", $user_id);
+            if (!$user_stmt->execute()) {
+                $stmt->close();
+                $user_stmt->close();
+                http_response_code(500);
+                echo json_encode(['success' => false, 'message' => 'Failed to lookup user details']);
+                exit;
+            }
+            $user_result = $user_stmt->get_result();
+            $user_data = $user_result ? $user_result->fetch_assoc() : null;
+
+            // Log audit action
+            if ($user_data) {
+                log_audit_action($_SESSION['user_id'], 'Account Approved', 
+                    "Approved account for {$user_data['full_name']} ({$user_data['email']}). Remarks: $remarks");
+            }
+
+            echo json_encode(['success' => true, 'message' => 'Account approved successfully']);
+            if ($user_stmt) {
+                $user_stmt->close();
+            }
+        } else {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Failed to approve account']);
+        }
+        $stmt->close();
+        exit;
+
+    } elseif ($action === 'reject' && $user_id > 0) {
+        // Reject account (keep as inactive)
+        $stmt = $conn->prepare("UPDATE users SET is_active = 0, account_status = 'rejected', rejected_at = NOW() WHERE id = ?");
+        if (!$stmt) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Failed to prepare rejection query']);
+            exit;
+        }
+        $stmt->bind_param("i", $user_id);
+
+        if ($stmt->execute()) {
+            // Get user details for audit log
+            $user_stmt = $conn->prepare("SELECT email, full_name FROM users WHERE id = ?");
+            if (!$user_stmt) {
+                $stmt->close();
+                http_response_code(500);
+                echo json_encode(['success' => false, 'message' => 'Failed to prepare user lookup query']);
+                exit;
+            }
+            $user_stmt->bind_param("i", $user_id);
+            if (!$user_stmt->execute()) {
+                $stmt->close();
+                if ($user_stmt) {
+                    $user_stmt->close();
+                }
+                http_response_code(500);
+                echo json_encode(['success' => false, 'message' => 'Failed to lookup user details']);
+                exit;
+            }
+            $user_result = $user_stmt->get_result();
+            $user_data = $user_result ? $user_result->fetch_assoc() : null;
+
+            // Log audit action
+            if ($user_data) {
+                log_audit_action($_SESSION['user_id'], 'Account Rejected', 
+                    "Rejected account for {$user_data['full_name']} ({$user_data['email']}). Remarks: $remarks");
+            }
+
+            echo json_encode(['success' => true, 'message' => 'Account rejected successfully']);
+            if ($user_stmt) {
+                $user_stmt->close();
+            }
+        } else {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Failed to reject account']);
+        }
+        $stmt->close();
+        exit;
+
+    } elseif ($action === 'deactivate' && $user_id > 0) {
+        // Deactivate account
+        $stmt = $conn->prepare("UPDATE users SET is_active = 0, account_status = 'deactivated' WHERE id = ?");
+        $stmt->bind_param("i", $user_id);
+
+        
+        if ($stmt->execute()) {
+            // Get user details for audit log
+            $user_stmt = $conn->prepare("SELECT email, full_name FROM users WHERE id = ?");
+            $user_stmt->bind_param("i", $user_id);
+            $user_stmt->execute();
+            $user_result = $user_stmt->get_result();
+            $user_data = $user_result->fetch_assoc();
+            
+            // Log audit action
+            log_audit_action($_SESSION['user_id'], 'Account Deactivated', 
+                "Deactivated account for {$user_data['full_name']} ({$user_data['email']}). Remarks: $remarks");
+            
+            $message = "Account for {$user_data['full_name']} has been deactivated.";
+            $messageType = 'warning';
+        } else {
+            $message = "Failed to deactivate account. Please try again.";
+            $messageType = 'error';
+        }
+        $stmt->close();
+        $user_stmt->close();
+        
+    } elseif ($action === 'deactivate_user' && $user_id > 0) {
+        // Deactivate account (new version)
+        $stmt = $conn->prepare("UPDATE users SET is_active = 0, account_status = 'deactivated' WHERE id = ?");
+        $stmt->bind_param("i", $user_id);
+        
+        if ($stmt->execute()) {
+            // Get user details for audit log
+            $user_stmt = $conn->prepare("SELECT email, full_name FROM users WHERE id = ?");
+            $user_stmt->bind_param("i", $user_id);
+            $user_stmt->execute();
+            $user_result = $user_stmt->get_result();
+            $user_data = $user_result->fetch_assoc();
+            
+            // Log audit action
+            log_audit_action($_SESSION['user_id'], 'Account Deactivated', 
+                "Deactivated account for {$user_data['full_name']} ({$user_data['email']}). Remarks: $remarks");
+            
+            echo json_encode(['success' => true, 'message' => 'Account deactivated successfully']);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Failed to deactivate account']);
+        }
+        $stmt->close();
+        $user_stmt->close();
+        exit;
+        
+    } elseif ($action === 'activate_user' && $user_id > 0) {
+        // Activate account
+        $stmt = $conn->prepare("UPDATE users SET is_active = 1, account_status = 'verified' WHERE id = ?");
+        $stmt->bind_param("i", $user_id);
+        
+        if ($stmt->execute()) {
+            // Get user details for audit log
+            $user_stmt = $conn->prepare("SELECT email, full_name FROM users WHERE id = ?");
+            $user_stmt->bind_param("i", $user_id);
+            $user_stmt->execute();
+            $user_result = $user_stmt->get_result();
+            $user_data = $user_result->fetch_assoc();
+            
+            // Log audit action
+            log_audit_action($_SESSION['user_id'], 'Account Activated', 
+                "Activated account for {$user_data['full_name']} ({$user_data['email']}). Remarks: $remarks");
+            
+            echo json_encode(['success' => true, 'message' => 'Account activated successfully']);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Failed to activate account']);
+        }
+        $stmt->close();
+        $user_stmt->close();
+        exit;
+    }
+}
+
+// Get all LGU Staff accounts with pending status (excluding system admin)
+$stmt = $conn->prepare("
+    SELECT id, username, email, full_name, role, department, address, birthday, civil_status, is_active, created_at, updated_at, approved_at, rejected_at, id_file_path 
+    FROM users 
+    WHERE role IN ('lgu_staff', 'citizen') AND account_status = 'pending'
+    ORDER BY created_at DESC
+");
+$stmt->execute();
+$users = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+
 // Get verified users inactive for 2+ weeks
 $inactive_2weeks_users = [];
 try {
@@ -74,6 +270,25 @@ try {
 } catch (Exception $e) {
     error_log("Inactive users query error: " . $e->getMessage());
     $inactive_2weeks_users = [];
+}
+
+// Get audit log for account actions
+try {
+    $audit_stmt = $conn->prepare("
+        SELECT a.*, u.full_name as admin_name 
+        FROM audit_logs a 
+        LEFT JOIN users u ON a.user_id = u.id 
+        WHERE a.action LIKE '%Account%' 
+        ORDER BY a.created_at DESC 
+        LIMIT 50
+    ");
+    $audit_stmt->execute();
+    $audit_log = $audit_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $audit_stmt->close();
+} catch (Exception $e) {
+    // Log the error for debugging
+    error_log("Audit log query error: " . $e->getMessage());
+    $audit_log = [];
 }
 
 // Get dashboard statistics
@@ -161,19 +376,41 @@ try {
     <title>Admin Dashboard - Account Management</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
-    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
-            background: #f7f5f0;
+            background: url("../../../assets/img/cityhall.jpeg") center/cover no-repeat fixed;
+            position: relative;
             min-height: 100vh;
         }
         
+        body::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            backdrop-filter: blur(6px);
+            background: rgba(0, 0, 0, 0.35);
+            z-index: -1;
+        }
+        
+        .main-content {
+            position: relative;
+            z-index: 1;
+        }
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
             font-family: 'Poppins', sans-serif;
+        }
+
+        body::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            backdrop-filter: blur(6px);
+            background: rgba(0, 0, 0, 0.35);
+            z-index: 0;
         }
 
         .main-content {
@@ -184,7 +421,7 @@ try {
         }
 
         .dashboard-header {
-            background: #f0f4fa;
+            background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(15px);
             padding: 30px;
             border-radius: 16px;
@@ -286,7 +523,7 @@ try {
         }
 
         .card {
-            background: #f0f4fa;
+            background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(15px);
             padding: 25px;
             border-radius: 16px;
@@ -485,7 +722,7 @@ try {
         }
 
         .chart-card {
-            background: #f0f4fa;
+            background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(15px);
             padding: 25px;
             border-radius: 16px;
@@ -589,7 +826,7 @@ try {
         }
 
         .workflow-card {
-            background: #f0f4fa;
+            background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(15px);
             padding: 25px;
             border-radius: 16px;
@@ -749,7 +986,7 @@ try {
         }
     </style>
 </head>
-<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
+<body>
     <!-- SIDEBAR -->
     <iframe src="../../includes/sidebar.php" 
             style="position: fixed; width: 250px; height: 100vh; border: none; z-index: 1000;" 
@@ -774,6 +1011,13 @@ try {
                 </div>
             </div>
         </div>
+
+        <!-- Message Display -->
+        <?php if (!empty($message)): ?>
+            <div class="alert alert-<?php echo $messageType; ?>">
+                <?php echo htmlspecialchars($message); ?>
+            </div>
+        <?php endif; ?>
 
         <!-- Statistics -->
         <div class="quick-stats">
@@ -867,7 +1111,58 @@ try {
             </div>
         </div>
 
+        <!-- Workflow Container -->
         <div class="workflow-container">
+            <!-- All Users Management -->
+            <div class="workflow-card">
+                <div class="workflow-header">
+                    <h3 class="workflow-title">
+                        <i class="fas fa-user-clock"></i>
+                        <span>Pending Account Approvals</span>
+                        <span class="workflow-badge"><?php echo count($users); ?></span>
+                    </h3>
+                </div>
+                
+                <div class="workflow-content">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Department</th>
+                                    <th>Registered</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (empty($users)): ?>
+                                    <tr>
+                                        <td colspan="6" style="text-align: center; color: #64748b;">No users found</td>
+                                    </tr>
+                                <?php else: ?>
+                                    <?php foreach ($users as $user): ?>
+                                        <tr>
+                                            <td><?php echo htmlspecialchars($user['full_name']); ?></td>
+                                            <td><?php echo htmlspecialchars($user['email']); ?></td>
+                                            <td><?php echo htmlspecialchars($user['role']); ?></td>
+                                            <td><?php echo htmlspecialchars($user['department'] ?? 'N/A'); ?></td>
+                                            <td><?php echo date('M d, Y', strtotime($user['created_at'])); ?></td>
+                                            <td>
+                                                <div class="action-buttons">
+                                                    <button class="btn-sm btn-manage" onclick="showUserModal(<?php echo $user['id']; ?>)">Manage</button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <!-- Inactive Users (2+ Weeks) -->
             <div class="workflow-card">
                 <div class="workflow-header">
@@ -916,7 +1211,303 @@ try {
         </div>
     </div>
 
+    <!-- User Management Modal -->
+    <div id="userModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">User Details</h2>
+                <span class="close" onclick="closeUserModal()">&times;</span>
+            </div>
+            <div class="modal-form-grid">
+                <div class="form-group">
+                    <label>Email:</label>
+                    <input type="email" id="modalEmail" disabled>
+                </div>
+                <div class="form-group">
+                    <label>Full Name:</label>
+                    <input type="text" id="modalFullName" disabled>
+                </div>
+                <div class="form-group">
+                    <label>Role:</label>
+                    <input type="text" id="modalRole" disabled>
+                </div>
+                <div class="form-group">
+                    <label>Department:</label>
+                    <input type="text" id="modalDepartment" disabled>
+                </div>
+                <div class="form-group">
+                    <label>Address:</label>
+                    <input type="text" id="modalAddress" disabled>
+                </div>
+                <div class="form-group">
+                    <label>Birthday:</label>
+                    <input type="text" id="modalBirthday" disabled>
+                </div>
+                <div class="form-group">
+                    <label>Civil Status:</label>
+                    <input type="text" id="modalCivilStatus" disabled>
+                </div>
+                <div class="form-group">
+                    <label>Account Status:</label>
+                    <input type="text" id="modalAccountStatus" disabled>
+                </div>
+                <div class="form-group">
+                    <label>Created At:</label>
+                    <input type="text" id="modalCreatedAt" disabled>
+                </div>
+                <div class="form-group">
+                    <label>Approved At:</label>
+                    <input type="text" id="modalApprovedAt" disabled>
+                </div>
+                <div class="form-group">
+                    <label>Rejected At:</label>
+                    <input type="text" id="modalRejectedAt" disabled>
+                </div>
+                <div class="form-group" style="grid-column: 1 / -1;">
+                    <label>ID File:</label>
+                    <div id="modalIdFileContainer">
+                        <img id="modalIdFile" src="" alt="ID File" style="max-width: 200px; max-height: 150px; border-radius: 8px; border: 1px solid #ddd; display: none;">
+                        <p id="modalIdFileNone" style="color: #666; font-style: italic;">No ID file uploaded</p>
+                    </div>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                <button type="button" class="btn-sm btn-approve" onclick="approveUser()">Approve</button>
+                <button type="button" class="btn-sm btn-reject" onclick="rejectUser()">Reject</button>
+                <button type="button" class="btn-sm btn-manage" onclick="closeUserModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script>
+        let currentUserId = null;
+        let usersData = <?php echo json_encode($users); ?>;
+        
+        function showUserModal(userId) {
+            console.log('Opening modal for user ID:', userId);
+            currentUserId = userId;
+            const user = usersData.find(u => u.id == userId);
+            
+            if (user) {
+                // Display user info
+                document.getElementById('modalEmail').value = user.email;
+                document.getElementById('modalFullName').value = user.full_name;
+                document.getElementById('modalRole').value = user.role;
+                document.getElementById('modalDepartment').value = user.department || 'N/A';
+                document.getElementById('modalAddress').value = user.address || 'N/A';
+                document.getElementById('modalBirthday').value = user.birthday || 'N/A';
+                document.getElementById('modalCivilStatus').value = user.civil_status ? user.civil_status.charAt(0).toUpperCase() + user.civil_status.slice(1) : 'N/A';
+                document.getElementById('modalAccountStatus').value = user.is_active ? 'Active' : 'Inactive';
+                document.getElementById('modalCreatedAt').value = user.created_at;
+                document.getElementById('modalApprovedAt').value = user.approved_at || 'N/A';
+                document.getElementById('modalRejectedAt').value = user.rejected_at || 'N/A';
+                
+                // Display ID file
+                const idFileImg = document.getElementById('modalIdFile');
+                const idFileNone = document.getElementById('modalIdFileNone');
+                if (user.id_file_path) {
+                    idFileImg.src = '../../' + user.id_file_path;
+                    idFileImg.style.display = 'block';
+                    idFileNone.style.display = 'none';
+                } else {
+                    idFileImg.style.display = 'none';
+                    idFileNone.style.display = 'block';
+                }
+                
+                // Show modal
+                const modal = document.getElementById('userModal');
+                modal.style.display = 'block';
+            }
+        }
+
+        function closeUserModal() {
+            const modal = document.getElementById('userModal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+            currentUserId = null;
+        }
+
+        function approveUser() {
+            if (!currentUserId) return;
+            
+            if (confirm('Are you sure you want to approve this user account?')) {
+                // Create form data
+                const formData = new FormData();
+                formData.append('action', 'approve');
+                formData.append('user_id', currentUserId);
+                formData.append('remarks', 'Approved by admin from dashboard');
+                
+                // Send request
+                fetch('', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(async (response) => {
+                    const contentType = response.headers.get('content-type') || '';
+                    if (!response.ok) {
+                        const text = await response.text();
+                        throw new Error(text || `Request failed (${response.status})`);
+                    }
+                    if (!contentType.includes('application/json')) {
+                        const text = await response.text();
+                        throw new Error(text || 'Server did not return JSON');
+                    }
+                    return response.json();
+                })
+                .then(result => {
+                    if (result.success) {
+                        closeUserModal();
+                        location.reload();
+                    } else {
+                        alert(result.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred. Please try again.');
+                });
+            }
+        }
+
+        function rejectUser() {
+            if (!currentUserId) return;
+            
+            if (confirm('Are you sure you want to reject this user account?')) {
+                // Create form data
+                const formData = new FormData();
+                formData.append('action', 'reject');
+                formData.append('user_id', currentUserId);
+                formData.append('remarks', 'Rejected by admin from dashboard');
+                
+                // Send request
+                fetch('', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        closeUserModal();
+                        location.reload();
+                    } else {
+                        alert(result.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred. Please try again.');
+                });
+            }
+        }
+
+        function openActionModal(action, userId, userName) {
+            const modal = document.getElementById('actionModal');
+            const title = document.getElementById('modalTitle');
+            const actionField = document.getElementById('modalAction');
+            const userIdField = document.getElementById('modalUserId');
+            const submitBtn = document.getElementById('modalSubmitBtn');
+            
+            let actionText = '';
+            let btnClass = '';
+            
+            switch(action) {
+                case 'approve':
+                    actionText = 'Approve Account';
+                    btnClass = 'btn-approve';
+                    break;
+                case 'reject':
+                    actionText = 'Reject Account';
+                    btnClass = 'btn-reject';
+                    break;
+                case 'deactivate':
+                    actionText = 'Deactivate Account';
+                    btnClass = 'btn-deactivate';
+                    break;
+            }
+            
+            title.textContent = `${actionText} - ${userName}`;
+            actionField.value = action;
+            userIdField.value = userId;
+            submitBtn.textContent = actionText;
+            submitBtn.className = `btn-sm ${btnClass}`;
+            
+            modal.style.display = 'block';
+        }
+        
+        function closeModal() {
+            document.getElementById('actionModal').style.display = 'none';
+            document.getElementById('actionForm').reset();
+        }
+        
+        function deactivateUser(userId) {
+            const actionMessage = 'Are you sure you want to deactivate this user account?';
+            
+            if (confirm(actionMessage)) {
+                // Create form data
+                const formData = new FormData();
+                formData.append('action', 'deactivate_user');
+                formData.append('user_id', userId);
+                formData.append('remarks', 'Deactivated by admin');
+                
+                // Send request
+                fetch('', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        location.reload();
+                    } else {
+                        alert(result.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred. Please try again.');
+                });
+            }
+        }
+        
+        function activateUser(userId) {
+            const actionMessage = 'Are you sure you want to activate this user account?';
+            
+            if (confirm(actionMessage)) {
+                // Create form data
+                const formData = new FormData();
+                formData.append('action', 'activate_user');
+                formData.append('user_id', userId);
+                formData.append('remarks', 'Activated by admin');
+                
+                // Send request
+                fetch('', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        location.reload();
+                    } else {
+                        alert(result.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred. Please try again.');
+                });
+            }
+        }
+        
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('actionModal');
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+        
         // Update date and time
         function updateDateTime() {
             const now = new Date();

@@ -200,7 +200,6 @@ $chart_data = getWeeklyChartData($conn);
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
-    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * {
@@ -211,8 +210,18 @@ $chart_data = getWeeklyChartData($conn);
         }
 
         body {
-            background: #f7f5f0;
             min-height: 100vh;
+            background: url("../../../assets/img/cityhall.jpeg") center/cover no-repeat fixed;
+            position: relative;
+        }
+
+        body::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            backdrop-filter: blur(6px);
+            background: rgba(0, 0, 0, 0.35);
+            z-index: 0;
         }
 
         .main-content {
@@ -223,7 +232,7 @@ $chart_data = getWeeklyChartData($conn);
         }
 
         .dashboard-header {
-            background: #f0f4fa;
+            background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(15px);
             padding: 30px;
             border-radius: 16px;
@@ -347,7 +356,7 @@ $chart_data = getWeeklyChartData($conn);
         }
 
         .chart-container {
-            background: #f0f4fa;
+            background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(15px);
             padding: 25px;
             border-radius: 16px;
@@ -374,7 +383,7 @@ $chart_data = getWeeklyChartData($conn);
         }
 
         .activity-feed {
-            background: #f0f4fa;
+            background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(15px);
             padding: 25px;
             border-radius: 16px;
@@ -435,7 +444,7 @@ $chart_data = getWeeklyChartData($conn);
         }
 
         .priority-tasks {
-            background: #f0f4fa;
+            background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(15px);
             padding: 25px;
             border-radius: 16px;
@@ -498,7 +507,7 @@ $chart_data = getWeeklyChartData($conn);
         }
     </style>
 </head>
-<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
+<body>
     <!-- SIDEBAR -->
     <iframe src="../../includes/sidebar.php" 
             style="position: fixed; width: 250px; height: 100vh; border: none; z-index: 1000;" 

@@ -341,12 +341,21 @@ $roads = getRoadStatus();
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         body {
-            background: #f7f5f0;
+            background: url("../../../assets/img/cityhall.jpeg") center/cover no-repeat fixed;
+            position: relative;
             min-height: 100vh;
+        }
+        
+        body::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            backdrop-filter: blur(6px);
+            background: rgba(0, 0, 0, 0.35);
+            z-index: -1;
         }
         
         .main-content {
@@ -369,7 +378,7 @@ $roads = getRoadStatus();
         }
 
         .monitoring-header {
-            background: #f0f4fa;
+            background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(15px);
             padding: 25px 30px;
             border-radius: 16px;
@@ -433,7 +442,7 @@ $roads = getRoadStatus();
         }
 
         .map-section {
-            background: #f0f4fa;
+            background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(15px);
             border-radius: 16px;
             padding: 20px;
@@ -489,7 +498,7 @@ $roads = getRoadStatus();
         .report-form-panel {
             margin-top: 16px;
             padding: 20px;
-            background: #f0f4fa;
+            background: rgba(255,255,255,0.95);
             border-radius: 12px;
             border: 1px solid rgba(55, 98, 200, 0.2);
         }
@@ -531,7 +540,7 @@ $roads = getRoadStatus();
         }
 
         .info-card {
-            background: #f0f4fa;
+            background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(15px);
             border-radius: 16px;
             padding: 20px;
@@ -694,7 +703,7 @@ $roads = getRoadStatus();
         }
     </style>
 </head>
-<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
+<body>
     <!-- SIDEBAR -->
     <iframe src="../../includes/sidebar.php" 
             style="position: fixed; width: 250px; height: 100vh; border: none; z-index: 1000;" 
