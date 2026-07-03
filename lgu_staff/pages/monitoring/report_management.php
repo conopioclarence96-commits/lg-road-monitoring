@@ -174,7 +174,6 @@ function handle_update_report() {
     $status = sanitize_input($_POST['status'] ?? '');
     $priority = sanitize_input($_POST['priority'] ?? '');
     $assigned_to = sanitize_input($_POST['assigned_to'] ?? '');
-    $estimation = floatval($_POST['estimation'] ?? 0);
     $notes = sanitize_input($_POST['notes'] ?? '');
     
     if ($report_id <= 0 || empty($report_type) || empty($status)) {
@@ -186,15 +185,15 @@ function handle_update_report() {
     $table = ($report_type === 'transportation') ? 'road_transportation_reports' : 'road_maintenance_reports';
     
     if ($table === 'road_transportation_reports') {
-        $stmt = $conn->prepare("UPDATE {$table} SET status = ?, priority = ?, assigned_to = ?, estimation = ?, resolution_notes = ?, updated_at = NOW() WHERE id = ?");
-        $stmt->bind_param("sssdsi", $status, $priority, $assigned_to, $estimation, $notes, $report_id);
+        $stmt = $conn->prepare("UPDATE {$table} SET status = ?, priority = ?, assigned_to = ?, resolution_notes = ?, updated_at = NOW() WHERE id = ?");
+        $stmt->bind_param("ssssi", $status, $priority, $assigned_to, $notes, $report_id);
     } else {
         $stmt = $conn->prepare("UPDATE {$table} SET status = ?, priority = ?, maintenance_team = ?, updated_at = NOW() WHERE id = ?");
         $stmt->bind_param("sssi", $status, $priority, $assigned_to, $report_id);
     }
     
     if ($stmt->execute()) {
-        log_audit_action($user_id, "Updated {$report_type_from_db} report", "Report ID: {$report_id}, New Status: {$status}, Estimation: ₱" . number_format($estimation, 2));
+        log_audit_action($user_id, "Updated {$report_type_from_db} report", "Report ID: {$report_id}, New Status: {$status}");
         set_flash_message('success', 'Report updated successfully');
         
         // Return JSON response for AJAX requests
@@ -1298,11 +1297,6 @@ if (!empty($reports)) {
                         <small style="color: #666; font-size: 12px;">Select the team member responsible for this report</small>
                     </div>
                     
-                    <div class="form-group">
-                        <label for="editEstimation" class="form-label">Cost Estimation (₱)</label>
-                        <input type="number" class="form-control" name="estimation" id="editEstimation" placeholder="Enter estimated cost" min="0" step="1000">
-                        <small style="color: #666; font-size: 12px;">Provide cost estimation for this project</small>
-                    </div>
                     
                     <div class="form-group">
                         <label for="editNotes" class="form-label">Notes</label>
@@ -1450,7 +1444,6 @@ if (!empty($reports)) {
                             assignedToSelect.value = data.report.assigned_to;
                         }
                         
-                        document.getElementById('editEstimation').value = data.report.estimation || '';
                         document.getElementById('editNotes').value = data.report.notes || '';
                         openModal('editReportModal');
                     } else {
