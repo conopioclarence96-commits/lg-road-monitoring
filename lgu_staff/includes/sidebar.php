@@ -403,30 +403,35 @@ $notification_count = getNotificationCount();
             color: #6b7280 !important;
         }
 
-        body.dark-mode .nav-item {
+        body.dark-mode .nav-link {
             color: #ffffff !important;
         }
 
-        body.dark-mode .nav-item:hover {
+        body.dark-mode .nav-link:hover {
             background: rgba(255,255,255,0.08) !important;
             color: #ffffff !important;
+            border-left-color: #60a5fa !important;
         }
 
-        body.dark-mode .nav-item.active {
+        body.dark-mode .nav-link.active {
             background: rgba(96,165,250,0.15) !important;
             color: #ffffff !important;
+            border-left-color: #60a5fa !important;
         }
 
-        body.dark-mode .nav-item i {
+        body.dark-mode .nav-link svg,
+        body.dark-mode .nav-link i {
             color: #d1d5db !important;
         }
 
-        body.dark-mode .nav-item:hover i,
-        body.dark-mode .nav-item.active i {
+        body.dark-mode .nav-link:hover svg,
+        body.dark-mode .nav-link.active svg,
+        body.dark-mode .nav-link:hover i,
+        body.dark-mode .nav-link.active i {
             color: #ffffff !important;
         }
 
-        body.dark-mode .nav-item .badge {
+        body.dark-mode .nav-link .badge {
             background: #2563eb !important;
             color: white !important;
         }
