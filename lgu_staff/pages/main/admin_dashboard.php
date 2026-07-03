@@ -242,17 +242,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($action === 'approve_change' && $user_id > 0) {
         $request_id = intval($_POST['request_id'] ?? 0);
         $cr_user_id = intval($_POST['cr_user_id'] ?? 0);
-        $new_full_name = sanitize_input($_POST['new_full_name'] ?? '');
         $new_email = sanitize_input($_POST['new_email'] ?? '');
-        $new_department = sanitize_input($_POST['new_department'] ?? '');
         $new_address = sanitize_input($_POST['new_address'] ?? '');
+        $new_civil_status = sanitize_input($_POST['new_civil_status'] ?? '');
+        $new_birthday = sanitize_input($_POST['new_birthday'] ?? '');
+        $new_password = $_POST['new_password'] ?? '';
+        $new_id_file = $_POST['new_id_file_path'] ?? '';
         $admin_notes = sanitize_input($_POST['admin_notes'] ?? '');
 
         if ($request_id > 0 && $cr_user_id > 0) {
-            $stmt = $conn->prepare("UPDATE users SET full_name = ?, email = ?, department = ?, address = ? WHERE id = ?");
-            $stmt->bind_param("ssssi", $new_full_name, $new_email, $new_department, $new_address, $cr_user_id);
+            $sql = "UPDATE users SET email = ?, address = ?, civil_status = ?, birthday = ?";
+            $params = [$new_email, $new_address, $new_civil_status, $new_birthday];
+            $types = "ssss";
+
+            if (!empty($new_password)) {
+                $sql .= ", password = ?";
+                $params[] = password_hash($new_password, PASSWORD_DEFAULT);
+                $types .= "s";
+            }
+
+            if (!empty($new_id_file)) {
+                $sql .= ", id_file_path = ?";
+                $params[] = $new_id_file;
+                $types .= "s";
+            }
+
+            $sql .= " WHERE id = ?";
+            $params[] = $cr_user_id;
+            $types .= "i";
+
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param($types, ...$params);
             if ($stmt->execute()) {
                 $stmt->close();
+
                 $stmt2 = $conn->prepare("UPDATE change_requests SET status = 'approved', admin_notes = ?, reviewed_at = NOW(), reviewed_by = ? WHERE id = ?");
                 $stmt2->bind_param("sii", $admin_notes, $_SESSION['user_id'], $request_id);
                 $stmt2->execute();
@@ -339,7 +362,10 @@ try {
 $change_requests = [];
 try {
     $cr_stmt = $conn->prepare("
-        SELECT cr.*, u.full_name as user_name, u.email as user_email, u.department as user_department
+        SELECT cr.*, u.full_name as user_name, u.email as user_email,
+               u.department as user_department, u.address as user_address,
+               u.civil_status as user_civil_status, u.birthday as user_birthday,
+               u.id_file_path as user_id_file
         FROM change_requests cr
         LEFT JOIN users u ON cr.user_id = u.id
         WHERE cr.status = 'pending'
@@ -1285,16 +1311,18 @@ try {
                                             <td><?php echo htmlspecialchars($cr['user_name']); ?></td>
                                             <td>
                                                 <small style="color:#666;">
-                                                    Dept: <?php echo htmlspecialchars($cr['user_department'] ?? 'N/A'); ?><br>
-                                                    Email: <?php echo htmlspecialchars($cr['user_email']); ?>
+                                                    Email: <?php echo htmlspecialchars($cr['user_email']); ?><br>
+                                                    Status: <?php echo htmlspecialchars(ucfirst($cr['user_civil_status'] ?? 'N/A')); ?>
                                                 </small>
                                             </td>
                                             <td>
                                                 <small style="color:#1e3c72;">
-                                                    <strong>Name:</strong> <?php echo htmlspecialchars($req_data['full_name'] ?? ''); ?><br>
                                                     <strong>Email:</strong> <?php echo htmlspecialchars($req_data['email'] ?? ''); ?><br>
-                                                    <strong>Dept:</strong> <?php echo htmlspecialchars($req_data['department'] ?? ''); ?><br>
-                                                    <strong>Address:</strong> <?php echo htmlspecialchars($req_data['address'] ?? ''); ?>
+                                                    <strong>Address:</strong> <?php echo htmlspecialchars($req_data['address'] ?? ''); ?><br>
+                                                    <strong>Civil Status:</strong> <?php echo htmlspecialchars(ucfirst($req_data['civil_status'] ?? '')); ?><br>
+                                                    <strong>Birthday:</strong> <?php echo htmlspecialchars($req_data['birthday'] ?? ''); ?>
+                                                    <?php if (!empty($req_data['new_password'])): ?><br><span style="color:#f59e0b;"><i class="fas fa-key"></i> Password change requested</span><?php endif; ?>
+                                                    <?php if (!empty($req_data['id_file_path'])): ?><br><span style="color:#10b981;"><i class="fas fa-id-card"></i> New ID photo uploaded</span><?php endif; ?>
                                                 </small>
                                             </td>
                                             <td><small><?php echo htmlspecialchars($cr['reason'] ?? 'N/A'); ?></small></td>
@@ -1317,7 +1345,7 @@ try {
 
     <!-- Change Request Review Modal -->
     <div id="changeRequestModal" class="modal">
-        <div class="modal-content" style="max-width: 600px;">
+        <div class="modal-content" style="max-width: 650px;">
             <div class="modal-header">
                 <h2 class="modal-title">Review Change Request</h2>
                 <span class="close" onclick="closeChangeRequestModal()">&times;</span>
@@ -1327,6 +1355,7 @@ try {
                 <input type="hidden" id="crRequestId" name="request_id">
                 <input type="hidden" id="crUserId" name="cr_user_id">
                 <input type="hidden" id="crAdminUserId" name="user_id" value="<?php echo $_SESSION['user_id']; ?>">
+                <input type="hidden" id="crIdFilePath" name="new_id_file_path">
 
                 <div id="crCurrentInfo" style="background:#f8fafc; border-radius:8px; padding:12px; margin-bottom:15px;">
                     <label style="font-weight:600; font-size:13px; color:#475569; display:block; margin-bottom:8px;">Current Information</label>
@@ -1335,20 +1364,34 @@ try {
 
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
                     <div class="form-group">
-                        <label>Full Name</label>
-                        <input type="text" id="crFullName" name="new_full_name" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:5px; font-size:13px;">
-                    </div>
-                    <div class="form-group">
                         <label>Email</label>
                         <input type="email" id="crEmail" name="new_email" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:5px; font-size:13px;">
                     </div>
                     <div class="form-group">
-                        <label>Department</label>
-                        <input type="text" id="crDepartment" name="new_department" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:5px; font-size:13px;">
-                    </div>
-                    <div class="form-group">
                         <label>Address</label>
                         <input type="text" id="crAddress" name="new_address" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:5px; font-size:13px;">
+                    </div>
+                    <div class="form-group">
+                        <label>Civil Status</label>
+                        <select id="crCivilStatus" name="new_civil_status" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:5px; font-size:13px;">
+                            <option value="">Select</option>
+                            <option value="single">Single</option>
+                            <option value="married">Married</option>
+                            <option value="widowed">Widowed</option>
+                            <option value="separated">Separated</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Birthday</label>
+                        <input type="date" id="crBirthday" name="new_birthday" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:5px; font-size:13px;">
+                    </div>
+                    <div class="form-group">
+                        <label>New Password <small style="color:#999;">(leave blank to keep)</small></label>
+                        <input type="password" id="crPassword" name="new_password" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:5px; font-size:13px;" placeholder="Set new password" autocomplete="new-password">
+                    </div>
+                    <div class="form-group" id="crIdFileGroup" style="display:none;">
+                        <label>New ID Photo</label>
+                        <div id="crIdFilePreview" style="margin-top:5px;"></div>
                     </div>
                 </div>
 
@@ -1669,15 +1712,33 @@ try {
             document.getElementById('crUserId').value = cr.user_id;
 
             document.getElementById('crCurrentDetails').innerHTML =
-                '<strong>Name:</strong> ' + (cr.user_name || 'N/A') + '<br>' +
                 '<strong>Email:</strong> ' + (cr.user_email || 'N/A') + '<br>' +
-                '<strong>Dept:</strong> ' + (cr.user_department || 'N/A');
+                '<strong>Address:</strong> ' + (cr.user_address || 'N/A') + '<br>' +
+                '<strong>Civil Status:</strong> ' + (cr.user_civil_status ? cr.user_civil_status.charAt(0).toUpperCase() + cr.user_civil_status.slice(1) : 'N/A') + '<br>' +
+                '<strong>Birthday:</strong> ' + (cr.user_birthday || 'N/A');
 
-            document.getElementById('crFullName').value = data.full_name || '';
             document.getElementById('crEmail').value = data.email || '';
-            document.getElementById('crDepartment').value = data.department || '';
             document.getElementById('crAddress').value = data.address || '';
+            document.getElementById('crCivilStatus').value = data.civil_status || '';
+            document.getElementById('crBirthday').value = data.birthday || '';
+            document.getElementById('crPassword').value = '';
+            document.getElementById('crIdFilePath').value = data.id_file_path || '';
             document.getElementById('crAdminNotes').value = '';
+
+            const idFileGroup = document.getElementById('crIdFileGroup');
+            const idFilePreview = document.getElementById('crIdFilePreview');
+            if (data.id_file_path) {
+                idFileGroup.style.display = 'block';
+                const ext = data.id_file_path.split('.').pop().toLowerCase();
+                if (['jpg','jpeg','png','gif'].includes(ext)) {
+                    idFilePreview.innerHTML = '<img src="../../' + data.id_file_path + '" style="max-width:150px; max-height:120px; border-radius:6px; border:1px solid #ddd;">';
+                } else {
+                    idFilePreview.innerHTML = '<a href="../../' + data.id_file_path + '" target="_blank" style="color:#3762c8;"><i class="fas fa-file"></i> View uploaded file</a>';
+                }
+            } else {
+                idFileGroup.style.display = 'none';
+                idFilePreview.innerHTML = '';
+            }
 
             document.getElementById('changeRequestModal').style.display = 'block';
         }

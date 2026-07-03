@@ -633,6 +633,13 @@ $total_notifications = count($pending_reports) + count($pending_users) + count($
                     <?php else: ?>
                         <?php foreach ($pending_changes as $cr): 
                             $req_data = json_decode($cr['requested_data'], true);
+                            $changes_list = [];
+                            if (!empty($req_data['email'])) $changes_list[] = 'Email: ' . $req_data['email'];
+                            if (!empty($req_data['address'])) $changes_list[] = 'Address: ' . $req_data['address'];
+                            if (!empty($req_data['civil_status'])) $changes_list[] = 'Status: ' . ucfirst($req_data['civil_status']);
+                            if (!empty($req_data['birthday'])) $changes_list[] = 'Birthday: ' . $req_data['birthday'];
+                            if (!empty($req_data['new_password'])) $changes_list[] = 'Password change requested';
+                            if (!empty($req_data['id_file_path'])) $changes_list[] = 'New ID photo uploaded';
                         ?>
                             <div class="notification-item">
                                 <div class="notification-header">
@@ -640,15 +647,10 @@ $total_notifications = count($pending_reports) + count($pending_users) + count($
                                     <div class="notification-time"><?php echo date('M d, Y H:i', strtotime($cr['created_at'])); ?></div>
                                 </div>
                                 <div class="notification-body">
-                                    Requesting information update: 
-                                    <strong><?php echo htmlspecialchars($req_data['full_name'] ?? ''); ?></strong>
-                                    (<?php echo htmlspecialchars($req_data['email'] ?? ''); ?>)
+                                    Requesting information update:
+                                    <?php echo !empty($changes_list) ? '<br><small>' . implode(' &bull; ', $changes_list) . '</small>' : ''; ?>
                                 </div>
                                 <div class="notification-meta">
-                                    <span class="notification-tag"><i class="fas fa-building"></i> <?php echo htmlspecialchars($req_data['department'] ?? ''); ?></span>
-                                    <?php if (!empty($req_data['address'])): ?>
-                                        <span class="notification-tag"><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($req_data['address']); ?></span>
-                                    <?php endif; ?>
                                     <?php if (!empty($cr['reason'])): ?>
                                         <span class="notification-tag"><i class="fas fa-comment"></i> <?php echo htmlspecialchars($cr['reason']); ?></span>
                                     <?php endif; ?>

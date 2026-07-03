@@ -25,7 +25,6 @@ $user_id = $_SESSION['user_id'];
 $success_msg = '';
 $error_msg = '';
 
-// Ensure change_requests table exists
 $conn->query("
     CREATE TABLE IF NOT EXISTS change_requests (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -42,52 +41,75 @@ $conn->query("
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 ");
 
-// Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_request'])) {
-    $full_name = sanitize_input($_POST['full_name'] ?? '');
     $email = sanitize_input($_POST['email'] ?? '');
-    $department = sanitize_input($_POST['department'] ?? '');
     $address = sanitize_input($_POST['address'] ?? '');
+    $civil_status = sanitize_input($_POST['civil_status'] ?? '');
+    $birthday = sanitize_input($_POST['birthday'] ?? '');
+    $new_password = $_POST['new_password'] ?? '';
     $reason = sanitize_input($_POST['reason'] ?? '');
 
-    if (empty($full_name) || empty($email)) {
-        $error_msg = 'Full name and email are required.';
+    if (empty($email)) {
+        $error_msg = 'Email is required.';
     } else {
-        $requested_data = json_encode([
-            'full_name' => $full_name,
+        $requested_data = [
             'email' => $email,
-            'department' => $department,
-            'address' => $address
-        ]);
+            'address' => $address,
+            'civil_status' => $civil_status,
+            'birthday' => $birthday
+        ];
 
-        $stmt = $conn->prepare("INSERT INTO change_requests (user_id, requested_data, reason, status) VALUES (?, ?, ?, 'pending')");
-        $stmt->bind_param("iss", $user_id, $requested_data, $reason);
-
-        if ($stmt->execute()) {
-            log_audit_action($user_id, 'Change Request Submitted', 'Staff requested information change');
-            $success_msg = 'Your change request has been submitted and is pending admin review.';
-        } else {
-            $error_msg = 'Failed to submit request. Please try again.';
+        if (!empty($new_password)) {
+            $requested_data['new_password'] = true;
         }
-        $stmt->close();
+
+        if (!empty($_FILES['id_file']['name'])) {
+            $upload_dir = '../../uploads/change_requests/';
+            if (!is_dir($upload_dir)) {
+                mkdir($upload_dir, 0777, true);
+            }
+            $file_ext = strtolower(pathinfo($_FILES['id_file']['name'], PATHINFO_EXTENSION));
+            $allowed = ['jpg', 'jpeg', 'png', 'gif', 'pdf'];
+            if (in_array($file_ext, $allowed)) {
+                $file_name = 'cr_' . $user_id . '_' . time() . '.' . $file_ext;
+                $file_path = $upload_dir . $file_name;
+                if (move_uploaded_file($_FILES['id_file']['tmp_name'], $file_path)) {
+                    $requested_data['id_file_path'] = 'uploads/change_requests/' . $file_name;
+                } else {
+                    $error_msg = 'Failed to upload ID file.';
+                }
+            } else {
+                $error_msg = 'Invalid file type. Allowed: jpg, jpeg, png, gif, pdf.';
+            }
+        }
+
+        if (empty($error_msg)) {
+            $stmt = $conn->prepare("INSERT INTO change_requests (user_id, requested_data, reason, status) VALUES (?, ?, ?, 'pending')");
+            $json_data = json_encode($requested_data);
+            $stmt->bind_param("iss", $user_id, $json_data, $reason);
+            if ($stmt->execute()) {
+                log_audit_action($user_id, 'Change Request Submitted', 'Staff requested information change');
+                $success_msg = 'Your change request has been submitted and is pending admin review.';
+            } else {
+                $error_msg = 'Failed to submit request. Please try again.';
+            }
+            $stmt->close();
+        }
     }
 }
 
-// Get current user data
-$stmt = $conn->prepare("SELECT username, full_name, email, role, department FROM users WHERE id = ?");
+$stmt = $conn->prepare("SELECT username, full_name, email, role, department, address, birthday, civil_status FROM users WHERE id = ?");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $user = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
-// Get pending request count for this user
 $stmt = $conn->prepare("SELECT COUNT(*) as count FROM change_requests WHERE user_id = ? AND status = 'pending'");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $pending_request = $stmt->get_result()->fetch_assoc()['count'] > 0;
 $stmt->close();
 
-// Get last request status
 $stmt = $conn->prepare("SELECT status, admin_notes, reviewed_at FROM change_requests WHERE user_id = ? ORDER BY created_at DESC LIMIT 1");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
@@ -156,14 +178,6 @@ $stmt->close();
         .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
         .alert-danger { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; }
         .alert-info { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
-
-        .status-badge {
-            display: inline-flex; align-items: center; gap: 5px;
-            padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500;
-        }
-        .status-pending { background: #fef3c7; color: #d97706; }
-        .status-approved { background: #dcfce7; color: #166534; }
-        .status-rejected { background: #fee2e2; color: #dc2626; }
 
         .request-status-box {
             padding: 16px 20px; border-radius: 12px; margin-bottom: 20px;
@@ -256,42 +270,52 @@ $stmt->close();
         <?php endif; ?>
 
         <div class="info-card">
-            <h3><i class="fas fa-id-card"></i> Your Current Information</h3>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
+            <h3><i class="fas fa-id-card"></i> Account Info</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 10px;">
                 <div><small style="color:#666;">Username</small><div class="form-control-plaintext"><?php echo htmlspecialchars($user['username'] ?? ''); ?></div></div>
-                <div><small style="color:#666;">Role</small><div class="form-control-plaintext"><?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $user['role'] ?? ''))); ?></div></div>
+                <div><small style="color:#666;">Full Name</small><div class="form-control-plaintext"><?php echo htmlspecialchars($user['full_name'] ?? ''); ?></div></div>
+                <div><small style="color:#666;">Department</small><div class="form-control-plaintext">LGU Staff</div></div>
             </div>
         </div>
 
         <div class="info-card">
             <h3><i class="fas fa-pencil-alt"></i> Request Changes</h3>
-            <form method="POST">
+            <form method="POST" enctype="multipart/form-data">
                 <div class="form-grid">
                     <div class="form-group">
-                        <label for="full_name">Full Name *</label>
-                        <input type="text" id="full_name" name="full_name" class="form-control"
-                               value="<?php echo htmlspecialchars($user['full_name'] ?? ''); ?>" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="email">Email Address *</label>
+                        <label for="email">Email Address</label>
                         <input type="email" id="email" name="email" class="form-control"
-                               value="<?php echo htmlspecialchars($user['email'] ?? ''); ?>" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="department">Department</label>
-                        <select id="department" name="department" class="form-control">
-                            <option value="LGU Services" <?php echo ($user['department'] ?? '') === 'LGU Services' ? 'selected' : ''; ?>>LGU Services</option>
-                            <option value="Engineering" <?php echo ($user['department'] ?? '') === 'Engineering' ? 'selected' : ''; ?>>Engineering</option>
-                            <option value="Planning" <?php echo ($user['department'] ?? '') === 'Planning' ? 'selected' : ''; ?>>Planning</option>
-                            <option value="Maintenance" <?php echo ($user['department'] ?? '') === 'Maintenance' ? 'selected' : ''; ?>>Maintenance</option>
-                            <option value="Finance" <?php echo ($user['department'] ?? '') === 'Finance' ? 'selected' : ''; ?>>Finance</option>
-                            <option value="IT / System Administration" <?php echo ($user['department'] ?? '') === 'IT / System Administration' ? 'selected' : ''; ?>>IT / System Administration</option>
-                            <option value="Citizen Services" <?php echo ($user['department'] ?? '') === 'Citizen Services' ? 'selected' : ''; ?>>Citizen Services</option>
-                        </select>
+                               value="<?php echo htmlspecialchars($user['email'] ?? ''); ?>">
                     </div>
                     <div class="form-group">
                         <label for="address">Address</label>
-                        <input type="text" id="address" name="address" class="form-control" placeholder="Enter your address">
+                        <input type="text" id="address" name="address" class="form-control"
+                               value="<?php echo htmlspecialchars($user['address'] ?? ''); ?>" placeholder="Enter your address">
+                    </div>
+                    <div class="form-group">
+                        <label for="civil_status">Civil Status</label>
+                        <select id="civil_status" name="civil_status" class="form-control">
+                            <option value="">Select status</option>
+                            <option value="single" <?php echo ($user['civil_status'] ?? '') === 'single' ? 'selected' : ''; ?>>Single</option>
+                            <option value="married" <?php echo ($user['civil_status'] ?? '') === 'married' ? 'selected' : ''; ?>>Married</option>
+                            <option value="widowed" <?php echo ($user['civil_status'] ?? '') === 'widowed' ? 'selected' : ''; ?>>Widowed</option>
+                            <option value="separated" <?php echo ($user['civil_status'] ?? '') === 'separated' ? 'selected' : ''; ?>>Separated</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="birthday">Birthday</label>
+                        <input type="date" id="birthday" name="birthday" class="form-control"
+                               value="<?php echo htmlspecialchars($user['birthday'] ?? ''); ?>">
+                    </div>
+                    <div class="form-group">
+                        <label for="id_file">New ID Photo</label>
+                        <input type="file" id="id_file" name="id_file" class="form-control"
+                               accept=".jpg,.jpeg,.png,.gif,.pdf">
+                    </div>
+                    <div class="form-group">
+                        <label for="new_password">New Password <small style="color:#999;">(leave blank to keep current)</small></label>
+                        <input type="password" id="new_password" name="new_password" class="form-control"
+                               placeholder="Enter new password" autocomplete="new-password">
                     </div>
                 </div>
                 <div class="form-group">
