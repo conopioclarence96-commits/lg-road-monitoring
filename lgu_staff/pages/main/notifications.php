@@ -585,7 +585,7 @@ $total_notifications = count($pending_reports) + count($pending_changes);
                                 </div>
                                 <div style="margin-top: 10px;">
                                     <div class="action-buttons">
-                                        <a href="admin_dashboard.php" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> Review</a>
+                                        <a href="account_approvals.php" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> Review</a>
                                     </div>
                                 </div>
                             </div>
