@@ -630,7 +630,7 @@ $total_notifications = $is_admin ? (count($pending_reports) + count($pending_cha
                             if (!empty($req_data['address'])) $changes_list[] = 'Address: ' . $req_data['address'];
                             if (!empty($req_data['civil_status'])) $changes_list[] = 'Status: ' . ucfirst($req_data['civil_status']);
                             if (!empty($req_data['birthday'])) $changes_list[] = 'Birthday: ' . $req_data['birthday'];
-                            if (!empty($req_data['new_password_hash'])) $changes_list[] = 'Password change requested';
+                            if (!empty($req_data['new_password'])) $changes_list[] = 'Password change requested';
                             if (!empty($req_data['id_file_path'])) $changes_list[] = 'New ID photo uploaded';
                         ?>
                             <div class="notification-item">
