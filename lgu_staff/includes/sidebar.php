@@ -366,9 +366,97 @@ $notification_count = getNotificationCount();
         .sidebar-content::-webkit-scrollbar-thumb:hover {
             background: #555;
         }
+
+        body.dark-mode {
+            background: #1a1d23 !important;
+        }
+
+        body.dark-mode .sidebar {
+            background: linear-gradient(135deg, #1a1d23 0%, #22262e 100%) !important;
+        }
+
+        body.dark-mode .sidebar-header {
+            border-color: #2d323b !important;
+        }
+
+        body.dark-mode .sidebar-header h2 {
+            color: #e4e6ea !important;
+        }
+
+        body.dark-mode .sidebar-header p {
+            color: #9ca3af !important;
+        }
+
+        body.dark-mode .user-info {
+            background: rgba(255,255,255,0.05) !important;
+        }
+
+        body.dark-mode .user-info span {
+            color: #e4e6ea !important;
+        }
+
+        body.dark-mode .user-info small {
+            color: #9ca3af !important;
+        }
+
+        body.dark-mode .nav-section {
+            color: #6b7280 !important;
+        }
+
+        body.dark-mode .nav-item {
+            color: #9ca3af !important;
+        }
+
+        body.dark-mode .nav-item:hover {
+            background: rgba(255,255,255,0.08) !important;
+            color: #e4e6ea !important;
+        }
+
+        body.dark-mode .nav-item.active {
+            background: rgba(96,165,250,0.15) !important;
+            color: #60a5fa !important;
+        }
+
+        body.dark-mode .nav-item i {
+            color: #6b7280 !important;
+        }
+
+        body.dark-mode .nav-item:hover i,
+        body.dark-mode .nav-item.active i {
+            color: #60a5fa !important;
+        }
+
+        body.dark-mode .nav-item .badge {
+            background: #2563eb !important;
+            color: white !important;
+        }
+
+        body.dark-mode .sidebar-footer {
+            border-color: #2d323b !important;
+        }
+
+        body.dark-mode .sidebar-footer a {
+            color: #9ca3af !important;
+        }
+
+        body.dark-mode .sidebar-footer a:hover {
+            color: #f87171 !important;
+        }
+
+        body.dark-mode .sidebar-content::-webkit-scrollbar-track {
+            background: #1a1d23 !important;
+        }
+
+        body.dark-mode .sidebar-content::-webkit-scrollbar-thumb {
+            background: #2d323b !important;
+        }
+
+        body.dark-mode .sidebar-content::-webkit-scrollbar-thumb:hover {
+            background: #3d4350 !important;
+        }
     </style>
 </head>
-<body>
+<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
     <div class="sidebar">
         <div class="sidebar-header">
             <h2>LGU Staff Portal</h2>

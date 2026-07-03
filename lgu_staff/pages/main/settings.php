@@ -145,6 +145,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute();
         $stmt->close();
 
+        $_SESSION['darkmode'] = $darkmode;
+
         log_audit_action($user_id, 'Dark Mode Updated', 'Dark mode ' . ($darkmode === '1' ? 'enabled' : 'disabled'));
         $success_msg = 'Dark mode ' . ($darkmode === '1' ? 'enabled' : 'disabled') . ' successfully.';
     }
