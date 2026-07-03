@@ -147,117 +147,39 @@ $showOTPModal = false;
 // Handle OTP Verification
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_otp'])) {
     $enteredOTP = $_POST['otp_code'] ?? '';
+    $storedOTP = $_SESSION['otp_data']['code'] ?? '';
+    $otpExpiry = $_SESSION['otp_data']['expiry'] ?? 0;
     
-    // Check if this is a login OTP verification
-    if (isset($_SESSION['login_otp_data'])) {
-        $storedOTP = $_SESSION['login_otp_data']['code'] ?? '';
-        $otpExpiry = $_SESSION['login_otp_data']['expiry'] ?? 0;
-        
-        if (empty($enteredOTP)) {
-            $loginMessage = 'Please enter the OTP code';
-            $messageType = 'error';
-            $showOTPModal = true;
-        } elseif (time() > $otpExpiry) {
-            $loginMessage = 'OTP has expired. Please login again.';
-            $messageType = 'error';
-            unset($_SESSION['login_otp_data']);
-        } elseif ($enteredOTP !== $storedOTP) {
-            $loginMessage = 'Invalid OTP code. Please try again.';
-            $messageType = 'error';
-            $showOTPModal = true;
-        } else {
-            // Login OTP verified - complete login
-            $userData = $_SESSION['login_otp_data'];
-            
-            $_SESSION['user_id'] = $userData['user_id'];
-            $_SESSION['email'] = $userData['email'];
-            $_SESSION['full_name'] = $userData['full_name'];
-            $_SESSION['role'] = $userData['role'];
-            $_SESSION['logged_in'] = true;
-            $_SESSION['login_time'] = time();
-            
-            // Update last_login timestamp
-            $login_update = $conn->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
-            $login_update->bind_param("i", $userData['user_id']);
-            $login_update->execute();
-            $login_update->close();
-            
-            unset($_SESSION['login_otp_data']);
-            
-            // Determine redirect based on user role
-            switch ($userData['role']) {
-                case 'system_admin':
-                    $redirectUrl = $basePath . 'lgu_staff/pages/main/admin_dashboard.php';
-                    break;
-                case 'lgu_staff':
-                    $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
-                    break;
-                case 'citizen':
-                    $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
-                    break;
-                default:
-                    $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
-            }
-            
-            header('Location: ' . $redirectUrl);
-            exit;
-        }
+    if (empty($enteredOTP)) {
+        $registerMessage = 'Please enter the OTP code';
+        $registerMessageType = 'error';
+        $showOTPModal = true;
+    } elseif (time() > $otpExpiry) {
+        $registerMessage = 'OTP has expired. Please register again.';
+        $registerMessageType = 'error';
+        unset($_SESSION['otp_data']);
+    } elseif ($enteredOTP !== $storedOTP) {
+        $registerMessage = 'Invalid OTP code. Please try again.';
+        $registerMessageType = 'error';
+        $showOTPModal = true;
     } else {
-        // Registration OTP verification
-        $storedOTP = $_SESSION['otp_data']['code'] ?? '';
-        $otpExpiry = $_SESSION['otp_data']['expiry'] ?? 0;
+        // OTP verified successfully
+        $_SESSION['otp_verified'] = true;
+        $registerMessage = 'Email verified successfully! Please complete your profile.';
+        $registerMessageType = 'success';
         
-        if (empty($enteredOTP)) {
-            $registerMessage = 'Please enter the OTP code';
-            $registerMessageType = 'error';
-            $showOTPModal = true;
-        } elseif (time() > $otpExpiry) {
-            $registerMessage = 'OTP has expired. Please register again.';
-            $registerMessageType = 'error';
-            unset($_SESSION['otp_data']);
-        } elseif ($enteredOTP !== $storedOTP) {
-            $registerMessage = 'Invalid OTP code. Please try again.';
-            $registerMessageType = 'error';
-            $showOTPModal = true;
-        } else {
-            // OTP verified successfully
-            $_SESSION['otp_verified'] = true;
-            $registerMessage = 'Email verified successfully! Please complete your profile.';
-            $registerMessageType = 'success';
-            
-            // Auto-switch to additional info panel
-            echo '<script>
-                document.addEventListener("DOMContentLoaded", function() {
-                    setTimeout(() => showPanel("additional"), 500);
-                });
-            </script>';
-        }
+        // Auto-switch to additional info panel
+        echo '<script>
+            document.addEventListener("DOMContentLoaded", function() {
+                setTimeout(() => showPanel("additional"), 500);
+            });
+        </script>';
     }
 }
 
 // Handle Resend OTP
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['resend_otp'])) {
-    if (isset($_SESSION['login_otp_data'])) {
-        $email = $_SESSION['login_otp_data']['email'];
-        
-        // Generate new 6-digit OTP
-        $otpCode = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-        $_SESSION['login_otp_data']['code'] = $otpCode;
-        $_SESSION['login_otp_data']['expiry'] = time() + 300;
-        
-        // Send OTP via API
-        sendOTPToEmail($email, $otpCode);
-        
-        $loginMessage = 'A new OTP has been sent to your email.';
-        $messageType = 'success';
-        $showOTPModal = true;
-        
-        echo '<script>
-            document.addEventListener("DOMContentLoaded", function() {
-                openOTPModal();
-            });
-        </script>';
-    } elseif (isset($_SESSION['registration_data'])) {
+    if (isset($_SESSION['registration_data'])) {
         $email = $_SESSION['registration_data']['email'];
         
         // Generate new 6-digit OTP
@@ -524,7 +446,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
 $loginMessage = '';
 $messageType = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) && !isset($_POST['submit_additional']) && !isset($_POST['verify_otp']) && !isset($_POST['resend_otp'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) && !isset($_POST['submit_additional'])) {
     $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL);
     $password = $_POST['password'] ?? '';
     
@@ -572,23 +494,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                         $messageType = 'error';
                     }
                     else {
-                        // Password correct - send OTP before allowing login
-                        $otpCode = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-                        $_SESSION['login_otp_data'] = [
-                            'code' => $otpCode,
-                            'expiry' => time() + 300,
-                            'user_id' => $user['id'],
-                            'email' => $user['email'],
-                            'full_name' => $user['full_name'],
-                            'role' => $user['role']
-                        ];
+                        // Login successful - set session variables
+                        $_SESSION['user_id'] = $user['id'];
+                        $_SESSION['email'] = $user['email'];
+                        $_SESSION['full_name'] = $user['full_name'];
+                        $_SESSION['role'] = $user['role'];
+                        $_SESSION['logged_in'] = true;
+                        $_SESSION['login_time'] = time();
                         
-                        // Send OTP via email
-                        sendOTPToEmail($email, $otpCode);
+                        // Update last_login timestamp
+                        $login_update = $conn->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
+                        $login_update->bind_param("i", $user['id']);
+                        $login_update->execute();
+                        $login_update->close();
                         
-                        $loginMessage = 'A verification code has been sent to your email. Please check your inbox.';
-                        $messageType = 'success';
-                        $showOTPModal = true;
+                        // Determine redirect based on user role
+                        switch ($user['role']) {
+                            case 'system_admin':
+                                // Redirect to Admin Dashboard
+                                $redirectUrl = $basePath . 'lgu_staff/pages/main/admin_dashboard.php';
+                                break;
+                            case 'lgu_staff':
+                                // Redirect to LGU Staff Dashboard
+                                $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
+                                break;
+                            case 'citizen':
+                                $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
+                                break;
+                            default:
+                                $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
+                        }
+                        
+                        // Redirect to appropriate dashboard
+                        header('Location: ' . $redirectUrl);
+                        exit;
                     }
                 } else {
                     // Invalid password
