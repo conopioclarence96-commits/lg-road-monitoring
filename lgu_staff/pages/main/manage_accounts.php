@@ -91,31 +91,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $address = $_POST['address'] ?? '';
         $birthday = $_POST['birthday'] ?? '';
         $civil_status = $_POST['civil_status'] ?? '';
-        $new_password = $_POST['new_password'] ?? '';
 
         if (empty($full_name) || empty($role)) {
             echo json_encode(['success' => false, 'message' => 'Full name and role are required.']);
             exit;
         }
 
+        $stmt = $conn->prepare("UPDATE users SET full_name = ?, role = ?, department = ?, address = ?, birthday = ?, civil_status = ?, updated_at = NOW() WHERE id = ?");
         $birthday_val = ($birthday !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $birthday)) ? $birthday : null;
-
-        $sql = "UPDATE users SET full_name = ?, role = ?, department = ?, address = ?, birthday = ?, civil_status = ?, updated_at = NOW()";
-        $params = [$full_name, $role, $department, $address, $birthday_val, $civil_status];
-        $types = "ssssss";
-
-        if (!empty($new_password)) {
-            $sql .= ", password = ?";
-            $params[] = password_hash($new_password, PASSWORD_DEFAULT);
-            $types .= "s";
-        }
-
-        $sql .= " WHERE id = ?";
-        $params[] = $userId;
-        $types .= "i";
-
-        $stmt = $conn->prepare($sql);
-        $stmt->bind_param($types, ...$params);
+        $stmt->bind_param("ssssssi", $full_name, $role, $department, $address, $birthday_val, $civil_status, $userId);
         $stmt->execute();
         $stmt->close();
 
@@ -615,10 +599,6 @@ try {
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>New Password <small style="color:#999; font-weight:400;">(leave blank to keep current)</small></label>
-                        <input type="password" id="modalPassword" class="editable-field" disabled placeholder="Min. 8 characters" autocomplete="new-password">
-                    </div>
-                    <div class="form-group">
                         <label>Account Status:</label>
                         <input type="text" id="modalAccountStatus" disabled>
                     </div>
@@ -999,7 +979,7 @@ try {
         let usersData = <?php echo json_encode($users); ?>;
         let unverifiedUsersData = <?php echo json_encode($unverified_users); ?>;
         
-        const editableFields = ['modalFullName', 'modalRole', 'modalDepartment', 'modalAddress', 'modalBirthday', 'modalCivilStatus', 'modalPassword'];
+        const editableFields = ['modalFullName', 'modalRole', 'modalDepartment', 'modalAddress', 'modalBirthday', 'modalCivilStatus'];
 
         function showUserModal(userId) {
             console.log('Opening modal for user ID:', userId);
@@ -1016,7 +996,6 @@ try {
                 document.getElementById('modalAddress').value = user.address || '';
                 document.getElementById('modalBirthday').value = user.birthday || '';
                 document.getElementById('modalCivilStatus').value = user.civil_status || '';
-                document.getElementById('modalPassword').value = '';
                 document.getElementById('modalAccountStatus').value = user.is_active ? 'Active' : 'Inactive';
                 document.getElementById('modalCreatedAt').value = user.created_at;
                 document.getElementById('modalApprovedAt').value = user.approved_at || 'N/A';
@@ -1094,7 +1073,6 @@ try {
             formData.append('address', document.getElementById('modalAddress').value.trim());
             formData.append('birthday', document.getElementById('modalBirthday').value);
             formData.append('civil_status', document.getElementById('modalCivilStatus').value);
-            formData.append('new_password', document.getElementById('modalPassword').value);
 
             const saveBtn = document.getElementById('saveButton');
             saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
