@@ -587,11 +587,12 @@ $notification_count = getNotificationCount();
     </div>
 
     <script>
-        // Page transition for logout link
+        // Page transition for logout link with confirmation
         document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('a[href*="logout.php"]').forEach(link => {
                 link.addEventListener('click', function (e) {
                     e.preventDefault();
+                    if (!confirm('Are you sure you want to log out?')) return;
                     const overlay = document.getElementById('pageTransitionOverlay');
                     overlay.classList.add('active');
                     

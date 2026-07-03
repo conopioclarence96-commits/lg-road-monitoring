@@ -581,7 +581,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                 </div>
             <?php endif; ?>
 
-            <form method="POST">
+            <form method="POST" onsubmit="return confirm('Are you sure you want to sign in?')">
               <div class="input-box">
                 <label>Email Address</label>
                 <input type="email" name="email" placeholder="name@lgu.gov.ph" value="<?php echo isset($_POST['email']) && !isset($_POST['submit_register']) && !isset($_POST['submit_additional']) ? htmlspecialchars($_POST['email']) : ''; ?>" />
