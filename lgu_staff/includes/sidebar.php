@@ -1047,7 +1047,7 @@ $notifications = ($user_role === 'system_admin') ? getNotifications() : ['report
                     </div>
                 <?php else: ?>
                     <?php foreach ($notifications['reports'] as $report): ?>
-                        <div class="notif-item priority-<?php echo $report['priority']; ?>" onclick="window.parent.location.href='../pages/monitoring/report_management.php'">
+                        <div class="notif-item priority-<?php echo $report['priority']; ?>" onclick="window.parent.location.href='/lg-road-monitoring/lgu_staff/pages/monitoring/report_management.php'">
                             <div class="notif-item-top">
                                 <div class="notif-item-title"><?php echo htmlspecialchars($report['title']); ?></div>
                                 <div class="notif-item-time"><?php echo date('M d, H:i', strtotime($report['created_at'])); ?></div>
@@ -1077,7 +1077,7 @@ $notifications = ($user_role === 'system_admin') ? getNotifications() : ['report
                     </div>
                 <?php else: ?>
                     <?php foreach ($notifications['users'] as $user): ?>
-                        <div class="notif-item" onclick="window.parent.location.href='../pages/main/admin_dashboard.php'">
+                        <div class="notif-item" onclick="window.parent.location.href='/lg-road-monitoring/lgu_staff/pages/main/admin_dashboard.php'">
                             <div class="notif-item-top">
                                 <div class="notif-item-title"><?php echo htmlspecialchars($user['full_name']); ?></div>
                                 <div class="notif-item-time"><?php echo date('M d, H:i', strtotime($user['created_at'])); ?></div>
@@ -1239,7 +1239,7 @@ $notifications = ($user_role === 'system_admin') ? getNotifications() : ['report
         var usersSection = document.getElementById('notifSectionUsers');
         
         if (data.reports.length === 0) {
-            reportsSection.innerHTML = '<div class="notif-empty"><i class="fas fa-check-circle"></i><p>No pending reports</p></div>';
+            reportsSection.innerHTML = '<div class="notif-empty"><i class="fas fa-check-circle"></i><p>No notifications</p></div>';
         } else {
             var html = '';
             data.reports.forEach(function(r) {
@@ -1247,14 +1247,17 @@ $notifications = ($user_role === 'system_admin') ? getNotifications() : ['report
                 if (r.description && r.description.length > 100) desc += '...';
                 var time = new Date(r.created_at).toLocaleDateString('en-US', {month:'short', day:'numeric'}) + ' ' + 
                            new Date(r.created_at).toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', hour12:false});
+                var priority = r.priority || 'low';
+                var reportUrl = data.user_role === 'lgu_staff' ? '/lg-road-monitoring/lgu_staff/pages/monitoring/report_management.php' : '/lg-road-monitoring/lgu_staff/pages/monitoring/report_management.php';
                 
-                html += '<div class="notif-item priority-' + r.priority + '" onclick="window.parent.location.href=\'../pages/monitoring/report_management.php\'">';
+                html += '<div class="notif-item priority-' + priority + '" onclick="window.parent.location.href=\'' + reportUrl + '\'">';
                 html += '<div class="notif-item-top"><div class="notif-item-title">' + escapeHtml(r.title) + '</div>';
                 html += '<div class="notif-item-time">' + time + '</div></div>';
                 html += '<div class="notif-item-desc">' + escapeHtml(desc) + '</div>';
                 html += '<div class="notif-item-meta">';
-                html += '<span class="notif-tag notif-tag-dept">' + capitalize(r.department) + '</span>';
-                html += '<span class="notif-tag notif-tag-priority-' + r.priority + '">' + capitalize(r.priority) + '</span>';
+                if (r.department) html += '<span class="notif-tag notif-tag-dept">' + capitalize(r.department) + '</span>';
+                if (r.priority) html += '<span class="notif-tag notif-tag-priority-' + priority + '">' + capitalize(priority) + '</span>';
+                if (r.status) html += '<span class="notif-tag notif-tag-role">' + capitalize(r.status) + '</span>';
                 if (r.location) html += '<span class="notif-tag notif-tag-location"><i class="fas fa-map-marker-alt"></i> ' + escapeHtml(r.location.substring(0, 20)) + '</span>';
                 if (r.reporter_name) html += '<span class="notif-tag notif-tag-reporter"><i class="fas fa-user"></i> ' + escapeHtml(r.reporter_name) + '</span>';
                 html += '</div></div>';
@@ -1263,20 +1266,23 @@ $notifications = ($user_role === 'system_admin') ? getNotifications() : ['report
         }
         
         if (data.users.length === 0) {
-            usersSection.innerHTML = '<div class="notif-empty"><i class="fas fa-check-circle"></i><p>No pending user requests</p></div>';
+            usersSection.innerHTML = '<div class="notif-empty"><i class="fas fa-check-circle"></i><p>No notifications</p></div>';
         } else {
             var html = '';
             data.users.forEach(function(u) {
                 var time = new Date(u.created_at).toLocaleDateString('en-US', {month:'short', day:'numeric'}) + ' ' + 
                            new Date(u.created_at).toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', hour12:false});
+                var userUrl = data.user_role === 'lgu_staff' ? '/lg-road-monitoring/lgu_staff/pages/main/change_info.php' : '/lg-road-monitoring/lgu_staff/pages/main/admin_dashboard.php';
+                var desc = u.full_name ? 'New ' + capitalize(u.role) + ' account registration request' : (u.description || u.title || 'Status update');
                 
-                html += '<div class="notif-item" onclick="window.parent.location.href=\'../pages/main/admin_dashboard.php\'">';
-                html += '<div class="notif-item-top"><div class="notif-item-title">' + escapeHtml(u.full_name) + '</div>';
+                html += '<div class="notif-item" onclick="window.parent.location.href=\'' + userUrl + '\'">';
+                html += '<div class="notif-item-top"><div class="notif-item-title">' + escapeHtml(u.full_name || u.title || 'Update') + '</div>';
                 html += '<div class="notif-item-time">' + time + '</div></div>';
-                html += '<div class="notif-item-desc">New ' + capitalize(u.role) + ' account registration request</div>';
+                html += '<div class="notif-item-desc">' + escapeHtml(desc) + '</div>';
                 html += '<div class="notif-item-meta">';
-                html += '<span class="notif-tag notif-tag-dept">' + capitalize(u.department || 'N/A') + '</span>';
-                html += '<span class="notif-tag notif-tag-role">' + capitalize(u.role) + '</span>';
+                if (u.department) html += '<span class="notif-tag notif-tag-dept">' + capitalize(u.department || 'N/A') + '</span>';
+                if (u.role) html += '<span class="notif-tag notif-tag-role">' + capitalize(u.role) + '</span>';
+                if (u.status) html += '<span class="notif-tag notif-tag-priority-low">' + capitalize(u.status) + '</span>';
                 html += '</div></div>';
             });
             usersSection.innerHTML = html;
