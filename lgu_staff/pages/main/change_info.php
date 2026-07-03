@@ -60,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_request'])) {
         ];
 
         if (!empty($new_password)) {
-            $requested_data['new_password'] = true;
+            $requested_data['new_password_hash'] = password_hash($new_password, PASSWORD_DEFAULT);
         }
 
         if (!empty($_FILES['id_file']['name'])) {

@@ -149,18 +149,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $new_address = sanitize_input($_POST['new_address'] ?? '');
         $new_civil_status = sanitize_input($_POST['new_civil_status'] ?? '');
         $new_birthday = sanitize_input($_POST['new_birthday'] ?? '');
-        $new_password = $_POST['new_password'] ?? '';
         $new_id_file = $_POST['new_id_file_path'] ?? '';
         $admin_notes = sanitize_input($_POST['admin_notes'] ?? '');
+
+        // Read the stored password hash from the DB record
+        $stored_hash = '';
+        if ($request_id > 0) {
+            $hstmt = $conn->prepare("SELECT requested_data FROM change_requests WHERE id = ?");
+            $hstmt->bind_param("i", $request_id);
+            $hstmt->execute();
+            $hresult = $hstmt->get_result();
+            if ($hrow = $hresult->fetch_assoc()) {
+                $hdata = json_decode($hrow['requested_data'], true);
+                $stored_hash = $hdata['new_password_hash'] ?? '';
+            }
+            $hstmt->close();
+        }
 
         if ($request_id > 0 && $cr_user_id > 0) {
             $sql = "UPDATE users SET email = ?, address = ?, civil_status = ?, birthday = ?";
             $params = [$new_email, $new_address, $new_civil_status, $new_birthday];
             $types = "ssss";
 
-            if (!empty($new_password)) {
+            if (!empty($stored_hash)) {
                 $sql .= ", password = ?";
-                $params[] = password_hash($new_password, PASSWORD_DEFAULT);
+                $params[] = $stored_hash;
                 $types .= "s";
             }
             if (!empty($new_id_file)) {
@@ -489,7 +502,7 @@ $pending_changes_count = count($change_requests);
                                                     <strong>Address:</strong> <?php echo htmlspecialchars($req_data['address'] ?? ''); ?><br>
                                                     <strong>Civil Status:</strong> <?php echo htmlspecialchars(ucfirst($req_data['civil_status'] ?? '')); ?><br>
                                                     <strong>Birthday:</strong> <?php echo htmlspecialchars($req_data['birthday'] ?? ''); ?>
-                                                    <?php if (!empty($req_data['new_password'])): ?><br><span style="color:#f59e0b;"><i class="fas fa-key"></i> Password change requested</span><?php endif; ?>
+                                                    <?php if (!empty($req_data['new_password_hash'])): ?><br><span style="color:#f59e0b;"><i class="fas fa-key"></i> Password change requested</span><?php endif; ?>
                                                     <?php if (!empty($req_data['id_file_path'])): ?><br><span style="color:#10b981;"><i class="fas fa-id-card"></i> New ID photo uploaded</span><?php endif; ?>
                                                 </small>
                                             </td>
@@ -589,8 +602,8 @@ $pending_changes_count = count($change_requests);
                         <input type="date" id="crBirthday" name="new_birthday" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:5px; font-size:13px;">
                     </div>
                     <div class="form-group">
-                        <label>New Password <small style="color:#999;">(leave blank)</small></label>
-                        <input type="password" id="crPassword" name="new_password" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:5px; font-size:13px;" placeholder="Set new password" autocomplete="new-password">
+                        <label>New Password <small style="color:#999;">(auto-applied from staff request)</small></label>
+                        <input type="password" id="crPassword" name="new_password" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:5px; font-size:13px;" placeholder="Password change requested" autocomplete="new-password" readonly>
                     </div>
                     <div class="form-group" id="crIdFileGroup" style="display:none;">
                         <label>New ID Photo</label>
@@ -705,7 +718,10 @@ $pending_changes_count = count($change_requests);
             document.getElementById('crAddress').value = data.address || '';
             document.getElementById('crCivilStatus').value = data.civil_status || '';
             document.getElementById('crBirthday').value = data.birthday || '';
-            document.getElementById('crPassword').value = data.new_password || '';
+            document.getElementById('crPassword').value = data.new_password_hash ? '********' : '';
+            document.getElementById('crPassword').disabled = true;
+            document.getElementById('crPassword').style.backgroundColor = '#f0f4fa';
+            document.getElementById('crPassword').style.cursor = 'not-allowed';
             document.getElementById('crIdFilePath').value = data.id_file_path || '';
             document.getElementById('crAdminNotes').value = '';
 
