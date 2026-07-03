@@ -142,28 +142,7 @@ function getNotificationCount($user_role = '', $user_id = 0) {
     $count = 0;
     
     if ($conn) {
-<<<<<<< HEAD
-        try {
-            $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'pending'");
-            $stmt->execute();
-            $result = $stmt->get_result();
-            $count += $result->fetch_assoc()['count'];
-            $stmt->close();
-        } catch (Exception $e) {
-            // Ignore errors
-        }
-        
-        try {
-            $stmt = $conn->prepare("SELECT COUNT(*) as count FROM users WHERE account_status = 'pending'");
-            $stmt->execute();
-            $result = $stmt->get_result();
-            $count += $result->fetch_assoc()['count'];
-            $stmt->close();
-        } catch (Exception $e) {
-            // Ignore errors
-=======
         if ($user_role === 'system_admin') {
-            // Count pending reports (from other departments)
             try {
                 $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'pending'");
                 $stmt->execute();
@@ -174,7 +153,6 @@ function getNotificationCount($user_role = '', $user_id = 0) {
                 // Ignore errors
             }
             
-            // Count pending account requests from users
             try {
                 $stmt = $conn->prepare("SELECT COUNT(*) as count FROM users WHERE account_status = 'pending'");
                 $stmt->execute();
@@ -185,7 +163,6 @@ function getNotificationCount($user_role = '', $user_id = 0) {
                 // Ignore errors
             }
             
-            // Count pending change requests
             try {
                 $stmt = $conn->prepare("SELECT COUNT(*) as count FROM change_requests WHERE status = 'pending'");
                 $stmt->execute();
@@ -196,7 +173,6 @@ function getNotificationCount($user_role = '', $user_id = 0) {
                 // Ignore errors
             }
         } elseif ($user_role === 'lgu_staff' && $user_id > 0) {
-            // Count staff's own reviewed change requests
             try {
                 $stmt = $conn->prepare("SELECT COUNT(*) as count FROM change_requests WHERE user_id = ? AND status != 'pending'");
                 $stmt->bind_param("i", $user_id);
@@ -208,7 +184,6 @@ function getNotificationCount($user_role = '', $user_id = 0) {
                 // Ignore errors
             }
 
-            // Count staff's own report status updates
             try {
                 $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE created_by = ? AND status IN ('completed', 'cancelled')");
                 $stmt->bind_param("i", $user_id);
@@ -219,7 +194,6 @@ function getNotificationCount($user_role = '', $user_id = 0) {
             } catch (Exception $e) {
                 // Ignore errors
             }
->>>>>>> 79b223bdeaf045e9d43c129843416b9e8d63afda
         }
     }
     
@@ -271,12 +245,8 @@ function getNotifications() {
 $user_info = getUserInfo();
 $user_role = $_SESSION['role'] ?? $user_info['role'] ?? 'citizen'; // Use session role first
 $nav_items = getNavigationItems($user_role);
-<<<<<<< HEAD
-$notification_count = getNotificationCount();
-$notifications = ($user_role === 'system_admin') ? getNotifications() : ['reports' => [], 'users' => []];
-=======
 $notification_count = getNotificationCount($user_role, $_SESSION['user_id'] ?? 0);
->>>>>>> 79b223bdeaf045e9d43c129843416b9e8d63afda
+$notifications = ($user_role === 'system_admin') ? getNotifications() : ['reports' => [], 'users' => []];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -483,7 +453,6 @@ $notification_count = getNotificationCount($user_role, $_SESSION['user_id'] ?? 0
             background: #555;
         }
 
-<<<<<<< HEAD
         /* Notification Dropdown */
         .notification-wrapper {
             position: relative;
@@ -813,7 +782,8 @@ $notification_count = getNotificationCount($user_role, $_SESSION['user_id'] ?? 0
             justify-content: center;
             border: 2px solid white;
             line-height: 1;
-=======
+        }
+
         body.dark-mode {
             background: #1a1d23 !important;
         }
@@ -905,7 +875,6 @@ $notification_count = getNotificationCount($user_role, $_SESSION['user_id'] ?? 0
 
         body.dark-mode .sidebar-content::-webkit-scrollbar-thumb:hover {
             background: #3d4350 !important;
->>>>>>> 79b223bdeaf045e9d43c129843416b9e8d63afda
         }
     </style>
 </head>
@@ -1036,7 +1005,6 @@ $notification_count = getNotificationCount($user_role, $_SESSION['user_id'] ?? 0
         </div>
     </div>
 
-<<<<<<< HEAD
     <!-- Notification Overlay -->
     <div class="notif-overlay" id="notifOverlay" onclick="closeNotificationDropdown()"></div>
 
@@ -1132,12 +1100,8 @@ $notification_count = getNotificationCount($user_role, $_SESSION['user_id'] ?? 0
         </div>
     </div>
 
-    <!-- Page Transition Overlay -->
-        // Page transition for logout link
-=======
     <script>
         // Page transition for logout link with confirmation
->>>>>>> 79b223bdeaf045e9d43c129843416b9e8d63afda
         document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('a[href*="logout.php"]').forEach(link => {
                 link.addEventListener('click', function (e) {
