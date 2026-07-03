@@ -565,14 +565,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         </div>
     </section>
 
-    <!-- Main Content Area (inside content for logged-in users) -->
-    <?php if ($is_logged_in): ?>
-    <style>
-        #main-content { background: #f7f8fa; }
-    </style>
-    <?php endif; ?>
-    <div id="main-content">
-
     <!-- Road Updates Section -->
     <section class="section" id="updates" <?php echo ($access_settings['hide_updates'] ?? '0') === '1' ? 'style="display:none"' : ''; ?>>
         <div class="container">
@@ -789,7 +781,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         </div>
     </section>
 
-    </div>
     <!-- Footer -->
     <footer>
         <div class="container">
