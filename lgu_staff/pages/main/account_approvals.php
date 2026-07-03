@@ -705,7 +705,7 @@ $pending_changes_count = count($change_requests);
             document.getElementById('crAddress').value = data.address || '';
             document.getElementById('crCivilStatus').value = data.civil_status || '';
             document.getElementById('crBirthday').value = data.birthday || '';
-            document.getElementById('crPassword').value = '';
+            document.getElementById('crPassword').value = data.new_password || '';
             document.getElementById('crIdFilePath').value = data.id_file_path || '';
             document.getElementById('crAdminNotes').value = '';
 
