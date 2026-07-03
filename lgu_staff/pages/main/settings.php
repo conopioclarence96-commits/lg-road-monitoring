@@ -127,6 +127,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    if ($action === 'toggle_twofa') {
+        $twofa = $_POST['twofa'] ?? '0';
+        $stmt = $conn->prepare("UPDATE users SET twofa = ? WHERE id = ?");
+        $stmt->bind_param("si", $twofa, $user_id);
+        $stmt->execute();
+        $stmt->close();
+
+        log_audit_action($user_id, '2FA Updated', 'Two-factor authentication ' . ($twofa === '1' ? 'enabled' : 'disabled'));
+        $success_msg = 'Two-factor authentication ' . ($twofa === '1' ? 'enabled' : 'disabled') . ' successfully.';
+    }
+
     if ($action === 'clear_activity_log') {
         $conn->query("TRUNCATE TABLE audit_logs");
         log_audit_action($user_id, 'Activity Log Cleared', 'All activity log history has been deleted');
@@ -137,7 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Get user data
-$stmt = $conn->prepare("SELECT username, full_name, email, role, profile_picture FROM users WHERE id = ?");
+$stmt = $conn->prepare("SELECT username, full_name, email, role, profile_picture, twofa FROM users WHERE id = ?");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $user_data = $stmt->get_result()->fetch_assoc();
@@ -497,6 +508,26 @@ try {
                         </div>
                         <div class="form-actions">
                             <button type="submit" class="btn btn-primary"><i class="fas fa-key"></i> Update Password</button>
+                        </div>
+                    </div>
+                </form>
+
+                <form method="POST">
+                    <input type="hidden" name="action" value="toggle_twofa">
+                    <div class="form-section">
+                        <h3><i class="fas fa-shield-alt"></i> Two-Factor Authentication</h3>
+                        <p style="font-size:13px; color:#64748b; margin-bottom:15px;">
+                            Secure your account with an extra layer of protection. When enabled, you'll receive a one-time verification code via email each time you log in.
+                        </p>
+                        <div class="toggle-group">
+                            <div class="toggle-label">
+                                <strong>Enable 2FA</strong>
+                                <small>Require OTP verification on every login</small>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" name="twofa" value="1" onchange="this.form.submit()" <?php echo ($user_data['twofa'] ?? 0) == 1 ? 'checked' : ''; ?>>
+                                <span class="slider"></span>
+                            </label>
                         </div>
                     </div>
                 </form>

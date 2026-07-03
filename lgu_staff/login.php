@@ -443,7 +443,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
         try {
             // Prepare statement to prevent SQL injection
             $stmt = $conn->prepare("
-                SELECT id, email, password, full_name, role, is_active, account_status
+                SELECT id, email, password, full_name, role, is_active, account_status, twofa
                 FROM users 
                 WHERE email = ?
             ");
@@ -476,15 +476,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                         $messageType = 'error';
                     }
                     else {
-                        // Login successful - send OTP for verification
-                        handle_login_otp($user['email']);
-                        
-                        // Store login data temporarily for OTP verification
-                        $_SESSION['login_verify_data'] = $user;
-                        
-                        $loginMessage = 'A verification code has been sent to your email. Please check your inbox.';
-                        $messageType = 'success';
-                        $showLoginOTPModal = true;
+                        if (!empty($user['twofa']) && $user['twofa'] == 1) {
+                            // 2FA enabled - send OTP for verification
+                            handle_login_otp($user['email']);
+
+                            $_SESSION['login_verify_data'] = $user;
+
+                            $loginMessage = 'A verification code has been sent to your email. Please check your inbox.';
+                            $messageType = 'success';
+                            $showLoginOTPModal = true;
+                        } else {
+                            // No 2FA - log in directly
+                            $_SESSION['user_id'] = $user['id'];
+                            $_SESSION['email'] = $user['email'];
+                            $_SESSION['full_name'] = $user['full_name'];
+                            $_SESSION['role'] = $user['role'];
+                            $_SESSION['logged_in'] = true;
+                            $_SESSION['login_time'] = time();
+
+                            $login_update = $conn->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
+                            $login_update->bind_param("i", $user['id']);
+                            $login_update->execute();
+                            $login_update->close();
+
+                            switch ($user['role']) {
+                                case 'system_admin':
+                                    $redirectUrl = $basePath . 'lgu_staff/pages/main/admin_dashboard.php';
+                                    break;
+                                case 'lgu_staff':
+                                    $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
+                                    break;
+                                case 'citizen':
+                                    $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
+                                    break;
+                                default:
+                                    $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
+                            }
+
+                            header('Location: ' . $redirectUrl);
+                            exit;
+                        }
                     }
                 } else {
                     // Invalid password
