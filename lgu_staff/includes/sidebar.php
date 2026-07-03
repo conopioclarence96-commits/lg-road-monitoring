@@ -68,6 +68,12 @@ function getNavigationItems($user_role) {
                 'roles' => ['system_admin']
             ],
             [
+                'href' => '../pages/main/account_approvals.php',
+                'icon' => 'check-double',
+                'title' => 'Account Approvals',
+                'roles' => ['system_admin']
+            ],
+            [
                 'href' => '../pages/main/create_staff_account.php',
                 'icon' => 'person-plus',
                 'title' => 'Create Staff Account',
