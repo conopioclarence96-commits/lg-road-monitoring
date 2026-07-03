@@ -69,7 +69,7 @@ function getNavigationItems($user_role) {
             ],
             [
                 'href' => '../pages/main/account_approvals.php',
-                'icon' => 'check-double',
+                'icon' => 'clipboard-check',
                 'title' => 'Account Approvals',
                 'roles' => ['system_admin']
             ],
