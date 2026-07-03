@@ -555,7 +555,7 @@ try {
 
             <div class="tabs">
                 <button class="tab-btn active" data-tab="account">
-                    <i class="fas fa-user-shield"></i> Admin Account
+                    <i class="fas fa-user-shield"></i> Account
                 </button>
                 <button class="tab-btn" data-tab="access">
                     <i class="fas fa-lock"></i> Access Control
