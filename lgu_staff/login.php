@@ -735,6 +735,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
     <div id="otpModal" class="modal" style="display: <?php echo ($showOTPModal || $showLoginOTPModal) ? 'block' : 'none'; ?>;">
       <div class="modal-content">
         <div class="modal-header">
+          <button type="button" class="modal-close-btn" onclick="closeOTPModal()">&times;</button>
           <h3><?php echo $showLoginOTPModal ? 'Login Verification' : 'Email Verification'; ?></h3>
           <p>A 6-digit verification code has been sent to your email address. Please enter it below to continue.</p>
         </div>
@@ -786,9 +787,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
         box-shadow: 0 4px 20px rgba(0,0,0,0.3);
       }
       
+      .modal-header {
+        position: relative;
+      }
       .modal-header h3 {
         margin: 0 0 10px 0;
         color: #333;
+      }
+      .modal-close-btn {
+        position: absolute;
+        top: -15px;
+        right: -15px;
+        background: #ef4444;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+        font-size: 20px;
+        line-height: 1;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        transition: background 0.2s;
+        z-index: 10;
+      }
+      .modal-close-btn:hover {
+        background: #dc2626;
       }
       
       .modal-header p {
