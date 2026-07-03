@@ -138,6 +138,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $success_msg = 'Two-factor authentication ' . ($twofa === '1' ? 'enabled' : 'disabled') . ' successfully.';
     }
 
+    if ($action === 'toggle_darkmode') {
+        $darkmode = $_POST['darkmode'] ?? '0';
+        $stmt = $conn->prepare("UPDATE users SET darkmode = ? WHERE id = ?");
+        $stmt->bind_param("si", $darkmode, $user_id);
+        $stmt->execute();
+        $stmt->close();
+
+        log_audit_action($user_id, 'Dark Mode Updated', 'Dark mode ' . ($darkmode === '1' ? 'enabled' : 'disabled'));
+        $success_msg = 'Dark mode ' . ($darkmode === '1' ? 'enabled' : 'disabled') . ' successfully.';
+    }
+
     if ($action === 'clear_activity_log') {
         $conn->query("TRUNCATE TABLE audit_logs");
         log_audit_action($user_id, 'Activity Log Cleared', 'All activity log history has been deleted');
@@ -148,7 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Get user data
-$stmt = $conn->prepare("SELECT username, full_name, email, role, profile_picture, twofa FROM users WHERE id = ?");
+$stmt = $conn->prepare("SELECT username, full_name, email, role, profile_picture, twofa, darkmode FROM users WHERE id = ?");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $user_data = $stmt->get_result()->fetch_assoc();
@@ -515,6 +526,70 @@ try {
         .field-hint {
             font-size: 12px; color: #94a3b8; margin-top: 4px;
         }
+        /* Dark Mode */
+        body.dark-mode {
+            background: #1a1d23;
+        }
+        body.dark-mode .settings-container {
+            background: #22262e;
+            border-color: #2d323b;
+        }
+        body.dark-mode .page-header h1 { color: #e4e6ea; }
+        body.dark-mode .profile-header {
+            background: linear-gradient(135deg, #111318 0%, #1e2229 100%);
+        }
+        body.dark-mode .account-card {
+            background: #22262e;
+            border-color: #2d323b;
+        }
+        body.dark-mode .account-card-header {
+            background: #1e2229;
+            border-color: #2d323b;
+        }
+        body.dark-mode .account-card-header h3 { color: #e4e6ea; }
+        body.dark-mode .account-card-body label { color: #9ca3af; }
+        body.dark-mode .form-control {
+            background: #1a1d23;
+            border-color: #2d323b;
+            color: #e4e6ea;
+        }
+        body.dark-mode .form-control:disabled {
+            background: #22262e;
+            color: #6b7280;
+        }
+        body.dark-mode .field-hint { color: #6b7280; }
+        body.dark-mode .twofa-section {
+            background: #1e2229;
+            border-color: #2d323b;
+        }
+        body.dark-mode .twofa-section .twofa-info strong { color: #e4e6ea; }
+        body.dark-mode .twofa-section .twofa-info small { color: #9ca3af; }
+        body.dark-mode .security-divider { background: #2d323b; }
+        body.dark-mode .btn-secondary { background: #374151; }
+        body.dark-mode .btn-secondary:hover { background: #4b5563; }
+        body.dark-mode .tab-btn { color: #9ca3af; }
+        body.dark-mode .tab-btn.active { color: #60a5fa; }
+        body.dark-mode .alert-success {
+            background: #064e3b; color: #6ee7b7; border-color: #065f46;
+        }
+        body.dark-mode .alert-danger {
+            background: #7f1d1d; color: #fca5a5; border-color: #991b1b;
+        }
+        body.dark-mode .form-control:focus {
+            border-color: #60a5fa;
+            box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.15);
+        }
+        body.dark-mode .profile-info h2 { color: #e4e6ea; }
+        body.dark-mode .profile-info .profile-meta span { color: #9ca3af; }
+        body.dark-mode .profile-meta .role-badge-header {
+            background: rgba(255,255,255,0.1);
+        }
+        body.dark-mode .twofa-badge.on { background: rgba(52,211,153,0.15); color: #34d399; }
+        body.dark-mode .twofa-badge.off { background: rgba(156,163,175,0.15); color: #9ca3af; }
+        body.dark-mode .btn-primary { background: #2563eb; }
+        body.dark-mode .btn-primary:hover { background: #1d4ed8; }
+        body.dark-mode .tab-btn:hover { color: #60a5fa; }
+
         @media (max-width: 768px) {
             .main-content { margin-left: 0; padding: 15px; }
             .restriction-grid { grid-template-columns: 1fr; }
@@ -528,7 +603,7 @@ try {
         }
     </style>
 </head>
-<body>
+<body class="<?php echo ($user_data['darkmode'] ?? 0) == 1 ? 'dark-mode' : ''; ?>">
     <!-- SIDEBAR -->
     <iframe src="../../includes/sidebar.php"
             style="position: fixed; width: 250px; height: 100vh; border: none; z-index: 1000;"
@@ -586,6 +661,11 @@ try {
                                 <span class="twofa-badge on"><i class="fas fa-check-circle"></i> 2FA On</span>
                             <?php else: ?>
                                 <span class="twofa-badge off"><i class="fas fa-times-circle"></i> 2FA Off</span>
+                            <?php endif; ?>
+                            <?php if (($user_data['darkmode'] ?? 0) == 1): ?>
+                                <span class="twofa-badge on" style="background:rgba(96,165,250,0.15);color:#60a5fa;"><i class="fas fa-moon"></i> Dark</span>
+                            <?php else: ?>
+                                <span class="twofa-badge off"><i class="fas fa-sun"></i> Light</span>
                             <?php endif; ?>
                         </div>
                     </div>
@@ -690,6 +770,23 @@ try {
                                     </div>
                                     <label class="switch">
                                         <input type="checkbox" name="twofa" value="1" onchange="this.form.submit()" <?php echo ($user_data['twofa'] ?? 0) == 1 ? 'checked' : ''; ?>>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </form>
+
+                            <div class="security-divider"></div>
+
+                            <!-- Dark Mode Toggle -->
+                            <form method="POST">
+                                <input type="hidden" name="action" value="toggle_darkmode">
+                                <div class="twofa-section">
+                                    <div class="twofa-info">
+                                        <strong><i class="fas fa-palette" style="color:#60a5fa; margin-right:6px;"></i> Dark Mode</strong>
+                                        <small>Switch between light and dark appearance for the system interface.</small>
+                                    </div>
+                                    <label class="switch">
+                                        <input type="checkbox" name="darkmode" value="1" onchange="this.form.submit()" <?php echo ($user_data['darkmode'] ?? 0) == 1 ? 'checked' : ''; ?>>
                                         <span class="slider"></span>
                                     </label>
                                 </div>
