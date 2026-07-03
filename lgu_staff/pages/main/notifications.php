@@ -58,6 +58,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo json_encode(['success' => true]);
         exit;
     }
+    
+    if ($action === 'mark_read_change' && $id > 0) {
+        $stmt = $conn->prepare("UPDATE change_requests SET admin_notes = CONCAT(COALESCE(admin_notes,''), '[Viewed]') WHERE id = ? AND status = 'pending'");
+        $stmt->bind_param("i", $id);
+        $stmt->execute();
+        $stmt->close();
+        echo json_encode(['success' => true]);
+        exit;
+    }
 }
 
 // Get pending reports from all departments
@@ -95,7 +104,24 @@ try {
     error_log("Pending users query error: " . $e->getMessage());
 }
 
-$total_notifications = count($pending_reports) + count($pending_users);
+// Get pending change requests
+$pending_changes = [];
+try {
+    $cstmt = $conn->prepare("
+        SELECT cr.*, u.full_name as user_name
+        FROM change_requests cr
+        LEFT JOIN users u ON cr.user_id = u.id
+        WHERE cr.status = 'pending'
+        ORDER BY cr.created_at DESC
+    ");
+    $cstmt->execute();
+    $pending_changes = $cstmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $cstmt->close();
+} catch (Exception $e) {
+    error_log("Pending change requests query error: " . $e->getMessage());
+}
+
+$total_notifications = count($pending_reports) + count($pending_users) + count($pending_changes);
 ?>
 
 <!DOCTYPE html>
@@ -480,6 +506,13 @@ $total_notifications = count($pending_reports) + count($pending_users);
                 <div class="stat-label">User Requests</div>
             </div>
             <div class="stat-card">
+                <div class="stat-icon" style="color: #8b5cf6;">
+                    <i class="fas fa-user-edit"></i>
+                </div>
+                <div class="stat-number"><?php echo count($pending_changes); ?></div>
+                <div class="stat-label">Change Requests</div>
+            </div>
+            <div class="stat-card">
                 <div class="stat-icon" style="color: #10b981;">
                     <i class="fas fa-bell"></i>
                 </div>
@@ -568,6 +601,56 @@ $total_notifications = count($pending_reports) + count($pending_users);
                                     <span class="department-badge"><?php echo ucfirst(htmlspecialchars($user['department'] ?? 'N/A')); ?></span>
                                     <?php if ($user['id_file_path']): ?>
                                         <span class="notification-tag"><i class="fas fa-id-card"></i> ID Uploaded</span>
+                                    <?php endif; ?>
+                                </div>
+                                <div style="margin-top: 10px;">
+                                    <div class="action-buttons">
+                                        <a href="admin_dashboard.php" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> Review</a>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <!-- Pending Change Requests -->
+            <div class="workflow-card">
+                <div class="workflow-header">
+                    <h3 class="workflow-title">
+                        <i class="fas fa-user-edit" style="color: #8b5cf6;"></i>
+                        <span>Staff Change Requests</span>
+                        <span class="workflow-badge"><?php echo count($pending_changes); ?></span>
+                    </h3>
+                </div>
+                
+                <div class="workflow-content">
+                    <?php if (empty($pending_changes)): ?>
+                        <div class="empty-state">
+                            <i class="fas fa-check-circle"></i>
+                            <p>No pending change requests</p>
+                        </div>
+                    <?php else: ?>
+                        <?php foreach ($pending_changes as $cr): 
+                            $req_data = json_decode($cr['requested_data'], true);
+                        ?>
+                            <div class="notification-item">
+                                <div class="notification-header">
+                                    <div class="notification-title"><?php echo htmlspecialchars($cr['user_name']); ?></div>
+                                    <div class="notification-time"><?php echo date('M d, Y H:i', strtotime($cr['created_at'])); ?></div>
+                                </div>
+                                <div class="notification-body">
+                                    Requesting information update: 
+                                    <strong><?php echo htmlspecialchars($req_data['full_name'] ?? ''); ?></strong>
+                                    (<?php echo htmlspecialchars($req_data['email'] ?? ''); ?>)
+                                </div>
+                                <div class="notification-meta">
+                                    <span class="notification-tag"><i class="fas fa-building"></i> <?php echo htmlspecialchars($req_data['department'] ?? ''); ?></span>
+                                    <?php if (!empty($req_data['address'])): ?>
+                                        <span class="notification-tag"><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($req_data['address']); ?></span>
+                                    <?php endif; ?>
+                                    <?php if (!empty($cr['reason'])): ?>
+                                        <span class="notification-tag"><i class="fas fa-comment"></i> <?php echo htmlspecialchars($cr['reason']); ?></span>
                                     <?php endif; ?>
                                 </div>
                                 <div style="margin-top: 10px;">

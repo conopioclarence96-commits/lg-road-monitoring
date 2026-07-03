@@ -238,6 +238,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->close();
         $user_stmt->close();
         exit;
+
+    } elseif ($action === 'approve_change' && $user_id > 0) {
+        $request_id = intval($_POST['request_id'] ?? 0);
+        $cr_user_id = intval($_POST['cr_user_id'] ?? 0);
+        $new_full_name = sanitize_input($_POST['new_full_name'] ?? '');
+        $new_email = sanitize_input($_POST['new_email'] ?? '');
+        $new_department = sanitize_input($_POST['new_department'] ?? '');
+        $new_address = sanitize_input($_POST['new_address'] ?? '');
+        $admin_notes = sanitize_input($_POST['admin_notes'] ?? '');
+
+        if ($request_id > 0 && $cr_user_id > 0) {
+            $stmt = $conn->prepare("UPDATE users SET full_name = ?, email = ?, department = ?, address = ? WHERE id = ?");
+            $stmt->bind_param("ssssi", $new_full_name, $new_email, $new_department, $new_address, $cr_user_id);
+            if ($stmt->execute()) {
+                $stmt->close();
+                $stmt2 = $conn->prepare("UPDATE change_requests SET status = 'approved', admin_notes = ?, reviewed_at = NOW(), reviewed_by = ? WHERE id = ?");
+                $stmt2->bind_param("sii", $admin_notes, $_SESSION['user_id'], $request_id);
+                $stmt2->execute();
+                $stmt2->close();
+                log_audit_action($_SESSION['user_id'], 'Change Request Approved', "Approved change request #$request_id for user #$cr_user_id");
+                echo json_encode(['success' => true, 'message' => 'Change request approved and user info updated.']);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Failed to update user info.']);
+            }
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Invalid request parameters.']);
+        }
+        exit;
+
+    } elseif ($action === 'reject_change' && $user_id > 0) {
+        $request_id = intval($_POST['request_id'] ?? 0);
+        $admin_notes = sanitize_input($_POST['admin_notes'] ?? '');
+
+        if ($request_id > 0) {
+            $stmt = $conn->prepare("UPDATE change_requests SET status = 'rejected', admin_notes = ?, reviewed_at = NOW(), reviewed_by = ? WHERE id = ?");
+            $stmt->bind_param("sii", $admin_notes, $_SESSION['user_id'], $request_id);
+            $stmt->execute();
+            $stmt->close();
+            log_audit_action($_SESSION['user_id'], 'Change Request Rejected', "Rejected change request #$request_id");
+            echo json_encode(['success' => true, 'message' => 'Change request rejected.']);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Invalid request ID.']);
+        }
+        exit;
     }
 }
 
@@ -289,6 +333,24 @@ try {
     // Log the error for debugging
     error_log("Audit log query error: " . $e->getMessage());
     $audit_log = [];
+}
+
+// Get pending change requests
+$change_requests = [];
+try {
+    $cr_stmt = $conn->prepare("
+        SELECT cr.*, u.full_name as user_name, u.email as user_email, u.department as user_department
+        FROM change_requests cr
+        LEFT JOIN users u ON cr.user_id = u.id
+        WHERE cr.status = 'pending'
+        ORDER BY cr.created_at DESC
+    ");
+    $cr_stmt->execute();
+    $change_requests = $cr_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $cr_stmt->close();
+} catch (Exception $e) {
+    error_log("Change requests query error: " . $e->getMessage());
+    $change_requests = [];
 }
 
 // Get dashboard statistics
@@ -1186,6 +1248,121 @@ try {
                     </div>
                 </div>
             </div>
+
+            <!-- Change Requests -->
+            <div class="workflow-card">
+                <div class="workflow-header">
+                    <h3 class="workflow-title">
+                        <i class="fas fa-user-edit"></i>
+                        <span>Staff Change Requests</span>
+                        <span class="workflow-badge"><?php echo count($change_requests); ?></span>
+                    </h3>
+                </div>
+                
+                <div class="workflow-content">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Staff</th>
+                                    <th>Current Info</th>
+                                    <th>Requested Changes</th>
+                                    <th>Reason</th>
+                                    <th>Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (empty($change_requests)): ?>
+                                    <tr>
+                                        <td colspan="6" style="text-align: center; color: #64748b;">No pending change requests</td>
+                                    </tr>
+                                <?php else: ?>
+                                    <?php foreach ($change_requests as $cr):
+                                        $req_data = json_decode($cr['requested_data'], true);
+                                    ?>
+                                        <tr>
+                                            <td><?php echo htmlspecialchars($cr['user_name']); ?></td>
+                                            <td>
+                                                <small style="color:#666;">
+                                                    Dept: <?php echo htmlspecialchars($cr['user_department'] ?? 'N/A'); ?><br>
+                                                    Email: <?php echo htmlspecialchars($cr['user_email']); ?>
+                                                </small>
+                                            </td>
+                                            <td>
+                                                <small style="color:#1e3c72;">
+                                                    <strong>Name:</strong> <?php echo htmlspecialchars($req_data['full_name'] ?? ''); ?><br>
+                                                    <strong>Email:</strong> <?php echo htmlspecialchars($req_data['email'] ?? ''); ?><br>
+                                                    <strong>Dept:</strong> <?php echo htmlspecialchars($req_data['department'] ?? ''); ?><br>
+                                                    <strong>Address:</strong> <?php echo htmlspecialchars($req_data['address'] ?? ''); ?>
+                                                </small>
+                                            </td>
+                                            <td><small><?php echo htmlspecialchars($cr['reason'] ?? 'N/A'); ?></small></td>
+                                            <td><small><?php echo date('M d, Y', strtotime($cr['created_at'])); ?></small></td>
+                                            <td>
+                                                <div class="action-buttons">
+                                                    <button class="btn-sm btn-approve" onclick="showChangeRequestModal(<?php echo $cr['id']; ?>, <?php echo $cr['user_id']; ?>)">Review</button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change Request Review Modal -->
+    <div id="changeRequestModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2 class="modal-title">Review Change Request</h2>
+                <span class="close" onclick="closeChangeRequestModal()">&times;</span>
+            </div>
+            <form id="changeRequestForm">
+                <input type="hidden" id="crAction" name="action">
+                <input type="hidden" id="crRequestId" name="request_id">
+                <input type="hidden" id="crUserId" name="cr_user_id">
+                <input type="hidden" id="crAdminUserId" name="user_id" value="<?php echo $_SESSION['user_id']; ?>">
+
+                <div id="crCurrentInfo" style="background:#f8fafc; border-radius:8px; padding:12px; margin-bottom:15px;">
+                    <label style="font-weight:600; font-size:13px; color:#475569; display:block; margin-bottom:8px;">Current Information</label>
+                    <div id="crCurrentDetails" style="font-size:13px; color:#64748b;"></div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                    <div class="form-group">
+                        <label>Full Name</label>
+                        <input type="text" id="crFullName" name="new_full_name" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:5px; font-size:13px;">
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="crEmail" name="new_email" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:5px; font-size:13px;">
+                    </div>
+                    <div class="form-group">
+                        <label>Department</label>
+                        <input type="text" id="crDepartment" name="new_department" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:5px; font-size:13px;">
+                    </div>
+                    <div class="form-group">
+                        <label>Address</label>
+                        <input type="text" id="crAddress" name="new_address" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:5px; font-size:13px;">
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top:12px;">
+                    <label>Admin Notes</label>
+                    <textarea id="crAdminNotes" name="admin_notes" rows="2" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:5px; font-size:13px; resize:vertical;" placeholder="Optional notes for the staff..."></textarea>
+                </div>
+
+                <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:15px;">
+                    <button type="button" class="btn-sm btn-reject" onclick="rejectChangeRequest()"><i class="fas fa-times"></i> Reject</button>
+                    <button type="button" class="btn-sm btn-approve" onclick="approveChangeRequest()"><i class="fas fa-check"></i> Approve & Update</button>
+                    <button type="button" class="btn-sm btn-manage" onclick="closeChangeRequestModal()">Close</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -1478,6 +1655,72 @@ try {
             }
         }
         
+        // Change request data
+        const changeRequestsData = <?php echo json_encode($change_requests); ?>;
+
+        function showChangeRequestModal(requestId, userId) {
+            const cr = changeRequestsData.find(r => r.id == requestId);
+            if (!cr) return;
+
+            const data = JSON.parse(cr.requested_data);
+
+            document.getElementById('crAction').value = '';
+            document.getElementById('crRequestId').value = cr.id;
+            document.getElementById('crUserId').value = cr.user_id;
+
+            document.getElementById('crCurrentDetails').innerHTML =
+                '<strong>Name:</strong> ' + (cr.user_name || 'N/A') + '<br>' +
+                '<strong>Email:</strong> ' + (cr.user_email || 'N/A') + '<br>' +
+                '<strong>Dept:</strong> ' + (cr.user_department || 'N/A');
+
+            document.getElementById('crFullName').value = data.full_name || '';
+            document.getElementById('crEmail').value = data.email || '';
+            document.getElementById('crDepartment').value = data.department || '';
+            document.getElementById('crAddress').value = data.address || '';
+            document.getElementById('crAdminNotes').value = '';
+
+            document.getElementById('changeRequestModal').style.display = 'block';
+        }
+
+        function closeChangeRequestModal() {
+            document.getElementById('changeRequestModal').style.display = 'none';
+        }
+
+        function approveChangeRequest() {
+            if (!confirm('Apply these changes to the user account?')) return;
+            document.getElementById('crAction').value = 'approve_change';
+            submitChangeRequest();
+        }
+
+        function rejectChangeRequest() {
+            if (!confirm('Reject this change request?')) return;
+            document.getElementById('crAction').value = 'reject_change';
+            submitChangeRequest();
+        }
+
+        function submitChangeRequest() {
+            const form = document.getElementById('changeRequestForm');
+            const formData = new FormData(form);
+
+            fetch('', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    closeChangeRequestModal();
+                    location.reload();
+                } else {
+                    alert(result.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred. Please try again.');
+            });
+        }
+
         // Close modal when clicking outside
         window.onclick = function(event) {
             const modal = document.getElementById('actionModal');

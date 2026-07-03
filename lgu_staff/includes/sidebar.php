@@ -50,6 +50,12 @@ function getNavigationItems($user_role) {
                 'roles' => ['lgu_staff']
             ],
             [
+                'href' => '../pages/main/change_info.php',
+                'icon' => 'user-edit',
+                'title' => 'Change Information',
+                'roles' => ['lgu_staff']
+            ],
+            [
                 'href' => '../pages/main/admin_dashboard.php',
                 'icon' => 'speedometer2',
                 'title' => 'Admin Dashboard',
@@ -144,6 +150,17 @@ function getNotificationCount() {
         // Count pending account requests from users
         try {
             $stmt = $conn->prepare("SELECT COUNT(*) as count FROM users WHERE account_status = 'pending'");
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $count += $result->fetch_assoc()['count'];
+            $stmt->close();
+        } catch (Exception $e) {
+            // Ignore errors
+        }
+        
+        // Count pending change requests
+        try {
+            $stmt = $conn->prepare("SELECT COUNT(*) as count FROM change_requests WHERE status = 'pending'");
             $stmt->execute();
             $result = $stmt->get_result();
             $count += $result->fetch_assoc()['count'];
