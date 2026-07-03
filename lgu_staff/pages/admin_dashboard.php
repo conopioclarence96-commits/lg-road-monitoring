@@ -15,6 +15,18 @@ session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
+// Ensure approved_at and rejected_at columns exist in users table
+if ($conn->connect_error === null) {
+    $check = $conn->query("SHOW COLUMNS FROM users LIKE 'approved_at'");
+    if ($check && $check->num_rows === 0) {
+        $conn->query("ALTER TABLE users ADD COLUMN approved_at TIMESTAMP NULL DEFAULT NULL AFTER updated_at");
+    }
+    $check2 = $conn->query("SHOW COLUMNS FROM users LIKE 'rejected_at'");
+    if ($check2 && $check2->num_rows === 0) {
+        $conn->query("ALTER TABLE users ADD COLUMN rejected_at TIMESTAMP NULL DEFAULT NULL AFTER approved_at");
+    }
+}
+
 // Check if user is logged in and is system admin
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'system_admin') {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -39,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'approve' && $user_id > 0) {
         // Approve account
-        $stmt = $conn->prepare("UPDATE users SET is_active = 1, account_status = 'verified' WHERE id = ?");
+        $stmt = $conn->prepare("UPDATE users SET is_active = 1, account_status = 'verified', approved_at = NOW() WHERE id = ?");
         if (!$stmt) {
             http_response_code(500);
             echo json_encode(['success' => false, 'message' => 'Failed to prepare approval query']);
@@ -86,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     } elseif ($action === 'reject' && $user_id > 0) {
         // Reject account (keep as inactive)
-        $stmt = $conn->prepare("UPDATE users SET is_active = 0, account_status = 'rejected' WHERE id = ?");
+        $stmt = $conn->prepare("UPDATE users SET is_active = 0, account_status = 'rejected', rejected_at = NOW() WHERE id = ?");
         if (!$stmt) {
             http_response_code(500);
             echo json_encode(['success' => false, 'message' => 'Failed to prepare rejection query']);
@@ -214,7 +226,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Get all LGU Staff accounts with pending status (excluding system admin)
 $stmt = $conn->prepare("
-    SELECT id, username, email, full_name, role, department, address, birthday, civil_status, is_active, created_at, updated_at, id_file_path 
+    SELECT id, username, email, full_name, role, department, address, birthday, civil_status, is_active, created_at, updated_at, approved_at, rejected_at, id_file_path 
     FROM users 
     WHERE role IN ('lgu_staff', 'citizen') AND account_status = 'pending'
     ORDER BY created_at DESC
@@ -933,6 +945,14 @@ try {
                     <label>Created At:</label>
                     <input type="text" id="modalCreatedAt" disabled>
                 </div>
+                <div class="form-group">
+                    <label>Approved At:</label>
+                    <input type="text" id="modalApprovedAt" disabled>
+                </div>
+                <div class="form-group">
+                    <label>Rejected At:</label>
+                    <input type="text" id="modalRejectedAt" disabled>
+                </div>
                 <div class="form-group" style="grid-column: 1 / -1;">
                     <label>ID File:</label>
                     <div id="modalIdFileContainer">
@@ -969,6 +989,8 @@ try {
                 document.getElementById('modalCivilStatus').value = user.civil_status ? user.civil_status.charAt(0).toUpperCase() + user.civil_status.slice(1) : 'N/A';
                 document.getElementById('modalAccountStatus').value = user.is_active ? 'Active' : 'Inactive';
                 document.getElementById('modalCreatedAt').value = user.created_at;
+                document.getElementById('modalApprovedAt').value = user.approved_at || 'N/A';
+                document.getElementById('modalRejectedAt').value = user.rejected_at || 'N/A';
                 
                 // Display ID file
                 const idFileImg = document.getElementById('modalIdFile');

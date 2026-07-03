@@ -119,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Get verified accounts only
 $stmt = $conn->prepare("
-    SELECT id, username, email, full_name, role, department, address, birthday, civil_status, is_active, created_at, updated_at, id_file_path 
+    SELECT id, username, email, full_name, role, department, address, birthday, civil_status, is_active, created_at, updated_at, approved_at, rejected_at, id_file_path 
     FROM users 
     WHERE role IN ('lgu_staff', 'citizen') AND account_status = 'verified'
     ORDER BY created_at DESC
@@ -130,7 +130,7 @@ $stmt->close();
 
 // Get unverified/rejected accounts
 $stmt2 = $conn->prepare("
-    SELECT id, username, email, full_name, role, department, address, birthday, civil_status, is_active, account_status, created_at, updated_at, id_file_path 
+    SELECT id, username, email, full_name, role, department, address, birthday, civil_status, is_active, account_status, created_at, updated_at, approved_at, rejected_at, id_file_path 
     FROM users 
     WHERE role IN ('lgu_staff', 'citizen') AND account_status IN ('pending', 'rejected')
     ORDER BY created_at DESC
@@ -141,7 +141,7 @@ $stmt2->close();
 
 // Get deactivated accounts
 $stmt3 = $conn->prepare("
-    SELECT id, username, email, full_name, role, department, address, birthday, civil_status, is_active, account_status, created_at, updated_at, id_file_path 
+    SELECT id, username, email, full_name, role, department, address, birthday, civil_status, is_active, account_status, created_at, updated_at, approved_at, rejected_at, id_file_path 
     FROM users 
     WHERE role IN ('lgu_staff', 'citizen') AND account_status = 'deactivated'
     ORDER BY updated_at DESC
@@ -615,6 +615,14 @@ try {
                         <label>Created At:</label>
                         <input type="text" id="modalCreatedAt" disabled>
                     </div>
+                    <div class="form-group">
+                        <label>Approved At:</label>
+                        <input type="text" id="modalApprovedAt" disabled>
+                    </div>
+                    <div class="form-group">
+                        <label>Rejected At:</label>
+                        <input type="text" id="modalRejectedAt" disabled>
+                    </div>
                     <div class="form-group" style="grid-column: 1 / -1;">
                         <label>ID File:</label>
                         <div id="modalIdFileContainer">
@@ -872,13 +880,14 @@ try {
                                     <th>Department</th>
                                     <th>Status</th>
                                     <th>Registered</th>
+                                    <th>Last Action</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php if (empty($unverified_users)): ?>
                                     <tr>
-                                        <td colspan="7" style="text-align: center; color: #64748b;">No pending or rejected accounts found</td>
+                                        <td colspan="8" style="text-align: center; color: #64748b;">No pending or rejected accounts found</td>
                                     </tr>
                                 <?php else: ?>
                                     <?php foreach ($unverified_users as $user): ?>
@@ -893,6 +902,15 @@ try {
                                                 </span>
                                             </td>
                                             <td><?php echo date('M d, Y', strtotime($user['created_at'])); ?></td>
+                                            <td>
+                                                <?php if ($user['account_status'] === 'rejected' && !empty($user['rejected_at'])): ?>
+                                                    <span style="font-size: 12px; color: #ef4444;"><i class="fas fa-times-circle"></i> <?php echo date('M d, Y g:i A', strtotime($user['rejected_at'])); ?></span>
+                                                <?php elseif ($user['account_status'] === 'pending'): ?>
+                                                    <span style="font-size: 12px; color: #9ca3af;">Awaiting action</span>
+                                                <?php else: ?>
+                                                    <span style="font-size: 12px; color: #9ca3af;">N/A</span>
+                                                <?php endif; ?>
+                                            </td>
                                             <td>
                                                 <div class="action-buttons">
                                                     <button class="btn-sm btn-placeholder" onclick="showUnverifiedUserModal(<?php echo $user['id']; ?>)">Manage</button>
@@ -989,6 +1007,8 @@ try {
                 document.getElementById('modalCivilStatus').value = user.civil_status || '';
                 document.getElementById('modalAccountStatus').value = user.is_active ? 'Active' : 'Inactive';
                 document.getElementById('modalCreatedAt').value = user.created_at;
+                document.getElementById('modalApprovedAt').value = user.approved_at || 'N/A';
+                document.getElementById('modalRejectedAt').value = user.rejected_at || 'N/A';
                 
                 // Display ID file
                 const idFileImg = document.getElementById('modalIdFile');
@@ -1222,6 +1242,8 @@ try {
                 document.getElementById('modalCivilStatus').value = user.civil_status || '';
                 document.getElementById('modalAccountStatus').value = user.account_status.charAt(0).toUpperCase() + user.account_status.slice(1);
                 document.getElementById('modalCreatedAt').value = user.created_at;
+                document.getElementById('modalApprovedAt').value = user.approved_at || 'N/A';
+                document.getElementById('modalRejectedAt').value = user.rejected_at || 'N/A';
                 
                 const idFileImg = document.getElementById('modalIdFile');
                 const idFileNone = document.getElementById('modalIdFileNone');

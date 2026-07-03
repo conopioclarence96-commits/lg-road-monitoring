@@ -3,6 +3,18 @@ require_once '../../includes/session_config.php';
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 
+// Ensure approved_at and rejected_at columns exist in report tables
+foreach (['road_transportation_reports', 'road_maintenance_reports'] as $tbl) {
+    $check = $conn->query("SHOW COLUMNS FROM $tbl LIKE 'approved_at'");
+    if ($check && $check->num_rows === 0) {
+        $conn->query("ALTER TABLE $tbl ADD COLUMN approved_at TIMESTAMP NULL DEFAULT NULL AFTER updated_at");
+    }
+    $check2 = $conn->query("SHOW COLUMNS FROM $tbl LIKE 'rejected_at'");
+    if ($check2 && $check2->num_rows === 0) {
+        $conn->query("ALTER TABLE $tbl ADD COLUMN rejected_at TIMESTAMP NULL DEFAULT NULL AFTER approved_at");
+    }
+}
+
 // Check if user is logged in
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'system_admin') {
     header('Location: ../../login.php');
@@ -47,10 +59,10 @@ function getVerificationStatistics($conn) {
 // Function to get pending verifications
 function getPendingVerifications($conn) {
     $query = "(SELECT 'transport' as source, id, report_id, title, report_type,
-                     department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at 
+                     department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at 
               FROM road_transportation_reports WHERE status = 'pending')
               UNION ALL
-              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at FROM road_maintenance_reports WHERE status = 'pending')
+              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports WHERE status = 'pending')
               ORDER BY created_at DESC";
     $result = $conn->query($query);
     if (!$result) {
@@ -62,10 +74,10 @@ function getPendingVerifications($conn) {
 // Function to get approved reports
 function getApprovedReports($conn) {
     $query = "(SELECT 'transport' as source, id, report_id, title, report_type,
-                     department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at 
+                     department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at 
               FROM road_transportation_reports WHERE status = 'completed')
               UNION ALL
-              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at FROM road_maintenance_reports WHERE status = 'completed')
+              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports WHERE status = 'completed')
               ORDER BY updated_at DESC";
     $result = $conn->query($query);
     if (!$result) {
@@ -77,10 +89,10 @@ function getApprovedReports($conn) {
 // Function to get rejected reports
 function getRejectedReports($conn) {
     $query = "(SELECT 'transport' as source, id, report_id, title, report_type,
-                     department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at 
+                     department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at 
               FROM road_transportation_reports WHERE status = 'cancelled')
               UNION ALL
-              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at FROM road_maintenance_reports WHERE status = 'cancelled')
+              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports WHERE status = 'cancelled')
               ORDER BY updated_at DESC";
     $result = $conn->query($query);
     if (!$result) {
@@ -92,10 +104,10 @@ function getRejectedReports($conn) {
 // Function to get all reports (for filtering)
 function getAllReports($conn) {
     $query = "(SELECT 'transport' as source, id, report_id, title, report_type,
-                     department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at 
+                     department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at 
               FROM road_transportation_reports)
               UNION ALL
-              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at FROM road_maintenance_reports)
+              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports)
               ORDER BY created_at DESC";
     $result = $conn->query($query);
     if (!$result) {
@@ -106,9 +118,9 @@ function getAllReports($conn) {
 
 // Function to get recent approvals (for timeline)
 function getRecentApprovals($conn) {
-    $query = "(SELECT 'transport' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at FROM road_transportation_reports WHERE status = 'completed')
+    $query = "(SELECT 'transport' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports WHERE status = 'completed')
               UNION ALL
-              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at FROM road_maintenance_reports WHERE status = 'completed')
+              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports WHERE status = 'completed')
               ORDER BY updated_at DESC LIMIT 10";
     $result = $conn->query($query);
     if (!$result) {
@@ -120,10 +132,10 @@ function getRecentApprovals($conn) {
 // Function to get activity timeline
 function getActivityTimeline($conn) {
     $query = "(SELECT 'transport' as source, id, report_id, title, report_type,
-                     department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at 
+                     department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at 
               FROM road_transportation_reports)
               UNION ALL
-              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at FROM road_maintenance_reports)
+              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports)
               ORDER BY updated_at DESC LIMIT 5";
     $result = $conn->query($query);
     if (!$result) {
@@ -170,7 +182,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         if ($status) {
-            $query = "UPDATE $table SET status = ?, updated_at = NOW() WHERE id = ?";
+            if ($action === 'approve') {
+                $query = "UPDATE $table SET status = ?, approved_at = NOW(), updated_at = NOW() WHERE id = ?";
+            } elseif ($action === 'reject') {
+                $query = "UPDATE $table SET status = ?, rejected_at = NOW(), updated_at = NOW() WHERE id = ?";
+            } else {
+                $query = "UPDATE $table SET status = ?, updated_at = NOW() WHERE id = ?";
+            }
             $stmt = $conn->prepare($query);
             $stmt->bind_param('si', $status, $report_id);
             $stmt->execute();
@@ -1493,6 +1511,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                 <strong>Last Updated:</strong> <?php echo htmlspecialchars($report['updated_at']); ?>
                                             </div>
                                             <?php endif; ?>
+                                            <?php if (!empty($report['approved_at'])): ?>
+                                            <div class="detail-item">
+                                                <strong>Approved At:</strong> <?php echo htmlspecialchars($report['approved_at']); ?>
+                                            </div>
+                                            <?php endif; ?>
+                                            <?php if (!empty($report['rejected_at'])): ?>
+                                            <div class="detail-item">
+                                                <strong>Rejected At:</strong> <?php echo htmlspecialchars($report['rejected_at']); ?>
+                                            </div>
+                                            <?php endif; ?>
                                         </div>
                                     </div>
                                     
@@ -1523,11 +1551,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                             </form>
                                         <?php elseif ($report['status'] === 'completed'): ?>
                                             <span class="workflow-badge approved" style="margin-right: 10px;">Approved</span>
+                                            <?php if (!empty($report['approved_at'])): ?>
+                                            <span style="font-size: 12px; color: #6b7280; margin-right: 10px;"><i class="fas fa-clock"></i> <?php echo date('M d, Y g:i A', strtotime($report['approved_at'])); ?></span>
+                                            <?php endif; ?>
                                             <button type="button" onclick="viewDetails(<?php echo $report['id']; ?>, '<?php echo $report['source']; ?>')" class="btn-details" data-report-id="<?php echo $report['id']; ?>">
                                                 <span id="text-<?php echo $report['id']; ?>">View Details</span>
                                             </button>
                                         <?php elseif ($report['status'] === 'cancelled'): ?>
                                             <span class="workflow-badge rejected" style="margin-right: 10px;">Rejected</span>
+                                            <?php if (!empty($report['rejected_at'])): ?>
+                                            <span style="font-size: 12px; color: #6b7280; margin-right: 10px;"><i class="fas fa-clock"></i> <?php echo date('M d, Y g:i A', strtotime($report['rejected_at'])); ?></span>
+                                            <?php endif; ?>
                                             <button type="button" onclick="toggleDetails(<?php echo $report['id']; ?>)" class="btn-review">
                                                 <i class="fas fa-eye" id="icon-<?php echo $report['id']; ?>"></i>
                                                 <span id="text-<?php echo $report['id']; ?>">View Details</span>
