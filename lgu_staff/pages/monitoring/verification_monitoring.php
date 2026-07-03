@@ -332,7 +332,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         body {
-            background: #ffffff;
+            background: #f7f5f0;
             min-height: 100vh;
             margin: 0;
             padding: 0;
@@ -347,7 +347,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             z-index: 1;
         }
         .verification-header {
-            background: #ffffff;
+            background: #f0f4fa;
             padding: 25px 30px;
             border-radius: 16px;
             margin-bottom: 25px;
@@ -408,7 +408,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         .workflow-card {
-            background: #ffffff;
+            background: #f0f4fa;
             border-radius: 16px;
             padding: 25px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
@@ -722,7 +722,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         .timeline-section {
-            background: rgba(255, 255, 255, 0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             border-radius: 16px;
             padding: 25px;
@@ -818,7 +818,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             gap: 10px;
             margin-bottom: 20px;
             padding: 15px 20px;
-            background: #ffffff;
+            background: #f0f4fa;
             border-radius: 16px;
             border: 1px solid #e0e0e0;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
@@ -1031,7 +1031,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         /* Repaired Reports section */
         .repaired-section {
-            background: rgba(255, 255, 255, 0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             border-radius: 16px;
             padding: 25px;

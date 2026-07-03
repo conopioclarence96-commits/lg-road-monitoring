@@ -108,7 +108,7 @@ $total_notifications = count($pending_reports) + count($pending_users);
     <link rel="stylesheet" href="../../../styles/transition.css">
     <style>
         body {
-            background: #ffffff;
+            background: #f7f5f0;
             min-height: 100vh;
         }
         
@@ -127,7 +127,7 @@ $total_notifications = count($pending_reports) + count($pending_users);
         }
 
         .dashboard-header {
-            background: rgba(255, 255, 255, 0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             padding: 25px;
             border-radius: 16px;
@@ -169,7 +169,7 @@ $total_notifications = count($pending_reports) + count($pending_users);
         }
 
         .stat-card {
-            background: rgba(255, 255, 255, 0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             padding: 20px;
             border-radius: 16px;
@@ -208,7 +208,7 @@ $total_notifications = count($pending_reports) + count($pending_users);
         }
 
         .workflow-card {
-            background: rgba(255, 255, 255, 0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             padding: 25px;
             border-radius: 16px;

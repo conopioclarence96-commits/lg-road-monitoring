@@ -210,7 +210,7 @@ $chart_data = getWeeklyChartData($conn);
         }
 
         body {
-            background: #ffffff;
+            background: #f7f5f0;
             min-height: 100vh;
         }
 
@@ -222,7 +222,7 @@ $chart_data = getWeeklyChartData($conn);
         }
 
         .dashboard-header {
-            background: rgba(255, 255, 255, 0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             padding: 30px;
             border-radius: 16px;
@@ -346,7 +346,7 @@ $chart_data = getWeeklyChartData($conn);
         }
 
         .chart-container {
-            background: rgba(255, 255, 255, 0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             padding: 25px;
             border-radius: 16px;
@@ -373,7 +373,7 @@ $chart_data = getWeeklyChartData($conn);
         }
 
         .activity-feed {
-            background: rgba(255, 255, 255, 0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             padding: 25px;
             border-radius: 16px;
@@ -434,7 +434,7 @@ $chart_data = getWeeklyChartData($conn);
         }
 
         .priority-tasks {
-            background: rgba(255, 255, 255, 0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             padding: 25px;
             border-radius: 16px;

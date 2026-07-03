@@ -496,7 +496,7 @@ if (!empty($reports)) {
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
-            background: #ffffff;
+            background: #f7f5f0;
             min-height: 100vh;
         }
         
@@ -520,7 +520,7 @@ if (!empty($reports)) {
         }
 
         .dashboard-header {
-            background: rgba(255, 255, 255, 0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             padding: 30px;
             border-radius: 16px;
@@ -615,7 +615,7 @@ if (!empty($reports)) {
         }
 
         .chart-container {
-            background: rgba(255, 255, 255, 0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             padding: 25px;
             border-radius: 16px;
@@ -637,7 +637,7 @@ if (!empty($reports)) {
         }
 
         .report-card {
-            background: rgba(255, 255, 255, 0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             padding: 20px;
             border-radius: 12px;
@@ -780,7 +780,7 @@ if (!empty($reports)) {
         }
 
         .filters-section {
-            background: rgba(255, 255, 255, 0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             padding: 25px;
             border-radius: 16px;

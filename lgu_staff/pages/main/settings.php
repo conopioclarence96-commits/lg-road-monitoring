@@ -194,13 +194,13 @@ try {
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
         body {
-            background: #ffffff;
+            background: #f7f5f0;
             min-height: 100vh;
         }
         .main-content { margin-left: 250px; padding: 20px; position: relative; z-index: 1; }
         .settings-container {
             width: 100%;
-            background: rgba(255,255,255,0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             border-radius: 16px;
             box-shadow: 0 8px 32px rgba(0,0,0,0.1);
@@ -436,7 +436,7 @@ try {
         }
         .account-cards { display: flex; flex-direction: column; gap: 22px; }
         .account-card {
-            background: white;
+            background: #f0f4fa;
             border-radius: 14px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
             border: 1px solid #eef0f2;

@@ -191,7 +191,7 @@ try {
     <link rel="stylesheet" href="../../../styles/transition.css">
     <style>
         body {
-            background: #ffffff;
+            background: #f7f5f0;
             min-height: 100vh;
         }
         
@@ -215,7 +215,7 @@ try {
         }
 
         .dashboard-header {
-            background: rgba(255, 255, 255, 0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             padding: 25px;
             border-radius: 16px;
@@ -232,7 +232,7 @@ try {
         }
 
         .stat-card {
-            background: rgba(255, 255, 255, 0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             padding: 20px;
             border-radius: 16px;
@@ -297,7 +297,7 @@ try {
         }
 
         .workflow-card {
-            background: rgba(255, 255, 255, 0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             padding: 25px;
             border-radius: 16px;

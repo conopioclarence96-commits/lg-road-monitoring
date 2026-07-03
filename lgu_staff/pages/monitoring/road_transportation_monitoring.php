@@ -344,7 +344,7 @@ $roads = getRoadStatus();
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         body {
-            background: #ffffff;
+            background: #f7f5f0;
             min-height: 100vh;
         }
         
@@ -368,7 +368,7 @@ $roads = getRoadStatus();
         }
 
         .monitoring-header {
-            background: rgba(255, 255, 255, 0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             padding: 25px 30px;
             border-radius: 16px;
@@ -432,7 +432,7 @@ $roads = getRoadStatus();
         }
 
         .map-section {
-            background: rgba(255, 255, 255, 0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             border-radius: 16px;
             padding: 20px;
@@ -488,7 +488,7 @@ $roads = getRoadStatus();
         .report-form-panel {
             margin-top: 16px;
             padding: 20px;
-            background: rgba(255,255,255,0.95);
+            background: #f0f4fa;
             border-radius: 12px;
             border: 1px solid rgba(55, 98, 200, 0.2);
         }
@@ -530,7 +530,7 @@ $roads = getRoadStatus();
         }
 
         .info-card {
-            background: rgba(255, 255, 255, 0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             border-radius: 16px;
             padding: 20px;

@@ -306,7 +306,7 @@ try {
         }
 
         body {
-            background: #ffffff;
+            background: #f7f5f0;
             min-height: 100vh;
         }
 
@@ -318,7 +318,7 @@ try {
         }
 
         .dashboard-header {
-            background: rgba(255, 255, 255, 0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             padding: 30px;
             border-radius: 16px;
@@ -420,7 +420,7 @@ try {
         }
 
         .card {
-            background: rgba(255, 255, 255, 0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             padding: 25px;
             border-radius: 16px;
@@ -633,7 +633,7 @@ try {
         }
 
         .workflow-card {
-            background: rgba(255, 255, 255, 0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             padding: 25px;
             border-radius: 16px;
