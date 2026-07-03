@@ -10,7 +10,7 @@ session_start();
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'system_admin') {
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['system_admin', 'lgu_staff'])) {
     header('Location: ../../login.php');
     exit();
 }
