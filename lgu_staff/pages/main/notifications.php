@@ -41,11 +41,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param("i", $id);
             $stmt->execute();
             $stmt->close();
-        } elseif ($type === 'user') {
-            $stmt = $conn->prepare("UPDATE users SET updated_at = NOW() WHERE id = ? AND account_status = 'pending'");
-            $stmt->bind_param("i", $id);
-            $stmt->execute();
-            $stmt->close();
         }
         
         echo json_encode(['success' => true]);
@@ -54,7 +49,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if ($action === 'mark_all_read') {
         $conn->query("UPDATE road_transportation_reports SET updated_at = NOW() WHERE status = 'pending'");
-        $conn->query("UPDATE users SET updated_at = NOW() WHERE account_status = 'pending'");
         echo json_encode(['success' => true]);
         exit;
     }
@@ -88,22 +82,6 @@ try {
     error_log("Pending reports query error: " . $e->getMessage());
 }
 
-// Get pending user account requests
-$pending_users = [];
-try {
-    $ustmt = $conn->prepare("
-        SELECT id, username, email, full_name, role, department, created_at, id_file_path
-        FROM users 
-        WHERE account_status = 'pending'
-        ORDER BY created_at DESC
-    ");
-    $ustmt->execute();
-    $pending_users = $ustmt->get_result()->fetch_all(MYSQLI_ASSOC);
-    $ustmt->close();
-} catch (Exception $e) {
-    error_log("Pending users query error: " . $e->getMessage());
-}
-
 // Get pending change requests
 $pending_changes = [];
 try {
@@ -121,7 +99,7 @@ try {
     error_log("Pending change requests query error: " . $e->getMessage());
 }
 
-$total_notifications = count($pending_reports) + count($pending_users) + count($pending_changes);
+$total_notifications = count($pending_reports) + count($pending_changes);
 ?>
 
 <!DOCTYPE html>
@@ -498,13 +476,7 @@ $total_notifications = count($pending_reports) + count($pending_users) + count($
                 <div class="stat-number"><?php echo count($pending_reports); ?></div>
                 <div class="stat-label">Pending Reports</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon" style="color: #3b82f6;">
-                    <i class="fas fa-user-clock"></i>
-                </div>
-                <div class="stat-number"><?php echo count($pending_users); ?></div>
-                <div class="stat-label">User Requests</div>
-            </div>
+
             <div class="stat-card">
                 <div class="stat-icon" style="color: #8b5cf6;">
                     <i class="fas fa-user-edit"></i>
@@ -562,50 +534,6 @@ $total_notifications = count($pending_reports) + count($pending_users) + count($
                                 <div style="margin-top: 10px;">
                                     <div class="action-buttons">
                                         <a href="report_management.php" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> View</a>
-                                    </div>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
-            </div>
-
-            <!-- Pending User Requests -->
-            <div class="workflow-card">
-                <div class="workflow-header">
-                    <h3 class="workflow-title">
-                        <i class="fas fa-user-clock" style="color: #3b82f6;"></i>
-                        <span>User Account Requests</span>
-                        <span class="workflow-badge"><?php echo count($pending_users); ?></span>
-                    </h3>
-                </div>
-                
-                <div class="workflow-content">
-                    <?php if (empty($pending_users)): ?>
-                        <div class="empty-state">
-                            <i class="fas fa-check-circle"></i>
-                            <p>No pending user requests</p>
-                        </div>
-                    <?php else: ?>
-                        <?php foreach ($pending_users as $user): ?>
-                            <div class="notification-item" id="user-<?php echo $user['id']; ?>">
-                                <div class="notification-header">
-                                    <div class="notification-title"><?php echo htmlspecialchars($user['full_name']); ?></div>
-                                    <div class="notification-time"><?php echo date('M d, Y H:i', strtotime($user['created_at'])); ?></div>
-                                </div>
-                                <div class="notification-body">
-                                    New <?php echo ucfirst(htmlspecialchars($user['role'])); ?> account registration request
-                                </div>
-                                <div class="notification-meta">
-                                    <span class="notification-tag"><i class="fas fa-envelope"></i> <?php echo htmlspecialchars($user['email']); ?></span>
-                                    <span class="department-badge"><?php echo ucfirst(htmlspecialchars($user['department'] ?? 'N/A')); ?></span>
-                                    <?php if ($user['id_file_path']): ?>
-                                        <span class="notification-tag"><i class="fas fa-id-card"></i> ID Uploaded</span>
-                                    <?php endif; ?>
-                                </div>
-                                <div style="margin-top: 10px;">
-                                    <div class="action-buttons">
-                                        <a href="admin_dashboard.php" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> Review</a>
                                     </div>
                                 </div>
                             </div>
