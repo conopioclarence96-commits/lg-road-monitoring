@@ -69,6 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_admin) {
 $is_admin = ($user_role === 'system_admin');
 $pending_reports = [];
 $pending_changes = [];
+$report_updates = [];
 $staff_updates = [];
 
 if ($is_admin) {
@@ -122,9 +123,27 @@ if ($is_admin) {
     } catch (Exception $e) {
         error_log("Staff updates query error: " . $e->getMessage());
     }
+
+    // LGU Staff: get report status updates (approved = completed, rejected = cancelled)
+    try {
+        $rstmt = $conn->prepare("
+            SELECT id, report_id, title, status, location, 
+                   approved_at, rejected_at, updated_at, created_at
+            FROM road_transportation_reports
+            WHERE created_by = ? AND status IN ('completed', 'cancelled')
+            ORDER BY GREATEST(COALESCE(approved_at, '1970-01-01'), COALESCE(rejected_at, '1970-01-01'), updated_at) DESC
+            LIMIT 20
+        ");
+        $rstmt->bind_param("i", $user_id);
+        $rstmt->execute();
+        $report_updates = $rstmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $rstmt->close();
+    } catch (Exception $e) {
+        error_log("Staff report updates query error: " . $e->getMessage());
+    }
 }
 
-$total_notifications = $is_admin ? (count($pending_reports) + count($pending_changes)) : count($staff_updates);
+$total_notifications = $is_admin ? (count($pending_reports) + count($pending_changes)) : (count($staff_updates) + count($report_updates));
 ?>
 
 <!DOCTYPE html>
@@ -478,7 +497,7 @@ $total_notifications = $is_admin ? (count($pending_reports) + count($pending_cha
             <div class="welcome-section">
                 <div class="welcome-text">
                     <h1><i class="fas fa-bell"></i> Notifications</h1>
-                    <p><?php echo $is_admin ? 'Reports from other departments and staff change requests' : 'Updates on your account change requests'; ?></p>
+                    <p><?php echo $is_admin ? 'Reports from other departments and staff change requests' : 'Updates on your submitted reports and change requests'; ?></p>
                 </div>
                 <div style="display: flex; gap: 10px; align-items: center;">
                     <?php if ($is_admin): ?>
@@ -514,11 +533,18 @@ $total_notifications = $is_admin ? (count($pending_reports) + count($pending_cha
             </div>
             <?php else: ?>
             <div class="stat-card">
-                <div class="stat-icon" style="color: #10b981;">
-                    <i class="fas fa-check-circle"></i>
+                <div class="stat-icon" style="color: #f59e0b;">
+                    <i class="fas fa-file-alt"></i>
                 </div>
-                <div class="stat-number"><?php echo $total_notifications; ?></div>
-                <div class="stat-label">Updates</div>
+                <div class="stat-number"><?php echo count($report_updates); ?></div>
+                <div class="stat-label">Report Updates</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="color: #10b981;">
+                    <i class="fas fa-user-edit"></i>
+                </div>
+                <div class="stat-number"><?php echo count($staff_updates); ?></div>
+                <div class="stat-label">Change Request Updates</div>
             </div>
             <?php endif; ?>
             <div class="stat-card">
@@ -632,13 +658,61 @@ $total_notifications = $is_admin ? (count($pending_reports) + count($pending_cha
                 </div>
             </div>
             <?php else: ?>
+            <!-- Staff: My Report Status Updates -->
+            <div class="workflow-card">
+                <div class="workflow-header">
+                    <h3 class="workflow-title">
+                        <i class="fas fa-file-alt" style="color: #f59e0b;"></i>
+                        <span>Report Updates</span>
+                        <span class="workflow-badge"><?php echo count($report_updates); ?></span>
+                    </h3>
+                </div>
+                
+                <div class="workflow-content">
+                    <?php if (empty($report_updates)): ?>
+                        <div class="empty-state">
+                            <i class="fas fa-check-circle"></i>
+                            <p>No report updates yet. Submit a report and wait for admin review.</p>
+                        </div>
+                    <?php else: ?>
+                        <?php foreach ($report_updates as $report): 
+                            $is_approved = ($report['status'] === 'completed');
+                            $action_time = $is_approved ? ($report['approved_at'] ?? $report['updated_at']) : ($report['rejected_at'] ?? $report['updated_at']);
+                        ?>
+                            <div class="notification-item">
+                                <div class="notification-header">
+                                    <div class="notification-title">
+                                        <?php if ($is_approved): ?>
+                                            <span style="color:#16a34a;"><i class="fas fa-check-circle"></i> Approved</span>
+                                        <?php else: ?>
+                                            <span style="color:#dc2626;"><i class="fas fa-times-circle"></i> Rejected</span>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="notification-time"><?php echo date('M d, Y H:i', strtotime($action_time)); ?></div>
+                                </div>
+                                <div class="notification-body">
+                                    <strong><?php echo htmlspecialchars($report['title']); ?></strong> was <strong><?php echo $is_approved ? 'approved' : 'rejected'; ?></strong>.
+                                    <?php if ($report['location']): ?>
+                                        <br><small style="color:#666;">Location: <?php echo htmlspecialchars($report['location']); ?></small>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="notification-meta">
+                                    <span class="notification-tag"><i class="fas fa-hashtag"></i> <?php echo htmlspecialchars($report['report_id']); ?></span>
+                                    <span class="notification-tag"><i class="fas fa-calendar"></i> Submitted <?php echo date('M d, Y', strtotime($report['created_at'])); ?></span>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+            </div>
+
             <!-- Staff: My Change Request Status -->
             <div class="workflow-card">
                 <div class="workflow-header">
                     <h3 class="workflow-title">
                         <i class="fas fa-user-edit" style="color: #10b981;"></i>
                         <span>Change Request Updates</span>
-                        <span class="workflow-badge"><?php echo $total_notifications; ?></span>
+                        <span class="workflow-badge"><?php echo count($staff_updates); ?></span>
                     </h3>
                 </div>
                 
