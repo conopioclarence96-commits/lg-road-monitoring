@@ -276,4 +276,118 @@ function json_success($data = null, $message = 'Success') {
         'data' => $data
     ]);
 }
+
+// OTP handling functions
+function generate_otp($length = 6) {
+    return str_pad(rand(0, (int)str_repeat('9', $length)), $length, '0', STR_PAD_LEFT);
+}
+
+function store_otp($email, $otpCode, $purpose = 'registration') {
+    $_SESSION['otp_data'] = [
+        'code' => $otpCode,
+        'expiry' => time() + 300,
+        'purpose' => $purpose,
+        'email' => $email
+    ];
+
+    $_SESSION['debug_otp'] = [
+        'email' => $email,
+        'code' => $otpCode,
+        'timestamp' => time()
+    ];
+}
+
+function verify_otp_code($enteredOTP, $purpose = null) {
+    $storedOTP = $_SESSION['otp_data']['code'] ?? '';
+    $otpExpiry = $_SESSION['otp_data']['expiry'] ?? 0;
+    $otpPurpose = $_SESSION['otp_data']['purpose'] ?? '';
+
+    if (empty($enteredOTP)) {
+        return ['success' => false, 'message' => 'Please enter the OTP code'];
+    }
+
+    if (time() > $otpExpiry) {
+        unset($_SESSION['otp_data']);
+        return ['success' => false, 'message' => 'OTP has expired. Please try again.'];
+    }
+
+    if ($purpose !== null && $otpPurpose !== $purpose) {
+        return ['success' => false, 'message' => 'Invalid OTP session.'];
+    }
+
+    if ($enteredOTP !== $storedOTP) {
+        return ['success' => false, 'message' => 'Invalid OTP code. Please try again.'];
+    }
+
+    unset($_SESSION['otp_data']);
+    return ['success' => true, 'message' => 'OTP verified successfully!'];
+}
+
+function send_otp_to_email($email, $otpCode) {
+    $envFile = __DIR__ . '/../../.env';
+    $envVariables = file_exists($envFile) ? parse_ini_file($envFile) : [];
+    $apiKey = $envVariables['BREVO_API_KEY'] ?? getenv('BREVO_API_KEY');
+    $senderName = $envVariables['BREVO_SENDER_NAME'] ?? getenv('BREVO_SENDER_NAME');
+    $senderEmail = $envVariables['BREVO_SENDER_EMAIL'] ?? getenv('BREVO_SENDER_EMAIL');
+
+    $ch = curl_init('https://api.brevo.com/v3/smtp/email');
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'accept: application/json',
+        'api-key: ' . $apiKey,
+        'content-type: application/json'
+    ]);
+
+    $htmlContent = "
+    <html>
+        <body style='font-family: Arial, sans-serif; color: #333;'>
+            <div style='max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;'>
+                <h2 style='color: #0066cc;'>Hello from Road and Transportation Department!</h2>
+                <p>You requested to sign in or register on the LGU Portal. Use the verification code below to complete your process.</p>
+                <div style='background-color: #f4f4f4; padding: 15px; text-align: center; border-radius: 5px; margin: 20px 0;'>
+                    <span style='font-size: 24px; font-weight: bold; letter-spacing: 5px;'>" . $otpCode . "</span>
+                </div>
+                <p>This code will expire in <strong>5 minutes</strong>.</p>
+                <p style='font-size: 12px; color: #999; margin-top: 30px;'>If you did not request this email, please ignore it.</p>
+            </div>
+        </body>
+    </html>";
+
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+        'sender' => [
+            'name' => $senderName,
+            'email' => $senderEmail
+        ],
+        'to' => [
+            [
+                'email' => $email,
+                'name' => $email
+            ]
+        ],
+        'subject' => 'Hello from Road and Transportation Department!',
+        'htmlContent' => $htmlContent
+    ]));
+
+    $response = curl_exec($ch);
+    curl_close($ch);
+
+    error_log("OTP API Response: " . $response);
+
+    return json_decode($response, true);
+}
+
+function handle_registration_otp($email) {
+    $otpCode = generate_otp();
+    store_otp($email, $otpCode, 'registration');
+    send_otp_to_email($email, $otpCode);
+    return $otpCode;
+}
+
+function handle_login_otp($email) {
+    $otpCode = generate_otp();
+    store_otp($email, $otpCode, 'login');
+    send_otp_to_email($email, $otpCode);
+    return $otpCode;
+}
 ?>

@@ -22,13 +22,16 @@ $_SESSION['last_activity'] = time();
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'system_admin') {
+$user_role = $_SESSION['role'] ?? '';
+$user_id = $_SESSION['user_id'] ?? 0;
+
+if (!isset($_SESSION['user_id']) || !in_array($user_role, ['system_admin', 'lgu_staff'])) {
     header('Location: ../../login.php');
     exit();
 }
 
 // Handle mark as read
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_admin) {
     header('Content-Type: application/json');
     $action = $_POST['action'] ?? '';
     
@@ -41,11 +44,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param("i", $id);
             $stmt->execute();
             $stmt->close();
-        } elseif ($type === 'user') {
-            $stmt = $conn->prepare("UPDATE users SET updated_at = NOW() WHERE id = ? AND account_status = 'pending'");
-            $stmt->bind_param("i", $id);
-            $stmt->execute();
-            $stmt->close();
         }
         
         echo json_encode(['success' => true]);
@@ -54,48 +52,98 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if ($action === 'mark_all_read') {
         $conn->query("UPDATE road_transportation_reports SET updated_at = NOW() WHERE status = 'pending'");
-        $conn->query("UPDATE users SET updated_at = NOW() WHERE account_status = 'pending'");
+        echo json_encode(['success' => true]);
+        exit;
+    }
+    
+    if ($action === 'mark_read_change' && $id > 0) {
+        $stmt = $conn->prepare("UPDATE change_requests SET admin_notes = CONCAT(COALESCE(admin_notes,''), '[Viewed]') WHERE id = ? AND status = 'pending'");
+        $stmt->bind_param("i", $id);
+        $stmt->execute();
+        $stmt->close();
         echo json_encode(['success' => true]);
         exit;
     }
 }
 
-// Get pending reports from all departments
+$is_admin = ($user_role === 'system_admin');
 $pending_reports = [];
-try {
-    $rstmt = $conn->prepare("
-        SELECT id, report_id, title, department, priority, status, description, location, 
-               reporter_name, reporter_email, created_at
-        FROM road_transportation_reports 
-        WHERE status = 'pending'
-        ORDER BY 
-            CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END,
-            created_at DESC
-    ");
-    $rstmt->execute();
-    $pending_reports = $rstmt->get_result()->fetch_all(MYSQLI_ASSOC);
-    $rstmt->close();
-} catch (Exception $e) {
-    error_log("Pending reports query error: " . $e->getMessage());
+$pending_changes = [];
+$report_updates = [];
+$staff_updates = [];
+
+if ($is_admin) {
+    // Admin: get pending reports
+    try {
+        $rstmt = $conn->prepare("
+            SELECT id, report_id, title, department, priority, status, description, location, 
+                   reporter_name, reporter_email, created_at
+            FROM road_transportation_reports 
+            WHERE status = 'pending'
+            ORDER BY 
+                CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END,
+                created_at DESC
+        ");
+        $rstmt->execute();
+        $pending_reports = $rstmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $rstmt->close();
+    } catch (Exception $e) {
+        error_log("Pending reports query error: " . $e->getMessage());
+    }
+
+    // Admin: get all pending change requests
+    try {
+        $cstmt = $conn->prepare("
+            SELECT cr.*, u.full_name as user_name
+            FROM change_requests cr
+            LEFT JOIN users u ON cr.user_id = u.id
+            WHERE cr.status = 'pending'
+            ORDER BY cr.created_at DESC
+        ");
+        $cstmt->execute();
+        $pending_changes = $cstmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $cstmt->close();
+    } catch (Exception $e) {
+        error_log("Pending change requests query error: " . $e->getMessage());
+    }
+} else {
+    // LGU Staff: get their own change request status updates
+    try {
+        $sstmt = $conn->prepare("
+            SELECT id, status, admin_notes, created_at, reviewed_at
+            FROM change_requests
+            WHERE user_id = ? AND status != 'pending'
+            ORDER BY reviewed_at DESC
+            LIMIT 20
+        ");
+        $sstmt->bind_param("i", $user_id);
+        $sstmt->execute();
+        $staff_updates = $sstmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $sstmt->close();
+    } catch (Exception $e) {
+        error_log("Staff updates query error: " . $e->getMessage());
+    }
+
+    // LGU Staff: get report status updates (approved = completed, rejected = cancelled)
+    try {
+        $rstmt = $conn->prepare("
+            SELECT id, report_id, title, status, location, 
+                   approved_at, rejected_at, updated_at, created_at
+            FROM road_transportation_reports
+            WHERE created_by = ? AND status IN ('completed', 'cancelled')
+            ORDER BY GREATEST(COALESCE(approved_at, '1970-01-01'), COALESCE(rejected_at, '1970-01-01'), updated_at) DESC
+            LIMIT 20
+        ");
+        $rstmt->bind_param("i", $user_id);
+        $rstmt->execute();
+        $report_updates = $rstmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $rstmt->close();
+    } catch (Exception $e) {
+        error_log("Staff report updates query error: " . $e->getMessage());
+    }
 }
 
-// Get pending user account requests
-$pending_users = [];
-try {
-    $ustmt = $conn->prepare("
-        SELECT id, username, email, full_name, role, department, created_at, id_file_path
-        FROM users 
-        WHERE account_status = 'pending'
-        ORDER BY created_at DESC
-    ");
-    $ustmt->execute();
-    $pending_users = $ustmt->get_result()->fetch_all(MYSQLI_ASSOC);
-    $ustmt->close();
-} catch (Exception $e) {
-    error_log("Pending users query error: " . $e->getMessage());
-}
-
-$total_notifications = count($pending_reports) + count($pending_users);
+$total_notifications = $is_admin ? (count($pending_reports) + count($pending_changes)) : (count($staff_updates) + count($report_updates));
 ?>
 
 <!DOCTYPE html>
@@ -106,20 +154,11 @@ $total_notifications = count($pending_reports) + count($pending_users);
     <title>Notifications - LGU Road Monitoring</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
+    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <style>
         body {
-            background: url("../../../assets/img/cityhall.jpeg") center/cover no-repeat fixed;
-            position: relative;
+            background: #f7f5f0;
             min-height: 100vh;
-        }
-        
-        body::before {
-            content: "";
-            position: absolute;
-            inset: 0;
-            backdrop-filter: blur(6px);
-            background: rgba(0, 0, 0, 0.35);
-            z-index: -1;
         }
         
         * {
@@ -137,7 +176,7 @@ $total_notifications = count($pending_reports) + count($pending_users);
         }
 
         .dashboard-header {
-            background: rgba(255, 255, 255, 0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             padding: 25px;
             border-radius: 16px;
@@ -179,7 +218,7 @@ $total_notifications = count($pending_reports) + count($pending_users);
         }
 
         .stat-card {
-            background: rgba(255, 255, 255, 0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             padding: 20px;
             border-radius: 16px;
@@ -218,7 +257,7 @@ $total_notifications = count($pending_reports) + count($pending_users);
         }
 
         .workflow-card {
-            background: rgba(255, 255, 255, 0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             padding: 25px;
             border-radius: 16px;
@@ -442,7 +481,7 @@ $total_notifications = count($pending_reports) + count($pending_users);
         }
     </style>
 </head>
-<body>
+<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
     <iframe src="../../includes/sidebar.php" 
             style="position: fixed; width: 250px; height: 100vh; border: none; z-index: 1000;" 
             frameborder="0"
@@ -458,12 +497,14 @@ $total_notifications = count($pending_reports) + count($pending_users);
             <div class="welcome-section">
                 <div class="welcome-text">
                     <h1><i class="fas fa-bell"></i> Notifications</h1>
-                    <p>Reports from other departments and user account requests</p>
+                    <p><?php echo $is_admin ? 'Reports from other departments and staff change requests' : 'Updates on your submitted reports and change requests'; ?></p>
                 </div>
                 <div style="display: flex; gap: 10px; align-items: center;">
+                    <?php if ($is_admin): ?>
                     <button class="btn-sm btn-approve" onclick="markAllRead()" <?php echo $total_notifications === 0 ? 'disabled' : ''; ?>>
                         <i class="fas fa-check-double"></i> Mark All as Read
                     </button>
+                    <?php endif; ?>
                     <div class="date-time">
                         <div id="currentDate"></div>
                         <div id="currentTime"></div>
@@ -474,6 +515,7 @@ $total_notifications = count($pending_reports) + count($pending_users);
 
         <!-- Statistics -->
         <div class="quick-stats">
+            <?php if ($is_admin): ?>
             <div class="stat-card">
                 <div class="stat-icon" style="color: #f59e0b;">
                     <i class="fas fa-file-alt"></i>
@@ -481,13 +523,30 @@ $total_notifications = count($pending_reports) + count($pending_users);
                 <div class="stat-number"><?php echo count($pending_reports); ?></div>
                 <div class="stat-label">Pending Reports</div>
             </div>
+
             <div class="stat-card">
-                <div class="stat-icon" style="color: #3b82f6;">
-                    <i class="fas fa-user-clock"></i>
+                <div class="stat-icon" style="color: #8b5cf6;">
+                    <i class="fas fa-user-edit"></i>
                 </div>
-                <div class="stat-number"><?php echo count($pending_users); ?></div>
-                <div class="stat-label">User Requests</div>
+                <div class="stat-number"><?php echo count($pending_changes); ?></div>
+                <div class="stat-label">Change Requests</div>
             </div>
+            <?php else: ?>
+            <div class="stat-card">
+                <div class="stat-icon" style="color: #f59e0b;">
+                    <i class="fas fa-file-alt"></i>
+                </div>
+                <div class="stat-number"><?php echo count($report_updates); ?></div>
+                <div class="stat-label">Report Updates</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="color: #10b981;">
+                    <i class="fas fa-user-edit"></i>
+                </div>
+                <div class="stat-number"><?php echo count($staff_updates); ?></div>
+                <div class="stat-label">Change Request Updates</div>
+            </div>
+            <?php endif; ?>
             <div class="stat-card">
                 <div class="stat-icon" style="color: #10b981;">
                     <i class="fas fa-bell"></i>
@@ -498,6 +557,7 @@ $total_notifications = count($pending_reports) + count($pending_users);
         </div>
 
         <div class="workflow-container">
+            <?php if ($is_admin): ?>
             <!-- Pending Reports -->
             <div class="workflow-card">
                 <div class="workflow-header">
@@ -546,42 +606,50 @@ $total_notifications = count($pending_reports) + count($pending_users);
                 </div>
             </div>
 
-            <!-- Pending User Requests -->
+            <!-- Pending Change Requests -->
             <div class="workflow-card">
                 <div class="workflow-header">
                     <h3 class="workflow-title">
-                        <i class="fas fa-user-clock" style="color: #3b82f6;"></i>
-                        <span>User Account Requests</span>
-                        <span class="workflow-badge"><?php echo count($pending_users); ?></span>
+                        <i class="fas fa-user-edit" style="color: #8b5cf6;"></i>
+                        <span>Staff Change Requests</span>
+                        <span class="workflow-badge"><?php echo count($pending_changes); ?></span>
                     </h3>
                 </div>
                 
                 <div class="workflow-content">
-                    <?php if (empty($pending_users)): ?>
+                    <?php if (empty($pending_changes)): ?>
                         <div class="empty-state">
                             <i class="fas fa-check-circle"></i>
-                            <p>No pending user requests</p>
+                            <p>No pending change requests</p>
                         </div>
                     <?php else: ?>
-                        <?php foreach ($pending_users as $user): ?>
-                            <div class="notification-item" id="user-<?php echo $user['id']; ?>">
+                        <?php foreach ($pending_changes as $cr): 
+                            $req_data = json_decode($cr['requested_data'], true);
+                            $changes_list = [];
+                            if (!empty($req_data['email'])) $changes_list[] = 'Email: ' . $req_data['email'];
+                            if (!empty($req_data['address'])) $changes_list[] = 'Address: ' . $req_data['address'];
+                            if (!empty($req_data['civil_status'])) $changes_list[] = 'Status: ' . ucfirst($req_data['civil_status']);
+                            if (!empty($req_data['birthday'])) $changes_list[] = 'Birthday: ' . $req_data['birthday'];
+                            if (!empty($req_data['new_password_hash'])) $changes_list[] = 'Password change requested';
+                            if (!empty($req_data['id_file_path'])) $changes_list[] = 'New ID photo uploaded';
+                        ?>
+                            <div class="notification-item">
                                 <div class="notification-header">
-                                    <div class="notification-title"><?php echo htmlspecialchars($user['full_name']); ?></div>
-                                    <div class="notification-time"><?php echo date('M d, Y H:i', strtotime($user['created_at'])); ?></div>
+                                    <div class="notification-title"><?php echo htmlspecialchars($cr['user_name']); ?></div>
+                                    <div class="notification-time"><?php echo date('M d, Y H:i', strtotime($cr['created_at'])); ?></div>
                                 </div>
                                 <div class="notification-body">
-                                    New <?php echo ucfirst(htmlspecialchars($user['role'])); ?> account registration request
+                                    Requesting information update:
+                                    <?php echo !empty($changes_list) ? '<br><small>' . implode(' &bull; ', $changes_list) . '</small>' : ''; ?>
                                 </div>
                                 <div class="notification-meta">
-                                    <span class="notification-tag"><i class="fas fa-envelope"></i> <?php echo htmlspecialchars($user['email']); ?></span>
-                                    <span class="department-badge"><?php echo ucfirst(htmlspecialchars($user['department'] ?? 'N/A')); ?></span>
-                                    <?php if ($user['id_file_path']): ?>
-                                        <span class="notification-tag"><i class="fas fa-id-card"></i> ID Uploaded</span>
+                                    <?php if (!empty($cr['reason'])): ?>
+                                        <span class="notification-tag"><i class="fas fa-comment"></i> <?php echo htmlspecialchars($cr['reason']); ?></span>
                                     <?php endif; ?>
                                 </div>
                                 <div style="margin-top: 10px;">
                                     <div class="action-buttons">
-                                        <a href="admin_dashboard.php" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> Review</a>
+                                        <a href="account_approvals.php" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> Review</a>
                                     </div>
                                 </div>
                             </div>
@@ -589,6 +657,99 @@ $total_notifications = count($pending_reports) + count($pending_users);
                     <?php endif; ?>
                 </div>
             </div>
+            <?php else: ?>
+            <!-- Staff: My Report Status Updates -->
+            <div class="workflow-card">
+                <div class="workflow-header">
+                    <h3 class="workflow-title">
+                        <i class="fas fa-file-alt" style="color: #f59e0b;"></i>
+                        <span>Report Updates</span>
+                        <span class="workflow-badge"><?php echo count($report_updates); ?></span>
+                    </h3>
+                </div>
+                
+                <div class="workflow-content">
+                    <?php if (empty($report_updates)): ?>
+                        <div class="empty-state">
+                            <i class="fas fa-check-circle"></i>
+                            <p>No report updates yet. Submit a report and wait for admin review.</p>
+                        </div>
+                    <?php else: ?>
+                        <?php foreach ($report_updates as $report): 
+                            $is_approved = ($report['status'] === 'completed');
+                            $action_time = $is_approved ? ($report['approved_at'] ?? $report['updated_at']) : ($report['rejected_at'] ?? $report['updated_at']);
+                        ?>
+                            <div class="notification-item">
+                                <div class="notification-header">
+                                    <div class="notification-title">
+                                        <?php if ($is_approved): ?>
+                                            <span style="color:#16a34a;"><i class="fas fa-check-circle"></i> Approved</span>
+                                        <?php else: ?>
+                                            <span style="color:#dc2626;"><i class="fas fa-times-circle"></i> Rejected</span>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="notification-time"><?php echo date('M d, Y H:i', strtotime($action_time)); ?></div>
+                                </div>
+                                <div class="notification-body">
+                                    <strong><?php echo htmlspecialchars($report['title']); ?></strong> was <strong><?php echo $is_approved ? 'approved' : 'rejected'; ?></strong>.
+                                    <?php if ($report['location']): ?>
+                                        <br><small style="color:#666;">Location: <?php echo htmlspecialchars($report['location']); ?></small>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="notification-meta">
+                                    <span class="notification-tag"><i class="fas fa-hashtag"></i> <?php echo htmlspecialchars($report['report_id']); ?></span>
+                                    <span class="notification-tag"><i class="fas fa-calendar"></i> Submitted <?php echo date('M d, Y', strtotime($report['created_at'])); ?></span>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <!-- Staff: My Change Request Status -->
+            <div class="workflow-card">
+                <div class="workflow-header">
+                    <h3 class="workflow-title">
+                        <i class="fas fa-user-edit" style="color: #10b981;"></i>
+                        <span>Change Request Updates</span>
+                        <span class="workflow-badge"><?php echo count($staff_updates); ?></span>
+                    </h3>
+                </div>
+                
+                <div class="workflow-content">
+                    <?php if (empty($staff_updates)): ?>
+                        <div class="empty-state">
+                            <i class="fas fa-check-circle"></i>
+                            <p>No updates yet. Submit a change request to see updates here.</p>
+                        </div>
+                    <?php else: ?>
+                        <?php foreach ($staff_updates as $update): ?>
+                            <div class="notification-item">
+                                <div class="notification-header">
+                                    <div class="notification-title">
+                                        <?php if ($update['status'] === 'approved'): ?>
+                                            <span style="color:#16a34a;"><i class="fas fa-check-circle"></i> Approved</span>
+                                        <?php else: ?>
+                                            <span style="color:#dc2626;"><i class="fas fa-times-circle"></i> Rejected</span>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="notification-time"><?php echo date('M d, Y H:i', strtotime($update['reviewed_at'] ?? $update['created_at'])); ?></div>
+                                </div>
+                                <div class="notification-body">
+                                    Your change request was <strong><?php echo $update['status']; ?></strong>.
+                                    <?php if (!empty($update['admin_notes'])): ?>
+                                        <br><small style="color:#666;">Admin note: <?php echo htmlspecialchars($update['admin_notes']); ?></small>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="notification-meta">
+                                    <span class="notification-tag"><i class="fas fa-calendar"></i> Submitted <?php echo date('M d, Y', strtotime($update['created_at'])); ?></span>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php endif; ?>
         </div>
     </div>
 

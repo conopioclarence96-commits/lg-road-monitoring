@@ -323,6 +323,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
+    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <style>
         * {
             margin: 0;
@@ -332,20 +333,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         body {
-            background: url("../../../assets/img/cityhall.jpeg") center/cover no-repeat fixed;
-            position: relative;
+            background: #f7f5f0;
             min-height: 100vh;
             margin: 0;
             padding: 0;
-        }
-        
-        body::before {
-            content: "";
-            position: absolute;
-            inset: 0;
-            backdrop-filter: blur(6px);
-            background: rgba(0, 0, 0, 0.35);
-            z-index: -1;
         }
 
         html { scroll-behavior: smooth; }
@@ -357,7 +348,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             z-index: 1;
         }
         .verification-header {
-            background: #ffffff;
+            background: #f0f4fa;
             padding: 25px 30px;
             border-radius: 16px;
             margin-bottom: 25px;
@@ -418,7 +409,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         .workflow-card {
-            background: #ffffff;
+            background: #f0f4fa;
             border-radius: 16px;
             padding: 25px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
@@ -732,7 +723,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         .timeline-section {
-            background: rgba(255, 255, 255, 0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             border-radius: 16px;
             padding: 25px;
@@ -828,7 +819,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             gap: 10px;
             margin-bottom: 20px;
             padding: 15px 20px;
-            background: #ffffff;
+            background: #f0f4fa;
             border-radius: 16px;
             border: 1px solid #e0e0e0;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
@@ -1041,7 +1032,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         /* Repaired Reports section */
         .repaired-section {
-            background: rgba(255, 255, 255, 0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             border-radius: 16px;
             padding: 25px;
@@ -1278,7 +1269,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
     </style>
 </head>
-<body>
+<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
     <!-- SIDEBAR -->
     <iframe src="../../includes/sidebar.php" 
             style="position: fixed; width: 250px; height: 100vh; border: none; z-index: 1000;" 
