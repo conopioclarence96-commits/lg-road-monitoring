@@ -32,10 +32,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'update_profile') {
         $full_name = sanitize_input($_POST['full_name'] ?? '');
         $email = sanitize_input($_POST['email'] ?? '');
+        $department = sanitize_input($_POST['department'] ?? '');
+        $address = sanitize_input($_POST['address'] ?? '');
+        $birthday = sanitize_input($_POST['birthday'] ?? '');
+        $civil_status = sanitize_input($_POST['civil_status'] ?? '');
 
         if (!empty($full_name) && !empty($email)) {
-            $stmt = $conn->prepare("UPDATE users SET full_name = ?, email = ? WHERE id = ?");
-            $stmt->bind_param("ssi", $full_name, $email, $user_id);
+            $stmt = $conn->prepare("UPDATE users SET full_name = ?, email = ?, department = ?, address = ?, birthday = ?, civil_status = ? WHERE id = ?");
+            $stmt->bind_param("ssssssi", $full_name, $email, $department, $address, $birthday, $civil_status, $user_id);
             $stmt->execute();
             $stmt->close();
 
@@ -45,6 +49,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $error_msg = 'Name and email are required.';
         }
+    }
+
+    if ($action === 'request_change') {
+        $data = [
+            'full_name' => sanitize_input($_POST['full_name'] ?? ''),
+            'email' => sanitize_input($_POST['email'] ?? ''),
+            'address' => sanitize_input($_POST['address'] ?? ''),
+            'birthday' => sanitize_input($_POST['birthday'] ?? ''),
+            'civil_status' => sanitize_input($_POST['civil_status'] ?? ''),
+        ];
+        $reason = sanitize_input($_POST['reason'] ?? '');
+        $stmt = $conn->prepare("INSERT INTO change_requests (user_id, requested_data, reason, status) VALUES (?, ?, ?, 'pending')");
+        $json_data = json_encode($data);
+        $stmt->bind_param("iss", $user_id, $json_data, $reason);
+        if ($stmt->execute()) {
+            log_audit_action($user_id, 'Change Request Submitted', 'Staff requested information change from settings');
+            $success_msg = 'Your change request has been submitted and is pending admin review.';
+        } else {
+            $error_msg = 'Failed to submit request. Please try again.';
+        }
+        $stmt->close();
     }
 
     if ($action === 'change_password') {
@@ -161,7 +186,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Get user data
-$stmt = $conn->prepare("SELECT username, full_name, email, role, profile_picture, twofa, darkmode FROM users WHERE id = ?");
+$stmt = $conn->prepare("SELECT username, full_name, email, role, profile_picture, twofa, darkmode, department, address, birthday, civil_status FROM users WHERE id = ?");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $user_data = $stmt->get_result()->fetch_assoc();
@@ -685,6 +710,9 @@ try {
                         <h2><?php echo htmlspecialchars($user_data['full_name'] ?? 'Admin'); ?></h2>
                         <div class="profile-meta">
                             <span><i class="fas fa-envelope"></i> <?php echo htmlspecialchars($user_data['email'] ?? ''); ?></span>
+                            <span><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($user_data['address'] ?? 'N/A'); ?></span>
+                            <span><i class="fas fa-calendar"></i> <?php echo htmlspecialchars($user_data['birthday'] ?? 'N/A'); ?></span>
+                            <span><i class="fas fa-heart"></i> <?php echo htmlspecialchars(ucfirst($user_data['civil_status'] ?? 'N/A')); ?></span>
                             <span class="role-badge-header"><i class="fas fa-shield-alt"></i> <?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $user_data['role'] ?? ''))); ?></span>
                             <?php if (($user_data['twofa'] ?? 0) == 1): ?>
                                 <span class="twofa-badge on"><i class="fas fa-check-circle"></i> 2FA On</span>
@@ -728,6 +756,7 @@ try {
                                 </div>
                             </form>
 
+                            <?php if ($user_data['role'] === 'system_admin'): ?>
                             <form method="POST">
                                 <input type="hidden" name="action" value="update_profile">
                                 <div class="form-grid-2">
@@ -747,7 +776,24 @@ try {
                                     <div class="form-group">
                                         <label>Role</label>
                                         <input type="text" class="form-control" value="<?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $user_data['role'] ?? ''))); ?>" disabled>
-                                        <div class="field-hint">Assigned by system administrator</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Address</label>
+                                        <input type="text" name="address" class="form-control" value="<?php echo htmlspecialchars($user_data['address'] ?? ''); ?>">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Birthday</label>
+                                        <input type="date" name="birthday" class="form-control" value="<?php echo htmlspecialchars($user_data['birthday'] ?? ''); ?>">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Civil Status</label>
+                                        <select name="civil_status" class="form-control">
+                                            <option value="">Select status</option>
+                                            <option value="single" <?php echo ($user_data['civil_status'] ?? '') === 'single' ? 'selected' : ''; ?>>Single</option>
+                                            <option value="married" <?php echo ($user_data['civil_status'] ?? '') === 'married' ? 'selected' : ''; ?>>Married</option>
+                                            <option value="divorced" <?php echo ($user_data['civil_status'] ?? '') === 'divorced' ? 'selected' : ''; ?>>Divorced</option>
+                                            <option value="widowed" <?php echo ($user_data['civil_status'] ?? '') === 'widowed' ? 'selected' : ''; ?>>Widowed</option>
+                                        </select>
                                     </div>
                                 </div>
                                 <div class="form-actions">
@@ -755,6 +801,56 @@ try {
                                     <button type="reset" class="btn btn-secondary"><i class="fas fa-times"></i> Cancel</button>
                                 </div>
                             </form>
+                            <?php else: ?>
+                            <form method="POST">
+                                <input type="hidden" name="action" value="request_change">
+                                <div class="form-grid-2">
+                                    <div class="form-group">
+                                        <label>Full Name</label>
+                                        <input type="text" name="full_name" class="form-control" value="<?php echo htmlspecialchars($user_data['full_name'] ?? ''); ?>">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Email</label>
+                                        <input type="email" name="email" class="form-control" value="<?php echo htmlspecialchars($user_data['email'] ?? ''); ?>">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Username</label>
+                                        <input type="text" class="form-control" value="<?php echo htmlspecialchars($user_data['username'] ?? ''); ?>" disabled>
+                                        <div class="field-hint">Username cannot be changed</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Role</label>
+                                        <input type="text" class="form-control" value="<?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $user_data['role'] ?? ''))); ?>" disabled>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Address</label>
+                                        <input type="text" name="address" class="form-control" value="<?php echo htmlspecialchars($user_data['address'] ?? ''); ?>">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Birthday</label>
+                                        <input type="date" name="birthday" class="form-control" value="<?php echo htmlspecialchars($user_data['birthday'] ?? ''); ?>">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Civil Status</label>
+                                        <select name="civil_status" class="form-control">
+                                            <option value="">Select status</option>
+                                            <option value="single" <?php echo ($user_data['civil_status'] ?? '') === 'single' ? 'selected' : ''; ?>>Single</option>
+                                            <option value="married" <?php echo ($user_data['civil_status'] ?? '') === 'married' ? 'selected' : ''; ?>>Married</option>
+                                            <option value="divorced" <?php echo ($user_data['civil_status'] ?? '') === 'divorced' ? 'selected' : ''; ?>>Divorced</option>
+                                            <option value="widowed" <?php echo ($user_data['civil_status'] ?? '') === 'widowed' ? 'selected' : ''; ?>>Widowed</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Reason for Change</label>
+                                    <textarea name="reason" class="form-control" rows="3" placeholder="Explain why you need to update your information..." style="resize:vertical;"></textarea>
+                                </div>
+                                <div class="form-actions">
+                                    <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Request Change</button>
+                                    <button type="reset" class="btn btn-secondary"><i class="fas fa-times"></i> Reset</button>
+                                </div>
+                            </form>
+                            <?php endif; ?>
                         </div>
                     </div>
 
