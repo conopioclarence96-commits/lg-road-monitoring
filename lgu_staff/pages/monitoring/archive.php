@@ -8,10 +8,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'system_admin') {
     exit();
 }
 
-// Ensure archive table exists
 $conn->query("CREATE TABLE IF NOT EXISTS road_transportation_reports_archive LIKE road_transportation_reports");
 
-// Handle restore action
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'restore' && isset($_POST['archive_id'])) {
         $archive_id = (int) $_POST['archive_id'];
@@ -109,6 +107,12 @@ $archives = $conn->query("SELECT * FROM road_transportation_reports_archive ORDE
         .meta-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #666; }
         .meta-item i { color: #6c757d; }
         .archive-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+        .btn-view {
+            padding: 8px 16px; background: linear-gradient(135deg,#3762c8,#1e3c72);
+            color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 500;
+            cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.3s ease;
+        }
+        .btn-view:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(55,98,200,0.3); }
         .btn-restore {
             padding: 8px 16px; background: linear-gradient(135deg,#28a745,#20c997);
             color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 500;
@@ -131,17 +135,89 @@ $archives = $conn->query("SELECT * FROM road_transportation_reports_archive ORDE
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
         }
-        .empty-state {
-            text-align: center; padding: 60px 20px; color: #666;
-        }
+        .empty-state { text-align: center; padding: 60px 20px; color: #666; }
         .empty-state i { font-size: 48px; margin-bottom: 15px; opacity: 0.4; color: #6c757d; }
+
+        /* Modal */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7); z-index: 10000; align-items: center;
+            justify-content: center; padding: 20px; overflow-y: auto;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-content {
+            background: white; border-radius: 16px; padding: 30px;
+            max-width: 900px; width: 100%; max-height: calc(100vh - 40px);
+            position: relative; box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            margin: auto; display: flex; flex-direction: column;
+        }
+        .modal-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 20px; padding-bottom: 15px;
+            border-bottom: 2px solid rgba(55,98,200,0.1); flex-shrink: 0;
+        }
+        .modal-header h2 { color: #1e3c72; font-size: 24px; margin: 0; flex: 1; }
+        .modal-close {
+            background: none; border: none; font-size: 28px; color: #666;
+            cursor: pointer; width: 35px; height: 35px; display: flex;
+            align-items: center; justify-content: center; border-radius: 50%;
+            transition: all 0.3s; flex-shrink: 0; margin-left: 15px;
+        }
+        .modal-close:hover { background: rgba(220,53,69,0.1); color: #dc3545; }
+        .modal-body { overflow-y: auto; flex: 1; min-height: 0; padding-right: 10px; margin-right: -10px; }
+        .modal-body::-webkit-scrollbar { width: 8px; }
+        .modal-body::-webkit-scrollbar-track { background: rgba(55,98,200,0.1); border-radius: 4px; }
+        .modal-body::-webkit-scrollbar-thumb { background: rgba(55,98,200,0.3); border-radius: 4px; }
+        .modal-body::-webkit-scrollbar-thumb:hover { background: rgba(55,98,200,0.5); }
+        .detail-row {
+            display: flex; margin-bottom: 15px; padding-bottom: 15px;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+        .detail-label { font-weight: 600; color: #333; width: 150px; flex-shrink: 0; }
+        .detail-value { color: #666; flex: 1; }
+        .modal-image {
+            max-width: 100%; max-height: 400px; border-radius: 8px;
+            margin-top: 10px; cursor: pointer;
+        }
+
+        /* Dark mode */
+        body.dark-mode { background: #1a1d23; }
+        body.dark-mode .archive-header,
+        body.dark-mode .archive-card {
+            background: #22262e !important; border-color: #2d323b !important;
+        }
+        body.dark-mode .archive-header h1,
+        body.dark-mode .archive-card-title { color: #e4e6ea !important; }
+        body.dark-mode .archive-header p { color: #9ca3af !important; }
+        body.dark-mode .archive-item {
+            background: rgba(255,255,255,0.05) !important; border-color: #2d323b !important;
+        }
+        body.dark-mode .archive-item:hover {
+            background: rgba(255,255,255,0.08) !important;
+        }
+        body.dark-mode .archive-title { color: #e4e6ea !important; }
+        body.dark-mode .meta-item,
+        body.dark-mode .meta-item i,
+        body.dark-mode .empty-state { color: #9ca3af !important; }
+        body.dark-mode .archive-card-header { border-color: #2d323b !important; }
+        body.dark-mode .modal-content { background: #22262e !important; }
+        body.dark-mode .modal-header h2 { color: #e4e6ea !important; }
+        body.dark-mode .modal-close { color: #9ca3af !important; }
+        body.dark-mode .modal-close:hover { background: rgba(220,53,69,0.2) !important; }
+        body.dark-mode .detail-label { color: #e4e6ea !important; }
+        body.dark-mode .detail-value { color: #9ca3af !important; }
+        body.dark-mode .detail-row { border-color: #2d323b !important; }
+        body.dark-mode .modal-header { border-color: #2d323b !important; }
+
         @media (max-width: 768px) {
             .main-content { margin-left: 0; }
             .archive-meta { flex-direction: column; gap: 8px; }
+            .detail-row { flex-direction: column; }
+            .detail-label { width: 100%; margin-bottom: 5px; }
         }
     </style>
 </head>
-<body>
+<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
     <iframe src="../../includes/sidebar.php"
             style="position: fixed; width: 250px; height: 100vh; border: none; z-index: 1000;"
             frameborder="0" name="sidebar-frame" scrolling="no">
@@ -177,6 +253,9 @@ $archives = $conn->query("SELECT * FROM road_transportation_reports_archive ORDE
                                 <span class="meta-item"><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($row['location'] ?? 'N/A'); ?></span>
                             </div>
                             <div class="archive-actions">
+                                <button type="button" class="btn-view" onclick="viewArchive(<?php echo $row['id']; ?>)">
+                                    <i class="fas fa-eye"></i> View
+                                </button>
                                 <form method="POST" style="display: inline-flex;" onsubmit="return confirm('Restore this report back to active table?');">
                                     <input type="hidden" name="archive_id" value="<?php echo $row['id']; ?>">
                                     <button type="submit" name="action" value="restore" class="btn-restore">
@@ -202,6 +281,17 @@ $archives = $conn->query("SELECT * FROM road_transportation_reports_archive ORDE
         </div>
     </div>
 
+    <!-- View Modal -->
+    <div class="modal-overlay" id="viewModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-file-alt"></i> <span id="modalTitle">Report Details</span></h2>
+                <button type="button" class="modal-close" onclick="closeViewModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+        </div>
+    </div>
+
     <?php if ($message): ?>
     <script>
         (function() {
@@ -215,15 +305,88 @@ $archives = $conn->query("SELECT * FROM road_transportation_reports_archive ORDE
     <?php endif; ?>
 
     <script>
-        document.querySelectorAll('.archive-item form').forEach(function(form) {
-            form.addEventListener('submit', function(e) {
-                var btn = this.querySelector('button[type="submit"]');
-                if (btn && btn.name === 'action' && btn.value === 'restore') {
-                    if (!confirm('Restore this report back to the active table?')) {
-                        e.preventDefault();
+        var archiveData = <?php
+            $archives->data_seek(0);
+            $rows = [];
+            while ($r = $archives->fetch_assoc()) {
+                $rows[] = $r;
+            }
+            echo json_encode($rows);
+        ?>;
+
+        function viewArchive(id) {
+            var row = archiveData.find(function(r) { return r.id == id; });
+            if (!row) return;
+
+            document.getElementById('modalTitle').textContent = row.title || 'Report Details';
+
+            var html = '';
+            var fields = [
+                { label: 'Report ID', value: row.report_id },
+                { label: 'Title', value: row.title },
+                { label: 'Report Type', value: row.report_type },
+                { label: 'Department', value: row.department },
+                { label: 'Priority', value: row.priority },
+                { label: 'Status', value: row.status },
+                { label: 'Location', value: row.location },
+                { label: 'Description', value: row.description },
+                { label: 'Created Date', value: row.created_date },
+                { label: 'Due Date', value: row.due_date },
+                { label: 'Latitude', value: row.latitude },
+                { label: 'Longitude', value: row.longitude },
+                { label: 'Created At', value: row.created_at },
+                { label: 'Updated At', value: row.updated_at },
+                { label: 'Approved At', value: row.approved_at },
+                { label: 'Rejected At', value: row.rejected_at }
+            ];
+
+            html += '<div class="detail-row"><span class="detail-label">Report ID</span><span class="detail-value">' + (row.report_id || 'N/A') + '</span></div>';
+            html += '<div class="detail-row"><span class="detail-label">Title</span><span class="detail-value">' + esc(row.title) + '</span></div>';
+            html += '<div class="detail-row"><span class="detail-label">Report Type</span><span class="detail-value">' + esc(row.report_type) + '</span></div>';
+            html += '<div class="detail-row"><span class="detail-label">Department</span><span class="detail-value">' + esc(row.department) + '</span></div>';
+            html += '<div class="detail-row"><span class="detail-label">Priority</span><span class="detail-value">' + esc(row.priority) + '</span></div>';
+            html += '<div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">' + esc(row.status) + '</span></div>';
+            html += '<div class="detail-row"><span class="detail-label">Location</span><span class="detail-value">' + esc(row.location || 'N/A') + '</span></div>';
+            html += '<div class="detail-row"><span class="detail-label">Description</span><span class="detail-value">' + esc(row.description || 'N/A') + '</span></div>';
+            html += '<div class="detail-row"><span class="detail-label">Created Date</span><span class="detail-value">' + esc(row.created_date || 'N/A') + '</span></div>';
+            html += '<div class="detail-row"><span class="detail-label">Due Date</span><span class="detail-value">' + esc(row.due_date || 'N/A') + '</span></div>';
+            html += '<div class="detail-row"><span class="detail-label">Latitude</span><span class="detail-value">' + esc(row.latitude || 'N/A') + '</span></div>';
+            html += '<div class="detail-row"><span class="detail-label">Longitude</span><span class="detail-value">' + esc(row.longitude || 'N/A') + '</span></div>';
+            html += '<div class="detail-row"><span class="detail-label">Created At</span><span class="detail-value">' + esc(row.created_at || 'N/A') + '</span></div>';
+            html += '<div class="detail-row"><span class="detail-label">Updated At</span><span class="detail-value">' + esc(row.updated_at || 'N/A') + '</span></div>';
+            html += '<div class="detail-row"><span class="detail-label">Approved At</span><span class="detail-value">' + esc(row.approved_at || 'N/A') + '</span></div>';
+            html += '<div class="detail-row"><span class="detail-label">Rejected At</span><span class="detail-value">' + esc(row.rejected_at || 'N/A') + '</span></div>';
+
+            if (row.attachments) {
+                try {
+                    var attachments = JSON.parse(row.attachments);
+                    if (Array.isArray(attachments) && attachments.length) {
+                        html += '<div class="detail-row"><span class="detail-label">Attachments</span><span class="detail-value">';
+                        attachments.forEach(function(a) {
+                            if (a.type === 'image' && a.file_path) {
+                                html += '<img src="../../' + a.file_path + '" class="modal-image" onclick="window.open(this.src,\'_blank\')" title="Click to view full size" style="max-width:100%;max-height:300px;border-radius:8px;margin-top:8px;cursor:pointer;" />';
+                            }
+                        });
+                        html += '</span></div>';
                     }
-                }
-            });
+                } catch(e) {}
+            }
+
+            document.getElementById('modalBody').innerHTML = html;
+            document.getElementById('viewModal').classList.add('active');
+        }
+
+        function closeViewModal() {
+            document.getElementById('viewModal').classList.remove('active');
+        }
+
+        function esc(str) {
+            if (!str) return 'N/A';
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        document.getElementById('viewModal').addEventListener('click', function(e) {
+            if (e.target === this) closeViewModal();
         });
     </script>
 
