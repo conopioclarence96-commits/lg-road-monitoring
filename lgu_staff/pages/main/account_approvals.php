@@ -151,6 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $new_birthday = sanitize_input($_POST['new_birthday'] ?? '');
         $new_password = $_POST['new_password'] ?? '';
         $new_id_file = $_POST['new_id_file_path'] ?? '';
+        $new_profile_picture = $_POST['new_profile_picture'] ?? '';
         $admin_notes = sanitize_input($_POST['admin_notes'] ?? '');
 
         if ($request_id > 0 && $cr_user_id > 0) {
@@ -166,6 +167,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!empty($new_id_file)) {
                 $sql .= ", id_file_path = ?";
                 $params[] = $new_id_file;
+                $types .= "s";
+            }
+            if (!empty($new_profile_picture)) {
+                $sql .= ", profile_picture = ?";
+                $params[] = $new_profile_picture;
                 $types .= "s";
             }
             $sql .= " WHERE id = ?";
@@ -491,6 +497,7 @@ $pending_changes_count = count($change_requests);
                                                     <strong>Birthday:</strong> <?php echo htmlspecialchars($req_data['birthday'] ?? ''); ?>
                                                     <?php if (!empty($req_data['new_password'])): ?><br><span style="color:#f59e0b;"><i class="fas fa-key"></i> Password change requested</span><?php endif; ?>
                                                     <?php if (!empty($req_data['id_file_path'])): ?><br><span style="color:#10b981;"><i class="fas fa-id-card"></i> New ID photo uploaded</span><?php endif; ?>
+                                                    <?php if (!empty($req_data['profile_picture'])): ?><br><span style="color:#8b5cf6;"><i class="fas fa-user-circle"></i> New profile picture</span><?php endif; ?>
                                                 </small>
                                             </td>
                                             <td><small><?php echo htmlspecialchars($cr['reason'] ?? 'N/A'); ?></small></td>
@@ -546,7 +553,7 @@ $pending_changes_count = count($change_requests);
         </div>
     </div>
 
-    <!-- Change Request Review Modal -->
+    <!-- Change Request Review Modal (read-only review) -->
     <div id="changeRequestModal" class="modal">
         <div class="modal-content" style="max-width: 650px;">
             <div class="modal-header">
@@ -559,42 +566,47 @@ $pending_changes_count = count($change_requests);
                 <input type="hidden" id="crUserId" name="cr_user_id">
                 <input type="hidden" id="crAdminUserId" name="user_id" value="<?php echo $_SESSION['user_id']; ?>">
                 <input type="hidden" id="crIdFilePath" name="new_id_file_path">
+                <input type="hidden" id="crProfilePicture" name="new_profile_picture">
+                <input type="hidden" id="crEmail" name="new_email">
+                <input type="hidden" id="crAddress" name="new_address">
+                <input type="hidden" id="crCivilStatus" name="new_civil_status">
+                <input type="hidden" id="crBirthday" name="new_birthday">
+                <input type="hidden" id="crPassword" name="new_password">
 
                 <div style="background:#f8fafc; border-radius:8px; padding:12px; margin-bottom:15px;">
                     <label style="font-weight:600; font-size:13px; color:#475569; display:block; margin-bottom:8px;">Current Information</label>
                     <div id="crCurrentDetails" style="font-size:13px; color:#64748b;"></div>
+                    <div id="crCurrentProfilePic" style="margin-top:8px;"></div>
                 </div>
 
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
                     <div class="form-group">
                         <label>Email</label>
-                        <input type="email" id="crEmail" name="new_email" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:5px; font-size:13px;">
+                        <div id="crEmailDisplay" style="padding:8px 12px; background:#f1f5f9; border-radius:5px; font-size:13px; color:#333; min-height:36px; display:flex; align-items:center;"></div>
                     </div>
                     <div class="form-group">
                         <label>Address</label>
-                        <input type="text" id="crAddress" name="new_address" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:5px; font-size:13px;">
+                        <div id="crAddressDisplay" style="padding:8px 12px; background:#f1f5f9; border-radius:5px; font-size:13px; color:#333; min-height:36px; display:flex; align-items:center;"></div>
                     </div>
                     <div class="form-group">
                         <label>Civil Status</label>
-                        <select id="crCivilStatus" name="new_civil_status" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:5px; font-size:13px;">
-                            <option value="">Select</option>
-                            <option value="single">Single</option>
-                            <option value="married">Married</option>
-                            <option value="widowed">Widowed</option>
-                            <option value="separated">Separated</option>
-                        </select>
+                        <div id="crCivilStatusDisplay" style="padding:8px 12px; background:#f1f5f9; border-radius:5px; font-size:13px; color:#333; min-height:36px; display:flex; align-items:center;"></div>
                     </div>
                     <div class="form-group">
                         <label>Birthday</label>
-                        <input type="date" id="crBirthday" name="new_birthday" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:5px; font-size:13px;">
+                        <div id="crBirthdayDisplay" style="padding:8px 12px; background:#f1f5f9; border-radius:5px; font-size:13px; color:#333; min-height:36px; display:flex; align-items:center;"></div>
                     </div>
                     <div class="form-group">
-                        <label>New Password <small style="color:#999;">(leave blank)</small></label>
-                        <input type="password" id="crPassword" name="new_password" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:5px; font-size:13px;" placeholder="Set new password" autocomplete="new-password">
+                        <label>New Password</label>
+                        <div id="crPasswordDisplay" style="padding:8px 12px; background:#f1f5f9; border-radius:5px; font-size:13px; color:#333; min-height:36px; display:flex; align-items:center;"></div>
                     </div>
                     <div class="form-group" id="crIdFileGroup" style="display:none;">
                         <label>New ID Photo</label>
                         <div id="crIdFilePreview" style="margin-top:5px;"></div>
+                    </div>
+                    <div class="form-group" id="crProfilePicGroup" style="display:none;">
+                        <label>New Profile Picture</label>
+                        <div id="crProfilePicPreview" style="margin-top:5px;"></div>
                     </div>
                 </div>
 
@@ -695,6 +707,12 @@ $pending_changes_count = count($change_requests);
             document.getElementById('crRequestId').value = cr.id;
             document.getElementById('crUserId').value = cr.user_id;
 
+            var profilePicHtml = '';
+            if (data.profile_picture) {
+                profilePicHtml = '<div style="margin-top:6px;"><img src="../../uploads/profile_pictures/' + data.profile_picture + '" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid #ddd;"></div>';
+            }
+            document.getElementById('crCurrentProfilePic').innerHTML = profilePicHtml;
+
             document.getElementById('crCurrentDetails').innerHTML =
                 '<strong>Email:</strong> ' + (cr.user_email || 'N/A') + '<br>' +
                 '<strong>Address:</strong> ' + (cr.user_address || 'N/A') + '<br>' +
@@ -702,11 +720,17 @@ $pending_changes_count = count($change_requests);
                 '<strong>Birthday:</strong> ' + (cr.user_birthday || 'N/A');
 
             document.getElementById('crEmail').value = data.email || '';
+            document.getElementById('crEmailDisplay').textContent = data.email || 'N/A';
             document.getElementById('crAddress').value = data.address || '';
+            document.getElementById('crAddressDisplay').textContent = data.address || 'N/A';
             document.getElementById('crCivilStatus').value = data.civil_status || '';
+            document.getElementById('crCivilStatusDisplay').textContent = data.civil_status ? data.civil_status.charAt(0).toUpperCase() + data.civil_status.slice(1) : 'N/A';
             document.getElementById('crBirthday').value = data.birthday || '';
-            document.getElementById('crPassword').value = data.new_password || '';
+            document.getElementById('crBirthdayDisplay').textContent = data.birthday || 'N/A';
+            document.getElementById('crPassword').value = '';
+            document.getElementById('crPasswordDisplay').innerHTML = data.new_password ? '<span style="color:#f59e0b;"><i class="fas fa-key"></i> New password requested</span>' : '<span style="color:#94a3b8;">No change</span>';
             document.getElementById('crIdFilePath').value = data.id_file_path || '';
+            document.getElementById('crProfilePicture').value = data.profile_picture || '';
             document.getElementById('crAdminNotes').value = '';
 
             const idFileGroup = document.getElementById('crIdFileGroup');
@@ -722,6 +746,16 @@ $pending_changes_count = count($change_requests);
             } else {
                 idFileGroup.style.display = 'none';
                 idFilePreview.innerHTML = '';
+            }
+
+            const profilePicGroup = document.getElementById('crProfilePicGroup');
+            const profilePicPreview = document.getElementById('crProfilePicPreview');
+            if (data.profile_picture) {
+                profilePicGroup.style.display = 'block';
+                profilePicPreview.innerHTML = '<img src="../../uploads/profile_pictures/' + data.profile_picture + '" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:2px solid #3762c8;">';
+            } else {
+                profilePicGroup.style.display = 'none';
+                profilePicPreview.innerHTML = '';
             }
             document.getElementById('changeRequestModal').style.display = 'block';
         }
