@@ -121,7 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($new !== $confirm) {
             $error_msg = 'New passwords do not match.';
         } else {
-            $data = ['new_password' => $new];
+            $data = ['new_password' => password_hash($new, PASSWORD_DEFAULT)];
             $reason = 'Requested password change';
             $stmt = $conn->prepare("INSERT INTO change_requests (user_id, requested_data, reason, status) VALUES (?, ?, ?, 'pending')");
             $json_data = json_encode($data);
@@ -929,24 +929,7 @@ try {
                                         <span style="font-size:12px;color:#888;">New profile picture (admin must approve)</span>
                                     </div>
                                 </div>
-                                <div class="avatar-upload-row" style="border-top:1px solid #f0f2f4; padding-top:16px; margin-top:4px;">
-                                    <div class="avatar-preview-sm">
-                                        <?php if (!empty($user_data['id_file_path'])): ?>
-                                            <?php $ext = pathinfo($user_data['id_file_path'], PATHINFO_EXTENSION); ?>
-                                            <?php if (in_array(strtolower($ext), ['jpg','jpeg','png','gif','webp'])): ?>
-                                                <img src="../../uploads/ids/<?php echo htmlspecialchars($user_data['id_file_path']); ?>" alt="ID" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
-                                            <?php else: ?>
-                                                <i class="fas fa-file-pdf"></i>
-                                            <?php endif; ?>
-                                        <?php else: ?>
-                                            <i class="fas fa-id-card"></i>
-                                        <?php endif; ?>
-                                    </div>
-                                    <div class="upload-controls">
-                                        <input type="file" name="id_file" accept="image/*,.pdf" class="form-control" style="padding:8px;">
-                                        <span style="font-size:12px;color:#888;">New ID (admin must approve)</span>
-                                    </div>
-                                </div>
+
                                 <div class="form-grid-2">
                                     <div class="form-group">
                                         <label>Full Name</label>
@@ -982,6 +965,15 @@ try {
                                             <option value="divorced" <?php echo ($user_data['civil_status'] ?? '') === 'divorced' ? 'selected' : ''; ?>>Divorced</option>
                                             <option value="widowed" <?php echo ($user_data['civil_status'] ?? '') === 'widowed' ? 'selected' : ''; ?>>Widowed</option>
                                         </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Upload ID</label>
+                                        <input type="file" name="id_file" accept="image/*,.pdf" class="form-control" style="padding:8px;">
+                                        <?php if (!empty($user_data['id_file_path'])): ?>
+                                            <div style="font-size:12px;color:#3762c8;margin-top:4px;">
+                                                <i class="fas fa-paperclip"></i> <?php echo htmlspecialchars(basename($user_data['id_file_path'])); ?>
+                                            </div>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
                                 <div class="form-group">

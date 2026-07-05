@@ -161,7 +161,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (!empty($new_password)) {
                 $sql .= ", password = ?";
-                $params[] = password_hash($new_password, PASSWORD_DEFAULT);
+                $params[] = (str_starts_with($new_password, '$2y$') || str_starts_with($new_password, '$2a$') || str_starts_with($new_password, '$2b$'))
+                    ? $new_password
+                    : password_hash($new_password, PASSWORD_DEFAULT);
                 $types .= "s";
             }
             if (!empty($new_id_file)) {
@@ -500,14 +502,14 @@ $pending_changes_count = count($change_requests);
                                             <td><?php echo htmlspecialchars($cr['user_name']); ?></td>
                                             <td>
                                                 <small style="color:#666;">
-                                                <?php if (empty($changed_fields) && empty($req_data['new_password']) && empty($req_data['profile_picture']) && empty($req_data['id_file_path'])): ?>
+                                                <?php if (empty($changed_fields) && empty($req_data['new_password']) && empty($req_data['new_password_hash']) && empty($req_data['profile_picture']) && empty($req_data['id_file_path'])): ?>
                                                     No changes
                                                 <?php else: ?>
                                                     <?php foreach ($changed_fields as $f): ?>
                                                         <?php $label = ucfirst(str_replace('_', ' ', $f)); ?>
                                                         <strong><?php echo $label; ?>:</strong> <?php echo htmlspecialchars($current_map[$f] ?? 'N/A'); ?><br>
                                                     <?php endforeach; ?>
-                                                    <?php if (!empty($req_data['new_password'])): ?>
+                                                    <?php if (!empty($req_data['new_password']) || !empty($req_data['new_password_hash'])): ?>
                                                         <span style="color:#d97706;"><i class="fas fa-key"></i> Current password</span><br>
                                                     <?php endif; ?>
                                                     <?php if (!empty($req_data['profile_picture'])): ?>
@@ -521,14 +523,14 @@ $pending_changes_count = count($change_requests);
                                             </td>
                                             <td>
                                                 <small style="color:#1e3c72;">
-                                                <?php if (empty($changed_fields) && empty($req_data['new_password']) && empty($req_data['profile_picture']) && empty($req_data['id_file_path'])): ?>
+                                                <?php if (empty($changed_fields) && empty($req_data['new_password']) && empty($req_data['new_password_hash']) && empty($req_data['profile_picture']) && empty($req_data['id_file_path'])): ?>
                                                     No changes
                                                 <?php else: ?>
                                                     <?php foreach ($changed_fields as $f): ?>
                                                         <?php $label = ucfirst(str_replace('_', ' ', $f)); ?>
                                                         <strong><?php echo $label; ?>:</strong> <?php echo htmlspecialchars($req_data[$f]); ?><br>
                                                     <?php endforeach; ?>
-                                                    <?php if (!empty($req_data['new_password'])): ?>
+                                                    <?php if (!empty($req_data['new_password']) || !empty($req_data['new_password_hash'])): ?>
                                                         <span style="color:#f59e0b; font-weight:600;"><i class="fas fa-key"></i> New password requested</span><br>
                                                     <?php endif; ?>
                                                     <?php if (!empty($req_data['profile_picture'])): ?>
@@ -759,16 +761,22 @@ $pending_changes_count = count($change_requests);
                 '<strong>Civil Status:</strong> ' + (cr.user_civil_status ? cr.user_civil_status.charAt(0).toUpperCase() + cr.user_civil_status.slice(1) : 'N/A') + '<br>' +
                 '<strong>Birthday:</strong> ' + (cr.user_birthday || 'N/A');
 
-            document.getElementById('crEmail').value = data.email || '';
+            document.getElementById('crEmail').value = data.email || cr.user_email || '';
             document.getElementById('crEmailDisplay').textContent = data.email || 'N/A';
-            document.getElementById('crAddress').value = data.address || '';
+            document.getElementById('crAddress').value = data.address || cr.user_address || '';
             document.getElementById('crAddressDisplay').textContent = data.address || 'N/A';
-            document.getElementById('crCivilStatus').value = data.civil_status || '';
+            document.getElementById('crCivilStatus').value = data.civil_status || cr.user_civil_status || '';
             document.getElementById('crCivilStatusDisplay').textContent = data.civil_status ? data.civil_status.charAt(0).toUpperCase() + data.civil_status.slice(1) : 'N/A';
-            document.getElementById('crBirthday').value = data.birthday || '';
+            document.getElementById('crBirthday').value = data.birthday || cr.user_birthday || '';
             document.getElementById('crBirthdayDisplay').textContent = data.birthday || 'N/A';
-            document.getElementById('crPassword').value = data.new_password || '';
-            document.getElementById('crPasswordDisplay').innerHTML = data.new_password ? '<span style="color:#f59e0b;"><i class="fas fa-key"></i> New password requested</span>' : '<span style="color:#94a3b8;">No change</span>';
+            var pwVal = '';
+            if (data.new_password_hash) {
+                pwVal = data.new_password_hash;
+            } else if (data.new_password && typeof data.new_password === 'string') {
+                pwVal = data.new_password;
+            }
+            document.getElementById('crPassword').value = pwVal;
+            document.getElementById('crPasswordDisplay').innerHTML = (data.new_password || data.new_password_hash) ? '<span style="color:#f59e0b;"><i class="fas fa-key"></i> New password requested</span>' : '<span style="color:#94a3b8;">No change</span>';
             document.getElementById('crIdFilePath').value = data.id_file_path || '';
             document.getElementById('crProfilePicture').value = data.profile_picture || '';
             document.getElementById('crAdminNotes').value = '';
