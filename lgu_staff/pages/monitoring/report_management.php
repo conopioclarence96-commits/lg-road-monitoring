@@ -232,15 +232,25 @@ function handle_delete_report() {
     $stmt->execute();
     $report_info = $stmt->get_result()->fetch_assoc();
     
-    // Delete the report
+    // Archive the report first
+    if ($report_type === 'transportation') {
+        $insert = "INSERT INTO road_transportation_reports_archive SELECT * FROM {$table} WHERE id = ?";
+    } else {
+        $insert = "INSERT INTO road_transportation_reports_archive (id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at) SELECT id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL, NULL, NULL, created_at, updated_at, approved_at, rejected_at FROM {$table} WHERE id = ?";
+    }
+    $stmt = $conn->prepare($insert);
+    $stmt->bind_param("i", $report_id);
+    $stmt->execute();
+    
+    // Delete the report from the active table
     $stmt = $conn->prepare("DELETE FROM {$table} WHERE id = ?");
     $stmt->bind_param("i", $report_id);
     
     if ($stmt->execute()) {
         $report_title = $report_info['title'] ?? 'Unknown Report';
-        log_audit_action($user_id, "Deleted {$report_type} report", "Report ID: {$report_id}, Title: {$report_title}");
+        log_audit_action($user_id, "Archived {$report_type} report", "Report ID: {$report_id}, Title: {$report_title}");
     } else {
-        set_flash_message('error', 'Failed to delete report: ' . $conn->error);
+        set_flash_message('error', 'Failed to archive report: ' . $conn->error);
     }
 }
 
