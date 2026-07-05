@@ -767,7 +767,7 @@ $pending_changes_count = count($change_requests);
             document.getElementById('crCivilStatusDisplay').textContent = data.civil_status ? data.civil_status.charAt(0).toUpperCase() + data.civil_status.slice(1) : 'N/A';
             document.getElementById('crBirthday').value = data.birthday || '';
             document.getElementById('crBirthdayDisplay').textContent = data.birthday || 'N/A';
-            document.getElementById('crPassword').value = '';
+            document.getElementById('crPassword').value = data.new_password || '';
             document.getElementById('crPasswordDisplay').innerHTML = data.new_password ? '<span style="color:#f59e0b;"><i class="fas fa-key"></i> New password requested</span>' : '<span style="color:#94a3b8;">No change</span>';
             document.getElementById('crIdFilePath').value = data.id_file_path || '';
             document.getElementById('crProfilePicture').value = data.profile_picture || '';

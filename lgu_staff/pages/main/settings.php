@@ -74,6 +74,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         }
+        // Handle ID file upload
+        if (isset($_FILES['id_file']) && $_FILES['id_file']['error'] === UPLOAD_ERR_OK) {
+            $upload_dir = '../../uploads/ids/';
+            if (!is_dir($upload_dir)) {
+                mkdir($upload_dir, 0777, true);
+            }
+            $ext = strtolower(pathinfo($_FILES['id_file']['name'], PATHINFO_EXTENSION));
+            $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf'];
+            if (in_array($ext, $allowed)) {
+                $filename = 'cr_id_' . $user_id . '_' . time() . '.' . $ext;
+                if (move_uploaded_file($_FILES['id_file']['tmp_name'], $upload_dir . $filename)) {
+                    $data['id_file_path'] = 'uploads/ids/' . $filename;
+                }
+            }
+        }
         $reason = sanitize_input($_POST['reason'] ?? '');
         $stmt = $conn->prepare("INSERT INTO change_requests (user_id, requested_data, reason, status) VALUES (?, ?, ?, 'pending')");
         $json_data = json_encode($data);
@@ -85,6 +100,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error_msg = 'Failed to submit request. Please try again.';
         }
         $stmt->close();
+    }
+
+    if ($action === 'request_password_change') {
+        $current = $_POST['current_password'] ?? '';
+        $new = $_POST['new_password'] ?? '';
+        $confirm = $_POST['confirm_password'] ?? '';
+
+        $stmt = $conn->prepare("SELECT password FROM users WHERE id = ?");
+        $stmt->bind_param("i", $user_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $user = $result->fetch_assoc();
+        $stmt->close();
+
+        if (!password_verify($current, $user['password'])) {
+            $error_msg = 'Current password is incorrect.';
+        } elseif (strlen($new) < 8) {
+            $error_msg = 'New password must be at least 8 characters.';
+        } elseif ($new !== $confirm) {
+            $error_msg = 'New passwords do not match.';
+        } else {
+            $data = ['new_password' => $new];
+            $reason = 'Requested password change';
+            $stmt = $conn->prepare("INSERT INTO change_requests (user_id, requested_data, reason, status) VALUES (?, ?, ?, 'pending')");
+            $json_data = json_encode($data);
+            $stmt->bind_param("iss", $user_id, $json_data, $reason);
+            if ($stmt->execute()) {
+                log_audit_action($user_id, 'Password Change Requested', 'Staff requested password change via settings');
+                $success_msg = 'Your password change request has been submitted and is pending admin review.';
+            } else {
+                $error_msg = 'Failed to submit request. Please try again.';
+            }
+            $stmt->close();
+        }
     }
 
     if ($action === 'change_password') {
@@ -167,6 +216,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    if ($action === 'upload_id') {
+        if (isset($_FILES['id_file']) && $_FILES['id_file']['error'] === UPLOAD_ERR_OK) {
+            $upload_dir = '../../uploads/ids';
+            if (!is_dir($upload_dir)) {
+                mkdir($upload_dir, 0777, true);
+            }
+            $ext = strtolower(pathinfo($_FILES['id_file']['name'], PATHINFO_EXTENSION));
+            $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf'];
+            if (in_array($ext, $allowed)) {
+                $filename = 'id_' . $user_id . '_' . uniqid() . '.' . $ext;
+                if (move_uploaded_file($_FILES['id_file']['tmp_name'], $upload_dir . '/' . $filename)) {
+                    $stmt = $conn->prepare("UPDATE users SET id_file_path = ? WHERE id = ?");
+                    $stmt->bind_param("si", $filename, $user_id);
+                    $stmt->execute();
+                    $stmt->close();
+                    $success_msg = 'ID uploaded successfully.';
+                }
+            } else {
+                $error_msg = 'Invalid file type. Allowed: jpg, jpeg, png, gif, webp, pdf';
+            }
+        }
+    }
+
     if ($action === 'toggle_twofa') {
         $twofa = $_POST['twofa'] ?? '0';
         $stmt = $conn->prepare("UPDATE users SET twofa = ? WHERE id = ?");
@@ -201,7 +273,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Get user data
-$stmt = $conn->prepare("SELECT username, full_name, email, role, profile_picture, twofa, darkmode, department, address, birthday, civil_status FROM users WHERE id = ?");
+$stmt = $conn->prepare("SELECT username, full_name, email, role, profile_picture, twofa, darkmode, department, address, birthday, civil_status, id_file_path FROM users WHERE id = ?");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $user_data = $stmt->get_result()->fetch_assoc();
@@ -728,6 +800,9 @@ try {
                             <span><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($user_data['address'] ?? 'N/A'); ?></span>
                             <span><i class="fas fa-calendar"></i> <?php echo htmlspecialchars($user_data['birthday'] ?? 'N/A'); ?></span>
                             <span><i class="fas fa-heart"></i> <?php echo htmlspecialchars(ucfirst($user_data['civil_status'] ?? 'N/A')); ?></span>
+                            <?php if (!empty($user_data['id_file_path'])): ?>
+                                <span><i class="fas fa-id-card"></i> ID uploaded</span>
+                            <?php endif; ?>
                             <span class="role-badge-header"><i class="fas fa-shield-alt"></i> <?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $user_data['role'] ?? ''))); ?></span>
                             <?php if (($user_data['twofa'] ?? 0) == 1): ?>
                                 <span class="twofa-badge on"><i class="fas fa-check-circle"></i> 2FA On</span>
@@ -768,6 +843,28 @@ try {
                                     <div class="upload-controls">
                                         <input type="file" name="avatar" accept="image/*" class="form-control" style="padding:8px;">
                                         <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-upload"></i> Upload</button>
+                                    </div>
+                                </div>
+                            </form>
+                            <!-- ID upload – admin only -->
+                            <form method="POST" enctype="multipart/form-data" style="margin-bottom:20px; padding-bottom:20px; border-bottom:1px solid #f0f2f4;">
+                                <input type="hidden" name="action" value="upload_id">
+                                <div class="avatar-upload-row">
+                                    <div class="avatar-preview-sm">
+                                        <?php if (!empty($user_data['id_file_path'])): ?>
+                                            <?php $ext = pathinfo($user_data['id_file_path'], PATHINFO_EXTENSION); ?>
+                                            <?php if (in_array(strtolower($ext), ['jpg','jpeg','png','gif','webp'])): ?>
+                                                <img src="../../uploads/ids/<?php echo htmlspecialchars($user_data['id_file_path']); ?>" alt="ID" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+                                            <?php else: ?>
+                                                <i class="fas fa-file-pdf"></i>
+                                            <?php endif; ?>
+                                        <?php else: ?>
+                                            <i class="fas fa-id-card"></i>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="upload-controls">
+                                        <input type="file" name="id_file" accept="image/*,.pdf" class="form-control" style="padding:8px;">
+                                        <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-upload"></i> Upload ID</button>
                                     </div>
                                 </div>
                             </form>
@@ -832,6 +929,24 @@ try {
                                         <span style="font-size:12px;color:#888;">New profile picture (admin must approve)</span>
                                     </div>
                                 </div>
+                                <div class="avatar-upload-row" style="border-top:1px solid #f0f2f4; padding-top:16px; margin-top:4px;">
+                                    <div class="avatar-preview-sm">
+                                        <?php if (!empty($user_data['id_file_path'])): ?>
+                                            <?php $ext = pathinfo($user_data['id_file_path'], PATHINFO_EXTENSION); ?>
+                                            <?php if (in_array(strtolower($ext), ['jpg','jpeg','png','gif','webp'])): ?>
+                                                <img src="../../uploads/ids/<?php echo htmlspecialchars($user_data['id_file_path']); ?>" alt="ID" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+                                            <?php else: ?>
+                                                <i class="fas fa-file-pdf"></i>
+                                            <?php endif; ?>
+                                        <?php else: ?>
+                                            <i class="fas fa-id-card"></i>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="upload-controls">
+                                        <input type="file" name="id_file" accept="image/*,.pdf" class="form-control" style="padding:8px;">
+                                        <span style="font-size:12px;color:#888;">New ID (admin must approve)</span>
+                                    </div>
+                                </div>
                                 <div class="form-grid-2">
                                     <div class="form-group">
                                         <label>Full Name</label>
@@ -890,6 +1005,7 @@ try {
                         </div>
                         <div class="account-card-body">
                             <!-- Password Change -->
+                            <?php if ($user_data['role'] === 'system_admin'): ?>
                             <form method="POST">
                                 <input type="hidden" name="action" value="change_password">
                                 <div class="form-grid-3">
@@ -919,6 +1035,37 @@ try {
                                     <button type="submit" class="btn btn-primary"><i class="fas fa-key"></i> Update Password</button>
                                 </div>
                             </form>
+                            <?php else: ?>
+                            <form method="POST">
+                                <input type="hidden" name="action" value="request_password_change">
+                                <div class="form-grid-3">
+                                    <div class="form-group">
+                                        <label>Current Password</label>
+                                        <div class="password-wrapper">
+                                            <input type="password" name="current_password" id="staffCurrentPassword" class="form-control" placeholder="Enter current password" required>
+                                            <button type="button" class="password-toggle" onclick="togglePassword('staffCurrentPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>New Password</label>
+                                        <div class="password-wrapper">
+                                            <input type="password" name="new_password" id="staffNewPassword" class="form-control" placeholder="Min. 8 characters" required minlength="8">
+                                            <button type="button" class="password-toggle" onclick="togglePassword('staffNewPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Confirm New Password</label>
+                                        <div class="password-wrapper">
+                                            <input type="password" name="confirm_password" id="staffConfirmPassword" class="form-control" placeholder="Repeat new password" required minlength="8">
+                                            <button type="button" class="password-toggle" onclick="togglePassword('staffConfirmPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-actions">
+                                    <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Request Change Password</button>
+                                </div>
+                            </form>
+                            <?php endif; ?>
 
                             <div class="security-divider"></div>
 
