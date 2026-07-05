@@ -266,6 +266,36 @@ if ($conn) {
     } catch (Exception $e) {}
 }
 
+// Get recent progress updates for the timeline section
+$recent_updates = [];
+if ($conn) {
+    try {
+        $u = $conn->query("
+            SELECT u.id, u.title, u.description, u.created_at, u.report_id,
+                   r.report_id as report_code, r.title as report_title,
+                   COALESCE(us.full_name, 'LGU Staff') as admin_name
+            FROM report_updates u
+            JOIN road_transportation_reports r ON u.report_id = r.id
+            LEFT JOIN users us ON u.user_id = us.id
+            ORDER BY u.created_at DESC
+            LIMIT 10
+        ");
+        if ($u) {
+            while ($row = $u->fetch_assoc()) {
+                $mid = $conn->query("SELECT file_path, file_type FROM report_update_media WHERE update_id = {$row['id']} LIMIT 3");
+                $media = [];
+                if ($mid) {
+                    while ($m = $mid->fetch_assoc()) $media[] = $m;
+                }
+                $row['media'] = $media;
+                $recent_updates[] = $row;
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Recent updates query error: " . $e->getMessage());
+    }
+}
+
 // Get all data
 $stats = getTransparencyStats();
 $budget = getBudgetData();
@@ -313,6 +343,7 @@ if ($conn) {
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="lgu_staff/css/public_transparency.css">
+    <link rel="stylesheet" href="lgu_staff/css/progress-updates.css">
     <style>
         /* Public view: no sidebar, full-width content */
         body { margin: 0; }
@@ -506,6 +537,60 @@ if ($conn) {
             </div>
         </div>
 
+        <!-- Recent Progress Updates -->
+        <div class="publications-section">
+            <div class="section-header">
+                <h3 class="section-title">
+                    <i class="fas fa-clipboard-list" style="color:#10b981;"></i>
+                    Recent Progress Updates
+                </h3>
+                <a href="public_reports.php" style="font-size:13px;color:#3762c8;text-decoration:none;font-weight:500;">
+                    View All Reports <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+            <?php if (empty($recent_updates)): ?>
+                <div style="text-align:center;padding:32px 20px;color:#6b7280;">
+                    <i class="fas fa-clock" style="font-size:28px;opacity:0.4;margin-bottom:10px;display:block;"></i>
+                    No progress updates yet. Staff updates on road reports will appear here.
+                </div>
+            <?php else: ?>
+                <div class="timeline-container">
+                    <?php foreach ($recent_updates as $up): ?>
+                    <div class="timeline-entry">
+                        <div class="timeline-dot"><i class="fas fa-check"></i></div>
+                        <div class="timeline-card">
+                            <div class="timeline-header">
+                                <div class="timeline-meta">
+                                    <span class="admin-badge"><i class="fas fa-user-shield"></i> <?php echo htmlspecialchars($up['admin_name']); ?></span>
+                                    <span class="time"><i class="far fa-clock"></i> <?php echo date('M d, Y h:i A', strtotime($up['created_at'])); ?></span>
+                                </div>
+                                <a href="public_reports.php?report_id=<?php echo $up['report_id']; ?>" style="font-size:12px;color:#3762c8;text-decoration:none;white-space:nowrap;">
+                                    <i class="fas fa-external-link-alt"></i> View
+                                </a>
+                            </div>
+                            <?php if (!empty($up['title'])): ?>
+                            <div class="timeline-title"><?php echo htmlspecialchars($up['title']); ?></div>
+                            <?php endif; ?>
+                            <div class="timeline-desc">
+                                <small style="color:#3762c8;font-weight:500;">Report: <?php echo htmlspecialchars($up['report_title']); ?></small><br>
+                                <?php echo htmlspecialchars($up['description']); ?>
+                            </div>
+                            <?php if (!empty($up['media'])): ?>
+                            <div class="timeline-media">
+                                <?php foreach ($up['media'] as $m): ?>
+                                <div class="timeline-media-item" onclick="openLightbox('<?php echo htmlspecialchars($m['file_path']); ?>')">
+                                    <img src="<?php echo htmlspecialchars($m['file_path']); ?>" alt="" loading="lazy">
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+        </div>
+
         <!-- Recent Publications -->
         <div class="publications-section publications-feed-section">
             <div class="section-header">
@@ -594,5 +679,26 @@ if ($conn) {
             </div>
         </div>
     </div>
+
+    <!-- Lightbox -->
+    <div class="lightbox-overlay" id="lightboxOverlay" onclick="closeLightbox()">
+        <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+        <img id="lightboxImage" src="" alt="Enlarged photo">
+    </div>
+
+    <script>
+        function openLightbox(src) {
+            const overlay = document.getElementById('lightboxOverlay');
+            const img = document.getElementById('lightboxImage');
+            if (overlay && img) {
+                img.src = src;
+                overlay.classList.add('show');
+            }
+        }
+        function closeLightbox() {
+            const overlay = document.getElementById('lightboxOverlay');
+            if (overlay) overlay.classList.remove('show');
+        }
+    </script>
 </body>
 </html>

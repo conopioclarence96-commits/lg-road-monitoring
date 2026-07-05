@@ -4,6 +4,7 @@ require_once 'lgu_staff/includes/functions.php';
 
 $status_filter = isset($_GET['status']) ? sanitize_input($_GET['status']) : 'all';
 $type_filter = isset($_GET['type']) ? sanitize_input($_GET['type']) : 'all';
+$focus_report_id = isset($_GET['report_id']) ? intval($_GET['report_id']) : 0;
 
 $transport_reports = [];
 $maintenance_reports = [];
@@ -575,6 +576,21 @@ function getTimeAgoShort($datetime) {
 
         function escapeHtml(t) { if (!t) return ''; const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
         function escapeHtmlAttr(t) { if (!t) return ''; return t.replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+        // Auto-open specific report from URL parameter
+        <?php if ($focus_report_id > 0): ?>
+        window.addEventListener('DOMContentLoaded', function() {
+            const cards = document.querySelectorAll('.report-card');
+            for (const card of cards) {
+                const attr = card.getAttribute('onclick') || '';
+                const m = attr.match(/"db_id"\s*:\s*(\d+)/);
+                if (m && parseInt(m[1]) === <?php echo $focus_report_id; ?>) {
+                    card.click();
+                    break;
+                }
+            }
+        });
+        <?php endif; ?>
     </script>
 </body>
 </html>
