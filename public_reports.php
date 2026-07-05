@@ -187,6 +187,38 @@ function getTimeAgoShort($datetime) {
             .hero-bar h1 { font-size: 1.5rem; }
             .top-bar .nav-links a { margin-left: 12px; font-size: 0.8rem; }
         }
+
+        @media (prefers-color-scheme: dark) {
+            body { background: #1a1d23; color: #e4e6ea; }
+            .stats-ribbon { background: #22262e; border-color: #2d323b; }
+            .stat-chip .num { color: #93c5fd; }
+            .stat-chip .lbl { color: #9ca3af; }
+            .filters-bar { background: #22262e; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+            .filters-bar select { background: #1a1d23; color: #e4e6ea; border-color: #2d323b; }
+            .filters-bar .result-count { color: #9ca3af; }
+            .filters-bar label { color: #9ca3af !important; }
+            .report-card { background: #22262e; border-color: #2d323b; box-shadow: 0 2px 12px rgba(0,0,0,0.2); }
+            .report-card:hover { box-shadow: 0 8px 28px rgba(0,0,0,0.4); }
+            .report-title { color: #e4e6ea; }
+            .report-desc { color: #9ca3af; }
+            .report-location { color: #9ca3af; }
+            .report-location i { color: #fca5a5; }
+            .report-footer { border-top-color: #2d323b; color: #9ca3af; }
+            .report-source { color: #6b7280; }
+            .report-img { background: #2d323b; color: #6b7280; }
+            .report-img-placeholder { background: linear-gradient(135deg, #2d323b, #374151); color: #6b7280; }
+            .road-marker.problem { background: rgba(252,165,165,0.15); color: #fca5a5; }
+            .road-marker.construction { background: rgba(251,191,36,0.15); color: #fbbf24; }
+            .road-marker.resolved { background: rgba(52,211,153,0.15); color: #34d399; }
+            .detail-modal .modal-content { background: #22262e; }
+            .detail-modal .modal-body { background: #22262e; }
+            .detail-modal .info-row { border-bottom-color: #2d323b; }
+            .detail-modal .info-row .label { color: #9ca3af; }
+            .detail-modal .info-row .value { color: #e4e6ea; }
+            #modalDescription { color: #d1d5db !important; }
+            .no-reports { color: #9ca3af; }
+            .modal-footer { background: #1e2229; border-top-color: #2d323b; }
+        }
     </style>
 </head>
 <body>

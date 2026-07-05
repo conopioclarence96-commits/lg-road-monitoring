@@ -349,6 +349,17 @@ if ($conn) {
             font-size: 14px;
         }
         .public-view-header a:hover { opacity: 0.95; color: #fff; }
+
+        @media (prefers-color-scheme: dark) {
+            .public-view-header {
+                background: rgba(30, 34, 41, 0.96);
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            }
+            .public-view-header h1 { color: #e4e6ea; }
+            .public-view-header a { background: linear-gradient(135deg, #2563eb, #1e40af) !important; }
+            .public-view-header a[href*="public_reports.php"] { background: linear-gradient(135deg, #dc2626, #991b1b) !important; }
+            .main-content { background: transparent; }
+        }
     </style>
 </head>
 <body>
