@@ -63,6 +63,17 @@ if ($user_role === 'system_admin') {
     } catch (Exception $e) {
         error_log("Notifications users error: " . $e->getMessage());
     }
+
+    // Admin: get progress update notification count
+    try {
+        $ncstmt = $conn->prepare("SELECT COUNT(*) as count FROM report_notifications WHERE is_read = 0");
+        $ncstmt->execute();
+        $notifications['counts']['progress'] = $ncstmt->get_result()->fetch_assoc()['count'];
+        $ncstmt->close();
+    } catch (Exception $e) {
+        error_log("Progress notifications count error: " . $e->getMessage());
+        $notifications['counts']['progress'] = 0;
+    }
 } elseif ($user_role === 'lgu_staff' && $user_id > 0) {
     try {
         $rstmt = $conn->prepare("
@@ -110,7 +121,7 @@ if ($user_role === 'system_admin') {
     }
 }
 
-$notifications['counts']['total'] = $notifications['counts']['reports'] + $notifications['counts']['users'];
+$notifications['counts']['total'] = $notifications['counts']['reports'] + $notifications['counts']['users'] + ($notifications['counts']['progress'] ?? 0);
 
 $conn->close();
 

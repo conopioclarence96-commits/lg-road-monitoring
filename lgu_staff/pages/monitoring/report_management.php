@@ -582,8 +582,10 @@ if (!empty($reports)) {
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
+    <link rel="stylesheet" href="../../css/progress-updates.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="../../js/progress-updates.js"></script>
     <style>
         body {
             background: #f7f5f0;
@@ -1350,6 +1352,9 @@ if (!empty($reports)) {
                                 <button class="btn-action btn-delete" onclick="deleteReport(<?php echo $report['id']; ?>, '<?php echo $report['report_type']; ?>')">
                                     <i class="fas fa-trash"></i> Delete
                                 </button>
+                                <button class="btn-action btn-view" style="background:linear-gradient(135deg,#10b981,#059669);" onclick="viewReportUpdates(<?php echo $report['id']; ?>, '<?php echo $report['report_type']; ?>')">
+                                    <i class="fas fa-clock"></i> Updates
+                                </button>
                             </div>
                         </div>
                     <?php endforeach; ?>
@@ -1535,6 +1540,34 @@ if (!empty($reports)) {
         </div>
     </div>
 
+    <!-- Progress Updates Modal -->
+    <div id="updatesModal" class="modal">
+        <div class="modal-content" style="max-width: 750px;">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-clock"></i> Progress Updates</h5>
+                <button class="close" onclick="closeModal('updatesModal')">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                <div class="timeline-container" id="updatesTimeline">
+                    <div class="timeline-empty"><i class="fas fa-spinner fa-spin fa-2x" style="color:#3762c8;"></i></div>
+                </div>
+            </div>
+            <div class="modal-footer" style="justify-content: space-between;">
+                <span id="updateReportInfo" style="font-size: 13px; color: #6b7280;"></span>
+                <div>
+                    <button type="button" class="btn-action" id="addUpdateBtn" onclick="showUpdateForm(currentUpdatesReportId, currentUpdatesReportType)">+ Add Update</button>
+                    <button type="button" class="btn-secondary-custom" onclick="closeModal('updatesModal')">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lightbox -->
+    <div class="lightbox-overlay" id="lightboxOverlay" onclick="closeLightbox()">
+        <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+        <img id="lightboxImage" src="" alt="Enlarged photo">
+    </div>
+
     <script>
         // Modal functions
         function openModal(modalId) {
@@ -1620,6 +1653,14 @@ if (!empty($reports)) {
                     console.error('Error:', error);
                     showNotification('Error loading report details', 'error');
                 });
+        }
+
+        function viewReportUpdates(id, type) {
+            currentUpdatesReportId = id;
+            currentUpdatesReportType = type;
+            document.getElementById('updateReportInfo').textContent = 'Report #' + id;
+            openModal('updatesModal');
+            loadUpdates(id, type);
         }
 
         function editReport(id, type) {

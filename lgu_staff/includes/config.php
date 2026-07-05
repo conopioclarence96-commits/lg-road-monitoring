@@ -42,6 +42,57 @@ try {
         // Column may already exist, ignore
     }
     
+    // Ensure report_updates table exists
+    try {
+        $conn->query("CREATE TABLE IF NOT EXISTS report_updates (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            report_id INT NOT NULL,
+            user_id INT,
+            title VARCHAR(255) DEFAULT NULL,
+            description TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_report_id (report_id),
+            INDEX idx_created_at (created_at),
+            FOREIGN KEY (report_id) REFERENCES road_transportation_reports(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Exception $e) {
+        error_log("report_updates table creation: " . $e->getMessage());
+    }
+    
+    try {
+        $conn->query("CREATE TABLE IF NOT EXISTS report_update_media (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            update_id INT NOT NULL,
+            file_path VARCHAR(500) NOT NULL,
+            file_type ENUM('image','video') DEFAULT 'image',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_update_id (update_id),
+            FOREIGN KEY (update_id) REFERENCES report_updates(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Exception $e) {
+        error_log("report_update_media table creation: " . $e->getMessage());
+    }
+    
+    try {
+        $conn->query("CREATE TABLE IF NOT EXISTS report_notifications (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            report_id INT NOT NULL,
+            update_id INT DEFAULT NULL,
+            type VARCHAR(50) DEFAULT 'progress_update',
+            message TEXT NOT NULL,
+            recipient_email VARCHAR(100) DEFAULT NULL,
+            is_read TINYINT(1) DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_report_id (report_id),
+            INDEX idx_is_read (is_read),
+            FOREIGN KEY (report_id) REFERENCES road_transportation_reports(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Exception $e) {
+        error_log("report_notifications table creation: " . $e->getMessage());
+    }
+    
     // Ensure account_status supports 'deactivated' value
     try {
         $row = $conn->query("SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'users' AND COLUMN_NAME = 'account_status' AND TABLE_SCHEMA = '" . DB_NAME . "'")->fetch_assoc();

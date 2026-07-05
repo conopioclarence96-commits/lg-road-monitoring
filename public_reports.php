@@ -104,6 +104,7 @@ function getTimeAgoShort($datetime) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="lgu_staff/css/progress-updates.css">
     <style>
         :root { --primary: #1e3c72; --primary-light: #2a5298; --accent: #4CAF50; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -308,7 +309,9 @@ function getTimeAgoShort($datetime) {
                 'reporter' => $r['reporter_name'] ?? 'Anonymous',
                 'department' => $r['department'] ?? 'Not specified',
                 'severity' => $r['severity'] ?? 'Not specified',
-                'has_photo' => $photo ? true : false
+                'has_photo' => $photo ? true : false,
+                'photo_url' => $photo ?: '',
+                'db_id' => $r['id'] ?? 0
             ], JSON_HEX_TAG | JSON_HEX_AMP)); ?>); return false;">
                 <?php if ($photo): ?>
                 <img src="<?php echo htmlspecialchars($photo); ?>" alt="Report photo" class="report-img" loading="lazy">
@@ -360,8 +363,14 @@ function getTimeAgoShort($datetime) {
                     </div>
                     <div id="modalDescription" style="margin-bottom: 20px; line-height: 1.7; font-size: 0.95rem; color: #334155;"></div>
                     <div id="modalInfo"></div>
+                    <div id="citizenTimeline" style="margin-top: 24px; display: none;"></div>
                 </div>
-                <div class="modal-footer">
+                <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                    <div>
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="toggleTimelineBtn" onclick="toggleCitizenTimeline()" style="display:none;">
+                            <i class="fas fa-clock"></i> Progress Timeline
+                        </button>
+                    </div>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><i class="fas fa-times"></i> Close</button>
                 </div>
             </div>
@@ -374,6 +383,12 @@ function getTimeAgoShort($datetime) {
             <p style="font-size: 0.85rem; opacity: 0.7;">Data presented is for public transparency and informational purposes only.</p>
         </div>
     </footer>
+
+    <!-- Lightbox -->
+    <div class="lightbox-overlay" id="lightboxOverlay" onclick="closeLightbox()">
+        <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+        <img id="lightboxImage" src="" alt="Enlarged photo">
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -425,6 +440,141 @@ function getTimeAgoShort($datetime) {
                 if (e.target.closest('.badge') || e.target.closest('.road-marker')) return;
             });
         });
+
+        /* Citizen Progress Timeline */
+        let citizenTimelineVisible = false;
+        let citizenUpdatesLoaded = false;
+
+        function openDetail(data) {
+            currentData = data;
+            document.getElementById('modalTitle').textContent = data.title;
+
+            const descEl = document.getElementById('modalDescription');
+            descEl.textContent = data.description || 'No description available.';
+
+            const infoEl = document.getElementById('modalInfo');
+            const statusClass = (data.status === 'pending' ? 'bg-warning' : data.status === 'in-progress' ? 'bg-info' : data.status === 'completed' ? 'bg-success' : 'bg-secondary');
+            const priorityClass = (data.priority === 'high' || data.priority === 'critical') ? 'bg-danger' : data.priority === 'medium' ? 'bg-warning' : 'bg-success';
+
+            infoEl.innerHTML = `
+                <div class="info-row"><span class="label"><i class="fas fa-flag"></i> Status</span><span class="value"><span class="badge ${statusClass}">${data.status}</span></span></div>
+                <div class="info-row"><span class="label"><i class="fas fa-exclamation-circle"></i> Priority</span><span class="value"><span class="badge ${priorityClass}">${data.priority}</span></span></div>
+                <div class="info-row"><span class="label"><i class="fas fa-map-marker-alt"></i> Location</span><span class="value">${data.location}</span></div>
+                <div class="info-row"><span class="label"><i class="fas fa-building"></i> Department</span><span class="value">${data.department}</span></div>
+                <div class="info-row"><span class="label"><i class="fas fa-tag"></i> Type</span><span class="value">${data.source}</span></div>
+                <div class="info-row"><span class="label"><i class="fas fa-clock"></i> Reported</span><span class="value">${data.reported_date || 'Not specified'}</span></div>
+                <div class="info-row"><span class="label"><i class="fas fa-user"></i> Reporter</span><span class="value">${data.reporter}</span></div>
+                <div class="info-row"><span class="label"><i class="fas fa-tachometer-alt"></i> Severity</span><span class="value">${data.severity}</span></div>
+            `;
+
+            if (data.photo_url) {
+                document.getElementById('modalPhotoImg').src = data.photo_url;
+                document.getElementById('modalPhoto').style.display = 'block';
+            } else {
+                document.getElementById('modalPhoto').style.display = 'none';
+            }
+
+            // Reset timeline
+            citizenTimelineVisible = false;
+            citizenUpdatesLoaded = false;
+            document.getElementById('citizenTimeline').style.display = 'none';
+            document.getElementById('citizenTimeline').innerHTML = '';
+            const toggleBtn = document.getElementById('toggleTimelineBtn');
+            toggleBtn.style.display = 'inline-block';
+            toggleBtn.innerHTML = '<i class="fas fa-clock"></i> Progress Timeline';
+
+            const modal = new bootstrap.Modal(document.getElementById('reportModal'));
+            modal.show();
+        }
+
+        function toggleCitizenTimeline() {
+            const container = document.getElementById('citizenTimeline');
+            const btn = document.getElementById('toggleTimelineBtn');
+            citizenTimelineVisible = !citizenTimelineVisible;
+
+            if (citizenTimelineVisible) {
+                container.style.display = 'block';
+                btn.innerHTML = '<i class="fas fa-times"></i> Hide Timeline';
+                if (!citizenUpdatesLoaded) {
+                    loadCitizenUpdates();
+                }
+            } else {
+                container.style.display = 'none';
+                btn.innerHTML = '<i class="fas fa-clock"></i> Progress Timeline';
+            }
+        }
+
+        function loadCitizenUpdates() {
+            const container = document.getElementById('citizenTimeline');
+            container.innerHTML = '<div style="text-align:center;padding:20px;"><i class="fas fa-spinner fa-spin fa-2x" style="color:#3762c8;"></i></div>';
+
+            const reportType = currentData.source === 'maintenance' ? 'maintenance' : 'transportation';
+            fetch(`lgu_staff/pages/api/progress_update_api.php?action=get_updates&report_id=${currentData.db_id}&report_type=${reportType}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        renderCitizenTimeline(data.updates);
+                    } else {
+                        container.innerHTML = '<div class="timeline-empty"><i class="fas fa-exclamation-circle"></i><br>' + escapeHtml(data.message) + '</div>';
+                    }
+                })
+                .catch(() => {
+                    container.innerHTML = '<div class="timeline-empty"><i class="fas fa-exclamation-triangle"></i><br>Unable to load timeline.</div>';
+                });
+        }
+
+        function openLightbox(src) {
+            const overlay = document.getElementById('lightboxOverlay');
+            const img = document.getElementById('lightboxImage');
+            if (overlay && img) {
+                img.src = src;
+                overlay.classList.add('show');
+            }
+        }
+
+        function closeLightbox() {
+            const overlay = document.getElementById('lightboxOverlay');
+            if (overlay) overlay.classList.remove('show');
+        }
+
+        function renderCitizenTimeline(updates) {
+            const container = document.getElementById('citizenTimeline');
+            citizenUpdatesLoaded = true;
+            if (!updates || updates.length === 0) {
+                container.innerHTML = '<div class="timeline-empty"><i class="fas fa-clock"></i><br>No progress updates yet.</div>';
+                return;
+            }
+            let html = '<div class="timeline-container">';
+            updates.forEach(u => {
+                const mediaHtml = (u.media || []).map(m => {
+                    if (m.file_type === 'video') {
+                        return `<div class="timeline-media-item video-thumb" onclick="window.open('${escapeHtmlAttr(m.file_path)}','_blank')"><i class="fas fa-play-circle"></i></div>`;
+                    }
+                    return `<div class="timeline-media-item" onclick="openLightbox('${escapeHtmlAttr(m.file_path)}')"><img src="${escapeHtmlAttr(m.file_path)}" alt="" loading="lazy"></div>`;
+                }).join('');
+
+                html += `
+                <div class="timeline-entry">
+                    <div class="timeline-dot"><i class="fas fa-check"></i></div>
+                    <div class="timeline-card">
+                        <div class="timeline-header">
+                            <div class="timeline-meta">
+                                <span class="admin-badge"><i class="fas fa-user-shield"></i> LGU Staff</span>
+                                <span class="time"><i class="far fa-clock"></i> ${escapeHtml(u.created_at_formatted || u.created_at)}</span>
+                            </div>
+                        </div>
+                        ${u.title ? `<div class="timeline-title">${escapeHtml(u.title)}</div>` : ''}
+                        <div class="timeline-desc">${escapeHtml(u.description)}</div>
+                        ${mediaHtml ? `<div class="timeline-media">${mediaHtml}</div>` : ''}
+                    </div>
+                </div>`;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function escapeHtml(t) { if (!t) return ''; const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+        function escapeHtmlAttr(t) { if (!t) return ''; return t.replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
     </script>
 </body>
 </html>

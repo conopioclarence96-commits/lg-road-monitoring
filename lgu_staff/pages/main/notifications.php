@@ -106,6 +106,24 @@ if ($is_admin) {
     } catch (Exception $e) {
         error_log("Pending change requests query error: " . $e->getMessage());
     }
+
+    // Admin: get progress update notifications
+    try {
+        $nstmt = $conn->prepare("
+            SELECT rn.*, r.report_id as report_code, r.title as report_title
+            FROM report_notifications rn
+            LEFT JOIN road_transportation_reports r ON rn.report_id = r.id
+            WHERE rn.is_read = 0
+            ORDER BY rn.created_at DESC
+            LIMIT 20
+        ");
+        $nstmt->execute();
+        $progress_notifications = $nstmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $nstmt->close();
+    } catch (Exception $e) {
+        error_log("Progress notifications query error: " . $e->getMessage());
+        $progress_notifications = [];
+    }
 } else {
     // LGU Staff: get their own change request status updates
     try {
@@ -143,7 +161,7 @@ if ($is_admin) {
     }
 }
 
-$total_notifications = $is_admin ? (count($pending_reports) + count($pending_changes)) : (count($staff_updates) + count($report_updates));
+$total_notifications = $is_admin ? (count($pending_reports) + count($pending_changes) + count($progress_notifications)) : (count($staff_updates) + count($report_updates));
 ?>
 
 <!DOCTYPE html>
@@ -650,6 +668,46 @@ $total_notifications = $is_admin ? (count($pending_reports) + count($pending_cha
                                 <div style="margin-top: 10px;">
                                     <div class="action-buttons">
                                         <a href="account_approvals.php" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> Review</a>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <!-- Admin: Progress Update Notifications -->
+            <div class="workflow-card">
+                <div class="workflow-header">
+                    <h3 class="workflow-title">
+                        <i class="fas fa-clock" style="color: #10b981;"></i>
+                        <span>Progress Updates</span>
+                        <span class="workflow-badge"><?php echo count($progress_notifications); ?></span>
+                    </h3>
+                </div>
+                <div class="workflow-content">
+                    <?php if (empty($progress_notifications)): ?>
+                        <div class="empty-state">
+                            <i class="fas fa-check-circle"></i>
+                            <p>No progress updates yet</p>
+                        </div>
+                    <?php else: ?>
+                        <?php foreach ($progress_notifications as $pn): ?>
+                            <div class="notification-item">
+                                <div class="notification-header">
+                                    <div class="notification-title">
+                                        <span style="color:#10b981;"><i class="fas fa-clipboard-list"></i> <?php echo htmlspecialchars($pn['message']); ?></span>
+                                    </div>
+                                    <div class="notification-time"><?php echo date('M d, Y H:i', strtotime($pn['created_at'])); ?></div>
+                                </div>
+                                <div class="notification-body">
+                                    <small>Report: <strong><?php echo htmlspecialchars($pn['report_code'] ?? '#' . $pn['report_id']); ?></strong></small>
+                                    <?php if (!empty($pn['report_title'])): ?>
+                                        &mdash; <?php echo htmlspecialchars($pn['report_title']); ?>
+                                    <?php endif; ?>
+                                </div>
+                                <div style="margin-top: 10px;">
+                                    <div class="action-buttons">
+                                        <a href="report_management.php" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> View Report</a>
                                     </div>
                                 </div>
                             </div>

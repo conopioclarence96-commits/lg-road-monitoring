@@ -201,6 +201,17 @@ function getNotificationCount($user_role = '', $user_id = 0) {
             } catch (Exception $e) {
                 // Ignore errors
             }
+            
+            // Count unread progress update notifications
+            try {
+                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM report_notifications WHERE is_read = 0");
+                $stmt->execute();
+                $result = $stmt->get_result();
+                $count += $result->fetch_assoc()['count'];
+                $stmt->close();
+            } catch (Exception $e) {
+                // Ignore errors
+            }
         } elseif ($user_role === 'lgu_staff' && $user_id > 0) {
             // Count staff's own reviewed change requests
             try {
