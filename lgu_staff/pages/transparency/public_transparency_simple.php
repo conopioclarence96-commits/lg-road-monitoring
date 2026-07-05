@@ -69,6 +69,7 @@ $publications = [];
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../../css/public_transparency.css">
+    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <style>
         body {
             background: url("../../../assets/img/cityhall.jpeg") center/cover no-repeat fixed;
@@ -96,6 +97,11 @@ $publications = [];
             margin: 20px;
             border-radius: 8px;
             color: #333;
+        }
+
+        body.dark-mode .debug-info {
+            background: rgba(30, 34, 41, 0.95);
+            color: #e4e6ea;
         }
     </style>
 </head>

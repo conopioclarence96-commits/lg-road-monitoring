@@ -811,23 +811,81 @@ body.dark-mode .leaflet-control-attribution a {
     color: #60a5fa !important;
 }
 
-/* Misc / inline style overrides */
-body.dark-mode [style*="color: #1e3c72"] {
-    color: #e4e6ea !important;
-}
+/* Misc / inline style overrides -- text colors */
+body.dark-mode [style*="color: #1e3c72"] { color: #e4e6ea !important; }
+body.dark-mode [style*="color: #666"] { color: #9ca3af !important; }
+body.dark-mode [style*="color: #333"] { color: #d1d5db !important; }
+body.dark-mode [style*="color: #64748b"] { color: #9ca3af !important; }
+body.dark-mode [style*="color: #3762c8"] { color: #93c5fd !important; }
+body.dark-mode [style*="color: #888"] { color: #9ca3af !important; }
+body.dark-mode [style*="color: #999"] { color: #9ca3af !important; }
+body.dark-mode [style*="color: #6b7280"] { color: #9ca3af !important; }
+body.dark-mode [style*="color: #475569"] { color: #9ca3af !important; }
+body.dark-mode [style*="color: #495057"] { color: #9ca3af !important; }
+body.dark-mode [style*="color: #555"] { color: #9ca3af !important; }
+body.dark-mode [style*="color: #777"] { color: #9ca3af !important; }
+body.dark-mode [style*="color: #cbd5e1"] { color: #6b7280 !important; }
+body.dark-mode [style*="color: #e2e8f0"] { color: #2d323b !important; }
 
-body.dark-mode [style*="color: #666"] {
-    color: #9ca3af !important;
-}
+/* Alert / status text colors */
+body.dark-mode [style*="color: #856404"] { color: #fbbf24 !important; }
+body.dark-mode [style*="color: #0c5460"] { color: #60a5fa !important; }
+body.dark-mode [style*="color: #155724"] { color: #34d399 !important; }
+body.dark-mode [style*="color: #721c24"] { color: #fca5a5 !important; }
+body.dark-mode [style*="color: #28a745"] { color: #34d399 !important; }
+body.dark-mode [style*="color: #dc3545"] { color: #fca5a5 !important; }
+body.dark-mode [style*="color: #ffc107"] { color: #fbbf24 !important; }
+body.dark-mode [style*="color: #d97706"] { color: #fbbf24 !important; }
+body.dark-mode [style*="color: #f59e0b"] { color: #fbbf24 !important; }
 
-body.dark-mode [style*="color: #333"] {
-    color: #d1d5db !important;
-}
+/* Status-specific text */
+body.dark-mode [style*="color: #059669"] { color: #34d399 !important; }
+body.dark-mode [style*="color: #16a34a"] { color: #34d399 !important; }
+body.dark-mode [style*="color: #10b981"] { color: #34d399 !important; }
+body.dark-mode [style*="color: #8b5cf6"] { color: #a78bfa !important; }
+body.dark-mode [style*="color: #7c3aed"] { color: #a78bfa !important; }
+body.dark-mode [style*="color: #ef4444"] { color: #fca5a5 !important; }
+body.dark-mode [style*="color: #dc2626"] { color: #fca5a5 !important; }
+body.dark-mode [style*="color: #2563eb"] { color: #60a5fa !important; }
+body.dark-mode [style*="color: #007bff"] { color: #60a5fa !important; }
+body.dark-mode [style*="color: #0056b3"] { color: #3b82f6 !important; }
+body.dark-mode [style*="color: #166534"] { color: #34d399 !important; }
+body.dark-mode [style*="color: #1e40af"] { color: #60a5fa !important; }
+body.dark-mode [style*="color: #9ca3af"] { color: #9ca3af !important; }
 
-body.dark-mode [style*="border: 1px solid #ddd"] {
-    border-color: #2d323b !important;
-}
+/* Border overrides */
+body.dark-mode [style*="border: 1px solid #ddd"] { border-color: #2d323b !important; }
+body.dark-mode [style*="border: 1px solid #eee"] { border-color: #2d323b !important; }
+body.dark-mode [style*="border: 1px solid #dee2e6"] { border-color: #2d323b !important; }
+body.dark-mode [style*="border: 1px solid #e2e8f0"] { border-color: #2d323b !important; }
+body.dark-mode [style*="border: 1px solid #e9ecef"] { border-color: #2d323b !important; }
+body.dark-mode [style*="border: 1px solid #f1f3f5"] { border-color: #2d323b !important; }
+body.dark-mode [style*="border: 2px solid #e2e8f0"] { border-color: #2d323b !important; }
+body.dark-mode [style*="border: 1px solid #ccc"] { border-color: #2d323b !important; }
+body.dark-mode [style*="border-bottom: 1px solid #eee"] { border-bottom-color: #2d323b !important; }
+body.dark-mode [style*="border-bottom: 1px solid #e9ecef"] { border-bottom-color: #2d323b !important; }
+body.dark-mode [style*="border-top: 1px solid #eee"] { border-top-color: #2d323b !important; }
+body.dark-mode [style*="border-top: 1px solid #e9ecef"] { border-top-color: #2d323b !important; }
+body.dark-mode [style*="border-left: 1px solid #eee"] { border-left-color: #2d323b !important; }
+body.dark-mode [style*="border-right: 1px solid #eee"] { border-right-color: #2d323b !important; }
+body.dark-mode [style*="border-color: #ddd"] { border-color: #2d323b !important; }
+body.dark-mode [style*="border-color: #dee2e6"] { border-color: #2d323b !important; }
+body.dark-mode [style*="border-color: #e2e8f0"] { border-color: #2d323b !important; }
 
-body.dark-mode [style*="color: #64748b"] {
-    color: #9ca3af !important;
-}
+/* Background overrides */
+body.dark-mode [style*="background: #f8fafc"] { background: #1e2229 !important; }
+body.dark-mode [style*="background: #f1f5f9"] { background: #1e2229 !important; }
+body.dark-mode [style*="background: #f8f9fa"] { background: #1e2229 !important; }
+body.dark-mode [style*="background: #f0f4fa"] { background: #1e2229 !important; }
+body.dark-mode [style*="background: #f7f5f0"] { background: #1a1d23 !important; }
+body.dark-mode [style*="background: white"] { background: #22262e !important; }
+body.dark-mode [style*="background: #fff"] { background: #22262e !important; }
+body.dark-mode [style*="background: #ffffff"] { background: #22262e !important; }
+body.dark-mode [style*="background-color: #f8fafc"] { background-color: #1e2229 !important; }
+
+body.dark-mode [style*="background: #fff3cd"] { background: #78350f !important; }
+body.dark-mode [style*="background: #f8d7da"] { background: #7f1d1d !important; }
+body.dark-mode [style*="background: #d4edda"] { background: #064e3b !important; }
+body.dark-mode [style*="background: #d1ecf1"] { background: #1e3a5f !important; }
+body.dark-mode [style*="background-color: #007bff"] { background-color: #2563eb !important; }
+body.dark-mode [style*="background-color: #0056b3"] { background-color: #1d4ed8 !important; }

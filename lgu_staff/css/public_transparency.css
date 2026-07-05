@@ -988,3 +988,160 @@ a.btn-action:hover {
         grid-template-columns: 1fr;
     }
 }
+
+/* Dark mode overrides */
+body.dark-mode .transparency-header,
+body.dark-mode .transparency-stat,
+body.dark-mode .info-card,
+body.dark-mode .publications-section,
+body.dark-mode .completed-projects-section,
+body.dark-mode .contact-section {
+    background: rgba(30, 34, 41, 0.96);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+body.dark-mode .header-title h1,
+body.dark-mode .info-title,
+body.dark-mode .section-title,
+body.dark-mode .publications-feed-section .publication-feed-card__title,
+body.dark-mode .completed-projects-title,
+body.dark-mode .completed-project-card-title,
+body.dark-mode .completed-project-cost,
+body.dark-mode .modal-section-title {
+    color: #e4e6ea;
+}
+
+body.dark-mode .header-title p,
+body.dark-mode .stat-label,
+body.dark-mode .info-description,
+body.dark-mode .info-stat-label,
+body.dark-mode .publications-feed-section .publication-feed-card__meta,
+body.dark-mode .publication-meta,
+body.dark-mode .publication-description,
+body.dark-mode .completed-projects-subtitle,
+body.dark-mode .completed-projects-empty,
+body.dark-mode .completed-project-card-meta,
+body.dark-mode .completed-project-by,
+body.dark-mode .contact-info,
+body.dark-mode .modal-card-desc {
+    color: #9ca3af;
+}
+
+body.dark-mode .stat-number,
+body.dark-mode .info-stat-number,
+body.dark-mode .modal-card-value {
+    color: #93c5fd;
+}
+
+body.dark-mode .publications-feed-section .publication-feed-card {
+    background: #22262e;
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+body.dark-mode .publications-feed-section .publication-feed-card__placeholder {
+    color: rgba(147, 197, 253, 0.4);
+}
+
+body.dark-mode .publications-feed-section .publication-feed-card__meta i {
+    color: #93c5fd;
+}
+
+body.dark-mode .publications-feed-section .publication-feed-card__desc {
+    color: #d1d5db;
+}
+
+body.dark-mode .publications-feed-section .publication-feed-card__footer {
+    color: #9ca3af;
+    border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+body.dark-mode .publications-feed-section .publication-feed-card__by {
+    color: #9ca3af;
+}
+
+body.dark-mode .publication-card {
+    background: rgba(30, 34, 41, 0.8);
+    border-color: rgba(147, 197, 253, 0.15);
+}
+
+body.dark-mode .publication-card:hover {
+    background: rgba(30, 34, 41, 0.95);
+}
+
+body.dark-mode .publication-title,
+body.dark-mode .contact-title,
+body.dark-mode .modal-card-title {
+    color: #d1d5db;
+}
+
+body.dark-mode .completed-project-card {
+    background: #22262e;
+    border-color: rgba(147, 197, 253, 0.12);
+}
+
+body.dark-mode .completed-project-card:hover {
+    border-color: rgba(147, 197, 253, 0.2);
+}
+
+body.dark-mode .completed-project-card-desc {
+    color: #d1d5db;
+}
+
+body.dark-mode .completed-project-card-footer {
+    color: #9ca3af;
+    border-top-color: rgba(147, 197, 253, 0.08);
+}
+
+body.dark-mode .contact-card {
+    background: rgba(30, 34, 41, 0.8);
+    border-color: rgba(147, 197, 253, 0.12);
+}
+
+body.dark-mode .contact-card:hover {
+    background: rgba(30, 34, 41, 0.95);
+}
+
+body.dark-mode .contact-icon {
+    color: #93c5fd;
+}
+
+body.dark-mode .modal-content {
+    background: #22262e;
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+body.dark-mode .modal-card {
+    background: rgba(30, 34, 41, 0.8);
+    border-color: rgba(147, 197, 253, 0.1);
+}
+
+body.dark-mode .modal-card:hover {
+    background: rgba(30, 34, 41, 0.95);
+}
+
+body.dark-mode .progress-bar {
+    background: #2d323b;
+}
+
+body.dark-mode .chart-container {
+    background: #22262e;
+    border-color: #2d323b;
+}
+
+body.dark-mode .modal-table {
+    background: #22262e;
+}
+
+body.dark-mode .modal-table th {
+    background: #1a1d23;
+    color: #d1d5db;
+    border-bottom-color: #2d323b;
+}
+
+body.dark-mode .modal-table td {
+    border-bottom-color: #2d323b;
+}
+
+body.dark-mode .modal-table tr:hover {
+    background: #1e2229;
+}
