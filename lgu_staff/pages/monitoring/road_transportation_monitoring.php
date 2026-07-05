@@ -21,6 +21,44 @@ if (
     exit();
 }
 
+// Function to get enhanced dashboard stats
+function getEnhancedStats() {
+    global $conn;
+    $stats = ['total' => 0, 'active' => 0, 'critical' => 0, 'resolved_month' => 0];
+    if ($conn) {
+        try {
+            $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports");
+            if ($r) $stats['total'] = (int)$r->fetch_assoc()['c'];
+            $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE status IN ('pending','in-progress')");
+            if ($r) $stats['active'] = (int)$r->fetch_assoc()['c'];
+            $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE priority IN ('high','critical') AND status != 'completed'");
+            if ($r) $stats['critical'] = (int)$r->fetch_assoc()['c'];
+            $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE status='completed' AND MONTH(updated_at)=MONTH(CURDATE()) AND YEAR(updated_at)=YEAR(CURDATE())");
+            if ($r) $stats['resolved_month'] = (int)$r->fetch_assoc()['c'];
+        } catch (Exception $e) { error_log("Enhanced stats error: ".$e->getMessage()); }
+    }
+    return $stats;
+}
+
+// Function to get recent reports for the table
+function getRecentTransportReports($limit = 10) {
+    global $conn;
+    $reports = [];
+    if ($conn) {
+        try {
+            $q = "SELECT id, report_id, title, report_type, status, priority, severity, created_at 
+                  FROM road_transportation_reports 
+                  ORDER BY created_at DESC LIMIT ?";
+            $stmt = $conn->prepare($q);
+            $stmt->bind_param("i", $limit);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            while ($row = $res->fetch_assoc()) $reports[] = $row;
+        } catch (Exception $e) { error_log("Recent reports error: ".$e->getMessage()); }
+    }
+    return $reports;
+}
+
 // Function to get monitoring statistics
 function getMonitoringStatistics() {
     global $conn;
@@ -330,6 +368,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 // Get data for the page
 $alerts = getActiveAlerts();
 $roads = getRoadStatus();
+$enhanced_stats = getEnhancedStats();
+$recent_reports = getRecentTransportReports(10);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -670,6 +710,128 @@ $roads = getRoadStatus();
         }
 
 
+        /* ========== Enhanced Features ========== */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 25px;
+        }
+        .stat-card {
+            background: #f0f4fa;
+            border-radius: 14px;
+            padding: 20px 18px;
+            border: 1px solid rgba(55, 98, 200, 0.1);
+            transition: all 0.25s ease;
+        }
+        .stat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+        .stat-card .stat-icon {
+            width: 44px; height: 44px; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; color: #fff; margin-bottom: 12px;
+        }
+        .stat-card .stat-icon.blue { background: linear-gradient(135deg,#3762c8,#1e3c72); }
+        .stat-card .stat-icon.orange { background: linear-gradient(135deg,#f59e0b,#d97706); }
+        .stat-card .stat-icon.red { background: linear-gradient(135deg,#ef4444,#dc2626); }
+        .stat-card .stat-icon.green { background: linear-gradient(135deg,#10b981,#059669); }
+        .stat-card .stat-number { font-size: 26px; font-weight: 700; color: #1e3c72; }
+        .stat-card .stat-label { font-size: 13px; color: #6b7280; font-weight: 500; margin-top: 2px; }
+
+        .map-toolbar {
+            display: flex; justify-content: space-between; align-items: center;
+            flex-wrap: wrap; gap: 10px; margin-bottom: 12px;
+        }
+        .map-toolbar-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .map-toolbar-right { display: flex; gap: 8px; }
+        .map-legend {
+            display: flex; align-items: center; gap: 14px;
+            font-size: 12px; color: #555; padding: 6px 12px;
+            background: rgba(255,255,255,0.7); border-radius: 8px;
+        }
+        .map-legend-item { display: flex; align-items: center; gap: 5px; }
+        .map-legend-dot {
+            width: 12px; height: 12px; border-radius: 50%;
+            border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        .map-fullscreen-btn {
+            padding: 6px 14px; background: rgba(55,98,200,0.1); color: #3762c8;
+            border: 1px solid rgba(55,98,200,0.3); border-radius: 6px;
+            font-size: 12px; cursor: pointer; transition: all 0.2s;
+        }
+        .map-fullscreen-btn:hover { background: #3762c8; color: #fff; }
+
+        .reports-table-section {
+            background: #f0f4fa;
+            border-radius: 16px; padding: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            margin-bottom: 25px;
+        }
+        .reports-table-section .table-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 16px; flex-wrap: wrap; gap: 10px;
+        }
+        .reports-table-section .table-header h3 {
+            font-size: 18px; font-weight: 600; color: #1e3c72;
+            display: flex; align-items: center; gap: 10px; margin: 0;
+        }
+        .reports-table-section .table-header a {
+            font-size: 13px; color: #3762c8; text-decoration: none; font-weight: 500;
+        }
+        .reports-table-section .table-header a:hover { text-decoration: underline; }
+        .reports-table-wrap { overflow-x: auto; }
+        .reports-table-section table {
+            width: 100%; border-collapse: collapse; font-size: 13px;
+        }
+        .reports-table-section th {
+            background: rgba(55,98,200,0.08); padding: 10px 12px;
+            text-align: left; font-weight: 600; color: #1e3c72;
+            border-bottom: 2px solid rgba(55,98,200,0.15); white-space: nowrap;
+        }
+        .reports-table-section td {
+            padding: 10px 12px; border-bottom: 1px solid rgba(55,98,200,0.08);
+            color: #333;
+        }
+        .reports-table-section tr:hover td { background: rgba(55,98,200,0.03); }
+        .reports-table-section .badge {
+            display: inline-block; padding: 2px 10px; border-radius: 12px;
+            font-size: 11px; font-weight: 600; text-transform: uppercase;
+        }
+        .badge-pending { background: #fff3cd; color: #856404; }
+        .badge-in-progress { background: #cce5ff; color: #004085; }
+        .badge-completed { background: #d4edda; color: #155724; }
+        .badge-high, .badge-critical { background: #f8d7da; color: #721c24; }
+        .badge-medium { background: #fff3cd; color: #856404; }
+        .badge-low { background: #e2e3e5; color: #383d41; }
+        .table-action-btn {
+            padding: 4px 10px; border-radius: 5px; border: none;
+            font-size: 11px; cursor: pointer; transition: all 0.2s;
+        }
+        .table-action-btn.view-map {
+            background: rgba(55,98,200,0.12); color: #3762c8;
+        }
+        .table-action-btn.view-map:hover { background: #3762c8; color: #fff; }
+
+        .road-search {
+            padding: 6px 12px; border: 1px solid rgba(55,98,200,0.3);
+            border-radius: 8px; font-size: 13px; width: 200px;
+        }
+
+        .map-fullscreen-active #map { height: 70vh; }
+        .map-fullscreen-active .monitoring-layout { grid-template-columns: 1fr; }
+        .map-fullscreen-active .sidebar-section { display: none; }
+
+        body.dark-mode .stat-card { background: #1e2229; border-color: rgba(255,255,255,0.08); }
+        body.dark-mode .stat-card .stat-number { color: #e4e6ea; }
+        body.dark-mode .stat-card .stat-label { color: #9ca3af; }
+        body.dark-mode .map-legend { background: rgba(30,34,41,0.85); color: #9ca3af; }
+        body.dark-mode .reports-table-section { background: #1e2229; border-color: rgba(255,255,255,0.08); }
+        body.dark-mode .reports-table-section th { background: rgba(30,34,41,0.8); color: #e4e6ea; }
+        body.dark-mode .reports-table-section td { color: #d1d5db; border-bottom-color: rgba(255,255,255,0.06); }
+        body.dark-mode .reports-table-section tr:hover td { background: rgba(255,255,255,0.03); }
+        body.dark-mode .reports-table-section .table-header h3 { color: #e4e6ea; }
+        body.dark-mode .road-search { background: #1a1d23; color: #e4e6ea; border-color: #2d323b; }
+
         @media (max-width: 1200px) {
             .monitoring-layout {
                 grid-template-columns: 1fr;
@@ -714,6 +876,30 @@ $roads = getRoadStatus();
             </div>
         </div>
 
+        <!-- Stats Row -->
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-icon blue"><i class="fas fa-road"></i></div>
+                <div class="stat-number"><?php echo number_format($enhanced_stats['total']); ?></div>
+                <div class="stat-label">Total Reports</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon orange"><i class="fas fa-exclamation-triangle"></i></div>
+                <div class="stat-number"><?php echo number_format($enhanced_stats['active']); ?></div>
+                <div class="stat-label">Active Issues</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon red"><i class="fas fa-bolt"></i></div>
+                <div class="stat-number"><?php echo number_format($enhanced_stats['critical']); ?></div>
+                <div class="stat-label">High / Critical</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon green"><i class="fas fa-check-circle"></i></div>
+                <div class="stat-number"><?php echo number_format($enhanced_stats['resolved_month']); ?></div>
+                <div class="stat-label">Resolved This Month</div>
+            </div>
+        </div>
+
         <!-- Main Monitoring Layout -->
         <div class="monitoring-layout">
             <!-- Map Section -->
@@ -721,6 +907,27 @@ $roads = getRoadStatus();
                 <div class="map-header">
                     <h3 class="map-title">Live Road Map — Quezon City</h3>
                     <p class="map-hint">Click on the map to pin a location, then fill the form and submit your report.</p>
+                </div>
+                <div class="map-toolbar">
+                    <div class="map-toolbar-left">
+                        <div class="map-filters">
+                            <button class="filter-btn active" data-filter="all" onclick="filterMapMarkers('all')">All</button>
+                            <button class="filter-btn" data-filter="pending" onclick="filterMapMarkers('pending')">Pending</button>
+                            <button class="filter-btn" data-filter="in-progress" onclick="filterMapMarkers('in-progress')">In Progress</button>
+                            <button class="filter-btn" data-filter="completed" onclick="filterMapMarkers('completed')">Completed</button>
+                            <button class="filter-btn" data-filter="high" onclick="filterMapMarkers('high')"><i class="fas fa-exclamation"></i> Critical</button>
+                        </div>
+                        <div class="map-legend">
+                            <span class="map-legend-item"><span class="map-legend-dot" style="background:#dc3545;"></span> High</span>
+                            <span class="map-legend-item"><span class="map-legend-dot" style="background:#ffc107;"></span> Medium</span>
+                            <span class="map-legend-item"><span class="map-legend-dot" style="background:#6c757d;"></span> Low</span>
+                        </div>
+                    </div>
+                    <div class="map-toolbar-right">
+                        <button class="map-fullscreen-btn" onclick="toggleMapFullscreen()" id="fullscreenMapBtn">
+                            <i class="fas fa-expand"></i> Fullscreen
+                        </button>
+                    </div>
                 </div>
                 <div id="map"></div>
                 <!-- Report form (shown after pinning) -->
@@ -838,6 +1045,46 @@ $roads = getRoadStatus();
             </div>
         </div>
 
+        <!-- Recent Reports Table -->
+        <div class="reports-table-section">
+            <div class="table-header">
+                <h3><i class="fas fa-list"></i> Recent Submissions</h3>
+                <input type="text" class="road-search" placeholder="Search by title or ID..." id="reportSearchInput" oninput="filterReportsTable(this.value)">
+            </div>
+            <div class="reports-table-wrap">
+                <table id="recentReportsTable">
+                    <thead>
+                        <tr>
+                            <th>Report ID</th>
+                            <th>Title</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                            <th>Priority</th>
+                            <th>Date</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($recent_reports)): ?>
+                        <tr><td colspan="7" style="text-align:center;padding:30px;color:#6b7280;">No reports yet.</td></tr>
+                        <?php else: ?>
+                        <?php foreach ($recent_reports as $rr): ?>
+                        <tr class="report-table-row" data-id="<?php echo $rr['id']; ?>" data-title="<?php echo htmlspecialchars(strtolower($rr['title'] ?? '')); ?>" data-report-id="<?php echo htmlspecialchars(strtolower($rr['report_id'] ?? '')); ?>">
+                            <td style="font-family:monospace;font-size:12px;"><?php echo htmlspecialchars($rr['report_id'] ?? '—'); ?></td>
+                            <td><?php echo htmlspecialchars($rr['title'] ?? 'Untitled'); ?></td>
+                            <td><?php echo htmlspecialchars($rr['report_type'] ?? '—'); ?></td>
+                            <td><span class="badge badge-<?php echo $rr['status'] ?? 'pending'; ?>"><?php echo ucfirst(str_replace('-',' ',$rr['status'] ?? 'pending')); ?></span></td>
+                            <td><span class="badge badge-<?php echo $rr['priority'] ?? 'low'; ?>"><?php echo ucfirst($rr['priority'] ?? 'low'); ?></span></td>
+                            <td><?php echo date('M d, Y H:i', strtotime($rr['created_at'] ?? 'now')); ?></td>
+                            <td><button class="table-action-btn view-map" onclick="focusReportOnMap(<?php echo $rr['id']; ?>)"><i class="fas fa-map-pin"></i> Map</button></td>
+                        </tr>
+                        <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
     </div>
 
     <script>
@@ -888,14 +1135,26 @@ $roads = getRoadStatus();
         const form = document.getElementById('report-form');
         const pinLat = document.getElementById('pin-lat');
         const pinLng = document.getElementById('pin-lng');
+        let allMarkerData = [];
+        let allMarkerObjects = [];
+        let mapFullscreen = false;
+        let activeFilter = 'all';
+        let autoRefreshInterval = null;
 
         // Load existing report markers
-        function loadMarkers() {
+        function loadMarkers(filter) {
+            filter = filter || activeFilter;
             reportMarkersLayer.clearLayers();
+            allMarkerObjects = [];
             fetch('?action=get_markers')
                 .then(r => r.json())
                 .then(markers => {
+                    allMarkerData = markers;
                     markers.forEach(m => {
+                        if (filter !== 'all') {
+                            if (filter === 'high' && !['high','critical'].includes((m.severity || m.priority || '').toLowerCase())) return;
+                            else if (filter !== 'high' && (m.status || '') !== filter) return;
+                        }
                         const sev = (m.severity || m.priority || 'low').toLowerCase();
                         const color = (sev === 'critical' || sev === 'high') ? '#dc3545' : sev === 'medium' ? '#ffc107' : '#6c757d';
                         const icon = L.divIcon({
@@ -904,14 +1163,62 @@ $roads = getRoadStatus();
                             iconSize: [28, 28]
                         });
                         const sevLabel = m.severity || m.priority || 'low';
-                        L.marker([parseFloat(m.latitude), parseFloat(m.longitude)], { icon })
+                        const marker = L.marker([parseFloat(m.latitude), parseFloat(m.longitude)], { icon })
                             .addTo(reportMarkersLayer)
                             .bindPopup(`<b>${escapeHtml(m.title)}</b><br><small>${escapeHtml(m.description || '')}</small><br><span style="color:${color}">${sevLabel} • ${m.status}</span>`);
+                        marker._reportId = m.id;
+                        allMarkerObjects.push(marker);
                     });
                 })
                 .catch(e => console.error('Load markers error', e));
         }
         function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t || ''; return d.innerHTML; }
+
+        // Filter map markers
+        function filterMapMarkers(filter) {
+            activeFilter = filter;
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            document.querySelector(`.filter-btn[data-filter="${filter}"]`).classList.add('active');
+            loadMarkers(filter);
+        }
+
+        // Toggle map fullscreen
+        function toggleMapFullscreen() {
+            mapFullscreen = !mapFullscreen;
+            document.body.classList.toggle('map-fullscreen-active', mapFullscreen);
+            const btn = document.getElementById('fullscreenMapBtn');
+            btn.innerHTML = mapFullscreen ? '<i class="fas fa-compress"></i> Exit' : '<i class="fas fa-expand"></i> Fullscreen';
+            setTimeout(() => map.invalidateSize(), 300);
+        }
+
+        // Focus map on a specific report by ID
+        function focusReportOnMap(reportId) {
+            const found = allMarkerObjects.find(m => m._reportId === reportId);
+            if (found) {
+                map.setView(found.getLatLng(), 16);
+                found.openPopup();
+            } else {
+                showNotification('Report not visible on map. Try changing filters.', 'info');
+            }
+        }
+
+        // Search reports table
+        function filterReportsTable(query) {
+            const q = query.toLowerCase().trim();
+            document.querySelectorAll('#recentReportsTable .report-table-row').forEach(row => {
+                const title = row.dataset.title || '';
+                const rid = row.dataset.reportId || '';
+                row.style.display = (!q || title.includes(q) || rid.includes(q)) ? '' : 'none';
+            });
+        }
+
+        // Start auto-refresh
+        function startAutoRefresh() {
+            if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+            autoRefreshInterval = setInterval(() => {
+                loadMarkers(activeFilter);
+            }, 30000);
+        }
 
         // Function to update specific issue types based on main category
         function updateSpecificTypes() {
@@ -989,7 +1296,7 @@ $roads = getRoadStatus();
             reportPanel.style.display = 'none';
         });
 
-        // Image preview
+        // Image preview with size check
         const imageInput = document.getElementById('report-image');
         const imagePreview = document.getElementById('image-preview');
         const previewImg = document.getElementById('preview-img');
@@ -999,7 +1306,7 @@ $roads = getRoadStatus();
             const file = e.target.files[0];
             if (file) {
                 if (file.size > 5 * 1024 * 1024) {
-                    alert('Image size exceeds 5MB limit.');
+                    showNotification('Image size exceeds 5MB limit.', 'error');
                     e.target.value = '';
                     return;
                 }
@@ -1022,41 +1329,59 @@ $roads = getRoadStatus();
             e.preventDefault();
             const btn = document.getElementById('submit-report-btn');
             btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
             const fd = new FormData(form);
             fd.set('action', 'submit_report');
             fetch('', { method: 'POST', body: fd })
                 .then(r => {
-                    if (!r.ok) {
-                        throw new Error('HTTP error: ' + r.status);
-                    }
+                    if (!r.ok) throw new Error('HTTP error: ' + r.status);
                     return r.text();
                 })
                 .then(text => {
                     try {
                         const data = JSON.parse(text);
                         if (data.success) {
-                            alert(data.message);
+                            showNotification(data.message, 'success');
                             if (pinMarker) { map.removeLayer(pinMarker); pinMarker = null; }
                             reportPanel.style.display = 'none';
                             form.reset();
                             imagePreview.style.display = 'none';
-                            loadMarkers();
+                            loadMarkers(activeFilter);
                         } else {
-                            alert(data.message || 'Failed to submit.');
+                            showNotification(data.message || 'Failed to submit.', 'error');
                         }
                     } catch (e) {
                         console.error('Response:', text);
-                        alert('Server error. Check console for details.');
+                        showNotification('Server error. Check console for details.', 'error');
                     }
                 })
                 .catch(error => {
                     console.error('Fetch error:', error);
-                    alert('Network error: ' + error.message);
+                    showNotification('Network error: ' + error.message, 'error');
                 })
-                .finally(() => { btn.disabled = false; });
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send report';
+                });
         });
 
-        loadMarkers();
+        loadMarkers(activeFilter);
+        startAutoRefresh();
+
+        function showNotification(message, type) {
+            type = type || 'info';
+            const colors = { success: '#10b981', error: '#ef4444', info: '#3762c8', warning: '#f59e0b' };
+            const c = colors[type] || colors.info;
+            const el = document.createElement('div');
+            el.style.cssText = 'position:fixed;top:20px;right:20px;z-index:99999;padding:14px 20px;border-radius:10px;color:#fff;font-size:14px;font-weight:500;max-width:380px;box-shadow:0 8px 30px rgba(0,0,0,0.2);transform:translateX(120%);transition:transform 0.35s ease;background:'+c;
+            el.textContent = message;
+            document.body.appendChild(el);
+            requestAnimationFrame(() => { el.style.transform = 'translateX(0)'; });
+            setTimeout(() => {
+                el.style.transform = 'translateX(120%)';
+                setTimeout(() => el.remove(), 400);
+            }, 4000);
+        }
     </script>
     
     <!-- Page Transition Overlay -->
