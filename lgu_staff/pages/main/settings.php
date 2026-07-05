@@ -59,6 +59,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'birthday' => sanitize_input($_POST['birthday'] ?? ''),
             'civil_status' => sanitize_input($_POST['civil_status'] ?? ''),
         ];
+        // Handle profile picture upload
+        if (isset($_FILES['profile_picture']) && $_FILES['profile_picture']['error'] === UPLOAD_ERR_OK) {
+            $upload_dir = '../../uploads/profile_pictures/';
+            if (!is_dir($upload_dir)) {
+                mkdir($upload_dir, 0777, true);
+            }
+            $ext = strtolower(pathinfo($_FILES['profile_picture']['name'], PATHINFO_EXTENSION));
+            $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+            if (in_array($ext, $allowed)) {
+                $filename = 'cr_' . $user_id . '_' . time() . '.' . $ext;
+                if (move_uploaded_file($_FILES['profile_picture']['tmp_name'], $upload_dir . $filename)) {
+                    $data['profile_picture'] = $filename;
+                }
+            }
+        }
         $reason = sanitize_input($_POST['reason'] ?? '');
         $stmt = $conn->prepare("INSERT INTO change_requests (user_id, requested_data, reason, status) VALUES (?, ?, ?, 'pending')");
         $json_data = json_encode($data);
@@ -738,7 +753,8 @@ try {
                             <h3>Edit Profile</h3>
                         </div>
                         <div class="account-card-body">
-                            <!-- Avatar upload as part of this card -->
+                            <?php if ($user_data['role'] === 'system_admin'): ?>
+                            <!-- Avatar upload – admin only -->
                             <form method="POST" enctype="multipart/form-data">
                                 <input type="hidden" name="action" value="upload_avatar">
                                 <div class="avatar-upload-row">
@@ -755,8 +771,6 @@ try {
                                     </div>
                                 </div>
                             </form>
-
-                            <?php if ($user_data['role'] === 'system_admin'): ?>
                             <form method="POST">
                                 <input type="hidden" name="action" value="update_profile">
                                 <div class="form-grid-2">
@@ -802,8 +816,22 @@ try {
                                 </div>
                             </form>
                             <?php else: ?>
-                            <form method="POST">
+                            <!-- lgu_staff: request changes, including profile picture -->
+                            <form method="POST" enctype="multipart/form-data">
                                 <input type="hidden" name="action" value="request_change">
+                                <div class="avatar-upload-row">
+                                    <div class="avatar-preview-sm">
+                                        <?php if (!empty($user_data['profile_picture']) && file_exists('../../uploads/profile_pictures/' . $user_data['profile_picture'])): ?>
+                                            <img src="../../uploads/profile_pictures/<?php echo htmlspecialchars($user_data['profile_picture']); ?>" alt="Avatar">
+                                        <?php else: ?>
+                                            <i class="fas fa-user"></i>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="upload-controls">
+                                        <input type="file" name="profile_picture" accept="image/*" class="form-control" style="padding:8px;">
+                                        <span style="font-size:12px;color:#888;">New profile picture (admin must approve)</span>
+                                    </div>
+                                </div>
                                 <div class="form-grid-2">
                                     <div class="form-group">
                                         <label>Full Name</label>
