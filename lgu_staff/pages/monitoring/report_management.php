@@ -235,7 +235,7 @@ function handle_update_report() {
                     'type' => 'image',
                     'filename' => $result['filename'],
                     'original_name' => $file['name'],
-                    'file_path' => 'uploads/report_images/' . $result['filename'],
+                    'file_path' => 'lgu_staff/uploads/report_images/' . $result['filename'],
                     'uploaded_at' => date('Y-m-d H:i:s'),
                     'uploaded_by' => $user_id
                 ];

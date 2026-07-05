@@ -33,7 +33,7 @@ if (!$result['success']) {
     json_error($result['error']);
 }
 
-$relative_path = 'uploads/report_images/' . $result['filename'];
+$relative_path = 'lgu_staff/uploads/report_images/' . $result['filename'];
 $existing_attachments = [];
 if (!empty($report['attachments'])) {
     $existing_attachments = json_decode($report['attachments'], true) ?: [];
