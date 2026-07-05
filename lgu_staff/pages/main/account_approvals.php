@@ -481,23 +481,63 @@ $pending_changes_count = count($change_requests);
                                     <?php foreach ($change_requests as $cr):
                                         $req_data = json_decode($cr['requested_data'], true);
                                     ?>
+                                        <?php
+                                            $fields = ['email', 'address', 'civil_status', 'birthday'];
+                                            $current_map = [
+                                                'email' => $cr['user_email'],
+                                                'address' => $cr['user_address'],
+                                                'civil_status' => $cr['user_civil_status'],
+                                                'birthday' => $cr['user_birthday'],
+                                            ];
+                                            $changed_fields = [];
+                                            foreach ($fields as $f) {
+                                                if (isset($req_data[$f]) && $req_data[$f] !== '' && $req_data[$f] !== ($current_map[$f] ?? '')) {
+                                                    $changed_fields[] = $f;
+                                                }
+                                            }
+                                        ?>
                                         <tr>
                                             <td><?php echo htmlspecialchars($cr['user_name']); ?></td>
                                             <td>
                                                 <small style="color:#666;">
-                                                    Email: <?php echo htmlspecialchars($cr['user_email']); ?><br>
-                                                    Status: <?php echo htmlspecialchars(ucfirst($cr['user_civil_status'] ?? 'N/A')); ?>
+                                                <?php if (empty($changed_fields) && empty($req_data['new_password']) && empty($req_data['profile_picture']) && empty($req_data['id_file_path'])): ?>
+                                                    No changes
+                                                <?php else: ?>
+                                                    <?php foreach ($changed_fields as $f): ?>
+                                                        <?php $label = ucfirst(str_replace('_', ' ', $f)); ?>
+                                                        <strong><?php echo $label; ?>:</strong> <?php echo htmlspecialchars($current_map[$f] ?? 'N/A'); ?><br>
+                                                    <?php endforeach; ?>
+                                                    <?php if (!empty($req_data['new_password'])): ?>
+                                                        <span style="color:#d97706;"><i class="fas fa-key"></i> Current password</span><br>
+                                                    <?php endif; ?>
+                                                    <?php if (!empty($req_data['profile_picture'])): ?>
+                                                        <span style="color:#7c3aed;"><i class="fas fa-user-circle"></i> Current profile picture</span><br>
+                                                    <?php endif; ?>
+                                                    <?php if (!empty($req_data['id_file_path'])): ?>
+                                                        <span style="color:#059669;"><i class="fas fa-id-card"></i> Current ID photo</span><br>
+                                                    <?php endif; ?>
+                                                <?php endif; ?>
                                                 </small>
                                             </td>
                                             <td>
                                                 <small style="color:#1e3c72;">
-                                                    <strong>Email:</strong> <?php echo htmlspecialchars($req_data['email'] ?? ''); ?><br>
-                                                    <strong>Address:</strong> <?php echo htmlspecialchars($req_data['address'] ?? ''); ?><br>
-                                                    <strong>Civil Status:</strong> <?php echo htmlspecialchars(ucfirst($req_data['civil_status'] ?? '')); ?><br>
-                                                    <strong>Birthday:</strong> <?php echo htmlspecialchars($req_data['birthday'] ?? ''); ?>
-                                                    <?php if (!empty($req_data['new_password'])): ?><br><span style="color:#f59e0b;"><i class="fas fa-key"></i> Password change requested</span><?php endif; ?>
-                                                    <?php if (!empty($req_data['id_file_path'])): ?><br><span style="color:#10b981;"><i class="fas fa-id-card"></i> New ID photo uploaded</span><?php endif; ?>
-                                                    <?php if (!empty($req_data['profile_picture'])): ?><br><span style="color:#8b5cf6;"><i class="fas fa-user-circle"></i> New profile picture</span><?php endif; ?>
+                                                <?php if (empty($changed_fields) && empty($req_data['new_password']) && empty($req_data['profile_picture']) && empty($req_data['id_file_path'])): ?>
+                                                    No changes
+                                                <?php else: ?>
+                                                    <?php foreach ($changed_fields as $f): ?>
+                                                        <?php $label = ucfirst(str_replace('_', ' ', $f)); ?>
+                                                        <strong><?php echo $label; ?>:</strong> <?php echo htmlspecialchars($req_data[$f]); ?><br>
+                                                    <?php endforeach; ?>
+                                                    <?php if (!empty($req_data['new_password'])): ?>
+                                                        <span style="color:#f59e0b; font-weight:600;"><i class="fas fa-key"></i> New password requested</span><br>
+                                                    <?php endif; ?>
+                                                    <?php if (!empty($req_data['profile_picture'])): ?>
+                                                        <span style="color:#8b5cf6; font-weight:600;"><i class="fas fa-user-circle"></i> New profile picture</span><br>
+                                                    <?php endif; ?>
+                                                    <?php if (!empty($req_data['id_file_path'])): ?>
+                                                        <span style="color:#10b981; font-weight:600;"><i class="fas fa-id-card"></i> New ID photo</span><br>
+                                                    <?php endif; ?>
+                                                <?php endif; ?>
                                                 </small>
                                             </td>
                                             <td><small><?php echo htmlspecialchars($cr['reason'] ?? 'N/A'); ?></small></td>
