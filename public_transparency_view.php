@@ -243,6 +243,29 @@ function getPublications() {
     return $publications;
 }
 
+// Get live report data from the actual reports tables
+$report_overview = [
+    'total_reports' => 0,
+    'pending' => 0,
+    'in_progress' => 0,
+    'completed' => 0,
+    'high_priority' => 0,
+    'problem_roads' => [],
+    'recent_reports' => []
+];
+if ($conn) {
+    try {
+        $r = @$conn->query("SELECT COUNT(*) as c, SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END) as pending, SUM(CASE WHEN status='in-progress' THEN 1 ELSE 0 END) as in_progress, SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) as completed, SUM(CASE WHEN priority IN ('high','critical') THEN 1 ELSE 0 END) as high FROM road_transportation_reports");
+        if ($r && $row = $r->fetch_assoc()) {
+            $report_overview['total_reports'] = (int)$row['c'];
+            $report_overview['pending'] = (int)$row['pending'];
+            $report_overview['in_progress'] = (int)$row['in_progress'];
+            $report_overview['completed'] = (int)$row['completed'];
+            $report_overview['high_priority'] = (int)$row['high'];
+        }
+    } catch (Exception $e) {}
+}
+
 // Get all data
 $stats = getTransparencyStats();
 $budget = getBudgetData();
@@ -332,7 +355,12 @@ if ($conn) {
     <div class="main-content">
         <div class="public-view-header">
             <h1><i class="fas fa-university"></i> Public Transparency</h1>
-            <a href="index.php"><i class="fas fa-arrow-left"></i> Back to Home</a>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <a href="public_reports.php" style="background: linear-gradient(135deg, #dc3545, #b91c1c);">
+                    <i class="fas fa-road"></i> View Road Reports
+                </a>
+                <a href="index.php"><i class="fas fa-arrow-left"></i> Back to Home</a>
+            </div>
         </div>
 
         <!-- Transparency Statistics -->
@@ -422,6 +450,46 @@ if ($conn) {
                     <div class="info-stat">
                         <div class="info-stat-value"><?php echo $metrics['citizen_rating']; ?></div>
                         <div class="info-stat-label">Citizen Rating</div>
+                    </div>
+                </div>
+            </div>
+            <!-- Road Reports Summary -->
+            <div class="info-card">
+                <div class="info-header">
+                    <div class="info-icon" style="background: linear-gradient(135deg, #dc3545, #b91c1c);">
+                        <i class="fas fa-road"></i>
+                    </div>
+                    <div class="info-title">Road Reports Summary</div>
+                </div>
+                <div class="info-description">
+                    Live overview of all road reports submitted by citizens and staff. Track problem roads, ongoing construction, and completed repairs across Quezon City.
+                </div>
+                <div class="info-stats">
+                    <div class="info-stat">
+                        <div class="info-stat-value" style="color: var(--primary);"><?php echo number_format($report_overview['total_reports']); ?></div>
+                        <div class="info-stat-label">Total Reports</div>
+                    </div>
+                    <div class="info-stat">
+                        <div class="info-stat-value" style="color: #dc3545;"><?php echo number_format($report_overview['pending']); ?></div>
+                        <div class="info-stat-label">Pending</div>
+                    </div>
+                    <div class="info-stat">
+                        <div class="info-stat-value" style="color: #d97706;"><?php echo number_format($report_overview['in_progress']); ?></div>
+                        <div class="info-stat-label">In Progress</div>
+                    </div>
+                    <div class="info-stat">
+                        <div class="info-stat-value" style="color: #059669;"><?php echo number_format($report_overview['completed']); ?></div>
+                        <div class="info-stat-label">Completed</div>
+                    </div>
+                    <div class="info-stat" style="border-top: 1px solid var(--border); padding-top: 12px; margin-top: 4px; width: 100%;">
+                        <div class="info-stat-value" style="font-size: 1rem; color: #dc3545;">
+                            <i class="fas fa-exclamation-triangle"></i> <?php echo number_format($report_overview['high_priority']); ?> High Priority
+                        </div>
+                        <div class="info-stat-label">
+                            <a href="public_reports.php" style="color: var(--primary-light); text-decoration: none; font-weight: 500;">
+                                <i class="fas fa-arrow-right"></i> View Detailed Reports
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>

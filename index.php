@@ -538,11 +538,17 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                     <li class="nav-item">
                         <a class="nav-link" href="#updates">Road Updates</a>
                     </li>
-                                        <li class="nav-item">
+                    <li class="nav-item">
+                        <a class="nav-link" href="public_reports.php">Road Status</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="#about">About</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#contact">Contact</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="public_transparency_view.php">Transparency</a>
                     </li>
 
                 </ul>
@@ -558,8 +564,11 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 Monitor road conditions in real-time and report road problems to help us maintain safe and efficient transportation infrastructure for our community.
             </p>
             <div class="hero-buttons">
-                <a href="#updates" class="btn btn-primary-hero btn-hero">
-                    <i class="fas fa-eye"></i> View Road Status
+                <a href="public_reports.php" class="btn btn-primary-hero btn-hero">
+                    <i class="fas fa-map-marked-alt"></i> Browse All Reports
+                </a>
+                <a href="#updates" class="btn btn-secondary-hero btn-hero">
+                    <i class="fas fa-newspaper"></i> Latest Updates
                 </a>
             </div>
         </div>
@@ -660,6 +669,11 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         </div>
                     </div>
                 <?php endif; ?>
+            </div>
+            <div class="text-center mt-4">
+                <a href="public_reports.php" class="btn btn-primary-hero btn-hero" style="font-size: 1rem; padding: 12px 28px;">
+                    <i class="fas fa-list"></i> View All Road Reports
+                </a>
             </div>
         </div>
     </section>
@@ -789,8 +803,8 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                     <p>&copy; 2026 Road and Transportation Department. All rights reserved.</p>
                 </div>
                 <div class="col-md-6 text-md-end">
-                    <a href="#" class="text-white me-3">Privacy Policy</a>
-                    <a href="#" class="text-white me-3">Terms of Service</a>
+                    <a href="public_reports.php" class="text-white me-3">Road Reports</a>
+                    <a href="public_transparency_view.php" class="text-white me-3">Transparency</a>
                     <div class="social-icons d-inline-block">
                         <a href="#"><i class="fab fa-facebook"></i></a>
                         <a href="#"><i class="fab fa-twitter"></i></a>
