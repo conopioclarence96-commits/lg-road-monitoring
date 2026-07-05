@@ -175,6 +175,10 @@ function handle_update_report() {
     $priority = sanitize_input($_POST['priority'] ?? '');
     $assigned_to = sanitize_input($_POST['assigned_to'] ?? '');
     $notes = sanitize_input($_POST['notes'] ?? '');
+    $title = sanitize_input($_POST['title'] ?? '');
+    $description = sanitize_input($_POST['description'] ?? '');
+    $location = sanitize_input($_POST['location'] ?? '');
+    $estimation = floatval($_POST['estimation'] ?? 0);
     
     if ($report_id <= 0 || empty($report_type) || empty($status)) {
         set_flash_message('error', 'Invalid report data');
@@ -184,28 +188,104 @@ function handle_update_report() {
     // Update the report
     $table = ($report_type === 'transportation') ? 'road_transportation_reports' : 'road_maintenance_reports';
     
+    $update_fields = [];
+    $params = [];
+    $types = '';
+    
+    $update_fields[] = "status = ?"; $params[] = $status; $types .= "s";
+    $update_fields[] = "priority = ?"; $params[] = $priority; $types .= "s";
+    $update_fields[] = "updated_at = NOW()";
+    
+    if (!empty($title)) { $update_fields[] = "title = ?"; $params[] = $title; $types .= "s"; }
+    if (!empty($description)) { $update_fields[] = "description = ?"; $params[] = $description; $types .= "s"; }
+    if (!empty($location)) { $update_fields[] = "location = ?"; $params[] = $location; $types .= "s"; }
+    if ($estimation >= 0) { $update_fields[] = "estimation = ?"; $params[] = $estimation; $types .= "d"; }
+    
     if ($table === 'road_transportation_reports') {
-        $stmt = $conn->prepare("UPDATE {$table} SET status = ?, priority = ?, assigned_to = ?, resolution_notes = ?, updated_at = NOW() WHERE id = ?");
-        $stmt->bind_param("ssssi", $status, $priority, $assigned_to, $notes, $report_id);
+        $update_fields[] = "assigned_to = ?";
+        $update_fields[] = "resolution_notes = ?";
+        $params[] = $assigned_to;
+        $params[] = $notes;
+        $types .= "ss";
     } else {
-        $stmt = $conn->prepare("UPDATE {$table} SET status = ?, priority = ?, maintenance_team = ?, updated_at = NOW() WHERE id = ?");
-        $stmt->bind_param("sssi", $status, $priority, $assigned_to, $report_id);
+        $update_fields[] = "maintenance_team = ?";
+        $params[] = $assigned_to;
+        $types .= "s";
     }
     
+    $params[] = $report_id;
+    $types .= "i";
+    
+    // Handle photo uploads
+    $uploaded_photos = [];
+    if (!empty($_FILES['report_photos']) && is_array($_FILES['report_photos']['name'])) {
+        $upload_dir = __DIR__ . '/../../uploads/report_images';
+        foreach ($_FILES['report_photos']['name'] as $i => $name) {
+            if ($_FILES['report_photos']['error'][$i] !== UPLOAD_ERR_OK) continue;
+            $file = [
+                'name' => $_FILES['report_photos']['name'][$i],
+                'type' => $_FILES['report_photos']['type'][$i],
+                'tmp_name' => $_FILES['report_photos']['tmp_name'][$i],
+                'error' => $_FILES['report_photos']['error'][$i],
+                'size' => $_FILES['report_photos']['size'][$i]
+            ];
+            $result = handle_file_upload($file, $upload_dir, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
+            if ($result['success']) {
+                $uploaded_photos[] = [
+                    'type' => 'image',
+                    'filename' => $result['filename'],
+                    'original_name' => $file['name'],
+                    'file_path' => 'uploads/report_images/' . $result['filename'],
+                    'uploaded_at' => date('Y-m-d H:i:s'),
+                    'uploaded_by' => $user_id
+                ];
+            }
+        }
+    }
+    
+    if (!empty($uploaded_photos) && $table === 'road_transportation_reports') {
+        $existing = fetch_one("SELECT attachments, image_path FROM {$table} WHERE id = ?", [$report_id], "i");
+        $existing_attachments = [];
+        if ($existing && !empty($existing['attachments'])) {
+            $existing_attachments = json_decode($existing['attachments'], true) ?: [];
+        }
+        $all_attachments = array_merge($existing_attachments, $uploaded_photos);
+        
+        $update_fields[] = "attachments = ?";
+        $update_fields[] = "image_path = ?";
+        $params = array_merge(
+            array_slice($params, 0, -1),
+            [json_encode($all_attachments)],
+            [$uploaded_photos[0]['file_path']],
+            [$report_id]
+        );
+        $types .= "ss";
+    }
+    
+    $query = "UPDATE {$table} SET " . implode(', ', $update_fields) . " WHERE id = ?";
+    $stmt = $conn->prepare($query);
+    $stmt->bind_param($types, ...$params);
+    
     if ($stmt->execute()) {
-        log_audit_action($user_id, "Updated {$report_type_from_db} report", "Report ID: {$report_id}, New Status: {$status}");
+        $change_log = "Report ID: {$report_id}, New Status: {$status}";
+        if (!empty($uploaded_photos)) $change_log .= ", Photos added: " . count($uploaded_photos);
+        if ($estimation > 0) $change_log .= ", Estimation: ₱" . number_format($estimation, 2);
+        
+        log_audit_action($user_id, "Updated {$report_type_from_db} report", $change_log);
         set_flash_message('success', 'Report updated successfully');
         
-        // Return JSON response for AJAX requests
         if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
             header('Content-Type: application/json');
-            echo json_encode(['success' => true, 'message' => 'Report updated successfully']);
+            echo json_encode([
+                'success' => true,
+                'message' => 'Report updated successfully',
+                'photos_added' => count($uploaded_photos)
+            ]);
             exit;
         }
     } else {
         set_flash_message('error', 'Failed to update report: ' . $conn->error);
         
-        // Return JSON response for AJAX requests
         if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
             header('Content-Type: application/json');
             echo json_encode(['success' => false, 'message' => 'Failed to update report: ' . $conn->error]);
@@ -874,13 +954,71 @@ if (!empty($reports)) {
 
         .modal-content {
             background: white;
-            margin: 5% auto;
+            margin: 3% auto;
             padding: 0;
             border-radius: 16px;
-            width: 90%;
+            width: 92%;
             max-width: 600px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
             animation: modalSlideIn 0.3s ease;
+        }
+
+        .form-section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 18px 20px;
+            margin-bottom: 16px;
+            border: 1px solid #e9ecef;
+        }
+
+        .form-section h6 {
+            color: #1e3c72;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-section h6 i {
+            color: #3762c8;
+            font-size: 14px;
+        }
+
+        .form-section .form-group {
+            margin-bottom: 12px;
+        }
+
+        .form-section .form-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .form-section .form-label {
+            font-size: 12px;
+            font-weight: 500;
+            color: #495057;
+            margin-bottom: 4px;
+        }
+
+        .form-section .form-control {
+            font-size: 13px;
+            padding: 8px 12px;
+        }
+
+        input[type="file"].form-control {
+            padding: 6px 10px;
+            font-size: 12px;
+        }
+
+        #existingPhotos img,
+        #photoPreview img {
+            transition: transform 0.2s;
+        }
+
+        #existingPhotos img:hover,
+        #photoPreview img:hover {
+            transform: scale(1.05);
         }
 
         @keyframes modalSlideIn {
@@ -1257,65 +1395,125 @@ if (!empty($reports)) {
         </div>
     </div>
 
-    <!-- Edit Report Modal -->
+    <!-- Edit Report Modal (Enhanced) -->
     <div id="editReportModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 750px;">
             <div class="modal-header">
-                <h5 class="modal-title">Update Report</h5>
+                <h5 class="modal-title"><i class="fas fa-edit"></i> Update Report</h5>
                 <button class="close" onclick="closeModal('editReportModal')">&times;</button>
             </div>
-            <form method="POST" id="editReportForm">
+            <form method="POST" id="editReportForm" enctype="multipart/form-data">
                 <div class="modal-body">
                     <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
                     <input type="hidden" name="action" value="update_report">
                     <input type="hidden" name="report_id" id="editReportId">
                     <input type="hidden" name="report_type" id="editReportType">
                     <input type="hidden" name="report_type_from_db" id="editReportTypeFromDB">
-                    
-                    <div style="display: flex; gap: 15px;">
-                        <div class="form-group" style="flex: 1;">
-                            <label for="editStatus" class="form-label">Status *</label>
-                            <select class="form-control" name="status" id="editStatus" required>
-                                <option value="pending">Pending</option>
-                                <option value="in-progress">In Progress</option>
-                                <option value="completed">Completed</option>
-                            </select>
+
+                    <div class="form-section">
+                        <h6><i class="fas fa-info-circle"></i> Basic Information</h6>
+                        <div class="form-group">
+                            <label for="editTitle" class="form-label">Title</label>
+                            <input type="text" class="form-control" name="title" id="editTitle" placeholder="Report title">
                         </div>
-                        <div class="form-group" style="flex: 1;">
-                            <label for="editPriority" class="form-label">Priority *</label>
-                            <select class="form-control" name="priority" id="editPriority" required>
-                                <option value="low">Low</option>
-                                <option value="medium">Medium</option>
-                                <option value="high">High</option>
-                            </select>
+                        <div class="form-group">
+                            <label for="editDescription" class="form-label">Description</label>
+                            <textarea class="form-control" name="description" id="editDescription" rows="3" placeholder="Report description"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="editLocation" class="form-label">Location</label>
+                            <input type="text" class="form-control" name="location" id="editLocation" placeholder="Report location">
                         </div>
                     </div>
-                    
-                    <div class="form-group">
-                        <label for="editAssignedTo" class="form-label">Assign To *</label>
-                        <select class="form-control" name="assigned_to" id="editAssignedTo" required>
-                            <option value="">Select Assignee</option>
-                            <option value="CIM Engineer 1">CIM Engineer 1</option>
-                            <option value="CIM Engineer 2">CIM Engineer 2</option>
-                            <option value="CIM Engineer 3">CIM Engineer 3</option>
-                            <option value="CIM Engineer 4">CIM Engineer 4</option>
-                            <option value="CIM Engineer 5">CIM Engineer 5</option>
-                            <option value="Maintenance Team">Maintenance Team</option>
-                            <option value="Road Inspector">Road Inspector</option>
-                            <option value="Project Manager">Project Manager</option>
-                        </select>
-                        <small style="color: #666; font-size: 12px;">Select the team member responsible for this report</small>
+
+                    <div class="form-section">
+                        <h6><i class="fas fa-tasks"></i> Status & Assignment</h6>
+                        <div style="display: flex; gap: 15px;">
+                            <div class="form-group" style="flex: 1;">
+                                <label for="editStatus" class="form-label">Status *</label>
+                                <select class="form-control" name="status" id="editStatus" required>
+                                    <option value="pending">Pending</option>
+                                    <option value="in-progress">In Progress</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="cancelled">Cancelled</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="flex: 1;">
+                                <label for="editPriority" class="form-label">Priority *</label>
+                                <select class="form-control" name="priority" id="editPriority" required>
+                                    <option value="low">Low</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="high">High</option>
+                                    <option value="critical">Critical</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="editAssignedTo" class="form-label">Assign To *</label>
+                            <select class="form-control" name="assigned_to" id="editAssignedTo" required>
+                                <option value="">Select Assignee</option>
+                                <option value="CIM Engineer 1">CIM Engineer 1</option>
+                                <option value="CIM Engineer 2">CIM Engineer 2</option>
+                                <option value="CIM Engineer 3">CIM Engineer 3</option>
+                                <option value="CIM Engineer 4">CIM Engineer 4</option>
+                                <option value="CIM Engineer 5">CIM Engineer 5</option>
+                                <option value="Maintenance Team">Maintenance Team</option>
+                                <option value="Road Inspector">Road Inspector</option>
+                                <option value="Project Manager">Project Manager</option>
+                            </select>
+                            <small style="color: #666; font-size: 12px;">Select the team member responsible for this report</small>
+                        </div>
                     </div>
-                    
-                    
-                    <div class="form-group">
-                        <label for="editNotes" class="form-label">Notes</label>
-                        <textarea class="form-control" name="notes" id="editNotes" rows="4" placeholder="Add any notes or updates..."></textarea>
+
+                    <div class="form-section">
+                        <h6><i class="fas fa-calculator"></i> Cost Estimation</h6>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="editEstimation" class="form-label">Estimated Cost (PHP)</label>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span style="font-size: 18px; font-weight: 600; color: #1e3c72;">₱</span>
+                                <input type="number" class="form-control" name="estimation" id="editEstimation" 
+                                       min="0" max="10000000" step="0.01" 
+                                       placeholder="0.00" style="flex: 1;">
+                                <span style="font-size: 12px; color: #666;">Max: ₱10,000,000</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h6><i class="fas fa-images"></i> Report Photos</h6>
+                        <div id="existingPhotos" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;"></div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="editPhotos" class="form-label">Add New Photos</label>
+                            <input type="file" class="form-control" name="report_photos[]" id="editPhotos" 
+                                   accept="image/jpeg,image/png,image/gif,image/webp" multiple
+                                   style="padding: 10px;">
+                            <small style="color: #666; font-size: 12px;">Accepted: JPG, PNG, GIF, WebP | Max: 5MB each</small>
+                            <div id="photoPreview" style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h6><i class="fas fa-sticky-note"></i> Progress Notes</h6>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="editNotes" class="form-label">Update Notes / Resolution Details</label>
+                            <textarea class="form-control" name="notes" id="editNotes" rows="4" 
+                                      placeholder="Describe the current status, actions taken, or resolution details..."></textarea>
+                            <small style="color: #666; font-size: 12px;">
+                                <i class="fas fa-info-circle"></i> These notes will be visible to other staff members
+                            </small>
+                        </div>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn-secondary-custom" onclick="closeModal('editReportModal')">Cancel</button>
-                    <button type="submit" class="btn-primary-custom">Update Report</button>
+                <div class="modal-footer" style="justify-content: space-between;">
+                    <div>
+                        <span id="updateStatusIndicator" style="font-size: 12px; color: #666;"></span>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button type="button" class="btn-secondary-custom" onclick="closeModal('editReportModal')">Cancel</button>
+                        <button type="submit" class="btn-primary-custom" id="updateSubmitBtn">
+                            <i class="fas fa-save"></i> Save Changes
+                        </button>
+                    </div>
                 </div>
             </form>
         </div>
@@ -1434,27 +1632,83 @@ if (!empty($reports)) {
                         document.getElementById('editReportTypeFromDB').value = data.report.report_type;
                         document.getElementById('editStatus').value = data.report.status;
                         document.getElementById('editPriority').value = data.report.priority;
+                        document.getElementById('editTitle').value = data.report.title || '';
+                        document.getElementById('editDescription').value = data.report.description || '';
+                        document.getElementById('editLocation').value = data.report.location || '';
+                        
+                        if (data.report.estimation && data.report.estimation > 0) {
+                            document.getElementById('editEstimation').value = data.report.estimation;
+                        } else {
+                            document.getElementById('editEstimation').value = '';
+                        }
 
                         // Auto-assign based on priority if no assignment exists
                         const assignedToSelect = document.getElementById('editAssignedTo');
                         if (!data.report.assigned_to || data.report.assigned_to === '') {
                             const priority = data.report.priority;
                             let autoAssign = '';
-                            
-                            if (priority === 'high') {
-                                autoAssign = 'CIM Engineer 1'; // Senior engineer for high priority
+                            if (priority === 'high' || priority === 'critical') {
+                                autoAssign = 'CIM Engineer 1';
                             } else if (priority === 'medium') {
-                                autoAssign = 'CIM Engineer 2'; // Mid-level engineer for medium priority
+                                autoAssign = 'CIM Engineer 2';
                             } else {
-                                autoAssign = 'CIM Engineer 3'; // Junior engineer for low priority
+                                autoAssign = 'CIM Engineer 3';
                             }
-                            
                             assignedToSelect.value = autoAssign;
                         } else {
                             assignedToSelect.value = data.report.assigned_to;
                         }
                         
                         document.getElementById('editNotes').value = data.report.notes || '';
+                        
+                        // Show existing photos
+                        const container = document.getElementById('existingPhotos');
+                        container.innerHTML = '';
+                        let hasPhotos = false;
+                        
+                        if (data.report.image_path) {
+                            const imgUrl = data.report.image_path;
+                            container.innerHTML += `
+                                <div style="position:relative;width:100px;height:100px;border-radius:8px;overflow:hidden;border:2px solid #e2e8f0;">
+                                    <img src="${imgUrl}" alt="Report photo" style="width:100%;height:100%;object-fit:cover;cursor:pointer;" 
+                                         onclick="window.open('${imgUrl}','_blank')">
+                                    <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.6);font-size:10px;color:white;text-align:center;padding:2px;">Current</div>
+                                </div>`;
+                            hasPhotos = true;
+                        }
+                        
+                        if (data.report.attachments) {
+                            let attachments = data.report.attachments;
+                            if (typeof attachments === 'string') {
+                                try { attachments = JSON.parse(attachments); } catch(e) { attachments = []; }
+                            }
+                            if (Array.isArray(attachments)) {
+                                attachments.forEach((att, idx) => {
+                                    const path = att.file_path || att.file || '';
+                                    if (path) {
+                                        container.innerHTML += `
+                                            <div style="position:relative;width:100px;height:100px;border-radius:8px;overflow:hidden;border:2px solid #e2e8f0;">
+                                                <img src="${path}" alt="Attachment ${idx+1}" style="width:100%;height:100%;object-fit:cover;cursor:pointer;" 
+                                                     onclick="window.open('${path}','_blank')">
+                                            </div>`;
+                                        hasPhotos = true;
+                                    }
+                                });
+                            }
+                        }
+                        
+                        if (!hasPhotos) {
+                            container.innerHTML = '<div style="color:#6b7280;font-size:13px;padding:8px 0;"><i class="fas fa-camera"></i> No photos yet</div>';
+                        }
+                        
+                        // Clear photo preview
+                        document.getElementById('photoPreview').innerHTML = '';
+                        document.getElementById('editPhotos').value = '';
+                        
+                        // Update status indicator
+                        document.getElementById('updateStatusIndicator').textContent = 
+                            'Last updated: ' + (data.report.updated_at || 'N/A');
+                        
                         openModal('editReportModal');
                     } else {
                         showNotification('Failed to load report details', 'error');
@@ -1789,6 +2043,25 @@ if (!empty($reports)) {
             }
         }
 
+        // Photo preview on file select
+        document.getElementById('editPhotos').addEventListener('change', function() {
+            const preview = document.getElementById('photoPreview');
+            preview.innerHTML = '';
+            if (this.files) {
+                Array.from(this.files).forEach((file, i) => {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        preview.innerHTML += `
+                            <div style="position:relative;width:90px;height:90px;border-radius:8px;overflow:hidden;border:2px solid #3762c8;">
+                                <img src="${e.target.result}" alt="New photo ${i+1}" style="width:100%;height:100%;object-fit:cover;">
+                                <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(55,98,200,0.8);font-size:10px;color:white;text-align:center;padding:2px;">New</div>
+                            </div>`;
+                    };
+                    reader.readAsDataURL(file);
+                });
+            }
+        });
+
         // Handle edit report form submission
         document.getElementById('editReportForm').addEventListener('submit', function(e) {
             e.preventDefault();
@@ -1796,9 +2069,11 @@ if (!empty($reports)) {
             const formData = new FormData(this);
             const submitBtn = this.querySelector('button[type="submit"]');
             const originalText = submitBtn.innerHTML;
+            const indicator = document.getElementById('updateStatusIndicator');
             
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
             submitBtn.disabled = true;
+            indicator.textContent = 'Saving changes...';
             
             fetch('', {
                 method: 'POST',
@@ -1813,27 +2088,22 @@ if (!empty($reports)) {
                 submitBtn.disabled = false;
 
                 if (data.success) {
-                    showNotification('Report updated successfully', 'success');
-                    closeModal('editReportModal');
-                    
-                    // Update the viewEstimation span with the new value
-                    const estimationValue = formData.get('estimation');
-                    const viewEstimationSpan = document.getElementById('viewEstimation');
-                    if (viewEstimationSpan && estimationValue) {
-                        const formattedEstimation = parseFloat(estimationValue).toLocaleString('en-PH', {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2
-                        });
-                        viewEstimationSpan.textContent = `₱${formattedEstimation}`;
-                        viewEstimationSpan.style.display = 'inline';
+                    let msg = 'Report updated successfully';
+                    if (data.photos_added > 0) {
+                        msg += ` (${data.photos_added} photo${data.photos_added > 1 ? 's' : ''} added)`;
                     }
+                    showNotification(msg, 'success');
+                    closeModal('editReportModal');
+                    indicator.textContent = 'Changes saved. Refreshing...';
                     
-                    // Refresh report list to show updated estimation
                     setTimeout(() => {
-                        location.reload(); // Simple page reload to show updated data
+                        location.reload();
                     }, 1000);
                 } else {
                     showNotification(data.message || 'Failed to update report', 'error');
+                    indicator.textContent = 'Failed to save changes';
+                    submitBtn.innerHTML = originalText;
+                    submitBtn.disabled = false;
                 }
             })
             .catch(error => {
@@ -1841,6 +2111,7 @@ if (!empty($reports)) {
                 showNotification('Error updating report', 'error');
                 submitBtn.innerHTML = originalText;
                 submitBtn.disabled = false;
+                indicator.textContent = 'Error saving changes';
             });
         });
     </script>
