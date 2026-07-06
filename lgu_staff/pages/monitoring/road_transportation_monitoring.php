@@ -288,7 +288,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                             'type' => 'image',
                             'filename' => $upload_result['filename'],
                             'original_name' => $_FILES['report_image']['name'],
-                            'file_path' => 'lgu_staff/uploads/report_images/' . $upload_result['filename'],
+                            'file_path' => 'uploads/report_images/' . $upload_result['filename'],
                             'uploaded_at' => date('Y-m-d H:i:s')
                         ];
                     } else {
