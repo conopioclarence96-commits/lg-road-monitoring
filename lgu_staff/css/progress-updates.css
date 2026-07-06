@@ -262,13 +262,13 @@
     justify-content: center;
 }
 
-body.dark-mode .timeline-card { background: rgba(30,34,41,0.85); border-color: rgba(255,255,255,0.08); }
-body.dark-mode .timeline-title { color: #e4e6ea; }
-body.dark-mode .timeline-desc { color: #9ca3af; }
-body.dark-mode .timeline-meta { color: #6b7280; }
+body.dark-mode .timeline-card { background: rgba(30,34,41,0.85); border-color: #3b82f6; }
+body.dark-mode .timeline-title { color: #f0f2f5; }
+body.dark-mode .timeline-desc { color: #e8eaed; }
+body.dark-mode .timeline-meta { color: #c4c7cc; }
 body.dark-mode .timeline-empty { color: #6b7280; }
-body.dark-mode .add-update-form { background: rgba(30,34,41,0.6); border-color: rgba(255,255,255,0.1); }
-body.dark-mode .add-update-form h5 { color: #e4e6ea; }
-body.dark-mode .add-update-form label { color: #9ca3af; }
+body.dark-mode .add-update-form { background: rgba(30,34,41,0.6); border-color: #3b82f6; }
+body.dark-mode .add-update-form h5 { color: #f0f2f5; }
+body.dark-mode .add-update-form label { color: #c4c7cc; }
 body.dark-mode .add-update-form input[type="text"],
-body.dark-mode .add-update-form textarea { background: #1a1d23; color: #e4e6ea; border-color: #2d323b; }
+body.dark-mode .add-update-form textarea { background: #1a1d23; color: #f0f2f5; border-color: #3b82f6; }

@@ -36,7 +36,7 @@ body.dark-mode .verification-header {
 body.dark-mode .welcome-text h1,
 body.dark-mode .header-title h1,
 body.dark-mode .page-header h1 {
-    color: #e4e6ea !important;
+    color: #f0f2f5 !important;
 }
 
 body.dark-mode .welcome-text p,
@@ -81,7 +81,7 @@ body.dark-mode .stat-icon {
 }
 
 body.dark-mode .stat-number {
-    color: #e4e6ea !important;
+    color: #f0f2f5 !important;
 }
 
 body.dark-mode .stat-label {
@@ -104,7 +104,7 @@ body.dark-mode .workflow-title,
 body.dark-mode .map-title,
 body.dark-mode .info-card-title,
 body.dark-mode .account-card-header h3 {
-    color: #e4e6ea !important;
+    color: #f0f2f5 !important;
 }
 
 body.dark-mode .chart-card-title i,
@@ -115,12 +115,12 @@ body.dark-mode .workflow-title i {
 /* Text colors */
 body.dark-mode h1, body.dark-mode h2, body.dark-mode h3,
 body.dark-mode h4, body.dark-mode h5, body.dark-mode h6 {
-    color: #e4e6ea !important;
+    color: #f0f2f5 !important;
 }
 
 body.dark-mode p, body.dark-mode span, body.dark-mode div,
 body.dark-mode li, body.dark-mode td, body.dark-mode th {
-    color: #d1d5db;
+    color: #e8eaed;
 }
 
 body.dark-mode small, body.dark-mode .field-hint,
@@ -129,7 +129,7 @@ body.dark-mode .map-hint, body.dark-mode .log-time {
 }
 
 body.dark-mode strong {
-    color: #e4e6ea;
+    color: #f0f2f5;
 }
 
 /* Tables */
@@ -143,13 +143,13 @@ body.dark-mode table {
 
 body.dark-mode th {
     background: #1e2229 !important;
-    color: #9ca3af !important;
-    border-color: #2d323b !important;
+    color: #c4c7cc !important;
+    border-color: #3b82f6 !important;
 }
 
 body.dark-mode td {
-    border-color: #2d323b !important;
-    color: #d1d5db !important;
+    border-color: #3b82f6 !important;
+    color: #e8eaed !important;
 }
 
 body.dark-mode tr:hover td {
@@ -158,7 +158,7 @@ body.dark-mode tr:hover td {
 
 /* Status badges */
 body.dark-mode .status-badge {
-    color: #e4e6ea !important;
+    color: #f0f2f5 !important;
 }
 
 body.dark-mode .status-pending {
@@ -259,8 +259,8 @@ body.dark-mode .form-control,
 body.dark-mode input, body.dark-mode select,
 body.dark-mode textarea {
     background: #1a1d23 !important;
-    border-color: #2d323b !important;
-    color: #e4e6ea !important;
+    border-color: #3b82f6 !important;
+    color: #f0f2f5 !important;
 }
 
 body.dark-mode .form-control:focus,
@@ -304,7 +304,7 @@ body.dark-mode .modal {
 
 body.dark-mode .modal-content {
     background: #22262e !important;
-    border-color: #2d323b !important;
+    border-color: #3b82f6 !important;
 }
 
 body.dark-mode .modal-header {
@@ -313,21 +313,21 @@ body.dark-mode .modal-header {
 }
 
 body.dark-mode .modal-title {
-    color: #e4e6ea !important;
+    color: #f0f2f5 !important;
 }
 
 body.dark-mode .modal-close,
 body.dark-mode .close {
-    color: #9ca3af !important;
+    color: #c4c7cc !important;
 }
 
 body.dark-mode .modal-close:hover,
 body.dark-mode .close:hover {
-    color: #e4e6ea !important;
+    color: #f0f2f5 !important;
 }
 
 body.dark-mode .modal-body {
-    color: #d1d5db !important;
+    color: #e8eaed !important;
 }
 
 body.dark-mode .modal-footer {
@@ -566,15 +566,19 @@ body.dark-mode .report-header {
 }
 
 body.dark-mode .report-title {
-    color: #e4e6ea !important;
+    color: #f0f2f5 !important;
 }
 
 body.dark-mode .report-meta {
-    color: #9ca3af !important;
+    color: #c4c7cc !important;
+}
+
+body.dark-mode .stat-label {
+    color: #c4c7cc !important;
 }
 
 body.dark-mode .report-description {
-    color: #d1d5db !important;
+    color: #e8eaed !important;
 }
 
 body.dark-mode .report-actions {
@@ -812,14 +816,16 @@ body.dark-mode .leaflet-control-attribution a {
 }
 
 /* Misc / inline style overrides -- text colors */
-body.dark-mode [style*="color: #1e3c72"] { color: #e4e6ea !important; }
-body.dark-mode [style*="color: #666"] { color: #9ca3af !important; }
-body.dark-mode [style*="color: #333"] { color: #d1d5db !important; }
+body.dark-mode [style*="color: #1e3c72"] { color: #f0f2f5 !important; }
+body.dark-mode [style*="color: #666"] { color: #c4c7cc !important; }
+body.dark-mode [style*="color: #333"] { color: #e8eaed !important; }
 body.dark-mode [style*="color: #64748b"] { color: #9ca3af !important; }
 body.dark-mode [style*="color: #3762c8"] { color: #93c5fd !important; }
 body.dark-mode [style*="color: #888"] { color: #9ca3af !important; }
 body.dark-mode [style*="color: #999"] { color: #9ca3af !important; }
-body.dark-mode [style*="color: #6b7280"] { color: #9ca3af !important; }
+/* inline style overrides for report_management.php */
+/* Report info in modal footer */
+body.dark-mode [style*="color: #6b7280"] { color: #c4c7cc !important; }
 body.dark-mode [style*="color: #475569"] { color: #9ca3af !important; }
 body.dark-mode [style*="color: #495057"] { color: #9ca3af !important; }
 body.dark-mode [style*="color: #555"] { color: #9ca3af !important; }
@@ -889,3 +895,184 @@ body.dark-mode [style*="background: #d4edda"] { background: #064e3b !important; 
 body.dark-mode [style*="background: #d1ecf1"] { background: #1e3a5f !important; }
 body.dark-mode [style*="background-color: #007bff"] { background-color: #2563eb !important; }
 body.dark-mode [style*="background-color: #0056b3"] { background-color: #1d4ed8 !important; }
+
+/* =============================================
+   report_management.php dark mode overrides
+   ============================================= */
+
+/* Fix white rgba() borders that appear as white lines on dark backgrounds */
+body.dark-mode .dashboard-header,
+body.dark-mode .chart-container,
+body.dark-mode .filters-section {
+    border-color: #3b82f6 !important;
+}
+
+body.dark-mode .stat-card {
+    border-color: #3b82f6 !important;
+}
+
+body.dark-mode .report-card {
+    border-color: #3b82f6 !important;
+}
+
+/* Modal header gradient — darken for dark mode */
+body.dark-mode .modal-header {
+    background: linear-gradient(135deg, #1e3c72, #0f1f3d) !important;
+}
+
+/* Modal close button — ensure visibility */
+body.dark-mode .close {
+    color: #9ca3af !important;
+}
+body.dark-mode .close:hover {
+    color: #e4e6ea !important;
+}
+
+/* Modal footer border */
+body.dark-mode .modal-footer {
+    border-top-color: #2d323b !important;
+}
+
+/* Form sections */
+body.dark-mode .form-section {
+    background: #1e2229 !important;
+    border-color: #3b82f6 !important;
+}
+body.dark-mode .form-section h6 {
+    color: #e4e6ea !important;
+}
+body.dark-mode .form-section h6 i {
+    color: #60a5fa !important;
+}
+
+/* Select dropdown arrow color — darken icon */
+body.dark-mode select.form-control {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%239ca3af'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e") !important;
+}
+
+body.dark-mode select.form-control option {
+    background: #22262e !important;
+    color: #e4e6ea !important;
+}
+
+/* Alert border-left colors */
+body.dark-mode .alert-success {
+    border-left-color: #34d399 !important;
+}
+body.dark-mode .alert-error {
+    border-left-color: #fca5a5 !important;
+}
+
+/* Button custom variants */
+body.dark-mode .btn-primary-custom {
+    background: linear-gradient(135deg, #2563eb, #1e40af) !important;
+}
+body.dark-mode .btn-primary-custom:hover {
+    box-shadow: 0 8px 25px rgba(37, 99, 235, 0.3) !important;
+}
+
+body.dark-mode .btn-secondary-custom {
+    background: rgba(156, 163, 175, 0.1) !important;
+    color: #9ca3af !important;
+    border-color: #4b5563 !important;
+}
+body.dark-mode .btn-secondary-custom:hover {
+    background: #4b5563 !important;
+    color: #e4e6ea !important;
+}
+
+body.dark-mode .btn-success-custom {
+    background: rgba(52, 211, 153, 0.1) !important;
+    color: #34d399 !important;
+    border-color: #059669 !important;
+}
+body.dark-mode .btn-success-custom:hover {
+    background: #059669 !important;
+    color: white !important;
+}
+
+body.dark-mode .btn-view {
+    background: rgba(96, 165, 250, 0.15) !important;
+    color: #60a5fa !important;
+}
+body.dark-mode .btn-view:hover {
+    background: #2563eb !important;
+    color: white !important;
+}
+
+body.dark-mode .btn-edit {
+    background: rgba(251, 191, 36, 0.15) !important;
+    color: #fbbf24 !important;
+}
+body.dark-mode .btn-edit:hover {
+    background: #d97706 !important;
+    color: white !important;
+}
+
+body.dark-mode .btn-delete {
+    background: rgba(248, 113, 113, 0.15) !important;
+    color: #fca5a5 !important;
+}
+body.dark-mode .btn-delete:hover {
+    background: #dc2626 !important;
+    color: white !important;
+}
+
+/* Assignment info block */
+body.dark-mode .assignment-info {
+    background: rgba(96, 165, 250, 0.1) !important;
+    border-left-color: #60a5fa !important;
+}
+
+/* Photo container borders (inline style) */
+body.dark-mode [style*="border: 2px solid #e2e8f0"] {
+    border-color: #2d323b !important;
+}
+body.dark-mode [style*="border: 2px solid #3762c8"] {
+    border-color: #60a5fa !important;
+}
+
+/* Notification toast */
+body.dark-mode .notification-toast {
+    background: #22262e !important;
+    color: #f0f2f5 !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Progress updates timeline in modal — correct ID is updatesTimeline */
+body.dark-mode .timeline-dot {
+    border-color: #22262e !important;
+    background: #2563eb !important;
+}
+body.dark-mode .timeline-container::before {
+    background: linear-gradient(180deg, #2563eb, #1e3c72, transparent) !important;
+}
+body.dark-mode .timeline-media-item {
+    border-color: #3b82f6 !important;
+}
+body.dark-mode .timeline-actions {
+    border-top-color: rgba(59, 130, 246, 0.2) !important;
+}
+body.dark-mode .timeline-meta .admin-badge {
+    background: rgba(96, 165, 250, 0.15) !important;
+    color: #60a5fa !important;
+}
+body.dark-mode .btn-edit-update {
+    background: rgba(96, 165, 250, 0.15) !important;
+    color: #60a5fa !important;
+}
+body.dark-mode .btn-edit-update:hover {
+    background: #2563eb !important;
+    color: #fff !important;
+}
+body.dark-mode .btn-delete-update {
+    background: rgba(248, 113, 113, 0.15) !important;
+    color: #fca5a5 !important;
+}
+body.dark-mode .btn-delete-update:hover {
+    background: #dc2626 !important;
+    color: #fff !important;
+}
+body.dark-mode .add-update-form .file-preview-item {
+    border-color: #3b82f6 !important;
+}
