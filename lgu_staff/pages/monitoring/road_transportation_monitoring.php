@@ -1256,27 +1256,33 @@ $recent_reports = getRecentTransportReports(10);
 
         // Focus map on a specific report by ID
         function focusReportOnMap(reportId) {
+            // First try to find in existing markers (fast path)
             const found = allMarkerObjects.find(m => m._reportId === reportId);
             if (found) {
                 map.setView(found.getLatLng(), 16);
                 found.openPopup();
                 return;
             }
-            // Marker filtered out — switch filter to 'all' and reload
+            // Not in current markers — fetch all markers directly and locate it
             activeFilter = 'all';
             document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
             const allBtn = document.querySelector('.filter-btn[data-filter="all"]');
             if (allBtn) allBtn.classList.add('active');
-            loadMarkers('all', function() {
-                const marker = allMarkerObjects.find(m => m._reportId === reportId);
-                if (marker) {
-                    map.setView(marker.getLatLng(), 16);
-                    marker.openPopup();
-                    showNotification('Filter changed to show all reports.', 'info');
-                } else {
-                    showNotification('Report has no location data on the map.', 'info');
-                }
-            });
+            fetch('?action=get_markers')
+                .then(r => r.json())
+                .then(markers => {
+                    const report = markers.find(m => m.id == reportId);
+                    if (report && report.latitude && report.longitude) {
+                        const lat = parseFloat(report.latitude);
+                        const lng = parseFloat(report.longitude);
+                        map.setView([lat, lng], 16);
+                        // Also refresh markers on map with all filter
+                        loadMarkers('all');
+                    } else {
+                        showNotification('Report has no location data on the map.', 'info');
+                    }
+                })
+                .catch(() => showNotification('Could not load map data.', 'error'));
         }
 
         // Search reports table
