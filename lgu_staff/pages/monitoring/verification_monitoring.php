@@ -843,6 +843,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             color: #999;
         }
 
+        body.dark-mode .timeline-section {
+            background: #1e2229;
+            border-color: #2d323b;
+        }
+        body.dark-mode .timeline-header {
+            color: #f0f2f5;
+        }
+        body.dark-mode .timeline::before {
+            background: rgba(59, 130, 246, 0.25);
+        }
+        body.dark-mode .timeline-marker {
+            border-color: #1a1d23;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+        }
+        body.dark-mode .timeline-marker.approved {
+            background: #059669;
+        }
+        body.dark-mode .timeline-marker.rejected {
+            background: #dc2626;
+        }
+        body.dark-mode .timeline-marker.pending {
+            background: #d97706;
+        }
+        body.dark-mode .timeline-content {
+            background: #22262e;
+            border-color: #2d323b;
+        }
+        body.dark-mode .timeline-title {
+            color: #f0f2f5;
+        }
+        body.dark-mode .timeline-description {
+            color: #d1d5db;
+        }
+        body.dark-mode .timeline-time {
+            color: #6b7280;
+        }
+
         .filter-tabs {
             display: flex;
             gap: 10px;
