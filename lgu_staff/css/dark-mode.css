@@ -1081,8 +1081,25 @@ body.dark-mode .add-update-form .file-preview-item {
 body.dark-mode .detail-item {
     background: #1e2229 !important;
     border-color: #2d323b !important;
+    color: #d1d5db !important;
 }
 
 body.dark-mode .detail-item strong {
     color: #f0f2f5 !important;
+}
+
+body.dark-mode .expanded-details {
+    border-top-color: rgba(59, 130, 246, 0.2) !important;
+}
+
+body.dark-mode .detail-item [style*="background: rgba(55, 98, 200, 0.05)"] {
+    background: rgba(59, 130, 246, 0.1) !important;
+}
+
+body.dark-mode .detail-item a[style*="color: #3762c8"] {
+    color: #93c5fd !important;
+}
+
+body.dark-mode .detail-item.full-width img {
+    border-color: rgba(59, 130, 246, 0.3) !important;
 }
