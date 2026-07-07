@@ -38,8 +38,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $civil_status = sanitize_input($_POST['civil_status'] ?? '');
 
         if (!empty($full_name) && !empty($email)) {
-            $stmt = $conn->prepare("UPDATE users SET full_name = ?, email = ?, department = ?, address = ?, birthday = ?, civil_status = ? WHERE id = ?");
-            $stmt->bind_param("ssssssi", $full_name, $email, $department, $address, $birthday, $civil_status, $user_id);
+            $sql = "UPDATE users SET full_name = ?, email = ?, department = ?, address = ?, birthday = ?, civil_status = ?";
+            $params = [$full_name, $email, $department, $address, $birthday, $civil_status];
+            $types = "ssssss";
+
+            // Handle ID file upload
+            if (isset($_FILES['id_file']) && $_FILES['id_file']['error'] === UPLOAD_ERR_OK) {
+                $upload_dir = '../../uploads/ids/';
+                if (!is_dir($upload_dir)) {
+                    mkdir($upload_dir, 0777, true);
+                }
+                $ext = strtolower(pathinfo($_FILES['id_file']['name'], PATHINFO_EXTENSION));
+                $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf'];
+                if (in_array($ext, $allowed)) {
+                    $filename = 'id_' . $user_id . '_' . time() . '.' . $ext;
+                    if (move_uploaded_file($_FILES['id_file']['tmp_name'], $upload_dir . $filename)) {
+                        $sql .= ", id_file_path = ?";
+                        $params[] = 'uploads/ids/' . $filename;
+                        $types .= "s";
+                    }
+                }
+            }
+
+            $sql .= " WHERE id = ?";
+            $params[] = $user_id;
+            $types .= "i";
+
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param($types, ...$params);
             $stmt->execute();
             $stmt->close();
 
@@ -846,29 +872,7 @@ try {
                                     </div>
                                 </div>
                             </form>
-                            <!-- ID upload – admin only -->
-                            <form method="POST" enctype="multipart/form-data" style="margin-bottom:20px; padding-bottom:20px; border-bottom:1px solid #f0f2f4;">
-                                <input type="hidden" name="action" value="upload_id">
-                                <div class="avatar-upload-row">
-                                    <div class="avatar-preview-sm">
-                                        <?php if (!empty($user_data['id_file_path'])): ?>
-                                            <?php $ext = pathinfo($user_data['id_file_path'], PATHINFO_EXTENSION); ?>
-                                            <?php if (in_array(strtolower($ext), ['jpg','jpeg','png','gif','webp'])): ?>
-                                                <img src="../../uploads/ids/<?php echo htmlspecialchars($user_data['id_file_path']); ?>" alt="ID" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
-                                            <?php else: ?>
-                                                <i class="fas fa-file-pdf"></i>
-                                            <?php endif; ?>
-                                        <?php else: ?>
-                                            <i class="fas fa-id-card"></i>
-                                        <?php endif; ?>
-                                    </div>
-                                    <div class="upload-controls">
-                                        <input type="file" name="id_file" accept="image/*,.pdf" class="form-control" style="padding:8px;">
-                                        <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-upload"></i> Upload ID</button>
-                                    </div>
-                                </div>
-                            </form>
-                            <form method="POST">
+                            <form method="POST" enctype="multipart/form-data">
                                 <input type="hidden" name="action" value="update_profile">
                                 <div class="form-grid-2">
                                     <div class="form-group">
@@ -897,14 +901,17 @@ try {
                                         <input type="date" name="birthday" class="form-control" value="<?php echo htmlspecialchars($user_data['birthday'] ?? ''); ?>">
                                     </div>
                                     <div class="form-group">
-                                        <label>Civil Status</label>
-                                        <select name="civil_status" class="form-control">
-                                            <option value="">Select status</option>
-                                            <option value="single" <?php echo ($user_data['civil_status'] ?? '') === 'single' ? 'selected' : ''; ?>>Single</option>
-                                            <option value="married" <?php echo ($user_data['civil_status'] ?? '') === 'married' ? 'selected' : ''; ?>>Married</option>
-                                            <option value="divorced" <?php echo ($user_data['civil_status'] ?? '') === 'divorced' ? 'selected' : ''; ?>>Divorced</option>
-                                            <option value="widowed" <?php echo ($user_data['civil_status'] ?? '') === 'widowed' ? 'selected' : ''; ?>>Widowed</option>
-                                        </select>
+                                        <label>Civil Status / Upload ID</label>
+                                        <div style="display:flex;gap:10px;align-items:center;">
+                                            <select name="civil_status" class="form-control" style="flex:1;">
+                                                <option value="">Select status</option>
+                                                <option value="single" <?php echo ($user_data['civil_status'] ?? '') === 'single' ? 'selected' : ''; ?>>Single</option>
+                                                <option value="married" <?php echo ($user_data['civil_status'] ?? '') === 'married' ? 'selected' : ''; ?>>Married</option>
+                                                <option value="divorced" <?php echo ($user_data['civil_status'] ?? '') === 'divorced' ? 'selected' : ''; ?>>Divorced</option>
+                                                <option value="widowed" <?php echo ($user_data['civil_status'] ?? '') === 'widowed' ? 'selected' : ''; ?>>Widowed</option>
+                                            </select>
+                                            <input type="file" name="id_file" accept="image/*,.pdf" class="form-control" style="padding:8px;flex:1;" title="Upload ID">
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="form-actions">
