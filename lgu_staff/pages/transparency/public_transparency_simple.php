@@ -87,8 +87,6 @@ $publications = [];
         }
         
         .main-content {
-            margin-left: 250px;
-            padding: 20px;
             position: relative;
             z-index: 1;
         }
@@ -109,7 +107,12 @@ $publications = [];
 </head>
 <body>
     <!-- SIDEBAR -->
-    <?php include '../../includes/sidebar_content.php'; ?>
+    <iframe src="../../includes/sidebar.php" 
+            style="position: fixed; width: 250px; height: 100vh; border: none; z-index: 1000;" 
+            frameborder="0"
+            name="sidebar-frame"
+            scrolling="yes">
+    </iframe>
 
     <div class="main-content">
         <div class="debug-info">

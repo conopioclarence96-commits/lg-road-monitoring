@@ -546,7 +546,14 @@ try {
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
     <!-- SIDEBAR -->
-    <?php include '../../includes/sidebar_content.php'; ?>
+    <iframe src="../../includes/sidebar.php" 
+            style="position: fixed; width: 250px; height: 100vh; border: none; z-index: 1000;" 
+            frameborder="0"
+            name="sidebar-frame"
+            scrolling="no"
+            loading="lazy"
+            referrerpolicy="no-referrer">
+    </iframe>
 
     <div class="main-content">
         <!-- Simple User Modal -->

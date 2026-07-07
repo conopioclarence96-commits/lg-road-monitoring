@@ -142,7 +142,10 @@ function getActionColor($action) {
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
-    <?php include '../../includes/sidebar_content.php'; ?>
+    <iframe src="../../includes/sidebar.php" 
+            style="position: fixed; width: 250px; height: 100vh; border: none; z-index: 1000;" 
+            frameborder="0" name="sidebar-frame" scrolling="no" loading="lazy">
+    </iframe>
 
     <div style="margin-left: 250px; padding: 28px; position: relative; z-index: 1;">
         <div class="page-header">
