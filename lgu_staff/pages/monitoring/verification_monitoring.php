@@ -879,6 +879,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             border-radius: 8px 8px 0 0;
         }
 
+        body.dark-mode .filter-tabs {
+            background: #1e2229;
+            border-color: #2d323b;
+        }
+        body.dark-mode .filter-tab {
+            color: #9ca3af;
+        }
+        body.dark-mode .filter-tab:hover {
+            color: #e4e6ea;
+        }
+        body.dark-mode .filter-tab.active {
+            color: #60a5fa;
+            border-bottom-color: #60a5fa;
+            background: rgba(96, 165, 250, 0.1);
+        }
+
         .notification {
             position: fixed;
             top: 20px;
