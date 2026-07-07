@@ -199,7 +199,7 @@ function handleProgressMediaUpload($files, $upload_dir, $update_id) {
         $dest = $upload_dir . '/' . $filename;
         if (move_uploaded_file($file['tmp_name'], $dest)) {
             chmod($dest, 0644);
-            $relative = 'lgu_staff/uploads/progress_updates/' . $filename;
+            $relative = 'uploads/progress_updates/' . $filename;
             $file_type = in_array($ext, $image_types) ? 'image' : 'video';
 
             $stmt = $conn->prepare("INSERT INTO report_update_media (update_id, file_path, file_type) VALUES (?, ?, ?)");
