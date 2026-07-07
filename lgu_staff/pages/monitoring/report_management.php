@@ -1781,8 +1781,8 @@ if (!empty($reports)) {
                         container.innerHTML = '';
                         let hasPhotos = false;
                         
-                        if (data.report.image_path) {
-                            const imgUrl = data.report.image_path;
+                        if (data.report.image_path && data.report.image_path !== '0' && data.report.image_path !== 'null') {
+                            const imgUrl = '../../' + data.report.image_path;
                             container.innerHTML += `
                                 <div style="position:relative;width:100px;height:100px;border-radius:8px;overflow:hidden;border:2px solid #e2e8f0;">
                                     <img src="${imgUrl}" alt="Report photo" style="width:100%;height:100%;object-fit:cover;cursor:pointer;" 
