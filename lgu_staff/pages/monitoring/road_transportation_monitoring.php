@@ -273,6 +273,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     exit;
                 }
                 
+                // Server-side validation: ensure pin is within Quezon City
+                $qc_polygon = [
+                    [14.605, 120.982], [14.620, 120.985], [14.640, 120.988], [14.660, 120.990],
+                    [14.680, 120.995], [14.700, 121.005], [14.715, 121.020], [14.730, 121.035],
+                    [14.745, 121.050], [14.755, 121.065], [14.765, 121.080], [14.773, 121.095],
+                    [14.770, 121.110], [14.762, 121.125], [14.750, 121.135], [14.735, 121.142],
+                    [14.718, 121.146], [14.700, 121.148], [14.682, 121.142], [14.665, 121.135],
+                    [14.650, 121.125], [14.638, 121.112], [14.628, 121.098], [14.618, 121.080],
+                    [14.612, 121.062], [14.607, 121.045], [14.605, 121.028], [14.603, 121.010],
+                    [14.602, 121.000], [14.603, 120.990]
+                ];
+                $inside_qc = false;
+                $n = count($qc_polygon);
+                for ($i = 0, $j = $n - 1; $i < $n; $j = $i++) {
+                    $yi = $qc_polygon[$i][1]; $xi = $qc_polygon[$i][0];
+                    $yj = $qc_polygon[$j][1]; $xj = $qc_polygon[$j][0];
+                    if ((($yi > $lng) !== ($yj > $lng)) && ($lat < ($xj - $xi) * ($lng - $yi) / ($yj - $yi) + $xi)) {
+                        $inside_qc = !$inside_qc;
+                    }
+                }
+                if (!$inside_qc) {
+                    echo json_encode(['success' => false, 'message' => 'Location must be within Quezon City boundaries.']);
+                    exit;
+                }
+                
                 // Handle image upload
                 $attachments = [];
                 if (isset($_FILES['report_image']) && $_FILES['report_image']['error'] === UPLOAD_ERR_OK) {
@@ -1092,38 +1117,75 @@ $recent_reports = getRecentTransportReports(10);
         const QC_CENTER = [14.6500, 121.0500];
         const map = L.map('map').setView(QC_CENTER, 13);
 
-        // Define Quezon City boundaries (approximate)
-        const QC_BOUNDS = [
-            [14.35, 120.85], // Southwest corner
-            [14.95, 121.25]  // Northeast corner
-        ];
-
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // Add visual boundary rectangle for Quezon City
-        const boundaryRectangle = L.rectangle(QC_BOUNDS, {
+        // Define Quezon City approximate boundary polygon
+        const QC_POLYGON_COORDS = [
+            [14.605, 120.982],
+            [14.620, 120.985],
+            [14.640, 120.988],
+            [14.660, 120.990],
+            [14.680, 120.995],
+            [14.700, 121.005],
+            [14.715, 121.020],
+            [14.730, 121.035],
+            [14.745, 121.050],
+            [14.755, 121.065],
+            [14.765, 121.080],
+            [14.773, 121.095],
+            [14.770, 121.110],
+            [14.762, 121.125],
+            [14.750, 121.135],
+            [14.735, 121.142],
+            [14.718, 121.146],
+            [14.700, 121.148],
+            [14.682, 121.142],
+            [14.665, 121.135],
+            [14.650, 121.125],
+            [14.638, 121.112],
+            [14.628, 121.098],
+            [14.618, 121.080],
+            [14.612, 121.062],
+            [14.607, 121.045],
+            [14.605, 121.028],
+            [14.603, 121.010],
+            [14.602, 121.000],
+            [14.603, 120.990]
+        ];
+        const QC_POLYGON = L.polygon(QC_POLYGON_COORDS, {
             color: '#3762c8',
             weight: 2,
             opacity: 0.8,
-            fillOpacity: 0.1,
+            fillOpacity: 0.08,
             fillColor: '#3762c8'
         }).addTo(map);
 
-        // Restrict map to Quezon City bounds with padding
-        map.setMaxBounds([
-            [14.30, 120.80], // Slightly padded bounds
-            [15.00, 121.30]
-        ]);
+        // Point-in-polygon check using ray casting
+        function isInsideQCBounds(lat, lng) {
+            const polygon = QC_POLYGON.getLatLngs()[0];
+            let inside = false;
+            for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                const xi = polygon[i].lat, yi = polygon[i].lng;
+                const xj = polygon[j].lat, yj = polygon[j].lng;
+                if ((yi > lng) !== (yj > lng) && lat < (xj - xi) * (lng - yi) / (yj - yi) + xi) {
+                    inside = !inside;
+                }
+            }
+            return inside;
+        }
+
+        // Restrict map panning with a padded bounding box of QC
+        const QC_BBOX = L.latLngBounds(QC_POLYGON_COORDS);
+        map.setMaxBounds(QC_BBOX.pad(0.15));
         map.setMinZoom(11);
         map.setMaxZoom(18);
 
         // Force map back to Quezon City if user tries to pan out
         map.on('moveend', function() {
             const center = map.getCenter();
-            if (center.lat < 14.30 || center.lat > 15.00 || 
-                center.lng < 120.80 || center.lng > 121.30) {
+            if (!QC_BBOX.contains(center)) {
                 map.setView(QC_CENTER, 13);
                 showNotification('Map view restricted to Quezon City area', 'info');
             }
@@ -1254,9 +1316,8 @@ $recent_reports = getRecentTransportReports(10);
         map.on('click', function(e) {
             const { lat, lng } = e.latlng;
             
-            // Check if clicked location is within Quezon City bounds
-            if (lat < QC_BOUNDS[0][0] || lat > QC_BOUNDS[1][0] || 
-                lng < QC_BOUNDS[0][1] || lng > QC_BOUNDS[1][1]) {
+            // Check if clicked location is within Quezon City polygon
+            if (!isInsideQCBounds(lat, lng)) {
                 showNotification('Please select a location within Quezon City boundaries', 'error');
                 return;
             }
@@ -1268,9 +1329,8 @@ $recent_reports = getRecentTransportReports(10);
             pinMarker.on('dragend', function() {
                 const pos = pinMarker.getLatLng();
                 
-                // Validate dragged position is still within bounds
-                if (pos.lat < QC_BOUNDS[0][0] || pos.lat > QC_BOUNDS[1][0] || 
-                    pos.lng < QC_BOUNDS[0][1] || pos.lng > QC_BOUNDS[1][1]) {
+                // Validate dragged position is still within QC polygon
+                if (!isInsideQCBounds(pos.lat, pos.lng)) {
                     showNotification('Please keep the marker within Quezon City boundaries', 'error');
                     // Reset to previous valid position
                     pinMarker.setLatLng([lat, lng]);
