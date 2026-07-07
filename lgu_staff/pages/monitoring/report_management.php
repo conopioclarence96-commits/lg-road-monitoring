@@ -1178,6 +1178,47 @@ if (!empty($reports)) {
                 flex-wrap: wrap;
             }
         }
+
+        body.dark-mode .report-card {
+            background: #22262e;
+            border-color: #2d323b;
+        }
+        body.dark-mode .report-card::before {
+            opacity: 0.8;
+        }
+        body.dark-mode .report-title {
+            color: #f0f2f5;
+        }
+        body.dark-mode .report-meta {
+            color: #9ca3af;
+        }
+        body.dark-mode .report-description {
+            color: #d1d5db;
+        }
+        body.dark-mode .filters-section {
+            background: #1e2229;
+            border-color: #2d323b;
+        }
+        body.dark-mode .filter-select {
+            background: #1a1d23;
+            border-color: #2d323b;
+            color: #e4e6ea;
+        }
+        body.dark-mode .chart-title {
+            color: #f0f2f5;
+        }
+        body.dark-mode .status-pending {
+            background: rgba(217, 119, 6, 0.2);
+            color: #fbbf24;
+        }
+        body.dark-mode .status-in-progress {
+            background: rgba(37, 99, 235, 0.2);
+            color: #60a5fa;
+        }
+        body.dark-mode .status-completed {
+            background: rgba(5, 150, 105, 0.2);
+            color: #34d399;
+        }
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
