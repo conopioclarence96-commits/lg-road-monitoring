@@ -21,6 +21,9 @@ if ($method === 'GET') {
             }
             $report = fetch_one("SELECT id FROM road_transportation_reports WHERE id = ?", [$report_id], "i");
             if (!$report) {
+                $report = fetch_one("SELECT id FROM road_maintenance_reports WHERE id = ?", [$report_id], "i");
+            }
+            if (!$report) {
                 json_response(['success' => false, 'message' => 'Report not found']);
             }
             $updates = [];
@@ -81,7 +84,10 @@ if ($method === 'GET') {
         if ($report_id <= 0) json_response(['success' => false, 'message' => 'Invalid report ID']);
         if (empty($description)) json_response(['success' => false, 'message' => 'Description is required']);
 
-        $report = fetch_one("SELECT id, report_id FROM {$table} WHERE id = ?", [$report_id], "i");
+        $report = fetch_one("SELECT id, report_id FROM road_transportation_reports WHERE id = ?", [$report_id], "i");
+        if (!$report) {
+            $report = fetch_one("SELECT id, report_id FROM road_maintenance_reports WHERE id = ?", [$report_id], "i");
+        }
         if (!$report) json_response(['success' => false, 'message' => 'Report not found']);
 
         // Insert update
