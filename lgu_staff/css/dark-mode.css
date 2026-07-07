@@ -1076,3 +1076,13 @@ body.dark-mode .btn-delete-update:hover {
 body.dark-mode .add-update-form .file-preview-item {
     border-color: #3b82f6 !important;
 }
+
+/* Detail grid items (expanded section) */
+body.dark-mode .detail-item {
+    background: #1e2229 !important;
+    border-color: #2d323b !important;
+}
+
+body.dark-mode .detail-item strong {
+    color: #f0f2f5 !important;
+}
