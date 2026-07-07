@@ -290,8 +290,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'clear_activity_log') {
-        $conn->query("TRUNCATE TABLE audit_logs");
-        log_audit_action($user_id, 'Activity Log Cleared', 'All activity log history has been deleted');
+        $stmt = $conn->prepare("DELETE FROM audit_logs WHERE user_id = ?");
+        $stmt->bind_param("i", $user_id);
+        $stmt->execute();
+        $stmt->close();
+        log_audit_action($user_id, 'Activity Log Cleared', 'Your activity log history has been deleted');
         header('Content-Type: application/json');
         echo json_encode(['success' => true]);
         exit;
@@ -314,22 +317,27 @@ if ($result) {
     }
 }
 
-// Get activity log with user info
+// Get activity log with user info — filtered by current user
 $activity_log = [];
 try {
-    $log_result = $conn->query("
+    $log_stmt = $conn->prepare("
         SELECT a.id, a.user_id, a.action, a.details, a.created_at,
                u.full_name, u.role as user_role
         FROM audit_logs a
         LEFT JOIN users u ON a.user_id = u.id
+        WHERE a.user_id = ?
         ORDER BY a.created_at DESC
         LIMIT 200
     ");
+    $log_stmt->bind_param("i", $user_id);
+    $log_stmt->execute();
+    $log_result = $log_stmt->get_result();
     if ($log_result) {
         while ($row = $log_result->fetch_assoc()) {
             $activity_log[] = $row;
         }
     }
+    $log_stmt->close();
 } catch (Exception $e) {
     $activity_log = [];
 }
