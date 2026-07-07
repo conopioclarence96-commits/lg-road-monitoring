@@ -406,8 +406,10 @@ $recent_reports = getRecentTransportReports(10);
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="../../css/progress-updates.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="../../js/progress-updates.js"></script>
     <style>
         body {
             background: #f7f5f0;
@@ -879,6 +881,104 @@ $recent_reports = getRecentTransportReports(10);
             }
             
         }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 10000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background: white;
+            margin: 3% auto;
+            padding: 0;
+            border-radius: 16px;
+            width: 92%;
+            max-width: 600px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: modalSlideIn 0.3s ease;
+        }
+
+        @keyframes modalSlideIn {
+            from { opacity: 0; transform: translateY(-50px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+            color: white;
+            padding: 20px 25px;
+            border-radius: 16px 16px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .close {
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            background: none;
+            border: none;
+        }
+
+        .close:hover { opacity: 0.7; }
+
+        .modal-body {
+            padding: 25px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .modal-footer {
+            padding: 20px 25px;
+            border-top: 1px solid #eee;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .btn-secondary-custom {
+            padding: 10px 20px;
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-secondary-custom:hover { background: #5a6268; }
+
+        body.dark-mode .modal-content {
+            background: #22262e;
+        }
+
+        body.dark-mode .modal-header {
+            border-color: #2d323b;
+        }
+
+        body.dark-mode .modal-footer {
+            border-color: #2d323b;
+        }
+
+        body.dark-mode .modal-title {
+            color: #e4e6ea;
+        }
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
@@ -1094,14 +1194,17 @@ $recent_reports = getRecentTransportReports(10);
                         <tr><td colspan="7" style="text-align:center;padding:30px;color:#6b7280;">No reports yet.</td></tr>
                         <?php else: ?>
                         <?php foreach ($recent_reports as $rr): ?>
-                        <tr class="report-table-row" data-id="<?php echo $rr['id']; ?>" data-title="<?php echo htmlspecialchars(strtolower($rr['title'] ?? '')); ?>" data-report-id="<?php echo htmlspecialchars(strtolower($rr['report_id'] ?? '')); ?>">
+                         <tr class="report-table-row" data-id="<?php echo $rr['id']; ?>" data-title="<?php echo htmlspecialchars(strtolower($rr['title'] ?? '')); ?>" data-report-id="<?php echo htmlspecialchars(strtolower($rr['report_id'] ?? '')); ?>">
                             <td style="font-family:monospace;font-size:12px;"><?php echo htmlspecialchars($rr['report_id'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars($rr['title'] ?? 'Untitled'); ?></td>
                             <td><?php echo htmlspecialchars($rr['report_type'] ?? '—'); ?></td>
                             <td><span class="badge badge-<?php echo $rr['status'] ?? 'pending'; ?>"><?php echo ucfirst(str_replace('-',' ',$rr['status'] ?? 'pending')); ?></span></td>
                             <td><span class="badge badge-<?php echo $rr['priority'] ?? 'low'; ?>"><?php echo ucfirst($rr['priority'] ?? 'low'); ?></span></td>
                             <td><?php echo date('M d, Y H:i', strtotime($rr['created_at'] ?? 'now')); ?></td>
-                            <td><button class="table-action-btn view-map" onclick="focusReportOnMap(<?php echo $rr['id']; ?>)"><i class="fas fa-map-pin"></i> Map</button></td>
+                            <td style="white-space:nowrap;">
+                                <button class="table-action-btn view-map" onclick="focusReportOnMap(<?php echo $rr['id']; ?>)"><i class="fas fa-map-pin"></i> Map</button>
+                                <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(<?php echo $rr['id']; ?>, '<?php echo $rr['report_type']; ?>')"><i class="fas fa-clock"></i> Updates</button>
+                            </td>
                         </tr>
                         <?php endforeach; ?>
                         <?php endif; ?>
@@ -1463,8 +1566,67 @@ $recent_reports = getRecentTransportReports(10);
                 setTimeout(() => el.remove(), 400);
             }, 4000);
         }
+
+        function openModal(modalId) {
+            document.getElementById(modalId).style.display = 'block';
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+            document.body.style.overflow = 'auto';
+        }
+
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.style.display = 'none';
+                document.body.style.overflow = 'auto';
+            }
+        };
+
+        function closeLightbox() {
+            document.getElementById('lightboxOverlay').classList.remove('show');
+        }
+
+        function viewReportUpdates(id, type) {
+            currentUpdatesReportId = id;
+            currentUpdatesReportType = type;
+            document.getElementById('updateReportInfo').textContent = 'Report #' + id;
+            openModal('updatesModal');
+            if (typeof loadUpdates === 'function') {
+                loadUpdates(id, type);
+            }
+        }
     </script>
     
+    <!-- Progress Updates Modal -->
+    <div id="updatesModal" class="modal">
+        <div class="modal-content" style="max-width: 750px;">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-clock"></i> Progress Updates</h5>
+                <button class="close" onclick="closeModal('updatesModal')">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                <div class="timeline-container" id="updatesTimeline">
+                    <div class="timeline-empty"><i class="fas fa-spinner fa-spin fa-2x" style="color:#3762c8;"></i></div>
+                </div>
+            </div>
+            <div class="modal-footer" style="justify-content: space-between;">
+                <span id="updateReportInfo" style="font-size: 13px; color: #6b7280;"></span>
+                <div>
+                    <button type="button" class="btn-action" id="addUpdateBtn" onclick="showUpdateForm(currentUpdatesReportId, currentUpdatesReportType)">+ Add Update</button>
+                    <button type="button" class="btn-secondary-custom" onclick="closeModal('updatesModal')">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lightbox -->
+    <div class="lightbox-overlay" id="lightboxOverlay" onclick="closeLightbox()">
+        <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+        <img id="lightboxImage" src="" alt="Enlarged photo">
+    </div>
+
     <!-- Page Transition Overlay -->
     <div class="page-transition-overlay" id="pageTransitionOverlay">
         <div class="transition-content">
