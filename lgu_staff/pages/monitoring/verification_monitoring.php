@@ -635,6 +635,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             font-size: 13px;
         }
 
+        body.dark-mode .detail-item {
+            background: #1e2229;
+            border-color: #2d323b;
+            color: #d1d5db;
+        }
+        body.dark-mode .detail-item strong {
+            color: #f0f2f5;
+        }
+        body.dark-mode .expanded-details {
+            border-top-color: rgba(59, 130, 246, 0.2);
+        }
+        body.dark-mode .detail-item [style*="background: rgba(55, 98, 200, 0.05)"] {
+            background: rgba(59, 130, 246, 0.1) !important;
+        }
+        body.dark-mode .detail-item a[style*="color: #3762c8"] {
+            color: #93c5fd !important;
+        }
+        body.dark-mode .detail-item img {
+            border-color: rgba(59, 130, 246, 0.3) !important;
+        }
+
         .verification-actions {
             display: flex;
             gap: 10px;
