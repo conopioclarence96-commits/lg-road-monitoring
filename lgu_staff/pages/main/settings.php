@@ -909,10 +909,10 @@ try {
                                             <option value="divorced" <?php echo ($user_data['civil_status'] ?? '') === 'divorced' ? 'selected' : ''; ?>>Divorced</option>
                                             <option value="widowed" <?php echo ($user_data['civil_status'] ?? '') === 'widowed' ? 'selected' : ''; ?>>Widowed</option>
                                         </select>
-                                        <div style="margin-top:8px;display:flex;align-items:center;gap:10px;">
-                                            <span style="font-size:12px;color:#666;white-space:nowrap;"><i class="fas fa-id-card"></i> ID:</span>
-                                            <input type="file" name="id_file" accept="image/*,.pdf" class="form-control" style="padding:6px 8px;font-size:13px;flex:1;">
-                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label><i class="fas fa-id-card"></i> Upload ID</label>
+                                        <input type="file" name="id_file" accept="image/*,.pdf" class="form-control" style="padding:8px;">
                                     </div>
                                 </div>
                                 <div class="form-actions">
