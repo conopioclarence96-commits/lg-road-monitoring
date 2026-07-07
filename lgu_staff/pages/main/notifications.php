@@ -615,7 +615,7 @@ $total_notifications = $is_admin ? (count($pending_reports) + count($pending_cha
                                 </div>
                                 <div style="margin-top: 10px;">
                                     <div class="action-buttons">
-                                        <a href="../monitoring/report_management.php?id=<?php echo $report['id']; ?>" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> View</a>
+                                        <a href="report_management.php" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> View</a>
                                     </div>
                                 </div>
                             </div>

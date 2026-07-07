@@ -1380,7 +1380,7 @@ if (!empty($reports)) {
                     </div>
                 <?php else: ?>
                     <?php foreach ($reports as $report): ?>
-                        <div class="report-card priority-<?php echo $report['priority']; ?>" data-id="<?php echo $report['id']; ?>">
+                        <div class="report-card priority-<?php echo $report['priority']; ?>">
                             <div class="report-header">
                                 <div>
                                     <div class="report-title"><?php echo htmlspecialchars($report['title']); ?></div>
@@ -2229,22 +2229,6 @@ if (!empty($reports)) {
                 indicator.textContent = 'Error saving changes';
             });
         });
-
-        // Scroll to specific report if id param is in URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const focusId = urlParams.get('id');
-        if (focusId) {
-            setTimeout(() => {
-                const card = document.querySelector(`.report-card[data-id="${focusId}"]`);
-                if (card) {
-                    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    card.style.boxShadow = '0 0 0 3px #3762c8, 0 8px 32px rgba(55,98,200,0.3)';
-                    setTimeout(() => {
-                        card.style.boxShadow = '';
-                    }, 3000);
-                }
-            }, 500);
-        }
     </script>
     
     <!-- Page Transition Overlay -->
