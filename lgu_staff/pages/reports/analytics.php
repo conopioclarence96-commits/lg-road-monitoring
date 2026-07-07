@@ -92,10 +92,7 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
-    <iframe src="../../includes/sidebar.php" 
-            style="position: fixed; width: 250px; height: 100vh; border: none; z-index: 1000;" 
-            frameborder="0" name="sidebar-frame" scrolling="no" loading="lazy">
-    </iframe>
+    <?php include '../../includes/sidebar_content.php'; ?>
 
     <div style="margin-left: 250px; padding: 28px; position: relative; z-index: 1;">
         <div class="page-header">

@@ -883,12 +883,7 @@ $recent_reports = getRecentTransportReports(10);
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
     <!-- SIDEBAR -->
-    <iframe src="../../includes/sidebar.php" 
-            style="position: fixed; width: 250px; height: 100vh; border: none; z-index: 1000;" 
-            frameborder="0"
-            name="sidebar-frame"
-            scrolling="no">
-    </iframe>
+    <?php include '../../includes/sidebar_content.php'; ?>
 
     <div class="main-content">
         <!-- Monitoring Header -->

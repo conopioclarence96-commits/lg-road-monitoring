@@ -224,9 +224,7 @@ $stmt->close();
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
-    <iframe src="../../includes/sidebar.php"
-            style="position: fixed; width: 250px; height: 100vh; border: none; z-index: 1000;"
-            onload="this.style.height=window.innerHeight+'px'"></iframe>
+    <?php include '../../includes/sidebar_content.php'; ?>
 
     <div class="main-content">
         <div class="page-header">
