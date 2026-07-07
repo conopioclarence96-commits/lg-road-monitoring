@@ -1204,7 +1204,7 @@ $recent_reports = getRecentTransportReports(10);
         let autoRefreshInterval = null;
 
         // Load existing report markers
-        function loadMarkers(filter) {
+        function loadMarkers(filter, callback) {
             filter = filter || activeFilter;
             reportMarkersLayer.clearLayers();
             allMarkerObjects = [];
@@ -1231,6 +1231,7 @@ $recent_reports = getRecentTransportReports(10);
                         marker._reportId = m.id;
                         allMarkerObjects.push(marker);
                     });
+                    if (callback) callback();
                 })
                 .catch(e => console.error('Load markers error', e));
         }
@@ -1259,9 +1260,23 @@ $recent_reports = getRecentTransportReports(10);
             if (found) {
                 map.setView(found.getLatLng(), 16);
                 found.openPopup();
-            } else {
-                showNotification('Report not visible on map. Try changing filters.', 'info');
+                return;
             }
+            // Marker filtered out — switch filter to 'all' and reload
+            activeFilter = 'all';
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            const allBtn = document.querySelector('.filter-btn[data-filter="all"]');
+            if (allBtn) allBtn.classList.add('active');
+            loadMarkers('all', function() {
+                const marker = allMarkerObjects.find(m => m._reportId === reportId);
+                if (marker) {
+                    map.setView(marker.getLatLng(), 16);
+                    marker.openPopup();
+                    showNotification('Filter changed to show all reports.', 'info');
+                } else {
+                    showNotification('Report has no location data on the map.', 'info');
+                }
+            });
         }
 
         // Search reports table
