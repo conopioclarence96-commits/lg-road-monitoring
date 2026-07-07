@@ -901,16 +901,17 @@ try {
                                         <input type="date" name="birthday" class="form-control" value="<?php echo htmlspecialchars($user_data['birthday'] ?? ''); ?>">
                                     </div>
                                     <div class="form-group">
-                                        <label>Civil Status / Upload ID</label>
-                                        <div style="display:flex;gap:10px;align-items:center;">
-                                            <select name="civil_status" class="form-control" style="flex:1;">
-                                                <option value="">Select status</option>
-                                                <option value="single" <?php echo ($user_data['civil_status'] ?? '') === 'single' ? 'selected' : ''; ?>>Single</option>
-                                                <option value="married" <?php echo ($user_data['civil_status'] ?? '') === 'married' ? 'selected' : ''; ?>>Married</option>
-                                                <option value="divorced" <?php echo ($user_data['civil_status'] ?? '') === 'divorced' ? 'selected' : ''; ?>>Divorced</option>
-                                                <option value="widowed" <?php echo ($user_data['civil_status'] ?? '') === 'widowed' ? 'selected' : ''; ?>>Widowed</option>
-                                            </select>
-                                            <input type="file" name="id_file" accept="image/*,.pdf" class="form-control" style="padding:8px;flex:1;" title="Upload ID">
+                                        <label>Civil Status</label>
+                                        <select name="civil_status" class="form-control">
+                                            <option value="">Select status</option>
+                                            <option value="single" <?php echo ($user_data['civil_status'] ?? '') === 'single' ? 'selected' : ''; ?>>Single</option>
+                                            <option value="married" <?php echo ($user_data['civil_status'] ?? '') === 'married' ? 'selected' : ''; ?>>Married</option>
+                                            <option value="divorced" <?php echo ($user_data['civil_status'] ?? '') === 'divorced' ? 'selected' : ''; ?>>Divorced</option>
+                                            <option value="widowed" <?php echo ($user_data['civil_status'] ?? '') === 'widowed' ? 'selected' : ''; ?>>Widowed</option>
+                                        </select>
+                                        <div style="margin-top:8px;display:flex;align-items:center;gap:10px;">
+                                            <span style="font-size:12px;color:#666;white-space:nowrap;"><i class="fas fa-id-card"></i> ID:</span>
+                                            <input type="file" name="id_file" accept="image/*,.pdf" class="form-control" style="padding:6px 8px;font-size:13px;flex:1;">
                                         </div>
                                     </div>
                                 </div>
