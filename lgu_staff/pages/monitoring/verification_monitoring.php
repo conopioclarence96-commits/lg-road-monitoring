@@ -1257,6 +1257,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         body.dark-mode .repaired-card-footer {
             color: #d1d5db;
             border-top-color: #2d323b;
+            background: #1a1d23;
+        }
+        body.dark-mode .repaired-cost {
+            color: #d1d5db;
+        }
+        body.dark-mode .repaired-cost strong,
+        body.dark-mode .repaired-by strong {
+            color: #f0f2f5;
         }
         body.dark-mode .repaired-by {
             color: #9ca3af;
