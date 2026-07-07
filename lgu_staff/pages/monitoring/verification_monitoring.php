@@ -1224,6 +1224,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             border-top: 1px solid rgba(55, 98, 200, 0.1);
         }
 
+        body.dark-mode .repaired-section {
+            background: #1e2229;
+            border-color: #2d323b;
+        }
+        body.dark-mode .repaired-header {
+            color: #f0f2f5;
+        }
+        body.dark-mode .repaired-desc {
+            color: #9ca3af;
+        }
+        body.dark-mode .repaired-card {
+            background: #22262e;
+            border-color: #2d323b;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+        }
+        body.dark-mode .repaired-card:hover {
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+        }
+        body.dark-mode .repaired-card-title {
+            color: #f0f2f5;
+        }
+        body.dark-mode .repaired-meta {
+            color: #9ca3af;
+        }
+        body.dark-mode .repaired-meta i {
+            color: #60a5fa;
+        }
+        body.dark-mode .repaired-card-desc {
+            color: #d1d5db;
+        }
+        body.dark-mode .repaired-card-footer {
+            color: #d1d5db;
+            border-top-color: #2d323b;
+        }
+        body.dark-mode .repaired-by {
+            color: #9ca3af;
+        }
+        body.dark-mode .repaired-note {
+            color: #6b7280;
+        }
+        body.dark-mode .repaired-card-actions {
+            border-top-color: #2d323b;
+        }
+        body.dark-mode .repaired-image-placeholder {
+            color: rgba(96, 165, 250, 0.5);
+        }
+        body.dark-mode .repaired-card-image {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(30, 60, 114, 0.15));
+        }
+
         .btn-edit-repaired {
             padding: 8px 14px;
             background: linear-gradient(135deg, #6c757d, #495057);
