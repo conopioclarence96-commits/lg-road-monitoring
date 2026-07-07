@@ -317,27 +317,24 @@ if ($result) {
     }
 }
 
-// Get activity log with user info — filtered by current user
+// Get activity log with user info — filtered by current user only
 $activity_log = [];
 try {
-    $log_stmt = $conn->prepare("
+    $uid = (int)$_SESSION['user_id'];
+    $log_result = $conn->query("
         SELECT a.id, a.user_id, a.action, a.details, a.created_at,
                u.full_name, u.role as user_role
         FROM audit_logs a
         LEFT JOIN users u ON a.user_id = u.id
-        WHERE a.user_id = ?
+        WHERE a.user_id = $uid
         ORDER BY a.created_at DESC
         LIMIT 200
     ");
-    $log_stmt->bind_param("i", $user_id);
-    $log_stmt->execute();
-    $log_result = $log_stmt->get_result();
-    if ($log_result) {
+    if ($log_result && $log_result->num_rows > 0) {
         while ($row = $log_result->fetch_assoc()) {
             $activity_log[] = $row;
         }
     }
-    $log_stmt->close();
 } catch (Exception $e) {
     $activity_log = [];
 }
