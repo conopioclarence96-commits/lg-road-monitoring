@@ -1687,6 +1687,14 @@ if (!empty($reports)) {
             window.open(url, '_blank');
         }
 
+        function imgFallback(el) {
+            el.style.display = 'none';
+            const fallback = document.createElement('div');
+            fallback.style.cssText = 'width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#f3f4f6;color:#9ca3af;font-size:11px;';
+            fallback.textContent = 'No image';
+            el.parentElement.insertBefore(fallback, el.nextSibling);
+        }
+
         function viewReport(id, type) {
             fetch(`../api/get_report_details.php?id=${id}&type=${type}`)
                 .then(response => response.json())
@@ -1709,6 +1717,33 @@ if (!empty($reports)) {
                                     <strong>Description:</strong>
                                     <p style="margin-top: 5px;">${data.report.description}</p>
                                 </div>
+                                ${(() => {
+                                    let html = '';
+                                    const pics = [];
+                                    if (data.report.image_path && data.report.image_path !== '0' && data.report.image_path !== 'null') {
+                                        pics.push('../../' + data.report.image_path);
+                                    }
+                                    if (data.report.attachments) {
+                                        let atts = data.report.attachments;
+                                        if (typeof atts === 'string') { try { atts = JSON.parse(atts); } catch(e) { atts = []; } }
+                                        if (Array.isArray(atts)) {
+                                            atts.forEach(a => {
+                                                const p = a.file_path || a.file || '';
+                                                if (p) pics.push('../../' + p);
+                                            });
+                                        }
+                                    }
+                                    if (pics.length) {
+                                        html += '<div style="margin-bottom:20px;"><strong>Photos:</strong><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">';
+                                        pics.forEach((p, i) => {
+                                            html += '<div style="width:100px;height:100px;border-radius:8px;overflow:hidden;border:2px solid #e2e8f0;">' +
+                                                '<img src="' + p + '" alt="Photo ' + (i+1) + '" style="width:100%;height:100%;object-fit:cover;cursor:pointer;" ' +
+                                                'onclick="window.open(\'' + p + '\',\'_blank\')" onerror="imgFallback(this)"></div>';
+                                        });
+                                        html += '</div></div>';
+                                    }
+                                    return html;
+                                })()}
                                 ${data.report.assigned_to ? `<div style="margin-bottom: 10px;"><strong>Assigned To:</strong> ${data.report.assigned_to}</div>` : ''}
                                 ${data.report.notes ? `<div style="margin-bottom: 10px;"><strong>Notes:</strong> ${data.report.notes}</div>` : ''}
                                 ${data.report.reporter_name ? `<div style="margin-bottom: 10px;"><strong>Reporter:</strong> ${data.report.reporter_name}</div>` : ''}
@@ -1786,7 +1821,8 @@ if (!empty($reports)) {
                             container.innerHTML += `
                                 <div style="position:relative;width:100px;height:100px;border-radius:8px;overflow:hidden;border:2px solid #e2e8f0;">
                                     <img src="${imgUrl}" alt="Report photo" style="width:100%;height:100%;object-fit:cover;cursor:pointer;" 
-                                         onclick="window.open('${imgUrl}','_blank')">
+                                         onclick="window.open('${imgUrl}','_blank')"
+                                         onerror="imgFallback(this)">
                                     <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.6);font-size:10px;color:white;text-align:center;padding:2px;">Current</div>
                                 </div>`;
                             hasPhotos = true;
@@ -1799,12 +1835,14 @@ if (!empty($reports)) {
                             }
                             if (Array.isArray(attachments)) {
                                 attachments.forEach((att, idx) => {
-                                    const path = att.file_path || att.file || '';
+                                    const raw = att.file_path || att.file || '';
+                                    const path = raw ? '../../' + raw : '';
                                     if (path) {
                                         container.innerHTML += `
                                             <div style="position:relative;width:100px;height:100px;border-radius:8px;overflow:hidden;border:2px solid #e2e8f0;">
                                                 <img src="${path}" alt="Attachment ${idx+1}" style="width:100%;height:100%;object-fit:cover;cursor:pointer;" 
-                                                     onclick="window.open('${path}','_blank')">
+                                                     onclick="window.open('${path}','_blank')"
+                                                     onerror="imgFallback(this)">
                                             </div>`;
                                         hasPhotos = true;
                                     }
