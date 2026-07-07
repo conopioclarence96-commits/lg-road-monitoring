@@ -741,7 +741,27 @@ $notification_count = getNotificationCount($user_role, $_SESSION['user_id'] ?? 0
                 }
             }
             
-
+            // Navigation with transition effect
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const href = this.getAttribute('href');
+                    
+                    // Show transition overlay
+                    const overlay = document.getElementById('pageTransitionOverlay');
+                    if (overlay) {
+                        overlay.classList.add('active');
+                        
+                        // Navigate after transition delay
+                        setTimeout(() => {
+                            window.parent.location.href = href;
+                        }, 800);
+                    } else {
+                        // Fallback: direct navigation if overlay not found
+                        window.parent.location.href = href;
+                    }
+                });
+            });
         });
     </script>
 </div>
