@@ -257,6 +257,7 @@ $notification_count = getNotificationCount($user_role, $_SESSION['user_id'] ?? 0
     <meta http-equiv="Pragma" content="cache">
     <meta http-equiv="Expires" content="3600">
     <title>LGU Staff Sidebar</title>
+    <link rel="icon" type="image/png" href="../assets/img/logocityhall.png">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="../styles/style.css" rel="stylesheet">
     <link href="../styles/sidebar.css" rel="stylesheet">
