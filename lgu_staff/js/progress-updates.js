@@ -65,7 +65,7 @@ function renderMedia(mediaItems) {
     if (!mediaItems || mediaItems.length === 0) return '';
     let html = '<div class="timeline-media">';
     mediaItems.forEach(m => {
-        const path = m.file_path ? '../../' + m.file_path : '';
+        const path = m.file_path || '';
         if (m.file_type === 'video') {
             html += `<div class="timeline-media-item video-thumb" onclick="openVideo('${escapeHtmlAttr(path)}')" title="Play video">
                 <i class="fas fa-play-circle"></i>
@@ -148,7 +148,7 @@ function showUpdateForm(reportId, reportType, updateData) {
             const isVideo = m.file_type === 'video';
             div.innerHTML = isVideo
                 ? `<i class="fas fa-video" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:20px;color:#3762c8;opacity:0.5;"></i>`
-                : `<img src="${escapeHtmlAttr('../../' + m.file_path)}" style="width:100%;height:100%;object-fit:cover;">`;
+                : `<img src="${escapeHtmlAttr(m.file_path)}" style="width:100%;height:100%;object-fit:cover;">`;
             const cb = document.createElement('input');
             cb.type = 'checkbox';
             cb.name = 'remove_media[]';
