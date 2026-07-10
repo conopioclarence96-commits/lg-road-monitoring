@@ -243,7 +243,7 @@ function handle_update_report() {
         }
     }
     
-    if (!empty($uploaded_photos) && $table === 'road_transportation_reports') {
+    if (!empty($uploaded_photos)) {
         $existing = fetch_one("SELECT attachments, image_path FROM {$table} WHERE id = ?", [$report_id], "i");
         $existing_attachments = [];
         if ($existing && !empty($existing['attachments'])) {
@@ -430,17 +430,17 @@ function get_reports($status_filter = 'all', $type_filter = 'all', $limit = 50, 
     
     // Get transportation reports
     if ($transport_estimation_exists) {
-        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, estimation, resolution_notes as notes, department, created_date, created_at, updated_at, 'transportation' as report_type FROM road_transportation_reports";
+        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, estimation, resolution_notes as notes, department, created_date, created_at, updated_at, attachments, image_path, 'transportation' as report_type FROM road_transportation_reports";
     } else {
-        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, 0 as estimation, resolution_notes as notes, department, created_date, created_at, updated_at, 'transportation' as report_type FROM road_transportation_reports";
+        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, 0 as estimation, resolution_notes as notes, department, created_date, created_at, updated_at, attachments, image_path, 'transportation' as report_type FROM road_transportation_reports";
     }
     $transport_params = [];
     
     // Get maintenance reports
     if ($maintenance_estimation_exists) {
-        $maintenance_query = "SELECT id, report_id, title, description, location, priority, status, maintenance_team as assigned_to, estimation, department, created_date, created_at, updated_at, 'maintenance' as report_type FROM road_maintenance_reports";
+        $maintenance_query = "SELECT id, report_id, title, description, location, priority, status, maintenance_team as assigned_to, estimation, department, created_date, created_at, updated_at, attachments, image_path, 'maintenance' as report_type FROM road_maintenance_reports";
     } else {
-        $maintenance_query = "SELECT id, report_id, title, description, location, priority, status, maintenance_team as assigned_to, 0 as estimation, department, created_date, created_at, updated_at, 'maintenance' as report_type FROM road_maintenance_reports";
+        $maintenance_query = "SELECT id, report_id, title, description, location, priority, status, maintenance_team as assigned_to, 0 as estimation, department, created_date, created_at, updated_at, attachments, image_path, 'maintenance' as report_type FROM road_maintenance_reports";
     }
     $maintenance_params = [];
     
