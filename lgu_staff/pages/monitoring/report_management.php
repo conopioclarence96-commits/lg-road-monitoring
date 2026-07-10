@@ -268,6 +268,35 @@ function handle_update_report() {
         if ($estimation > 0) $change_log .= ", Estimation: ₱" . number_format($estimation, 2);
         
         log_audit_action($user_id, "Updated {$report_type_from_db} report", $change_log);
+
+        // Create a progress update entry so photos and changes appear in the Updates timeline
+        $update_title = 'Report Updated';
+        $update_desc_parts = [];
+        if (!empty($notes)) $update_desc_parts[] = $notes;
+        $update_desc_parts[] = "Status: " . ucfirst(str_replace('-', ' ', $status));
+        $update_desc_parts[] = "Priority: " . ucfirst($priority);
+        if (!empty($assigned_to)) $update_desc_parts[] = "Assigned to: " . $assigned_to;
+        if ($estimation > 0) $update_desc_parts[] = "Estimation: ₱" . number_format($estimation, 2);
+        $update_desc = implode('. ', $update_desc_parts);
+
+        try {
+            $upd_stmt = $conn->prepare("INSERT INTO report_updates (report_id, user_id, title, description) VALUES (?, ?, ?, ?)");
+            $upd_stmt->bind_param("iiss", $report_id, $user_id, $update_title, $update_desc);
+            $upd_stmt->execute();
+            $new_update_id = $conn->insert_id;
+
+            // Save uploaded photos to report_update_media
+            if (!empty($uploaded_photos) && $new_update_id > 0) {
+                foreach ($uploaded_photos as $photo) {
+                    $media_stmt = $conn->prepare("INSERT INTO report_update_media (update_id, file_path, file_type) VALUES (?, ?, ?)");
+                    $media_stmt->bind_param("iss", $new_update_id, $photo['file_path'], $photo['type']);
+                    $media_stmt->execute();
+                }
+            }
+        } catch (Exception $e) {
+            error_log("Failed to create progress update entry: " . $e->getMessage());
+        }
+
         set_flash_message('success', 'Report updated successfully');
         
         if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
