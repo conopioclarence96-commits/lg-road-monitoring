@@ -5,7 +5,7 @@ session_start();
 <html>
 <head>
     <title>OTP Debug - LGU Portal</title>
-    <link rel="icon" type="image/png" href="/lg-road-monitoring/assets/img/logocityhall.png">
+    <link rel="icon" type="image/png" href="assets/img/logocityhall.png">
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
         .otp-display { background: #f0f8ff; padding: 20px; border-radius: 10px; margin: 20px 0; }

@@ -548,7 +548,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LGU | Login</title>
-    <link rel="icon" type="image/png" href="/lg-road-monitoring/assets/img/logocityhall.png">
+    <link rel="icon" type="image/png" href="../assets/img/logocityhall.png">
     <link rel="stylesheet" href="<?php echo $basePath; ?>../styles/style.css" />
     <link rel="stylesheet" href="<?php echo $basePath; ?>../styles/login.css" />
     <link rel="stylesheet" href="<?php echo $basePath; ?>../styles/transition.css" />
