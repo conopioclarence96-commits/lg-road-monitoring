@@ -289,7 +289,6 @@ if ($conn) {
                 }
                 $row['media'] = $media;
                 $recent_updates[] = $row;
-                console.log($recent_updates)
             }
         }
     } catch (Exception $e) {
