@@ -97,7 +97,7 @@ if ($method === 'GET') {
         $update_id = $conn->insert_id;
 
         // Handle media uploads
-        $upload_dir = __DIR__ . '/../../uploads/progress_updates';
+        $upload_dir = __DIR__ . '/../../../uploads/progress_updates';
         $uploaded = handleProgressMediaUpload($_FILES['media'] ?? [], $upload_dir, $update_id);
 
         // Create notification
@@ -124,7 +124,7 @@ if ($method === 'GET') {
         $stmt->execute();
 
         // Handle new media uploads
-        $upload_dir = __DIR__ . '/../../uploads/progress_updates';
+        $upload_dir = __DIR__ . '/../../../uploads/progress_updates';
         handleProgressMediaUpload($_FILES['media'] ?? [], $upload_dir, $update_id);
 
         // Handle removed media
@@ -133,7 +133,7 @@ if ($method === 'GET') {
             foreach ($remove_ids as $rid) {
                 $m = fetch_one("SELECT file_path FROM report_update_media WHERE id = ? AND update_id = ?", [$rid, $update_id], "ii");
                 if ($m) {
-                    $full = __DIR__ . '/../../' . $m['file_path'];
+                    $full = $upload_dir . '/' . basename($m['file_path']);
                     if (file_exists($full)) @unlink($full);
                     $conn->query("DELETE FROM report_update_media WHERE id = {$rid}");
                 }
@@ -152,7 +152,7 @@ if ($method === 'GET') {
         // Delete media files
         $media = $conn->query("SELECT file_path FROM report_update_media WHERE update_id = {$update_id}");
         while ($m = $media->fetch_assoc()) {
-            $full = __DIR__ . '/../../' . $m['file_path'];
+            $full = $upload_dir . '/' . basename($m['file_path']);
             if (file_exists($full)) @unlink($full);
         }
 
@@ -205,7 +205,7 @@ function handleProgressMediaUpload($files, $upload_dir, $update_id) {
         $dest = $upload_dir . '/' . $filename;
         if (move_uploaded_file($file['tmp_name'], $dest)) {
             chmod($dest, 0644);
-            $relative = 'lgu_staff/uploads/progress_updates/' . $filename;
+            $relative = 'uploads/progress_updates/' . $filename;
             $file_type = in_array($ext, $image_types) ? 'image' : 'video';
 
             $stmt = $conn->prepare("INSERT INTO report_update_media (update_id, file_path, file_type) VALUES (?, ?, ?)");
