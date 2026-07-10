@@ -145,7 +145,7 @@ function getNavigationItems($user_role) {
                 'href' => '../pages/main/settings.php',
                 'icon' => 'gear',
                 'title' => 'Settings',
-                'roles' => ['system_admin','lgu_staff']
+                'roles' => ['system_admin']
             ]
         ]
     ];
