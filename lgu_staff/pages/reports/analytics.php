@@ -21,7 +21,7 @@ $total_reports = count($all_reports);
 $total_transport = count($transport_reports ?: []);
 $total_maintenance = count($maintenance_reports ?: []);
 
-$status_counts = ['pending' => 0, 'in-progress' => 0, 'completed' => 0, 'cancelled' => 0];
+$status_counts = ['pending' => 0, 'approved' => 0, 'in-progress' => 0, 'completed' => 0, 'cancelled' => 0];
 $priority_counts = ['high' => 0, 'medium' => 0, 'low' => 0];
 $department_counts = [];
 $type_counts = [];
@@ -302,16 +302,17 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
         new Chart(document.getElementById('statusChart'), {
             type: 'bar',
             data: {
-                labels: ['Pending', 'In Progress', 'Completed', 'Cancelled'],
+                labels: ['Pending', 'Approved', 'In Progress', 'Completed', 'Cancelled'],
                 datasets: [{
                     label: 'Reports',
                     data: [
                         <?php echo $status_counts['pending'] ?? 0; ?>,
+                        <?php echo $status_counts['approved'] ?? 0; ?>,
                         <?php echo $status_counts['in-progress'] ?? 0; ?>,
                         <?php echo $status_counts['completed'] ?? 0; ?>,
                         <?php echo $status_counts['cancelled'] ?? 0; ?>
                     ],
-                    backgroundColor: ['#d97706', '#2563eb', '#059669', '#dc2626'],
+                    backgroundColor: ['#d97706', '#3b82f6', '#8b5cf6', '#059669', '#dc2626'],
                     borderRadius: 4
                 }]
             },
@@ -369,15 +370,16 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
         new Chart(document.getElementById('overviewChart'), {
             type: 'doughnut',
             data: {
-                labels: ['Pending', 'In Progress', 'Completed', 'Cancelled'],
+                labels: ['Pending', 'Approved', 'In Progress', 'Completed', 'Cancelled'],
                 datasets: [{
                     data: [
                         <?php echo $status_counts['pending'] ?? 0; ?>,
+                        <?php echo $status_counts['approved'] ?? 0; ?>,
                         <?php echo $status_counts['in-progress'] ?? 0; ?>,
                         <?php echo $status_counts['completed'] ?? 0; ?>,
                         <?php echo $status_counts['cancelled'] ?? 0; ?>
                     ],
-                    backgroundColor: ['#d97706', '#2563eb', '#059669', '#dc2626'],
+                    backgroundColor: ['#d97706', '#3b82f6', '#8b5cf6', '#059669', '#dc2626'],
                     borderWidth: 0
                 }]
             },

@@ -186,6 +186,11 @@ body.dark-mode .status-completed {
     color: #34d399 !important;
 }
 
+body.dark-mode .status-approved {
+    background: rgba(37, 99, 235, 0.2) !important;
+    color: #60a5fa !important;
+}
+
 /* Buttons */
 body.dark-mode .btn-sm {
     color: #e4e6ea !important;

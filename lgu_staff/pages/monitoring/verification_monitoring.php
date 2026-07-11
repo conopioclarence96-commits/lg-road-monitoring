@@ -46,11 +46,11 @@ function getVerificationStatistics($conn) {
     $stats['in_review'] = $transport_progress + $maintenance_progress;
     
     // Approved (completed) from both tables
-    $result = $conn->query("SELECT COUNT(*) as completed FROM road_transportation_reports WHERE status = 'completed'");
-    $transport_completed = $result->fetch_assoc()['completed'];
+    $result = $conn->query("SELECT COUNT(*) as approved FROM road_transportation_reports WHERE status = 'approved'");
+    $transport_completed = $result->fetch_assoc()['approved'];
     
-    $result = $conn->query("SELECT COUNT(*) as completed FROM road_maintenance_reports WHERE status = 'completed'");
-    $maintenance_completed = $result->fetch_assoc()['completed'];
+    $result = $conn->query("SELECT COUNT(*) as approved FROM road_maintenance_reports WHERE status = 'approved'");
+    $maintenance_completed = $result->fetch_assoc()['approved'];
     $stats['approved'] = $transport_completed + $maintenance_completed;
     
     return $stats;
@@ -75,10 +75,10 @@ function getPendingVerifications($conn) {
 function getApprovedReports($conn) {
     $query = "(SELECT 'transport' as source, id, report_id, title, report_type,
                      department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at 
-              FROM road_transportation_reports WHERE status = 'completed')
-              UNION ALL
-              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports WHERE status = 'completed')
-              ORDER BY updated_at DESC";
+               FROM road_transportation_reports WHERE status = 'approved')
+               UNION ALL
+               (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports WHERE status = 'approved')
+               ORDER BY updated_at DESC";
     $result = $conn->query($query);
     if (!$result) {
         error_log("Query error in getApprovedReports: " . $conn->error);
@@ -118,9 +118,9 @@ function getAllReports($conn) {
 
 // Function to get recent approvals (for timeline)
 function getRecentApprovals($conn) {
-    $query = "(SELECT 'transport' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports WHERE status = 'completed')
+    $query = "(SELECT 'transport' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports WHERE status = 'approved')
               UNION ALL
-              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports WHERE status = 'completed')
+              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports WHERE status = 'approved')
               ORDER BY updated_at DESC LIMIT 10";
     $result = $conn->query($query);
     if (!$result) {
@@ -176,7 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $audit_status = '';
         switch ($action) {
             case 'approve':
-                $status = 'completed';
+                $status = 'approved';
                 $audit_status = 'approved';
                 break;
             case 'reject':
@@ -1473,10 +1473,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     ?>
                         <?php while ($report = $all_reports->fetch_assoc()): 
                             $status_class = '';
-                            if ($report['status'] === 'completed') $status_class = 'approved';
+                            if ($report['status'] === 'approved') $status_class = 'approved';
                             elseif ($report['status'] === 'cancelled') $status_class = 'rejected';
                             elseif ($report['status'] === 'pending') $status_class = 'pending';
                             elseif ($report['status'] === 'in-progress') $status_class = 'in-progress';
+                            elseif ($report['status'] === 'completed') $status_class = 'completed';
                         ?>
                             <div class="verification-item" data-status="<?php echo htmlspecialchars($report['status']); ?>" data-source="<?php echo htmlspecialchars($report['source']); ?>" data-created-by="<?php echo htmlspecialchars($report['created_by'] ?? ''); ?>" data-reporter-name="<?php echo htmlspecialchars($report['reporter_name'] ?? ''); ?>">
                                 <div class="verification-priority priority-<?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?>"></div>
@@ -1598,7 +1599,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                 <strong>Priority:</strong> <span class="workflow-badge priority-<?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?>"><?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?></span>
                                             </div>
                                             <div class="detail-item">
-                                                <strong>Status:</strong> <span class="workflow-badge <?php echo $report['status'] === 'completed' ? 'approved' : ($report['status'] === 'cancelled' ? 'rejected' : 'pending'); ?>"><?php echo htmlspecialchars($report['status'] ?? 'N/A'); ?></span>
+                                                <strong>Status:</strong> <span class="workflow-badge <?php echo $report['status'] === 'approved' ? 'approved' : ($report['status'] === 'cancelled' ? 'rejected' : ($report['status'] === 'completed' ? 'completed' : 'pending')); ?>"><?php echo htmlspecialchars($report['status'] ?? 'N/A'); ?></span>
                                             </div>
                                             <div class="detail-item full-width">
                                                 <strong>Full Description:</strong>
@@ -1657,10 +1658,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     </div>
                                     
                                     <div class="verification-actions">
-                                        <?php if ($report['status'] === 'pending' || $report['status'] === 'in-progress'): ?>
-                                            <?php if ($report['status'] === 'in-progress'): ?>
-                                                <span class="workflow-badge" style="margin-right: 10px;">In Progress</span>
-                                            <?php endif; ?>
+                                        <?php if ($report['status'] === 'pending'): ?>
                                             <button type="button" onclick="toggleDetails(<?php echo $report['id']; ?>)" class="btn-review">
                                                 <i class="fas fa-eye" id="icon-<?php echo $report['id']; ?>"></i>
                                                 <span id="text-<?php echo $report['id']; ?>">View Details</span>
@@ -1681,10 +1679,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                     Reject
                                                 </button>
                                             </form>
-                                        <?php elseif ($report['status'] === 'completed'): ?>
+                                        <?php elseif ($report['status'] === 'approved'): ?>
                                             <span class="workflow-badge approved" style="margin-right: 10px;">Approved</span>
                                             <?php if (!empty($report['approved_at'])): ?>
                                             <span style="font-size: 12px; color: #6b7280; margin-right: 10px;"><i class="fas fa-clock"></i> <?php echo date('M d, Y g:i A', strtotime($report['approved_at'])); ?></span>
+                                            <?php endif; ?>
+                                            <button type="button" onclick="viewDetails(<?php echo $report['id']; ?>, '<?php echo $report['source']; ?>')" class="btn-details" data-report-id="<?php echo $report['id']; ?>">
+                                                <span id="text-<?php echo $report['id']; ?>">View Details</span>
+                                            </button>
+                                        <?php elseif ($report['status'] === 'completed'): ?>
+                                            <span class="workflow-badge" style="margin-right: 10px; background: #10b981; color: white;">Completed</span>
+                                            <?php if (!empty($report['approved_at'])): ?>
+                                            <span style="font-size: 12px; color: #6b7280; margin-right: 10px;"><i class="fas fa-clock"></i> Approved: <?php echo date('M d, Y g:i A', strtotime($report['approved_at'])); ?></span>
                                             <?php endif; ?>
                                             <button type="button" onclick="viewDetails(<?php echo $report['id']; ?>, '<?php echo $report['source']; ?>')" class="btn-details" data-report-id="<?php echo $report['id']; ?>">
                                                 <span id="text-<?php echo $report['id']; ?>">View Details</span>
@@ -1942,7 +1948,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             const items = document.querySelectorAll('.verification-item');
             let count = 0;
             items.forEach(item => {
-                if (item.dataset.status === 'completed') {
+                if (item.dataset.status === 'approved') {
                     item.style.display = 'flex';
                     count++;
                 } else {
@@ -2224,6 +2230,8 @@ function getActivityTitle($activity) {
     switch ($status) {
         case 'completed':
             return $source . ' Report: ' . $title . ' - Completed';
+        case 'approved':
+            return $source . ' Report: ' . $title . ' - Approved';
         case 'cancelled':
             return $source . ' Report: ' . $title . ' - Cancelled';
         case 'pending':

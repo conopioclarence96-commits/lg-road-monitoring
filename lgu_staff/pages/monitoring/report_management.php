@@ -1365,8 +1365,10 @@ if (!empty($reports)) {
                     <select class="filter-select" id="statusFilter" onchange="filterReports()">
                         <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
                         <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending</option>
-                        <option value="in_progress" <?php echo $status_filter === 'in_progress' ? 'selected' : ''; ?>>In Progress</option>
+                        <option value="approved" <?php echo $status_filter === 'approved' ? 'selected' : ''; ?>>Approved</option>
+                        <option value="in-progress" <?php echo $status_filter === 'in-progress' ? 'selected' : ''; ?>>In Progress</option>
                         <option value="completed" <?php echo $status_filter === 'completed' ? 'selected' : ''; ?>>Completed</option>
+                        <option value="cancelled" <?php echo $status_filter === 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
                     </select>
                 </div>
                 <div>
@@ -1427,7 +1429,7 @@ if (!empty($reports)) {
                                     </div>
                                 </div>
                                 <span class="status-badge status-<?php echo str_replace('_', '-', $report['status']); ?>">
-                                    <?php echo ucfirst(str_replace('_', ' ', $report['status'])); ?>
+                                    <?php echo ucwords(str_replace('-', ' ', str_replace('_', ' ', $report['status']))); ?>
                                 </span>
                             </div>
                             
@@ -1538,6 +1540,7 @@ if (!empty($reports)) {
                                 <label for="editStatus" class="form-label">Status *</label>
                                 <select class="form-control" name="status" id="editStatus" required>
                                     <option value="pending">Pending</option>
+                                    <option value="approved">Approved</option>
                                     <option value="in-progress">In Progress</option>
                                     <option value="completed">Completed</option>
                                     <option value="cancelled">Cancelled</option>
