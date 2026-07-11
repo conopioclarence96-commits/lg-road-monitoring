@@ -1408,11 +1408,6 @@ if (!empty($reports)) {
                                         <i class="fas fa-tag"></i> <?php echo ucfirst($report['report_type']); ?> • 
                                         <i class="fas fa-geo-alt"></i> <?php echo htmlspecialchars($report['location']); ?> • 
                                         <i class="fas fa-flag"></i> Priority: <?php echo ucfirst($report['priority']); ?> • 
-                                        <?php if (!empty($report['estimation']) && isset($report['estimation']) && $report['estimation'] > 0): ?>
-                                        <i class="fas fa-peso-sign"></i> Estimation: ₱<?php echo number_format($report['estimation'], 2); ?> • 
-                                        <?php else: ?>
-                                        <i class="fas fa-peso-sign" style="opacity: 0.3;"></i> No Estimation • 
-                                        <?php endif; ?>
                                         <i class="fas fa-clock"></i> <?php echo format_datetime($report['created_at']); ?>
                                     </div>
                                 </div>
@@ -1699,7 +1694,7 @@ if (!empty($reports)) {
                                     <div><strong>Status:</strong> <span class="status-badge status-${data.report.status.replace('_', '-')}">${data.report.status}</span></div>
                                     <div><strong>Priority:</strong> ${data.report.priority}</div>
                                     <div><strong>Location:</strong> ${data.report.location}</div>
-                                    ${data.report.estimation && data.report.estimation > 0 ? `<div><strong>Cost Estimation:</strong> ₱${parseFloat(data.report.estimation).toLocaleString('en-PH', {minimumFractionDigits: 2})}</div>` : '<div><strong>Cost Estimation:</strong> Not specified</div>'}
+                                    ${data.report.latitude && data.report.longitude && data.report.latitude != 0 && data.report.longitude != 0 ? `<div><a href="https://www.openstreetmap.org/?mlat=${data.report.latitude}&mlon=${data.report.longitude}&zoom=15" target="_blank" class="btn-map" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:#e8f4f8;color:#1e3c72;border-radius:6px;text-decoration:none;font-size:13px;font-weight:500;margin-top:4px;"><i class="fas fa-map-marker-alt"></i> View on Map</a></div>` : ''}
                                 </div>
                                 <div style="margin-bottom: 20px;">
                                     <strong>Description:</strong>
