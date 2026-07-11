@@ -1605,38 +1605,7 @@ if (!empty($reports)) {
                 <h5 class="modal-title"><i class="fas fa-clock"></i> Progress Updates</h5>
                 <button class="close" onclick="closeModal('updatesModal')">&times;</button>
             </div>
-            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;" id="updatesModalBody">
-                <div id="updateFormContainer" style="display:none;border-bottom:2px solid rgba(55,98,200,0.12);padding:0 0 16px 0;margin-bottom:16px;">
-                    <h5 style="margin:0 0 12px 0;font-size:15px;font-weight:600;color:#1e3c72;" id="updateFormTitle"><i class="fas fa-plus-circle"></i> Add Progress Update</h5>
-                    <form id="addUpdateForm" enctype="multipart/form-data">
-                        <input type="hidden" name="action" id="ufAction" value="create_update">
-                        <input type="hidden" name="update_id" id="ufUpdateId" value="">
-                        <input type="hidden" name="report_id" id="ufReportId" value="">
-                        <input type="hidden" name="report_type" id="ufReportType" value="">
-                        <div class="form-group" style="margin-bottom:12px;">
-                            <label style="display:block;font-size:13px;font-weight:500;color:#374151;margin-bottom:4px;">Title (optional)</label>
-                            <input type="text" name="title" id="ufTitle" placeholder="e.g., Inspection completed" style="width:100%;padding:9px 12px;border:1px solid rgba(55,98,200,0.25);border-radius:8px;font-size:13px;">
-                        </div>
-                        <div class="form-group" style="margin-bottom:12px;">
-                            <label style="display:block;font-size:13px;font-weight:500;color:#374151;margin-bottom:4px;">Description *</label>
-                            <textarea name="description" id="ufDescription" placeholder="Describe the progress made..." required style="width:100%;padding:9px 12px;border:1px solid rgba(55,98,200,0.25);border-radius:8px;font-size:13px;resize:vertical;min-height:70px;"></textarea>
-                        </div>
-                        <div class="form-group" style="margin-bottom:12px;">
-                            <label style="display:block;font-size:13px;font-weight:500;color:#374151;margin-bottom:4px;">Photos / Video</label>
-                            <input type="file" name="media[]" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm" multiple style="font-size:13px;padding:6px 0;">
-                            <small style="color:#666;font-size:11px;">Accepted: JPG, PNG, GIF, WebP, MP4, WebM</small>
-                            <div class="file-previews" id="updateFilePreviews" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;"></div>
-                        </div>
-                        <div class="form-group" style="margin-bottom:12px;display:none;" id="existingMediaGroup">
-                            <label style="display:block;font-size:13px;font-weight:500;color:#374151;margin-bottom:4px;">Current media (check to remove)</label>
-                            <div id="existingUpdateMedia" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;"></div>
-                        </div>
-                        <div style="display:flex;gap:10px;margin-top:4px;">
-                            <button type="button" class="btn-secondary-custom" onclick="cancelUpdateForm()">Cancel</button>
-                            <button type="submit" class="btn-action" id="ufSubmitBtn"><i class="fas fa-save"></i> Post Update</button>
-                        </div>
-                    </form>
-                </div>
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
                 <div class="timeline-container" id="updatesTimeline">
                     <div class="timeline-empty"><i class="fas fa-spinner fa-spin fa-2x" style="color:#3762c8;"></i></div>
                 </div>
