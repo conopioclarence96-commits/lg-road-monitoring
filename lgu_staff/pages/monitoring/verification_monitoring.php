@@ -1544,7 +1544,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <select class="filter-select" id="sourceFilter" onchange="filterReports()">
                         <option value="all" <?php echo $source_filter === 'all' ? 'selected' : ''; ?>>All Sources</option>
                         <option value="transport" <?php echo $source_filter === 'transport' ? 'selected' : ''; ?>>Road & Transportation (Our LGU)</option>
-                        <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>External Systems (Maintenance)</option>
+                        <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>External Systems (Maintenance/infrastructure)</option>
                     </select>
                 </div>
                 <div>
