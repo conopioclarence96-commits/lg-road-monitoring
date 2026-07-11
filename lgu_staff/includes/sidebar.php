@@ -96,7 +96,7 @@ function getNavigationItems($user_role) {
             [
                 'href' => '../pages/monitoring/report_management.php',
                 'icon' => 'clipboard-data',
-                'title' => 'Road Report Management and Monitoring',
+                'title' => 'Report Management',
                 'roles' => ['system_admin']
             ]
         ],
@@ -589,7 +589,7 @@ $notification_count = getNotificationCount($user_role, $_SESSION['user_id'] ?? 0
                     <ul style="list-style: none;">
                         <li><a href="../pages/monitoring/road_transportation_monitoring.php" class="nav-link" target="_parent">🗺️ Road and Transportation Reporting</a></li>
                         <li><a href="../pages/monitoring/verification_monitoring.php" class="nav-link" target="_parent">✅ Verification Reports</a></li>
-                        <li><a href="../pages/monitoring/report_management.php" class="nav-link" target="_parent">📊 Road Report Management and Monitoring</a></li>
+                        <li><a href="../pages/monitoring/report_management.php" class="nav-link" target="_parent">📊 Report Management</a></li>
                     </ul>
                 </div>
                 <div class="nav-section">
