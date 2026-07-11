@@ -1698,7 +1698,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                             <?php if (!empty($report['approved_at'])): ?>
                                             <span style="font-size: 12px; color: #6b7280; margin-right: 10px;"><i class="fas fa-clock"></i> <?php echo date('M d, Y g:i A', strtotime($report['approved_at'])); ?></span>
                                             <?php endif; ?>
-                                            <button type="button" onclick="viewDetails(<?php echo $report['id']; ?>, '<?php echo $report['source']; ?>')" class="btn-details" data-report-id="<?php echo $report['id']; ?>">
+                                            <button type="button" onclick="toggleDetails(<?php echo $report['id']; ?>)" class="btn-review">
+                                                <i class="fas fa-eye" id="icon-<?php echo $report['id']; ?>"></i>
                                                 <span id="text-<?php echo $report['id']; ?>">View Details</span>
                                             </button>
                                         <?php elseif ($report['status'] === 'completed'): ?>
@@ -1706,7 +1707,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                             <?php if (!empty($report['approved_at'])): ?>
                                             <span style="font-size: 12px; color: #6b7280; margin-right: 10px;"><i class="fas fa-clock"></i> Approved: <?php echo date('M d, Y g:i A', strtotime($report['approved_at'])); ?></span>
                                             <?php endif; ?>
-                                            <button type="button" onclick="viewDetails(<?php echo $report['id']; ?>, '<?php echo $report['source']; ?>')" class="btn-details" data-report-id="<?php echo $report['id']; ?>">
+                                            <button type="button" onclick="toggleDetails(<?php echo $report['id']; ?>)" class="btn-review">
+                                                <i class="fas fa-eye" id="icon-<?php echo $report['id']; ?>"></i>
                                                 <span id="text-<?php echo $report['id']; ?>">View Details</span>
                                             </button>
                                         <?php elseif ($report['status'] === 'cancelled'): ?>
