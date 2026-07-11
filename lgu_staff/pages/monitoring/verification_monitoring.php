@@ -3,6 +3,20 @@ require_once '../../includes/session_config.php';
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 
+// Session timeout configuration
+$session_timeout = 5 * 60; // 5 minutes in seconds
+
+// Check if session has expired
+if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
+    session_destroy();
+    setcookie(session_name(), '', time() - 3600, '/');
+    header('Location: ../../login.php?timeout=1');
+    exit();
+}
+
+// Update last activity time
+$_SESSION['last_activity'] = time();
+
 // Ensure approved_at and rejected_at columns exist in report tables
 foreach (['road_transportation_reports', 'road_maintenance_reports'] as $tbl) {
     $check = $conn->query("SHOW COLUMNS FROM $tbl LIKE 'approved_at'");
@@ -2175,6 +2189,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <div class="transition-text">Loading...</div>
         </div>
     </div>
+
+    <!-- Session Timeout Modal -->
+    <div id="sessionTimeoutOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); z-index:10000;"></div>
+    <div id="sessionTimeoutModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; border-radius:12px; padding:32px; z-index:10001; width:400px; max-width:90vw; box-shadow:0 16px 48px rgba(0,0,0,0.3); text-align:center;">
+        <div style="font-size:48px; color:#e74c3c; margin-bottom:16px;">
+            <i class="fas fa-clock"></i>
+        </div>
+        <h3 style="margin:0 0 8px; font-size:20px; color:#1a1a2e;">Session Expiring</h3>
+        <p style="margin:0 0 20px; color:#666; font-size:14px;">
+            Your session will expire in <strong><span id="sessionCountdown">60</span></strong> seconds due to inactivity.
+        </p>
+        <div style="display:flex; gap:12px; justify-content:center;">
+            <button id="extendSessionBtn" style="padding:10px 24px; background:#3762c8; color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Extend Session</button>
+            <button id="logoutSessionBtn" style="padding:10px 24px; background:#e74c3c; color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Log Out</button>
+        </div>
+    </div>
+
+    <!-- Session timeout data -->
+    <script id="sessionTimeoutData" data-timeout="<?php echo $session_timeout; ?>"></script>
+    <script src="../../js/session-timeout.js"></script>
 </body>
 </html>
 
