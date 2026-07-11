@@ -185,6 +185,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit();
         }
         
+        // Block approval of local transport reports
+        if ($action === 'approve' && $source === 'transport') {
+            $_SESSION['verification_message'] = 'Local transport reports cannot be approved here. Use the monitoring dashboard.';
+            header('Location: ../monitoring/verification_monitoring.php');
+            exit();
+        }
+
         // Update report status
         $status = '';
         $audit_status = '';
@@ -1744,6 +1751,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                 <i class="fas fa-eye" id="icon-<?php echo $report['id']; ?>"></i>
                                                 <span id="text-<?php echo $report['id']; ?>">View Details</span>
                                             </button>
+                                            <?php if ($report['source'] !== 'transport'): ?>
                                             <form method="POST" style="display: inline-flex;">
                                                 <input type="hidden" name="report_id" value="<?php echo $report['id']; ?>">
                                                 <input type="hidden" name="source" value="<?php echo htmlspecialchars($report['source']); ?>">
@@ -1752,6 +1760,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                     Approve
                                                 </button>
                                             </form>
+                                            <?php else: ?>
+                                            <span class="workflow-badge" style="background:#e2e8f0;color:#64748b;font-size:12px;padding:4px 12px;border-radius:20px;">
+                                                <i class="fas fa-ban"></i> Local — Verify via Dashboard
+                                            </span>
+                                            <?php endif; ?>
                                             <form method="POST" style="display: inline-flex;">
                                                 <input type="hidden" name="report_id" value="<?php echo $report['id']; ?>">
                                                 <input type="hidden" name="source" value="<?php echo htmlspecialchars($report['source']); ?>">
