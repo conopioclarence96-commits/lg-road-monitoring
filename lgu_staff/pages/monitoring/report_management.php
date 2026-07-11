@@ -173,12 +173,10 @@ function handle_update_report() {
     $report_type_from_db = sanitize_input($_POST['report_type_from_db'] ?? '');
     $status = sanitize_input($_POST['status'] ?? '');
     $priority = sanitize_input($_POST['priority'] ?? '');
-    $assigned_to = sanitize_input($_POST['assigned_to'] ?? '');
     $notes = sanitize_input($_POST['notes'] ?? '');
     $title = sanitize_input($_POST['title'] ?? '');
     $description = sanitize_input($_POST['description'] ?? '');
     $location = sanitize_input($_POST['location'] ?? '');
-    $estimation = floatval($_POST['estimation'] ?? 0);
     
     if ($report_id <= 0 || empty($report_type) || empty($status)) {
         set_flash_message('error', 'Invalid report data');
@@ -199,17 +197,10 @@ function handle_update_report() {
     if (!empty($title)) { $update_fields[] = "title = ?"; $params[] = $title; $types .= "s"; }
     if (!empty($description)) { $update_fields[] = "description = ?"; $params[] = $description; $types .= "s"; }
     if (!empty($location)) { $update_fields[] = "location = ?"; $params[] = $location; $types .= "s"; }
-    if ($estimation >= 0) { $update_fields[] = "estimation = ?"; $params[] = $estimation; $types .= "d"; }
     
     if ($table === 'road_transportation_reports') {
-        $update_fields[] = "assigned_to = ?";
         $update_fields[] = "resolution_notes = ?";
-        $params[] = $assigned_to;
         $params[] = $notes;
-        $types .= "ss";
-    } else {
-        $update_fields[] = "maintenance_team = ?";
-        $params[] = $assigned_to;
         $types .= "s";
     }
     
@@ -265,7 +256,6 @@ function handle_update_report() {
     if ($stmt->execute()) {
         $change_log = "Report ID: {$report_id}, New Status: {$status}";
         if (!empty($uploaded_photos)) $change_log .= ", Photos added: " . count($uploaded_photos);
-        if ($estimation > 0) $change_log .= ", Estimation: ₱" . number_format($estimation, 2);
         
         log_audit_action($user_id, "Updated {$report_type_from_db} report", $change_log);
 
@@ -275,8 +265,6 @@ function handle_update_report() {
         if (!empty($notes)) $update_desc_parts[] = $notes;
         $update_desc_parts[] = "Status: " . ucfirst(str_replace('-', ' ', $status));
         $update_desc_parts[] = "Priority: " . ucfirst($priority);
-        if (!empty($assigned_to)) $update_desc_parts[] = "Assigned to: " . $assigned_to;
-        if ($estimation > 0) $update_desc_parts[] = "Estimation: ₱" . number_format($estimation, 2);
         $update_desc = implode('. ', $update_desc_parts);
 
         try {
@@ -1556,35 +1544,6 @@ if (!empty($reports)) {
                                 </select>
                             </div>
                         </div>
-                        <div class="form-group">
-                            <label for="editAssignedTo" class="form-label">Assign To *</label>
-                            <select class="form-control" name="assigned_to" id="editAssignedTo" required>
-                                <option value="">Select Assignee</option>
-                                <option value="CIM Engineer 1">CIM Engineer 1</option>
-                                <option value="CIM Engineer 2">CIM Engineer 2</option>
-                                <option value="CIM Engineer 3">CIM Engineer 3</option>
-                                <option value="CIM Engineer 4">CIM Engineer 4</option>
-                                <option value="CIM Engineer 5">CIM Engineer 5</option>
-                                <option value="Maintenance Team">Maintenance Team</option>
-                                <option value="Road Inspector">Road Inspector</option>
-                                <option value="Project Manager">Project Manager</option>
-                            </select>
-                            <small style="color: #666; font-size: 12px;">Select the team member responsible for this report</small>
-                        </div>
-                    </div>
-
-                    <div class="form-section">
-                        <h6><i class="fas fa-calculator"></i> Cost Estimation</h6>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label for="editEstimation" class="form-label">Estimated Cost (PHP)</label>
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <span style="font-size: 18px; font-weight: 600; color: #1e3c72;">₱</span>
-                                <input type="number" class="form-control" name="estimation" id="editEstimation" 
-                                       min="0" max="10000000" step="0.01" 
-                                       placeholder="0.00" style="flex: 1;">
-                                <span style="font-size: 12px; color: #666;">Max: ₱10,000,000</span>
-                            </div>
-                        </div>
                     </div>
 
                     <div class="form-section">
@@ -1814,29 +1773,6 @@ if (!empty($reports)) {
                         document.getElementById('editTitle').value = data.report.title || '';
                         document.getElementById('editDescription').value = data.report.description || '';
                         document.getElementById('editLocation').value = data.report.location || '';
-                        
-                        if (data.report.estimation && data.report.estimation > 0) {
-                            document.getElementById('editEstimation').value = data.report.estimation;
-                        } else {
-                            document.getElementById('editEstimation').value = '';
-                        }
-
-                        // Auto-assign based on priority if no assignment exists
-                        const assignedToSelect = document.getElementById('editAssignedTo');
-                        if (!data.report.assigned_to || data.report.assigned_to === '') {
-                            const priority = data.report.priority;
-                            let autoAssign = '';
-                            if (priority === 'high' || priority === 'critical') {
-                                autoAssign = 'CIM Engineer 1';
-                            } else if (priority === 'medium') {
-                                autoAssign = 'CIM Engineer 2';
-                            } else {
-                                autoAssign = 'CIM Engineer 3';
-                            }
-                            assignedToSelect.value = autoAssign;
-                        } else {
-                            assignedToSelect.value = data.report.assigned_to;
-                        }
                         
                         document.getElementById('editNotes').value = data.report.notes || '';
                         
