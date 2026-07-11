@@ -1850,7 +1850,7 @@ if (!empty($reports)) {
         }
 
         function deleteReport(id, type) {
-            if (confirm('Are you sure you want to delete this report? This action cannot be undone.')) {
+            if (confirm('Are you sure you want to delete this report? It will be moved to the archive.')) {
                 const form = document.createElement('form');
                 form.method = 'POST';
                 form.innerHTML = `
