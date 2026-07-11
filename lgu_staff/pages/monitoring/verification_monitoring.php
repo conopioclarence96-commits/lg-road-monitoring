@@ -17,7 +17,7 @@ if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > 
 // Update last activity time
 $_SESSION['last_activity'] = time();
 
-// Ensure approved_at and rejected_at columns exist in report tables
+// Ensure required columns exist in report tables
 foreach (['road_transportation_reports', 'road_maintenance_reports'] as $tbl) {
     $check = $conn->query("SHOW COLUMNS FROM $tbl LIKE 'approved_at'");
     if ($check && $check->num_rows === 0) {
@@ -27,6 +27,16 @@ foreach (['road_transportation_reports', 'road_maintenance_reports'] as $tbl) {
     if ($check2 && $check2->num_rows === 0) {
         $conn->query("ALTER TABLE $tbl ADD COLUMN rejected_at TIMESTAMP NULL DEFAULT NULL AFTER approved_at");
     }
+}
+
+// Ensure report_category and report_source columns exist in road_transportation_reports
+$check = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'report_category'");
+if ($check && $check->num_rows === 0) {
+    $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN report_category ENUM('road','transportation') DEFAULT NULL AFTER report_type");
+}
+$check2 = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'report_source'");
+if ($check2 && $check2->num_rows === 0) {
+    $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN report_source ENUM('local','external') DEFAULT 'local' AFTER report_category");
 }
 
 // Check if user is logged in
@@ -72,11 +82,11 @@ function getVerificationStatistics($conn) {
 
 // Function to get pending verifications
 function getPendingVerifications($conn) {
-    $query = "(SELECT 'transport' as source, id, report_id, title, report_type,
+    $query = "(SELECT 'transport' as source, id, report_id, title, report_type, report_category, report_source,
                      department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at 
               FROM road_transportation_reports WHERE status = 'pending')
               UNION ALL
-              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports WHERE status = 'pending')
+              (SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports WHERE status = 'pending')
               ORDER BY created_at DESC";
     $result = $conn->query($query);
     if (!$result) {
@@ -87,11 +97,11 @@ function getPendingVerifications($conn) {
 
 // Function to get approved reports
 function getApprovedReports($conn) {
-    $query = "(SELECT 'transport' as source, id, report_id, title, report_type,
+    $query = "(SELECT 'transport' as source, id, report_id, title, report_type, report_category, report_source,
                      department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at 
                FROM road_transportation_reports WHERE status = 'approved')
                UNION ALL
-               (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports WHERE status = 'approved')
+               (SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports WHERE status = 'approved')
                ORDER BY updated_at DESC";
     $result = $conn->query($query);
     if (!$result) {
@@ -102,11 +112,11 @@ function getApprovedReports($conn) {
 
 // Function to get rejected reports
 function getRejectedReports($conn) {
-    $query = "(SELECT 'transport' as source, id, report_id, title, report_type,
+    $query = "(SELECT 'transport' as source, id, report_id, title, report_type, report_category, report_source,
                      department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at 
               FROM road_transportation_reports WHERE status = 'cancelled')
               UNION ALL
-              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports WHERE status = 'cancelled')
+              (SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports WHERE status = 'cancelled')
               ORDER BY updated_at DESC";
     $result = $conn->query($query);
     if (!$result) {
@@ -133,14 +143,14 @@ function getAllReports($conn, $status_filter = 'all', $source_filter = 'all') {
         }
     }
     if ($source_filter === 'transport') {
-        $q = "(SELECT 'transport' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$transport_where})";
+        $q = "(SELECT 'transport' as source, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$transport_where})";
         $parts[] = $q;
     } elseif ($source_filter === 'maintenance') {
-        $q = "(SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
+        $q = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
         $parts[] = $q;
     } else {
-        $parts[] = "(SELECT 'transport' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$transport_where})";
-        $parts[] = "(SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
+        $parts[] = "(SELECT 'transport' as source, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$transport_where})";
+        $parts[] = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
     }
     $query = implode(' UNION ALL ', $parts) . " ORDER BY created_at DESC";
     $result = $conn->query($query);
@@ -152,9 +162,9 @@ function getAllReports($conn, $status_filter = 'all', $source_filter = 'all') {
 
 // Function to get recent approvals (for timeline)
 function getRecentApprovals($conn) {
-    $query = "(SELECT 'transport' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports WHERE status = 'approved')
+    $query = "(SELECT 'transport' as source, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports WHERE status = 'approved')
               UNION ALL
-              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports WHERE status = 'approved')
+              (SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports WHERE status = 'approved')
               ORDER BY updated_at DESC LIMIT 10";
     $result = $conn->query($query);
     if (!$result) {
@@ -165,11 +175,11 @@ function getRecentApprovals($conn) {
 
 // Function to get activity timeline
 function getActivityTimeline($conn) {
-    $query = "(SELECT 'transport' as source, id, report_id, title, report_type,
+    $query = "(SELECT 'transport' as source, id, report_id, title, report_type, report_category, report_source,
                      department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at 
               FROM road_transportation_reports)
               UNION ALL
-              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports)
+              (SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports)
               ORDER BY updated_at DESC LIMIT 5";
     $result = $conn->query($query);
     if (!$result) {
@@ -205,6 +215,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit();
         }
         
+        // Check verification rules: block approve for road+local reports
+        if ($action === 'approve' && $source === 'transport') {
+            $check = $conn->prepare("SELECT report_category, report_source FROM road_transportation_reports WHERE id = ?");
+            $check->bind_param('i', $report_id);
+            $check->execute();
+            $r = $check->get_result()->fetch_assoc();
+            if ($r && !canVerifyReport($r['report_category'], $r['report_source'])) {
+                $_SESSION['verification_message'] = 'Road reports created by your LGU cannot be approved here. They must be verified by the external Engineering Office.';
+                header('Location: ../monitoring/verification_monitoring.php');
+                exit();
+            }
+        }
+
         // Update report status
         $status = '';
         $audit_status = '';
@@ -1520,8 +1543,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <label class="form-label">Source System</label>
                     <select class="filter-select" id="sourceFilter" onchange="filterReports()">
                         <option value="all" <?php echo $source_filter === 'all' ? 'selected' : ''; ?>>All Sources</option>
-                        <option value="transport" <?php echo $source_filter === 'transport' ? 'selected' : ''; ?>>Road & Transportation (Local)</option>
-                        <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>Infrastructure / Community  (External)</option>
+                        <option value="transport" <?php echo $source_filter === 'transport' ? 'selected' : ''; ?>>Road & Transportation (Our LGU)</option>
+                        <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>External Systems (Maintenance)</option>
                     </select>
                 </div>
                 <div>
@@ -1560,6 +1583,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             elseif ($report['status'] === 'pending') $status_class = 'pending';
                             elseif ($report['status'] === 'in-progress') $status_class = 'in-progress';
                             elseif ($report['status'] === 'completed') $status_class = 'completed';
+
+                            // Check if this report can be verified locally
+                            $report_category = $report['report_category'] ?? null;
+                            $report_source = $report['report_source'] ?? null;
+                            $can_verify = canVerifyReport($report_category, $report_source);
+                            // Road+local reports that are pending show as awaiting external verification
+                            $pending_ext_verify = ($report['status'] === 'pending' && !$can_verify);
                         ?>
                             <div class="verification-item" data-status="<?php echo htmlspecialchars($report['status']); ?>" data-source="<?php echo htmlspecialchars($report['source']); ?>" data-created-by="<?php echo htmlspecialchars($report['created_by'] ?? ''); ?>" data-reporter-name="<?php echo htmlspecialchars($report['reporter_name'] ?? ''); ?>">
                                 <div class="verification-priority priority-<?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?>"></div>
@@ -1681,7 +1711,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                 <strong>Priority:</strong> <span class="workflow-badge priority-<?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?>"><?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?></span>
                                             </div>
                                             <div class="detail-item">
-                                                <strong>Status:</strong> <span class="workflow-badge <?php echo $report['status'] === 'approved' ? 'approved' : ($report['status'] === 'cancelled' ? 'rejected' : ($report['status'] === 'completed' ? 'completed' : 'pending')); ?>"><?php echo htmlspecialchars($report['status'] ?? 'N/A'); ?></span>
+                                                <strong>Status:</strong> 
+                                                <?php if ($pending_ext_verify): ?>
+                                                <span class="workflow-badge" style="background:#fef3c7;color:#92400e;">Awaiting External Verification</span>
+                                                <?php else: ?>
+                                                <span class="workflow-badge <?php echo $report['status'] === 'approved' ? 'approved' : ($report['status'] === 'cancelled' ? 'rejected' : ($report['status'] === 'completed' ? 'completed' : 'pending')); ?>"><?php echo htmlspecialchars($report['status'] ?? 'N/A'); ?></span>
+                                                <?php endif; ?>
                                             </div>
                                             <div class="detail-item full-width">
                                                 <strong>Full Description:</strong>
@@ -1740,7 +1775,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     </div>
                                     
                                     <div class="verification-actions">
-                                        <?php if ($report['status'] === 'pending'): ?>
+                                        <?php if ($pending_ext_verify): ?>
+                                            <button type="button" onclick="toggleDetails(<?php echo $report['id']; ?>)" class="btn-review">
+                                                <i class="fas fa-eye" id="icon-<?php echo $report['id']; ?>"></i>
+                                                <span id="text-<?php echo $report['id']; ?>">View Details</span>
+                                            </button>
+                                            <span class="workflow-badge" style="background:#fef3c7;color:#92400e;font-size:12px;padding:4px 14px;border-radius:20px;display:inline-flex;align-items:center;gap:6px;">
+                                                <i class="fas fa-external-link-alt" style="font-size:11px;"></i> Awaiting External Verification
+                                            </span>
+                                            <span style="font-size:11px;color:#6b7280;max-width:200px;line-height:1.3;">
+                                                This road report was created by your LGU and must be verified by the Engineering Office.
+                                            </span>
+                                        <?php elseif ($report['status'] === 'pending'): ?>
                                             <button type="button" onclick="toggleDetails(<?php echo $report['id']; ?>)" class="btn-review">
                                                 <i class="fas fa-eye" id="icon-<?php echo $report['id']; ?>"></i>
                                                 <span id="text-<?php echo $report['id']; ?>">View Details</span>
@@ -2281,6 +2327,16 @@ function getTimeAgo($datetime) {
     } else {
         return date('M d, Y', $time);
     }
+}
+
+// Determine if a report can be verified locally
+// Road reports created by this LGU (local source) must go to external Engineering Office
+// Transportation reports and external reports can be verified here
+function canVerifyReport($category, $source) {
+    if ($category === 'road' && $source === 'local') {
+        return false;
+    }
+    return true;
 }
 
 function getActivityTitle($activity) {
