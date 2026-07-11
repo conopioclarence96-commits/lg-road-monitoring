@@ -896,55 +896,107 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         .filter-tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-            padding: 15px 20px;
+            display: inline-flex;
+            gap: 6px;
+            margin-bottom: 24px;
+            padding: 6px;
             background: #f0f4fa;
-            border-radius: 16px;
+            border-radius: 14px;
             border: 1px solid #e0e0e0;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            width: 100%;
+            box-sizing: border-box;
         }
 
         .filter-tab {
+            flex: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
             padding: 10px 20px;
             background: transparent;
             border: none;
-            color: #1e3c72;
-            font-size: 14px;
+            color: #64748b;
+            font-size: 13px;
             font-weight: 500;
             cursor: pointer;
-            transition: all 0.3s ease;
-            border-bottom: 3px solid transparent;
-            margin-bottom: -2px;
+            transition: all 0.25s ease;
+            border-radius: 10px;
+            white-space: nowrap;
+            position: relative;
+        }
+
+        .filter-tab i {
+            font-size: 15px;
+            opacity: 0.7;
+            transition: opacity 0.25s ease;
+        }
+
+        .filter-tab .tab-count {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 22px;
+            height: 22px;
+            padding: 0 7px;
+            border-radius: 11px;
+            background: #e2e8f0;
+            font-size: 11px;
+            font-weight: 600;
+            color: #475569;
+            transition: all 0.25s ease;
+            line-height: 1;
         }
 
         .filter-tab:hover {
-            color: #3762c8;
+            color: #1e293b;
+            background: rgba(255, 255, 255, 0.6);
+        }
+
+        .filter-tab:hover i {
+            opacity: 1;
         }
 
         .filter-tab.active {
-            color: #3762c8;
-            border-bottom: 3px solid #3762c8;
-            font-weight: 600;
-            background: rgba(55, 98, 200, 0.05);
-            border-radius: 8px 8px 0 0;
+            color: #fff;
+            background: #3762c8;
+            box-shadow: 0 2px 8px rgba(55, 98, 200, 0.3);
+        }
+
+        .filter-tab.active i {
+            opacity: 1;
+        }
+
+        .filter-tab.active .tab-count {
+            background: rgba(255, 255, 255, 0.25);
+            color: #fff;
         }
 
         body.dark-mode .filter-tabs {
             background: #1e2229;
             border-color: #2d323b;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
         }
         body.dark-mode .filter-tab {
-            color: #9ca3af;
+            color: #6b7280;
         }
         body.dark-mode .filter-tab:hover {
             color: #e4e6ea;
+            background: rgba(255, 255, 255, 0.05);
+        }
+        body.dark-mode .filter-tab .tab-count {
+            background: #2d323b;
+            color: #9ca3af;
         }
         body.dark-mode .filter-tab.active {
-            color: #60a5fa;
-            border-bottom-color: #60a5fa;
-            background: rgba(96, 165, 250, 0.1);
+            color: #fff;
+            background: #60a5fa;
+            box-shadow: 0 2px 8px rgba(96, 165, 250, 0.3);
+        }
+        body.dark-mode .filter-tab.active .tab-count {
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
         }
 
         .notification {
@@ -1460,10 +1512,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         <!-- Filter Tabs -->
         <div class="filter-tabs">
-            <button class="filter-tab active" onclick="filterReports(this, 'all')">All Requests</button>
-            <button class="filter-tab" onclick="filterReports(this, 'pending')">Pending Review</button>
-            <button class="filter-tab" onclick="filterReports(this, 'approved')">Approved</button>
-            <button class="filter-tab" onclick="filterReports(this, 'rejected')">Rejected</button>
+            <button class="filter-tab active" onclick="filterReports(this, 'all')">
+                <i class="fas fa-layer-group"></i>
+                <span>All Requests</span>
+                <span class="tab-count" id="count-all"><?php echo $all_reports->num_rows; ?></span>
+            </button>
+            <button class="filter-tab" onclick="filterReports(this, 'pending')">
+                <i class="fas fa-hourglass-half"></i>
+                <span>Pending Review</span>
+                <span class="tab-count" id="count-pending">0</span>
+            </button>
+            <button class="filter-tab" onclick="filterReports(this, 'approved')">
+                <i class="fas fa-check-circle"></i>
+                <span>Approved</span>
+                <span class="tab-count" id="count-approved">0</span>
+            </button>
+            <button class="filter-tab" onclick="filterReports(this, 'rejected')">
+                <i class="fas fa-times-circle"></i>
+                <span>Rejected</span>
+                <span class="tab-count" id="count-rejected">0</span>
+            </button>
         </div>
 
         <!-- Workflow Container -->
@@ -1931,6 +1999,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     </div>
 
     <script>
+        // Count reports by status
+        function countByStatus() {
+            var counts = { all: 0, pending: 0, approved: 0, rejected: 0 };
+            document.querySelectorAll('.verification-item').forEach(function(item) {
+                var s = item.dataset.status;
+                counts.all++;
+                if (s === 'pending' || s === 'in-progress') counts.pending++;
+                else if (s === 'approved' || s === 'completed') counts.approved++;
+                else if (s === 'rejected' || s === 'cancelled') counts.rejected++;
+            });
+            return counts;
+        }
+
+        function updateBadges(counts) {
+            ['all', 'pending', 'approved', 'rejected'].forEach(function(key) {
+                var el = document.getElementById('count-' + key);
+                if (el) el.textContent = counts[key];
+            });
+        }
+
         // Filter functionality
         function filterReports(btn, status) {
             document.querySelectorAll('.filter-tab').forEach(tab => tab.classList.remove('active'));
@@ -1954,6 +2042,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             });
             document.getElementById('section-badge').textContent = count;
         }
+
+        // Initialize badge counts on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            updateBadges(countByStatus());
+        });
 
 
 
