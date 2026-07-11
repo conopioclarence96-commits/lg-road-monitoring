@@ -1460,11 +1460,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         <!-- Filter Tabs -->
         <div class="filter-tabs">
-            <button class="filter-tab active" onclick="showAll()">All Requests</button>
-            <button class="filter-tab" onclick="showPending()">Pending Review</button>
-            <button class="filter-tab" onclick="showApproved()">Approved</button>
-            <button class="filter-tab" onclick="showRejected()">Rejected</button>
-
+            <button class="filter-tab active" onclick="filterReports(this, 'all')">All Requests</button>
+            <button class="filter-tab" onclick="filterReports(this, 'pending')">Pending Review</button>
+            <button class="filter-tab" onclick="filterReports(this, 'approved')">Approved</button>
+            <button class="filter-tab" onclick="filterReports(this, 'rejected')">Rejected</button>
         </div>
 
         <!-- Workflow Container -->
@@ -1933,62 +1932,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
     <script>
         // Filter functionality
-        function showAll() {
+        function filterReports(btn, status) {
             document.querySelectorAll('.filter-tab').forEach(tab => tab.classList.remove('active'));
-            event.target.classList.add('active');
-            document.querySelectorAll('.verification-item').forEach(item => item.style.display = 'flex');
-            document.getElementById('section-title').textContent = 'All Reports';
-            document.getElementById('section-badge').textContent = document.querySelectorAll('.verification-item').length;
-        }
+            btn.classList.add('active');
 
-        function showPending() {
-            document.querySelectorAll('.filter-tab').forEach(tab => tab.classList.remove('active'));
-            event.target.classList.add('active');
+            let titles = { all: 'All Reports', pending: 'Pending Reports', approved: 'Approved Reports', rejected: 'Rejected Reports' };
+            document.getElementById('section-title').textContent = titles[status] || 'All Reports';
+
             const items = document.querySelectorAll('.verification-item');
             let count = 0;
             items.forEach(item => {
-                if (item.dataset.status === 'pending') {
+                if (status === 'all') {
+                    item.style.display = 'flex';
+                    count++;
+                } else if (item.dataset.status === status) {
                     item.style.display = 'flex';
                     count++;
                 } else {
                     item.style.display = 'none';
                 }
             });
-            document.getElementById('section-title').textContent = 'Pending Reports';
-            document.getElementById('section-badge').textContent = count;
-        }
-
-        function showApproved() {
-            document.querySelectorAll('.filter-tab').forEach(tab => tab.classList.remove('active'));
-            event.target.classList.add('active');
-            const items = document.querySelectorAll('.verification-item');
-            let count = 0;
-            items.forEach(item => {
-                if (item.dataset.status === 'approved') {
-                    item.style.display = 'flex';
-                    count++;
-                } else {
-                    item.style.display = 'none';
-                }
-            });
-            document.getElementById('section-title').textContent = 'Approved Reports';
-            document.getElementById('section-badge').textContent = count;
-        }
-
-        function showRejected() {
-            document.querySelectorAll('.filter-tab').forEach(tab => tab.classList.remove('active'));
-            event.target.classList.add('active');
-            const items = document.querySelectorAll('.verification-item');
-            let count = 0;
-            items.forEach(item => {
-                if (item.dataset.status === 'cancelled') {
-                    item.style.display = 'flex';
-                    count++;
-                } else {
-                    item.style.display = 'none';
-                }
-            });
-            document.getElementById('section-title').textContent = 'Rejected Reports';
             document.getElementById('section-badge').textContent = count;
         }
 
