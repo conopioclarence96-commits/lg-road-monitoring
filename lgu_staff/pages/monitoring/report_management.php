@@ -356,9 +356,6 @@ function handle_delete_report() {
     if ($stmt->execute()) {
         $report_title = $report_info['title'] ?? 'Unknown Report';
         log_audit_action($user_id, "Archived {$report_type} report", "Report ID: {$report_id}, Title: {$report_title}");
-        set_flash_message('success', 'Report archived successfully.');
-        header('Location: archive.php');
-        exit();
     } else {
         set_flash_message('error', 'Failed to archive report: ' . $conn->error);
     }
