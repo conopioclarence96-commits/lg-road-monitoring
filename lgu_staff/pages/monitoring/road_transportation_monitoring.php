@@ -55,16 +55,30 @@ function getEnhancedStats() {
 }
 
 // Function to get recent reports for the table
-function getRecentTransportReports($limit = 10) {
+function getRecentTransportReports($limit = 10, $status_filter = 'all', $type_filter = 'all') {
     global $conn;
     $reports = [];
     if ($conn) {
         try {
             $q = "SELECT id, report_id, title, report_type, status, priority, severity, created_at 
-                  FROM road_transportation_reports 
-                  ORDER BY created_at DESC LIMIT ?";
+                  FROM road_transportation_reports WHERE 1=1";
+            $params = [];
+            $types = '';
+            if ($status_filter !== 'all') {
+                $q .= " AND status = ?";
+                $params[] = $status_filter;
+                $types .= 's';
+            }
+            if ($type_filter !== 'all') {
+                $q .= " AND report_type = ?";
+                $params[] = $type_filter;
+                $types .= 's';
+            }
+            $q .= " ORDER BY created_at DESC LIMIT ?";
+            $params[] = $limit;
+            $types .= 'i';
             $stmt = $conn->prepare($q);
-            $stmt->bind_param("i", $limit);
+            $stmt->bind_param($types, ...$params);
             $stmt->execute();
             $res = $stmt->get_result();
             while ($row = $res->fetch_assoc()) $reports[] = $row;
@@ -415,11 +429,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
+// Get filter parameters
+$status_filter = $_GET['status'] ?? 'all';
+$type_filter = $_GET['type'] ?? 'all';
+
 // Get data for the page
 $alerts = getActiveAlerts();
 $roads = getRoadStatus();
 $enhanced_stats = getEnhancedStats();
-$recent_reports = getRecentTransportReports(10);
+$recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -865,100 +883,58 @@ $recent_reports = getRecentTransportReports(10);
         }
         .table-action-btn.view-map:hover { background: #3762c8; color: #fff; }
 
+        .table-header-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .filter-select {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: white;
+            font-size: 13px;
+            min-width: 130px;
+        }
+
+        body.dark-mode .filter-select {
+            background: #2d323b;
+            border-color: rgba(255,255,255,0.12);
+            color: #e4e6ea;
+        }
+
+        .btn-secondary-custom {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: white;
+            font-size: 13px;
+            cursor: pointer;
+            color: #64748b;
+            transition: all 0.2s;
+        }
+
+        .btn-secondary-custom:hover {
+            background: #f0f4fa;
+            border-color: #3762c8;
+            color: #3762c8;
+        }
+
+        body.dark-mode .btn-secondary-custom {
+            background: #2d323b;
+            border-color: rgba(255,255,255,0.12);
+            color: #9ca3af;
+        }
+        body.dark-mode .btn-secondary-custom:hover {
+            border-color: #60a5fa;
+            color: #60a5fa;
+        }
+
         .road-search {
             padding: 6px 12px; border: 1px solid rgba(55,98,200,0.3);
             border-radius: 8px; font-size: 13px; width: 200px;
-        }
-
-        .filter-tabs {
-            display: inline-flex;
-            gap: 6px;
-            margin-bottom: 16px;
-            padding: 6px;
-            background: #e8edf4;
-            border-radius: 14px;
-            border: 1px solid #e0e0e0;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-            width: 100%;
-            box-sizing: border-box;
-        }
-
-        .filter-tab {
-            flex: 1;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            padding: 8px 16px;
-            background: transparent;
-            border: none;
-            color: #64748b;
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.25s ease;
-            border-radius: 10px;
-            white-space: nowrap;
-        }
-
-        .filter-tab i {
-            font-size: 14px;
-            opacity: 0.7;
-        }
-
-        .filter-tab .tab-count {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 20px;
-            height: 20px;
-            padding: 0 6px;
-            border-radius: 10px;
-            background: #e2e8f0;
-            font-size: 11px;
-            font-weight: 600;
-            color: #475569;
-        }
-
-        .filter-tab:hover {
-            color: #1e293b;
-            background: rgba(255, 255, 255, 0.6);
-        }
-
-        .filter-tab.active {
-            color: #fff;
-            background: #3762c8;
-            box-shadow: 0 2px 8px rgba(55, 98, 200, 0.3);
-        }
-
-        .filter-tab.active .tab-count {
-            background: rgba(255, 255, 255, 0.25);
-            color: #fff;
-        }
-
-        body.dark-mode .filter-tabs {
-            background: #1e2229;
-            border-color: #2d323b;
-        }
-        body.dark-mode .filter-tab {
-            color: #6b7280;
-        }
-        body.dark-mode .filter-tab:hover {
-            color: #e4e6ea;
-            background: rgba(255, 255, 255, 0.05);
-        }
-        body.dark-mode .filter-tab .tab-count {
-            background: #2d323b;
-            color: #9ca3af;
-        }
-        body.dark-mode .filter-tab.active {
-            color: #fff;
-            background: #60a5fa;
-            box-shadow: 0 2px 8px rgba(96, 165, 250, 0.3);
-        }
-        body.dark-mode .filter-tab.active .tab-count {
-            background: rgba(255, 255, 255, 0.2);
-            color: #fff;
         }
 
         .map-fullscreen-active #map { height: 70vh; }
@@ -1289,32 +1265,25 @@ $recent_reports = getRecentTransportReports(10);
         <div class="reports-table-section">
             <div class="table-header">
                 <h3><i class="fas fa-list"></i> Recent Submissions</h3>
-                <input type="text" class="road-search" placeholder="Search by title or ID..." id="reportSearchInput" oninput="filterReportsTable(this.value)">
+                <div class="table-header-right">
+                    <select class="filter-select" id="statusFilter" onchange="filterReports()">
+                        <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
+                        <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending</option>
+                        <option value="in-progress" <?php echo $status_filter === 'in-progress' ? 'selected' : ''; ?>>In Progress</option>
+                        <option value="completed" <?php echo $status_filter === 'completed' ? 'selected' : ''; ?>>Completed</option>
+                        <option value="cancelled" <?php echo $status_filter === 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
+                    </select>
+                    <select class="filter-select" id="typeFilter" onchange="filterReports()">
+                        <option value="all" <?php echo $type_filter === 'all' ? 'selected' : ''; ?>>All Types</option>
+                        <option value="transportation" <?php echo $type_filter === 'transportation' ? 'selected' : ''; ?>>Transportation</option>
+                        <option value="maintenance" <?php echo $type_filter === 'maintenance' ? 'selected' : ''; ?>>Maintenance</option>
+                    </select>
+                    <button class="btn-secondary-custom" onclick="resetFilters()" title="Reset Filters">
+                        <i class="fas fa-arrow-clockwise"></i>
+                    </button>
+                    <input type="text" class="road-search" placeholder="Search by title or ID..." id="reportSearchInput" oninput="filterReportsTable(this.value)">
+                </div>
             </div>
-            <!-- Filter Tabs -->
-            <div class="filter-tabs">
-                <button class="filter-tab active" onclick="filterTableReports(this, 'all')">
-                    <i class="fas fa-layer-group"></i>
-                    <span>All</span>
-                    <span class="tab-count" id="table-count-all"><?php echo count($recent_reports); ?></span>
-                </button>
-                <button class="filter-tab" onclick="filterTableReports(this, 'pending')">
-                    <i class="fas fa-hourglass-half"></i>
-                    <span>Pending</span>
-                    <span class="tab-count" id="table-count-pending">0</span>
-                </button>
-                <button class="filter-tab" onclick="filterTableReports(this, 'in-progress')">
-                    <i class="fas fa-sync-alt"></i>
-                    <span>In Progress</span>
-                    <span class="tab-count" id="table-count-in-progress">0</span>
-                </button>
-                <button class="filter-tab" onclick="filterTableReports(this, 'completed')">
-                    <i class="fas fa-check-circle"></i>
-                    <span>Completed</span>
-                    <span class="tab-count" id="table-count-completed">0</span>
-                </button>
-            </div>
-
             <div class="reports-table-wrap">
                 <table id="recentReportsTable">
                     <thead>
@@ -1444,7 +1413,7 @@ $recent_reports = getRecentTransportReports(10);
         let mapFullscreen = false;
         let activeFilter = 'all';
         let autoRefreshInterval = null;
-        let activeTableFilter = 'all';
+
 
         // Load existing report markers
         function loadMarkers(filter, callback) {
@@ -1528,47 +1497,30 @@ $recent_reports = getRecentTransportReports(10);
                 .catch(() => showNotification('Could not load map data.', 'error'));
         }
 
-        // Count table rows by status
-        function countTableByStatus() {
-            var counts = { all: 0, pending: 0, 'in-progress': 0, completed: 0 };
-            document.querySelectorAll('#recentReportsTable .report-table-row').forEach(function(row) {
-                var s = row.dataset.status;
-                counts.all++;
-                if (counts[s] !== undefined) counts[s]++;
-            });
-            return counts;
-        }
-
-        function updateTableBadges(counts) {
-            ['all', 'pending', 'in-progress', 'completed'].forEach(function(key) {
-                var el = document.getElementById('table-count-' + key);
-                if (el) el.textContent = counts[key];
-            });
-        }
-
-        function applyTableFilters() {
-            var q = (document.getElementById('reportSearchInput').value || '').toLowerCase().trim();
-            var status = activeTableFilter;
-            document.querySelectorAll('#recentReportsTable .report-table-row').forEach(function(row) {
-                var title = row.dataset.title || '';
-                var rid = row.dataset.reportId || '';
-                var matchesSearch = !q || title.includes(q) || rid.includes(q);
-                var matchesStatus = status === 'all' || row.dataset.status === status;
-                row.style.display = (matchesSearch && matchesStatus) ? '' : 'none';
-            });
-        }
-
         // Search reports table
         function filterReportsTable(query) {
-            applyTableFilters();
+            const q = query.toLowerCase().trim();
+            document.querySelectorAll('#recentReportsTable .report-table-row').forEach(row => {
+                const title = row.dataset.title || '';
+                const rid = row.dataset.reportId || '';
+                row.style.display = (!q || title.includes(q) || rid.includes(q)) ? '' : 'none';
+            });
         }
 
-        // Filter table by status tab
-        function filterTableReports(btn, status) {
-            document.querySelectorAll('.filter-tab').forEach(function(tab) { tab.classList.remove('active'); });
-            btn.classList.add('active');
-            activeTableFilter = status;
-            applyTableFilters();
+        function filterReports() {
+            const status = document.getElementById('statusFilter').value;
+            const type = document.getElementById('typeFilter').value;
+            const url = new URL(window.location);
+            url.searchParams.set('status', status);
+            url.searchParams.set('type', type);
+            window.location.href = url.toString();
+        }
+
+        function resetFilters() {
+            const url = new URL(window.location);
+            url.searchParams.delete('status');
+            url.searchParams.delete('type');
+            window.location.href = url.toString();
         }
 
         // Start auto-refresh
@@ -1777,7 +1729,6 @@ $recent_reports = getRecentTransportReports(10);
 
         loadMarkers(activeFilter);
         startAutoRefresh();
-        updateTableBadges(countTableByStatus());
 
         function showNotification(message, type) {
             type = type || 'info';
