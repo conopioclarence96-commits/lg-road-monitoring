@@ -116,13 +116,33 @@ function getRejectedReports($conn) {
 }
 
 // Function to get all reports (for filtering)
-function getAllReports($conn) {
-    $query = "(SELECT 'transport' as source, id, report_id, title, report_type,
-                     department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at 
-              FROM road_transportation_reports)
-              UNION ALL
-              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports)
-              ORDER BY created_at DESC";
+function getAllReports($conn, $status_filter = 'all', $source_filter = 'all') {
+    $parts = [];
+    $transport_where = '';
+    $maintenance_where = '';
+    if ($status_filter !== 'all') {
+        if ($status_filter === 'pending') {
+            $transport_where = " WHERE status IN ('pending','in-progress')";
+            $maintenance_where = " WHERE status IN ('pending','in-progress')";
+        } elseif ($status_filter === 'approved') {
+            $transport_where = " WHERE status IN ('approved','completed')";
+            $maintenance_where = " WHERE status IN ('approved','completed')";
+        } elseif ($status_filter === 'rejected') {
+            $transport_where = " WHERE status IN ('cancelled')";
+            $maintenance_where = " WHERE status IN ('cancelled')";
+        }
+    }
+    if ($source_filter === 'transport') {
+        $q = "(SELECT 'transport' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$transport_where})";
+        $parts[] = $q;
+    } elseif ($source_filter === 'maintenance') {
+        $q = "(SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
+        $parts[] = $q;
+    } else {
+        $parts[] = "(SELECT 'transport' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$transport_where})";
+        $parts[] = "(SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
+    }
+    $query = implode(' UNION ALL ', $parts) . " ORDER BY created_at DESC";
     $result = $conn->query($query);
     if (!$result) {
         error_log("Query error in getAllReports: " . $conn->error);
@@ -250,12 +270,16 @@ if (isset($_SESSION['verification_message'])) {
     unset($_SESSION['verification_message']);
 }
 
+// Get filter parameters
+$status_filter = $_GET['status'] ?? 'all';
+$source_filter = $_GET['source'] ?? 'all';
+
 // Get data
 $stats = getVerificationStatistics($conn);
 $pending_verifications = getPendingVerifications($conn);
 $approved_reports = getApprovedReports($conn);
 $rejected_reports = getRejectedReports($conn);
-$all_reports = getAllReports($conn);
+$all_reports = getAllReports($conn, $status_filter, $source_filter);
 $recent_approvals = getRecentApprovals($conn);
 $activity_timeline = getActivityTimeline($conn);
 
@@ -902,108 +926,78 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             color: #6b7280;
         }
 
-        .filter-tabs {
-            display: inline-flex;
-            gap: 6px;
-            margin-bottom: 24px;
-            padding: 6px;
+        .filters-section {
             background: #f0f4fa;
-            border-radius: 14px;
-            border: 1px solid #e0e0e0;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-            width: 100%;
-            box-sizing: border-box;
+            backdrop-filter: blur(15px);
+            padding: 20px 25px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
-        .filter-tab {
-            flex: 1;
-            display: inline-flex;
+        .filter-group {
+            display: flex;
+            gap: 15px;
             align-items: center;
-            justify-content: center;
-            gap: 8px;
-            padding: 10px 20px;
-            background: transparent;
-            border: none;
-            color: #64748b;
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.25s ease;
-            border-radius: 10px;
-            white-space: nowrap;
-            position: relative;
+            flex-wrap: wrap;
         }
 
-        .filter-tab i {
-            font-size: 15px;
-            opacity: 0.7;
-            transition: opacity 0.25s ease;
-        }
-
-        .filter-tab .tab-count {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 22px;
-            height: 22px;
-            padding: 0 7px;
-            border-radius: 11px;
-            background: #e2e8f0;
-            font-size: 11px;
+        .filter-group .form-label {
+            display: block;
+            font-size: 12px;
             font-weight: 600;
-            color: #475569;
-            transition: all 0.25s ease;
-            line-height: 1;
+            color: #64748b;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
-        .filter-tab:hover {
-            color: #1e293b;
-            background: rgba(255, 255, 255, 0.6);
+        .filter-select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: white;
+            font-size: 13px;
+            min-width: 180px;
         }
 
-        .filter-tab:hover i {
-            opacity: 1;
+        .btn-secondary-custom {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: white;
+            font-size: 13px;
+            cursor: pointer;
+            color: #64748b;
+            transition: all 0.2s;
         }
 
-        .filter-tab.active {
-            color: #fff;
-            background: #3762c8;
-            box-shadow: 0 2px 8px rgba(55, 98, 200, 0.3);
+        .btn-secondary-custom:hover {
+            background: #f0f4fa;
+            border-color: #3762c8;
+            color: #3762c8;
         }
 
-        .filter-tab.active i {
-            opacity: 1;
-        }
-
-        .filter-tab.active .tab-count {
-            background: rgba(255, 255, 255, 0.25);
-            color: #fff;
-        }
-
-        body.dark-mode .filter-tabs {
+        body.dark-mode .filters-section {
             background: #1e2229;
-            border-color: #2d323b;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            border-color: rgba(255,255,255,0.08);
         }
-        body.dark-mode .filter-tab {
-            color: #6b7280;
-        }
-        body.dark-mode .filter-tab:hover {
-            color: #e4e6ea;
-            background: rgba(255, 255, 255, 0.05);
-        }
-        body.dark-mode .filter-tab .tab-count {
-            background: #2d323b;
+        body.dark-mode .filter-group .form-label {
             color: #9ca3af;
         }
-        body.dark-mode .filter-tab.active {
-            color: #fff;
-            background: #60a5fa;
-            box-shadow: 0 2px 8px rgba(96, 165, 250, 0.3);
+        body.dark-mode .filter-select {
+            background: #2d323b;
+            border-color: rgba(255,255,255,0.12);
+            color: #e4e6ea;
         }
-        body.dark-mode .filter-tab.active .tab-count {
-            background: rgba(255, 255, 255, 0.2);
-            color: #fff;
+        body.dark-mode .btn-secondary-custom {
+            background: #2d323b;
+            border-color: rgba(255,255,255,0.12);
+            color: #9ca3af;
+        }
+        body.dark-mode .btn-secondary-custom:hover {
+            border-color: #60a5fa;
+            color: #60a5fa;
         }
 
         .notification {
@@ -1517,28 +1511,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             </div>
         </div>
 
-        <!-- Filter Tabs -->
-        <div class="filter-tabs">
-            <button class="filter-tab active" onclick="filterReports(this, 'all')">
-                <i class="fas fa-layer-group"></i>
-                <span>All Requests</span>
-                <span class="tab-count" id="count-all"><?php echo $all_reports->num_rows; ?></span>
-            </button>
-            <button class="filter-tab" onclick="filterReports(this, 'pending')">
-                <i class="fas fa-hourglass-half"></i>
-                <span>Pending Review</span>
-                <span class="tab-count" id="count-pending">0</span>
-            </button>
-            <button class="filter-tab" onclick="filterReports(this, 'approved')">
-                <i class="fas fa-check-circle"></i>
-                <span>Approved</span>
-                <span class="tab-count" id="count-approved">0</span>
-            </button>
-            <button class="filter-tab" onclick="filterReports(this, 'rejected')">
-                <i class="fas fa-times-circle"></i>
-                <span>Rejected</span>
-                <span class="tab-count" id="count-rejected">0</span>
-            </button>
+        <!-- Filters -->
+        <div class="filters-section" style="margin-bottom:24px;">
+            <div class="filter-group">
+                <div>
+                    <label class="form-label">Status Filter</label>
+                    <select class="filter-select" id="statusFilter" onchange="filterReports()">
+                        <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
+                        <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending / In Progress</option>
+                        <option value="approved" <?php echo $status_filter === 'approved' ? 'selected' : ''; ?>>Approved / Completed</option>
+                        <option value="rejected" <?php echo $status_filter === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Source System</label>
+                    <select class="filter-select" id="sourceFilter" onchange="filterReports()">
+                        <option value="all" <?php echo $source_filter === 'all' ? 'selected' : ''; ?>>All Sources</option>
+                        <option value="transport" <?php echo $source_filter === 'transport' ? 'selected' : ''; ?>>Road & Transportation (Local)</option>
+                        <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>Infrastructure / Community / Facilities (External)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">&nbsp;</label>
+                    <div>
+                        <button class="btn-secondary-custom" onclick="resetFilters()">
+                            <i class="fas fa-arrow-clockwise"></i> Reset
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Workflow Container -->
@@ -2012,54 +2013,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     </div>
 
     <script>
-        // Count reports by status
-        function countByStatus() {
-            var counts = { all: 0, pending: 0, approved: 0, rejected: 0 };
-            document.querySelectorAll('.verification-item').forEach(function(item) {
-                var s = item.dataset.status;
-                counts.all++;
-                if (s === 'pending' || s === 'in-progress') counts.pending++;
-                else if (s === 'approved' || s === 'completed') counts.approved++;
-                else if (s === 'rejected' || s === 'cancelled') counts.rejected++;
-            });
-            return counts;
-        }
-
-        function updateBadges(counts) {
-            ['all', 'pending', 'approved', 'rejected'].forEach(function(key) {
-                var el = document.getElementById('count-' + key);
-                if (el) el.textContent = counts[key];
-            });
-        }
-
         // Filter functionality
-        function filterReports(btn, status) {
-            document.querySelectorAll('.filter-tab').forEach(tab => tab.classList.remove('active'));
-            btn.classList.add('active');
-
-            let titles = { all: 'All Reports', pending: 'Pending Reports', approved: 'Approved Reports', rejected: 'Rejected Reports' };
-            document.getElementById('section-title').textContent = titles[status] || 'All Reports';
-
-            const items = document.querySelectorAll('.verification-item');
-            let count = 0;
-            items.forEach(item => {
-                if (status === 'all') {
-                    item.style.display = 'flex';
-                    count++;
-                } else if (item.dataset.status === status) {
-                    item.style.display = 'flex';
-                    count++;
-                } else {
-                    item.style.display = 'none';
-                }
-            });
-            document.getElementById('section-badge').textContent = count;
+        function filterReports() {
+            const status = document.getElementById('statusFilter').value;
+            const source = document.getElementById('sourceFilter').value;
+            const url = new URL(window.location);
+            url.searchParams.set('status', status);
+            url.searchParams.set('source', source);
+            window.location.href = url.toString();
         }
 
-        // Initialize badge counts on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            updateBadges(countByStatus());
-        });
+        function resetFilters() {
+            const url = new URL(window.location);
+            url.searchParams.delete('status');
+            url.searchParams.delete('source');
+            window.location.href = url.toString();
+        }
 
 
 
