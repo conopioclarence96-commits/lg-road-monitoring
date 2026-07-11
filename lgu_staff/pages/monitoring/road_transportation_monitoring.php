@@ -298,43 +298,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     exit;
                 }
                 
-                // Handle image upload
+                // Handle multiple image uploads
                 $attachments = [];
-                if (isset($_FILES['report_image']) && $_FILES['report_image']['error'] === UPLOAD_ERR_OK) {
-                    // Use absolute path from script location
-                    $upload_dir = __DIR__ . '/../../uploads/report_images';
-                    // Normalize path separators for Windows
-                    $upload_dir = str_replace('\\', '/', $upload_dir);
-                    $upload_result = handle_file_upload($_FILES['report_image'], $upload_dir, ['jpg', 'jpeg', 'png']);
-                    
-                    if ($upload_result['success']) {
-                        // Store relative path for web access (from project root)
-                        $attachments[] = [
-                            'type' => 'image',
-                            'filename' => $upload_result['filename'],
-                            'original_name' => $_FILES['report_image']['name'],
-                            'file_path' => 'uploads/report_images/' . $upload_result['filename'],
-                            'uploaded_at' => date('Y-m-d H:i:s')
+                $upload_dir = __DIR__ . '/../../uploads/report_images';
+                $upload_dir = str_replace('\\', '/', $upload_dir);
+                
+                if (!empty($_FILES['photos']) && is_array($_FILES['photos']['name'])) {
+                    $file_count = count($_FILES['photos']['name']);
+                    for ($i = 0; $i < $file_count; $i++) {
+                        if ($_FILES['photos']['error'][$i] === UPLOAD_ERR_NO_FILE) continue;
+                        if ($_FILES['photos']['error'][$i] !== UPLOAD_ERR_OK) {
+                            $upload_errors = [
+                                UPLOAD_ERR_INI_SIZE => 'File exceeds upload_max_filesize',
+                                UPLOAD_ERR_FORM_SIZE => 'File exceeds MAX_FILE_SIZE',
+                                UPLOAD_ERR_PARTIAL => 'File was only partially uploaded',
+                                UPLOAD_ERR_NO_TMP_DIR => 'Missing temporary folder',
+                                UPLOAD_ERR_CANT_WRITE => 'Failed to write file to disk',
+                                UPLOAD_ERR_EXTENSION => 'File upload stopped by extension'
+                            ];
+                            $error_code = $_FILES['photos']['error'][$i];
+                            $error_msg = $upload_errors[$error_code] ?? 'Unknown error (code: ' . $error_code . ')';
+                            echo json_encode(['success' => false, 'message' => "Upload failed for '" . $_FILES['photos']['name'][$i] . "': " . $error_msg]);
+                            exit;
+                        }
+                        
+                        $file = [
+                            'name' => $_FILES['photos']['name'][$i],
+                            'type' => $_FILES['photos']['type'][$i],
+                            'tmp_name' => $_FILES['photos']['tmp_name'][$i],
+                            'error' => $_FILES['photos']['error'][$i],
+                            'size' => $_FILES['photos']['size'][$i]
                         ];
-                    } else {
-                        $error_msg = $upload_result['error'] ?? 'Unknown upload error';
-                        echo json_encode(['success' => false, 'message' => 'Image upload failed: ' . $error_msg]);
-                        exit;
+                        
+                        $upload_result = handle_file_upload($file, $upload_dir, ['jpg', 'jpeg', 'png']);
+                        
+                        if ($upload_result['success']) {
+                            $attachments[] = [
+                                'type' => 'image',
+                                'filename' => $upload_result['filename'],
+                                'original_name' => $file['name'],
+                                'file_path' => 'uploads/report_images/' . $upload_result['filename'],
+                                'uploaded_at' => date('Y-m-d H:i:s')
+                            ];
+                        } else {
+                            $error_msg = $upload_result['error'] ?? 'Unknown upload error';
+                            echo json_encode(['success' => false, 'message' => "Upload failed for '" . $file['name'] . "': " . $error_msg]);
+                            exit;
+                        }
                     }
-                } elseif (isset($_FILES['report_image']) && $_FILES['report_image']['error'] !== UPLOAD_ERR_NO_FILE) {
-                    // File upload error (but not "no file")
-                    $upload_errors = [
-                        UPLOAD_ERR_INI_SIZE => 'File exceeds upload_max_filesize',
-                        UPLOAD_ERR_FORM_SIZE => 'File exceeds MAX_FILE_SIZE',
-                        UPLOAD_ERR_PARTIAL => 'File was only partially uploaded',
-                        UPLOAD_ERR_NO_TMP_DIR => 'Missing temporary folder',
-                        UPLOAD_ERR_CANT_WRITE => 'Failed to write file to disk',
-                        UPLOAD_ERR_EXTENSION => 'File upload stopped by extension'
-                    ];
-                    $error_code = $_FILES['report_image']['error'];
-                    $error_msg = $upload_errors[$error_code] ?? 'Unknown upload error (code: ' . $error_code . ')';
-                    echo json_encode(['success' => false, 'message' => 'Image upload error: ' . $error_msg]);
-                    exit;
                 }
                 
                 // Use the specific type if provided, otherwise use general type
@@ -1059,7 +1070,7 @@ $recent_reports = getRecentTransportReports(10);
                 <!-- Report form (shown after pinning) -->
                 <div id="report-form-panel" class="report-form-panel" style="display: none;">
                     <h4><i class="fas fa-map-pin"></i> Report issue at pinned location</h4>
-                    <form id="report-form">
+                    <form id="report-form" enctype="multipart/form-data">
                         <input type="hidden" id="pin-lat" name="latitude">
                         <input type="hidden" id="pin-lng" name="longitude">
                         <label>Issue type</label>
@@ -1103,14 +1114,11 @@ $recent_reports = getRecentTransportReports(10);
                         </select>
                         <label>Description</label>
                         <textarea id="description" name="description" rows="3" required placeholder="Describe the issue..."></textarea>
-                        <label>Upload Photo (Optional)</label>
-                        <input type="file" id="report-image" name="report_image" accept="image/*" />
-                        <small style="color: #666; font-size: 12px; display: block; margin-top: 4px;">Max size: 5MB. Formats: JPG, PNG</small>
+                        <label>Upload Photos (Optional)</label>
+                        <input type="file" id="report-images" name="photos[]" multiple accept="image/jpeg,image/jpg,image/png" />
+                        <small style="color: #666; font-size: 12px; display: block; margin-top: 4px;">Max size: 5MB each. Formats: JPG, PNG. You can select multiple images.</small>
                         <div id="image-preview" style="margin-top: 10px; display: none;">
-                            <img id="preview-img" src="" alt="Preview" style="max-width: 100%; max-height: 200px; border-radius: 8px; border: 1px solid rgba(55, 98, 200, 0.3);" />
-                            <button type="button" id="remove-image-btn" style="margin-top: 8px; padding: 4px 12px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
-                                <i class="fas fa-times"></i> Remove Image
-                            </button>
+                            <div id="image-gallery" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
                         </div>
                         <div class="form-actions">
                             <button type="button" class="btn-action btn-secondary" id="cancel-pin-btn">Cancel</button>
@@ -1482,32 +1490,43 @@ $recent_reports = getRecentTransportReports(10);
         });
 
         // Image preview with size check
-        const imageInput = document.getElementById('report-image');
+        const imageInput = document.getElementById('report-images');
         const imagePreview = document.getElementById('image-preview');
-        const previewImg = document.getElementById('preview-img');
-        const removeImageBtn = document.getElementById('remove-image-btn');
+        const imageGallery = document.getElementById('image-gallery');
         
         imageInput.addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
+            imageGallery.innerHTML = '';
+            const files = Array.from(e.target.files);
+            let valid = true;
+            files.forEach(file => {
                 if (file.size > 5 * 1024 * 1024) {
-                    showNotification('Image size exceeds 5MB limit.', 'error');
-                    e.target.value = '';
+                    showNotification(`"${file.name}" exceeds 5MB limit.`, 'error');
+                    valid = false;
                     return;
                 }
                 const reader = new FileReader();
-                reader.onload = function(e) {
-                    previewImg.src = e.target.result;
+                reader.onload = function(ev) {
+                    const wrapper = document.createElement('div');
+                    wrapper.style.position = 'relative';
+                    wrapper.style.display = 'inline-block';
+                    const img = document.createElement('img');
+                    img.src = ev.target.result;
+                    img.style.width = '100px';
+                    img.style.height = '100px';
+                    img.style.objectFit = 'cover';
+                    img.style.borderRadius = '8px';
+                    img.style.border = '1px solid rgba(55, 98, 200, 0.3)';
+                    wrapper.appendChild(img);
+                    imageGallery.appendChild(wrapper);
                     imagePreview.style.display = 'block';
                 };
                 reader.readAsDataURL(file);
+            });
+            if (!valid) {
+                imageInput.value = '';
+                imageGallery.innerHTML = '';
+                imagePreview.style.display = 'none';
             }
-        });
-        
-        removeImageBtn.addEventListener('click', function() {
-            imageInput.value = '';
-            previewImg.src = '';
-            imagePreview.style.display = 'none';
         });
 
         form.addEventListener('submit', function(e) {
@@ -1530,6 +1549,7 @@ $recent_reports = getRecentTransportReports(10);
                             if (pinMarker) { map.removeLayer(pinMarker); pinMarker = null; }
                             reportPanel.style.display = 'none';
                             form.reset();
+                            imageGallery.innerHTML = '';
                             imagePreview.style.display = 'none';
                             loadMarkers(activeFilter);
                         } else {
