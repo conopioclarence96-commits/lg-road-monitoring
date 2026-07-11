@@ -870,6 +870,97 @@ $recent_reports = getRecentTransportReports(10);
             border-radius: 8px; font-size: 13px; width: 200px;
         }
 
+        .filter-tabs {
+            display: inline-flex;
+            gap: 6px;
+            margin-bottom: 16px;
+            padding: 6px;
+            background: #e8edf4;
+            border-radius: 14px;
+            border: 1px solid #e0e0e0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .filter-tab {
+            flex: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: transparent;
+            border: none;
+            color: #64748b;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            border-radius: 10px;
+            white-space: nowrap;
+        }
+
+        .filter-tab i {
+            font-size: 14px;
+            opacity: 0.7;
+        }
+
+        .filter-tab .tab-count {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 20px;
+            height: 20px;
+            padding: 0 6px;
+            border-radius: 10px;
+            background: #e2e8f0;
+            font-size: 11px;
+            font-weight: 600;
+            color: #475569;
+        }
+
+        .filter-tab:hover {
+            color: #1e293b;
+            background: rgba(255, 255, 255, 0.6);
+        }
+
+        .filter-tab.active {
+            color: #fff;
+            background: #3762c8;
+            box-shadow: 0 2px 8px rgba(55, 98, 200, 0.3);
+        }
+
+        .filter-tab.active .tab-count {
+            background: rgba(255, 255, 255, 0.25);
+            color: #fff;
+        }
+
+        body.dark-mode .filter-tabs {
+            background: #1e2229;
+            border-color: #2d323b;
+        }
+        body.dark-mode .filter-tab {
+            color: #6b7280;
+        }
+        body.dark-mode .filter-tab:hover {
+            color: #e4e6ea;
+            background: rgba(255, 255, 255, 0.05);
+        }
+        body.dark-mode .filter-tab .tab-count {
+            background: #2d323b;
+            color: #9ca3af;
+        }
+        body.dark-mode .filter-tab.active {
+            color: #fff;
+            background: #60a5fa;
+            box-shadow: 0 2px 8px rgba(96, 165, 250, 0.3);
+        }
+        body.dark-mode .filter-tab.active .tab-count {
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+
         .map-fullscreen-active #map { height: 70vh; }
         .map-fullscreen-active .monitoring-layout { grid-template-columns: 1fr; }
         .map-fullscreen-active .sidebar-section { display: none; }
@@ -1200,6 +1291,30 @@ $recent_reports = getRecentTransportReports(10);
                 <h3><i class="fas fa-list"></i> Recent Submissions</h3>
                 <input type="text" class="road-search" placeholder="Search by title or ID..." id="reportSearchInput" oninput="filterReportsTable(this.value)">
             </div>
+            <!-- Filter Tabs -->
+            <div class="filter-tabs">
+                <button class="filter-tab active" onclick="filterTableReports(this, 'all')">
+                    <i class="fas fa-layer-group"></i>
+                    <span>All</span>
+                    <span class="tab-count" id="table-count-all"><?php echo count($recent_reports); ?></span>
+                </button>
+                <button class="filter-tab" onclick="filterTableReports(this, 'pending')">
+                    <i class="fas fa-hourglass-half"></i>
+                    <span>Pending</span>
+                    <span class="tab-count" id="table-count-pending">0</span>
+                </button>
+                <button class="filter-tab" onclick="filterTableReports(this, 'in-progress')">
+                    <i class="fas fa-sync-alt"></i>
+                    <span>In Progress</span>
+                    <span class="tab-count" id="table-count-in-progress">0</span>
+                </button>
+                <button class="filter-tab" onclick="filterTableReports(this, 'completed')">
+                    <i class="fas fa-check-circle"></i>
+                    <span>Completed</span>
+                    <span class="tab-count" id="table-count-completed">0</span>
+                </button>
+            </div>
+
             <div class="reports-table-wrap">
                 <table id="recentReportsTable">
                     <thead>
@@ -1218,7 +1333,7 @@ $recent_reports = getRecentTransportReports(10);
                         <tr><td colspan="7" style="text-align:center;padding:30px;color:#6b7280;">No reports yet.</td></tr>
                         <?php else: ?>
                         <?php foreach ($recent_reports as $rr): ?>
-                         <tr class="report-table-row" data-id="<?php echo $rr['id']; ?>" data-title="<?php echo htmlspecialchars(strtolower($rr['title'] ?? '')); ?>" data-report-id="<?php echo htmlspecialchars(strtolower($rr['report_id'] ?? '')); ?>">
+                         <tr class="report-table-row" data-id="<?php echo $rr['id']; ?>" data-title="<?php echo htmlspecialchars(strtolower($rr['title'] ?? '')); ?>" data-report-id="<?php echo htmlspecialchars(strtolower($rr['report_id'] ?? '')); ?>" data-status="<?php echo $rr['status'] ?? 'pending'; ?>">
                             <td style="font-family:monospace;font-size:12px;"><?php echo htmlspecialchars($rr['report_id'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars($rr['title'] ?? 'Untitled'); ?></td>
                             <td><?php echo htmlspecialchars($rr['report_type'] ?? '—'); ?></td>
@@ -1329,6 +1444,7 @@ $recent_reports = getRecentTransportReports(10);
         let mapFullscreen = false;
         let activeFilter = 'all';
         let autoRefreshInterval = null;
+        let activeTableFilter = 'all';
 
         // Load existing report markers
         function loadMarkers(filter, callback) {
@@ -1412,14 +1528,47 @@ $recent_reports = getRecentTransportReports(10);
                 .catch(() => showNotification('Could not load map data.', 'error'));
         }
 
+        // Count table rows by status
+        function countTableByStatus() {
+            var counts = { all: 0, pending: 0, 'in-progress': 0, completed: 0 };
+            document.querySelectorAll('#recentReportsTable .report-table-row').forEach(function(row) {
+                var s = row.dataset.status;
+                counts.all++;
+                if (counts[s] !== undefined) counts[s]++;
+            });
+            return counts;
+        }
+
+        function updateTableBadges(counts) {
+            ['all', 'pending', 'in-progress', 'completed'].forEach(function(key) {
+                var el = document.getElementById('table-count-' + key);
+                if (el) el.textContent = counts[key];
+            });
+        }
+
+        function applyTableFilters() {
+            var q = (document.getElementById('reportSearchInput').value || '').toLowerCase().trim();
+            var status = activeTableFilter;
+            document.querySelectorAll('#recentReportsTable .report-table-row').forEach(function(row) {
+                var title = row.dataset.title || '';
+                var rid = row.dataset.reportId || '';
+                var matchesSearch = !q || title.includes(q) || rid.includes(q);
+                var matchesStatus = status === 'all' || row.dataset.status === status;
+                row.style.display = (matchesSearch && matchesStatus) ? '' : 'none';
+            });
+        }
+
         // Search reports table
         function filterReportsTable(query) {
-            const q = query.toLowerCase().trim();
-            document.querySelectorAll('#recentReportsTable .report-table-row').forEach(row => {
-                const title = row.dataset.title || '';
-                const rid = row.dataset.reportId || '';
-                row.style.display = (!q || title.includes(q) || rid.includes(q)) ? '' : 'none';
-            });
+            applyTableFilters();
+        }
+
+        // Filter table by status tab
+        function filterTableReports(btn, status) {
+            document.querySelectorAll('.filter-tab').forEach(function(tab) { tab.classList.remove('active'); });
+            btn.classList.add('active');
+            activeTableFilter = status;
+            applyTableFilters();
         }
 
         // Start auto-refresh
@@ -1628,6 +1777,7 @@ $recent_reports = getRecentTransportReports(10);
 
         loadMarkers(activeFilter);
         startAutoRefresh();
+        updateTableBadges(countTableByStatus());
 
         function showNotification(message, type) {
             type = type || 'info';
