@@ -39,6 +39,16 @@ if ($check2 && $check2->num_rows === 0) {
     $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN report_source ENUM('local','external') DEFAULT 'local' AFTER report_category");
 }
 
+// Ensure the archive table has the same columns
+$check_arch = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE 'report_category'");
+if ($check_arch && $check_arch->num_rows === 0) {
+    $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN report_category ENUM('road','transportation') DEFAULT NULL AFTER report_type");
+}
+$check_arch2 = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE 'report_source'");
+if ($check_arch2 && $check_arch2->num_rows === 0) {
+    $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN report_source ENUM('local','external') DEFAULT 'local' AFTER report_category");
+}
+
 // Check if user is logged in
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'system_admin') {
     header('Location: ../../login.php');
@@ -198,20 +208,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         // Archive report then remove from active table
         if ($action === 'delete') {
-            if ($source === 'transport') {
-                $insert = "INSERT INTO road_transportation_reports_archive SELECT * FROM $table WHERE id = ?";
-            } else {
-                $insert = "INSERT INTO road_transportation_reports_archive (id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at) SELECT id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL, NULL, NULL, created_at, updated_at, approved_at, rejected_at FROM $table WHERE id = ?";
-            }
+            $insert = "INSERT INTO road_transportation_reports_archive (id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at) SELECT id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM $table WHERE id = ?";
             $stmt = $conn->prepare($insert);
             $stmt->bind_param('i', $report_id);
-            $stmt->execute();
+            if (!$stmt->execute()) {
+                $_SESSION['verification_message'] = 'Failed to archive report: ' . $conn->error;
+                header('Location: ../monitoring/verification_monitoring.php');
+                exit();
+            }
             $query = "DELETE FROM $table WHERE id = ?";
             $stmt = $conn->prepare($query);
             $stmt->bind_param('i', $report_id);
-            $stmt->execute();
+            if (!$stmt->execute()) {
+                $_SESSION['verification_message'] = 'Failed to delete report after archiving: ' . $conn->error;
+                header('Location: ../monitoring/verification_monitoring.php');
+                exit();
+            }
             $_SESSION['verification_message'] = 'Report archived successfully.';
-            header('Location: ../monitoring/verification_monitoring.php');
+            header('Location: verification_monitoring.php');
             exit();
         }
         
@@ -1596,7 +1610,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                 <span id="text-<?php echo $report['id']; ?>">View Details</span>
                                             </button>
                                         <?php endif; ?>
-                                        <form method="POST" style="display: inline-flex; margin-left: auto;" onsubmit="return confirm('Remove this report permanently?');">
+                                        <form method="POST" style="display: inline-flex; margin-left: auto;" onsubmit="return confirm('Are you sure you want to remove this report? It will be moved to the archive.');">
                                             <input type="hidden" name="report_id" value="<?php echo $report['id']; ?>">
                                             <input type="hidden" name="source" value="<?php echo htmlspecialchars($report['source']); ?>">
                                             <button type="submit" name="action" value="delete" class="btn-remove" title="Remove report">
