@@ -1684,46 +1684,6 @@ $recent_reports = getRecentTransportReports(10);
         </div>
     </div>
 
-    <!-- Update Form Modal -->
-    <div id="updateFormModal" class="modal">
-        <div class="modal-content" style="max-width: 600px;">
-            <div class="modal-header">
-                <h5 class="modal-title" id="updateFormModalTitle"><i class="fas fa-plus-circle"></i> Add Progress Update</h5>
-                <button class="close" onclick="cancelUpdateForm()">&times;</button>
-            </div>
-            <form id="addUpdateForm" enctype="multipart/form-data">
-                <div class="modal-body">
-                    <input type="hidden" name="action" id="ufAction" value="create_update">
-                    <input type="hidden" name="update_id" id="ufUpdateId" value="">
-                    <input type="hidden" name="report_id" id="ufReportId" value="">
-                    <input type="hidden" name="report_type" id="ufReportType" value="">
-                    <div class="form-group">
-                        <label>Title (optional)</label>
-                        <input type="text" name="title" id="ufTitle" placeholder="e.g., Inspection completed" style="width:100%;padding:9px 12px;border:1px solid rgba(55,98,200,0.25);border-radius:8px;font-size:13px;font-family:'Poppins',sans-serif;">
-                    </div>
-                    <div class="form-group" style="margin-top:12px;">
-                        <label>Description *</label>
-                        <textarea name="description" id="ufDescription" placeholder="Describe the progress made..." required style="width:100%;padding:9px 12px;border:1px solid rgba(55,98,200,0.25);border-radius:8px;font-size:13px;font-family:'Poppins',sans-serif;resize:vertical;min-height:80px;"></textarea>
-                    </div>
-                    <div class="form-group" style="margin-top:12px;">
-                        <label>Photos / Video</label>
-                        <input type="file" name="media[]" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm" multiple style="font-size:13px;padding:6px 0;">
-                        <small style="color:#666;font-size:11px;">Accepted: JPG, PNG, GIF, WebP, MP4, WebM</small>
-                        <div class="file-previews" id="updateFilePreviews"></div>
-                    </div>
-                    <div class="form-group" style="margin-top:12px;display:none;" id="existingMediaGroup">
-                        <label>Current media (check to remove)</label>
-                        <div id="existingUpdateMedia" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;"></div>
-                    </div>
-                </div>
-                <div class="modal-footer" style="justify-content:flex-end;gap:10px;">
-                    <button type="button" class="btn-secondary-custom" onclick="cancelUpdateForm()">Cancel</button>
-                    <button type="submit" class="btn-action" id="ufSubmitBtn"><i class="fas fa-save"></i> Post Update</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
     <!-- Lightbox -->
     <div class="lightbox-overlay" id="lightboxOverlay" onclick="closeLightbox()">
         <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
