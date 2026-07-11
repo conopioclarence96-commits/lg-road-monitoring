@@ -1546,9 +1546,10 @@ if (!empty($reports)) {
                         <div id="existingPhotos" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;"></div>
                         <div class="form-group" style="margin-bottom: 0;">
                             <label for="editPhotos" class="form-label">Add New Photos</label>
-                            <input type="file" class="form-control" name="report_photos[]" id="editPhotos" 
+                            <button type="button" id="add-edit-photos-btn" style="padding:8px 16px;background:#3762c8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;"><i class="fas fa-camera"></i> Add Photos</button>
+                            <input type="file" name="report_photos[]" id="editPhotos" 
                                    accept="image/jpeg,image/png,image/gif,image/webp" multiple
-                                   style="padding: 10px;">
+                                   style="display:none;">
                             <small style="color: #666; font-size: 12px;">Accepted: JPG, PNG, GIF, WebP | Max: 5MB each</small>
                             <div id="photoPreview" style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;"></div>
                         </div>
@@ -1815,6 +1816,7 @@ if (!empty($reports)) {
                         }
                         
                         // Clear photo preview
+                        editSelectedFiles = [];
                         document.getElementById('photoPreview').innerHTML = '';
                         document.getElementById('editPhotos').value = '';
                         
@@ -2156,28 +2158,96 @@ if (!empty($reports)) {
             }
         }
 
-        // Photo preview on file select
-        document.getElementById('editPhotos').addEventListener('change', function() {
-            const preview = document.getElementById('photoPreview');
-            preview.innerHTML = '';
-            if (this.files) {
-                Array.from(this.files).forEach((file, i) => {
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        preview.innerHTML += `
-                            <div style="position:relative;width:90px;height:90px;border-radius:8px;overflow:hidden;border:2px solid #3762c8;">
-                                <img src="${e.target.result}" alt="New photo ${i+1}" style="width:100%;height:100%;object-fit:cover;">
-                                <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(55,98,200,0.8);font-size:10px;color:white;text-align:center;padding:2px;">New</div>
-                            </div>`;
-                    };
-                    reader.readAsDataURL(file);
-                });
-            }
+        // Photo preview on file select with add button and per-image delete
+        const editPhotosInput = document.getElementById('editPhotos');
+        const photoPreview = document.getElementById('photoPreview');
+        const addEditPhotosBtn = document.getElementById('add-edit-photos-btn');
+        let editSelectedFiles = [];
+        
+        addEditPhotosBtn.addEventListener('click', function() {
+            editPhotosInput.click();
+        });
+        
+        function renderEditGallery() {
+            photoPreview.innerHTML = '';
+            if (editSelectedFiles.length === 0) return;
+            editSelectedFiles.forEach((file, index) => {
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    const wrapper = document.createElement('div');
+                    wrapper.style.position = 'relative';
+                    wrapper.style.width = '90px';
+                    wrapper.style.height = '90px';
+                    wrapper.style.borderRadius = '8px';
+                    wrapper.style.overflow = 'hidden';
+                    wrapper.style.border = '2px solid #3762c8';
+                    const img = document.createElement('img');
+                    img.src = ev.target.result;
+                    img.style.width = '100%';
+                    img.style.height = '100%';
+                    img.style.objectFit = 'cover';
+                    wrapper.appendChild(img);
+                    const del = document.createElement('button');
+                    del.type = 'button';
+                    del.innerHTML = '&times;';
+                    del.style.position = 'absolute';
+                    del.style.top = '-6px';
+                    del.style.right = '-6px';
+                    del.style.width = '22px';
+                    del.style.height = '22px';
+                    del.style.borderRadius = '50%';
+                    del.style.border = 'none';
+                    del.style.background = '#dc3545';
+                    del.style.color = 'white';
+                    del.style.fontSize = '14px';
+                    del.style.lineHeight = '22px';
+                    del.style.textAlign = 'center';
+                    del.style.cursor = 'pointer';
+                    del.style.padding = '0';
+                    del.addEventListener('click', function(ev2) {
+                        ev2.stopPropagation();
+                        editSelectedFiles.splice(index, 1);
+                        renderEditGallery();
+                    });
+                    wrapper.appendChild(del);
+                    const label = document.createElement('div');
+                    label.style.position = 'absolute';
+                    label.style.bottom = '0';
+                    label.style.left = '0';
+                    label.style.right = '0';
+                    label.style.background = 'rgba(55,98,200,0.8)';
+                    label.style.fontSize = '10px';
+                    label.style.color = 'white';
+                    label.style.textAlign = 'center';
+                    label.style.padding = '2px';
+                    label.textContent = 'New';
+                    wrapper.appendChild(label);
+                    photoPreview.appendChild(wrapper);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+        
+        editPhotosInput.addEventListener('change', function() {
+            const newFiles = Array.from(this.files);
+            newFiles.forEach(file => {
+                if (file.size > 5 * 1024 * 1024) {
+                    showNotification(`"${file.name}" exceeds 5MB limit.`, 'error');
+                } else {
+                    editSelectedFiles.push(file);
+                }
+            });
+            renderEditGallery();
+            this.value = '';
         });
 
         // Handle edit report form submission
         document.getElementById('editReportForm').addEventListener('submit', function(e) {
             e.preventDefault();
+            
+            const dt = new DataTransfer();
+            editSelectedFiles.forEach(f => dt.items.add(f));
+            editPhotosInput.files = dt.files;
             
             const formData = new FormData(this);
             const submitBtn = this.querySelector('button[type="submit"]');

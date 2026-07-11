@@ -1115,8 +1115,9 @@ $recent_reports = getRecentTransportReports(10);
                         <label>Description</label>
                         <textarea id="description" name="description" rows="3" required placeholder="Describe the issue..."></textarea>
                         <label>Upload Photos (Optional)</label>
-                        <input type="file" id="report-images" name="photos[]" multiple accept="image/jpeg,image/jpg,image/png" />
-                        <small style="color: #666; font-size: 12px; display: block; margin-top: 4px;">Max size: 5MB each. Formats: JPG, PNG. You can select multiple images.</small>
+                        <button type="button" id="add-photos-btn" style="padding:8px 16px;background:#3762c8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;"><i class="fas fa-camera"></i> Add Photos</button>
+                        <input type="file" id="report-images" name="photos[]" multiple accept="image/jpeg,image/jpg,image/png" style="display:none;" />
+                        <small style="color: #666; font-size: 12px; display: block; margin-top: 4px;">Max size: 5MB each. Formats: JPG, PNG.</small>
                         <div id="image-preview" style="margin-top: 10px; display: none;">
                             <div id="image-gallery" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
                         </div>
@@ -1489,21 +1490,25 @@ $recent_reports = getRecentTransportReports(10);
             reportPanel.style.display = 'none';
         });
 
-        // Image preview with size check
+        // Multi-photo upload with add button and per-image delete
         const imageInput = document.getElementById('report-images');
         const imagePreview = document.getElementById('image-preview');
         const imageGallery = document.getElementById('image-gallery');
+        const addPhotosBtn = document.getElementById('add-photos-btn');
+        let selectedFiles = [];
         
-        imageInput.addEventListener('change', function(e) {
+        addPhotosBtn.addEventListener('click', function() {
+            imageInput.click();
+        });
+        
+        function renderGallery() {
             imageGallery.innerHTML = '';
-            const files = Array.from(e.target.files);
-            let valid = true;
-            files.forEach(file => {
-                if (file.size > 5 * 1024 * 1024) {
-                    showNotification(`"${file.name}" exceeds 5MB limit.`, 'error');
-                    valid = false;
-                    return;
-                }
+            if (selectedFiles.length === 0) {
+                imagePreview.style.display = 'none';
+                return;
+            }
+            imagePreview.style.display = 'block';
+            selectedFiles.forEach((file, index) => {
                 const reader = new FileReader();
                 reader.onload = function(ev) {
                     const wrapper = document.createElement('div');
@@ -1517,20 +1522,56 @@ $recent_reports = getRecentTransportReports(10);
                     img.style.borderRadius = '8px';
                     img.style.border = '1px solid rgba(55, 98, 200, 0.3)';
                     wrapper.appendChild(img);
+                    const del = document.createElement('button');
+                    del.type = 'button';
+                    del.innerHTML = '&times;';
+                    del.style.position = 'absolute';
+                    del.style.top = '-6px';
+                    del.style.right = '-6px';
+                    del.style.width = '22px';
+                    del.style.height = '22px';
+                    del.style.borderRadius = '50%';
+                    del.style.border = 'none';
+                    del.style.background = '#dc3545';
+                    del.style.color = 'white';
+                    del.style.fontSize = '14px';
+                    del.style.lineHeight = '22px';
+                    del.style.textAlign = 'center';
+                    del.style.cursor = 'pointer';
+                    del.style.padding = '0';
+                    del.addEventListener('click', function(ev2) {
+                        ev2.stopPropagation();
+                        selectedFiles.splice(index, 1);
+                        renderGallery();
+                    });
+                    wrapper.appendChild(del);
+                    wrapper.dataset.index = index;
                     imageGallery.appendChild(wrapper);
-                    imagePreview.style.display = 'block';
                 };
                 reader.readAsDataURL(file);
             });
-            if (!valid) {
-                imageInput.value = '';
-                imageGallery.innerHTML = '';
-                imagePreview.style.display = 'none';
-            }
+        }
+        
+        imageInput.addEventListener('change', function(e) {
+            const newFiles = Array.from(e.target.files);
+            const valid = [];
+            newFiles.forEach(file => {
+                if (file.size > 5 * 1024 * 1024) {
+                    showNotification(`"${file.name}" exceeds 5MB limit.`, 'error');
+                } else {
+                    valid.push(file);
+                }
+            });
+            selectedFiles = selectedFiles.concat(valid);
+            renderGallery();
+            imageInput.value = '';
         });
 
         form.addEventListener('submit', function(e) {
             e.preventDefault();
+            const dt = new DataTransfer();
+            selectedFiles.forEach(f => dt.items.add(f));
+            imageInput.files = dt.files;
             const btn = document.getElementById('submit-report-btn');
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
@@ -1549,6 +1590,7 @@ $recent_reports = getRecentTransportReports(10);
                             if (pinMarker) { map.removeLayer(pinMarker); pinMarker = null; }
                             reportPanel.style.display = 'none';
                             form.reset();
+                            selectedFiles = [];
                             imageGallery.innerHTML = '';
                             imagePreview.style.display = 'none';
                             loadMarkers(activeFilter);
