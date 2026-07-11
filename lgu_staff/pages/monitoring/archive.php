@@ -10,6 +10,49 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'system_admin') {
 
 $conn->query("CREATE TABLE IF NOT EXISTS road_transportation_reports_archive LIKE road_transportation_reports");
 
+// Ensure archive table has the same columns as the source table
+foreach (['report_category' => "ENUM('road','transportation') DEFAULT NULL AFTER report_type",
+           'report_source' => "ENUM('local','external') DEFAULT 'local' AFTER report_category"] as $col => $def) {
+    $chk = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE '$col'");
+    if ($chk && $chk->num_rows === 0) {
+        $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN $col $def");
+    }
+}
+
+// Get filter parameters
+$status_filter = $_GET['status'] ?? 'all';
+$source_filter = $_GET['source'] ?? 'all';
+$sort_order = $_GET['sort'] ?? 'latest';
+
+// Build WHERE clause
+$where_clauses = [];
+
+if ($status_filter !== 'all') {
+    if ($status_filter === 'pending') {
+        $where_clauses[] = "status IN ('pending','in-progress')";
+    } elseif ($status_filter === 'approved') {
+        $where_clauses[] = "status IN ('approved','completed')";
+    } elseif ($status_filter === 'rejected') {
+        $where_clauses[] = "status IN ('cancelled','rejected')";
+    }
+}
+
+if ($source_filter === 'transport') {
+    $where_clauses[] = "report_category IS NOT NULL";
+} elseif ($source_filter === 'maintenance') {
+    $where_clauses[] = "report_category IS NULL";
+}
+
+$where_sql = '';
+if (!empty($where_clauses)) {
+    $where_sql = 'WHERE ' . implode(' AND ', $where_clauses);
+}
+
+$order_dir = ($sort_order === 'earliest') ? 'ASC' : 'DESC';
+
+$sql = "SELECT *, CASE WHEN report_category IS NOT NULL THEN 'transport' ELSE 'maintenance' END as source_system FROM road_transportation_reports_archive $where_sql ORDER BY created_at $order_dir";
+$archives = $conn->query($sql);
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'restore' && isset($_POST['archive_id'])) {
         $archive_id = (int) $_POST['archive_id'];
@@ -47,7 +90,6 @@ if (isset($_SESSION['archive_message'])) {
     unset($_SESSION['archive_message']);
 }
 
-$archives = $conn->query("SELECT * FROM road_transportation_reports_archive ORDER BY created_at DESC");
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -210,6 +252,98 @@ $archives = $conn->query("SELECT * FROM road_transportation_reports_archive ORDE
         body.dark-mode .detail-row { border-color: #2d323b !important; }
         body.dark-mode .modal-header { border-color: #2d323b !important; }
 
+        /* Filters section */
+        .filters-section {
+            background: #f0f4fa;
+            backdrop-filter: blur(15px);
+            border-radius: 16px;
+            padding: 20px 25px;
+            border: 1px solid rgba(55,98,200,0.1);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+        }
+        .filter-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: flex-end;
+        }
+        .filter-group > div {
+            flex: 1;
+            min-width: 180px;
+        }
+        .filter-group .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #1e3c72;
+            margin-bottom: 6px;
+        }
+        .filter-select {
+            width: 100%;
+            padding: 10px 14px;
+            border: 2px solid rgba(55,98,200,0.2);
+            border-radius: 10px;
+            font-size: 14px;
+            background: white;
+            color: #333;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            appearance: auto;
+            -webkit-appearance: auto;
+        }
+        .filter-select:focus {
+            border-color: #3762c8;
+            box-shadow: 0 0 0 3px rgba(55,98,200,0.15);
+            outline: none;
+        }
+        .btn-secondary-custom {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #6c757d, #495057);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            width: 100%;
+            justify-content: center;
+        }
+        .btn-secondary-custom:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(108,117,125,0.3);
+        }
+        body.dark-mode .filters-section {
+            background: #22262e;
+            border-color: #2d323b;
+        }
+        body.dark-mode .filter-group .form-label {
+            color: #e4e6ea;
+        }
+        body.dark-mode .filter-select {
+            background: #2a2e36;
+            color: #e4e6ea;
+            border-color: #3a3f4a;
+        }
+        .source-badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .source-transport {
+            background: rgba(40,167,69,0.15);
+            color: #28a745;
+        }
+        .source-maintenance {
+            background: rgba(55,98,200,0.15);
+            color: #3762c8;
+        }
+
         @media (max-width: 768px) {
             .main-content { margin-left: 0; }
             .archive-meta { flex-direction: column; gap: 8px; }
@@ -227,7 +361,45 @@ $archives = $conn->query("SELECT * FROM road_transportation_reports_archive ORDE
     <div class="main-content">
         <div class="archive-header">
             <h1><i class="fas fa-archive"></i> Archive</h1>
-            <p>View and restore archived transportation reports</p>
+            <p>View, filter, sort, restore, and permanently delete archived reports</p>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters-section" style="margin-bottom:24px;">
+            <div class="filter-group">
+                <div>
+                    <label class="form-label">Status Filter</label>
+                    <select class="filter-select" id="statusFilter" onchange="filterReports()">
+                        <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
+                        <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending / In Progress</option>
+                        <option value="approved" <?php echo $status_filter === 'approved' ? 'selected' : ''; ?>>Approved / Completed</option>
+                        <option value="rejected" <?php echo $status_filter === 'rejected' ? 'selected' : ''; ?>>Rejected / Cancelled</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Source System</label>
+                    <select class="filter-select" id="sourceFilter" onchange="filterReports()">
+                        <option value="all" <?php echo $source_filter === 'all' ? 'selected' : ''; ?>>All Systems</option>
+                        <option value="transport" <?php echo $source_filter === 'transport' ? 'selected' : ''; ?>>Road & Transportation (LGU / Community)</option>
+                        <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>External Systems (Infrastructure)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Sort Order</label>
+                    <select class="filter-select" id="sortFilter" onchange="filterReports()">
+                        <option value="latest" <?php echo $sort_order === 'latest' ? 'selected' : ''; ?>>Newest to Oldest</option>
+                        <option value="earliest" <?php echo $sort_order === 'earliest' ? 'selected' : ''; ?>>Oldest to Newest</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">&nbsp;</label>
+                    <div>
+                        <button class="btn-secondary-custom" onclick="resetFilters()">
+                            <i class="fas fa-arrow-rotate-left"></i> Reset
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div class="archive-card">
@@ -252,6 +424,13 @@ $archives = $conn->query("SELECT * FROM road_transportation_reports_archive ORDE
                                 <span class="meta-item"><i class="fas fa-building"></i> <?php echo htmlspecialchars($row['department']); ?></span>
                                 <span class="meta-item"><i class="fas fa-calendar"></i> <?php echo htmlspecialchars($row['created_at']); ?></span>
                                 <span class="meta-item"><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($row['location'] ?? 'N/A'); ?></span>
+                                <span class="meta-item"><i class="fas fa-sitemap"></i>
+                                    <?php if ($row['source_system'] === 'transport'): ?>
+                                        <span class="source-badge source-transport">LGU / Community</span>
+                                    <?php else: ?>
+                                        <span class="source-badge source-maintenance">Infrastructure</span>
+                                    <?php endif; ?>
+                                </span>
                             </div>
                             <div class="archive-actions">
                                 <button type="button" class="btn-view" onclick="viewArchive(<?php echo $row['id']; ?>)">
@@ -341,6 +520,10 @@ $archives = $conn->query("SELECT * FROM road_transportation_reports_archive ORDE
                 { label: 'Rejected At', value: row.rejected_at }
             ];
 
+            var sourceLabel = row.source_system === 'transport' ? 'LGU / Community' : 'Infrastructure';
+            var sourceIcon = row.source_system === 'transport' ? 'fa-users' : 'fa-hard-hat';
+
+            html += '<div class="detail-row"><span class="detail-label">Source System</span><span class="detail-value"><i class="fas ' + sourceIcon + '"></i> ' + sourceLabel + '</span></div>';
             html += '<div class="detail-row"><span class="detail-label">Report ID</span><span class="detail-value">' + (row.report_id || 'N/A') + '</span></div>';
             html += '<div class="detail-row"><span class="detail-label">Title</span><span class="detail-value">' + esc(row.title) + '</span></div>';
             html += '<div class="detail-row"><span class="detail-label">Report Type</span><span class="detail-value">' + esc(row.report_type) + '</span></div>';
@@ -389,6 +572,26 @@ $archives = $conn->query("SELECT * FROM road_transportation_reports_archive ORDE
         document.getElementById('viewModal').addEventListener('click', function(e) {
             if (e.target === this) closeViewModal();
         });
+
+        // Filter functionality
+        function filterReports() {
+            const status = document.getElementById('statusFilter').value;
+            const source = document.getElementById('sourceFilter').value;
+            const sort = document.getElementById('sortFilter').value;
+            const url = new URL(window.location);
+            url.searchParams.set('status', status);
+            url.searchParams.set('source', source);
+            url.searchParams.set('sort', sort);
+            window.location.href = url.toString();
+        }
+
+        function resetFilters() {
+            const url = new URL(window.location);
+            url.searchParams.delete('status');
+            url.searchParams.delete('source');
+            url.searchParams.delete('sort');
+            window.location.href = url.toString();
+        }
     </script>
 
     <div class="page-transition-overlay" id="pageTransitionOverlay">
