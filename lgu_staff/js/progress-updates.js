@@ -99,49 +99,30 @@ function openVideo(src) {
 }
 
 function showUpdateForm(reportId, reportType, updateData) {
-    const container = document.getElementById('updatesTimeline');
-    const existingForm = document.getElementById('addUpdateFormContainer');
-    if (existingForm) existingForm.remove();
-
     const isEdit = updateData && updateData.id;
-    const formDiv = document.createElement('div');
-    formDiv.id = 'addUpdateFormContainer';
-    formDiv.className = 'add-update-form';
-    formDiv.innerHTML = `
-        <h5><i class="fas fa-${isEdit ? 'pencil' : 'plus-circle'}"></i> ${isEdit ? 'Edit Update' : 'Add Progress Update'}</h5>
-        <form id="addUpdateForm" enctype="multipart/form-data">
-            <input type="hidden" name="action" value="${isEdit ? 'edit_update' : 'create_update'}">
-            <input type="hidden" name="update_id" value="${isEdit ? updateData.id : ''}">
-            <input type="hidden" name="report_id" value="${reportId}">
-            <input type="hidden" name="report_type" value="${reportType}">
-            <div class="form-group">
-                <label>Title (optional)</label>
-                <input type="text" name="title" placeholder="e.g., Inspection completed" value="${isEdit ? escapeHtml(updateData.title || '') : ''}">
-            </div>
-            <div class="form-group">
-                <label>Description *</label>
-                <textarea name="description" placeholder="Describe the progress made..." required>${isEdit ? escapeHtml(updateData.description || '') : ''}</textarea>
-            </div>
-            <div class="form-group">
-                <label>Photos / Video</label>
-                <input type="file" name="media[]" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm" multiple>
-                <small style="color:#666;font-size:11px;">Accepted: JPG, PNG, GIF, WebP, MP4, WebM</small>
-                <div class="file-previews" id="updateFilePreviews"></div>
-            </div>
-            ${isEdit ? `<div class="form-group">
-                <label>Current media (check to remove)</label>
-                <div id="existingUpdateMedia" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;"></div>
-            </div>` : ''}
-            <div class="form-actions">
-                <button type="button" class="btn-action btn-secondary" onclick="cancelUpdateForm()">Cancel</button>
-                <button type="submit" class="btn-action"><i class="fas fa-save"></i> ${isEdit ? 'Save Changes' : 'Post Update'}</button>
-            </div>
-        </form>`;
 
-    container.parentNode.insertBefore(formDiv, container.nextSibling);
+    document.getElementById('ufAction').value = isEdit ? 'edit_update' : 'create_update';
+    document.getElementById('ufUpdateId').value = isEdit ? updateData.id : '';
+    document.getElementById('ufReportId').value = reportId;
+    document.getElementById('ufReportType').value = reportType;
 
-    if (isEdit && updateData.media) {
-        const mediaContainer = document.getElementById('existingUpdateMedia');
+    document.getElementById('ufTitle').value = isEdit ? (updateData.title || '') : '';
+    document.getElementById('ufDescription').value = isEdit ? (updateData.description || '') : '';
+
+    document.getElementById('updateFilePreviews').innerHTML = '';
+    document.getElementById('updateFormTitle').innerHTML = isEdit
+        ? '<i class="fas fa-pencil"></i> Edit Update'
+        : '<i class="fas fa-plus-circle"></i> Add Progress Update';
+    document.getElementById('ufSubmitBtn').innerHTML = isEdit
+        ? '<i class="fas fa-save"></i> Save Changes'
+        : '<i class="fas fa-save"></i> Post Update';
+
+    // Existing media for edit mode
+    const existingGroup = document.getElementById('existingMediaGroup');
+    const mediaContainer = document.getElementById('existingUpdateMedia');
+    mediaContainer.innerHTML = '';
+    if (isEdit && updateData.media && updateData.media.length) {
+        existingGroup.style.display = 'block';
         updateData.media.forEach(m => {
             const div = document.createElement('div');
             div.style.cssText = 'position:relative;width:80px;height:60px;border-radius:6px;overflow:hidden;border:1px solid rgba(55,98,200,0.15);';
@@ -157,46 +138,46 @@ function showUpdateForm(reportId, reportType, updateData) {
             div.appendChild(cb);
             mediaContainer.appendChild(div);
         });
+    } else {
+        existingGroup.style.display = 'none';
     }
 
-    document.getElementById('addUpdateForm').addEventListener('submit', handleUpdateFormSubmit);
+    // Show form at top, hide the "+ Add Update" button
+    const formContainer = document.getElementById('updateFormContainer');
+    if (!formContainer) return;
+    formContainer.style.display = 'block';
+    const addBtn = document.getElementById('addUpdateBtn');
+    if (addBtn) addBtn.style.display = 'none';
 
-    // File preview
-    const fileInput = document.querySelector('#addUpdateForm input[type="file"]');
-    if (fileInput) {
-        fileInput.addEventListener('change', function() {
-            const preview = document.getElementById('updateFilePreviews');
-            preview.innerHTML = '';
-            Array.from(this.files).forEach(f => {
-                if (f.type.startsWith('image/')) {
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        const item = document.createElement('div');
-                        item.className = 'file-preview-item';
-                        item.innerHTML = `<img src="${e.target.result}"><button type="button" class="remove-preview" onclick="this.parentElement.remove()">&times;</button>`;
-                        preview.appendChild(item);
-                    };
-                    reader.readAsDataURL(f);
-                } else {
-                    const item = document.createElement('div');
-                    item.className = 'file-preview-item';
-                    item.style.cssText = item.style.cssText + ';display:flex;align-items:center;justify-content:center;background:#f0f4fa;font-size:11px;color:#3762c8;';
-                    item.innerHTML = `<i class="fas fa-video" style="font-size:20px;"></i><button type="button" class="remove-preview" onclick="this.parentElement.remove()">&times;</button>`;
-                    preview.appendChild(item);
-                }
-            });
-        });
+    // Scroll to top of modal body
+    const body = document.getElementById('updatesModalBody');
+    if (body) {
+        body.scrollTo({ top: 0, behavior: 'smooth' });
     }
 }
 
 function cancelUpdateForm() {
-    const form = document.getElementById('addUpdateFormContainer');
-    if (form) form.remove();
+    const form = document.getElementById('addUpdateForm');
+    if (form) form.reset();
+    const previews = document.getElementById('updateFilePreviews');
+    if (previews) previews.innerHTML = '';
+    const existingMedia = document.getElementById('existingUpdateMedia');
+    if (existingMedia) existingMedia.innerHTML = '';
+    const formContainer = document.getElementById('updateFormContainer');
+    if (formContainer) formContainer.style.display = 'none';
+    const addBtn = document.getElementById('addUpdateBtn');
+    if (addBtn) addBtn.style.display = '';
+
+    // Scroll to top
+    const body = document.getElementById('updatesModalBody');
+    if (body) {
+        body.scrollTo({ top: 0, behavior: 'smooth' });
+    }
 }
 
 function handleUpdateFormSubmit(e) {
     e.preventDefault();
-    const btn = this.querySelector('button[type="submit"]');
+    const btn = document.getElementById('ufSubmitBtn');
     const orig = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
@@ -260,3 +241,37 @@ function deleteUpdate(updateId) {
 
 function escapeHtml(t) { if (!t) return ''; const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
 function escapeHtmlAttr(t) { if (!t) return ''; return t.replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+
+// Set up form submit and file preview listeners once
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('addUpdateForm');
+    if (form) {
+        form.addEventListener('submit', handleUpdateFormSubmit);
+    }
+
+    const fileInput = document.querySelector('#addUpdateForm input[type="file"]');
+    if (fileInput) {
+        fileInput.addEventListener('change', function() {
+            const preview = document.getElementById('updateFilePreviews');
+            preview.innerHTML = '';
+            Array.from(this.files).forEach(f => {
+                if (f.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const item = document.createElement('div');
+                        item.className = 'file-preview-item';
+                        item.innerHTML = `<img src="${e.target.result}"><button type="button" class="remove-preview" onclick="this.parentElement.remove()">&times;</button>`;
+                        preview.appendChild(item);
+                    };
+                    reader.readAsDataURL(f);
+                } else {
+                    const item = document.createElement('div');
+                    item.className = 'file-preview-item';
+                    item.style.cssText = 'display:flex;align-items:center;justify-content:center;background:#f0f4fa;font-size:11px;color:#3762c8;';
+                    item.innerHTML = `<i class="fas fa-video" style="font-size:20px;"></i><button type="button" class="remove-preview" onclick="this.parentElement.remove()">&times;</button>`;
+                    preview.appendChild(item);
+                }
+            });
+        });
+    }
+});
