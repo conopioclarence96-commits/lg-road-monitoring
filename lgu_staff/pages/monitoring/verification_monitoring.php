@@ -1320,7 +1320,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 <div class="workflow-header">
                     <h3 class="workflow-title">
                         <i class="fas fa-list"></i>
-                        <span id="section-title">All Reports</span>
+                        <span id="section-title">Reports</span>
                         <span class="workflow-badge" id="section-badge"><?php echo $all_reports->num_rows; ?></span>
                     </h3>
                 </div>
