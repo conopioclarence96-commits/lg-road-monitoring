@@ -232,6 +232,7 @@ function getTimeAgoShort($datetime) {
                 <a href="index.php"><i class="fas fa-home"></i> Home</a>
                 <a href="index.php#updates"><i class="fas fa-newspaper"></i> Updates</a>
                 <a href="public_transparency_view.php"><i class="fas fa-eye"></i> Transparency</a>
+                <a href="index.php"><i class="fas fa-link"></i> Quicklinks</a>
             </div>
         </div>
     </div>
