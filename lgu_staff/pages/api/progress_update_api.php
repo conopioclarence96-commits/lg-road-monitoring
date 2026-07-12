@@ -115,8 +115,11 @@ if ($method === 'GET') {
         if ($update_id <= 0) json_response(['success' => false, 'message' => 'Invalid update ID']);
         if (empty($description)) json_response(['success' => false, 'message' => 'Description is required']);
 
-        // Verify ownership/permission
+        // Verify ownership/permission — check both report tables
         $update = fetch_one("SELECT u.*, r.report_id FROM report_updates u JOIN road_transportation_reports r ON u.report_id = r.id WHERE u.id = ?", [$update_id], "i");
+        if (!$update) {
+            $update = fetch_one("SELECT u.*, r.report_id FROM report_updates u JOIN road_maintenance_reports r ON u.report_id = r.id WHERE u.id = ?", [$update_id], "i");
+        }
         if (!$update) json_response(['success' => false, 'message' => 'Update not found']);
 
         $stmt = $conn->prepare("UPDATE report_updates SET title = ?, description = ?, updated_at = NOW() WHERE id = ?");
