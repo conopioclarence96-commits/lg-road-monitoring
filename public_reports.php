@@ -112,16 +112,10 @@ function getTimeAgoShort($datetime) {
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Poppins', sans-serif; background: #f4f6f9; color: #2c3e50; }
         
-        .top-bar {
-            background: linear-gradient(135deg, var(--primary), var(--primary-light));
-            color: white; padding: 14px 0;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.15);
-            position: sticky; top: 0; z-index: 100;
-        }
-        .top-bar .brand { font-size: 1.3rem; font-weight: 600; text-decoration: none; color: white; display: flex; align-items: center; gap: 10px; }
-        .top-bar .brand i { font-size: 1.5rem; }
-        .top-bar .nav-links a { color: rgba(255,255,255,0.85); text-decoration: none; margin-left: 20px; font-weight: 500; font-size: 0.9rem; transition: color 0.2s; }
-        .top-bar .nav-links a:hover { color: white; }
+        .navbar { background: linear-gradient(135deg, var(--primary), var(--primary-light)); box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 1rem 0; }
+        .navbar-brand { font-weight: 600; font-size: 1.5rem; color: white !important; display: flex; align-items: center; gap: 10px; }
+        .navbar-nav .nav-link { color: white !important; font-weight: 500; margin: 0 10px; transition: color 0.3s ease; }
+        .navbar-nav .nav-link:hover { color: var(--accent) !important; }
 
         .hero-bar {
             background: linear-gradient(135deg, rgba(30,60,114,0.95), rgba(42,82,152,0.95)), url('assets/img/cityhall.jpeg') center/cover;
@@ -188,7 +182,6 @@ function getTimeAgoShort($datetime) {
         @media (max-width: 768px) {
             .report-grid { grid-template-columns: 1fr; }
             .hero-bar h1 { font-size: 1.5rem; }
-            .top-bar .nav-links a { margin-left: 12px; font-size: 0.8rem; }
         }
 
         @media (prefers-color-scheme: dark) {
@@ -225,19 +218,24 @@ function getTimeAgoShort($datetime) {
     </style>
 </head>
 <body>
-    <div class="top-bar">
-        <div class="container d-flex justify-content-between align-items-center">
-            <a href="index.php" class="brand"><i class="fas fa-road"></i> Quezon City Road Reports</a>
-            <div class="nav-links">
-                <a href="index.php"><i class="fas fa-home"></i> Home</a>
-                <a href="road-updates.php"><i class="fas fa-newspaper"></i> Updates</a>
-                <a href="about.php"><i class="fas fa-info-circle"></i> About</a>
-                <a href="contact.php"><i class="fas fa-envelope"></i> Contact</a>
-                <a href="public_transparency_view.php"><i class="fas fa-eye"></i> Transparency</a>
-                <a href="index.php"><i class="fas fa-link"></i> Quicklinks</a>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="index.php"><i class="fas fa-road"></i> Road & Transportation Department</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="index.php">Home</a></li>
+                    <li class="nav-item"><a class="nav-link" href="road-updates.php">Road Updates</a></li>
+                    <li class="nav-item"><a class="nav-link" href="public_reports.php">Road Status</a></li>
+                    <li class="nav-item"><a class="nav-link" href="about.php">About</a></li>
+                    <li class="nav-item"><a class="nav-link" href="contact.php">Contact</a></li>
+                    <li class="nav-item"><a class="nav-link" href="public_transparency_view.php">Transparency</a></li>
+                </ul>
             </div>
         </div>
-    </div>
+    </nav>
 
     <div class="hero-bar">
         <div class="container">

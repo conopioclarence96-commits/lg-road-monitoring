@@ -341,6 +341,7 @@ if ($conn) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Public Transparency | LGU</title>
     <link rel="icon" type="image/png" href="assets/img/logocityhall.png">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="lgu_staff/css/public_transparency.css">
@@ -349,65 +350,37 @@ if ($conn) {
         /* Public view: no sidebar, full-width content */
         body { margin: 0; }
         .main-content { margin-left: 0 !important; padding: 24px 20px 48px !important; max-width: 100%; }
-        .public-view-header {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(15px);
-            padding: 20px 24px;
-            border-radius: 16px;
-            margin-bottom: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 16px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-        }
-        .public-view-header h1 {
-            font-size: 24px;
-            font-weight: 700;
-            color: #1e3c72;
-            margin: 0;
-        }
-        .public-view-header a {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 20px;
-            background: linear-gradient(135deg, #3762c8, #1e3c72);
-            color: #fff;
-            text-decoration: none;
-            border-radius: 8px;
-            font-weight: 500;
-            font-size: 14px;
-        }
-        .public-view-header a:hover { opacity: 0.95; color: #fff; }
+        .navbar { background: linear-gradient(135deg, #1e3c72, #2a5298); box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 1rem 0; }
+        .navbar-brand { font-weight: 600; font-size: 1.5rem; color: white !important; display: flex; align-items: center; gap: 10px; }
+        .navbar-nav .nav-link { color: white !important; font-weight: 500; margin: 0 10px; transition: color 0.3s ease; }
+        .navbar-nav .nav-link:hover { color: #4CAF50 !important; }
 
         @media (prefers-color-scheme: dark) {
-            .public-view-header {
-                background: rgba(30, 34, 41, 0.96);
-                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-            }
-            .public-view-header h1 { color: #e4e6ea; }
-            .public-view-header a { background: linear-gradient(135deg, #2563eb, #1e40af) !important; }
-            .public-view-header a[href*="public_reports.php"] { background: linear-gradient(135deg, #dc2626, #991b1b) !important; }
             .main-content { background: transparent; }
         }
     </style>
 </head>
 <body>
-    <div class="main-content">
-        <div class="public-view-header">
-            <h1><i class="fas fa-university"></i> Public Transparency</h1>
-            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <a href="public_reports.php" style="background: linear-gradient(135deg, #dc3545, #b91c1c);">
-                    <i class="fas fa-road"></i> View Road Reports
-                </a>
-                <a href="road-updates.php"><i class="fas fa-newspaper"></i> Updates</a>
-                <a href="about.php"><i class="fas fa-info-circle"></i> About</a>
-                <a href="contact.php"><i class="fas fa-envelope"></i> Contact</a>
-                <a href="index.php"><i class="fas fa-arrow-left"></i> Back to Home</a>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="index.php"><i class="fas fa-road"></i> Road & Transportation Department</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="index.php">Home</a></li>
+                    <li class="nav-item"><a class="nav-link" href="road-updates.php">Road Updates</a></li>
+                    <li class="nav-item"><a class="nav-link" href="public_reports.php">Road Status</a></li>
+                    <li class="nav-item"><a class="nav-link" href="about.php">About</a></li>
+                    <li class="nav-item"><a class="nav-link" href="contact.php">Contact</a></li>
+                    <li class="nav-item"><a class="nav-link" href="public_transparency_view.php">Transparency</a></li>
+                </ul>
             </div>
         </div>
+    </nav>
+
+    <div class="main-content">
 
         <!-- Transparency Statistics -->
         <div class="transparency-stats">
@@ -704,5 +677,6 @@ if ($conn) {
             if (overlay) overlay.classList.remove('show');
         }
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
