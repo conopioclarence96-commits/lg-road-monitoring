@@ -12,6 +12,20 @@ session_start();
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 
+// Session timeout configuration
+$session_timeout = 5 * 60; // 5 minutes in seconds
+
+// Check if session has expired
+if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
+    session_destroy();
+    setcookie(session_name(), '', time() - 3600, '/');
+    header('Location: ../../login.php?timeout=1');
+    exit();
+}
+
+// Update last activity time
+$_SESSION['last_activity'] = time();
+
 // Check if user is logged in
 if (
     !isset($_SESSION['user_id']) ||
@@ -41,16 +55,30 @@ function getEnhancedStats() {
 }
 
 // Function to get recent reports for the table
-function getRecentTransportReports($limit = 10) {
+function getRecentTransportReports($limit = 10, $status_filter = 'all', $type_filter = 'all') {
     global $conn;
     $reports = [];
     if ($conn) {
         try {
             $q = "SELECT id, report_id, title, report_type, status, priority, severity, created_at 
-                  FROM road_transportation_reports 
-                  ORDER BY created_at DESC LIMIT ?";
+                  FROM road_transportation_reports WHERE 1=1";
+            $params = [];
+            $types = '';
+            if ($status_filter !== 'all') {
+                $q .= " AND status = ?";
+                $params[] = $status_filter;
+                $types .= 's';
+            }
+            if ($type_filter !== 'all') {
+                $q .= " AND report_type = ?";
+                $params[] = $type_filter;
+                $types .= 's';
+            }
+            $q .= " ORDER BY created_at DESC LIMIT ?";
+            $params[] = $limit;
+            $types .= 'i';
             $stmt = $conn->prepare($q);
-            $stmt->bind_param("i", $limit);
+            $stmt->bind_param($types, ...$params);
             $stmt->execute();
             $res = $stmt->get_result();
             while ($row = $res->fetch_assoc()) $reports[] = $row;
@@ -267,6 +295,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
                 // Combine issue type and specific type for detailed reporting
                 $full_issue_type = $specific_type ? $specific_type : $issue_type;
+                $report_category = ($issue_type === 'roads') ? 'road' : 'transportation';
+                $report_source = 'local';
 
                 if ($lat === null || $lng === null || $issue_type === '' || $description === '') {
                     echo json_encode(['success' => false, 'message' => 'Missing required fields.']);
@@ -298,43 +328,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     exit;
                 }
                 
-                // Handle image upload
+                // Handle multiple image uploads
                 $attachments = [];
-                if (isset($_FILES['report_image']) && $_FILES['report_image']['error'] === UPLOAD_ERR_OK) {
-                    // Use absolute path from script location
-                    $upload_dir = __DIR__ . '/../../uploads/report_images';
-                    // Normalize path separators for Windows
-                    $upload_dir = str_replace('\\', '/', $upload_dir);
-                    $upload_result = handle_file_upload($_FILES['report_image'], $upload_dir, ['jpg', 'jpeg', 'png']);
-                    
-                    if ($upload_result['success']) {
-                        // Store relative path for web access (from project root)
-                        $attachments[] = [
-                            'type' => 'image',
-                            'filename' => $upload_result['filename'],
-                            'original_name' => $_FILES['report_image']['name'],
-                            'file_path' => 'uploads/report_images/' . $upload_result['filename'],
-                            'uploaded_at' => date('Y-m-d H:i:s')
+                $upload_dir = __DIR__ . '/../../uploads/report_images';
+                $upload_dir = str_replace('\\', '/', $upload_dir);
+                
+                if (!empty($_FILES['photos']) && is_array($_FILES['photos']['name'])) {
+                    $file_count = count($_FILES['photos']['name']);
+                    for ($i = 0; $i < $file_count; $i++) {
+                        if ($_FILES['photos']['error'][$i] === UPLOAD_ERR_NO_FILE) continue;
+                        if ($_FILES['photos']['error'][$i] !== UPLOAD_ERR_OK) {
+                            $upload_errors = [
+                                UPLOAD_ERR_INI_SIZE => 'File exceeds upload_max_filesize',
+                                UPLOAD_ERR_FORM_SIZE => 'File exceeds MAX_FILE_SIZE',
+                                UPLOAD_ERR_PARTIAL => 'File was only partially uploaded',
+                                UPLOAD_ERR_NO_TMP_DIR => 'Missing temporary folder',
+                                UPLOAD_ERR_CANT_WRITE => 'Failed to write file to disk',
+                                UPLOAD_ERR_EXTENSION => 'File upload stopped by extension'
+                            ];
+                            $error_code = $_FILES['photos']['error'][$i];
+                            $error_msg = $upload_errors[$error_code] ?? 'Unknown error (code: ' . $error_code . ')';
+                            echo json_encode(['success' => false, 'message' => "Upload failed for '" . $_FILES['photos']['name'][$i] . "': " . $error_msg]);
+                            exit;
+                        }
+                        
+                        $file = [
+                            'name' => $_FILES['photos']['name'][$i],
+                            'type' => $_FILES['photos']['type'][$i],
+                            'tmp_name' => $_FILES['photos']['tmp_name'][$i],
+                            'error' => $_FILES['photos']['error'][$i],
+                            'size' => $_FILES['photos']['size'][$i]
                         ];
-                    } else {
-                        $error_msg = $upload_result['error'] ?? 'Unknown upload error';
-                        echo json_encode(['success' => false, 'message' => 'Image upload failed: ' . $error_msg]);
-                        exit;
+                        
+                        $upload_result = handle_file_upload($file, $upload_dir, ['jpg', 'jpeg', 'png']);
+                        
+                        if ($upload_result['success']) {
+                            $attachments[] = [
+                                'type' => 'image',
+                                'filename' => $upload_result['filename'],
+                                'original_name' => $file['name'],
+                                'file_path' => 'uploads/report_images/' . $upload_result['filename'],
+                                'uploaded_at' => date('Y-m-d H:i:s')
+                            ];
+                        } else {
+                            $error_msg = $upload_result['error'] ?? 'Unknown upload error';
+                            echo json_encode(['success' => false, 'message' => "Upload failed for '" . $file['name'] . "': " . $error_msg]);
+                            exit;
+                        }
                     }
-                } elseif (isset($_FILES['report_image']) && $_FILES['report_image']['error'] !== UPLOAD_ERR_NO_FILE) {
-                    // File upload error (but not "no file")
-                    $upload_errors = [
-                        UPLOAD_ERR_INI_SIZE => 'File exceeds upload_max_filesize',
-                        UPLOAD_ERR_FORM_SIZE => 'File exceeds MAX_FILE_SIZE',
-                        UPLOAD_ERR_PARTIAL => 'File was only partially uploaded',
-                        UPLOAD_ERR_NO_TMP_DIR => 'Missing temporary folder',
-                        UPLOAD_ERR_CANT_WRITE => 'Failed to write file to disk',
-                        UPLOAD_ERR_EXTENSION => 'File upload stopped by extension'
-                    ];
-                    $error_code = $_FILES['report_image']['error'];
-                    $error_msg = $upload_errors[$error_code] ?? 'Unknown upload error (code: ' . $error_code . ')';
-                    echo json_encode(['success' => false, 'message' => 'Image upload error: ' . $error_msg]);
-                    exit;
                 }
                 
                 // Use the specific type if provided, otherwise use general type
@@ -358,16 +399,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $image_path = !empty($attachments) ? $attachments[0]['file_path'] : null;
                 
                 $stmt = $conn->prepare("INSERT INTO road_transportation_reports 
-                    (report_id, report_type, title, department, priority, status, created_date, description, location, latitude, longitude, severity, attachments, image_path, created_by) 
-                    VALUES (?, ?, ?, ?, ?, 'pending', CURDATE(), ?, ?, ?, ?, ?, ?, ?, ?)");
+                    (report_id, report_type, report_category, report_source, title, department, priority, status, created_date, description, location, latitude, longitude, severity, attachments, image_path, created_by) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', CURDATE(), ?, ?, ?, ?, ?, ?, ?, ?)");
                 
                 if (!$stmt) {
                     echo json_encode(['success' => false, 'message' => 'Database prepare failed: ' . $conn->error]);
                     exit;
                 }
                 
-                // Parameters: report_id, report_type, title, department, priority, description, location, lat, lng, severity, attachments, image_path, user_id
-                $stmt->bind_param("sssssssddssis", $report_id, $report_type, $title, $department, $priority, $description, $location_str, $lat, $lng, $severity_db, $attachments_json, $image_path, $user_id);
+                // Parameters: report_id, report_type, report_category, report_source, title, department, priority, description, location, lat, lng, severity, attachments, image_path, user_id
+                $stmt->bind_param("sssssssssddssis", $report_id, $report_type, $report_category, $report_source, $title, $department, $priority, $description, $location_str, $lat, $lng, $severity_db, $attachments_json, $image_path, $user_id);
                 
                 if ($stmt->execute()) {
                     ob_end_clean(); // Clear any output before JSON
@@ -390,11 +431,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
+// Get filter parameters
+$status_filter = $_GET['status'] ?? 'all';
+$type_filter = $_GET['type'] ?? 'all';
+
 // Get data for the page
 $alerts = getActiveAlerts();
 $roads = getRoadStatus();
 $enhanced_stats = getEnhancedStats();
-$recent_reports = getRecentTransportReports(10);
+$recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -840,6 +885,55 @@ $recent_reports = getRecentTransportReports(10);
         }
         .table-action-btn.view-map:hover { background: #3762c8; color: #fff; }
 
+        .table-header-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .filter-select {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: white;
+            font-size: 13px;
+            min-width: 130px;
+        }
+
+        body.dark-mode .filter-select {
+            background: #2d323b;
+            border-color: rgba(255,255,255,0.12);
+            color: #e4e6ea;
+        }
+
+        .btn-secondary-custom {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: white;
+            font-size: 13px;
+            cursor: pointer;
+            color: #64748b;
+            transition: all 0.2s;
+        }
+
+        .btn-secondary-custom:hover {
+            background: #f0f4fa;
+            border-color: #3762c8;
+            color: #3762c8;
+        }
+
+        body.dark-mode .btn-secondary-custom {
+            background: #2d323b;
+            border-color: rgba(255,255,255,0.12);
+            color: #9ca3af;
+        }
+        body.dark-mode .btn-secondary-custom:hover {
+            border-color: #60a5fa;
+            color: #60a5fa;
+        }
+
         .road-search {
             padding: 6px 12px; border: 1px solid rgba(55,98,200,0.3);
             border-radius: 8px; font-size: 13px; width: 200px;
@@ -980,6 +1074,80 @@ $recent_reports = getRecentTransportReports(10);
         body.dark-mode .modal-title {
             color: #e4e6ea;
         }
+
+        /* Add/Edit Update Modal form styles */
+        #addUpdateModal .form-group { margin-bottom: 16px; }
+        #addUpdateModal .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        #addUpdateModal .form-control {
+            width: 100%;
+            padding: 10px 14px;
+            border: 2px solid rgba(55,98,200,0.15);
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+            background: white;
+            color: #333;
+            box-sizing: border-box;
+        }
+        #addUpdateModal .form-control:focus {
+            border-color: #3762c8;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(55,98,200,0.1);
+        }
+        #addUpdateModal textarea.form-control { resize: vertical; }
+        #addUpdateModal .file-previews {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        #addUpdateModal .file-preview-item {
+            width: 80px;
+            height: 80px;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid #ddd;
+            position: relative;
+            background: #f8f9fa;
+            flex-shrink: 0;
+        }
+        #addUpdateModal .file-preview-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        #addUpdateModal .file-preview-item .remove-preview {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            width: 20px;
+            height: 20px;
+            background: rgba(220,53,69,0.9);
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            font-size: 14px;
+            line-height: 1;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+        #addUpdateModal .file-preview-item .remove-preview:hover { background: #dc3545; }
+        body.dark-mode #addUpdateModal .form-label { color: #e4e6ea; }
+        body.dark-mode #addUpdateModal .form-control {
+            background: #1a1d23;
+            color: #e4e6ea;
+            border-color: #3a3f4a;
+        }
+        body.dark-mode #addUpdateModal .file-preview-item { background: #2a2e36; border-color: #3a3f4a; }
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
@@ -1059,7 +1227,7 @@ $recent_reports = getRecentTransportReports(10);
                 <!-- Report form (shown after pinning) -->
                 <div id="report-form-panel" class="report-form-panel" style="display: none;">
                     <h4><i class="fas fa-map-pin"></i> Report issue at pinned location</h4>
-                    <form id="report-form">
+                    <form id="report-form" enctype="multipart/form-data">
                         <input type="hidden" id="pin-lat" name="latitude">
                         <input type="hidden" id="pin-lng" name="longitude">
                         <label>Issue type</label>
@@ -1103,14 +1271,12 @@ $recent_reports = getRecentTransportReports(10);
                         </select>
                         <label>Description</label>
                         <textarea id="description" name="description" rows="3" required placeholder="Describe the issue..."></textarea>
-                        <label>Upload Photo (Optional)</label>
-                        <input type="file" id="report-image" name="report_image" accept="image/*" />
-                        <small style="color: #666; font-size: 12px; display: block; margin-top: 4px;">Max size: 5MB. Formats: JPG, PNG</small>
+                        <label>Upload Photos (Optional)</label>
+                        <button type="button" id="add-photos-btn" style="padding:8px 16px;background:#3762c8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;"><i class="fas fa-camera"></i> Add Photos</button>
+                        <input type="file" id="report-images" name="photos[]" multiple accept="image/jpeg,image/jpg,image/png" style="display:none;" />
+                        <small style="color: #666; font-size: 12px; display: block; margin-top: 4px;">Max size: 5MB each. Formats: JPG, PNG.</small>
                         <div id="image-preview" style="margin-top: 10px; display: none;">
-                            <img id="preview-img" src="" alt="Preview" style="max-width: 100%; max-height: 200px; border-radius: 8px; border: 1px solid rgba(55, 98, 200, 0.3);" />
-                            <button type="button" id="remove-image-btn" style="margin-top: 8px; padding: 4px 12px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
-                                <i class="fas fa-times"></i> Remove Image
-                            </button>
+                            <div id="image-gallery" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
                         </div>
                         <div class="form-actions">
                             <button type="button" class="btn-action btn-secondary" id="cancel-pin-btn">Cancel</button>
@@ -1175,7 +1341,24 @@ $recent_reports = getRecentTransportReports(10);
         <div class="reports-table-section">
             <div class="table-header">
                 <h3><i class="fas fa-list"></i> Recent Submissions</h3>
-                <input type="text" class="road-search" placeholder="Search by title or ID..." id="reportSearchInput" oninput="filterReportsTable(this.value)">
+                <div class="table-header-right">
+                    <select class="filter-select" id="statusFilter" onchange="filterReports()">
+                        <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
+                        <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending</option>
+                        <option value="in-progress" <?php echo $status_filter === 'in-progress' ? 'selected' : ''; ?>>In Progress</option>
+                        <option value="completed" <?php echo $status_filter === 'completed' ? 'selected' : ''; ?>>Completed</option>
+                        <option value="cancelled" <?php echo $status_filter === 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
+                    </select>
+                    <select class="filter-select" id="typeFilter" onchange="filterReports()">
+                        <option value="all" <?php echo $type_filter === 'all' ? 'selected' : ''; ?>>All Types</option>
+                        <option value="transportation" <?php echo $type_filter === 'transportation' ? 'selected' : ''; ?>>Transportation</option>
+                        <option value="maintenance" <?php echo $type_filter === 'maintenance' ? 'selected' : ''; ?>>Maintenance</option>
+                    </select>
+                    <button class="btn-secondary-custom" onclick="resetFilters()" title="Reset Filters">
+                        <i class="fas fa-arrow-clockwise"></i>
+                    </button>
+                    <input type="text" class="road-search" placeholder="Search by title or ID..." id="reportSearchInput" oninput="filterReportsTable(this.value)">
+                </div>
             </div>
             <div class="reports-table-wrap">
                 <table id="recentReportsTable">
@@ -1195,7 +1378,7 @@ $recent_reports = getRecentTransportReports(10);
                         <tr><td colspan="7" style="text-align:center;padding:30px;color:#6b7280;">No reports yet.</td></tr>
                         <?php else: ?>
                         <?php foreach ($recent_reports as $rr): ?>
-                         <tr class="report-table-row" data-id="<?php echo $rr['id']; ?>" data-title="<?php echo htmlspecialchars(strtolower($rr['title'] ?? '')); ?>" data-report-id="<?php echo htmlspecialchars(strtolower($rr['report_id'] ?? '')); ?>">
+                         <tr class="report-table-row" data-id="<?php echo $rr['id']; ?>" data-title="<?php echo htmlspecialchars(strtolower($rr['title'] ?? '')); ?>" data-report-id="<?php echo htmlspecialchars(strtolower($rr['report_id'] ?? '')); ?>" data-status="<?php echo $rr['status'] ?? 'pending'; ?>">
                             <td style="font-family:monospace;font-size:12px;"><?php echo htmlspecialchars($rr['report_id'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars($rr['title'] ?? 'Untitled'); ?></td>
                             <td><?php echo htmlspecialchars($rr['report_type'] ?? '—'); ?></td>
@@ -1204,7 +1387,7 @@ $recent_reports = getRecentTransportReports(10);
                             <td><?php echo date('M d, Y H:i', strtotime($rr['created_at'] ?? 'now')); ?></td>
                             <td style="white-space:nowrap;">
                                 <button class="table-action-btn view-map" onclick="focusReportOnMap(<?php echo $rr['id']; ?>)"><i class="fas fa-map-pin"></i> Map</button>
-                                <?php if ($_SESSION['role'] === 'lgu_staff'): ?><button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(<?php echo $rr['id']; ?>, '<?php echo $rr['report_type']; ?>')"><i class="fas fa-clock"></i> Updates</button><?php endif; ?>
+                                <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(<?php echo $rr['id']; ?>, '<?php echo $rr['report_type']; ?>')"><i class="fas fa-clock"></i> Updates</button>
                             </td>
                         </tr>
                         <?php endforeach; ?>
@@ -1307,6 +1490,7 @@ $recent_reports = getRecentTransportReports(10);
         let activeFilter = 'all';
         let autoRefreshInterval = null;
 
+
         // Load existing report markers
         function loadMarkers(filter, callback) {
             filter = filter || activeFilter;
@@ -1399,6 +1583,22 @@ $recent_reports = getRecentTransportReports(10);
             });
         }
 
+        function filterReports() {
+            const status = document.getElementById('statusFilter').value;
+            const type = document.getElementById('typeFilter').value;
+            const url = new URL(window.location);
+            url.searchParams.set('status', status);
+            url.searchParams.set('type', type);
+            window.location.href = url.toString();
+        }
+
+        function resetFilters() {
+            const url = new URL(window.location);
+            url.searchParams.delete('status');
+            url.searchParams.delete('type');
+            window.location.href = url.toString();
+        }
+
         // Start auto-refresh
         function startAutoRefresh() {
             if (autoRefreshInterval) clearInterval(autoRefreshInterval);
@@ -1481,37 +1681,88 @@ $recent_reports = getRecentTransportReports(10);
             reportPanel.style.display = 'none';
         });
 
-        // Image preview with size check
-        const imageInput = document.getElementById('report-image');
+        // Multi-photo upload with add button and per-image delete
+        const imageInput = document.getElementById('report-images');
         const imagePreview = document.getElementById('image-preview');
-        const previewImg = document.getElementById('preview-img');
-        const removeImageBtn = document.getElementById('remove-image-btn');
+        const imageGallery = document.getElementById('image-gallery');
+        const addPhotosBtn = document.getElementById('add-photos-btn');
+        let selectedFiles = [];
         
-        imageInput.addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                if (file.size > 5 * 1024 * 1024) {
-                    showNotification('Image size exceeds 5MB limit.', 'error');
-                    e.target.value = '';
-                    return;
-                }
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    previewImg.src = e.target.result;
-                    imagePreview.style.display = 'block';
-                };
-                reader.readAsDataURL(file);
-            }
+        addPhotosBtn.addEventListener('click', function() {
+            imageInput.click();
         });
         
-        removeImageBtn.addEventListener('click', function() {
+        function renderGallery() {
+            imageGallery.innerHTML = '';
+            if (selectedFiles.length === 0) {
+                imagePreview.style.display = 'none';
+                return;
+            }
+            imagePreview.style.display = 'block';
+            selectedFiles.forEach((file, index) => {
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    const wrapper = document.createElement('div');
+                    wrapper.style.position = 'relative';
+                    wrapper.style.display = 'inline-block';
+                    const img = document.createElement('img');
+                    img.src = ev.target.result;
+                    img.style.width = '100px';
+                    img.style.height = '100px';
+                    img.style.objectFit = 'cover';
+                    img.style.borderRadius = '8px';
+                    img.style.border = '1px solid rgba(55, 98, 200, 0.3)';
+                    wrapper.appendChild(img);
+                    const del = document.createElement('button');
+                    del.type = 'button';
+                    del.innerHTML = '&times;';
+                    del.style.position = 'absolute';
+                    del.style.top = '-6px';
+                    del.style.right = '-6px';
+                    del.style.width = '22px';
+                    del.style.height = '22px';
+                    del.style.borderRadius = '50%';
+                    del.style.border = 'none';
+                    del.style.background = '#dc3545';
+                    del.style.color = 'white';
+                    del.style.fontSize = '14px';
+                    del.style.lineHeight = '22px';
+                    del.style.textAlign = 'center';
+                    del.style.cursor = 'pointer';
+                    del.style.padding = '0';
+                    del.addEventListener('click', function(ev2) {
+                        ev2.stopPropagation();
+                        selectedFiles.splice(index, 1);
+                        renderGallery();
+                    });
+                    wrapper.appendChild(del);
+                    wrapper.dataset.index = index;
+                    imageGallery.appendChild(wrapper);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+        
+        imageInput.addEventListener('change', function(e) {
+            const newFiles = Array.from(e.target.files);
+            const valid = [];
+            newFiles.forEach(file => {
+                if (file.size > 5 * 1024 * 1024) {
+                    showNotification(`"${file.name}" exceeds 5MB limit.`, 'error');
+                } else {
+                    valid.push(file);
+                }
+            });
+            selectedFiles = selectedFiles.concat(valid);
+            renderGallery();
             imageInput.value = '';
-            previewImg.src = '';
-            imagePreview.style.display = 'none';
         });
 
         form.addEventListener('submit', function(e) {
             e.preventDefault();
+            const dt = new DataTransfer();
+            selectedFiles.forEach(f => dt.items.add(f));
+            imageInput.files = dt.files;
             const btn = document.getElementById('submit-report-btn');
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
@@ -1530,6 +1781,8 @@ $recent_reports = getRecentTransportReports(10);
                             if (pinMarker) { map.removeLayer(pinMarker); pinMarker = null; }
                             reportPanel.style.display = 'none';
                             form.reset();
+                            selectedFiles = [];
+                            imageGallery.innerHTML = '';
                             imagePreview.style.display = 'none';
                             loadMarkers(activeFilter);
                         } else {
@@ -1580,8 +1833,12 @@ $recent_reports = getRecentTransportReports(10);
 
         window.onclick = function(event) {
             if (event.target.classList.contains('modal')) {
-                event.target.style.display = 'none';
-                document.body.style.overflow = 'auto';
+                if (event.target.id === 'addUpdateModal') {
+                    cancelUpdateForm();
+                } else {
+                    event.target.style.display = 'none';
+                    document.body.style.overflow = 'auto';
+                }
             }
         };
 
@@ -1598,6 +1855,137 @@ $recent_reports = getRecentTransportReports(10);
                 loadUpdates(id, type);
             }
         }
+
+        function showAddUpdateModal() {
+            document.getElementById('addUpdateAction').value = 'create_update';
+            document.getElementById('addUpdateId').value = '';
+            document.getElementById('addUpdateReportId').value = currentUpdatesReportId;
+            document.getElementById('addUpdateReportType').value = currentUpdatesReportType;
+            document.getElementById('addUpdateTitle').value = '';
+            document.getElementById('addUpdateDescription').value = '';
+            document.getElementById('updateFilePreviews').innerHTML = '';
+            document.getElementById('existingUpdateMediaSection').style.display = 'none';
+            document.getElementById('existingUpdateMedia').innerHTML = '';
+            document.getElementById('addUpdateModalTitle').textContent = 'Add Progress Update';
+            document.getElementById('addUpdateSubmitBtn').innerHTML = '<i class="fas fa-save"></i> Post Update';
+            closeModal('updatesModal');
+            openModal('addUpdateModal');
+        }
+
+        function cancelUpdateForm() {
+            closeModal('addUpdateModal');
+            openModal('updatesModal');
+            if (typeof loadUpdates === 'function') {
+                loadUpdates(currentUpdatesReportId, currentUpdatesReportType);
+            }
+        }
+
+        // Override showUpdateForm from progress-updates.js to use modal
+        function showUpdateForm(reportId, reportType, updateData) {
+            const isEdit = updateData && updateData.id;
+            document.getElementById('addUpdateAction').value = isEdit ? 'edit_update' : 'create_update';
+            document.getElementById('addUpdateId').value = isEdit ? updateData.id : '';
+            document.getElementById('addUpdateReportId').value = reportId;
+            document.getElementById('addUpdateReportType').value = reportType;
+            document.getElementById('addUpdateTitle').value = isEdit ? (updateData.title || '') : '';
+            document.getElementById('addUpdateDescription').value = isEdit ? (updateData.description || '') : '';
+            document.getElementById('updateFilePreviews').innerHTML = '';
+            document.getElementById('addUpdateModalTitle').textContent = isEdit ? 'Edit Update' : 'Add Progress Update';
+            document.getElementById('addUpdateSubmitBtn').innerHTML = isEdit ? '<i class="fas fa-save"></i> Save Changes' : '<i class="fas fa-save"></i> Post Update';
+
+            if (isEdit && updateData.media) {
+                const mediaContainer = document.getElementById('existingUpdateMedia');
+                mediaContainer.innerHTML = '';
+                document.getElementById('existingUpdateMediaSection').style.display = '';
+                updateData.media.forEach(function(m) {
+                    const div = document.createElement('div');
+                    div.style.cssText = 'position:relative;width:80px;height:60px;border-radius:6px;overflow:hidden;border:1px solid rgba(55,98,200,0.15);';
+                    const isVideo = m.file_type === 'video';
+                    div.innerHTML = isVideo
+                        ? '<i class="fas fa-video" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:20px;color:#3762c8;opacity:0.5;"></i>'
+                        : '<img src="../../' + m.file_path.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') + '" style="width:100%;height:100%;object-fit:cover;">';
+                    const cb = document.createElement('input');
+                    cb.type = 'checkbox';
+                    cb.name = 'remove_media[]';
+                    cb.value = m.id;
+                    cb.style.cssText = 'position:absolute;top:3px;right:3px;width:16px;height:16px;cursor:pointer;';
+                    div.appendChild(cb);
+                    mediaContainer.appendChild(div);
+                });
+            } else {
+                document.getElementById('existingUpdateMediaSection').style.display = 'none';
+                document.getElementById('existingUpdateMedia').innerHTML = '';
+            }
+
+            closeModal('updatesModal');
+            openModal('addUpdateModal');
+        }
+
+        // Override handleUpdateFormSubmit from progress-updates.js for modal flow
+        function handleUpdateFormSubmit(e) {
+            e.preventDefault();
+            const btn = document.getElementById('addUpdateSubmitBtn');
+            const orig = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+            const fd = new FormData(document.getElementById('addUpdateForm'));
+            fetch('../api/progress_update_api.php', {
+                method: 'POST',
+                body: fd
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    closeModal('addUpdateModal');
+                    openModal('updatesModal');
+                    if (typeof loadUpdates === 'function') {
+                        loadUpdates(currentUpdatesReportId, currentUpdatesReportType);
+                    }
+                } else {
+                    showNotification(data.message || 'Failed to save update', 'error');
+                }
+            })
+            .catch(function(e) {
+                showNotification('Network error', 'error');
+                console.error(e);
+            })
+            .finally(function() { btn.disabled = false; btn.innerHTML = orig; });
+        }
+
+        // Attach submit handler to add update form (event delegation, works even if form isn't in DOM yet)
+        document.addEventListener('submit', function(e) {
+            if (e.target && e.target.id === 'addUpdateForm') {
+                handleUpdateFormSubmit(e);
+            }
+        });
+
+        // File preview for add update modal (event delegation)
+        document.addEventListener('change', function(e) {
+            if (e.target && e.target.matches && e.target.matches('#addUpdateForm input[type="file"]')) {
+                var preview = document.getElementById('updateFilePreviews');
+                if (!preview) return;
+                preview.innerHTML = '';
+                Array.from(e.target.files).forEach(function(f) {
+                    if (f.type.startsWith('image/')) {
+                        var reader = new FileReader();
+                        reader.onload = function(ev) {
+                            var item = document.createElement('div');
+                            item.className = 'file-preview-item';
+                            item.innerHTML = '<img src="' + ev.target.result + '"><button type="button" class="remove-preview" onclick="this.parentElement.remove()">&times;</button>';
+                            preview.appendChild(item);
+                        };
+                        reader.readAsDataURL(f);
+                    } else {
+                        var item = document.createElement('div');
+                        item.className = 'file-preview-item';
+                        item.innerHTML = '<i class="fas fa-video" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:20px;color:#3762c8;opacity:0.7;"></i><button type="button" class="remove-preview" onclick="this.parentElement.remove()">&times;</button>';
+                        preview.appendChild(item);
+                    }
+                });
+            }
+        });
     </script>
     
     <!-- Progress Updates Modal -->
@@ -1615,10 +2003,55 @@ $recent_reports = getRecentTransportReports(10);
             <div class="modal-footer" style="justify-content: space-between;">
                 <span id="updateReportInfo" style="font-size: 13px; color: #6b7280;"></span>
                 <div>
-                    <button type="button" class="btn-action" id="addUpdateBtn" onclick="showUpdateForm(currentUpdatesReportId, currentUpdatesReportType)">+ Add Update</button>
+                    <button type="button" class="btn-action" id="addUpdateBtn" onclick="showAddUpdateModal()">+ Add Update</button>
                     <button type="button" class="btn-secondary-custom" onclick="closeModal('updatesModal')">Close</button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Update Modal -->
+    <div id="addUpdateModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-plus-circle"></i> <span id="addUpdateModalTitle">Add Progress Update</span></h5>
+                <button class="close" onclick="cancelUpdateForm()">&times;</button>
+            </div>
+            <form id="addUpdateForm" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <input type="hidden" name="action" id="addUpdateAction" value="create_update">
+                    <input type="hidden" name="update_id" id="addUpdateId" value="">
+                    <input type="hidden" name="report_id" id="addUpdateReportId" value="">
+                    <input type="hidden" name="report_type" id="addUpdateReportType" value="">
+                    <div class="form-group">
+                        <label class="form-label">Title (optional)</label>
+                        <input type="text" name="title" id="addUpdateTitle" class="form-control" placeholder="e.g., Inspection completed">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Description *</label>
+                        <textarea name="description" id="addUpdateDescription" class="form-control" rows="4" placeholder="Describe the progress made..." required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Photos / Video</label>
+                        <input type="file" name="media[]" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm" multiple>
+                        <small style="color:#666;font-size:11px;">Accepted: JPG, PNG, GIF, WebP, MP4, WebM</small>
+                        <div class="file-previews" id="updateFilePreviews"></div>
+                    </div>
+                    <div id="existingUpdateMediaSection" style="display:none;">
+                        <div class="form-group">
+                            <label class="form-label">Current media (check to remove)</label>
+                            <div id="existingUpdateMedia" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer" style="justify-content: space-between;">
+                    <span style="font-size:12px;color:#666;">Updates are visible to all staff</span>
+                    <div style="display:flex;gap:10px;">
+                        <button type="button" class="btn-secondary-custom" onclick="cancelUpdateForm()">Cancel</button>
+                        <button type="submit" class="btn-action" id="addUpdateSubmitBtn"><i class="fas fa-save"></i> Post Update</button>
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -1637,5 +2070,25 @@ $recent_reports = getRecentTransportReports(10);
             <div class="transition-text">Loading...</div>
         </div>
     </div>
+
+    <!-- Session Timeout Modal -->
+    <div id="sessionTimeoutOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); z-index:10000;"></div>
+    <div id="sessionTimeoutModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; border-radius:12px; padding:32px; z-index:10001; width:400px; max-width:90vw; box-shadow:0 16px 48px rgba(0,0,0,0.3); text-align:center;">
+        <div style="font-size:48px; color:#e74c3c; margin-bottom:16px;">
+            <i class="fas fa-clock"></i>
+        </div>
+        <h3 style="margin:0 0 8px; font-size:20px; color:#1a1a2e;">Session Expiring</h3>
+        <p style="margin:0 0 20px; color:#666; font-size:14px;">
+            Your session will expire in <strong><span id="sessionCountdown">60</span></strong> seconds due to inactivity.
+        </p>
+        <div style="display:flex; gap:12px; justify-content:center;">
+            <button id="extendSessionBtn" style="padding:10px 24px; background:#3762c8; color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Extend Session</button>
+            <button id="logoutSessionBtn" style="padding:10px 24px; background:#e74c3c; color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Log Out</button>
+        </div>
+    </div>
+
+    <!-- Session timeout data -->
+    <script id="sessionTimeoutData" data-timeout="<?php echo $session_timeout; ?>"></script>
+    <script src="../../js/session-timeout.js"></script>
 </body>
 </html>

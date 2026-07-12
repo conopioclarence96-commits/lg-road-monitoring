@@ -3,6 +3,20 @@ require_once '../../includes/session_config.php';
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 
+// Session timeout configuration
+$session_timeout = 5 * 60; // 5 minutes in seconds
+
+// Check if session has expired
+if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
+    session_destroy();
+    setcookie(session_name(), '', time() - 3600, '/');
+    header('Location: ../../login.php?timeout=1');
+    exit();
+}
+
+// Update last activity time
+$_SESSION['last_activity'] = time();
+
 // Check if user is logged in and check role (logout if invalid role)
 if (!is_logged_in() || $_SESSION['role'] !== 'system_admin') {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -173,12 +187,10 @@ function handle_update_report() {
     $report_type_from_db = sanitize_input($_POST['report_type_from_db'] ?? '');
     $status = sanitize_input($_POST['status'] ?? '');
     $priority = sanitize_input($_POST['priority'] ?? '');
-    $assigned_to = sanitize_input($_POST['assigned_to'] ?? '');
     $notes = sanitize_input($_POST['notes'] ?? '');
     $title = sanitize_input($_POST['title'] ?? '');
     $description = sanitize_input($_POST['description'] ?? '');
     $location = sanitize_input($_POST['location'] ?? '');
-    $estimation = floatval($_POST['estimation'] ?? 0);
     
     if ($report_id <= 0 || empty($report_type) || empty($status)) {
         set_flash_message('error', 'Invalid report data');
@@ -199,17 +211,10 @@ function handle_update_report() {
     if (!empty($title)) { $update_fields[] = "title = ?"; $params[] = $title; $types .= "s"; }
     if (!empty($description)) { $update_fields[] = "description = ?"; $params[] = $description; $types .= "s"; }
     if (!empty($location)) { $update_fields[] = "location = ?"; $params[] = $location; $types .= "s"; }
-    if ($estimation >= 0) { $update_fields[] = "estimation = ?"; $params[] = $estimation; $types .= "d"; }
     
     if ($table === 'road_transportation_reports') {
-        $update_fields[] = "assigned_to = ?";
         $update_fields[] = "resolution_notes = ?";
-        $params[] = $assigned_to;
         $params[] = $notes;
-        $types .= "ss";
-    } else {
-        $update_fields[] = "maintenance_team = ?";
-        $params[] = $assigned_to;
         $types .= "s";
     }
     
@@ -265,7 +270,6 @@ function handle_update_report() {
     if ($stmt->execute()) {
         $change_log = "Report ID: {$report_id}, New Status: {$status}";
         if (!empty($uploaded_photos)) $change_log .= ", Photos added: " . count($uploaded_photos);
-        if ($estimation > 0) $change_log .= ", Estimation: ₱" . number_format($estimation, 2);
         
         log_audit_action($user_id, "Updated {$report_type_from_db} report", $change_log);
 
@@ -275,8 +279,6 @@ function handle_update_report() {
         if (!empty($notes)) $update_desc_parts[] = $notes;
         $update_desc_parts[] = "Status: " . ucfirst(str_replace('-', ' ', $status));
         $update_desc_parts[] = "Priority: " . ucfirst($priority);
-        if (!empty($assigned_to)) $update_desc_parts[] = "Assigned to: " . $assigned_to;
-        if ($estimation > 0) $update_desc_parts[] = "Estimation: ₱" . number_format($estimation, 2);
         $update_desc = implode('. ', $update_desc_parts);
 
         try {
@@ -1365,8 +1367,10 @@ if (!empty($reports)) {
                     <select class="filter-select" id="statusFilter" onchange="filterReports()">
                         <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
                         <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending</option>
-                        <option value="in_progress" <?php echo $status_filter === 'in_progress' ? 'selected' : ''; ?>>In Progress</option>
+                        <option value="approved" <?php echo $status_filter === 'approved' ? 'selected' : ''; ?>>Approved</option>
+                        <option value="in-progress" <?php echo $status_filter === 'in-progress' ? 'selected' : ''; ?>>In Progress</option>
                         <option value="completed" <?php echo $status_filter === 'completed' ? 'selected' : ''; ?>>Completed</option>
+                        <option value="cancelled" <?php echo $status_filter === 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
                     </select>
                 </div>
                 <div>
@@ -1418,16 +1422,11 @@ if (!empty($reports)) {
                                         <i class="fas fa-tag"></i> <?php echo ucfirst($report['report_type']); ?> • 
                                         <i class="fas fa-geo-alt"></i> <?php echo htmlspecialchars($report['location']); ?> • 
                                         <i class="fas fa-flag"></i> Priority: <?php echo ucfirst($report['priority']); ?> • 
-                                        <?php if (!empty($report['estimation']) && isset($report['estimation']) && $report['estimation'] > 0): ?>
-                                        <i class="fas fa-peso-sign"></i> Estimation: ₱<?php echo number_format($report['estimation'], 2); ?> • 
-                                        <?php else: ?>
-                                        <i class="fas fa-peso-sign" style="opacity: 0.3;"></i> No Estimation • 
-                                        <?php endif; ?>
                                         <i class="fas fa-clock"></i> <?php echo format_datetime($report['created_at']); ?>
                                     </div>
                                 </div>
                                 <span class="status-badge status-<?php echo str_replace('_', '-', $report['status']); ?>">
-                                    <?php echo ucfirst(str_replace('_', ' ', $report['status'])); ?>
+                                    <?php echo ucwords(str_replace('-', ' ', str_replace('_', ' ', $report['status']))); ?>
                                 </span>
                             </div>
                             
@@ -1538,6 +1537,7 @@ if (!empty($reports)) {
                                 <label for="editStatus" class="form-label">Status *</label>
                                 <select class="form-control" name="status" id="editStatus" required>
                                     <option value="pending">Pending</option>
+                                    <option value="approved">Approved</option>
                                     <option value="in-progress">In Progress</option>
                                     <option value="completed">Completed</option>
                                     <option value="cancelled">Cancelled</option>
@@ -1553,35 +1553,6 @@ if (!empty($reports)) {
                                 </select>
                             </div>
                         </div>
-                        <div class="form-group">
-                            <label for="editAssignedTo" class="form-label">Assign To *</label>
-                            <select class="form-control" name="assigned_to" id="editAssignedTo" required>
-                                <option value="">Select Assignee</option>
-                                <option value="CIM Engineer 1">CIM Engineer 1</option>
-                                <option value="CIM Engineer 2">CIM Engineer 2</option>
-                                <option value="CIM Engineer 3">CIM Engineer 3</option>
-                                <option value="CIM Engineer 4">CIM Engineer 4</option>
-                                <option value="CIM Engineer 5">CIM Engineer 5</option>
-                                <option value="Maintenance Team">Maintenance Team</option>
-                                <option value="Road Inspector">Road Inspector</option>
-                                <option value="Project Manager">Project Manager</option>
-                            </select>
-                            <small style="color: #666; font-size: 12px;">Select the team member responsible for this report</small>
-                        </div>
-                    </div>
-
-                    <div class="form-section">
-                        <h6><i class="fas fa-calculator"></i> Cost Estimation</h6>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label for="editEstimation" class="form-label">Estimated Cost (PHP)</label>
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <span style="font-size: 18px; font-weight: 600; color: #1e3c72;">₱</span>
-                                <input type="number" class="form-control" name="estimation" id="editEstimation" 
-                                       min="0" max="10000000" step="0.01" 
-                                       placeholder="0.00" style="flex: 1;">
-                                <span style="font-size: 12px; color: #666;">Max: ₱10,000,000</span>
-                            </div>
-                        </div>
                     </div>
 
                     <div class="form-section">
@@ -1589,9 +1560,10 @@ if (!empty($reports)) {
                         <div id="existingPhotos" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;"></div>
                         <div class="form-group" style="margin-bottom: 0;">
                             <label for="editPhotos" class="form-label">Add New Photos</label>
-                            <input type="file" class="form-control" name="report_photos[]" id="editPhotos" 
+                            <button type="button" id="add-edit-photos-btn" style="padding:8px 16px;background:#3762c8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;"><i class="fas fa-camera"></i> Add Photos</button>
+                            <input type="file" name="report_photos[]" id="editPhotos" 
                                    accept="image/jpeg,image/png,image/gif,image/webp" multiple
-                                   style="padding: 10px;">
+                                   style="display:none;">
                             <small style="color: #666; font-size: 12px;">Accepted: JPG, PNG, GIF, WebP | Max: 5MB each</small>
                             <div id="photoPreview" style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;"></div>
                         </div>
@@ -1737,7 +1709,7 @@ if (!empty($reports)) {
                                     <div><strong>Status:</strong> <span class="status-badge status-${data.report.status.replace('_', '-')}">${data.report.status}</span></div>
                                     <div><strong>Priority:</strong> ${data.report.priority}</div>
                                     <div><strong>Location:</strong> ${data.report.location}</div>
-                                    ${data.report.estimation && data.report.estimation > 0 ? `<div><strong>Cost Estimation:</strong> ₱${parseFloat(data.report.estimation).toLocaleString('en-PH', {minimumFractionDigits: 2})}</div>` : '<div><strong>Cost Estimation:</strong> Not specified</div>'}
+                                    ${data.report.latitude && data.report.longitude && data.report.latitude != 0 && data.report.longitude != 0 ? `<div><a href="https://www.openstreetmap.org/?mlat=${data.report.latitude}&mlon=${data.report.longitude}&zoom=15" target="_blank" class="btn-map" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:#e8f4f8;color:#1e3c72;border-radius:6px;text-decoration:none;font-size:13px;font-weight:500;margin-top:4px;"><i class="fas fa-map-marker-alt"></i> View on Map</a></div>` : ''}
                                 </div>
                                 <div style="margin-bottom: 20px;">
                                     <strong>Description:</strong>
@@ -1814,29 +1786,6 @@ if (!empty($reports)) {
                         document.getElementById('editDescription').value = data.report.description || '';
                         document.getElementById('editLocation').value = data.report.location || '';
                         
-                        if (data.report.estimation && data.report.estimation > 0) {
-                            document.getElementById('editEstimation').value = data.report.estimation;
-                        } else {
-                            document.getElementById('editEstimation').value = '';
-                        }
-
-                        // Auto-assign based on priority if no assignment exists
-                        const assignedToSelect = document.getElementById('editAssignedTo');
-                        if (!data.report.assigned_to || data.report.assigned_to === '') {
-                            const priority = data.report.priority;
-                            let autoAssign = '';
-                            if (priority === 'high' || priority === 'critical') {
-                                autoAssign = 'CIM Engineer 1';
-                            } else if (priority === 'medium') {
-                                autoAssign = 'CIM Engineer 2';
-                            } else {
-                                autoAssign = 'CIM Engineer 3';
-                            }
-                            assignedToSelect.value = autoAssign;
-                        } else {
-                            assignedToSelect.value = data.report.assigned_to;
-                        }
-                        
                         document.getElementById('editNotes').value = data.report.notes || '';
                         
                         // Show existing photos
@@ -1883,6 +1832,7 @@ if (!empty($reports)) {
                         }
                         
                         // Clear photo preview
+                        editSelectedFiles = [];
                         document.getElementById('photoPreview').innerHTML = '';
                         document.getElementById('editPhotos').value = '';
                         
@@ -1902,7 +1852,7 @@ if (!empty($reports)) {
         }
 
         function deleteReport(id, type) {
-            if (confirm('Are you sure you want to delete this report? This action cannot be undone.')) {
+            if (confirm('Are you sure you want to delete this report? It will be moved to the archive.')) {
                 const form = document.createElement('form');
                 form.method = 'POST';
                 form.innerHTML = `
@@ -2224,28 +2174,96 @@ if (!empty($reports)) {
             }
         }
 
-        // Photo preview on file select
-        document.getElementById('editPhotos').addEventListener('change', function() {
-            const preview = document.getElementById('photoPreview');
-            preview.innerHTML = '';
-            if (this.files) {
-                Array.from(this.files).forEach((file, i) => {
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        preview.innerHTML += `
-                            <div style="position:relative;width:90px;height:90px;border-radius:8px;overflow:hidden;border:2px solid #3762c8;">
-                                <img src="${e.target.result}" alt="New photo ${i+1}" style="width:100%;height:100%;object-fit:cover;">
-                                <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(55,98,200,0.8);font-size:10px;color:white;text-align:center;padding:2px;">New</div>
-                            </div>`;
-                    };
-                    reader.readAsDataURL(file);
-                });
-            }
+        // Photo preview on file select with add button and per-image delete
+        const editPhotosInput = document.getElementById('editPhotos');
+        const photoPreview = document.getElementById('photoPreview');
+        const addEditPhotosBtn = document.getElementById('add-edit-photos-btn');
+        let editSelectedFiles = [];
+        
+        addEditPhotosBtn.addEventListener('click', function() {
+            editPhotosInput.click();
+        });
+        
+        function renderEditGallery() {
+            photoPreview.innerHTML = '';
+            if (editSelectedFiles.length === 0) return;
+            editSelectedFiles.forEach((file, index) => {
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    const wrapper = document.createElement('div');
+                    wrapper.style.position = 'relative';
+                    wrapper.style.width = '90px';
+                    wrapper.style.height = '90px';
+                    wrapper.style.borderRadius = '8px';
+                    wrapper.style.overflow = 'hidden';
+                    wrapper.style.border = '2px solid #3762c8';
+                    const img = document.createElement('img');
+                    img.src = ev.target.result;
+                    img.style.width = '100%';
+                    img.style.height = '100%';
+                    img.style.objectFit = 'cover';
+                    wrapper.appendChild(img);
+                    const del = document.createElement('button');
+                    del.type = 'button';
+                    del.innerHTML = '&times;';
+                    del.style.position = 'absolute';
+                    del.style.top = '-6px';
+                    del.style.right = '-6px';
+                    del.style.width = '22px';
+                    del.style.height = '22px';
+                    del.style.borderRadius = '50%';
+                    del.style.border = 'none';
+                    del.style.background = '#dc3545';
+                    del.style.color = 'white';
+                    del.style.fontSize = '14px';
+                    del.style.lineHeight = '22px';
+                    del.style.textAlign = 'center';
+                    del.style.cursor = 'pointer';
+                    del.style.padding = '0';
+                    del.addEventListener('click', function(ev2) {
+                        ev2.stopPropagation();
+                        editSelectedFiles.splice(index, 1);
+                        renderEditGallery();
+                    });
+                    wrapper.appendChild(del);
+                    const label = document.createElement('div');
+                    label.style.position = 'absolute';
+                    label.style.bottom = '0';
+                    label.style.left = '0';
+                    label.style.right = '0';
+                    label.style.background = 'rgba(55,98,200,0.8)';
+                    label.style.fontSize = '10px';
+                    label.style.color = 'white';
+                    label.style.textAlign = 'center';
+                    label.style.padding = '2px';
+                    label.textContent = 'New';
+                    wrapper.appendChild(label);
+                    photoPreview.appendChild(wrapper);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+        
+        editPhotosInput.addEventListener('change', function() {
+            const newFiles = Array.from(this.files);
+            newFiles.forEach(file => {
+                if (file.size > 5 * 1024 * 1024) {
+                    showNotification(`"${file.name}" exceeds 5MB limit.`, 'error');
+                } else {
+                    editSelectedFiles.push(file);
+                }
+            });
+            renderEditGallery();
+            this.value = '';
         });
 
         // Handle edit report form submission
         document.getElementById('editReportForm').addEventListener('submit', function(e) {
             e.preventDefault();
+            
+            const dt = new DataTransfer();
+            editSelectedFiles.forEach(f => dt.items.add(f));
+            editPhotosInput.files = dt.files;
             
             const formData = new FormData(this);
             const submitBtn = this.querySelector('button[type="submit"]');
@@ -2322,5 +2340,25 @@ if (!empty($reports)) {
             <div class="transition-text">Loading...</div>
         </div>
     </div>
+
+    <!-- Session Timeout Modal -->
+    <div id="sessionTimeoutOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); z-index:10000;"></div>
+    <div id="sessionTimeoutModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; border-radius:12px; padding:32px; z-index:10001; width:400px; max-width:90vw; box-shadow:0 16px 48px rgba(0,0,0,0.3); text-align:center;">
+        <div style="font-size:48px; color:#e74c3c; margin-bottom:16px;">
+            <i class="fas fa-clock"></i>
+        </div>
+        <h3 style="margin:0 0 8px; font-size:20px; color:#1a1a2e;">Session Expiring</h3>
+        <p style="margin:0 0 20px; color:#666; font-size:14px;">
+            Your session will expire in <strong><span id="sessionCountdown">60</span></strong> seconds due to inactivity.
+        </p>
+        <div style="display:flex; gap:12px; justify-content:center;">
+            <button id="extendSessionBtn" style="padding:10px 24px; background:#3762c8; color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Extend Session</button>
+            <button id="logoutSessionBtn" style="padding:10px 24px; background:#e74c3c; color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Log Out</button>
+        </div>
+    </div>
+
+    <!-- Session timeout data -->
+    <script id="sessionTimeoutData" data-timeout="<?php echo $session_timeout; ?>"></script>
+    <script src="../../js/session-timeout.js"></script>
 </body>
 </html>

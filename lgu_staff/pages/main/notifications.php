@@ -735,7 +735,7 @@ $total_notifications = $is_admin ? (count($pending_reports) + count($pending_cha
                         </div>
                     <?php else: ?>
                         <?php foreach ($report_updates as $report): 
-                            $is_approved = ($report['status'] === 'completed');
+                            $is_approved = ($report['status'] === 'approved' || $report['status'] === 'completed');
                             $action_time = $is_approved ? ($report['approved_at'] ?? $report['updated_at']) : ($report['rejected_at'] ?? $report['updated_at']);
                         ?>
                             <div class="notification-item">

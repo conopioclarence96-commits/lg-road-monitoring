@@ -3,7 +3,21 @@ require_once '../../includes/session_config.php';
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 
-// Ensure approved_at and rejected_at columns exist in report tables
+// Session timeout configuration
+$session_timeout = 5 * 60; // 5 minutes in seconds
+
+// Check if session has expired
+if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
+    session_destroy();
+    setcookie(session_name(), '', time() - 3600, '/');
+    header('Location: ../../login.php?timeout=1');
+    exit();
+}
+
+// Update last activity time
+$_SESSION['last_activity'] = time();
+
+// Ensure required columns exist in report tables
 foreach (['road_transportation_reports', 'road_maintenance_reports'] as $tbl) {
     $check = $conn->query("SHOW COLUMNS FROM $tbl LIKE 'approved_at'");
     if ($check && $check->num_rows === 0) {
@@ -13,6 +27,26 @@ foreach (['road_transportation_reports', 'road_maintenance_reports'] as $tbl) {
     if ($check2 && $check2->num_rows === 0) {
         $conn->query("ALTER TABLE $tbl ADD COLUMN rejected_at TIMESTAMP NULL DEFAULT NULL AFTER approved_at");
     }
+}
+
+// Ensure report_category and report_source columns exist in road_transportation_reports
+$check = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'report_category'");
+if ($check && $check->num_rows === 0) {
+    $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN report_category ENUM('road','transportation') DEFAULT NULL AFTER report_type");
+}
+$check2 = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'report_source'");
+if ($check2 && $check2->num_rows === 0) {
+    $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN report_source ENUM('local','external') DEFAULT 'local' AFTER report_category");
+}
+
+// Ensure the archive table has the same columns
+$check_arch = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE 'report_category'");
+if ($check_arch && $check_arch->num_rows === 0) {
+    $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN report_category ENUM('road','transportation') DEFAULT NULL AFTER report_type");
+}
+$check_arch2 = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE 'report_source'");
+if ($check_arch2 && $check_arch2->num_rows === 0) {
+    $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN report_source ENUM('local','external') DEFAULT 'local' AFTER report_category");
 }
 
 // Check if user is logged in
@@ -46,11 +80,11 @@ function getVerificationStatistics($conn) {
     $stats['in_review'] = $transport_progress + $maintenance_progress;
     
     // Approved (completed) from both tables
-    $result = $conn->query("SELECT COUNT(*) as completed FROM road_transportation_reports WHERE status = 'completed'");
-    $transport_completed = $result->fetch_assoc()['completed'];
+    $result = $conn->query("SELECT COUNT(*) as approved FROM road_transportation_reports WHERE status = 'approved'");
+    $transport_completed = $result->fetch_assoc()['approved'];
     
-    $result = $conn->query("SELECT COUNT(*) as completed FROM road_maintenance_reports WHERE status = 'completed'");
-    $maintenance_completed = $result->fetch_assoc()['completed'];
+    $result = $conn->query("SELECT COUNT(*) as approved FROM road_maintenance_reports WHERE status = 'approved'");
+    $maintenance_completed = $result->fetch_assoc()['approved'];
     $stats['approved'] = $transport_completed + $maintenance_completed;
     
     return $stats;
@@ -58,11 +92,11 @@ function getVerificationStatistics($conn) {
 
 // Function to get pending verifications
 function getPendingVerifications($conn) {
-    $query = "(SELECT 'transport' as source, id, report_id, title, report_type,
+    $query = "(SELECT 'transport' as source, id, report_id, title, report_type, report_category, report_source,
                      department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at 
               FROM road_transportation_reports WHERE status = 'pending')
               UNION ALL
-              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports WHERE status = 'pending')
+              (SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports WHERE status = 'pending')
               ORDER BY created_at DESC";
     $result = $conn->query($query);
     if (!$result) {
@@ -73,12 +107,12 @@ function getPendingVerifications($conn) {
 
 // Function to get approved reports
 function getApprovedReports($conn) {
-    $query = "(SELECT 'transport' as source, id, report_id, title, report_type,
+    $query = "(SELECT 'transport' as source, id, report_id, title, report_type, report_category, report_source,
                      department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at 
-              FROM road_transportation_reports WHERE status = 'completed')
-              UNION ALL
-              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports WHERE status = 'completed')
-              ORDER BY updated_at DESC";
+               FROM road_transportation_reports WHERE status = 'approved')
+               UNION ALL
+               (SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports WHERE status = 'approved')
+               ORDER BY updated_at DESC";
     $result = $conn->query($query);
     if (!$result) {
         error_log("Query error in getApprovedReports: " . $conn->error);
@@ -88,11 +122,11 @@ function getApprovedReports($conn) {
 
 // Function to get rejected reports
 function getRejectedReports($conn) {
-    $query = "(SELECT 'transport' as source, id, report_id, title, report_type,
+    $query = "(SELECT 'transport' as source, id, report_id, title, report_type, report_category, report_source,
                      department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at 
               FROM road_transportation_reports WHERE status = 'cancelled')
               UNION ALL
-              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports WHERE status = 'cancelled')
+              (SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports WHERE status = 'cancelled')
               ORDER BY updated_at DESC";
     $result = $conn->query($query);
     if (!$result) {
@@ -102,13 +136,33 @@ function getRejectedReports($conn) {
 }
 
 // Function to get all reports (for filtering)
-function getAllReports($conn) {
-    $query = "(SELECT 'transport' as source, id, report_id, title, report_type,
-                     department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at 
-              FROM road_transportation_reports)
-              UNION ALL
-              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports)
-              ORDER BY created_at DESC";
+function getAllReports($conn, $status_filter = 'all', $source_filter = 'all') {
+    $parts = [];
+    $transport_where = '';
+    $maintenance_where = '';
+    if ($status_filter !== 'all') {
+        if ($status_filter === 'pending') {
+            $transport_where = " WHERE status IN ('pending','in-progress')";
+            $maintenance_where = " WHERE status IN ('pending','in-progress')";
+        } elseif ($status_filter === 'approved') {
+            $transport_where = " WHERE status IN ('approved','completed')";
+            $maintenance_where = " WHERE status IN ('approved','completed')";
+        } elseif ($status_filter === 'rejected') {
+            $transport_where = " WHERE status IN ('cancelled')";
+            $maintenance_where = " WHERE status IN ('cancelled')";
+        }
+    }
+    if ($source_filter === 'transport') {
+        $q = "(SELECT 'transport' as source, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$transport_where})";
+        $parts[] = $q;
+    } elseif ($source_filter === 'maintenance') {
+        $q = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
+        $parts[] = $q;
+    } else {
+        $parts[] = "(SELECT 'transport' as source, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$transport_where})";
+        $parts[] = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
+    }
+    $query = implode(' UNION ALL ', $parts) . " ORDER BY created_at DESC";
     $result = $conn->query($query);
     if (!$result) {
         error_log("Query error in getAllReports: " . $conn->error);
@@ -118,9 +172,9 @@ function getAllReports($conn) {
 
 // Function to get recent approvals (for timeline)
 function getRecentApprovals($conn) {
-    $query = "(SELECT 'transport' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports WHERE status = 'completed')
+    $query = "(SELECT 'transport' as source, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports WHERE status = 'approved')
               UNION ALL
-              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports WHERE status = 'completed')
+              (SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports WHERE status = 'approved')
               ORDER BY updated_at DESC LIMIT 10";
     $result = $conn->query($query);
     if (!$result) {
@@ -131,11 +185,11 @@ function getRecentApprovals($conn) {
 
 // Function to get activity timeline
 function getActivityTimeline($conn) {
-    $query = "(SELECT 'transport' as source, id, report_id, title, report_type,
+    $query = "(SELECT 'transport' as source, id, report_id, title, report_type, report_category, report_source,
                      department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at 
               FROM road_transportation_reports)
               UNION ALL
-              (SELECT 'maintenance' as source, id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports)
+              (SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports)
               ORDER BY updated_at DESC LIMIT 5";
     $result = $conn->query($query);
     if (!$result) {
@@ -154,29 +208,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         // Archive report then remove from active table
         if ($action === 'delete') {
-            if ($source === 'transport') {
-                $insert = "INSERT INTO road_transportation_reports_archive SELECT * FROM $table WHERE id = ?";
-            } else {
-                $insert = "INSERT INTO road_transportation_reports_archive (id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at) SELECT id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL, NULL, NULL, created_at, updated_at, approved_at, rejected_at FROM $table WHERE id = ?";
-            }
+            $insert = "INSERT INTO road_transportation_reports_archive (id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at) SELECT id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM $table WHERE id = ?";
             $stmt = $conn->prepare($insert);
             $stmt->bind_param('i', $report_id);
-            $stmt->execute();
+            if (!$stmt->execute()) {
+                $_SESSION['verification_message'] = 'Failed to archive report: ' . $conn->error;
+                header('Location: ../monitoring/verification_monitoring.php');
+                exit();
+            }
             $query = "DELETE FROM $table WHERE id = ?";
             $stmt = $conn->prepare($query);
             $stmt->bind_param('i', $report_id);
-            $stmt->execute();
+            if (!$stmt->execute()) {
+                $_SESSION['verification_message'] = 'Failed to delete report after archiving: ' . $conn->error;
+                header('Location: ../monitoring/verification_monitoring.php');
+                exit();
+            }
             $_SESSION['verification_message'] = 'Report archived successfully.';
-            header('Location: ../monitoring/verification_monitoring.php');
+            header('Location: verification_monitoring.php');
             exit();
         }
         
+        // Check verification rules: block approve for road+local reports
+        if ($action === 'approve' && $source === 'transport') {
+            $check = $conn->prepare("SELECT report_category, report_source FROM road_transportation_reports WHERE id = ?");
+            $check->bind_param('i', $report_id);
+            $check->execute();
+            $r = $check->get_result()->fetch_assoc();
+            if ($r && !canVerifyReport($r['report_category'], $r['report_source'])) {
+                $_SESSION['verification_message'] = 'Road reports created by your LGU cannot be approved here. They must be verified by the external Engineering Office.';
+                header('Location: ../monitoring/verification_monitoring.php');
+                exit();
+            }
+        }
+
         // Update report status
         $status = '';
         $audit_status = '';
         switch ($action) {
             case 'approve':
-                $status = 'completed';
+                $status = 'approved';
                 $audit_status = 'approved';
                 break;
             case 'reject':
@@ -229,12 +300,16 @@ if (isset($_SESSION['verification_message'])) {
     unset($_SESSION['verification_message']);
 }
 
+// Get filter parameters
+$status_filter = $_GET['status'] ?? 'all';
+$source_filter = $_GET['source'] ?? 'all';
+
 // Get data
 $stats = getVerificationStatistics($conn);
 $pending_verifications = getPendingVerifications($conn);
 $approved_reports = getApprovedReports($conn);
 $rejected_reports = getRejectedReports($conn);
-$all_reports = getAllReports($conn);
+$all_reports = getAllReports($conn, $status_filter, $source_filter);
 $recent_approvals = getRecentApprovals($conn);
 $activity_timeline = getActivityTimeline($conn);
 
@@ -881,56 +956,78 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             color: #6b7280;
         }
 
-        .filter-tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-            padding: 15px 20px;
+        .filters-section {
             background: #f0f4fa;
+            backdrop-filter: blur(15px);
+            padding: 20px 25px;
             border-radius: 16px;
-            border: 1px solid #e0e0e0;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
-        .filter-tab {
-            padding: 10px 20px;
-            background: transparent;
-            border: none;
-            color: #1e3c72;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            border-bottom: 3px solid transparent;
-            margin-bottom: -2px;
+        .filter-group {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
         }
 
-        .filter-tab:hover {
-            color: #3762c8;
-        }
-
-        .filter-tab.active {
-            color: #3762c8;
-            border-bottom: 3px solid #3762c8;
+        .filter-group .form-label {
+            display: block;
+            font-size: 12px;
             font-weight: 600;
-            background: rgba(55, 98, 200, 0.05);
-            border-radius: 8px 8px 0 0;
+            color: #64748b;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
-        body.dark-mode .filter-tabs {
-            background: #1e2229;
-            border-color: #2d323b;
+        .filter-select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: white;
+            font-size: 13px;
+            min-width: 180px;
         }
-        body.dark-mode .filter-tab {
+
+        .btn-secondary-custom {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: white;
+            font-size: 13px;
+            cursor: pointer;
+            color: #64748b;
+            transition: all 0.2s;
+        }
+
+        .btn-secondary-custom:hover {
+            background: #f0f4fa;
+            border-color: #3762c8;
+            color: #3762c8;
+        }
+
+        body.dark-mode .filters-section {
+            background: #1e2229;
+            border-color: rgba(255,255,255,0.08);
+        }
+        body.dark-mode .filter-group .form-label {
             color: #9ca3af;
         }
-        body.dark-mode .filter-tab:hover {
+        body.dark-mode .filter-select {
+            background: #2d323b;
+            border-color: rgba(255,255,255,0.12);
             color: #e4e6ea;
         }
-        body.dark-mode .filter-tab.active {
+        body.dark-mode .btn-secondary-custom {
+            background: #2d323b;
+            border-color: rgba(255,255,255,0.12);
+            color: #9ca3af;
+        }
+        body.dark-mode .btn-secondary-custom:hover {
+            border-color: #60a5fa;
             color: #60a5fa;
-            border-bottom-color: #60a5fa;
-            background: rgba(96, 165, 250, 0.1);
         }
 
         .notification {
@@ -1113,252 +1210,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             flex-shrink: 0;
         }
 
-        /* Repaired Reports section */
-        .repaired-section {
-            background: #f0f4fa;
-            backdrop-filter: blur(15px);
-            border-radius: 16px;
-            padding: 25px;
-            margin-bottom: 25px;
-            border: 1px solid rgba(55, 98, 200, 0.1);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
-        }
 
-        .repaired-header {
-            font-size: 20px;
-            font-weight: 600;
-            color: #1e3c72;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .repaired-desc {
-            font-size: 14px;
-            color: #666;
-            margin-bottom: 20px;
-        }
-
-        /* Single-column feed (Facebook-style): one post per block, scroll to see next */
-        .repaired-grid {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 28px;
-        }
-
-        .repaired-card {
-            display: flex;
-            flex-direction: column;
-            width: 100%;
-            max-width: 560px;
-            background: #fff;
-            border: 1px solid rgba(55, 98, 200, 0.12);
-            border-radius: 14px;
-            overflow: hidden;
-            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-            transition: box-shadow 0.3s ease;
-        }
-
-        .repaired-card:hover {
-            box-shadow: 0 6px 24px rgba(55, 98, 200, 0.12);
-        }
-
-        .repaired-card-image {
-            width: 100%;
-            height: 220px;
-            min-height: 220px;
-            flex-shrink: 0;
-            overflow: hidden;
-            background: linear-gradient(135deg, rgba(55, 98, 200, 0.15), rgba(30, 60, 114, 0.1));
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .repaired-card-image img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            object-position: center;
-            display: block;
-        }
-
-        .repaired-image-placeholder {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            color: rgba(55, 98, 200, 0.5);
-            font-size: 14px;
-        }
-
-        .repaired-image-placeholder i {
-            font-size: 40px;
-            margin-bottom: 8px;
-        }
-
-        .repaired-card-body {
-            padding: 18px;
-        }
-
-        .repaired-card-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: #1e3c72;
-            margin-bottom: 10px;
-            line-height: 1.3;
-        }
-
-        .repaired-meta {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            font-size: 12px;
-            color: #666;
-            margin-bottom: 12px;
-        }
-
-        .repaired-meta i {
-            color: #3762c8;
-            margin-right: 4px;
-        }
-
-        .repaired-card-desc {
-            font-size: 13px;
-            color: #555;
-            line-height: 1.5;
-            margin-bottom: 14px;
-        }
-
-        .repaired-card-footer {
-            padding-top: 12px;
-            border-top: 1px solid rgba(55, 98, 200, 0.1);
-            font-size: 13px;
-            color: #333;
-        }
-
-        .repaired-cost {
-            margin-bottom: 6px;
-        }
-
-        .repaired-by {
-            color: #666;
-        }
-
-        .repaired-note {
-            font-size: 13px;
-            color: #888;
-            margin-top: 20px;
-            font-style: italic;
-        }
-
-        .repaired-card-actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 14px;
-            padding-top: 12px;
-            border-top: 1px solid rgba(55, 98, 200, 0.1);
-        }
-
-        body.dark-mode .repaired-section {
-            background: #1e2229;
-            border-color: #2d323b;
-        }
-        body.dark-mode .repaired-header {
-            color: #f0f2f5;
-        }
-        body.dark-mode .repaired-desc {
-            color: #9ca3af;
-        }
-        body.dark-mode .repaired-card {
-            background: #22262e;
-            border-color: #2d323b;
-            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-        }
-        body.dark-mode .repaired-card:hover {
-            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
-        }
-        body.dark-mode .repaired-card-title {
-            color: #f0f2f5;
-        }
-        body.dark-mode .repaired-meta {
-            color: #9ca3af;
-        }
-        body.dark-mode .repaired-meta i {
-            color: #60a5fa;
-        }
-        body.dark-mode .repaired-card-desc {
-            color: #d1d5db;
-        }
-        body.dark-mode .repaired-card-footer {
-            color: #d1d5db;
-            border-top-color: #2d323b;
-            background: #1a1d23;
-        }
-        body.dark-mode .repaired-cost {
-            color: #d1d5db;
-        }
-        body.dark-mode .repaired-cost strong,
-        body.dark-mode .repaired-by strong {
-            color: #f0f2f5;
-        }
-        body.dark-mode .repaired-by {
-            color: #9ca3af;
-        }
-        body.dark-mode .repaired-note {
-            color: #6b7280;
-        }
-        body.dark-mode .repaired-card-actions {
-            border-top-color: #2d323b;
-        }
-        body.dark-mode .repaired-image-placeholder {
-            color: rgba(96, 165, 250, 0.5);
-        }
-        body.dark-mode .repaired-card-image {
-            background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(30, 60, 114, 0.15));
-        }
-
-        .btn-edit-repaired {
-            padding: 8px 14px;
-            background: linear-gradient(135deg, #6c757d, #495057);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            transition: all 0.3s ease;
-        }
-
-        .btn-edit-repaired:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(108, 117, 125, 0.4);
-        }
-
-        .btn-publish-repaired {
-            padding: 8px 14px;
-            background: linear-gradient(135deg, #28a745, #1e7e34);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            transition: all 0.3s ease;
-        }
-
-        .btn-publish-repaired:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
-        }
 
         @media (max-width: 768px) {
             .header-content {
@@ -1444,13 +1296,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             </div>
         </div>
 
-        <!-- Filter Tabs -->
-        <div class="filter-tabs">
-            <button class="filter-tab active" onclick="showAll()">All Requests</button>
-            <button class="filter-tab" onclick="showPending()">Pending Review</button>
-            <button class="filter-tab" onclick="showApproved()">Approved</button>
-            <button class="filter-tab" onclick="showRejected()">Rejected</button>
-
+        <!-- Filters -->
+        <div class="filters-section" style="margin-bottom:24px;">
+            <div class="filter-group">
+                <div>
+                    <label class="form-label">Status Filter</label>
+                    <select class="filter-select" id="statusFilter" onchange="filterReports()">
+                        <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
+                        <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending / In Progress</option>
+                        <option value="approved" <?php echo $status_filter === 'approved' ? 'selected' : ''; ?>>Approved / Completed</option>
+                        <option value="rejected" <?php echo $status_filter === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Source System</label>
+                    <select class="filter-select" id="sourceFilter" onchange="filterReports()">
+                        <option value="all" <?php echo $source_filter === 'all' ? 'selected' : ''; ?>>All Sources</option>
+                        <option value="transport" <?php echo $source_filter === 'transport' ? 'selected' : ''; ?>>Road & Transportation (Our LGU)</option>
+                        <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>External Systems (Maintenance/infrastructure)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">&nbsp;</label>
+                    <div>
+                        <button class="btn-secondary-custom" onclick="resetFilters()">
+                            <i class="fas fa-arrow-clockwise"></i> Reset
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Workflow Container -->
@@ -1460,7 +1334,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 <div class="workflow-header">
                     <h3 class="workflow-title">
                         <i class="fas fa-list"></i>
-                        <span id="section-title">All Reports</span>
+                        <span id="section-title">Reports</span>
                         <span class="workflow-badge" id="section-badge"><?php echo $all_reports->num_rows; ?></span>
                     </h3>
                 </div>
@@ -1473,10 +1347,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     ?>
                         <?php while ($report = $all_reports->fetch_assoc()): 
                             $status_class = '';
-                            if ($report['status'] === 'completed') $status_class = 'approved';
+                            if ($report['status'] === 'approved') $status_class = 'approved';
                             elseif ($report['status'] === 'cancelled') $status_class = 'rejected';
                             elseif ($report['status'] === 'pending') $status_class = 'pending';
                             elseif ($report['status'] === 'in-progress') $status_class = 'in-progress';
+                            elseif ($report['status'] === 'completed') $status_class = 'completed';
+
+                            // Check if this report can be verified locally
+                            $report_category = $report['report_category'] ?? null;
+                            $report_source = $report['report_source'] ?? null;
+                            $can_verify = canVerifyReport($report_category, $report_source);
+                            // Road+local reports that are pending show as awaiting external verification
+                            $pending_ext_verify = ($report['status'] === 'pending' && !$can_verify);
                         ?>
                             <div class="verification-item" data-status="<?php echo htmlspecialchars($report['status']); ?>" data-source="<?php echo htmlspecialchars($report['source']); ?>" data-created-by="<?php echo htmlspecialchars($report['created_by'] ?? ''); ?>" data-reporter-name="<?php echo htmlspecialchars($report['reporter_name'] ?? ''); ?>">
                                 <div class="verification-priority priority-<?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?>"></div>
@@ -1598,7 +1480,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                 <strong>Priority:</strong> <span class="workflow-badge priority-<?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?>"><?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?></span>
                                             </div>
                                             <div class="detail-item">
-                                                <strong>Status:</strong> <span class="workflow-badge <?php echo $report['status'] === 'completed' ? 'approved' : ($report['status'] === 'cancelled' ? 'rejected' : 'pending'); ?>"><?php echo htmlspecialchars($report['status'] ?? 'N/A'); ?></span>
+                                                <strong>Status:</strong> 
+                                                <?php if ($pending_ext_verify): ?>
+                                                <span class="workflow-badge" style="background:#fef3c7;color:#92400e;">Awaiting External Verification</span>
+                                                <?php else: ?>
+                                                <span class="workflow-badge <?php echo $report['status'] === 'approved' ? 'approved' : ($report['status'] === 'cancelled' ? 'rejected' : ($report['status'] === 'completed' ? 'completed' : 'pending')); ?>"><?php echo htmlspecialchars($report['status'] ?? 'N/A'); ?></span>
+                                                <?php endif; ?>
                                             </div>
                                             <div class="detail-item full-width">
                                                 <strong>Full Description:</strong>
@@ -1657,10 +1544,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     </div>
                                     
                                     <div class="verification-actions">
-                                        <?php if ($report['status'] === 'pending' || $report['status'] === 'in-progress'): ?>
-                                            <?php if ($report['status'] === 'in-progress'): ?>
-                                                <span class="workflow-badge" style="margin-right: 10px;">In Progress</span>
-                                            <?php endif; ?>
+                                        <?php if ($pending_ext_verify): ?>
+                                            <button type="button" onclick="toggleDetails(<?php echo $report['id']; ?>)" class="btn-review">
+                                                <i class="fas fa-eye" id="icon-<?php echo $report['id']; ?>"></i>
+                                                <span id="text-<?php echo $report['id']; ?>">View Details</span>
+                                            </button>
+                                            <span class="workflow-badge" style="background:#fef3c7;color:#92400e;font-size:12px;padding:4px 14px;border-radius:20px;display:inline-flex;align-items:center;gap:6px;">
+                                                <i class="fas fa-external-link-alt" style="font-size:11px;"></i> Awaiting External Verification
+                                            </span>
+                                            <span style="font-size:11px;color:#6b7280;max-width:200px;line-height:1.3;">
+                                                This road report was created by your LGU and must be verified by the Engineering Office.
+                                            </span>
+                                        <?php elseif ($report['status'] === 'pending'): ?>
                                             <button type="button" onclick="toggleDetails(<?php echo $report['id']; ?>)" class="btn-review">
                                                 <i class="fas fa-eye" id="icon-<?php echo $report['id']; ?>"></i>
                                                 <span id="text-<?php echo $report['id']; ?>">View Details</span>
@@ -1681,12 +1576,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                     Reject
                                                 </button>
                                             </form>
-                                        <?php elseif ($report['status'] === 'completed'): ?>
+                                        <?php elseif ($report['status'] === 'approved'): ?>
                                             <span class="workflow-badge approved" style="margin-right: 10px;">Approved</span>
                                             <?php if (!empty($report['approved_at'])): ?>
                                             <span style="font-size: 12px; color: #6b7280; margin-right: 10px;"><i class="fas fa-clock"></i> <?php echo date('M d, Y g:i A', strtotime($report['approved_at'])); ?></span>
                                             <?php endif; ?>
-                                            <button type="button" onclick="viewDetails(<?php echo $report['id']; ?>, '<?php echo $report['source']; ?>')" class="btn-details" data-report-id="<?php echo $report['id']; ?>">
+                                            <button type="button" onclick="toggleDetails(<?php echo $report['id']; ?>)" class="btn-review">
+                                                <i class="fas fa-eye" id="icon-<?php echo $report['id']; ?>"></i>
+                                                <span id="text-<?php echo $report['id']; ?>">View Details</span>
+                                            </button>
+                                        <?php elseif ($report['status'] === 'completed'): ?>
+                                            <span class="workflow-badge" style="margin-right: 10px; background: #10b981; color: white;">Completed</span>
+                                            <?php if (!empty($report['approved_at'])): ?>
+                                            <span style="font-size: 12px; color: #6b7280; margin-right: 10px;"><i class="fas fa-clock"></i> Approved: <?php echo date('M d, Y g:i A', strtotime($report['approved_at'])); ?></span>
+                                            <?php endif; ?>
+                                            <button type="button" onclick="toggleDetails(<?php echo $report['id']; ?>)" class="btn-review">
+                                                <i class="fas fa-eye" id="icon-<?php echo $report['id']; ?>"></i>
                                                 <span id="text-<?php echo $report['id']; ?>">View Details</span>
                                             </button>
                                         <?php elseif ($report['status'] === 'cancelled'): ?>
@@ -1705,7 +1610,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                 <span id="text-<?php echo $report['id']; ?>">View Details</span>
                                             </button>
                                         <?php endif; ?>
-                                        <form method="POST" style="display: inline-flex; margin-left: auto;" onsubmit="return confirm('Remove this report permanently?');">
+                                        <form method="POST" style="display: inline-flex; margin-left: auto;" onsubmit="return confirm('Are you sure you want to remove this report? It will be moved to the archive.');">
                                             <input type="hidden" name="report_id" value="<?php echo $report['id']; ?>">
                                             <input type="hidden" name="source" value="<?php echo htmlspecialchars($report['source']); ?>">
                                             <button type="submit" name="action" value="delete" class="btn-remove" title="Remove report">
@@ -1724,95 +1629,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <?php endif; ?>
                 </div>
             </div>
-
-        <!-- Repaired Reports / Completed Projects -->
-        <div class="repaired-section">
-            <h3 class="repaired-header">
-                <i class="fas fa-tools"></i>
-                Repaired Reports &ndash; Completed Projects
-            </h3>
-            <p class="repaired-desc">Compiled repairs with project details, cost, and completion info.</p>
-            <div class="repaired-grid">
-                <?php
-                // Placeholder repaired/completed projects (replace with DB when backend is ready)
-                $repaired_samples = [
-                    [
-                        'title' => 'Main Street Pothole Repair',
-                        'description' => 'Filled and sealed potholes along Main St from Block 1 to 5. Surface leveled and marked for traffic.',
-                        'photo' => null,
-                        'cost' => 125000,
-                        'completed_by' => 'Engr. Mario Reyes',
-                        'completed_date' => '2024-02-15',
-                        'location' => 'Main Street, Downtown'
-                    ],
-                    [
-                        'title' => 'Drainage Clearing – Barangay San Jose',
-                        'description' => 'Cleared clogged canals and replaced damaged grates. Improved runoff flow and reduced flood risk.',
-                        'photo' => null,
-                        'cost' => 89000,
-                        'completed_by' => 'Engr. Maria Santos',
-                        'completed_date' => '2024-02-12',
-                        'location' => 'Barangay San Jose'
-                    ],
-                    [
-                        'title' => 'Street Lighting Repair – Highway 101',
-                        'description' => 'Replaced 12 non-working lamp posts and wiring. All lights tested and operational.',
-                        'photo' => null,
-                        'cost' => 256000,
-                        'completed_by' => 'Engr. Juan Dela Cruz',
-                        'completed_date' => '2024-02-10',
-                        'location' => 'Highway 101 North'
-                    ]
-                ];
-                foreach ($repaired_samples as $i => $rep): ?>
-                <?php $rep_photo = $rep['photo'] ?? ''; ?>
-                <div class="repaired-card" data-rep-index="<?php echo $i; ?>"
-                     data-rep-title="<?php echo htmlspecialchars($rep['title']); ?>"
-                     data-rep-description="<?php echo htmlspecialchars($rep['description']); ?>"
-                     data-rep-cost="<?php echo (int)$rep['cost']; ?>"
-                     data-rep-completed-by="<?php echo htmlspecialchars($rep['completed_by']); ?>"
-                     data-rep-location="<?php echo htmlspecialchars($rep['location']); ?>"
-                     data-rep-date="<?php echo htmlspecialchars($rep['completed_date']); ?>"
-                     data-rep-photo="<?php echo htmlspecialchars($rep_photo); ?>">
-                    <div class="repaired-card-image">
-                        <?php if (!empty($rep_photo)): ?>
-                            <img src="../../<?php echo htmlspecialchars($rep_photo); ?>" alt="<?php echo htmlspecialchars($rep['title']); ?>">
-                        <?php else: ?>
-                            <div class="repaired-image-placeholder">
-                                <i class="fas fa-road"></i>
-                                <span>Project photo</span>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                    <div class="repaired-card-body">
-                        <h4 class="repaired-card-title"><?php echo htmlspecialchars($rep['title']); ?></h4>
-                        <div class="repaired-meta">
-                            <span><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($rep['location']); ?></span>
-                            <span><i class="fas fa-calendar"></i> <?php echo htmlspecialchars($rep['completed_date']); ?></span>
-                        </div>
-                        <p class="repaired-card-desc"><?php echo nl2br(htmlspecialchars($rep['description'])); ?></p>
-                        <div class="repaired-card-footer">
-                            <div class="repaired-cost">
-                                <strong>Cost:</strong> ₱<?php echo number_format($rep['cost'], 0); ?>
-                            </div>
-                            <div class="repaired-by">
-                                <strong>Completed by:</strong> <?php echo htmlspecialchars($rep['completed_by']); ?>
-                            </div>
-                        </div>
-                        <div class="repaired-card-actions">
-                            <button type="button" class="btn-edit-repaired" onclick="openEditRepairedModal(<?php echo $i; ?>)">
-                                <i class="fas fa-edit"></i> Edit
-                            </button>
-                            <button type="button" class="btn-publish-repaired" onclick="openPublishRepairedModal(<?php echo $i; ?>)">
-                                <i class="fas fa-globe"></i> Publish to Public
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                <?php endforeach; ?>
-            </div>
-            <p class="repaired-note">Repaired reports will be compiled here once sent from Maintenance Department.</p>
-        </div>
 
         <!-- Activity Timeline -->
         <div class="timeline-section">
@@ -1844,130 +1660,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         </div>
     </div>
 
-    <!-- Edit Completed Project modal -->
-    <div id="editRepairedModal" class="modal-overlay">
-        <div class="modal-content" style="max-width: 560px;">
-            <div class="modal-header">
-                <h2><i class="fas fa-edit"></i> Edit Completed Project</h2>
-                <button type="button" class="modal-close" onclick="closeEditRepairedModal()" aria-label="Close">&times;</button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" id="editRepairedIndex" value="">
-                <div class="detail-row">
-                    <label class="detail-label" for="editRepairedTitle">Project title</label>
-                    <input type="text" id="editRepairedTitle" class="detail-value" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; width: 100%;" placeholder="Project title">
-                </div>
-                <div class="detail-row">
-                    <label class="detail-label" for="editRepairedLocation">Location</label>
-                    <input type="text" id="editRepairedLocation" class="detail-value" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; width: 100%;" placeholder="Location">
-                </div>
-                <div class="detail-row">
-                    <label class="detail-label" for="editRepairedDescription">Description</label>
-                    <textarea id="editRepairedDescription" class="detail-value" rows="4" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; width: 100%;" placeholder="Description"></textarea>
-                </div>
-                <div class="detail-row">
-                    <label class="detail-label" for="editRepairedCost">Cost (₱)</label>
-                    <input type="number" id="editRepairedCost" class="detail-value" min="0" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; width: 100%;" placeholder="0">
-                </div>
-                <div class="detail-row">
-                    <label class="detail-label" for="editRepairedCompletedBy">Completed by</label>
-                    <input type="text" id="editRepairedCompletedBy" class="detail-value" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; width: 100%;" placeholder="Name">
-                </div>
-                <div class="detail-row">
-                    <label class="detail-label" for="editRepairedDate">Completion date</label>
-                    <input type="date" id="editRepairedDate" class="detail-value" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; width: 100%;">
-                </div>
-                <div class="detail-row">
-                    <label class="detail-label">Project photo</label>
-                    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-                        <input type="file" id="editRepairedPhoto" accept="image/jpeg,image/png,image/gif,image/webp" style="font-size: 14px;">
-                        <span id="editRepairedPhotoName" style="font-size: 13px; color: #666;"></span>
-                    </div>
-                    <p style="font-size: 12px; color: #888; margin-top: 6px;">Optional. Shows on Public Transparency when published.</p>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn-review" onclick="closeEditRepairedModal()">Cancel</button>
-                <button type="button" class="btn-verify" onclick="saveEditRepaired()"><i class="fas fa-save"></i> Save</button>
-            </div>
-        </div>
-    </div>
 
-    <!-- Publish to Public Transparency confirmation modal -->
-    <div id="publishRepairedModal" class="modal-overlay">
-        <div class="modal-content" style="max-width: 420px;">
-            <div class="modal-header">
-                <h2><i class="fas fa-globe" style="color: #28a745;"></i> Published</h2>
-                <button type="button" class="modal-close" onclick="closePublishRepairedModal()" aria-label="Close">&times;</button>
-            </div>
-            <div class="modal-body">
-                <p style="font-size: 16px; color: #333;">This completed project has been published to Public Transparency. Citizens can now view it on the public page.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn-verify" onclick="closePublishRepairedModal()">OK</button>
-            </div>
-        </div>
-    </div>
 
     <script>
         // Filter functionality
-        function showAll() {
-            document.querySelectorAll('.filter-tab').forEach(tab => tab.classList.remove('active'));
-            event.target.classList.add('active');
-            document.querySelectorAll('.verification-item').forEach(item => item.style.display = 'flex');
-            document.getElementById('section-title').textContent = 'All Reports';
-            document.getElementById('section-badge').textContent = document.querySelectorAll('.verification-item').length;
+        function filterReports() {
+            const status = document.getElementById('statusFilter').value;
+            const source = document.getElementById('sourceFilter').value;
+            const url = new URL(window.location);
+            url.searchParams.set('status', status);
+            url.searchParams.set('source', source);
+            window.location.href = url.toString();
         }
 
-        function showPending() {
-            document.querySelectorAll('.filter-tab').forEach(tab => tab.classList.remove('active'));
-            event.target.classList.add('active');
-            const items = document.querySelectorAll('.verification-item');
-            let count = 0;
-            items.forEach(item => {
-                if (item.dataset.status === 'pending') {
-                    item.style.display = 'flex';
-                    count++;
-                } else {
-                    item.style.display = 'none';
-                }
-            });
-            document.getElementById('section-title').textContent = 'Pending Reports';
-            document.getElementById('section-badge').textContent = count;
-        }
-
-        function showApproved() {
-            document.querySelectorAll('.filter-tab').forEach(tab => tab.classList.remove('active'));
-            event.target.classList.add('active');
-            const items = document.querySelectorAll('.verification-item');
-            let count = 0;
-            items.forEach(item => {
-                if (item.dataset.status === 'completed') {
-                    item.style.display = 'flex';
-                    count++;
-                } else {
-                    item.style.display = 'none';
-                }
-            });
-            document.getElementById('section-title').textContent = 'Approved Reports';
-            document.getElementById('section-badge').textContent = count;
-        }
-
-        function showRejected() {
-            document.querySelectorAll('.filter-tab').forEach(tab => tab.classList.remove('active'));
-            event.target.classList.add('active');
-            const items = document.querySelectorAll('.verification-item');
-            let count = 0;
-            items.forEach(item => {
-                if (item.dataset.status === 'cancelled') {
-                    item.style.display = 'flex';
-                    count++;
-                } else {
-                    item.style.display = 'none';
-                }
-            });
-            document.getElementById('section-title').textContent = 'Rejected Reports';
-            document.getElementById('section-badge').textContent = count;
+        function resetFilters() {
+            const url = new URL(window.location);
+            url.searchParams.delete('status');
+            url.searchParams.delete('source');
+            window.location.href = url.toString();
         }
 
 
@@ -1987,129 +1697,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 icon.className = 'fas fa-eye';
                 text.textContent = 'View Details';
             }
-        }
-
-        function openEditRepairedModal(index) {
-            var card = document.querySelector('.repaired-card[data-rep-index="' + index + '"]');
-            if (!card) return;
-            document.getElementById('editRepairedIndex').value = index;
-            document.getElementById('editRepairedTitle').value = card.dataset.repTitle || '';
-            document.getElementById('editRepairedLocation').value = card.dataset.repLocation || '';
-            document.getElementById('editRepairedDescription').value = card.dataset.repDescription || '';
-            document.getElementById('editRepairedCost').value = card.dataset.repCost || '';
-            document.getElementById('editRepairedCompletedBy').value = card.dataset.repCompletedBy || '';
-            document.getElementById('editRepairedDate').value = card.dataset.repDate || '';
-            document.getElementById('editRepairedPhoto').value = '';
-            document.getElementById('editRepairedPhotoName').textContent = '';
-            document.getElementById('editRepairedModal').classList.add('active');
-        }
-        document.getElementById('editRepairedPhoto').addEventListener('change', function() {
-            var name = this.files && this.files[0] ? this.files[0].name : '';
-            document.getElementById('editRepairedPhotoName').textContent = name ? 'Selected: ' + name : '';
-        });
-
-        function closeEditRepairedModal() {
-            document.getElementById('editRepairedModal').classList.remove('active');
-        }
-
-        function updateRepairedCardImage(card, photoPath) {
-            var imgWrap = card.querySelector('.repaired-card-image');
-            if (!imgWrap) return;
-            if (photoPath) {
-                imgWrap.innerHTML = '<img src="../../' + photoPath.replace(/^\/+/, '') + '" alt="Project" style="width:100%;height:100%;object-fit:cover;">';
-            } else {
-                imgWrap.innerHTML = '<div class="repaired-image-placeholder"><i class="fas fa-road"></i><span>Project photo</span></div>';
-            }
-        }
-
-        function saveEditRepaired() {
-            var index = document.getElementById('editRepairedIndex').value;
-            var card = document.querySelector('.repaired-card[data-rep-index="' + index + '"]');
-            if (!card) { closeEditRepairedModal(); return; }
-            var title = document.getElementById('editRepairedTitle').value.trim();
-            var location = document.getElementById('editRepairedLocation').value.trim();
-            var description = document.getElementById('editRepairedDescription').value.trim();
-            var cost = document.getElementById('editRepairedCost').value;
-            var completedBy = document.getElementById('editRepairedCompletedBy').value.trim();
-            var date = document.getElementById('editRepairedDate').value;
-            var photoInput = document.getElementById('editRepairedPhoto');
-            var doSave = function(photoPath) {
-                if (photoPath) card.dataset.repPhoto = photoPath; else card.dataset.repPhoto = '';
-                updateRepairedCardImage(card, photoPath || null);
-                card.dataset.repTitle = title;
-                card.dataset.repLocation = location;
-                card.dataset.repDescription = description;
-                card.dataset.repCost = cost;
-                card.dataset.repCompletedBy = completedBy;
-                card.dataset.repDate = date;
-                card.querySelector('.repaired-card-title').textContent = title || 'Untitled Project';
-                card.querySelector('.repaired-meta').innerHTML = '<span><i class="fas fa-map-marker-alt"></i> ' + (location || '—') + '</span><span><i class="fas fa-calendar"></i> ' + (date || '—') + '</span>';
-                card.querySelector('.repaired-card-desc').innerHTML = (description || 'No description.').replace(/\n/g, '<br>');
-                card.querySelector('.repaired-cost').innerHTML = '<strong>Cost:</strong> ₱' + (cost ? parseInt(cost, 10).toLocaleString() : '0');
-                card.querySelector('.repaired-by').innerHTML = '<strong>Completed by:</strong> ' + (completedBy || '—');
-                closeEditRepairedModal();
-                document.getElementById('editRepairedPhoto').value = '';
-                document.getElementById('editRepairedPhotoName').textContent = '';
-                showNotification('Changes saved.', 'success');
-            };
-            if (photoInput.files && photoInput.files[0]) {
-                var formData = new FormData();
-                formData.append('action', 'upload_completed_project_photo');
-                formData.append('photo', photoInput.files[0]);
-                fetch(window.location.href, { method: 'POST', body: formData })
-                    .then(function(r) { return r.json(); })
-                    .then(function(data) {
-                        if (data.success) doSave(data.path); else { alert(data.message || 'Photo upload failed.'); doSave(null); }
-                    })
-                    .catch(function() { alert('Upload failed.'); doSave(null); });
-            } else {
-                doSave(card.dataset.repPhoto || null);
-            }
-        }
-
-        function openPublishRepairedModal(index) {
-            var card = document.querySelector('.repaired-card[data-rep-index="' + index + '"]');
-            if (!card) {
-                document.getElementById('publishRepairedModal').classList.add('active');
-                return;
-            }
-            var title = (card.dataset.repTitle || '').trim();
-            if (!title) {
-                alert('Please add a project title before publishing.');
-                return;
-            }
-            var formData = new FormData();
-            formData.append('action', 'publish_completed_project');
-            formData.append('title', card.dataset.repTitle || '');
-            formData.append('description', card.dataset.repDescription || '');
-            formData.append('location', card.dataset.repLocation || '');
-            formData.append('completed_date', card.dataset.repDate || '');
-            formData.append('cost', card.dataset.repCost || '0');
-            formData.append('completed_by', card.dataset.repCompletedBy || '');
-            formData.append('photo', card.dataset.repPhoto || '');
-            var btn = card.querySelector('.btn-publish-repaired');
-            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Publishing...'; }
-            fetch(window.location.href, {
-                method: 'POST',
-                body: formData
-            })
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-globe"></i> Publish to Public'; }
-                if (data.success) {
-                    document.getElementById('publishRepairedModal').classList.add('active');
-                } else {
-                    alert(data.message || 'Failed to publish.');
-                }
-            })
-            .catch(function() {
-                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-globe"></i> Publish to Public'; }
-                alert('Network error. Please try again.');
-            });
-        }
-
-        function closePublishRepairedModal() {
-            document.getElementById('publishRepairedModal').classList.remove('active');
         }
 
         // Show notification
@@ -2152,12 +1739,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             });
         }
 
-        document.getElementById('editRepairedModal').addEventListener('click', function(e) {
-            if (e.target === this) closeEditRepairedModal();
-        });
-        document.getElementById('publishRepairedModal').addEventListener('click', function(e) {
-            if (e.target === this) closePublishRepairedModal();
-        });
     </script>
     
     <!-- Page Transition Overlay -->
@@ -2169,6 +1750,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <div class="transition-text">Loading...</div>
         </div>
     </div>
+
+    <!-- Session Timeout Modal -->
+    <div id="sessionTimeoutOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); z-index:10000;"></div>
+    <div id="sessionTimeoutModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; border-radius:12px; padding:32px; z-index:10001; width:400px; max-width:90vw; box-shadow:0 16px 48px rgba(0,0,0,0.3); text-align:center;">
+        <div style="font-size:48px; color:#e74c3c; margin-bottom:16px;">
+            <i class="fas fa-clock"></i>
+        </div>
+        <h3 style="margin:0 0 8px; font-size:20px; color:#1a1a2e;">Session Expiring</h3>
+        <p style="margin:0 0 20px; color:#666; font-size:14px;">
+            Your session will expire in <strong><span id="sessionCountdown">60</span></strong> seconds due to inactivity.
+        </p>
+        <div style="display:flex; gap:12px; justify-content:center;">
+            <button id="extendSessionBtn" style="padding:10px 24px; background:#3762c8; color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Extend Session</button>
+            <button id="logoutSessionBtn" style="padding:10px 24px; background:#e74c3c; color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Log Out</button>
+        </div>
+    </div>
+
+    <!-- Session timeout data -->
+    <script id="sessionTimeoutData" data-timeout="<?php echo $session_timeout; ?>"></script>
+    <script src="../../js/session-timeout.js"></script>
 </body>
 </html>
 
@@ -2216,6 +1817,16 @@ function getTimeAgo($datetime) {
     }
 }
 
+// Determine if a report can be verified locally
+// Road reports created by this LGU (local source) must go to external Engineering Office
+// Transportation reports and external reports can be verified here
+function canVerifyReport($category, $source) {
+    if ($category === 'road' && $source === 'local') {
+        return false;
+    }
+    return true;
+}
+
 function getActivityTitle($activity) {
     $status = $activity['status'];
     $title = $activity['title'];
@@ -2224,6 +1835,8 @@ function getActivityTitle($activity) {
     switch ($status) {
         case 'completed':
             return $source . ' Report: ' . $title . ' - Completed';
+        case 'approved':
+            return $source . ' Report: ' . $title . ' - Approved';
         case 'cancelled':
             return $source . ' Report: ' . $title . ' - Cancelled';
         case 'pending':
