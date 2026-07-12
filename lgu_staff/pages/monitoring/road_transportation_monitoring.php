@@ -1074,6 +1074,80 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         body.dark-mode .modal-title {
             color: #e4e6ea;
         }
+
+        /* Add/Edit Update Modal form styles */
+        #addUpdateModal .form-group { margin-bottom: 16px; }
+        #addUpdateModal .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        #addUpdateModal .form-control {
+            width: 100%;
+            padding: 10px 14px;
+            border: 2px solid rgba(55,98,200,0.15);
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+            background: white;
+            color: #333;
+            box-sizing: border-box;
+        }
+        #addUpdateModal .form-control:focus {
+            border-color: #3762c8;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(55,98,200,0.1);
+        }
+        #addUpdateModal textarea.form-control { resize: vertical; }
+        #addUpdateModal .file-previews {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        #addUpdateModal .file-preview-item {
+            width: 80px;
+            height: 80px;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid #ddd;
+            position: relative;
+            background: #f8f9fa;
+            flex-shrink: 0;
+        }
+        #addUpdateModal .file-preview-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        #addUpdateModal .file-preview-item .remove-preview {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            width: 20px;
+            height: 20px;
+            background: rgba(220,53,69,0.9);
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            font-size: 14px;
+            line-height: 1;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+        #addUpdateModal .file-preview-item .remove-preview:hover { background: #dc3545; }
+        body.dark-mode #addUpdateModal .form-label { color: #e4e6ea; }
+        body.dark-mode #addUpdateModal .form-control {
+            background: #1a1d23;
+            color: #e4e6ea;
+            border-color: #3a3f4a;
+        }
+        body.dark-mode #addUpdateModal .file-preview-item { background: #2a2e36; border-color: #3a3f4a; }
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
@@ -1759,8 +1833,12 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
 
         window.onclick = function(event) {
             if (event.target.classList.contains('modal')) {
-                event.target.style.display = 'none';
-                document.body.style.overflow = 'auto';
+                if (event.target.id === 'addUpdateModal') {
+                    cancelUpdateForm();
+                } else {
+                    event.target.style.display = 'none';
+                    document.body.style.overflow = 'auto';
+                }
             }
         };
 
@@ -1777,6 +1855,138 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                 loadUpdates(id, type);
             }
         }
+
+        function showAddUpdateModal() {
+            document.getElementById('addUpdateAction').value = 'create_update';
+            document.getElementById('addUpdateId').value = '';
+            document.getElementById('addUpdateReportId').value = currentUpdatesReportId;
+            document.getElementById('addUpdateReportType').value = currentUpdatesReportType;
+            document.getElementById('addUpdateTitle').value = '';
+            document.getElementById('addUpdateDescription').value = '';
+            document.getElementById('updateFilePreviews').innerHTML = '';
+            document.getElementById('existingUpdateMediaSection').style.display = 'none';
+            document.getElementById('existingUpdateMedia').innerHTML = '';
+            document.getElementById('addUpdateModalTitle').textContent = 'Add Progress Update';
+            document.getElementById('addUpdateSubmitBtn').innerHTML = '<i class="fas fa-save"></i> Post Update';
+            closeModal('updatesModal');
+            openModal('addUpdateModal');
+        }
+
+        function cancelUpdateForm() {
+            closeModal('addUpdateModal');
+            openModal('updatesModal');
+            if (typeof loadUpdates === 'function') {
+                loadUpdates(currentUpdatesReportId, currentUpdatesReportType);
+            }
+        }
+
+        // Override showUpdateForm from progress-updates.js to use modal
+        function showUpdateForm(reportId, reportType, updateData) {
+            const isEdit = updateData && updateData.id;
+            document.getElementById('addUpdateAction').value = isEdit ? 'edit_update' : 'create_update';
+            document.getElementById('addUpdateId').value = isEdit ? updateData.id : '';
+            document.getElementById('addUpdateReportId').value = reportId;
+            document.getElementById('addUpdateReportType').value = reportType;
+            document.getElementById('addUpdateTitle').value = isEdit ? (updateData.title || '') : '';
+            document.getElementById('addUpdateDescription').value = isEdit ? (updateData.description || '') : '';
+            document.getElementById('updateFilePreviews').innerHTML = '';
+            document.getElementById('addUpdateModalTitle').textContent = isEdit ? 'Edit Update' : 'Add Progress Update';
+            document.getElementById('addUpdateSubmitBtn').innerHTML = isEdit ? '<i class="fas fa-save"></i> Save Changes' : '<i class="fas fa-save"></i> Post Update';
+
+            if (isEdit && updateData.media) {
+                const mediaContainer = document.getElementById('existingUpdateMedia');
+                mediaContainer.innerHTML = '';
+                document.getElementById('existingUpdateMediaSection').style.display = '';
+                updateData.media.forEach(function(m) {
+                    const div = document.createElement('div');
+                    div.style.cssText = 'position:relative;width:80px;height:60px;border-radius:6px;overflow:hidden;border:1px solid rgba(55,98,200,0.15);';
+                    const isVideo = m.file_type === 'video';
+                    div.innerHTML = isVideo
+                        ? '<i class="fas fa-video" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:20px;color:#3762c8;opacity:0.5;"></i>'
+                        : '<img src="../../' + m.file_path.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') + '" style="width:100%;height:100%;object-fit:cover;">';
+                    const cb = document.createElement('input');
+                    cb.type = 'checkbox';
+                    cb.name = 'remove_media[]';
+                    cb.value = m.id;
+                    cb.style.cssText = 'position:absolute;top:3px;right:3px;width:16px;height:16px;cursor:pointer;';
+                    div.appendChild(cb);
+                    mediaContainer.appendChild(div);
+                });
+            } else {
+                document.getElementById('existingUpdateMediaSection').style.display = 'none';
+                document.getElementById('existingUpdateMedia').innerHTML = '';
+            }
+
+            closeModal('updatesModal');
+            openModal('addUpdateModal');
+        }
+
+        // Override handleUpdateFormSubmit from progress-updates.js for modal flow
+        function handleUpdateFormSubmit(e) {
+            e.preventDefault();
+            const btn = document.getElementById('addUpdateSubmitBtn');
+            const orig = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+            const fd = new FormData(document.getElementById('addUpdateForm'));
+            fetch('../api/progress_update_api.php', {
+                method: 'POST',
+                body: fd
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    closeModal('addUpdateModal');
+                    openModal('updatesModal');
+                    if (typeof loadUpdates === 'function') {
+                        loadUpdates(currentUpdatesReportId, currentUpdatesReportType);
+                    }
+                } else {
+                    showNotification(data.message || 'Failed to save update', 'error');
+                }
+            })
+            .catch(function(e) {
+                showNotification('Network error', 'error');
+                console.error(e);
+            })
+            .finally(function() { btn.disabled = false; btn.innerHTML = orig; });
+        }
+
+        // Attach submit handler to add update form
+        (function() {
+            var form = document.getElementById('addUpdateForm');
+            if (form) form.addEventListener('submit', handleUpdateFormSubmit);
+        })();
+
+        // File preview for add update modal
+        (function() {
+            var fileInput = document.querySelector('#addUpdateForm input[type="file"]');
+            if (fileInput) {
+                fileInput.addEventListener('change', function() {
+                    var preview = document.getElementById('updateFilePreviews');
+                    preview.innerHTML = '';
+                    Array.from(this.files).forEach(function(f) {
+                        if (f.type.startsWith('image/')) {
+                            var reader = new FileReader();
+                            reader.onload = function(e) {
+                                var item = document.createElement('div');
+                                item.className = 'file-preview-item';
+                                item.innerHTML = '<img src="' + e.target.result + '"><button type="button" class="remove-preview" onclick="this.parentElement.remove()">&times;</button>';
+                                preview.appendChild(item);
+                            };
+                            reader.readAsDataURL(f);
+                        } else {
+                            var item = document.createElement('div');
+                            item.className = 'file-preview-item';
+                            item.innerHTML = '<i class="fas fa-video" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:20px;color:#3762c8;"></i><button type="button" class="remove-preview" onclick="this.parentElement.remove()">&times;</button>';
+                            preview.appendChild(item);
+                        }
+                    });
+                });
+            }
+        })();
     </script>
     
     <!-- Progress Updates Modal -->
@@ -1794,10 +2004,55 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             <div class="modal-footer" style="justify-content: space-between;">
                 <span id="updateReportInfo" style="font-size: 13px; color: #6b7280;"></span>
                 <div>
-                    <button type="button" class="btn-action" id="addUpdateBtn" onclick="showUpdateForm(currentUpdatesReportId, currentUpdatesReportType)">+ Add Update</button>
+                    <button type="button" class="btn-action" id="addUpdateBtn" onclick="showAddUpdateModal()">+ Add Update</button>
                     <button type="button" class="btn-secondary-custom" onclick="closeModal('updatesModal')">Close</button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Update Modal -->
+    <div id="addUpdateModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-plus-circle"></i> <span id="addUpdateModalTitle">Add Progress Update</span></h5>
+                <button class="close" onclick="cancelUpdateForm()">&times;</button>
+            </div>
+            <form id="addUpdateForm" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <input type="hidden" name="action" id="addUpdateAction" value="create_update">
+                    <input type="hidden" name="update_id" id="addUpdateId" value="">
+                    <input type="hidden" name="report_id" id="addUpdateReportId" value="">
+                    <input type="hidden" name="report_type" id="addUpdateReportType" value="">
+                    <div class="form-group">
+                        <label class="form-label">Title (optional)</label>
+                        <input type="text" name="title" id="addUpdateTitle" class="form-control" placeholder="e.g., Inspection completed">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Description *</label>
+                        <textarea name="description" id="addUpdateDescription" class="form-control" rows="4" placeholder="Describe the progress made..." required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Photos / Video</label>
+                        <input type="file" name="media[]" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm" multiple>
+                        <small style="color:#666;font-size:11px;">Accepted: JPG, PNG, GIF, WebP, MP4, WebM</small>
+                        <div class="file-previews" id="updateFilePreviews"></div>
+                    </div>
+                    <div id="existingUpdateMediaSection" style="display:none;">
+                        <div class="form-group">
+                            <label class="form-label">Current media (check to remove)</label>
+                            <div id="existingUpdateMedia" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer" style="justify-content: space-between;">
+                    <span style="font-size:12px;color:#666;">Updates are visible to all staff</span>
+                    <div style="display:flex;gap:10px;">
+                        <button type="button" class="btn-secondary-custom" onclick="cancelUpdateForm()">Cancel</button>
+                        <button type="submit" class="btn-action" id="addUpdateSubmitBtn"><i class="fas fa-save"></i> Post Update</button>
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
 
