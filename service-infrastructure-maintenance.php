@@ -341,7 +341,7 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                         <div class="text-center mt-5">
                             <h3>Request Maintenance Service</h3>
                             <p class="lead">Help us maintain our infrastructure by reporting maintenance needs.</p>
-                            <a href="<?php echo $basePath; ?>index.php#contact" class="btn btn-primary btn-lg">
+                            <a href="<?php echo $basePath; ?>contact.php" class="btn btn-primary btn-lg">
                                 <i class="fas fa-phone"></i> Contact Maintenance Team
                             </a>
                         </div>

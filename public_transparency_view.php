@@ -402,6 +402,9 @@ if ($conn) {
                 <a href="public_reports.php" style="background: linear-gradient(135deg, #dc3545, #b91c1c);">
                     <i class="fas fa-road"></i> View Road Reports
                 </a>
+                <a href="road-updates.php"><i class="fas fa-newspaper"></i> Updates</a>
+                <a href="about.php"><i class="fas fa-info-circle"></i> About</a>
+                <a href="contact.php"><i class="fas fa-envelope"></i> Contact</a>
                 <a href="index.php"><i class="fas fa-arrow-left"></i> Back to Home</a>
             </div>
         </div>

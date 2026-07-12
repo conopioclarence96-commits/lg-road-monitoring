@@ -526,16 +526,16 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         <a class="nav-link" href="#home">Home</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#updates">Road Updates</a>
+                        <a class="nav-link" href="road-updates.php">Road Updates</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="public_reports.php">Road Status</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#about">About</a>
+                        <a class="nav-link" href="about.php">About</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#contact">Contact</a>
+                        <a class="nav-link" href="contact.php">Contact</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="public_transparency_view.php">Transparency</a>
@@ -557,7 +557,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 <a href="public_reports.php" class="btn btn-primary-hero btn-hero">
                     <i class="fas fa-map-marked-alt"></i> Browse All Reports
                 </a>
-                <a href="#updates" class="btn btn-secondary-hero btn-hero">
+                <a href="road-updates.php" class="btn btn-secondary-hero btn-hero">
                     <i class="fas fa-newspaper"></i> Latest Updates
                 </a>
             </div>

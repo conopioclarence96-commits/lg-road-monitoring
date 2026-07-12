@@ -230,8 +230,11 @@ function getTimeAgoShort($datetime) {
             <a href="index.php" class="brand"><i class="fas fa-road"></i> Quezon City Road Reports</a>
             <div class="nav-links">
                 <a href="index.php"><i class="fas fa-home"></i> Home</a>
-                <a href="index.php#updates"><i class="fas fa-newspaper"></i> Updates</a>
+                <a href="road-updates.php"><i class="fas fa-newspaper"></i> Updates</a>
+                <a href="about.php"><i class="fas fa-info-circle"></i> About</a>
+                <a href="contact.php"><i class="fas fa-envelope"></i> Contact</a>
                 <a href="public_transparency_view.php"><i class="fas fa-eye"></i> Transparency</a>
+                <a href="index.php"><i class="fas fa-link"></i> Quicklinks</a>
             </div>
         </div>
     </div>

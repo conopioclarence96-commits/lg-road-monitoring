@@ -421,7 +421,7 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                             <a href="tel:1234569999" class="btn btn-danger btn-lg me-3">
                                 <i class="fas fa-phone-alt"></i> Call Emergency Hotline
                             </a>
-                            <a href="<?php echo $basePath; ?>index.php#contact" class="btn btn-primary btn-lg">
+                            <a href="<?php echo $basePath; ?>contact.php" class="btn btn-primary btn-lg">
                                 <i class="fas fa-envelope"></i> Other Contact Methods
                             </a>
                         </div>

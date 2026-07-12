@@ -356,7 +356,7 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                         <div class="text-center mt-5">
                             <h3>Check Traffic Conditions</h3>
                             <p class="lead">Get real-time traffic updates and plan your journey efficiently.</p>
-                            <a href="<?php echo $basePath; ?>index.php#updates" class="btn btn-primary btn-lg">
+                            <a href="<?php echo $basePath; ?>road-updates.php" class="btn btn-primary btn-lg">
                                 <i class="fas fa-map-marked-alt"></i> View Traffic Updates
                             </a>
                         </div>
