@@ -1954,39 +1954,38 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             .finally(function() { btn.disabled = false; btn.innerHTML = orig; });
         }
 
-        // Attach submit handler to add update form
-        (function() {
-            var form = document.getElementById('addUpdateForm');
-            if (form) form.addEventListener('submit', handleUpdateFormSubmit);
-        })();
+        // Attach submit handler to add update form (event delegation, works even if form isn't in DOM yet)
+        document.addEventListener('submit', function(e) {
+            if (e.target && e.target.id === 'addUpdateForm') {
+                handleUpdateFormSubmit(e);
+            }
+        });
 
-        // File preview for add update modal
-        (function() {
-            var fileInput = document.querySelector('#addUpdateForm input[type="file"]');
-            if (fileInput) {
-                fileInput.addEventListener('change', function() {
-                    var preview = document.getElementById('updateFilePreviews');
-                    preview.innerHTML = '';
-                    Array.from(this.files).forEach(function(f) {
-                        if (f.type.startsWith('image/')) {
-                            var reader = new FileReader();
-                            reader.onload = function(e) {
-                                var item = document.createElement('div');
-                                item.className = 'file-preview-item';
-                                item.innerHTML = '<img src="' + e.target.result + '"><button type="button" class="remove-preview" onclick="this.parentElement.remove()">&times;</button>';
-                                preview.appendChild(item);
-                            };
-                            reader.readAsDataURL(f);
-                        } else {
+        // File preview for add update modal (event delegation)
+        document.addEventListener('change', function(e) {
+            if (e.target && e.target.matches && e.target.matches('#addUpdateForm input[type="file"]')) {
+                var preview = document.getElementById('updateFilePreviews');
+                if (!preview) return;
+                preview.innerHTML = '';
+                Array.from(e.target.files).forEach(function(f) {
+                    if (f.type.startsWith('image/')) {
+                        var reader = new FileReader();
+                        reader.onload = function(ev) {
                             var item = document.createElement('div');
                             item.className = 'file-preview-item';
-                            item.innerHTML = '<i class="fas fa-video" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:20px;color:#3762c8;"></i><button type="button" class="remove-preview" onclick="this.parentElement.remove()">&times;</button>';
+                            item.innerHTML = '<img src="' + ev.target.result + '"><button type="button" class="remove-preview" onclick="this.parentElement.remove()">&times;</button>';
                             preview.appendChild(item);
-                        }
-                    });
+                        };
+                        reader.readAsDataURL(f);
+                    } else {
+                        var item = document.createElement('div');
+                        item.className = 'file-preview-item';
+                        item.innerHTML = '<i class="fas fa-video" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:20px;color:#3762c8;opacity:0.7;"></i><button type="button" class="remove-preview" onclick="this.parentElement.remove()">&times;</button>';
+                        preview.appendChild(item);
+                    }
                 });
             }
-        })();
+        });
     </script>
     
     <!-- Progress Updates Modal -->
