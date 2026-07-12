@@ -446,17 +446,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             padding: 40px 0 20px;
         }
 
-        .social-icons a {
-            color: white;
-            font-size: 1.5rem;
-            margin: 0 10px;
-            transition: color 0.3s ease;
-        }
-
-        .social-icons a:hover {
-            color: var(--accent-color);
-        }
-
         footer .btn-login {
             margin-left: 15px;
             vertical-align: middle;
@@ -807,9 +796,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                     <a href="public_reports.php" class="text-white me-3">Road Reports</a>
                     <a href="public_transparency_view.php" class="text-white me-3">Transparency</a>
                     <div class="social-icons d-inline-block">
-                        <a href="#"><i class="fab fa-facebook"></i></a>
-                        <a href="#"><i class="fab fa-twitter"></i></a>
-                        <a href="#"><i class="fab fa-instagram"></i></a>
                         <a href="<?php echo $basePath; ?>lgu_staff/login.php" class="btn btn-login">Login</a>
                     </div>
                 </div>
