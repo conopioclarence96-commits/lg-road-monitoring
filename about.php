@@ -134,8 +134,6 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                     <p>&copy; 2026 Road and Transportation Department. All rights reserved.</p>
                 </div>
                 <div class="col-md-6 text-md-end">
-                    <a href="public_reports.php" class="text-white me-3">Road Reports</a>
-                    <a href="public_transparency_view.php" class="text-white me-3">Transparency</a>
                     <div class="social-icons d-inline-block">
                         <a href="<?php echo $basePath; ?>lgu_staff/login.php" class="btn btn-login">Login</a>
                     </div>
