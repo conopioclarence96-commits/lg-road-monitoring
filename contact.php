@@ -73,9 +73,6 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
         <div class="container">
             <h1><i class="fas fa-envelope"></i> Contact Us</h1>
             <p>Get in touch with our team for assistance and inquiries</p>
-            <div style="margin-top: 12px;">
-                <a href="index.php" class="back-home"><i class="fas fa-arrow-left"></i> Back to Home</a>
-            </div>
         </div>
     </div>
 

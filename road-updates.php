@@ -119,9 +119,6 @@ if ($database_available && $conn) {
         <div class="container">
             <h1><i class="fas fa-newspaper"></i> Road Updates & Announcements</h1>
             <p>Stay informed about the latest road conditions and maintenance activities</p>
-            <div style="margin-top: 12px;">
-                <a href="index.php" class="back-home"><i class="fas fa-arrow-left"></i> Back to Home</a>
-            </div>
         </div>
     </div>
 

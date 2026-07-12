@@ -77,9 +77,6 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
         <div class="container">
             <h1><i class="fas fa-info-circle"></i> About Us</h1>
             <p>Our commitment to safe and efficient transportation infrastructure</p>
-            <div style="margin-top: 12px;">
-                <a href="index.php" class="back-home"><i class="fas fa-arrow-left"></i> Back to Home</a>
-            </div>
         </div>
     </div>
 

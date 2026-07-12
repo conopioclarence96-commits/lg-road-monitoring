@@ -241,9 +241,6 @@ function getTimeAgoShort($datetime) {
         <div class="container">
             <h1><i class="fas fa-map-marked-alt"></i> Road Status & Public Reports</h1>
             <p>Transparent view of all road issues, construction projects, and completed repairs</p>
-            <div style="margin-top: 12px;">
-                <a href="index.php" class="back-home"><i class="fas fa-arrow-left"></i> Back to Home</a>
-            </div>
         </div>
     </div>
 
