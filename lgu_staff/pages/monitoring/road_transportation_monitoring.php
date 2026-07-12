@@ -1893,23 +1893,37 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             document.getElementById('addUpdateModalTitle').textContent = isEdit ? 'Edit Update' : 'Add Progress Update';
             document.getElementById('addUpdateSubmitBtn').innerHTML = isEdit ? '<i class="fas fa-save"></i> Save Changes' : '<i class="fas fa-save"></i> Post Update';
 
+            // Clean up any leftover remove_media hidden inputs from previous edits
+            document.querySelectorAll('#addUpdateForm input[name="remove_media[]"]').forEach(function(el) { el.remove(); });
+
             if (isEdit && updateData.media) {
                 const mediaContainer = document.getElementById('existingUpdateMedia');
                 mediaContainer.innerHTML = '';
                 document.getElementById('existingUpdateMediaSection').style.display = '';
                 updateData.media.forEach(function(m) {
                     const div = document.createElement('div');
-                    div.style.cssText = 'position:relative;width:80px;height:60px;border-radius:6px;overflow:hidden;border:1px solid rgba(55,98,200,0.15);';
+                    div.style.cssText = 'position:relative;width:80px;height:60px;border-radius:6px;overflow:hidden;border:1px solid rgba(55,98,200,0.15);flex-shrink:0;';
                     const isVideo = m.file_type === 'video';
                     div.innerHTML = isVideo
                         ? '<i class="fas fa-video" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:20px;color:#3762c8;opacity:0.5;"></i>'
                         : '<img src="../../' + m.file_path.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') + '" style="width:100%;height:100%;object-fit:cover;">';
-                    const cb = document.createElement('input');
-                    cb.type = 'checkbox';
-                    cb.name = 'remove_media[]';
-                    cb.value = m.id;
-                    cb.style.cssText = 'position:absolute;top:3px;right:3px;width:16px;height:16px;cursor:pointer;';
-                    div.appendChild(cb);
+                    const xBtn = document.createElement('button');
+                    xBtn.type = 'button';
+                    xBtn.innerHTML = '&times;';
+                    xBtn.title = 'Remove this photo';
+                    xBtn.style.cssText = 'position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;border:none;background:rgba(220,53,69,0.9);color:#fff;font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;z-index:2;';
+                    xBtn.onclick = function() {
+                        var h = document.createElement('input');
+                        h.type = 'hidden';
+                        h.name = 'remove_media[]';
+                        h.value = m.id;
+                        document.getElementById('addUpdateForm').appendChild(h);
+                        div.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
+                        div.style.transform = 'scale(0.5)';
+                        div.style.opacity = '0';
+                        setTimeout(function() { div.remove(); }, 200);
+                    };
+                    div.appendChild(xBtn);
                     mediaContainer.appendChild(div);
                 });
             } else {
