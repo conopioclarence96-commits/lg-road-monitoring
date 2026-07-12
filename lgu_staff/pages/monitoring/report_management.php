@@ -1774,8 +1774,10 @@ if (!empty($reports)) {
                                 ${data.report.notes ? `<div style="margin-bottom: 10px;"><strong>Notes:</strong> ${data.report.notes}</div>` : ''}
                                 ${data.report.reporter_name ? `<div style="margin-bottom: 10px;"><strong>Reporter:</strong> ${data.report.reporter_name}</div>` : ''}
                                 <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee; font-size: 12px; color: #666;">
-                                    <div><strong>Created:</strong> ${data.report.created_at}</div>
+                                    <div><strong>Created:</strong> ${data.report.created_at || 'N/A'}</div>
                                     <div><strong>Updated:</strong> ${data.report.updated_at || 'Not updated'}</div>
+                                    ${data.report.approved_at ? `<div style="color: #28a745;"><strong>Approved:</strong> ${data.report.approved_at}</div>` : ''}
+                                    ${data.report.rejected_at ? `<div style="color: #dc3545;"><strong>Rejected:</strong> ${data.report.rejected_at}</div>` : ''}
                                 </div>
                             </div>
                         `;
