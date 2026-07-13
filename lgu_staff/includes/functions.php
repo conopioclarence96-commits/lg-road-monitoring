@@ -70,12 +70,31 @@ function fetch_one($query, $params = [], $types = '') {
 function log_audit_action($user_id, $action, $details = '') {
     global $conn;
     
-    $stmt = $conn->prepare("INSERT INTO audit_logs (user_id, action, details, ip_address, user_agent, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
-    $ip = $_SERVER['REMOTE_ADDR'] ?? 'Unknown';
-    $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
-    
-    $stmt->bind_param("issss", $user_id, $action, $details, $ip, $user_agent);
-    $stmt->execute();
+    try {
+        // Ensure audit_logs table exists
+        $conn->query("CREATE TABLE IF NOT EXISTS audit_logs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            action VARCHAR(100) NOT NULL,
+            details TEXT,
+            ip_address VARCHAR(45) DEFAULT NULL,
+            user_agent VARCHAR(255) DEFAULT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_user_id (user_id),
+            INDEX idx_created_at (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        
+        $stmt = $conn->prepare("INSERT INTO audit_logs (user_id, action, details, ip_address, user_agent, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'Unknown';
+        $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
+        
+        $stmt->bind_param("issss", $user_id, $action, $details, $ip, $user_agent);
+        $stmt->execute();
+        $stmt->close();
+    } catch (Exception $e) {
+        // Audit logging should never block the main operation
+        error_log("Audit log failed: " . $e->getMessage());
+    }
 }
 
 // File upload functions
