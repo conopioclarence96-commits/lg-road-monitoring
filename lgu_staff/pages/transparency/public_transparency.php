@@ -513,34 +513,30 @@ if ($conn) {
 
         .publish-toggle {
             display: flex;
-            flex-direction: column;
-            gap: 8px;
+            align-items: center;
+            gap: 14px;
+            padding: 14px 18px;
+            background: white;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .publish-toggle:hover {
+            border-color: #3762c8;
         }
 
         .publish-checkbox {
             display: none;
         }
 
-        .publish-label {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            cursor: pointer;
-            padding: 12px 16px;
-            background: white;
-            border: 2px solid #ddd;
-            border-radius: 10px;
-            transition: all 0.3s ease;
-            width: fit-content;
+        .publish-checkbox:checked + .toggle-slider {
+            background: #4CAF50;
         }
 
-        .publish-label:hover {
-            border-color: #3762c8;
-        }
-
-        .publish-checkbox:checked + .publish-label {
-            background: linear-gradient(135deg, rgba(76,175,80,0.1), rgba(56,142,60,0.1));
-            border-color: #4CAF50;
+        .publish-checkbox:checked + .toggle-slider::before {
+            transform: translateX(22px);
         }
 
         .toggle-slider {
@@ -550,6 +546,7 @@ if ($conn) {
             background: #ccc;
             border-radius: 13px;
             transition: all 0.3s ease;
+            flex-shrink: 0;
         }
 
         .toggle-slider::before {
@@ -565,12 +562,10 @@ if ($conn) {
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
 
-        .publish-checkbox:checked + .publish-label .toggle-slider {
-            background: #4CAF50;
-        }
-
-        .publish-checkbox:checked + .publish-label .toggle-slider::before {
-            transform: translateX(22px);
+        .publish-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
         }
 
         .toggle-text {
@@ -579,14 +574,13 @@ if ($conn) {
             color: #333;
         }
 
-        .publish-checkbox:checked + .publish-label .toggle-text {
+        .publish-checkbox:checked ~ .publish-info .toggle-text {
             color: #4CAF50;
         }
 
         .publish-hint {
             font-size: 12px;
             color: #888;
-            margin-left: 4px;
         }
 
         .publish-badge {
@@ -744,14 +738,15 @@ if ($conn) {
                     </div>
 
                     <div class="form-group full-width">
-                        <label>Publish to Public</label>
                         <div class="publish-toggle">
-                            <input type="checkbox" id="isPublished" class="publish-checkbox">
                             <label for="isPublished" class="publish-label">
+                                <input type="checkbox" id="isPublished" class="publish-checkbox">
                                 <span class="toggle-slider"></span>
-                                <span class="toggle-text" data-off="Save as Draft" data-on="Publish to Public">Save as Draft</span>
                             </label>
-                            <span class="publish-hint" id="publishHint">Project will be saved but not visible to the public</span>
+                            <div class="publish-info">
+                                <span class="toggle-text" data-off="Save as Draft" data-on="Publish to Public">Save as Draft</span>
+                                <span class="publish-hint" id="publishHint">Project will be saved but not visible to the public</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -931,17 +926,27 @@ if ($conn) {
     const publishCheckbox = document.getElementById('isPublished');
     const publishHint = document.getElementById('publishHint');
     const toggleText = document.querySelector('.toggle-text');
+    const publishToggle = document.querySelector('.publish-toggle');
 
-    if (publishCheckbox) {
-        publishCheckbox.addEventListener('change', function() {
-            if (this.checked) {
+    if (publishCheckbox && publishToggle) {
+        publishToggle.addEventListener('click', function(e) {
+            if (e.target !== publishCheckbox) {
+                publishCheckbox.checked = !publishCheckbox.checked;
+            }
+            updatePublishText();
+        });
+
+        publishCheckbox.addEventListener('change', updatePublishText);
+
+        function updatePublishText() {
+            if (publishCheckbox.checked) {
                 toggleText.textContent = 'Publish to Public';
                 publishHint.textContent = 'Project will be visible on the public transparency page';
             } else {
                 toggleText.textContent = 'Save as Draft';
                 publishHint.textContent = 'Project will be saved but not visible to the public';
             }
-        });
+        }
     }
 
     // ─── Form Submit ──────────────────────────────────────
