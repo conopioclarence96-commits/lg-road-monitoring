@@ -166,7 +166,7 @@ switch ($action) {
         if (!$existing) { http_response_code(404); echo json_encode(['success' => false, 'message' => 'Not found']); exit; }
 
         // Delete associated files
-        $upload_dir = __DIR__ . '/../../uploads/completed_projects/';
+        $upload_dir = __DIR__ . '/../../../uploads/completed_projects/';
         if (!empty($existing['photo']) && file_exists($upload_dir . basename($existing['photo']))) {
             @unlink($upload_dir . basename($existing['photo']));
         }
@@ -229,7 +229,7 @@ switch ($action) {
             exit;
         }
 
-        $upload_dir = __DIR__ . '/../../uploads/completed_projects';
+        $upload_dir = __DIR__ . '/../../../uploads/completed_projects';
         $upload_dir = str_replace('\\', '/', $upload_dir);
         if (!is_dir($upload_dir)) {
             mkdir($upload_dir, 0755, true);
