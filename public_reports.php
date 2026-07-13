@@ -110,7 +110,7 @@ function getTimeAgoShort($datetime) {
     <style>
         :root { --primary: #1e3c72; --primary-light: #2a5298; --accent: #4CAF50; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Poppins', sans-serif; background: #f4f6f9; color: #2c3e50; }
+        body { font-family: 'Poppins', sans-serif; color: #2c3e50; }
         
         .navbar { background: linear-gradient(135deg, var(--primary), var(--primary-light)); box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 1rem 0; }
         .navbar-brand { font-weight: 600; font-size: 1.5rem; color: white !important; display: flex; align-items: center; gap: 10px; }
