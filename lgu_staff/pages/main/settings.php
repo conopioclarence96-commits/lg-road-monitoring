@@ -805,9 +805,11 @@ try {
                 <button class="tab-btn active" data-tab="account">
                     <i class="fas fa-user-shield"></i> Account
                 </button>
+                <?php if ($user_data['role'] === 'system_admin'): ?>
                 <button class="tab-btn" data-tab="access">
                     <i class="fas fa-lock"></i> Access Control
                 </button>
+                <?php endif; ?>
                 <button class="tab-btn" data-tab="activity">
                     <i class="fas fa-history"></i> Activity Log
                 </button>
@@ -1112,6 +1114,7 @@ try {
                 </div>
             </div>
 
+            <?php if ($user_data['role'] === 'system_admin'): ?>
             <!-- Tab 2: Access Control -->
             <div class="tab-content" id="tab-access">
                 <form method="POST">
@@ -1202,6 +1205,7 @@ try {
                     </div>
                 </form>
             </div>
+            <?php endif; ?>
 
             <!-- Tab 3: Activity Log -->
             <div class="tab-content" id="tab-activity">
