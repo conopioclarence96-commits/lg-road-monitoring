@@ -349,6 +349,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $cost = isset($_POST['cost']) ? (float) $_POST['cost'] : 0;
     $completed_by = trim($_POST['completed_by'] ?? '');
     $photo = trim($_POST['photo'] ?? '');
+    $before_photo = trim($_POST['before_photo'] ?? '');
     if ($title === '') {
         echo json_encode(['success' => false, 'message' => 'Title is required.']);
         exit;
@@ -363,13 +364,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         cost decimal(12,2) DEFAULT NULL,
         completed_by varchar(255) DEFAULT NULL,
         photo varchar(500) DEFAULT NULL,
+        before_photo varchar(500) DEFAULT NULL,
         created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (id),
         KEY created_at (created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-    $stmt = $conn->prepare("INSERT INTO published_completed_projects (title, description, location, completed_date, cost, completed_by, photo) VALUES (?, ?, ?, ?, ?, ?, ?)");
+    $stmt = $conn->prepare("INSERT INTO published_completed_projects (title, description, location, completed_date, cost, completed_by, photo, before_photo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
     $date_val = ($completed_date !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $completed_date)) ? $completed_date : null;
-    $stmt->bind_param('ssssdss', $title, $description, $location, $date_val, $cost, $completed_by, $photo);
+    $stmt->bind_param('ssssdsss', $title, $description, $location, $date_val, $cost, $completed_by, $photo, $before_photo);
     if ($stmt->execute()) {
         echo json_encode(['success' => true, 'message' => 'Published to Public Transparency.']);
     } else {
@@ -387,6 +389,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         mkdir($upload_dir, 0755, true);
     }
     $result = handle_file_upload($_FILES['photo'], $upload_dir, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
+    if ($result['success']) {
+        $relative_path = 'uploads/completed_projects/' . $result['filename'];
+        echo json_encode(['success' => true, 'path' => $relative_path]);
+    } else {
+        echo json_encode(['success' => false, 'message' => $result['error'] ?? 'Upload failed']);
+    }
+    exit;
+}
+
+// Upload before photo for completed project (AJAX, multipart)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'upload_before_photo' && !empty($_FILES['before_photo'])) {
+    header('Content-Type: application/json');
+    $upload_dir = __DIR__ . '/../../uploads/completed_projects';
+    $upload_dir = str_replace('\\', '/', $upload_dir);
+    if (!is_dir($upload_dir)) {
+        mkdir($upload_dir, 0755, true);
+    }
+    $result = handle_file_upload($_FILES['before_photo'], $upload_dir, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
     if ($result['success']) {
         $relative_path = 'uploads/completed_projects/' . $result['filename'];
         echo json_encode(['success' => true, 'path' => $relative_path]);
