@@ -51,7 +51,7 @@ usort($all_reports, function($a, $b) {
 });
 
 function getReportPhoto($report) {
-    if (!empty($report['image_path']) && file_exists(__DIR__ . '/' . $report['image_path'])) {
+    if (!empty($report['image_path'])) {
         return $report['image_path'];
     }
     if (!empty($report['attachments'])) {
@@ -59,7 +59,7 @@ function getReportPhoto($report) {
         if (is_array($atts)) {
             foreach ($atts as $att) {
                 $path = $att['file_path'] ?? $att['file'] ?? '';
-                if ($path && file_exists(__DIR__ . '/' . $path)) return $path;
+                if ($path) return $path;
             }
         }
     }
@@ -315,7 +315,10 @@ function getTimeAgoShort($datetime) {
                 'db_id' => $r['id'] ?? 0
             ], JSON_HEX_TAG | JSON_HEX_AMP)); ?>); return false;">
                 <?php if ($photo): ?>
-                <img src="<?php echo htmlspecialchars($photo); ?>" alt="Report photo" class="report-img" loading="lazy">
+                <img src="<?php echo htmlspecialchars($photo); ?>" alt="Report photo" class="report-img" loading="lazy" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
+                <div class="report-img-placeholder" style="display:none;">
+                    <i class="fas fa-road"></i>
+                </div>
                 <?php else: ?>
                 <div class="report-img-placeholder">
                     <i class="fas fa-road"></i>

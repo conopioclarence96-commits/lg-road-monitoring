@@ -593,50 +593,15 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                         if (is_array($attachments) && !empty($attachments)):
                                             foreach ($attachments as $attachment):
                                                 if (isset($attachment['type']) && $attachment['type'] === 'image' && isset($attachment['file_path'])): 
-                                                    $image_path = $attachment['file_path'];
-                                                    $image_exists = file_exists(__DIR__ . '/' . $image_path); ?>
+                                                    $image_path = $attachment['file_path']; ?>
                                                     <div class="mt-3">
-                                                        <?php if ($image_exists): ?>
-                                                            <img src="<?php echo htmlspecialchars($image_path); ?>" 
-                                                                 alt="Report Image" 
-                                                                 class="img-fluid rounded shadow-sm"
-                                                                 style="max-height: 200px; object-fit: cover; width: 100%; cursor: pointer;"
-                                                                 onclick="window.open(this.src, '_blank')"
-                                                                 title="Click to view full size">
-                                                        <?php else: ?>
-                                                            <?php 
-                                                            // Try to find a replacement image from existing uploads
-                                                            $replacement_images = [
-                                                                'uploads/report_images/699b3b4abc908.jpg',
-                                                                'uploads/report_images/699b3c87547bf.jpg',
-                                                                'uploads/report_images/699b404aad4bc.jpg',
-                                                                'uploads/report_images/699b4313b3933.jpg',
-                                                                'uploads/report_images/699b448c16f31.jpg'
-                                                            ];
-                                                            $replacement_image = $replacement_images[array_rand($replacement_images)];
-                                                            $replacement_exists = file_exists(__DIR__ . '/' . $replacement_image);
-                                                            ?>
-                                                            <div class="mt-3">
-                                                                <?php if ($replacement_exists): ?>
-                                                                    <img src="<?php echo $basePath . htmlspecialchars($replacement_image); ?>" 
-                                                                         alt="Report Image" 
-                                                                         class="img-fluid rounded shadow-sm"
-                                                                         style="max-height: 200px; object-fit: cover; width: 100%; cursor: pointer;"
-                                                                         onclick="window.open(this.src, '_blank')"
-                                                                         title="Click to view full size">
-                                                                <?php else: ?>
-                                                                    <img src="https://via.placeholder.com/400x200/6c757d/ffffff?text=Image+Not+Available" 
-                                                                         alt="Image not available" 
-                                                                         class="img-fluid rounded shadow-sm"
-                                                                         style="max-height: 200px; object-fit: cover; width: 100%; cursor: pointer;"
-                                                                         onclick="window.open(this.src, '_blank')"
-                                                                         title="Click to view full size">
-                                                                <?php endif; ?>
-                                                                <p class="text-muted small mt-2 mb-0 text-center">
-                                                                    <i class="fas fa-exclamation-triangle"></i> Original image not found: <?php echo htmlspecialchars(basename($image_path)); ?>
-                                                                </p>
-                                                            </div>
-                                                        <?php endif; ?>
+                                                        <img src="<?php echo htmlspecialchars($image_path); ?>" 
+                                                             alt="Report Image" 
+                                                             class="img-fluid rounded shadow-sm"
+                                                             style="max-height: 200px; object-fit: cover; width: 100%; cursor: pointer;"
+                                                             onclick="window.open(this.src, '_blank')"
+                                                             title="Click to view full size"
+                                                             onerror="this.onerror=null;this.src='https://via.placeholder.com/400x200/6c757d/ffffff?text=Image+Not+Available';">
                                                     </div>
                                                 <?php endif;
                                             endforeach;

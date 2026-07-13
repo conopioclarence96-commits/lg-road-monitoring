@@ -145,22 +145,15 @@ if ($database_available && $conn) {
                                         if (is_array($attachments) && !empty($attachments)):
                                             foreach ($attachments as $attachment):
                                                 if (isset($attachment['type']) && $attachment['type'] === 'image' && isset($attachment['file_path'])):
-                                                    $image_path = $attachment['file_path'];
-                                                    $image_exists = file_exists(__DIR__ . '/' . $image_path); ?>
+                                                    $image_path = $attachment['file_path']; ?>
                                                     <div class="mt-3">
-                                                        <?php if ($image_exists): ?>
-                                                            <img src="<?php echo htmlspecialchars($image_path); ?>"
-                                                                 alt="Report Image"
-                                                                 class="img-fluid rounded shadow-sm"
-                                                                 style="max-height: 200px; object-fit: cover; width: 100%; cursor: pointer;"
-                                                                 onclick="window.open(this.src, '_blank')"
-                                                                 title="Click to view full size">
-                                                        <?php else: ?>
-                                                            <img src="https://via.placeholder.com/400x200/6c757d/ffffff?text=Image+Not+Available"
-                                                                 alt="Image not available"
-                                                                 class="img-fluid rounded shadow-sm"
-                                                                 style="max-height: 200px; object-fit: cover; width: 100%;">
-                                                        <?php endif; ?>
+                                                        <img src="<?php echo htmlspecialchars($image_path); ?>"
+                                                             alt="Report Image"
+                                                             class="img-fluid rounded shadow-sm"
+                                                             style="max-height: 200px; object-fit: cover; width: 100%; cursor: pointer;"
+                                                             onclick="window.open(this.src, '_blank')"
+                                                             title="Click to view full size"
+                                                             onerror="this.onerror=null;this.src='https://via.placeholder.com/400x200/6c757d/ffffff?text=Image+Not+Available';">
                                                     </div>
                                                 <?php endif;
                                             endforeach;
