@@ -510,6 +510,122 @@ if ($conn) {
             color: #666;
             font-size: 13px;
         }
+
+        .publish-toggle {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .publish-checkbox {
+            display: none;
+        }
+
+        .publish-label {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            padding: 12px 16px;
+            background: white;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            width: fit-content;
+        }
+
+        .publish-label:hover {
+            border-color: #3762c8;
+        }
+
+        .publish-checkbox:checked + .publish-label {
+            background: linear-gradient(135deg, rgba(76,175,80,0.1), rgba(56,142,60,0.1));
+            border-color: #4CAF50;
+        }
+
+        .toggle-slider {
+            position: relative;
+            width: 48px;
+            height: 26px;
+            background: #ccc;
+            border-radius: 13px;
+            transition: all 0.3s ease;
+        }
+
+        .toggle-slider::before {
+            content: '';
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .publish-checkbox:checked + .publish-label .toggle-slider {
+            background: #4CAF50;
+        }
+
+        .publish-checkbox:checked + .publish-label .toggle-slider::before {
+            transform: translateX(22px);
+        }
+
+        .toggle-text {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .publish-checkbox:checked + .publish-label .toggle-text {
+            color: #4CAF50;
+        }
+
+        .publish-hint {
+            font-size: 12px;
+            color: #888;
+            margin-left: 4px;
+        }
+
+        .publish-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+
+        .publish-badge.published {
+            background: rgba(76,175,80,0.15);
+            color: #4CAF50;
+        }
+
+        .publish-badge.draft {
+            background: rgba(255,152,0,0.15);
+            color: #F57C00;
+        }
+
+        .btn-publish {
+            padding: 6px 14px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .btn-publish:hover { background: #218838; }
     </style>
 </head>
 <body>
@@ -626,6 +742,18 @@ if ($conn) {
                         </div>
                         <input type="hidden" id="afterPhotoPath" value="">
                     </div>
+
+                    <div class="form-group full-width">
+                        <label>Publish to Public</label>
+                        <div class="publish-toggle">
+                            <input type="checkbox" id="isPublished" class="publish-checkbox">
+                            <label for="isPublished" class="publish-label">
+                                <span class="toggle-slider"></span>
+                                <span class="toggle-text" data-off="Save as Draft" data-on="Publish to Public">Save as Draft</span>
+                            </label>
+                            <span class="publish-hint" id="publishHint">Project will be saved but not visible to the public</span>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="btn-row">
@@ -707,12 +835,22 @@ if ($conn) {
                         <?php if (!empty($proj['cost'])): ?>
                         <span class="project-cost">₱<?php echo number_format($proj['cost'], 0); ?></span>
                         <?php endif; ?>
+                        <?php if ($is_admin): ?>
+                        <span class="publish-badge <?php echo !empty($proj['is_published']) ? 'published' : 'draft'; ?>">
+                            <i class="fas <?php echo !empty($proj['is_published']) ? 'fa-globe' : 'fa-file-alt'; ?>"></i>
+                            <?php echo !empty($proj['is_published']) ? 'Published' : 'Draft'; ?>
+                        </span>
+                        <?php endif; ?>
                     </div>
 
                     <?php if ($is_admin): ?>
                     <div class="project-actions">
                         <button class="btn-edit" onclick="editProject(<?php echo htmlspecialchars(json_encode($proj)); ?>)">
                             <i class="fas fa-edit"></i> Edit
+                        </button>
+                        <button class="btn-publish" onclick="togglePublish(<?php echo $proj['id']; ?>, '<?php echo htmlspecialchars(addslashes($proj['title'])); ?>')" title="<?php echo !empty($proj['is_published']) ? 'Unpublish' : 'Publish to public'; ?>">
+                            <i class="fas <?php echo !empty($proj['is_published']) ? 'fa-eye-slash' : 'fa-eye'; ?>"></i>
+                            <?php echo !empty($proj['is_published']) ? 'Unpublish' : 'Publish'; ?>
                         </button>
                         <button class="btn-delete" onclick="deleteProject(<?php echo $proj['id']; ?>, '<?php echo htmlspecialchars(addslashes($proj['title'])); ?>')">
                             <i class="fas fa-trash"></i> Delete
@@ -789,6 +927,23 @@ if ($conn) {
         removeBtn.style.display = 'none';
     }
 
+    // ─── Publish Toggle Text ───────────────────────────────
+    const publishCheckbox = document.getElementById('isPublished');
+    const publishHint = document.getElementById('publishHint');
+    const toggleText = document.querySelector('.toggle-text');
+
+    if (publishCheckbox) {
+        publishCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                toggleText.textContent = 'Publish to Public';
+                publishHint.textContent = 'Project will be visible on the public transparency page';
+            } else {
+                toggleText.textContent = 'Save as Draft';
+                publishHint.textContent = 'Project will be saved but not visible to the public';
+            }
+        });
+    }
+
     // ─── Form Submit ──────────────────────────────────────
     document.getElementById('projectFormEl').addEventListener('submit', function(e) {
         e.preventDefault();
@@ -809,6 +964,10 @@ if ($conn) {
         formData.append('completed_by', document.getElementById('projectCompletedBy').value.trim());
         formData.append('photo', afterPath);
         formData.append('before_photo', document.getElementById('beforePhotoPath').value);
+
+        if (publishCheckbox && publishCheckbox.checked) {
+            formData.append('is_published', '1');
+        }
 
         const url = isEditing ? `${API}?action=update&id=${document.getElementById('projectId').value}` : `${API}?action=create`;
         const btnSave = document.getElementById('btnSave');
@@ -848,6 +1007,21 @@ if ($conn) {
         document.getElementById('projectDate').value = project.completed_date || '';
         document.getElementById('projectCost').value = project.cost || '';
         document.getElementById('projectCompletedBy').value = project.completed_by || '';
+
+        // Set publish status
+        const publishCheckbox = document.getElementById('isPublished');
+        const toggleText = document.querySelector('.toggle-text');
+        const publishHint = document.getElementById('publishHint');
+        if (publishCheckbox) {
+            publishCheckbox.checked = project.is_published == 1;
+            if (publishCheckbox.checked) {
+                toggleText.textContent = 'Publish to Public';
+                publishHint.textContent = 'Project will be visible on the public transparency page';
+            } else {
+                toggleText.textContent = 'Save as Draft';
+                publishHint.textContent = 'Project will be saved but not visible to the public';
+            }
+        }
 
         // Set after photo
         if (project.photo) {
@@ -912,6 +1086,35 @@ if ($conn) {
         document.getElementById('btnSave').innerHTML = '<i class="fas fa-save"></i> Save Project';
         removePhoto('before');
         removePhoto('after');
+
+        // Reset publish toggle
+        const publishCheckbox = document.getElementById('isPublished');
+        const toggleText = document.querySelector('.toggle-text');
+        const publishHint = document.getElementById('publishHint');
+        if (publishCheckbox) {
+            publishCheckbox.checked = false;
+            toggleText.textContent = 'Save as Draft';
+            publishHint.textContent = 'Project will be saved but not visible to the public';
+        }
+    }
+
+    // ─── Toggle Publish Status ────────────────────────────
+    function togglePublish(id, title) {
+        const formData = new FormData();
+        formData.append('action', 'toggle_publish');
+        formData.append('id', id);
+
+        fetch(`${API}?action=toggle_publish&id=${id}`, { method: 'POST', body: formData })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message, 'success');
+                    setTimeout(() => location.reload(), 800);
+                } else {
+                    showToast(data.message || 'Toggle failed', 'error');
+                }
+            })
+            .catch(() => showToast('Network error', 'error'));
     }
 
     // ─── Preview Sliders ──────────────────────────────────
