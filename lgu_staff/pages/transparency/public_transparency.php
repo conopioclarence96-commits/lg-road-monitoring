@@ -617,8 +617,8 @@ if ($conn) {
             <?php else: ?>
             <div class="projects-grid" id="projectsGrid">
                 <?php foreach ($projects as $proj):
-                    $after_img = !empty($proj['photo']) ? htmlspecialchars(ltrim(str_replace(['../', '..\\'], '', $proj['photo']), '/\\')) : '';
-                    $before_img = !empty($proj['before_photo']) ? htmlspecialchars(ltrim(str_replace(['../', '..\\'], '', $proj['before_photo']), '/\\')) : '';
+                    $after_img = !empty($proj['photo']) ? htmlspecialchars('../../../' . ltrim(str_replace(['../', '..\\'], '', $proj['photo']), '/\\')) : '';
+                    $before_img = !empty($proj['before_photo']) ? htmlspecialchars('../../../' . ltrim(str_replace(['../', '..\\'], '', $proj['before_photo']), '/\\')) : '';
                     $has_before = !empty($proj['before_photo']);
                 ?>
                 <div class="project-item" data-id="<?php echo $proj['id']; ?>">
@@ -707,7 +707,7 @@ if ($conn) {
                 area.style.opacity = '1';
                 if (data.success) {
                     pathInput.value = data.path;
-                    preview.src = data.path;
+                    preview.src = '../../../' + data.path;
                     preview.style.display = 'block';
                     area.querySelector('.upload-icon').style.display = 'none';
                     area.querySelector('.upload-text').style.display = 'none';
@@ -806,7 +806,7 @@ if ($conn) {
             const afterPreview = document.getElementById('afterPhotoPreview');
             const afterArea = document.getElementById('afterPhotoArea');
             afterPath.value = project.photo;
-            afterPreview.src = project.photo;
+            afterPreview.src = '../../../' + project.photo;
             afterPreview.style.display = 'block';
             afterArea.querySelector('.upload-icon').style.display = 'none';
             afterArea.querySelector('.upload-text').style.display = 'none';
@@ -820,7 +820,7 @@ if ($conn) {
             const beforePreview = document.getElementById('beforePhotoPreview');
             const beforeArea = document.getElementById('beforePhotoArea');
             beforePath.value = project.before_photo;
-            beforePreview.src = project.before_photo;
+            beforePreview.src = '../../../' + project.before_photo;
             beforePreview.style.display = 'block';
             beforeArea.querySelector('.upload-icon').style.display = 'none';
             beforeArea.querySelector('.upload-text').style.display = 'none';
