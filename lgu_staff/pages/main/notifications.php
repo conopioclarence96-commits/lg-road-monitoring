@@ -506,6 +506,7 @@ $total_notifications = $is_admin ? (count($pending_reports) + count($pending_cha
             frameborder="0"
             name="sidebar-frame"
             scrolling="no"
+            loading="lazy"
             referrerpolicy="no-referrer">
     </iframe>
 
