@@ -12,17 +12,8 @@ html {
 
 body {
     min-height: 100vh;
-    background: url("../../assets/img/cityhall.jpeg") center/cover no-repeat fixed;
+    background: #f7f5f0;
     position: relative;
-}
-
-body::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    backdrop-filter: blur(6px);
-    background: rgba(0, 0, 0, 0.35);
-    z-index: 0;
 }
 
 .main-content {
@@ -33,7 +24,7 @@ body::before {
 }
 
 .transparency-header {
-    background: rgba(255, 255, 255, 0.95);
+    background: #f0f4fa;
     backdrop-filter: blur(15px);
     padding: 25px 30px;
     border-radius: 16px;
@@ -110,7 +101,7 @@ a.btn-action:hover {
 }
 
 .transparency-stat {
-    background: rgba(255, 255, 255, 0.95);
+    background: #f0f4fa;
     backdrop-filter: blur(15px);
     border-radius: 16px;
     padding: 25px;
@@ -140,7 +131,7 @@ a.btn-action:hover {
 }
 
 .info-card {
-    background: rgba(255, 255, 255, 0.95);
+    background: #f0f4fa;
     backdrop-filter: blur(15px);
     border-radius: 16px;
     padding: 25px;
@@ -240,7 +231,7 @@ a.btn-action:hover {
 }
 
 .publications-section {
-    background: rgba(255, 255, 255, 0.95);
+    background: #f0f4fa;
     backdrop-filter: blur(15px);
     border-radius: 16px;
     padding: 25px;
@@ -680,7 +671,7 @@ a.btn-action:hover {
 }
 
 .contact-section {
-    background: rgba(255, 255, 255, 0.95);
+    background: #f0f4fa;
     backdrop-filter: blur(15px);
     border-radius: 16px;
     padding: 25px;

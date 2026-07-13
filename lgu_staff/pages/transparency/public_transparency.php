@@ -64,7 +64,7 @@ if ($conn) {
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <style>
         .projects-section {
-            background: rgba(255,255,255,0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             border-radius: 16px;
             padding: 25px;
@@ -74,7 +74,7 @@ if ($conn) {
         }
 
         .project-form-card {
-            background: rgba(255,255,255,0.95);
+            background: #f0f4fa;
             backdrop-filter: blur(15px);
             border-radius: 16px;
             padding: 30px;
