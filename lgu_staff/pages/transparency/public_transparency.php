@@ -482,6 +482,34 @@ if ($conn) {
         .toast.show { transform: translateX(0); }
         .toast.success { background: #4CAF50; }
         .toast.error { background: #dc3545; }
+
+        .view-only-notice {
+            background: linear-gradient(135deg, rgba(55,98,200,0.08), rgba(30,60,114,0.08));
+            border-left: 4px solid #3762c8;
+            border-radius: 12px;
+            padding: 20px 25px;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .view-only-notice .notice-icon {
+            font-size: 2.5rem;
+            color: #3762c8;
+        }
+
+        .view-only-notice h4 {
+            margin: 0 0 5px 0;
+            color: #1e3c72;
+            font-size: 16px;
+        }
+
+        .view-only-notice p {
+            margin: 0;
+            color: #666;
+            font-size: 13px;
+        }
     </style>
 </head>
 <body>
@@ -610,19 +638,13 @@ if ($conn) {
         </div>
         <?php else: ?>
         <!-- View-Only Notice for LGU Staff -->
-        <div class="project-form-card" style="background: linear-gradient(135deg, rgba(55,98,200,0.08), rgba(30,60,114,0.08)); border-left: 4px solid #3762c8;">
-            <div style="display: flex; align-items: center; gap: 15px;">
-                <div style="font-size: 2.5rem; color: #3762c8;">
-                    <i class="fas fa-eye"></i>
-                </div>
-                <div>
-                    <h4 style="margin: 0 0 5px 0; color: #1e3c72; font-size: 16px;">
-                        <i class="fas fa-lock"></i> View Only Mode
-                    </h4>
-                    <p style="margin: 0; color: #666; font-size: 13px;">
-                        You can view completed projects created by the administrator. Only administrators can create, edit, or delete projects.
-                    </p>
-                </div>
+        <div class="view-only-notice">
+            <div class="notice-icon">
+                <i class="fas fa-eye"></i>
+            </div>
+            <div>
+                <h4><i class="fas fa-lock"></i> View Only Mode</h4>
+                <p>You can view completed projects created by the administrator. Only administrators can create, edit, or delete projects.</p>
             </div>
         </div>
         <?php endif; ?>
