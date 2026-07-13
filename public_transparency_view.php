@@ -302,10 +302,6 @@ if ($database_available && $conn) {
 
     <section class="section">
         <div class="container">
-            <div class="text-center mb-4">
-                <span class="sync-info"><i class="fas fa-sync-alt"></i> Data synced with LGU Staff &amp; Admin</span>
-            </div>
-
             <div class="stats-row">
                 <div class="stat-card">
                     <div class="stat-icon"><i class="fas fa-project-diagram"></i></div>
