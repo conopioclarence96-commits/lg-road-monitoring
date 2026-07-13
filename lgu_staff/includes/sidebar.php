@@ -701,7 +701,7 @@ $notification_count = getNotificationCount($user_role, $_SESSION['user_id'] ?? 0
                     e.preventDefault();
                     if (!confirm('Are you sure you want to log out?')) return;
                     const overlay = document.getElementById('pageTransitionOverlay');
-                    overlay.classList.add('active');
+                    if (overlay) overlay.classList.add('active');
                     
                     setTimeout(() => {
                         window.location.href = this.href;
@@ -765,7 +765,6 @@ $notification_count = getNotificationCount($user_role, $_SESSION['user_id'] ?? 0
             });
         });
     </script>
-</div>
     
 <!-- Page Transition Overlay -->
 <div class="page-transition-overlay" id="pageTransitionOverlay">

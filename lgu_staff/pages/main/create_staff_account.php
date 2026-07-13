@@ -479,7 +479,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             frameborder="0"
             name="sidebar-frame"
             scrolling="no"
-            loading="lazy"
             referrerpolicy="no-referrer">
     </iframe>
 
