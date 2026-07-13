@@ -497,7 +497,11 @@ if ($conn) {
             <div class="header-content">
                 <div class="header-title">
                     <h1><i class="fas fa-exchange-alt"></i> Public Transparency – Completed Projects</h1>
+                    <?php if ($is_admin): ?>
                     <p>Manage before &amp; after project photos that appear on the landing page</p>
+                    <?php else: ?>
+                    <p>View completed projects with before &amp; after photos (View Only)</p>
+                    <?php endif; ?>
                 </div>
                 <div class="header-actions">
                     <span class="sync-badge"><i class="fas fa-sync-alt"></i> Syncs to Landing Page</span>
