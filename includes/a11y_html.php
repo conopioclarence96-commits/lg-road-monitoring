@@ -20,6 +20,10 @@
             <label>Readable Font</label>
             <button class="a11y-toggle-btn" id="readableFontToggle" onclick="toggleReadableFont()">On / Off</button>
         </div>
+        <div class="a11y-option">
+            <label><i class="fas fa-moon" id="themeIcon"></i> Dark Mode</label>
+            <button class="a11y-toggle-btn" id="darkModeToggle" onclick="toggleDarkMode()">On / Off</button>
+        </div>
         <button class="a11y-reset" onclick="resetAccessibility()"><i class="fas fa-undo"></i> Reset All</button>
     </div>
     <button class="a11y-fab-btn" id="a11yBtn" aria-label="Accessibility Options" title="Accessibility Options">
