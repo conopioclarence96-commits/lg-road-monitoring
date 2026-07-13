@@ -39,6 +39,8 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] !== 'system_admin' && $_S
     exit;
 }
 
+$is_admin = ($_SESSION['role'] === 'system_admin');
+
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -76,6 +78,7 @@ switch ($action) {
 
     // ─── CREATE ─────────────────────────────────────────
     case 'create':
+        if (!$is_admin) { http_response_code(403); echo json_encode(['success' => false, 'message' => 'Only administrators can create projects']); exit; }
         if ($method !== 'POST') { http_response_code(405); echo json_encode(['success' => false, 'message' => 'Method not allowed']); exit; }
 
         $title = trim($_POST['title'] ?? '');
@@ -107,6 +110,7 @@ switch ($action) {
 
     // ─── UPDATE ─────────────────────────────────────────
     case 'update':
+        if (!$is_admin) { http_response_code(403); echo json_encode(['success' => false, 'message' => 'Only administrators can update projects']); exit; }
         if ($method !== 'POST') { http_response_code(405); echo json_encode(['success' => false, 'message' => 'Method not allowed']); exit; }
 
         $id = (int)($_GET['id'] ?? $_POST['id'] ?? 0);
@@ -141,6 +145,7 @@ switch ($action) {
 
     // ─── DELETE ─────────────────────────────────────────
     case 'delete':
+        if (!$is_admin) { http_response_code(403); echo json_encode(['success' => false, 'message' => 'Only administrators can delete projects']); exit; }
         if ($method !== 'POST') { http_response_code(405); echo json_encode(['success' => false, 'message' => 'Method not allowed']); exit; }
 
         $id = (int)($_GET['id'] ?? $_POST['id'] ?? 0);

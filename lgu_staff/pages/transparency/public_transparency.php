@@ -27,6 +27,8 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] !== 'system_admin' && $_S
     exit;
 }
 
+$is_admin = ($_SESSION['role'] === 'system_admin');
+
 // Handle AJAX requests
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json; charset=utf-8');
@@ -526,7 +528,8 @@ if ($conn) {
             </div>
         </div>
 
-        <!-- Add / Edit Form -->
+        <?php if ($is_admin): ?>
+        <!-- Add / Edit Form - Admin Only -->
         <div class="project-form-card" id="projectForm">
             <div class="section-header">
                 <h3 class="section-title" id="formTitle"><i class="fas fa-plus-circle"></i> Add New Project</h3>
@@ -601,6 +604,24 @@ if ($conn) {
                 </div>
             </form>
         </div>
+        <?php else: ?>
+        <!-- View-Only Notice for LGU Staff -->
+        <div class="project-form-card" style="background: linear-gradient(135deg, rgba(55,98,200,0.08), rgba(30,60,114,0.08)); border-left: 4px solid #3762c8;">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div style="font-size: 2.5rem; color: #3762c8;">
+                    <i class="fas fa-eye"></i>
+                </div>
+                <div>
+                    <h4 style="margin: 0 0 5px 0; color: #1e3c72; font-size: 16px;">
+                        <i class="fas fa-lock"></i> View Only Mode
+                    </h4>
+                    <p style="margin: 0; color: #666; font-size: 13px;">
+                        You can view completed projects created by the administrator. Only administrators can create, edit, or delete projects.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
 
         <!-- Projects Grid -->
         <div class="projects-section">
@@ -662,6 +683,7 @@ if ($conn) {
                         <?php endif; ?>
                     </div>
 
+                    <?php if ($is_admin): ?>
                     <div class="project-actions">
                         <button class="btn-edit" onclick="editProject(<?php echo htmlspecialchars(json_encode($proj)); ?>)">
                             <i class="fas fa-edit"></i> Edit
@@ -670,6 +692,7 @@ if ($conn) {
                             <i class="fas fa-trash"></i> Delete
                         </button>
                     </div>
+                    <?php endif; ?>
                 </div>
                 <?php endforeach; ?>
             </div>
