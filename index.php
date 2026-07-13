@@ -120,6 +120,22 @@ if ($database_available && $conn) {
     }
 }
 
+// Get completed projects for Before & After section
+$before_after_projects = [];
+if ($database_available && $conn) {
+    try {
+        $stmt = $conn->prepare("SELECT id, title, description, location, completed_date, cost, completed_by, photo, before_photo FROM published_completed_projects WHERE photo IS NOT NULL AND photo != '' ORDER BY completed_date DESC LIMIT 6");
+        $stmt->execute();
+        $result = $stmt->get_result();
+        while ($row = $result->fetch_assoc()) {
+            $before_after_projects[] = $row;
+        }
+        $stmt->close();
+    } catch (Exception $e) {
+        $before_after_projects = [];
+    }
+}
+
 // Load access control settings
 $access_settings = [];
 if ($database_available && $conn) {
@@ -472,6 +488,180 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             }
         }
 
+        /* Before & After Projects Section */
+        .before-after-section {
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+        }
+
+        .before-after-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
+            gap: 30px;
+        }
+
+        @media (max-width: 576px) {
+            .before-after-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .before-after-card {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .before-after-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+        }
+
+        .comparison-slider {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16 / 10;
+            overflow: hidden;
+            cursor: ew-resize;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .comparison-slider img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            pointer-events: none;
+        }
+
+        .comparison-slider .img-before {
+            z-index: 2;
+            clip-path: inset(0 50% 0 0);
+        }
+
+        .comparison-slider .img-after {
+            z-index: 1;
+        }
+
+        .comparison-handle {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 50%;
+            width: 4px;
+            background: white;
+            z-index: 3;
+            transform: translateX(-50%);
+            box-shadow: 0 0 12px rgba(0, 0, 0, 0.4);
+            pointer-events: none;
+        }
+
+        .comparison-handle::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 44px;
+            height: 44px;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .comparison-handle::after {
+            content: '◂ ▸';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--primary-color);
+            z-index: 4;
+            letter-spacing: -2px;
+            white-space: nowrap;
+        }
+
+        .comparison-label {
+            position: absolute;
+            top: 12px;
+            padding: 5px 14px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            z-index: 4;
+            pointer-events: none;
+        }
+
+        .label-before {
+            left: 12px;
+            background: rgba(244, 67, 54, 0.9);
+            color: white;
+        }
+
+        .label-after {
+            right: 12px;
+            background: rgba(76, 175, 80, 0.9);
+            color: white;
+        }
+
+        .before-after-info {
+            padding: 20px 24px;
+        }
+
+        .before-after-info h4 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 8px;
+        }
+
+        .before-after-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .before-after-meta span {
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        .before-after-meta i {
+            color: var(--accent-color);
+            margin-right: 4px;
+        }
+
+        .before-after-cost {
+            display: inline-block;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .before-after-empty {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .before-after-empty i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            color: #ccc;
+        }
+
     </style>
     <?php include __DIR__ . '/includes/a11y_css.php'; ?>
 </head>
@@ -682,6 +872,58 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         </div>
     </section>
 
+    <!-- Before & After Projects Section -->
+    <section class="section before-after-section" id="projects" <?php echo ($access_settings['hide_before_after'] ?? '0') === '1' ? 'style="display:none"' : ''; ?>>
+        <div class="container">
+            <h2 class="section-title">See the Transformation</h2>
+            <p class="section-subtitle">Drag the slider to compare before and after our completed road projects</p>
+
+            <?php if (!empty($before_after_projects)): ?>
+            <div class="before-after-grid">
+                <?php foreach ($before_after_projects as $proj):
+                    $after_img = htmlspecialchars(ltrim(str_replace(['../', '..\\'], '', $proj['photo']), '/\\'));
+                    $before_img = !empty($proj['before_photo']) 
+                        ? htmlspecialchars(ltrim(str_replace(['../', '..\\'], '', $proj['before_photo']), '/\\'))
+                        : $after_img;
+                    $has_before = !empty($proj['before_photo']);
+                ?>
+                <div class="before-after-card">
+                    <div class="comparison-slider" data-slider>
+                        <img src="<?php echo $before_img; ?>" alt="Before" class="img-before" loading="lazy"
+                             onerror="this.onerror=null;this.src='https://via.placeholder.com/600x375/dc3545/ffffff?text=Before+Image';">
+                        <img src="<?php echo $after_img; ?>" alt="After" class="img-after" loading="lazy"
+                             onerror="this.onerror=null;this.src='https://via.placeholder.com/600x375/4CAF50/ffffff?text=After+Image';">
+                        <div class="comparison-handle" data-handle></div>
+                        <span class="comparison-label label-before">Before</span>
+                        <span class="comparison-label label-after">After</span>
+                    </div>
+                    <div class="before-after-info">
+                        <h4><?php echo htmlspecialchars($proj['title']); ?></h4>
+                        <div class="before-after-meta">
+                            <?php if (!empty($proj['location'])): ?>
+                            <span><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($proj['location']); ?></span>
+                            <?php endif; ?>
+                            <?php if (!empty($proj['completed_date'])): ?>
+                            <span><i class="fas fa-calendar-check"></i> <?php echo date('M d, Y', strtotime($proj['completed_date'])); ?></span>
+                            <?php endif; ?>
+                        </div>
+                        <?php if (!empty($proj['cost'])): ?>
+                        <span class="before-after-cost">₱<?php echo number_format($proj['cost'], 0); ?></span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+            <?php else: ?>
+            <div class="before-after-empty">
+                <i class="fas fa-images"></i>
+                <h5>Projects Coming Soon</h5>
+                <p>Before and after comparisons of our completed road projects will be displayed here.</p>
+            </div>
+            <?php endif; ?>
+        </div>
+    </section>
+
     <!-- About Section -->
     <section class="section" id="about" <?php echo ($access_settings['hide_about'] ?? '0') === '1' ? 'style="display:none"' : ''; ?>>
         <div class="container">
@@ -817,7 +1059,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         }, observerOptions);
 
         // Observe all cards
-        document.querySelectorAll('.update-card, .stat-card, .service-card').forEach(card => {
+        document.querySelectorAll('.update-card, .stat-card, .service-card, .before-after-card').forEach(card => {
             card.style.opacity = '0';
             card.style.transform = 'translateY(20px)';
             card.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
@@ -835,6 +1077,81 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                     window.location.href = this.href;
                 }, 1000);
             });
+        });
+
+        // Before & After Comparison Slider
+        document.querySelectorAll('[data-slider]').forEach(slider => {
+            const imgBefore = slider.querySelector('.img-before');
+            const handle = slider.querySelector('[data-handle]');
+            let isDragging = false;
+
+            function updateSlider(x) {
+                const rect = slider.getBoundingClientRect();
+                let pos = ((x - rect.left) / rect.width) * 100;
+                pos = Math.max(0, Math.min(100, pos));
+
+                imgBefore.style.clipPath = `inset(0 ${100 - pos}% 0 0)`;
+                handle.style.left = pos + '%';
+            }
+
+            // Mouse events
+            slider.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                updateSlider(e.clientX);
+                slider.style.cursor = 'grabbing';
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                e.preventDefault();
+                updateSlider(e.clientX);
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (isDragging) {
+                    isDragging = false;
+                    slider.style.cursor = 'ew-resize';
+                }
+            });
+
+            // Touch events
+            slider.addEventListener('touchstart', (e) => {
+                isDragging = true;
+                updateSlider(e.touches[0].clientX);
+            }, { passive: true });
+
+            slider.addEventListener('touchmove', (e) => {
+                if (!isDragging) return;
+                e.preventDefault();
+                updateSlider(e.touches[0].clientX);
+            }, { passive: false });
+
+            slider.addEventListener('touchend', () => {
+                isDragging = false;
+            });
+
+            // Animate handle on load
+            setTimeout(() => {
+                let start = 0;
+                const target = 50;
+                const duration = 800;
+                const startTime = performance.now();
+
+                function animate(time) {
+                    const elapsed = time - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    const eased = 1 - Math.pow(1 - progress, 3);
+                    const current = start + (target - start) * eased;
+
+                    imgBefore.style.clipPath = `inset(0 ${100 - current}% 0 0)`;
+                    handle.style.left = current + '%';
+
+                    if (progress < 1) {
+                        requestAnimationFrame(animate);
+                    }
+                }
+                requestAnimationFrame(animate);
+            }, 300);
         });
     </script>
     

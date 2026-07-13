@@ -246,6 +246,7 @@ CREATE TABLE IF NOT EXISTS `published_completed_projects` (
   `cost` DECIMAL(12,2) DEFAULT NULL,
   `completed_by` VARCHAR(255) DEFAULT NULL,
   `photo` VARCHAR(500) DEFAULT NULL,
+  `before_photo` VARCHAR(500) DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY `idx_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
