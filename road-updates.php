@@ -146,7 +146,7 @@ if ($database_available && $conn) {
                                             foreach ($attachments as $attachment):
                                                 if (isset($attachment['type']) && $attachment['type'] === 'image' && isset($attachment['file_path'])):
                                                     $image_path = $attachment['file_path'];
-                                                    $image_exists = file_exists($image_path); ?>
+                                                    $image_exists = file_exists(__DIR__ . '/' . $image_path); ?>
                                                     <div class="mt-3">
                                                         <?php if ($image_exists): ?>
                                                             <img src="<?php echo htmlspecialchars($image_path); ?>"

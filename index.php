@@ -594,7 +594,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                             foreach ($attachments as $attachment):
                                                 if (isset($attachment['type']) && $attachment['type'] === 'image' && isset($attachment['file_path'])): 
                                                     $image_path = $attachment['file_path'];
-                                                    $image_exists = file_exists($image_path); ?>
+                                                    $image_exists = file_exists(__DIR__ . '/' . $image_path); ?>
                                                     <div class="mt-3">
                                                         <?php if ($image_exists): ?>
                                                             <img src="<?php echo htmlspecialchars($image_path); ?>" 
@@ -614,7 +614,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                                                 'uploads/report_images/699b448c16f31.jpg'
                                                             ];
                                                             $replacement_image = $replacement_images[array_rand($replacement_images)];
-                                                            $replacement_exists = file_exists($replacement_image);
+                                                            $replacement_exists = file_exists(__DIR__ . '/' . $replacement_image);
                                                             ?>
                                                             <div class="mt-3">
                                                                 <?php if ($replacement_exists): ?>

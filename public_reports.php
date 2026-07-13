@@ -51,7 +51,7 @@ usort($all_reports, function($a, $b) {
 });
 
 function getReportPhoto($report) {
-    if (!empty($report['image_path']) && file_exists($report['image_path'])) {
+    if (!empty($report['image_path']) && file_exists(__DIR__ . '/' . $report['image_path'])) {
         return $report['image_path'];
     }
     if (!empty($report['attachments'])) {
@@ -59,7 +59,7 @@ function getReportPhoto($report) {
         if (is_array($atts)) {
             foreach ($atts as $att) {
                 $path = $att['file_path'] ?? $att['file'] ?? '';
-                if ($path && file_exists($path)) return $path;
+                if ($path && file_exists(__DIR__ . '/' . $path)) return $path;
             }
         }
     }
