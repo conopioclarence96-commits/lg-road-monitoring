@@ -383,7 +383,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 // Upload photo for completed project (AJAX, multipart)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'upload_completed_project_photo' && !empty($_FILES['photo'])) {
     header('Content-Type: application/json');
-    $upload_dir = __DIR__ . '/../../uploads/completed_projects';
+    $upload_dir = __DIR__ . '/../../../uploads/completed_projects';
     $upload_dir = str_replace('\\', '/', $upload_dir);
     if (!is_dir($upload_dir)) {
         mkdir($upload_dir, 0755, true);
@@ -401,7 +401,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 // Upload before photo for completed project (AJAX, multipart)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'upload_before_photo' && !empty($_FILES['before_photo'])) {
     header('Content-Type: application/json');
-    $upload_dir = __DIR__ . '/../../uploads/completed_projects';
+    $upload_dir = __DIR__ . '/../../../uploads/completed_projects';
     $upload_dir = str_replace('\\', '/', $upload_dir);
     if (!is_dir($upload_dir)) {
         mkdir($upload_dir, 0755, true);
