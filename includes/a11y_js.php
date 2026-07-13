@@ -49,11 +49,13 @@
     };
 
     window.toggleDarkMode = function() {
+        document.body.classList.add('theme-transition');
         darkMode = !darkMode;
         document.body.classList.toggle('dark-mode', darkMode);
         document.getElementById('darkModeToggle').classList.toggle('active', darkMode);
         updateThemeIcon();
         localStorage.setItem('a11y_darkMode', darkMode);
+        setTimeout(function() { document.body.classList.remove('theme-transition'); }, 400);
     };
 
     window.resetAccessibility = function() {

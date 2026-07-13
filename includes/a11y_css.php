@@ -41,6 +41,13 @@
     body.large-text .section-title { font-size: 2.8rem; }
     body.readable-font * { font-family: 'Verdana', 'Arial', sans-serif !important; }
 
+    /* Dark Mode Transition */
+    body.theme-transition,
+    body.theme-transition *,
+    body.theme-transition *::before,
+    body.theme-transition *::after {
+        transition: background-color 0.35s ease, color 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease, fill 0.35s ease, stroke 0.35s ease !important;
+    }
     /* Dark Mode */
     body.dark-mode { background: #121212 !important; color: #e0e0e0 !important; }
     body.dark-mode .navbar { background: linear-gradient(135deg, #0d1b2a 0%, #1b2838 100%) !important; }
