@@ -1043,7 +1043,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             }
         });
 
-        // Animate elements on scroll
+        // Animate elements on scroll - using class toggle to prevent flash on refresh
         const observerOptions = {
             threshold: 0.1,
             rootMargin: '0px 0px -50px 0px'
@@ -1052,17 +1052,13 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         const observer = new IntersectionObserver(function(entries) {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
-                    entry.target.style.opacity = '1';
-                    entry.target.style.transform = 'translateY(0)';
+                    entry.target.classList.add('animate-in');
                 }
             });
         }, observerOptions);
 
-        // Observe all cards
         document.querySelectorAll('.update-card, .stat-card, .service-card, .before-after-card').forEach(card => {
-            card.style.opacity = '0';
-            card.style.transform = 'translateY(20px)';
-            card.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+            card.classList.add('scroll-animate');
             observer.observe(card);
         });
 

@@ -1,5 +1,20 @@
 <script>
 (function() {
+    // Reset transition overlay on back-forward cache navigation
+    window.addEventListener('pageshow', function(e) {
+        var overlay = document.getElementById('pageTransitionOverlay');
+        if (overlay) {
+            overlay.classList.remove('active');
+        }
+        // Reset scroll animations for visible elements
+        document.querySelectorAll('.scroll-animate').forEach(function(el) {
+            var rect = el.getBoundingClientRect();
+            if (rect.top < window.innerHeight && rect.bottom > 0) {
+                el.classList.add('animate-in');
+            }
+        });
+    });
+
     const a11yBtn = document.getElementById('a11yBtn');
     const a11yPanel = document.getElementById('a11yPanel');
     if (a11yBtn && a11yPanel) {
