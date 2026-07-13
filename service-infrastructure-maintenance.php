@@ -161,6 +161,7 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
             padding: 40px 0 20px;
         }
     </style>
+    <?php include __DIR__ . '/includes/a11y_css.php'; ?>
 </head>
 <body>
     <!-- Navigation -->
@@ -366,7 +367,9 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
         </div>
     </footer>
 
+    <?php include __DIR__ . '/includes/a11y_html.php'; ?>
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <?php include __DIR__ . '/includes/a11y_js.php'; ?>
 </body>
 </html>

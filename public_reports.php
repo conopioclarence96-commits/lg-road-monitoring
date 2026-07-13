@@ -216,6 +216,7 @@ function getTimeAgoShort($datetime) {
             .modal-footer { background: #1e2229; border-top-color: #2d323b; }
         }
     </style>
+    <?php include __DIR__ . '/includes/a11y_css.php'; ?>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark">
@@ -390,6 +391,7 @@ function getTimeAgoShort($datetime) {
         <img id="lightboxImage" src="" alt="Enlarged photo">
     </div>
 
+    <?php include __DIR__ . '/includes/a11y_html.php'; ?>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let currentData = null;
@@ -591,5 +593,6 @@ function getTimeAgoShort($datetime) {
         });
         <?php endif; ?>
     </script>
+    <?php include __DIR__ . '/includes/a11y_js.php'; ?>
 </body>
 </html>

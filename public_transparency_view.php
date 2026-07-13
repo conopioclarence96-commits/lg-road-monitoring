@@ -359,6 +359,7 @@ if ($conn) {
             .main-content { background: transparent; }
         }
     </style>
+    <?php include __DIR__ . '/includes/a11y_css.php'; ?>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark">
@@ -663,6 +664,7 @@ if ($conn) {
         <img id="lightboxImage" src="" alt="Enlarged photo">
     </div>
 
+    <?php include __DIR__ . '/includes/a11y_html.php'; ?>
     <script>
         function openLightbox(src) {
             const overlay = document.getElementById('lightboxOverlay');
@@ -678,5 +680,6 @@ if ($conn) {
         }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <?php include __DIR__ . '/includes/a11y_js.php'; ?>
 </body>
 </html>

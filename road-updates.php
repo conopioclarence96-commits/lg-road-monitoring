@@ -94,6 +94,7 @@ if ($database_available && $conn) {
         .back-home { display: inline-flex; align-items: center; gap: 6px; color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.85rem; font-weight: 500; }
         .back-home:hover { color: white; }
     </style>
+    <?php include __DIR__ . '/includes/a11y_css.php'; ?>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark">
@@ -216,11 +217,13 @@ if ($database_available && $conn) {
             });
         });
     </script>
+    <?php include __DIR__ . '/includes/a11y_html.php'; ?>
     <div class="page-transition-overlay" id="pageTransitionOverlay">
         <div class="transition-content">
             <div class="transition-spinner"><i class="fas fa-spinner"></i></div>
             <div class="transition-text">Loading...</div>
         </div>
     </div>
+    <?php include __DIR__ . '/includes/a11y_js.php'; ?>
 </body>
 </html>
