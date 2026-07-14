@@ -1718,8 +1718,11 @@ if (!empty($reports)) {
                                 ${(() => {
                                     let html = '';
                                     const pics = [];
+                                    const seenPaths = new Set();
                                     if (data.report.image_path && data.report.image_path !== '0' && data.report.image_path !== 'null') {
-                                        pics.push('../../' + data.report.image_path);
+                                        const p = '../../' + data.report.image_path;
+                                        pics.push(p);
+                                        seenPaths.add(data.report.image_path);
                                     }
                                     if (data.report.attachments) {
                                         let atts = data.report.attachments;
@@ -1727,9 +1730,21 @@ if (!empty($reports)) {
                                         if (Array.isArray(atts)) {
                                             atts.forEach(a => {
                                                 const p = a.file_path || a.file || '';
-                                                if (p) pics.push('../../' + p);
+                                                if (p && !seenPaths.has(p)) {
+                                                    pics.push('../../' + p);
+                                                    seenPaths.add(p);
+                                                }
                                             });
                                         }
+                                    }
+                                    if (data.report.update_media && Array.isArray(data.report.update_media)) {
+                                        data.report.update_media.forEach(m => {
+                                            const p = m.file_path || '';
+                                            if (p && !seenPaths.has(p) && m.file_type !== 'video') {
+                                                pics.push('../../' + p);
+                                                seenPaths.add(p);
+                                            }
+                                        });
                                     }
                                     if (pics.length) {
                                         html += '<div style="margin-bottom:20px;"><strong>Photos:</strong><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">';
@@ -2293,11 +2308,14 @@ if (!empty($reports)) {
                     }
                     showNotification(msg, 'success');
                     closeModal('editReportModal');
-                    indicator.textContent = 'Changes saved. Refreshing...';
-                    
+                    indicator.textContent = 'Changes saved. Loading report view...';
+
+                    const updatedReportId = document.getElementById('editReportId').value;
+                    const updatedReportType = document.getElementById('editReportType').value;
+
                     setTimeout(() => {
-                        location.reload();
-                    }, 1000);
+                        viewReport(parseInt(updatedReportId), updatedReportType);
+                    }, 500);
                 } else {
                     showNotification(data.message || 'Failed to update report', 'error');
                     indicator.textContent = 'Failed to save changes';

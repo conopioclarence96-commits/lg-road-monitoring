@@ -83,6 +83,27 @@ try {
         $report['updated_at'] = $report['updated_at'] ? format_datetime($report['updated_at']) : null;
         $report['approved_at'] = isset($report['approved_at']) && $report['approved_at'] ? format_datetime($report['approved_at']) : null;
         $report['rejected_at'] = isset($report['rejected_at']) && $report['rejected_at'] ? format_datetime($report['rejected_at']) : null;
+
+        // Gather photos from report_update_media (progress updates)
+        try {
+            $media_stmt = $conn->prepare(
+                "SELECT rum.file_path, rum.file_type
+                 FROM report_update_media rum
+                 INNER JOIN report_updates ru ON rum.update_id = ru.id
+                 WHERE ru.report_id = ?
+                 ORDER BY rum.id ASC"
+            );
+            $media_stmt->bind_param("i", $report_id);
+            $media_stmt->execute();
+            $media_result = $media_stmt->get_result();
+            $update_media = [];
+            while ($m = $media_result->fetch_assoc()) {
+                $update_media[] = $m;
+            }
+            $report['update_media'] = $update_media;
+        } catch (Exception $e) {
+            $report['update_media'] = [];
+        }
         
         json_response([
             'success' => true,
