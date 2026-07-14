@@ -73,6 +73,36 @@ if ($database_available && $conn) {
             $road_updates[] = $row;
         }
         $stmt->close();
+
+        if (!empty($road_updates)) {
+            $ids = array_column($road_updates, 'id');
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $types = str_repeat('i', count($ids));
+            $media_stmt = $conn->prepare(
+                "SELECT rum.file_path, rum.file_type, ru.report_id
+                 FROM report_update_media rum
+                 INNER JOIN report_updates ru ON rum.update_id = ru.id
+                 WHERE ru.report_id IN ($placeholders) AND rum.file_type = 'image'
+                 ORDER BY rum.id ASC"
+            );
+            $media_stmt->bind_param($types, ...$ids);
+            $media_stmt->execute();
+            $media_result = $media_stmt->get_result();
+            $media_by_report = [];
+            while ($m = $media_result->fetch_assoc()) {
+                $rid = $m['report_id'];
+                if (!isset($media_by_report[$rid])) {
+                    $media_by_report[$rid] = $m['file_path'];
+                }
+            }
+            $media_stmt->close();
+            foreach ($road_updates as &$upd) {
+                if (empty($upd['_first_image']) && !empty($media_by_report[$upd['id']])) {
+                    $upd['_first_image'] = $media_by_report[$upd['id']];
+                }
+            }
+            unset($upd);
+        }
     } catch (Exception $e) {
         // Handle database errors gracefully
         $road_updates = [];
@@ -794,6 +824,9 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                     endif;
                                     if (empty($display_image) && !empty($update['image_path']) && $update['image_path'] !== '0' && $update['image_path'] !== 'null'):
                                         $display_image = $update['image_path'];
+                                    endif;
+                                    if (empty($display_image) && !empty($update['_first_image'])):
+                                        $display_image = $update['_first_image'];
                                     endif;
                                     if ($display_image): ?>
                                         <div class="mt-3">
