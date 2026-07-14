@@ -41,6 +41,7 @@ if ($database_available && $conn) {
         if ($has_description) $select_fields .= ", description";
         if ($has_reported_date) $select_fields .= ", reported_date";
         if ($has_attachments) $select_fields .= ", attachments";
+        $select_fields .= ", image_path";
         if ($has_title) $select_fields .= ", report_type, priority, status, location";
         $order_field = $has_reported_date ? "reported_date" : "created_at";
         $stmt = $conn->prepare("SELECT $select_fields FROM road_transportation_reports ORDER BY $order_field DESC LIMIT 20");
@@ -140,25 +141,33 @@ if ($database_available && $conn) {
                                     <p class="card-text">
                                         <?php echo htmlspecialchars(substr($update['description'] ?? 'No description available', 0, 100)) . '...'; ?>
                                     </p>
-                                    <?php if (!empty($update['attachments'])):
+                                    <?php
+                                    $display_image = null;
+                                    if (!empty($update['attachments'])):
                                         $attachments = json_decode($update['attachments'], true);
                                         if (is_array($attachments) && !empty($attachments)):
                                             foreach ($attachments as $attachment):
                                                 if (isset($attachment['type']) && $attachment['type'] === 'image' && isset($attachment['file_path'])):
-                                                    $image_path = $attachment['file_path']; ?>
-                                                    <div class="mt-3">
-                                                        <img src="<?php echo htmlspecialchars($image_path); ?>"
-                                                             alt="Report Image"
-                                                             class="img-fluid rounded shadow-sm"
-                                                             style="max-height: 200px; object-fit: cover; width: 100%; cursor: pointer;"
-                                                             onclick="window.open(this.src, '_blank')"
-                                                             title="Click to view full size"
-                                                             onerror="this.onerror=null;this.src='https://via.placeholder.com/400x200/6c757d/ffffff?text=Image+Not+Available';">
-                                                    </div>
-                                                <?php endif;
+                                                    $display_image = $attachment['file_path'];
+                                                    break;
+                                                endif;
                                             endforeach;
                                         endif;
-                                    endif; ?>
+                                    endif;
+                                    if (empty($display_image) && !empty($update['image_path']) && $update['image_path'] !== '0' && $update['image_path'] !== 'null'):
+                                        $display_image = $update['image_path'];
+                                    endif;
+                                    if ($display_image): ?>
+                                        <div class="mt-3">
+                                            <img src="<?php echo htmlspecialchars($display_image); ?>"
+                                                 alt="Report Image"
+                                                 class="img-fluid rounded shadow-sm"
+                                                 style="max-height: 200px; object-fit: cover; width: 100%; cursor: pointer;"
+                                                 onclick="window.open(this.src, '_blank')"
+                                                 title="Click to view full size"
+                                                 onerror="this.onerror=null;this.src='https://via.placeholder.com/400x200/6c757d/ffffff?text=Image+Not+Available';">
+                                        </div>
+                                    <?php endif; ?>
                                     <small class="text-muted mt-2 d-block">
                                         <i class="fas fa-calendar"></i>
                                         <?php echo date('M d, Y', strtotime($update['reported_date'] ?? 'now')); ?>
