@@ -1179,6 +1179,32 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             color: white;
         }
 
+        /* Road line labels on map */
+        .road-line-label {
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+            white-space: nowrap;
+            border: 1px solid rgba(255,255,255,0.2);
+            pointer-events: none;
+        }
+
+        /* Road status indicator in legend */
+        .legend-line {
+            width: 30px;
+            height: 4px;
+            border-radius: 2px;
+        }
+
+        .legend-line.clear { background: #22c55e; }
+        .legend-line.moderate { background: #eab308; }
+        .legend-line.heavy { background: #dc2626; }
+        .legend-line.construction { background: #f97316; }
+
         /* Responsive map styles */
         @media (max-width: 768px) {
             #publicMap {
@@ -1452,25 +1478,25 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 <!-- Map Legend -->
                 <div class="gis-map-legend">
                     <div class="legend-item">
-                        <span class="legend-dot critical"></span> Critical
+                        <span class="legend-line clear"></span> Clear Road
                     </div>
                     <div class="legend-item">
-                        <span class="legend-dot high"></span> High Severity
+                        <span class="legend-line moderate"></span> Moderate Traffic
                     </div>
                     <div class="legend-item">
-                        <span class="legend-dot medium"></span> Medium
+                        <span class="legend-line heavy"></span> Heavy Traffic
                     </div>
                     <div class="legend-item">
-                        <span class="legend-dot low"></span> Low
+                        <span class="legend-line construction"></span> Construction
                     </div>
                     <div class="legend-item">
-                        <span class="legend-dot traffic"></span> Heavy Traffic
+                        <span class="legend-dot critical"></span> Critical Incident
                     </div>
                     <div class="legend-item">
-                        <span class="legend-dot construction"></span> Construction
+                        <span class="legend-dot traffic"></span> Traffic Marker
                     </div>
                     <div class="legend-item" style="margin-left:auto;color:rgba(255,255,255,0.4);font-size:11px;">
-                        <i class="fas fa-sync-alt"></i> Auto-refresh: 30s
+                        <i class="fas fa-sync-alt"></i> Auto-refresh: 5s
                     </div>
                 </div>
             </div>
@@ -1893,7 +1919,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     (function() {
         const QC_CENTER = [14.6500, 121.0500];
 
-        // Initialize the public map
         const publicMap = L.map('publicMap', {
             center: QC_CENTER,
             zoom: 13,
@@ -1901,13 +1926,11 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             attributionControl: true
         });
 
-        // Dark-themed tile layer
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
             maxZoom: 19
         }).addTo(publicMap);
 
-        // Quezon City boundary polygon
         const QC_POLYGON_COORDS = [
             [14.605, 120.982], [14.620, 120.985], [14.640, 120.988],
             [14.660, 120.990], [14.680, 120.995], [14.700, 121.005],
@@ -1922,12 +1945,8 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         ];
 
         const QC_POLYGON = L.polygon(QC_POLYGON_COORDS, {
-            color: '#3762c8',
-            weight: 2,
-            opacity: 0.6,
-            fillOpacity: 0.05,
-            fillColor: '#3762c8',
-            dashArray: '8, 4'
+            color: '#3762c8', weight: 2, opacity: 0.6, fillOpacity: 0.05,
+            fillColor: '#3762c8', dashArray: '8, 4'
         }).addTo(publicMap);
 
         const QC_BBOX = L.latLngBounds(QC_POLYGON_COORDS);
@@ -1935,95 +1954,218 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         publicMap.setMinZoom(11);
         publicMap.setMaxZoom(18);
 
-        // Force map back to QC if user pans out
         publicMap.on('moveend', function() {
-            const center = publicMap.getCenter();
-            if (!QC_BBOX.contains(center)) {
-                publicMap.setView(QC_CENTER, 13);
-            }
+            if (!QC_BBOX.contains(publicMap.getCenter())) publicMap.setView(QC_CENTER, 13);
         });
 
-        // Marker layers
         const reportLayer = L.layerGroup().addTo(publicMap);
+        const roadLinesLayer = L.layerGroup().addTo(publicMap);
         let allMarkers = [];
         let publicActiveFilter = 'all';
         let publicAutoRefreshInterval = null;
         let publicFullscreen = false;
 
-        // Traffic/construction report types
         const trafficTypes = ['traffic_jam', 'accident', 'road_closure', 'traffic_light_outage', 'congestion', 'parking_violation', 'public_transport_issue'];
         const constructionTypes = ['potholes', 'road_damage', 'cracks', 'erosion', 'flooding', 'debris', 'shoulder_damage', 'marking_fade'];
 
-        // Escape HTML
+        // Major Quezon City road segments with coordinate points
+        const QC_ROADS = [
+            { name: 'EDSA', coords: [[14.5355,121.0535],[14.5470,121.0560],[14.5600,121.0580],[14.5735,121.0570],[14.5860,121.0555],[14.5965,121.0535],[14.6055,121.0520],[14.6155,121.0515],[14.6255,121.0530],[14.6350,121.0555],[14.6440,121.0585],[14.6530,121.0620],[14.6620,121.0665],[14.6710,121.0710]] },
+            { name: 'Commonwealth Avenue', coords: [[14.6435,121.0765],[14.6505,121.0810],[14.6575,121.0860],[14.6650,121.0920],[14.6730,121.0980],[14.6800,121.1040],[14.6870,121.1100],[14.6940,121.1160],[14.7010,121.1220],[14.7085,121.1275],[14.7160,121.1320]] },
+            { name: 'Quezon Avenue', coords: [[14.6280,121.0350],[14.6340,121.0370],[14.6400,121.0390],[14.6460,121.0410],[14.6520,121.0435],[14.6580,121.0460],[14.6640,121.0485],[14.6700,121.0510],[14.6755,121.0530]] },
+            { name: 'C-5 Road', coords: [[14.5750,121.0800],[14.5850,121.0830],[14.5950,121.0860],[14.6050,121.0890],[14.6150,121.0920],[14.6250,121.0950],[14.6350,121.0980],[14.6450,121.1010],[14.6550,121.1040],[14.6650,121.1070],[14.6750,121.1100],[14.6850,121.1130],[14.6950,121.1160]] },
+            { name: 'Elliptical Road', coords: [[14.6510,121.0485],[14.6540,121.0530],[14.6560,121.0580],[14.6555,121.0630],[14.6530,121.0670],[14.6495,121.0695],[14.6455,121.0690],[14.6425,121.0660],[14.6410,121.0615],[14.6420,121.0570],[14.6450,121.0525],[14.6485,121.0495]] },
+            { name: 'Araneta Avenue', coords: [[14.6170,121.0305],[14.6230,121.0310],[14.6290,121.0320],[14.6350,121.0335],[14.6410,121.0355],[14.6470,121.0380],[14.6530,121.0405],[14.6590,121.0430],[14.6650,121.0455]] },
+            { name: 'Tandang Sora Avenue', coords: [[14.6440,121.0440],[14.6480,121.0490],[14.6520,121.0540],[14.6560,121.0590],[14.6600,121.0640],[14.6640,121.0690],[14.6680,121.0740],[14.6720,121.0790]] },
+            { name: 'Visayas Avenue', coords: [[14.6520,121.0370],[14.6540,121.0420],[14.6555,121.0470],[14.6565,121.0520],[14.6570,121.0570],[14.6570,121.0620],[14.6565,121.0670],[14.6555,121.0720],[14.6540,121.0770]] },
+            { name: 'Mindanao Avenue', coords: [[14.6580,121.0380],[14.6600,121.0430],[14.6615,121.0480],[14.6625,121.0530],[14.6630,121.0580],[14.6630,121.0630],[14.6625,121.0680],[14.6615,121.0730]] },
+            { name: 'North Avenue', coords: [[14.6565,121.0310],[14.6570,121.0360],[14.6575,121.0410],[14.6578,121.0460],[14.6580,121.0510],[14.6580,121.0560],[14.6578,121.0610]] },
+            { name: 'Timog Avenue', coords: [[14.6385,121.0280],[14.6390,121.0330],[14.6395,121.0380],[14.6400,121.0430],[14.6405,121.0480],[14.6410,121.0530],[14.6415,121.0580]] },
+            { name: 'East Avenue', coords: [[14.6505,121.0530],[14.6510,121.0580],[14.6515,121.0630],[14.6520,121.0680],[14.6525,121.0730],[14.6530,121.0780],[14.6535,121.0830]] },
+            { name: 'Gilmore Avenue', coords: [[14.6280,121.0420],[14.6320,121.0440],[14.6360,121.0460],[14.6400,121.0480],[14.6440,121.0500],[14.6480,121.0520],[14.6520,121.0540],[14.6560,121.0560],[14.6600,121.0580]] },
+            { name: 'Katipunan Avenue', coords: [[14.6360,121.0680],[14.6400,121.0710],[14.6440,121.0740],[14.6480,121.0770],[14.6520,121.0800],[14.6560,121.0830],[14.6600,121.0860],[14.6640,121.0890],[14.6680,121.0920],[14.6720,121.0950]] },
+            { name: 'Roxas Boulevard', coords: [[14.5520,121.0050],[14.5600,121.0080],[14.5680,121.0110],[14.5760,121.0140],[14.5840,121.0170],[14.5920,121.0200],[14.6000,121.0230]] },
+            { name: 'Diosdado Macapagal Blvd', coords: [[14.5530,121.0380],[14.5600,121.0400],[14.5670,121.0420],[14.5740,121.0440],[14.5810,121.0460],[14.5880,121.0480],[14.5950,121.0500]] },
+            { name: 'MCTH (Mother Ignacia Ave)', coords: [[14.6420,121.0240],[14.6430,121.0290],[14.6440,121.0340],[14.6450,121.0390],[14.6460,121.0440],[14.6470,121.0490]] },
+            { name: 'NIA Road', coords: [[14.6360,121.0440],[14.6370,121.0490],[14.6380,121.0540],[14.6390,121.0590],[14.6400,121.0640]] },
+            { name: 'Banawe Street', coords: [[14.6240,121.0260],[14.6280,121.0280],[14.6320,121.0300],[14.6360,121.0320],[14.6400,121.0340],[14.6440,121.0360],[14.6480,121.0380]] },
+            { name: 'P. Tuazon Blvd', coords: [[14.6180,121.0380],[14.6210,121.0410],[14.6240,121.0440],[14.6270,121.0470],[14.6300,121.0500]] },
+            { name: 'Cubao-P. Tuazon', coords: [[14.6220,121.0460],[14.6250,121.0490],[14.6280,121.0520],[14.6310,121.0550],[14.6340,121.0580],[14.6370,121.0610]] }
+        ];
+
+        // Find nearest road to a point and distance
+        function findNearestRoad(lat, lng) {
+            let bestDist = Infinity;
+            let bestRoad = null;
+            let bestSegIndex = 0;
+
+            for (const road of QC_ROADS) {
+                for (let i = 0; i < road.coords.length - 1; i++) {
+                    const dist = pointToSegmentDistance(lat, lng, road.coords[i], road.coords[i + 1]);
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        bestRoad = road;
+                        bestSegIndex = i;
+                    }
+                }
+            }
+            return { road: bestRoad, distance: bestDist, segIndex: bestSegIndex };
+        }
+
+        // Distance from point to line segment
+        function pointToSegmentDistance(px, py, a, b) {
+            const dx = b[0] - a[0];
+            const dy = b[1] - a[1];
+            const lenSq = dx * dx + dy * dy;
+            if (lenSq === 0) return Math.sqrt((px - a[0]) ** 2 + (py - a[1]) ** 2);
+            let t = ((px - a[0]) * dx + (py - a[1]) * dy) / lenSq;
+            t = Math.max(0, Math.min(1, t));
+            const projX = a[0] + t * dx;
+            const projY = a[1] + t * dy;
+            return Math.sqrt((px - projX) ** 2 + (py - projY) ** 2);
+        }
+
+        // Draw colored road lines based on report data
+        function drawRoadLines(markers) {
+            roadLinesLayer.clearLayers();
+
+            // Track worst status per road
+            const roadStatus = {};
+            QC_ROADS.forEach(r => { roadStatus[r.name] = { level: 'clear', reports: [] }; });
+
+            // Match reports to nearest roads (within 300m threshold)
+            const THRESHOLD = 0.003; // ~300m in degrees
+            markers.forEach(m => {
+                if (!m.latitude || !m.longitude) return;
+                const lat = parseFloat(m.latitude);
+                const lng = parseFloat(m.longitude);
+                if (isNaN(lat) || isNaN(lng)) return;
+
+                const status = (m.status || '').toLowerCase();
+                if (status === 'completed') return;
+
+                const nearest = findNearestRoad(lat, lng);
+                if (nearest.road && nearest.distance < THRESHOLD) {
+                    const roadName = nearest.road.name;
+                    const type = (m.report_type || '').toLowerCase();
+                    const severity = (m.severity || m.priority || 'low').toLowerCase();
+                    const isTraffic = trafficTypes.includes(type);
+                    const isConstruction = constructionTypes.includes(type);
+
+                    let level = 'clear';
+                    if (isConstruction) level = 'construction';
+                    else if (isTraffic && (severity === 'critical' || severity === 'high')) level = 'heavy';
+                    else if (isTraffic && severity === 'medium') level = 'moderate';
+                    else if (isTraffic) level = 'moderate';
+
+                    // Escalate: construction > heavy > moderate > clear
+                    const priority = { clear: 0, moderate: 1, heavy: 2, construction: 3 };
+                    if (priority[level] > priority[roadStatus[roadName].level]) {
+                        roadStatus[roadName].level = level;
+                    }
+                    roadStatus[roadName].reports.push(m);
+                }
+            });
+
+            // Draw the road lines
+            const roadColors = {
+                clear: '#22c55e',
+                moderate: '#eab308',
+                heavy: '#dc2626',
+                construction: '#f97316'
+            };
+
+            const roadWeights = {
+                clear: 4,
+                moderate: 5,
+                heavy: 6,
+                construction: 6
+            };
+
+            QC_ROADS.forEach(road => {
+                const status = roadStatus[road.name];
+                const color = roadColors[status.level];
+                const weight = roadWeights[status.level];
+
+                // Main road line
+                const polyline = L.polyline(road.coords, {
+                    color: color,
+                    weight: weight,
+                    opacity: 0.85,
+                    lineCap: 'round',
+                    lineJoin: 'round'
+                }).addTo(roadLinesLayer);
+
+                // Glow effect for heavy traffic and construction
+                if (status.level === 'heavy' || status.level === 'construction') {
+                    L.polyline(road.coords, {
+                        color: color,
+                        weight: weight + 6,
+                        opacity: 0.25,
+                        lineCap: 'round',
+                        lineJoin: 'round'
+                    }).addTo(roadLinesLayer);
+                }
+
+                // Road name label at midpoint
+                const midIdx = Math.floor(road.coords.length / 2);
+                const midCoord = road.coords[midIdx];
+
+                let popupHtml = '<div class="map-tooltip">' +
+                    '<div class="map-tooltip-title"><i class="fas fa-road"></i> ' + escHtml(road.name) + '</div>' +
+                    '<div style="margin:6px 0;"><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:' + color + ';margin-right:6px;vertical-align:middle;"></span>' +
+                    '<span style="font-size:12px;text-transform:uppercase;font-weight:600;">' + status.level + '</span></div>';
+
+                if (status.reports.length > 0) {
+                    popupHtml += '<div style="font-size:11px;color:rgba(255,255,255,0.6);">' + status.reports.length + ' report(s) on this road</div>';
+                    status.reports.slice(0, 3).forEach(r => {
+                        popupHtml += '<div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:4px;border-left:2px solid ' + color + ';padding-left:6px;">' +
+                            escHtml(r.title || 'Report') + ' (' + escHtml((r.severity || r.priority || '').toLowerCase()) + ')</div>';
+                    });
+                } else {
+                    popupHtml += '<div style="font-size:11px;color:rgba(255,255,255,0.5);">No active reports on this road</div>';
+                }
+                popupHtml += '</div>';
+
+                polyline.bindPopup(popupHtml, { maxWidth: 280 });
+
+                // Invisible wider line for easier clicking
+                L.polyline(road.coords, {
+                    color: 'transparent',
+                    weight: 14,
+                    opacity: 0
+                }).addTo(roadLinesLayer).bindPopup(popupHtml, { maxWidth: 280 });
+            });
+        }
+
         function escHtml(t) {
             const d = document.createElement('div');
             d.textContent = t || '';
             return d.innerHTML;
         }
 
-        // Get marker styling based on report type and severity
         function getMarkerStyle(report) {
             const type = (report.report_type || '').toLowerCase();
             const severity = (report.severity || report.priority || 'low').toLowerCase();
             const status = (report.status || '').toLowerCase();
-
             let color, iconClass, pulseClass, labelText;
 
             if (trafficTypes.includes(type)) {
-                // Traffic-related reports
-                if (severity === 'critical' || severity === 'high') {
-                    color = '#dc2626';
-                    iconClass = 'fa-car-crash';
-                    pulseClass = 'traffic-marker-pulse';
-                    labelText = 'Heavy Traffic';
-                } else if (severity === 'medium') {
-                    color = '#ef4444';
-                    iconClass = 'fa-car';
-                    pulseClass = 'traffic-marker-pulse';
-                    labelText = 'Traffic Alert';
-                } else {
-                    color = '#f59e0b';
-                    iconClass = 'fa-car';
-                    pulseClass = '';
-                    labelText = 'Minor Traffic';
-                }
+                if (severity === 'critical' || severity === 'high') { color = '#dc2626'; iconClass = 'fa-car-crash'; pulseClass = 'traffic-marker-pulse'; labelText = 'Heavy Traffic'; }
+                else if (severity === 'medium') { color = '#ef4444'; iconClass = 'fa-car'; pulseClass = 'traffic-marker-pulse'; labelText = 'Traffic Alert'; }
+                else { color = '#f59e0b'; iconClass = 'fa-car'; pulseClass = ''; labelText = 'Minor Traffic'; }
             } else if (constructionTypes.includes(type)) {
-                // Construction/road damage reports
-                color = '#f97316';
-                iconClass = 'fa-hard-hat';
-                pulseClass = 'construction-marker-glow';
-                labelText = 'Construction Zone';
+                color = '#f97316'; iconClass = 'fa-hard-hat'; pulseClass = 'construction-marker-glow'; labelText = 'Construction Zone';
             } else {
-                // Other reports
-                if (severity === 'critical' || severity === 'high') {
-                    color = '#dc2626';
-                    iconClass = 'fa-exclamation-triangle';
-                    pulseClass = '';
-                    labelText = 'Critical Issue';
-                } else if (severity === 'medium') {
-                    color = '#ffc107';
-                    iconClass = 'fa-info-circle';
-                    pulseClass = '';
-                    labelText = 'Report';
-                } else {
-                    color = '#6b757d';
-                    iconClass = 'fa-map-pin';
-                    pulseClass = '';
-                    labelText = 'Low Priority';
-                }
+                if (severity === 'critical' || severity === 'high') { color = '#dc2626'; iconClass = 'fa-exclamation-triangle'; pulseClass = ''; labelText = 'Critical Issue'; }
+                else if (severity === 'medium') { color = '#ffc107'; iconClass = 'fa-info-circle'; pulseClass = ''; labelText = 'Report'; }
+                else { color = '#6b757d'; iconClass = 'fa-map-pin'; pulseClass = ''; labelText = 'Low Priority'; }
             }
 
-            // Dim completed reports
-            if (status === 'completed') {
-                color = '#4b5563';
-                pulseClass = '';
-                labelText += ' (Resolved)';
-            }
-
+            if (status === 'completed') { color = '#4b5563'; pulseClass = ''; labelText += ' (Resolved)'; }
             return { color, iconClass, pulseClass, labelText };
         }
 
-        // Load markers from server
         function loadPublicMarkers(filter) {
             filter = filter || publicActiveFilter;
             reportLayer.clearLayers();
@@ -2048,12 +2190,10 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         const isTraffic = trafficTypes.includes(type);
                         const isConstruction = constructionTypes.includes(type);
 
-                        // Count categories
                         if (isTraffic) trafficCount++;
                         if (isConstruction) constructionCount++;
                         if (severity === 'critical' || severity === 'high') criticalCount++;
 
-                        // Apply filter
                         if (filter !== 'all') {
                             if (filter === 'traffic' && !isTraffic) return;
                             if (filter === 'construction' && !isConstruction) return;
@@ -2063,10 +2203,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         const style = getMarkerStyle(m);
                         const markerIcon = L.divIcon({
                             html: '<div class="' + style.pulseClass + '" style="background:' + style.color + ';color:#fff;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-size:13px;border:2.5px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.35);cursor:pointer;"><i class="fas ' + style.iconClass + '"></i></div>',
-                            className: '',
-                            iconSize: [30, 30],
-                            iconAnchor: [15, 15],
-                            popupAnchor: [0, -18]
+                            className: '', iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -18]
                         });
 
                         const popupContent = '<div class="map-tooltip">' +
@@ -2088,20 +2225,17 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         allMarkers.push({ marker, data: m, isTraffic, isConstruction, severity });
                     });
 
-                    // Update stats
+                    // Draw colored road lines
+                    drawRoadLines(markers);
+
                     document.getElementById('statTrafficCount').textContent = trafficCount;
                     document.getElementById('statConstructionCount').textContent = constructionCount;
                     document.getElementById('statTotalReports').textContent = markers.length;
                     const totalActive = markers.filter(m => m.status !== 'completed').length;
                     document.getElementById('statClearRoads').textContent = Math.max(0, markers.length - totalActive);
 
-                    // Update traffic alert banner
                     updateTrafficAlertBanner(markers);
-
-                    // Show traffic toast notifications for critical items
                     showTrafficToasts(markers);
-
-                    // Hide loading overlay
                     document.getElementById('publicMapLoading').style.display = 'none';
                 })
                 .catch(e => {
@@ -2111,7 +2245,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 });
         }
 
-        // Update the traffic alert banner
         function updateTrafficAlertBanner(markers) {
             const banner = document.getElementById('trafficAlertBanner');
             const text = document.getElementById('trafficAlertText');
@@ -2132,12 +2265,8 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 banner.classList.add('active');
                 let msg = '<strong>TRAFFIC ALERT:</strong> ';
                 const parts = [];
-                if (criticalTraffic.length > 0) {
-                    parts.push(criticalTraffic.length + ' critical traffic incident' + (criticalTraffic.length > 1 ? 's' : '') + ' detected');
-                }
-                if (activeConstructions.length > 0) {
-                    parts.push(activeConstructions.length + ' active construction zone' + (activeConstructions.length > 1 ? 's' : ''));
-                }
+                if (criticalTraffic.length > 0) parts.push(criticalTraffic.length + ' critical traffic incident' + (criticalTraffic.length > 1 ? 's' : '') + ' detected');
+                if (activeConstructions.length > 0) parts.push(activeConstructions.length + ' active construction zone' + (activeConstructions.length > 1 ? 's' : ''));
                 msg += parts.join(' &bull; ');
                 text.innerHTML = msg;
             } else {
@@ -2145,11 +2274,9 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             }
         }
 
-        // Variable to track last shown toasts (prevent spam)
         let lastToastTime = 0;
-        const TOAST_COOLDOWN = 60000; // 1 minute cooldown between toast batches
+        const TOAST_COOLDOWN = 30000;
 
-        // Show toast notifications for critical traffic/construction
         function showTrafficToasts(markers) {
             const now = Date.now();
             if (now - lastToastTime < TOAST_COOLDOWN) return;
@@ -2177,16 +2304,11 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                     '</div>' +
                     '<button class="traffic-toast-close" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>';
                 container.appendChild(toast);
-
                 setTimeout(() => toast.classList.add('show'), 100 + (i * 200));
-                setTimeout(() => {
-                    toast.classList.remove('show');
-                    setTimeout(() => toast.remove(), 400);
-                }, 5000 + (i * 1000));
+                setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 400); }, 5000 + (i * 1000));
             });
         }
 
-        // Filter map markers
         window.filterPublicMap = function(filter) {
             publicActiveFilter = filter;
             document.querySelectorAll('.gis-filter-btn').forEach(b => b.classList.remove('active'));
@@ -2195,7 +2317,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             loadPublicMarkers(filter);
         };
 
-        // Toggle fullscreen
         window.togglePublicMapFullscreen = function() {
             publicFullscreen = !publicFullscreen;
             document.getElementById('publicMapBody').classList.toggle('expanded', publicFullscreen);
@@ -2204,25 +2325,18 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             setTimeout(() => publicMap.invalidateSize(), 350);
         };
 
-        // Start auto-refresh
         function startPublicAutoRefresh() {
             if (publicAutoRefreshInterval) clearInterval(publicAutoRefreshInterval);
             publicAutoRefreshInterval = setInterval(() => {
                 loadPublicMarkers(publicActiveFilter);
-            }, 30000);
+            }, 5000); // 5 seconds refresh
         }
 
-        // Initialize on DOM ready
         loadPublicMarkers('all');
         startPublicAutoRefresh();
 
-        // Refresh map when section scrolls into view
         const mapObserver = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    setTimeout(() => publicMap.invalidateSize(), 200);
-                }
-            });
+            entries.forEach(entry => { if (entry.isIntersecting) setTimeout(() => publicMap.invalidateSize(), 200); });
         }, { threshold: 0.1 });
         mapObserver.observe(document.getElementById('publicMap'));
     })();
