@@ -158,6 +158,11 @@ define('SALT_LENGTH', 32);
 define('MAX_FILE_SIZE', 5 * 1024 * 1024); // 5MB
 define('ALLOWED_FILE_TYPES', ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'jpg', 'jpeg', 'png']);
 
+// Google Maps API Key
+// Get your key from: https://console.cloud.google.com/apis/credentials
+// Enable "Maps JavaScript API" in APIs & Services > Library
+define('GOOGLE_MAPS_API_KEY', '');
+
 // Pagination settings
 define('ITEMS_PER_PAGE', 20);
 

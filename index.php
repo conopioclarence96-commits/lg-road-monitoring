@@ -1558,7 +1558,8 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
     <!-- Google Maps JavaScript API -->
     <script>
-        // Road reports data from PHP
+        const GOOGLE_MAPS_KEY = '<?php echo defined('GOOGLE_MAPS_API_KEY') ? GOOGLE_MAPS_API_KEY : ''; ?>';
+
         const mapReports = <?php echo json_encode(array_map(function($r) {
             return [
                 'id' => $r['id'],
@@ -1576,9 +1577,17 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             ];
         }, $map_reports)); ?>;
     </script>
+    <?php if (defined('GOOGLE_MAPS_API_KEY') && GOOGLE_MAPS_API_KEY !== ''): ?>
     <script async defer
-        src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&callback=initGISMap&libraries=geometry,places,visualization&v=weekly">
+        src="https://maps.googleapis.com/maps/api/js?key=<?php echo GOOGLE_MAPS_API_KEY; ?>&callback=initGISMap&libraries=geometry,places,visualization&v=weekly">
     </script>
+    <?php else: ?>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            initGISMap();
+        });
+    </script>
+    <?php endif; ?>
     <script>
         let gisMap, trafficLayer, streetViewPanorama, activeInfoWindow;
         let terrainEnabled = false, satelliteEnabled = false, trafficEnabled = true;
@@ -1587,13 +1596,24 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         const QC_CENTER = { lat: 14.6500, lng: 121.0500 };
 
         function initGISMap() {
-            // Default map type
-            const mapTypeIds = {
-                roadmap: 'roadmap',
-                satellite: 'satellite',
-                terrain: 'terrain',
-                hybrid: 'hybrid'
-            };
+            if (!GOOGLE_MAPS_KEY || GOOGLE_MAPS_KEY === '') {
+                document.getElementById('gis-map').innerHTML = `
+                    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;background:linear-gradient(135deg,#f0f4f8,#e2e8f0);padding:40px;text-align:center;">
+                        <i class="fas fa-map-marked-alt" style="font-size:3rem;color:#1e3c72;margin-bottom:16px;"></i>
+                        <h4 style="color:#1e3c72;margin-bottom:8px;">Google Maps API Key Required</h4>
+                        <p style="color:#666;max-width:400px;margin-bottom:16px;">To display the interactive GIS map, set your API key in <code>lgu_staff/includes/config.php</code></p>
+                        <div style="background:white;padding:16px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.1);max-width:450px;text-align:left;">
+                            <p style="margin:0 0 8px;font-weight:600;color:#1e3c72;">Setup Steps:</p>
+                            <ol style="margin:0;padding-left:20px;color:#555;font-size:0.85rem;">
+                                <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console</a></li>
+                                <li>Create an API key under Credentials</li>
+                                <li>Enable <strong>Maps JavaScript API</strong></li>
+                                <li>Add the key to <code>config.php</code>:<br><code style="background:#f0f0f0;padding:2px 6px;border-radius:4px;">define('GOOGLE_MAPS_API_KEY', 'YOUR_KEY_HERE');</code></li>
+                            </ol>
+                        </div>
+                    </div>`;
+                return;
+            }
 
             gisMap = new google.maps.Map(document.getElementById('gis-map'), {
                 center: QC_CENTER,
