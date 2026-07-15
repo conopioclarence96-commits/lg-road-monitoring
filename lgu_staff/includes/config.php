@@ -161,7 +161,7 @@ define('ALLOWED_FILE_TYPES', ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'jpg',
 // Google Maps API Key
 // Get your key from: https://console.cloud.google.com/apis/credentials
 // Enable "Maps JavaScript API" in APIs & Services > Library
-define('GOOGLE_MAPS_API_KEY', '');
+define('GOOGLE_MAPS_API_KEY', 'AIzaSyC8YEmmPXEJEi5YsTToD4e1Ks9EUV4ihPc');
 
 // Pagination settings
 define('ITEMS_PER_PAGE', 20);
