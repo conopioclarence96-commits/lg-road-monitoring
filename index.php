@@ -1968,51 +1968,106 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         const trafficTypes = ['traffic_jam', 'accident', 'road_closure', 'traffic_light_outage', 'congestion', 'parking_violation', 'public_transport_issue'];
         const constructionTypes = ['potholes', 'road_damage', 'cracks', 'erosion', 'flooding', 'debris', 'shoulder_damage', 'marking_fade'];
 
-        // Major Quezon City road segments with coordinate points
-        const QC_ROADS = [
-            { name: 'EDSA', coords: [[14.5355,121.0535],[14.5470,121.0560],[14.5600,121.0580],[14.5735,121.0570],[14.5860,121.0555],[14.5965,121.0535],[14.6055,121.0520],[14.6155,121.0515],[14.6255,121.0530],[14.6350,121.0555],[14.6440,121.0585],[14.6530,121.0620],[14.6620,121.0665],[14.6710,121.0710]] },
-            { name: 'Commonwealth Avenue', coords: [[14.6435,121.0765],[14.6505,121.0810],[14.6575,121.0860],[14.6650,121.0920],[14.6730,121.0980],[14.6800,121.1040],[14.6870,121.1100],[14.6940,121.1160],[14.7010,121.1220],[14.7085,121.1275],[14.7160,121.1320]] },
-            { name: 'Quezon Avenue', coords: [[14.6280,121.0350],[14.6340,121.0370],[14.6400,121.0390],[14.6460,121.0410],[14.6520,121.0435],[14.6580,121.0460],[14.6640,121.0485],[14.6700,121.0510],[14.6755,121.0530]] },
-            { name: 'C-5 Road', coords: [[14.5750,121.0800],[14.5850,121.0830],[14.5950,121.0860],[14.6050,121.0890],[14.6150,121.0920],[14.6250,121.0950],[14.6350,121.0980],[14.6450,121.1010],[14.6550,121.1040],[14.6650,121.1070],[14.6750,121.1100],[14.6850,121.1130],[14.6950,121.1160]] },
-            { name: 'Elliptical Road', coords: [[14.6510,121.0485],[14.6540,121.0530],[14.6560,121.0580],[14.6555,121.0630],[14.6530,121.0670],[14.6495,121.0695],[14.6455,121.0690],[14.6425,121.0660],[14.6410,121.0615],[14.6420,121.0570],[14.6450,121.0525],[14.6485,121.0495]] },
-            { name: 'Araneta Avenue', coords: [[14.6170,121.0305],[14.6230,121.0310],[14.6290,121.0320],[14.6350,121.0335],[14.6410,121.0355],[14.6470,121.0380],[14.6530,121.0405],[14.6590,121.0430],[14.6650,121.0455]] },
-            { name: 'Tandang Sora Avenue', coords: [[14.6440,121.0440],[14.6480,121.0490],[14.6520,121.0540],[14.6560,121.0590],[14.6600,121.0640],[14.6640,121.0690],[14.6680,121.0740],[14.6720,121.0790]] },
-            { name: 'Visayas Avenue', coords: [[14.6520,121.0370],[14.6540,121.0420],[14.6555,121.0470],[14.6565,121.0520],[14.6570,121.0570],[14.6570,121.0620],[14.6565,121.0670],[14.6555,121.0720],[14.6540,121.0770]] },
-            { name: 'Mindanao Avenue', coords: [[14.6580,121.0380],[14.6600,121.0430],[14.6615,121.0480],[14.6625,121.0530],[14.6630,121.0580],[14.6630,121.0630],[14.6625,121.0680],[14.6615,121.0730]] },
-            { name: 'North Avenue', coords: [[14.6565,121.0310],[14.6570,121.0360],[14.6575,121.0410],[14.6578,121.0460],[14.6580,121.0510],[14.6580,121.0560],[14.6578,121.0610]] },
-            { name: 'Timog Avenue', coords: [[14.6385,121.0280],[14.6390,121.0330],[14.6395,121.0380],[14.6400,121.0430],[14.6405,121.0480],[14.6410,121.0530],[14.6415,121.0580]] },
-            { name: 'East Avenue', coords: [[14.6505,121.0530],[14.6510,121.0580],[14.6515,121.0630],[14.6520,121.0680],[14.6525,121.0730],[14.6530,121.0780],[14.6535,121.0830]] },
-            { name: 'Gilmore Avenue', coords: [[14.6280,121.0420],[14.6320,121.0440],[14.6360,121.0460],[14.6400,121.0480],[14.6440,121.0500],[14.6480,121.0520],[14.6520,121.0540],[14.6560,121.0560],[14.6600,121.0580]] },
-            { name: 'Katipunan Avenue', coords: [[14.6360,121.0680],[14.6400,121.0710],[14.6440,121.0740],[14.6480,121.0770],[14.6520,121.0800],[14.6560,121.0830],[14.6600,121.0860],[14.6640,121.0890],[14.6680,121.0920],[14.6720,121.0950]] },
-            { name: 'Roxas Boulevard', coords: [[14.5520,121.0050],[14.5600,121.0080],[14.5680,121.0110],[14.5760,121.0140],[14.5840,121.0170],[14.5920,121.0200],[14.6000,121.0230]] },
-            { name: 'Diosdado Macapagal Blvd', coords: [[14.5530,121.0380],[14.5600,121.0400],[14.5670,121.0420],[14.5740,121.0440],[14.5810,121.0460],[14.5880,121.0480],[14.5950,121.0500]] },
-            { name: 'MCTH (Mother Ignacia Ave)', coords: [[14.6420,121.0240],[14.6430,121.0290],[14.6440,121.0340],[14.6450,121.0390],[14.6460,121.0440],[14.6470,121.0490]] },
-            { name: 'NIA Road', coords: [[14.6360,121.0440],[14.6370,121.0490],[14.6380,121.0540],[14.6390,121.0590],[14.6400,121.0640]] },
-            { name: 'Banawe Street', coords: [[14.6240,121.0260],[14.6280,121.0280],[14.6320,121.0300],[14.6360,121.0320],[14.6400,121.0340],[14.6440,121.0360],[14.6480,121.0380]] },
-            { name: 'P. Tuazon Blvd', coords: [[14.6180,121.0380],[14.6210,121.0410],[14.6240,121.0440],[14.6270,121.0470],[14.6300,121.0500]] },
-            { name: 'Cubao-P. Tuazon', coords: [[14.6220,121.0460],[14.6250,121.0490],[14.6280,121.0520],[14.6310,121.0550],[14.6340,121.0580],[14.6370,121.0610]] }
-        ];
+        // Store for real road data fetched from Overpass API
+        let realRoads = [];
+        let roadsLoaded = false;
+        let roadsLoading = false;
 
-        // Find nearest road to a point and distance
+        // QC bounding box for Overpass query: south,west,north,east
+        const OVERPASS_BOX = '14.55,120.95,14.78,121.15';
+
+        // Fetch real road geometry from OpenStreetMap Overpass API
+        function fetchRealRoads() {
+            if (roadsLoading || roadsLoaded) return;
+            roadsLoading = true;
+
+            const query = `[out:json][timeout:30];
+(
+  way["highway"~"motorway|primary|secondary|tertiary|trunk"]["name"](${OVERPASS_BOX});
+);
+out body;
+>;
+out skel qt;`;
+
+            fetch('https://overpass-api.de/api/interpreter', {
+                method: 'POST',
+                body: 'data=' + encodeURIComponent(query),
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+            })
+            .then(r => r.json())
+            .then(data => {
+                // Build node lookup
+                const nodes = {};
+                data.elements.forEach(el => {
+                    if (el.type === 'node') nodes[el.id] = [el.lat, el.lon];
+                });
+
+                // Extract road ways with coordinates
+                const roads = [];
+                data.elements.filter(el => el.type === 'way' && el.tags && el.tags.name).forEach(way => {
+                    const coords = way.nodes
+                        .map(nid => nodes[nid])
+                        .filter(c => c);
+                    if (coords.length >= 2) {
+                        roads.push({
+                            id: way.id,
+                            name: way.tags.name,
+                            highway: way.tags.highway,
+                            coords: coords
+                        });
+                    }
+                });
+
+                realRoads = roads;
+                roadsLoaded = true;
+                roadsLoading = false;
+
+                // Cache in localStorage
+                try {
+                    localStorage.setItem('qc_roads_cache', JSON.stringify(roads));
+                    localStorage.setItem('qc_roads_cache_time', Date.now().toString());
+                } catch(e) {}
+
+                console.log('Loaded ' + roads.length + ' real roads from OpenStreetMap');
+            })
+            .catch(err => {
+                console.error('Overpass API error:', err);
+                roadsLoading = false;
+                // Try loading from cache
+                loadCachedRoads();
+            });
+        }
+
+        // Load roads from localStorage cache
+        function loadCachedRoads() {
+            try {
+                const cached = localStorage.getItem('qc_roads_cache');
+                const cacheTime = parseInt(localStorage.getItem('qc_roads_cache_time') || '0');
+                if (cached && (Date.now() - cacheTime < 86400000)) { // 24h cache
+                    realRoads = JSON.parse(cached);
+                    roadsLoaded = true;
+                    console.log('Loaded ' + realRoads.length + ' roads from cache');
+                }
+            } catch(e) {}
+        }
+
+        // Find nearest road segment to a point
         function findNearestRoad(lat, lng) {
             let bestDist = Infinity;
             let bestRoad = null;
-            let bestSegIndex = 0;
 
-            for (const road of QC_ROADS) {
+            for (const road of realRoads) {
                 for (let i = 0; i < road.coords.length - 1; i++) {
                     const dist = pointToSegmentDistance(lat, lng, road.coords[i], road.coords[i + 1]);
                     if (dist < bestDist) {
                         bestDist = dist;
                         bestRoad = road;
-                        bestSegIndex = i;
                     }
                 }
             }
-            return { road: bestRoad, distance: bestDist, segIndex: bestSegIndex };
+            return { road: bestRoad, distance: bestDist };
         }
 
-        // Distance from point to line segment
         function pointToSegmentDistance(px, py, a, b) {
             const dx = b[0] - a[0];
             const dy = b[1] - a[1];
@@ -2025,16 +2080,18 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             return Math.sqrt((px - projX) ** 2 + (py - projY) ** 2);
         }
 
-        // Draw colored road lines based on report data
+        // Draw colored road lines using real OSM data
         function drawRoadLines(markers) {
             roadLinesLayer.clearLayers();
 
+            if (!roadsLoaded || realRoads.length === 0) return;
+
             // Track worst status per road
             const roadStatus = {};
-            QC_ROADS.forEach(r => { roadStatus[r.name] = { level: 'clear', reports: [] }; });
+            realRoads.forEach(r => { roadStatus[r.id] = { level: 'clear', reports: [], name: r.name }; });
 
-            // Match reports to nearest roads (within 300m threshold)
-            const THRESHOLD = 0.003; // ~300m in degrees
+            // Match reports to nearest roads (within ~300m)
+            const THRESHOLD = 0.0027; // ~300m in lat/lng degrees
             markers.forEach(m => {
                 if (!m.latitude || !m.longitude) return;
                 const lat = parseFloat(m.latitude);
@@ -2046,7 +2103,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
                 const nearest = findNearestRoad(lat, lng);
                 if (nearest.road && nearest.distance < THRESHOLD) {
-                    const roadName = nearest.road.name;
+                    const roadId = nearest.road.id;
                     const type = (m.report_type || '').toLowerCase();
                     const severity = (m.severity || m.priority || 'low').toLowerCase();
                     const isTraffic = trafficTypes.includes(type);
@@ -2055,37 +2112,47 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                     let level = 'clear';
                     if (isConstruction) level = 'construction';
                     else if (isTraffic && (severity === 'critical' || severity === 'high')) level = 'heavy';
-                    else if (isTraffic && severity === 'medium') level = 'moderate';
                     else if (isTraffic) level = 'moderate';
 
-                    // Escalate: construction > heavy > moderate > clear
                     const priority = { clear: 0, moderate: 1, heavy: 2, construction: 3 };
-                    if (priority[level] > priority[roadStatus[roadName].level]) {
-                        roadStatus[roadName].level = level;
+                    if (priority[level] > priority[roadStatus[roadId].level]) {
+                        roadStatus[roadId].level = level;
                     }
-                    roadStatus[roadName].reports.push(m);
+                    roadStatus[roadId].reports.push(m);
                 }
             });
 
-            // Draw the road lines
-            const roadColors = {
-                clear: '#22c55e',
-                moderate: '#eab308',
-                heavy: '#dc2626',
-                construction: '#f97316'
-            };
+            // Color scheme
+            const roadColors = { clear: '#22c55e', moderate: '#eab308', heavy: '#dc2626', construction: '#f97316' };
+            const roadWeights = { clear: 3, moderate: 4, heavy: 5, construction: 5 };
 
-            const roadWeights = {
-                clear: 4,
-                moderate: 5,
-                heavy: 6,
-                construction: 6
-            };
+            // Group road segments by name to merge them
+            const roadsByName = {};
+            realRoads.forEach(r => {
+                const name = r.name;
+                if (!roadsByName[name]) roadsByName[name] = [];
+                roadsByName[name].push(r);
+            });
 
-            QC_ROADS.forEach(road => {
-                const status = roadStatus[road.name];
-                const color = roadColors[status.level];
-                const weight = roadWeights[status.level];
+            // Determine worst status across all segments with same name
+            const nameStatus = {};
+            Object.keys(roadsByName).forEach(name => {
+                let worstLevel = 'clear';
+                let allReports = [];
+                const priority = { clear: 0, moderate: 1, heavy: 2, construction: 3 };
+                roadsByName[name].forEach(road => {
+                    const st = roadStatus[road.id];
+                    if (priority[st.level] > priority[worstLevel]) worstLevel = st.level;
+                    allReports = allReports.concat(st.reports);
+                });
+                nameStatus[name] = { level: worstLevel, reports: allReports };
+            });
+
+            // Draw each road segment
+            realRoads.forEach(road => {
+                const st = roadStatus[road.id];
+                const color = roadColors[st.level];
+                const weight = roadWeights[st.level];
 
                 // Main road line
                 const polyline = L.polyline(road.coords, {
@@ -2096,34 +2163,32 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                     lineJoin: 'round'
                 }).addTo(roadLinesLayer);
 
-                // Glow effect for heavy traffic and construction
-                if (status.level === 'heavy' || status.level === 'construction') {
+                // Glow for heavy/construction
+                if (st.level === 'heavy' || st.level === 'construction') {
                     L.polyline(road.coords, {
                         color: color,
-                        weight: weight + 6,
-                        opacity: 0.25,
+                        weight: weight + 5,
+                        opacity: 0.2,
                         lineCap: 'round',
                         lineJoin: 'round'
                     }).addTo(roadLinesLayer);
                 }
 
-                // Road name label at midpoint
-                const midIdx = Math.floor(road.coords.length / 2);
-                const midCoord = road.coords[midIdx];
-
+                // Popup
+                const ns = nameStatus[road.name] || st;
                 let popupHtml = '<div class="map-tooltip">' +
                     '<div class="map-tooltip-title"><i class="fas fa-road"></i> ' + escHtml(road.name) + '</div>' +
-                    '<div style="margin:6px 0;"><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:' + color + ';margin-right:6px;vertical-align:middle;"></span>' +
-                    '<span style="font-size:12px;text-transform:uppercase;font-weight:600;">' + status.level + '</span></div>';
+                    '<div style="margin:6px 0;"><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:' + roadColors[ns.level] + ';margin-right:6px;vertical-align:middle;"></span>' +
+                    '<span style="font-size:12px;text-transform:uppercase;font-weight:600;">' + ns.level + '</span></div>';
 
-                if (status.reports.length > 0) {
-                    popupHtml += '<div style="font-size:11px;color:rgba(255,255,255,0.6);">' + status.reports.length + ' report(s) on this road</div>';
-                    status.reports.slice(0, 3).forEach(r => {
-                        popupHtml += '<div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:4px;border-left:2px solid ' + color + ';padding-left:6px;">' +
-                            escHtml(r.title || 'Report') + ' (' + escHtml((r.severity || r.priority || '').toLowerCase()) + ')</div>';
+                if (ns.reports.length > 0) {
+                    popupHtml += '<div style="font-size:11px;color:rgba(255,255,255,0.6);">' + ns.reports.length + ' report(s)</div>';
+                    ns.reports.slice(0, 3).forEach(r => {
+                        popupHtml += '<div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:4px;border-left:2px solid ' + roadColors[ns.level] + ';padding-left:6px;">' +
+                            escHtml(r.title || 'Report') + '</div>';
                     });
                 } else {
-                    popupHtml += '<div style="font-size:11px;color:rgba(255,255,255,0.5);">No active reports on this road</div>';
+                    popupHtml += '<div style="font-size:11px;color:rgba(255,255,255,0.5);">Clear - No active reports</div>';
                 }
                 popupHtml += '</div>';
 
@@ -2131,9 +2196,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
                 // Invisible wider line for easier clicking
                 L.polyline(road.coords, {
-                    color: 'transparent',
-                    weight: 14,
-                    opacity: 0
+                    color: 'transparent', weight: 14, opacity: 0
                 }).addTo(roadLinesLayer).bindPopup(popupHtml, { maxWidth: 280 });
             });
         }
@@ -2176,7 +2239,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 .then(markers => {
                     let trafficCount = 0;
                     let constructionCount = 0;
-                    let criticalCount = 0;
 
                     markers.forEach(m => {
                         if (!m.latitude || !m.longitude) return;
@@ -2186,13 +2248,11 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
                         const type = (m.report_type || '').toLowerCase();
                         const severity = (m.severity || m.priority || 'low').toLowerCase();
-                        const status = (m.status || '').toLowerCase();
                         const isTraffic = trafficTypes.includes(type);
                         const isConstruction = constructionTypes.includes(type);
 
                         if (isTraffic) trafficCount++;
                         if (isConstruction) constructionCount++;
-                        if (severity === 'critical' || severity === 'high') criticalCount++;
 
                         if (filter !== 'all') {
                             if (filter === 'traffic' && !isTraffic) return;
@@ -2213,7 +2273,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                             '<span class="map-tooltip-badge ' + severity + '">' + escHtml(severity.toUpperCase()) + '</span>' +
                             (isTraffic ? '<span class="map-tooltip-badge" style="background:rgba(220,38,38,0.2);color:#fca5a5;"><i class="fas fa-car"></i> TRAFFIC</span>' : '') +
                             (isConstruction ? '<span class="map-tooltip-badge" style="background:rgba(249,115,22,0.2);color:#fed7aa;"><i class="fas fa-hard-hat"></i> CONSTRUCTION</span>' : '') +
-                            '<span style="font-size:11px;color:rgba(255,255,255,0.5);margin-left:auto;">' + escHtml(status) + '</span>' +
+                            '<span style="font-size:11px;color:rgba(255,255,255,0.5);margin-left:auto;">' + escHtml((m.status || '')) + '</span>' +
                             '</div>' +
                             (m.location ? '<div style="margin-top:6px;font-size:11px;color:rgba(255,255,255,0.4);"><i class="fas fa-map-marker-alt"></i> ' + escHtml(m.location) + '</div>' : '') +
                             '</div>';
@@ -2225,7 +2285,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         allMarkers.push({ marker, data: m, isTraffic, isConstruction, severity });
                     });
 
-                    // Draw colored road lines
                     drawRoadLines(markers);
 
                     document.getElementById('statTrafficCount').textContent = trafficCount;
@@ -2329,9 +2388,12 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             if (publicAutoRefreshInterval) clearInterval(publicAutoRefreshInterval);
             publicAutoRefreshInterval = setInterval(() => {
                 loadPublicMarkers(publicActiveFilter);
-            }, 5000); // 5 seconds refresh
+            }, 5000);
         }
 
+        // Init: try cached roads first, then fetch fresh
+        loadCachedRoads();
+        fetchRealRoads();
         loadPublicMarkers('all');
         startPublicAutoRefresh();
 
