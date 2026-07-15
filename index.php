@@ -167,6 +167,22 @@ if ($database_available && $conn) {
     }
 }
 
+// Get road reports with coordinates for GIS map
+$map_reports = [];
+if ($database_available && $conn) {
+    try {
+        $map_stmt = $conn->prepare("SELECT id, title, description, report_type, status, priority, latitude, longitude, location, reported_date, image_path, attachments FROM road_transportation_reports WHERE latitude IS NOT NULL AND longitude IS NOT NULL ORDER BY reported_date DESC LIMIT 50");
+        $map_stmt->execute();
+        $map_result = $map_stmt->get_result();
+        while ($row = $map_result->fetch_assoc()) {
+            $map_reports[] = $row;
+        }
+        $map_stmt->close();
+    } catch (Exception $e) {
+        $map_reports = [];
+    }
+}
+
 // Load access control settings
 $access_settings = [];
 if ($database_available && $conn) {
@@ -693,6 +709,243 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             color: #ccc;
         }
 
+        /* GIS Map Section */
+        .gis-map-section {
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+            padding: 80px 0;
+        }
+
+        #gis-map-container {
+            position: relative;
+            width: 100%;
+            height: 550px;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.18);
+            border: 3px solid var(--primary-color);
+        }
+
+        #gis-map {
+            width: 100%;
+            height: 100%;
+        }
+
+        .map-controls-panel {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .map-control-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            background: white;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            cursor: pointer;
+            font-family: 'Poppins', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--primary-color);
+            box-shadow: 0 3px 10px rgba(0,0,0,0.12);
+            transition: all 0.25s ease;
+            white-space: nowrap;
+        }
+
+        .map-control-btn:hover {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+            transform: translateY(-1px);
+            box-shadow: 0 5px 15px rgba(30, 60, 114, 0.3);
+        }
+
+        .map-control-btn.active {
+            background: var(--accent-color);
+            color: white;
+            border-color: var(--accent-color);
+        }
+
+        .map-control-btn i {
+            font-size: 1rem;
+            width: 18px;
+            text-align: center;
+        }
+
+        .map-legend {
+            position: absolute;
+            bottom: 15px;
+            left: 15px;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 10px;
+            padding: 12px 16px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.12);
+            font-size: 0.8rem;
+        }
+
+        .map-legend h6 {
+            margin: 0 0 8px 0;
+            font-weight: 600;
+            color: var(--primary-color);
+            font-size: 0.85rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            border: 2px solid white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+
+        .map-info-panel {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 10px;
+            padding: 12px 16px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.12);
+            max-width: 220px;
+            font-size: 0.8rem;
+        }
+
+        .map-info-panel h6 {
+            margin: 0 0 6px 0;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .map-info-panel p {
+            margin: 0;
+            color: #666;
+        }
+
+        .pin-form-overlay {
+            display: none;
+            position: absolute;
+            bottom: 15px;
+            right: 15px;
+            z-index: 20;
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+            width: 300px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .pin-form-overlay.show {
+            display: block;
+        }
+
+        .pin-form-overlay h5 {
+            margin: 0 0 12px 0;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .pin-form-overlay .form-control,
+        .pin-form-overlay .form-select {
+            font-size: 0.85rem;
+            padding: 8px 10px;
+            border-radius: 8px;
+        }
+
+        .pin-form-overlay .btn-submit-pin {
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            width: 100%;
+        }
+
+        .pin-form-overlay .btn-submit-pin:hover {
+            background: #45a049;
+        }
+
+        .streetview-overlay {
+            display: none;
+            position: absolute;
+            inset: 0;
+            z-index: 25;
+            background: #000;
+            border-radius: 16px;
+        }
+
+        .streetview-overlay.show {
+            display: block;
+        }
+
+        .streetview-close-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            z-index: 30;
+            background: white;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        @media (max-width: 768px) {
+            #gis-map-container {
+                height: 400px;
+                border-radius: 12px;
+            }
+
+            .map-controls-panel {
+                top: 10px;
+                left: 10px;
+            }
+
+            .map-control-btn {
+                padding: 8px 12px;
+                font-size: 0.75rem;
+            }
+
+            .map-legend {
+                bottom: 10px;
+                left: 10px;
+                padding: 8px 12px;
+            }
+
+            .pin-form-overlay {
+                width: calc(100% - 20px);
+                left: 10px;
+                right: 10px;
+                bottom: 10px;
+            }
+        }
+
     </style>
     <?php include __DIR__ . '/includes/a11y_css.php'; ?>
 </head>
@@ -783,6 +1036,116 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 <a href="road-updates.php" class="btn btn-secondary-hero btn-hero">
                     <i class="fas fa-newspaper"></i> Latest Updates
                 </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- GIS Road Map Section -->
+    <section class="gis-map-section" id="gis-map-section">
+        <div class="container">
+            <h2 class="section-title">Interactive Road Map</h2>
+            <p class="section-subtitle">Explore road conditions with live traffic, terrain view, and street-level inspection</p>
+
+            <div id="gis-map-container">
+                <div id="gis-map"></div>
+
+                <!-- Map Control Panel -->
+                <div class="map-controls-panel">
+                    <button class="map-control-btn active" id="btn-traffic" onclick="toggleTraffic()" title="Toggle live traffic layer">
+                        <i class="fas fa-traffic-light"></i> Live Traffic
+                    </button>
+                    <button class="map-control-btn" id="btn-terrain" onclick="toggleTerrain()" title="Switch to terrain view">
+                        <i class="fas fa-mountain"></i> Terrain
+                    </button>
+                    <button class="map-control-btn" id="btn-streetview" onclick="activateStreetView()" title="Enter first-person street view">
+                        <i class="fas fa-street-view"></i> Street View
+                    </button>
+                    <button class="map-control-btn" id="btn-pinning" onclick="togglePinningMode()" title="Click on road to pin a location">
+                        <i class="fas fa-map-pin"></i> Pin Road
+                    </button>
+                    <button class="map-control-btn" id="btn-satellite" onclick="toggleSatellite()" title="Toggle satellite view">
+                        <i class="fas fa-satellite"></i> Satellite
+                    </button>
+                </div>
+
+                <!-- Map Legend -->
+                <div class="map-legend">
+                    <h6><i class="fas fa-info-circle"></i> Report Status</h6>
+                    <div class="legend-item">
+                        <span class="legend-dot" style="background: #dc3545;"></span>
+                        <span>Critical / High</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-dot" style="background: #ffc107;"></span>
+                        <span>Medium</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-dot" style="background: #28a745;"></span>
+                        <span>Low / Resolved</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-dot" style="background: #6c757d;"></span>
+                        <span>Pending</span>
+                    </div>
+                </div>
+
+                <!-- Map Info Panel -->
+                <div class="map-info-panel" id="map-info-panel">
+                    <h6><i class="fas fa-map-marked-alt"></i> Click Actions</h6>
+                    <p id="map-click-hint">Click "Pin Road" then click anywhere on the map to pin a road issue.</p>
+                </div>
+
+                <!-- Pin Form Overlay -->
+                <div class="pin-form-overlay" id="pin-form-overlay">
+                    <h5><i class="fas fa-map-pin"></i> Pin Road Issue</h5>
+                    <form id="pin-form" onsubmit="submitPin(event)">
+                        <input type="hidden" id="pin-lat" name="pin-lat">
+                        <input type="hidden" id="pin-lng" name="pin-lng">
+                        <div class="mb-2">
+                            <label class="form-label fw-semibold">Issue Type</label>
+                            <select class="form-select" id="pin-issue-type" required>
+                                <option value="">Select type...</option>
+                                <option value="pothole">Pothole</option>
+                                <option value="road_damage">Road Damage</option>
+                                <option value="flooding">Flooding</option>
+                                <option value="traffic_jam">Traffic Jam</option>
+                                <option value="accident">Accident</option>
+                                <option value="construction">Construction</option>
+                                <option value="debris">Debris / Obstruction</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-semibold">Severity</label>
+                            <select class="form-select" id="pin-severity" required>
+                                <option value="">Select severity...</option>
+                                <option value="critical">Critical</option>
+                                <option value="high">High</option>
+                                <option value="medium">Medium</option>
+                                <option value="low">Low</option>
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-semibold">Description</label>
+                            <textarea class="form-control" id="pin-description" rows="2" placeholder="Brief description..."></textarea>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-semibold">Your Name (optional)</label>
+                            <input type="text" class="form-control" id="pin-name" placeholder="Your name...">
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn-submit-pin"><i class="fas fa-paper-plane"></i> Submit Pin</button>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="cancelPin()" style="border-radius:8px;">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Street View Overlay -->
+                <div class="streetview-overlay" id="streetview-overlay">
+                    <button class="streetview-close-btn" onclick="closeStreetView()" title="Close Street View">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
             </div>
         </div>
     </section>
@@ -1192,7 +1555,335 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             }, 300);
         });
     </script>
-    
+
+    <!-- Google Maps JavaScript API -->
+    <script>
+        // Road reports data from PHP
+        const mapReports = <?php echo json_encode(array_map(function($r) {
+            return [
+                'id' => $r['id'],
+                'title' => $r['title'] ?? 'Road Report',
+                'description' => $r['description'] ?? '',
+                'report_type' => $r['report_type'] ?? 'other',
+                'status' => $r['status'] ?? 'pending',
+                'priority' => $r['priority'] ?? 'medium',
+                'latitude' => (float)$r['latitude'],
+                'longitude' => (float)$r['longitude'],
+                'location' => $r['location'] ?? '',
+                'reported_date' => $r['reported_date'] ?? '',
+                'image_path' => $r['image_path'] ?? '',
+                'attachments' => $r['attachments'] ?? ''
+            ];
+        }, $map_reports)); ?>;
+    </script>
+    <script async defer
+        src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&callback=initGISMap&libraries=geometry,places,visualization&v=weekly">
+    </script>
+    <script>
+        let gisMap, trafficLayer, streetViewPanorama, activeInfoWindow;
+        let terrainEnabled = false, satelliteEnabled = false, trafficEnabled = true;
+        let pinningMode = false, streetViewActive = false;
+        let pinMarker = null;
+        const QC_CENTER = { lat: 14.6500, lng: 121.0500 };
+
+        function initGISMap() {
+            // Default map type
+            const mapTypeIds = {
+                roadmap: 'roadmap',
+                satellite: 'satellite',
+                terrain: 'terrain',
+                hybrid: 'hybrid'
+            };
+
+            gisMap = new google.maps.Map(document.getElementById('gis-map'), {
+                center: QC_CENTER,
+                zoom: 13,
+                mapTypeControl: false,
+                streetViewControl: false,
+                zoomControl: true,
+                fullscreenControl: true,
+                mapTypeId: 'roadmap',
+                styles: [
+                    { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+                    { featureType: 'transit', stylers: [{ visibility: 'off' }] }
+                ]
+            });
+
+            // Initialize traffic layer (on by default)
+            trafficLayer = new google.maps.TrafficLayer();
+            trafficLayer.setMap(gisMap);
+
+            // Add road reports as markers
+            addReportMarkers();
+
+            // Click handler for pinning
+            gisMap.addListener('click', function(e) {
+                if (pinningMode) {
+                    placePin(e.latLng);
+                }
+            });
+        }
+
+        function getStatusColor(priority, status) {
+            if (status === 'completed') return '#28a745';
+            if (status === 'pending') return '#6c757d';
+            switch ((priority || '').toLowerCase()) {
+                case 'critical': case 'high': return '#dc3545';
+                case 'medium': return '#ffc107';
+                case 'low': default: return '#28a745';
+            }
+        }
+
+        function addReportMarkers() {
+            const bounds = new google.maps.LatLngBounds();
+            mapReports.forEach(function(report) {
+                if (!report.latitude || !report.longitude) return;
+
+                const pos = { lat: report.latitude, lng: report.longitude };
+                const color = getStatusColor(report.priority, report.status);
+
+                // Custom marker with colored pin
+                const marker = new google.maps.Marker({
+                    position: pos,
+                    map: gisMap,
+                    title: report.title,
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 10,
+                        fillColor: color,
+                        fillOpacity: 0.9,
+                        strokeColor: '#fff',
+                        strokeWeight: 2
+                    },
+                    animation: google.maps.Animation.DROP
+                });
+
+                // Build info window content
+                let imageUrl = '';
+                if (report.image_path && report.image_path !== '0' && report.image_path !== 'null') {
+                    imageUrl = '<img src="' + report.image_path + '" style="width:100%;max-height:120px;object-fit:cover;border-radius:8px;margin-top:8px;" onerror="this.style.display=\'none\'">';
+                } else if (report.attachments) {
+                    try {
+                        const atts = JSON.parse(report.attachments);
+                        const imgAtt = atts.find(a => a.type === 'image' && a.file_path);
+                        if (imgAtt) {
+                            imageUrl = '<img src="' + imgAtt.file_path + '" style="width:100%;max-height:120px;object-fit:cover;border-radius:8px;margin-top:8px;" onerror="this.style.display=\'none\'">';
+                        }
+                    } catch(e) {}
+                }
+
+                const statusLabel = (report.status || 'pending').replace('-', ' ');
+                const content = `
+                    <div style="font-family:Poppins,sans-serif;max-width:280px;padding:4px;">
+                        <h4 style="margin:0 0 6px;font-size:0.95rem;color:#1e3c72;">${escapeHtml(report.title)}</h4>
+                        <div style="display:flex;gap:6px;margin-bottom:6px;">
+                            <span style="background:${color};color:white;padding:2px 8px;border-radius:10px;font-size:0.7rem;font-weight:600;">${escapeHtml(report.priority || 'N/A')}</span>
+                            <span style="background:#e9ecef;padding:2px 8px;border-radius:10px;font-size:0.7rem;color:#555;">${escapeHtml(statusLabel)}</span>
+                        </div>
+                        <p style="margin:0 0 6px;font-size:0.8rem;color:#555;">${escapeHtml((report.description || '').substring(0, 100))}${(report.description || '').length > 100 ? '...' : ''}</p>
+                        ${imageUrl}
+                        <div style="margin-top:8px;font-size:0.75rem;color:#888;">
+                            <i class="fas fa-calendar" style="margin-right:4px;"></i>${escapeHtml(report.reported_date || 'N/A')}
+                            <a href="https://www.google.com/maps?q=${report.latitude},${report.longitude}" target="_blank" style="color:#3762c8;margin-left:8px;text-decoration:none;">
+                                <i class="fas fa-external-link-alt"></i> Google Maps
+                            </a>
+                        </div>
+                    </div>
+                `;
+
+                marker.addListener('click', function() {
+                    if (activeInfoWindow) activeInfoWindow.close();
+                    activeInfoWindow = new google.maps.InfoWindow({ content: content });
+                    activeInfoWindow.open(gisMap, marker);
+                });
+
+                bounds.extend(pos);
+            });
+
+            if (mapReports.length > 1) {
+                gisMap.fitBounds(bounds, 50);
+            } else if (mapReports.length === 1) {
+                gisMap.setCenter({ lat: mapReports[0].latitude, lng: mapReports[0].longitude });
+                gisMap.setZoom(15);
+            }
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Traffic Toggle
+        function toggleTraffic() {
+            trafficEnabled = !trafficEnabled;
+            const btn = document.getElementById('btn-traffic');
+            if (trafficEnabled) {
+                trafficLayer.setMap(gisMap);
+                btn.classList.add('active');
+            } else {
+                trafficLayer.setMap(null);
+                btn.classList.remove('active');
+            }
+        }
+
+        // Terrain Toggle
+        function toggleTerrain() {
+            terrainEnabled = !terrainEnabled;
+            satelliteEnabled = false;
+            const btn = document.getElementById('btn-terrain');
+            const satBtn = document.getElementById('btn-satellite');
+            if (terrainEnabled) {
+                gisMap.setMapTypeId('terrain');
+                btn.classList.add('active');
+                satBtn.classList.remove('active');
+            } else {
+                gisMap.setMapTypeId('roadmap');
+                btn.classList.remove('active');
+            }
+        }
+
+        // Satellite Toggle
+        function toggleSatellite() {
+            satelliteEnabled = !satelliteEnabled;
+            terrainEnabled = false;
+            const btn = document.getElementById('btn-satellite');
+            const terrBtn = document.getElementById('btn-terrain');
+            if (satelliteEnabled) {
+                gisMap.setMapTypeId('hybrid');
+                btn.classList.add('active');
+                terrBtn.classList.remove('active');
+            } else {
+                gisMap.setMapTypeId('roadmap');
+                btn.classList.remove('active');
+            }
+        }
+
+        // Street View (First Person)
+        function activateStreetView() {
+            const overlay = document.getElementById('streetview-overlay');
+            const mapContainer = document.getElementById('gis-map-container');
+            
+            if (!streetViewPanorama) {
+                streetViewPanorama = new google.maps.StreetViewPanorama(
+                    document.getElementById('streetview-overlay'), {
+                        position: QC_CENTER,
+                        pov: { heading: 165, pitch: 0 },
+                        zoom: 1,
+                        addressControl: true,
+                        linksControl: true,
+                        panControl: true,
+                        zoomControl: true,
+                        fullscreenControl: false
+                    }
+                );
+            }
+
+            overlay.classList.add('show');
+            streetViewActive = true;
+            google.maps.event.trigger(streetViewPanorama, 'resize');
+        }
+
+        function closeStreetView() {
+            document.getElementById('streetview-overlay').classList.remove('show');
+            streetViewActive = false;
+        }
+
+        // Pin Mode
+        function togglePinningMode() {
+            pinningMode = !pinningMode;
+            const btn = document.getElementById('btn-pinning');
+            const hint = document.getElementById('map-click-hint');
+            const form = document.getElementById('pin-form-overlay');
+
+            if (pinningMode) {
+                btn.classList.add('active');
+                hint.innerHTML = '<strong style="color:var(--accent-color);">Pinning mode ON</strong> — Click anywhere on the map to place a pin.';
+                gisMap.setOptions({ cursor: 'crosshair' });
+            } else {
+                btn.classList.remove('active');
+                hint.innerHTML = 'Click "Pin Road" then click anywhere on the map to pin a road issue.';
+                gisMap.setOptions({ cursor: '' });
+                form.classList.remove('show');
+                if (pinMarker) {
+                    pinMarker.setMap(null);
+                    pinMarker = null;
+                }
+            }
+        }
+
+        function placePin(latLng) {
+            if (pinMarker) pinMarker.setMap(null);
+
+            pinMarker = new google.maps.Marker({
+                position: latLng,
+                map: gisMap,
+                draggable: true,
+                animation: google.maps.Animation.DROP,
+                icon: {
+                    path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
+                    scale: 7,
+                    fillColor: '#dc3545',
+                    fillOpacity: 1,
+                    strokeColor: '#fff',
+                    strokeWeight: 2
+                }
+            });
+
+            document.getElementById('pin-lat').value = latLng.lat().toFixed(6);
+            document.getElementById('pin-lng').value = latLng.lng().toFixed(6);
+            document.getElementById('pin-form-overlay').classList.add('show');
+
+            // Allow dragging pin to reposition
+            pinMarker.addListener('dragend', function(e) {
+                document.getElementById('pin-lat').value = e.latLng.lat().toFixed(6);
+                document.getElementById('pin-lng').value = e.latLng.lng().toFixed(6);
+            });
+        }
+
+        function cancelPin() {
+            document.getElementById('pin-form-overlay').classList.remove('show');
+            if (pinMarker) {
+                pinMarker.setMap(null);
+                pinMarker = null;
+            }
+            document.getElementById('pin-form').reset();
+        }
+
+        function submitPin(e) {
+            e.preventDefault();
+            const lat = document.getElementById('pin-lat').value;
+            const lng = document.getElementById('pin-lng').value;
+            const issueType = document.getElementById('pin-issue-type').value;
+            const severity = document.getElementById('pin-severity').value;
+            const description = document.getElementById('pin-description').value;
+            const name = document.getElementById('pin-name').value;
+
+            if (!lat || !lng || !issueType || !severity) {
+                alert('Please fill in all required fields.');
+                return;
+            }
+
+            // Build Google Maps link for the pinned location
+            const gmapsLink = `https://www.google.com/maps?q=${lat},${lng}`;
+            const message = `Road Issue Pinned!\n\n` +
+                `Type: ${issueType}\n` +
+                `Severity: ${severity}\n` +
+                `Location: ${lat}, ${lng}\n` +
+                `Description: ${description || 'N none'}\n` +
+                `Reported by: ${name || 'Anonymous'}\n\n` +
+                `View on Google Maps:\n${gmapsLink}\n\n` +
+                `To submit this report officially, please visit our Report page.`;
+
+            alert(message);
+
+            // Reset form and exit pinning mode
+            cancelPin();
+            togglePinningMode();
+        }
+    </script>
+
     <!-- Page Transition Overlay -->
     <div class="page-transition-overlay" id="pageTransitionOverlay">
         <div class="transition-content">
