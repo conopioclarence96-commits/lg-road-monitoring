@@ -2024,15 +2024,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
                 <!-- CIMM Received Reports Table -->
                 <div style="border-top: 2px solid rgba(55, 98, 200, 0.1); margin-top: 20px; padding-top: 20px;">
-                    <div class="cimm-search-bar">
-                        <div class="cimm-search-wrapper">
-                            <i class="fas fa-search"></i>
-                            <input type="text" class="cimm-search-input" id="cimmSearchInput" placeholder="Search by ID, Infrastructure, Location, Engineer, Priority...">
-                        </div>
-                        <button class="cimm-sort-btn" onclick="toggleCimmSort()">
-                            <i class="fas fa-sort"></i> Sort
-                        </button>
-                    </div>
                     <div class="cimm-table-wrapper">
                         <?php if ($cimm_reports && $cimm_reports->num_rows > 0): ?>
                         <table class="cimm-table" id="cimmTable">
@@ -2075,13 +2066,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 <?php endwhile; ?>
                             </tbody>
                         </table>
-                        <?php else: ?>
-                        <div class="cimm-empty-state">
-                            <div class="refresh-icon">
-                                <i class="fas fa-sync-alt"></i>
-                            </div>
-                            <p>No in-progress reports at this time.</p>
-                        </div>
                         <?php endif; ?>
                     </div>
                 </div>
