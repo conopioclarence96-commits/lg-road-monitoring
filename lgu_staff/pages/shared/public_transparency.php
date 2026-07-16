@@ -62,8 +62,11 @@ if ($conn) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../../css/sidebar.css">
     <link rel="stylesheet" href="../../css/public_transparency.css">
+    <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <style>
+        body { background: #f7f5f0; min-height: 100vh; }
+
         .projects-section {
             background: #f0f4fa;
             backdrop-filter: blur(15px);
@@ -629,7 +632,7 @@ if ($conn) {
         .btn-publish:hover { background: #218838; }
     </style>
 </head>
-<body>
+<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
     <!-- SIDEBAR -->
     <?php include '../../includes/sidebar_nav.php'; ?>
 
