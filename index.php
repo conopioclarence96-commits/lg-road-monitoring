@@ -1182,15 +1182,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         });
     </script>
 
-    <!-- Page Transition Overlay -->
-    <div class="page-transition-overlay" id="pageTransitionOverlay">
-        <div class="transition-content">
-            <div class="transition-spinner">
-                <i class="fas fa-spinner"></i>
-            </div>
-            <div class="transition-text">Loading...</div>
-        </div>
-    </div>
+
     <script src="lgu_staff/js/page-transition.js"></script>
     <?php include __DIR__ . '/includes/a11y_js.php'; ?>
 </body>

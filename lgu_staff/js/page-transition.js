@@ -1,23 +1,26 @@
 /**
  * Page Transition Script
- * Handles smooth overlay transitions when navigating between pages.
- * Requires <div class="page-transition-overlay" id="pageTransitionOverlay"> in each page.
+ * Fades the page content out on navigation, fades in on load.
  */
 (function() {
-    // On page load: ensure overlay is hidden (back-button / cache restoration)
+    // On fresh page load: fade in
     window.addEventListener('pageshow', function() {
-        var overlay = document.getElementById('pageTransitionOverlay');
-        if (overlay) overlay.classList.remove('active');
+        document.body.classList.remove('fade-out');
+        document.body.classList.add('fade-in');
+        setTimeout(function() {
+            document.body.classList.remove('fade-in');
+        }, 400);
     });
 
     document.addEventListener('DOMContentLoaded', function() {
-        var overlay = document.getElementById('pageTransitionOverlay');
-        if (!overlay) return;
+        // Fade in on initial load
+        document.body.classList.remove('fade-out');
+        document.body.classList.add('fade-in');
+        setTimeout(function() {
+            document.body.classList.remove('fade-in');
+        }, 400);
 
-        // Ensure hidden on fresh load
-        overlay.classList.remove('active');
-
-        // Intercept all internal anchor clicks
+        // Intercept internal link clicks
         document.addEventListener('click', function(e) {
             var link = e.target.closest('a[href]');
             if (!link) return;
@@ -25,20 +28,10 @@
             var href = link.getAttribute('href');
             if (!href) return;
 
-            // Skip external links, anchors, javascript:, mailto:, tel:, # anchors, print links
+            // Skip external, anchors, javascript, mailto, tel, downloads, blank targets
             if (href.startsWith('http') || href.startsWith('mailto:') || href.startsWith('tel:') ||
-                href.startsWith('javascript:') || href === '#') return;
-
-            // Skip anchor-only links (e.g. #section)
-            if (href.charAt(0) === '#') return;
-
-            // Skip download links
-            if (link.hasAttribute('download')) return;
-
-            // Skip if target=_blank
-            if (link.target === '_blank') return;
-
-            // Skip if modifier keys held (ctrl, shift, meta)
+                href.startsWith('javascript:') || href.charAt(0) === '#') return;
+            if (link.hasAttribute('download') || link.target === '_blank') return;
             if (e.ctrlKey || e.shiftKey || e.metaKey || e.altKey) return;
 
             // Don't transition if already on the same page
@@ -47,10 +40,12 @@
             if (currentFile === targetFile) return;
 
             e.preventDefault();
-            overlay.classList.add('active');
+
+            // Fade out then navigate
+            document.body.classList.add('fade-out');
             setTimeout(function() {
                 window.location.href = href;
-            }, 400);
+            }, 300);
         });
     });
 })();

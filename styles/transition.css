@@ -1,4 +1,4 @@
-/* Scroll-triggered entrance animations - class-based to prevent flash on refresh */
+/* Scroll-triggered entrance animations */
 .scroll-animate {
     opacity: 0;
     transform: translateY(20px);
@@ -10,78 +10,20 @@
     transform: translateY(0);
 }
 
-/* Ensure overlay is hidden on initial load regardless of cached state */
-.page-transition-overlay:not(.active) {
+/* Page content fade transition */
+body {
+    transition: opacity 0.3s ease;
+}
+
+body.fade-out {
     opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transform: translateY(-100%);
 }
 
-/* Page Transition Overlay - slides down from top */
-.page-transition-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-    z-index: 9999;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transform: translateY(-100%);
-    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease 0.1s;
+body.fade-in {
+    animation: pageFadeIn 0.35s ease forwards;
 }
 
-.page-transition-overlay.active {
-    opacity: 1;
-    visibility: visible;
-    pointer-events: auto;
-    transform: translateY(0);
-}
-
-.transition-content {
-    text-align: center;
-    color: white;
-}
-
-.transition-spinner {
-    font-size: 3rem;
-    margin-bottom: 20px;
-    animation: spin 1.5s linear infinite;
-}
-
-.transition-spinner i {
-    color: #4CAF50;
-}
-
-.transition-text {
-    font-size: 1.2rem;
-    font-weight: 600;
-    opacity: 0.9;
-    animation: fadeInUp 0.8s ease;
-}
-
-@keyframes spin {
-    0% {
-        transform: rotate(0deg);
-    }
-    100% {
-        transform: rotate(360deg);
-    }
-}
-
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(30px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+@keyframes pageFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }

@@ -839,13 +839,6 @@ $total_notifications = $is_admin ? (count($pending_reports) + count($pending_cha
         }
     </script>
     
-    <div class="page-transition-overlay" id="pageTransitionOverlay">
-        <div class="transition-content">
-            <div class="transition-spinner">
-                <i class="fas fa-spinner"></i>
-            </div>
-            <div class="transition-text">Loading...</div>
-        </div>
-    </div>
+
 </body>
 </html>

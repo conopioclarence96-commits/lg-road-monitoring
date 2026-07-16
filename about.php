@@ -141,12 +141,7 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
     </footer>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <?php include __DIR__ . '/includes/a11y_html.php'; ?>
-    <div class="page-transition-overlay" id="pageTransitionOverlay">
-        <div class="transition-content">
-            <div class="transition-spinner"><i class="fas fa-spinner"></i></div>
-            <div class="transition-text">Loading...</div>
-        </div>
-    </div>
+
     <script src="lgu_staff/js/page-transition.js"></script>
     <?php include __DIR__ . '/includes/a11y_js.php'; ?>
 </body>

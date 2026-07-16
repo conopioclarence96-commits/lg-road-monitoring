@@ -1003,15 +1003,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
       });
     </script>
     
-    <!-- Page Transition Overlay -->
-    <div class="page-transition-overlay" id="pageTransitionOverlay">
-        <div class="transition-content">
-            <div class="transition-spinner">
-                <i class="fas fa-spinner"></i>
-            </div>
-            <div class="transition-text">Loading...</div>
-        </div>
-    </div>
+
     
     <script src="js/page-transition.js"></script>
   </body>

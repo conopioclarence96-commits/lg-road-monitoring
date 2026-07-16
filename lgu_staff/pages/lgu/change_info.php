@@ -344,13 +344,6 @@ $stmt->close();
         }, 5000);
     </script>
 
-    <div class="page-transition-overlay" id="pageTransitionOverlay">
-        <div class="transition-content">
-            <div class="transition-spinner">
-                <i class="fas fa-spinner"></i>
-            </div>
-            <div class="transition-text">Loading...</div>
-        </div>
-    </div>
+
 </body>
 </html>
