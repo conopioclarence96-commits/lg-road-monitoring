@@ -211,5 +211,32 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // Page transition for sidebar nav links
+    var overlay = document.getElementById('pageTransitionOverlay');
+    var navLinks = document.querySelectorAll('.sidebar-menu .nav-link:not(.nav-link-logout)');
+    navLinks.forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            var href = this.getAttribute('href');
+            if (!href || href === '#') return;
+            // Don't transition if already on the same page
+            var currentFile = window.location.pathname.split('/').pop();
+            var targetFile = href.split('/').pop();
+            if (currentFile === targetFile) return;
+
+            e.preventDefault();
+            if (overlay) {
+                overlay.classList.add('active');
+                setTimeout(function() { window.location.href = href; }, 400);
+            } else {
+                window.location.href = href;
+            }
+        });
+    });
+
+    // Ensure overlay is hidden on load
+    if (overlay) {
+        overlay.classList.remove('active');
+    }
 });
 </script>

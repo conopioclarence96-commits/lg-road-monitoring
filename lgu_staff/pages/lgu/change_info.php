@@ -124,6 +124,7 @@ $stmt->close();
     <title>Change Information - LGU Road Monitoring</title>
     <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../../css/sidebar.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
@@ -342,5 +343,14 @@ $stmt->close();
             });
         }, 5000);
     </script>
+
+    <div class="page-transition-overlay" id="pageTransitionOverlay">
+        <div class="transition-content">
+            <div class="transition-spinner">
+                <i class="fas fa-spinner"></i>
+            </div>
+            <div class="transition-text">Loading...</div>
+        </div>
+    </div>
 </body>
 </html>
