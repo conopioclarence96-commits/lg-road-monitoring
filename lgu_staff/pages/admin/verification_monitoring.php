@@ -17,6 +17,32 @@ if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > 
 // Update last activity time
 $_SESSION['last_activity'] = time();
 
+// Ensure cimm_reports table exists
+$conn->query("CREATE TABLE IF NOT EXISTS cimm_reports (
+    id int(11) unsigned NOT NULL AUTO_INCREMENT,
+    rep_number varchar(50) NOT NULL,
+    infrastructure varchar(255) NOT NULL,
+    location varchar(255) DEFAULT NULL,
+    issue_notes text DEFAULT NULL,
+    engineer varchar(255) DEFAULT NULL,
+    reported_by varchar(255) DEFAULT NULL,
+    report_type enum('staff','dept') NOT NULL DEFAULT 'staff',
+    start_date date DEFAULT NULL,
+    end_date date DEFAULT NULL,
+    priority enum('low','medium','high','critical') DEFAULT 'medium',
+    budget decimal(12,2) DEFAULT NULL,
+    status enum('pending','in-progress','completed','resolved') DEFAULT 'pending',
+    latitude varchar(50) DEFAULT NULL,
+    longitude varchar(50) DEFAULT NULL,
+    attachments text DEFAULT NULL,
+    created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_rep_number (rep_number),
+    KEY idx_status (status),
+    KEY idx_report_type (report_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
 // Ensure required columns exist in report tables
 foreach (['road_transportation_reports', 'road_maintenance_reports'] as $tbl) {
     $check = $conn->query("SHOW COLUMNS FROM $tbl LIKE 'approved_at'");
@@ -198,6 +224,38 @@ function getActivityTimeline($conn) {
     return $result;
 }
 
+// Function to get CIMM reports by filter
+function getCimmReports($conn, $filter = 'all') {
+    $where = '';
+    if ($filter === 'staff') {
+        $where = " WHERE report_type = 'staff'";
+    } elseif ($filter === 'dept') {
+        $where = " WHERE report_type = 'dept'";
+    }
+    $query = "SELECT * FROM cimm_reports{$where} ORDER BY created_at DESC";
+    $result = $conn->query($query);
+    if (!$result) {
+        error_log("Query error in getCimmReports: " . $conn->error);
+    }
+    return $result;
+}
+
+// Function to get CIMM report counts by type
+function getCimmReportCounts($conn) {
+    $counts = ['all' => 0, 'staff' => 0, 'dept' => 0];
+    
+    $result = $conn->query("SELECT COUNT(*) as total FROM cimm_reports");
+    if ($result) $counts['all'] = $result->fetch_assoc()['total'];
+    
+    $result = $conn->query("SELECT COUNT(*) as total FROM cimm_reports WHERE report_type = 'staff'");
+    if ($result) $counts['staff'] = $result->fetch_assoc()['total'];
+    
+    $result = $conn->query("SELECT COUNT(*) as total FROM cimm_reports WHERE report_type = 'dept'");
+    if ($result) $counts['dept'] = $result->fetch_assoc()['total'];
+    
+    return $counts;
+}
+
 // Handle verification actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action']) && isset($_POST['report_id']) && isset($_POST['source'])) {
@@ -312,6 +370,11 @@ $rejected_reports = getRejectedReports($conn);
 $all_reports = getAllReports($conn, $status_filter, $source_filter);
 $recent_approvals = getRecentApprovals($conn);
 $activity_timeline = getActivityTimeline($conn);
+
+// CIMM reports data
+$cimm_filter = $_GET['cimm_filter'] ?? 'all';
+$cimm_reports = getCimmReports($conn, $cimm_filter);
+$cimm_counts = getCimmReportCounts($conn);
 
 // Handle AJAX request for report details
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'get_report_details') {
@@ -508,7 +571,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         .workflow-container {
             display: grid;
-            grid-template-columns: 1fr;
+            grid-template-columns: 1fr 1fr;
             gap: 25px;
             margin-bottom: 25px;
         }
@@ -1092,6 +1155,292 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
         }
 
+        /* CIMM Received Reports Panel */
+        .cimm-panel {
+            background: #0f1729;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .cimm-panel-header {
+            padding: 25px 25px 0;
+        }
+
+        .cimm-panel-header h3 {
+            color: #f0f4fa;
+            font-size: 20px;
+            font-weight: 700;
+            margin: 0 0 20px;
+        }
+
+        .cimm-tabs {
+            display: flex;
+            background: #1a2332;
+            border-radius: 12px;
+            padding: 5px;
+            gap: 4px;
+        }
+
+        .cimm-tab {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: #8892a4;
+            background: transparent;
+        }
+
+        .cimm-tab:hover {
+            color: #c0c8d8;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .cimm-tab.active {
+            background: #2d3a4e;
+            color: #f0f4fa;
+        }
+
+        .cimm-tab i {
+            font-size: 14px;
+        }
+
+        .cimm-tab-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 22px;
+            height: 22px;
+            padding: 0 6px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .cimm-tab.active .cimm-tab-badge {
+            background: #3762c8;
+            color: white;
+        }
+
+        .cimm-tab:not(.active) .cimm-tab-badge {
+            background: rgba(255, 255, 255, 0.08);
+            color: #8892a4;
+        }
+
+        .cimm-panel-body {
+            padding: 20px 25px 25px;
+        }
+
+        .cimm-search-bar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .cimm-search-input {
+            flex: 1;
+            padding: 12px 16px;
+            padding-left: 42px;
+            background: #1a2332;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            color: #f0f4fa;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.3s;
+            position: relative;
+        }
+
+        .cimm-search-wrapper {
+            position: relative;
+            flex: 1;
+        }
+
+        .cimm-search-wrapper i {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        .cimm-search-input::placeholder {
+            color: #6b7280;
+        }
+
+        .cimm-search-input:focus {
+            border-color: #3762c8;
+        }
+
+        .cimm-sort-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 18px;
+            background: #3762c8;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+
+        .cimm-sort-btn:hover {
+            background: #2b4fa3;
+        }
+
+        .cimm-table-wrapper {
+            overflow-x: auto;
+        }
+
+        .cimm-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .cimm-table thead th {
+            background: #f97316;
+            color: white;
+            padding: 12px 14px;
+            font-size: 12px;
+            font-weight: 700;
+            text-align: left;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            white-space: nowrap;
+        }
+
+        .cimm-table thead th:first-child {
+            border-radius: 8px 0 0 0;
+        }
+
+        .cimm-table thead th:last-child {
+            border-radius: 0 8px 0 0;
+        }
+
+        .cimm-table tbody tr {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            transition: background 0.2s;
+        }
+
+        .cimm-table tbody tr:hover {
+            background: rgba(55, 98, 200, 0.08);
+        }
+
+        .cimm-table tbody td {
+            padding: 14px;
+            color: #c0c8d8;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        .cimm-empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6b7280;
+        }
+
+        .cimm-empty-state .refresh-icon {
+            width: 60px;
+            height: 60px;
+            background: rgba(55, 98, 200, 0.15);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+        }
+
+        .cimm-empty-state .refresh-icon i {
+            font-size: 28px;
+            color: #6b7280;
+        }
+
+        .cimm-empty-state p {
+            font-size: 14px;
+            font-weight: 500;
+            color: #8892a4;
+        }
+
+        .cimm-status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+
+        .cimm-status-badge.pending {
+            background: rgba(251, 191, 36, 0.15);
+            color: #fbbf24;
+        }
+
+        .cimm-status-badge.in-progress {
+            background: rgba(59, 130, 246, 0.15);
+            color: #60a5fa;
+        }
+
+        .cimm-status-badge.completed,
+        .cimm-status-badge.resolved {
+            background: rgba(34, 197, 94, 0.15);
+            color: #22c55e;
+        }
+
+        .cimm-action-btn {
+            padding: 6px 12px;
+            background: rgba(55, 98, 200, 0.15);
+            color: #60a5fa;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .cimm-action-btn:hover {
+            background: rgba(55, 98, 200, 0.3);
+        }
+
+        body.dark-mode .cimm-table thead th {
+            background: #f97316;
+        }
+
+        body.dark-mode .cimm-table tbody tr {
+            border-bottom-color: rgba(255, 255, 255, 0.05);
+        }
+
+        body.dark-mode .cimm-table tbody tr:hover {
+            background: rgba(55, 98, 200, 0.08);
+        }
+
+        @media (max-width: 768px) {
+            .workflow-container {
+                grid-template-columns: 1fr;
+            }
+
+            .cimm-tabs {
+                flex-direction: column;
+            }
+
+            .cimm-search-bar {
+                flex-direction: column;
+            }
+        }
+
         /* Modal Styles */
         .modal-overlay {
             display: none;
@@ -1646,6 +1995,94 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 </div>
             </div>
 
+            <!-- CIMM Received Reports Panel -->
+            <div class="cimm-panel">
+                <div class="cimm-panel-header">
+                    <h3><i class="fas fa-inbox" style="margin-right:8px;"></i>Received Reports</h3>
+                    <div class="cimm-tabs">
+                        <button class="cimm-tab <?php echo $cimm_filter === 'all' ? 'active' : ''; ?>" onclick="filterCimmReports('all')">
+                            <i class="fas fa-list"></i>
+                            All
+                            <span class="cimm-tab-badge"><?php echo $cimm_counts['all']; ?></span>
+                        </button>
+                        <button class="cimm-tab <?php echo $cimm_filter === 'staff' ? 'active' : ''; ?>" onclick="filterCimmReports('staff')">
+                            <i class="fas fa-user"></i>
+                            Staff Reports
+                            <span class="cimm-tab-badge"><?php echo $cimm_counts['staff']; ?></span>
+                        </button>
+                        <button class="cimm-tab <?php echo $cimm_filter === 'dept' ? 'active' : ''; ?>" onclick="filterCimmReports('dept')">
+                            <i class="fas fa-building"></i>
+                            Dept. Reports
+                            <span class="cimm-tab-badge"><?php echo $cimm_counts['dept']; ?></span>
+                        </button>
+                    </div>
+                </div>
+                <div class="cimm-panel-body">
+                    <div class="cimm-search-bar">
+                        <div class="cimm-search-wrapper">
+                            <i class="fas fa-search"></i>
+                            <input type="text" class="cimm-search-input" id="cimmSearchInput" placeholder="Search by ID, Infrastructure, Location, Engineer, Priority...">
+                        </div>
+                        <button class="cimm-sort-btn" onclick="toggleCimmSort()">
+                            <i class="fas fa-sort"></i> Sort
+                        </button>
+                    </div>
+                    <div class="cimm-table-wrapper">
+                        <?php if ($cimm_reports && $cimm_reports->num_rows > 0): ?>
+                        <table class="cimm-table" id="cimmTable">
+                            <thead>
+                                <tr>
+                                    <th>Action</th>
+                                    <th>Rep #</th>
+                                    <th>Infrastructure</th>
+                                    <th>Location</th>
+                                    <th>Issue / Notes</th>
+                                    <th>Engineer</th>
+                                    <th>Reported By</th>
+                                    <th>Start Date</th>
+                                    <th>End Date</th>
+                                    <th>Priority</th>
+                                    <th>Budget</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php while ($row = $cimm_reports->fetch_assoc()): ?>
+                                <tr>
+                                    <td>
+                                        <button class="cimm-action-btn" onclick="viewCimmReport(<?php echo $row['id']; ?>)">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </td>
+                                    <td><?php echo htmlspecialchars($row['rep_number']); ?></td>
+                                    <td><?php echo htmlspecialchars($row['infrastructure']); ?></td>
+                                    <td><?php echo htmlspecialchars($row['location']); ?></td>
+                                    <td><?php echo htmlspecialchars(strlen($row['issue_notes'] ?? '') > 40 ? substr($row['issue_notes'], 0, 40) . '...' : ($row['issue_notes'] ?? '')); ?></td>
+                                    <td><?php echo htmlspecialchars($row['engineer']); ?></td>
+                                    <td><?php echo htmlspecialchars($row['reported_by']); ?></td>
+                                    <td><?php echo $row['start_date'] ? date('M d, Y', strtotime($row['start_date'])) : '—'; ?></td>
+                                    <td><?php echo $row['end_date'] ? date('M d, Y', strtotime($row['end_date'])) : '—'; ?></td>
+                                    <td><span class="cimm-status-badge <?php echo htmlspecialchars($row['priority']); ?>"><?php echo ucfirst(htmlspecialchars($row['priority'])); ?></span></td>
+                                    <td><?php echo $row['budget'] ? '₱' . number_format($row['budget'], 2) : '—'; ?></td>
+                                    <td><span class="cimm-status-badge <?php echo htmlspecialchars($row['status']); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $row['status']))); ?></span></td>
+                                </tr>
+                                <?php endwhile; ?>
+                            </tbody>
+                        </table>
+                        <?php else: ?>
+                        <div class="cimm-empty-state">
+                            <div class="refresh-icon">
+                                <i class="fas fa-sync-alt"></i>
+                            </div>
+                            <p>No in-progress reports at this time.</p>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
         <!-- Activity Timeline -->
         <div class="timeline-section">
             <h3 class="timeline-header">
@@ -1743,6 +2180,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         <?php if (isset($success_message)): ?>
         showNotification('<?php echo htmlspecialchars($success_message); ?>', 'success');
         <?php endif; ?>
+
+        // CIMM Reports tab filtering
+        function filterCimmReports(filter) {
+            const url = new URL(window.location);
+            url.searchParams.set('cimm_filter', filter);
+            window.location.href = url.toString();
+        }
+
+        // CIMM search functionality
+        document.getElementById('cimmSearchInput')?.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const table = document.getElementById('cimmTable');
+            if (!table) return;
+            const rows = table.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(searchTerm) ? '' : 'none';
+            });
+        });
+
+        // CIMM sort functionality
+        let cimmSortAsc = true;
+        function toggleCimmSort() {
+            const table = document.getElementById('cimmTable');
+            if (!table) return;
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            cimmSortAsc = !cimmSortAsc;
+            rows.sort((a, b) => {
+                const aText = a.cells[1]?.textContent.trim() || '';
+                const bText = b.cells[1]?.textContent.trim() || '';
+                return cimmSortAsc ? aText.localeCompare(bText) : bText.localeCompare(aText);
+            });
+            rows.forEach(row => tbody.appendChild(row));
+        }
+
+        // View CIMM report details (placeholder)
+        function viewCimmReport(id) {
+            alert('Viewing CIMM Report #' + id + ' — Details panel coming soon.');
+        }
         
         // Close modal after form submission in modal (if element exists)
         var modalFooterEl = document.getElementById('modalFooter');
