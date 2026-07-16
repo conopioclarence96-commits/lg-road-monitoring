@@ -172,6 +172,7 @@ $total_notifications = $is_admin ? (count($pending_reports) + count($pending_cha
     <title>Notifications - LGU Road Monitoring</title>
     <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../../css/sidebar.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <style>
@@ -501,14 +502,7 @@ $total_notifications = $is_admin ? (count($pending_reports) + count($pending_cha
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
-    <iframe src="../../includes/sidebar.php" 
-            style="position: fixed; width: 250px; height: 100vh; border: none; z-index: 1000;" 
-            frameborder="0"
-            name="sidebar-frame"
-            scrolling="no"
-            loading="lazy"
-            referrerpolicy="no-referrer">
-    </iframe>
+    <?php include '../../includes/sidebar_nav.php'; ?>
 
     <div class="main-content">
         <!-- Dashboard Header -->

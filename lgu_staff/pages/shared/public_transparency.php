@@ -60,6 +60,7 @@ if ($conn) {
     <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../../css/sidebar.css">
     <link rel="stylesheet" href="../../css/public_transparency.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <style>
@@ -630,10 +631,7 @@ if ($conn) {
 </head>
 <body>
     <!-- SIDEBAR -->
-    <iframe src="../../includes/sidebar.php" 
-            style="position: fixed; width: 250px; height: 100vh; border: none; z-index: 1000;" 
-            frameborder="0" name="sidebar-frame" scrolling="yes">
-    </iframe>
+    <?php include '../../includes/sidebar_nav.php'; ?>
 
     <div class="main-content">
         <!-- Header -->

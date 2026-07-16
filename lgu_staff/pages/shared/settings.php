@@ -347,6 +347,7 @@ try {
     <title>Settings - LGU Road Monitoring</title>
     <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../../css/sidebar.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
@@ -778,14 +779,7 @@ try {
 </head>
 <body class="<?php echo ($user_data['darkmode'] ?? 0) == 1 ? 'dark-mode' : ''; ?>">
     <!-- SIDEBAR -->
-    <iframe src="../../includes/sidebar.php"
-            style="position: fixed; width: 250px; height: 100vh; border: none; z-index: 1000;"
-            frameborder="0"
-            name="sidebar-frame"
-            scrolling="no"
-            loading="lazy"
-            referrerpolicy="no-referrer">
-    </iframe>
+    <?php include '../../includes/sidebar_nav.php'; ?>
 
     <div class="main-content">
         <div class="settings-container">
@@ -1435,15 +1429,6 @@ try {
             }, 5000);
         });
 
-        // Set active nav in parent sidebar
-        if (window.parent && window.parent.document) {
-            try {
-                const sidebarDoc = window.parent.document.querySelector('iframe[name="sidebar-frame"]');
-                if (sidebarDoc) {
-                    sidebarDoc.contentWindow.postMessage({ type: 'setActive', page: 'settings.php' }, '*');
-                }
-            } catch(e) {}
-        }
     </script>
 </body>
 </html>

@@ -100,6 +100,7 @@ if (isset($_SESSION['archive_message'])) {
     <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../../css/sidebar.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <style>
@@ -353,10 +354,7 @@ if (isset($_SESSION['archive_message'])) {
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
-    <iframe src="../../includes/sidebar.php"
-            style="position: fixed; width: 250px; height: 100vh; border: none; z-index: 1000;"
-            frameborder="0" name="sidebar-frame" scrolling="no">
-    </iframe>
+    <?php include '../../includes/sidebar_nav.php'; ?>
 
     <div class="main-content">
         <div class="archive-header">
