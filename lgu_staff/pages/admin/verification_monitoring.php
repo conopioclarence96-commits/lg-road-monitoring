@@ -615,6 +615,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             margin-bottom: 20px;
             padding-bottom: 15px;
             border-bottom: 2px solid rgba(55, 98, 200, 0.1);
+            flex-wrap: wrap;
+            gap: 15px;
         }
 
         .workflow-title {
@@ -1160,26 +1162,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         .cimm-tabs {
             display: flex;
             background: #e8ecf4;
-            border-radius: 12px;
-            padding: 5px;
-            gap: 4px;
+            border-radius: 10px;
+            padding: 4px;
+            gap: 3px;
         }
 
         .cimm-tab {
-            flex: 1;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
-            padding: 10px 16px;
+            gap: 6px;
+            padding: 8px 14px;
             border: none;
-            border-radius: 10px;
-            font-size: 13px;
+            border-radius: 8px;
+            font-size: 12px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
             color: #6b7280;
             background: transparent;
+            white-space: nowrap;
         }
 
         .cimm-tab:hover {
@@ -1201,11 +1203,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            min-width: 22px;
-            height: 22px;
-            padding: 0 6px;
-            border-radius: 6px;
-            font-size: 11px;
+            min-width: 20px;
+            height: 20px;
+            padding: 0 5px;
+            border-radius: 5px;
+            font-size: 10px;
             font-weight: 700;
         }
 
@@ -1711,6 +1713,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         <span id="section-title">Reports</span>
                         <span class="workflow-badge" id="section-badge"><?php echo $all_reports->num_rows; ?></span>
                     </h3>
+                    <div class="cimm-tabs">
+                        <button class="cimm-tab <?php echo $cimm_filter === 'all' ? 'active' : ''; ?>" onclick="filterCimmReports('all')">
+                            <i class="fas fa-list"></i>
+                            All
+                            <span class="cimm-tab-badge"><?php echo $cimm_counts['all']; ?></span>
+                        </button>
+                        <button class="cimm-tab <?php echo $cimm_filter === 'staff' ? 'active' : ''; ?>" onclick="filterCimmReports('staff')">
+                            <i class="fas fa-user"></i>
+                            Staff Reports
+                            <span class="cimm-tab-badge"><?php echo $cimm_counts['staff']; ?></span>
+                        </button>
+                        <button class="cimm-tab <?php echo $cimm_filter === 'dept' ? 'active' : ''; ?>" onclick="filterCimmReports('dept')">
+                            <i class="fas fa-building"></i>
+                            Dept. Reports
+                            <span class="cimm-tab-badge"><?php echo $cimm_counts['dept']; ?></span>
+                        </button>
+                    </div>
                 </div>
                 
                 <div class="workflow-content" id="reports-container">
@@ -2003,25 +2022,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <?php endif; ?>
                 </div>
 
-                <!-- CIMM Received Reports Tabs & Table -->
+                <!-- CIMM Received Reports Table -->
                 <div style="border-top: 2px solid rgba(55, 98, 200, 0.1); margin-top: 20px; padding-top: 20px;">
-                    <div class="cimm-tabs" style="margin-bottom: 20px;">
-                        <button class="cimm-tab <?php echo $cimm_filter === 'all' ? 'active' : ''; ?>" onclick="filterCimmReports('all')">
-                            <i class="fas fa-list"></i>
-                            All
-                            <span class="cimm-tab-badge"><?php echo $cimm_counts['all']; ?></span>
-                        </button>
-                        <button class="cimm-tab <?php echo $cimm_filter === 'staff' ? 'active' : ''; ?>" onclick="filterCimmReports('staff')">
-                            <i class="fas fa-user"></i>
-                            Staff Reports
-                            <span class="cimm-tab-badge"><?php echo $cimm_counts['staff']; ?></span>
-                        </button>
-                        <button class="cimm-tab <?php echo $cimm_filter === 'dept' ? 'active' : ''; ?>" onclick="filterCimmReports('dept')">
-                            <i class="fas fa-building"></i>
-                            Dept. Reports
-                            <span class="cimm-tab-badge"><?php echo $cimm_counts['dept']; ?></span>
-                        </button>
-                    </div>
                     <div class="cimm-search-bar">
                         <div class="cimm-search-wrapper">
                             <i class="fas fa-search"></i>
