@@ -571,7 +571,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         .workflow-container {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr;
             gap: 25px;
             margin-bottom: 25px;
         }
@@ -1156,28 +1156,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         /* CIMM Received Reports Panel */
-        .cimm-panel {
-            background: #0f1729;
-            border-radius: 16px;
-            overflow: hidden;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .cimm-panel-header {
-            padding: 25px 25px 0;
-        }
-
-        .cimm-panel-header h3 {
-            color: #f0f4fa;
-            font-size: 20px;
-            font-weight: 700;
-            margin: 0 0 20px;
-        }
 
         .cimm-tabs {
             display: flex;
-            background: #1a2332;
+            background: #e8ecf4;
             border-radius: 12px;
             padding: 5px;
             gap: 4px;
@@ -1196,18 +1178,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
-            color: #8892a4;
+            color: #6b7280;
             background: transparent;
         }
 
         .cimm-tab:hover {
-            color: #c0c8d8;
-            background: rgba(255, 255, 255, 0.05);
+            color: #374151;
+            background: rgba(255, 255, 255, 0.5);
         }
 
         .cimm-tab.active {
-            background: #2d3a4e;
-            color: #f0f4fa;
+            background: #ffffff;
+            color: #1e3c72;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
         }
 
         .cimm-tab i {
@@ -1232,12 +1215,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         .cimm-tab:not(.active) .cimm-tab-badge {
-            background: rgba(255, 255, 255, 0.08);
-            color: #8892a4;
-        }
-
-        .cimm-panel-body {
-            padding: 20px 25px 25px;
+            background: rgba(0, 0, 0, 0.08);
+            color: #6b7280;
         }
 
         .cimm-search-bar {
@@ -1250,10 +1229,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             flex: 1;
             padding: 12px 16px;
             padding-left: 42px;
-            background: #1a2332;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: #ffffff;
+            border: 1px solid #ddd;
             border-radius: 10px;
-            color: #f0f4fa;
+            color: #333;
             font-size: 14px;
             outline: none;
             transition: border-color 0.3s;
@@ -1332,17 +1311,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         .cimm-table tbody tr {
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
             transition: background 0.2s;
         }
 
         .cimm-table tbody tr:hover {
-            background: rgba(55, 98, 200, 0.08);
+            background: rgba(55, 98, 200, 0.05);
         }
 
         .cimm-table tbody td {
             padding: 14px;
-            color: #c0c8d8;
+            color: #333;
             font-size: 13px;
             white-space: nowrap;
         }
@@ -1402,8 +1381,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         .cimm-action-btn {
             padding: 6px 12px;
-            background: rgba(55, 98, 200, 0.15);
-            color: #60a5fa;
+            background: rgba(55, 98, 200, 0.1);
+            color: #3762c8;
             border: none;
             border-radius: 6px;
             font-size: 12px;
@@ -1412,11 +1391,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         .cimm-action-btn:hover {
-            background: rgba(55, 98, 200, 0.3);
+            background: rgba(55, 98, 200, 0.2);
         }
 
-        body.dark-mode .cimm-table thead th {
-            background: #f97316;
+        body.dark-mode .cimm-tabs {
+            background: #1a2332;
+        }
+
+        body.dark-mode .cimm-tab {
+            color: #8892a4;
+        }
+
+        body.dark-mode .cimm-tab:hover {
+            color: #c0c8d8;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        body.dark-mode .cimm-tab.active {
+            background: #2d3a4e;
+            color: #f0f4fa;
+        }
+
+        body.dark-mode .cimm-tab:not(.active) .cimm-tab-badge {
+            background: rgba(255, 255, 255, 0.08);
+            color: #8892a4;
+        }
+
+        body.dark-mode .cimm-search-input {
+            background: #1a2332;
+            border-color: rgba(255, 255, 255, 0.1);
+            color: #f0f4fa;
         }
 
         body.dark-mode .cimm-table tbody tr {
@@ -1427,11 +1431,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             background: rgba(55, 98, 200, 0.08);
         }
 
-        @media (max-width: 768px) {
-            .workflow-container {
-                grid-template-columns: 1fr;
-            }
+        body.dark-mode .cimm-table tbody td {
+            color: #c0c8d8;
+        }
 
+        body.dark-mode .cimm-action-btn {
+            background: rgba(55, 98, 200, 0.15);
+            color: #60a5fa;
+        }
+
+        @media (max-width: 768px) {
             .cimm-tabs {
                 flex-direction: column;
             }
@@ -1993,13 +2002,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         </div>
                     <?php endif; ?>
                 </div>
-            </div>
 
-            <!-- CIMM Received Reports Panel -->
-            <div class="cimm-panel">
-                <div class="cimm-panel-header">
-                    <h3><i class="fas fa-inbox" style="margin-right:8px;"></i>Received Reports</h3>
-                    <div class="cimm-tabs">
+                <!-- CIMM Received Reports Tabs & Table -->
+                <div style="border-top: 2px solid rgba(55, 98, 200, 0.1); margin-top: 20px; padding-top: 20px;">
+                    <div class="cimm-tabs" style="margin-bottom: 20px;">
                         <button class="cimm-tab <?php echo $cimm_filter === 'all' ? 'active' : ''; ?>" onclick="filterCimmReports('all')">
                             <i class="fas fa-list"></i>
                             All
@@ -2016,8 +2022,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <span class="cimm-tab-badge"><?php echo $cimm_counts['dept']; ?></span>
                         </button>
                     </div>
-                </div>
-                <div class="cimm-panel-body">
                     <div class="cimm-search-bar">
                         <div class="cimm-search-wrapper">
                             <i class="fas fa-search"></i>
