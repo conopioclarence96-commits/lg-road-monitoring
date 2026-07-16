@@ -16,7 +16,7 @@ $report_type = sanitize_input($_GET['type'] ?? 'transportation');
 
 if ($report_id <= 0) {
     set_flash_message('error', 'Invalid report ID');
-    redirect('../monitoring/report_management.php');
+    redirect('../admin/report_management.php');
 }
 
 $table = ($report_type === 'transportation') ? 'road_transportation_reports' : 'road_maintenance_reports';
@@ -24,7 +24,7 @@ $report = fetch_one("SELECT * FROM {$table} WHERE id = ?", [$report_id], "i");
 
 if (!$report) {
     set_flash_message('error', 'Report not found');
-    redirect('../monitoring/report_management.php');
+    redirect('../admin/report_management.php');
 }
 
 log_audit_action($user_id, "Viewed print report", "Report ID: {$report_id}, Type: {$report_type}");
@@ -235,7 +235,7 @@ $assigned_to = $report['assigned_to'] ?? $report['maintenance_team'] ?? 'Unassig
             <button class="btn btn-primary" onclick="window.print()">
                 <i class="fas fa-print"></i> Print / PDF
             </button>
-            <a href="../monitoring/report_management.php" class="btn btn-outline">
+            <a href="../admin/report_management.php" class="btn btn-outline">
                 <i class="fas fa-list"></i> Report List
             </a>
         </div>

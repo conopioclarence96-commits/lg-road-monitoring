@@ -213,7 +213,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param('i', $report_id);
             if (!$stmt->execute()) {
                 $_SESSION['verification_message'] = 'Failed to archive report: ' . $conn->error;
-                header('Location: ../monitoring/verification_monitoring.php');
+                header('Location: ../admin/verification_monitoring.php');
                 exit();
             }
             $query = "DELETE FROM $table WHERE id = ?";
@@ -221,7 +221,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param('i', $report_id);
             if (!$stmt->execute()) {
                 $_SESSION['verification_message'] = 'Failed to delete report after archiving: ' . $conn->error;
-                header('Location: ../monitoring/verification_monitoring.php');
+                header('Location: ../admin/verification_monitoring.php');
                 exit();
             }
             $_SESSION['verification_message'] = 'Report archived successfully.';
@@ -237,7 +237,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $r = $check->get_result()->fetch_assoc();
             if ($r && !canVerifyReport($r['report_category'], $r['report_source'])) {
                 $_SESSION['verification_message'] = 'Road reports created by your LGU cannot be approved here. They must be verified by the external Engineering Office.';
-                header('Location: ../monitoring/verification_monitoring.php');
+                header('Location: ../admin/verification_monitoring.php');
                 exit();
             }
         }
@@ -289,7 +289,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['verification_message'] = 'Report ' . $action . 'd successfully!';
         }
         
-        header('Location: ../monitoring/verification_monitoring.php');
+        header('Location: ../admin/verification_monitoring.php');
         exit();
     }
 }

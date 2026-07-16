@@ -109,7 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if (!verify_csrf_token($csrf_token)) {
         set_flash_message('error', 'Invalid CSRF token');
-        header('Location: ../monitoring/report_management.php');
+        header('Location: ../admin/report_management.php');
         exit();
     }
     

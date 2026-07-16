@@ -199,16 +199,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_login_otp'])) 
 
             switch ($user['role']) {
                 case 'system_admin':
-                    $redirectUrl = $basePath . 'lgu_staff/pages/main/admin_dashboard.php';
+                    $redirectUrl = $basePath . 'lgu_staff/pages/admin/admin_dashboard.php';
                     break;
                 case 'lgu_staff':
-                    $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
+                    $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
                     break;
                 case 'citizen':
-                    $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
+                    $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
                     break;
                 default:
-                    $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
+                    $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
             }
 
             header('Location: ' . $redirectUrl);
@@ -503,16 +503,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
 
                             switch ($user['role']) {
                                 case 'system_admin':
-                                    $redirectUrl = $basePath . 'lgu_staff/pages/main/admin_dashboard.php';
+                                    $redirectUrl = $basePath . 'lgu_staff/pages/admin/admin_dashboard.php';
                                     break;
                                 case 'lgu_staff':
-                                    $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
+                                    $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
                                     break;
                                 case 'citizen':
-                                    $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
+                                    $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
                                     break;
                                 default:
-                                    $redirectUrl = $basePath . 'lgu_staff/pages/main/lgu_staff_dashboard.php';
+                                    $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
                             }
 
                             header('Location: ' . $redirectUrl);

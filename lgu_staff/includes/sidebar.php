@@ -44,37 +44,37 @@ function getNavigationItems($user_role) {
     $base_items = [
         'main' => [
             [
-                'href' => '../pages/main/lgu_staff_dashboard.php',
+                'href' => '../pages/lgu/lgu_staff_dashboard.php',
                 'icon' => 'speedometer2',
                 'title' => 'Staff Dashboard',
                 'roles' => ['lgu_staff']
             ],
             [
-                'href' => '../pages/main/change_info.php',
+                'href' => '../pages/lgu/change_info.php',
                 'icon' => 'user-edit',
                 'title' => 'Change Information',
                 'roles' => ['lgu_staff']
             ],
             [
-                'href' => '../pages/main/admin_dashboard.php',
+                'href' => '../pages/admin/admin_dashboard.php',
                 'icon' => 'speedometer2',
                 'title' => 'Admin Dashboard',
                 'roles' => ['system_admin']
             ],
             [
-                'href' => '../pages/main/manage_accounts.php',
+                'href' => '../pages/admin/manage_accounts.php',
                 'icon' => 'users',
                 'title' => 'Manage Accounts',
                 'roles' => ['system_admin']
             ],
             [
-                'href' => '../pages/main/account_approvals.php',
+                'href' => '../pages/admin/account_approvals.php',
                 'icon' => 'clipboard-check',
                 'title' => 'Account Approvals',
                 'roles' => ['system_admin']
             ],
             [
-                'href' => '../pages/main/create_staff_account.php',
+                'href' => '../pages/admin/create_staff_account.php',
                 'icon' => 'person-plus',
                 'title' => 'Create Staff Account',
                 'roles' => ['system_admin']
@@ -82,19 +82,19 @@ function getNavigationItems($user_role) {
         ],
         'monitoring' => [
             [
-                'href' => '../pages/monitoring/road_transportation_monitoring.php',
+                'href' => '../pages/shared/road_transportation_monitoring.php',
                 'icon' => 'map',
                 'title' => 'Road and Transportation Monitoring',
                 'roles' => ['lgu_staff', 'system_admin']
             ],
             [
-                'href' => '../pages/monitoring/verification_monitoring.php',
+                'href' => '../pages/admin/verification_monitoring.php',
                 'icon' => 'shield-check',
                 'title' => 'Verification Reports',
                 'roles' => ['system_admin']
             ],
             [
-                'href' => '../pages/monitoring/report_management.php',
+                'href' => '../pages/admin/report_management.php',
                 'icon' => 'clipboard-data',
                 'title' => 'Report Management',
                 'roles' => ['system_admin']
@@ -102,7 +102,7 @@ function getNavigationItems($user_role) {
         ],
         'transparency' => [
             [
-                'href' => '../pages/transparency/public_transparency.php',
+                'href' => '../pages/shared/public_transparency.php',
                 'icon' => 'eye',
                 'title' => 'Public Transparency',
                 'roles' => ['system_admin', 'lgu_staff']
@@ -110,19 +110,19 @@ function getNavigationItems($user_role) {
         ],
         'reports' => [
             [
-                'href' => '../pages/reports/analytics.php',
+                'href' => '../pages/shared/analytics.php',
                 'icon' => 'graph-up-arrow',
                 'title' => 'Analytics',
                 'roles' => ['system_admin', 'lgu_staff']
             ],
             [
-                'href' => '../pages/reports/sla_dashboard.php',
+                'href' => '../pages/shared/sla_dashboard.php',
                 'icon' => 'gavel',
                 'title' => 'SLA Compliance',
                 'roles' => ['system_admin', 'lgu_staff']
             ],
             [
-                'href' => '../pages/reports/audit_trail.php',
+                'href' => '../pages/admin/audit_trail.php',
                 'icon' => 'clock-history',
                 'title' => 'Audit Trail',
                 'roles' => ['system_admin']
@@ -130,19 +130,19 @@ function getNavigationItems($user_role) {
         ],
         'system' => [
             [
-                'href' => '../pages/main/notifications.php',
+                'href' => '../pages/shared/notifications.php',
                 'icon' => 'bell',
                 'title' => 'Notifications',
                 'roles' => ['system_admin', 'lgu_staff']
             ],
             [
-                'href' => '../pages/monitoring/archive.php',
+                'href' => '../pages/admin/archive.php',
                 'icon' => 'archive',
                 'title' => 'Archive',
                 'roles' => ['system_admin']
             ],
             [
-                'href' => '../pages/main/settings.php',
+                'href' => '../pages/shared/settings.php',
                 'icon' => 'gear',
                 'title' => 'Settings',
                 'roles' => ['system_admin','lgu_staff']
@@ -579,39 +579,39 @@ $notification_count = getNotificationCount($user_role, $_SESSION['user_id'] ?? 0
                 <div class="nav-section">
                     <div class="nav-section-title">Main</div>
                     <ul style="list-style: none;">
-                        <li><a href="../pages/main/lgu_staff_dashboard.php" class="nav-link" target="_parent">📊 Staff Dashboard</a></li>
-                        <li><a href="../pages/main/admin_dashboard.php" class="nav-link" target="_parent">🔧 Admin Dashboard</a></li>
-                        <li><a href="../pages/main/manage_accounts.php" class="nav-link" target="_parent">👥 Manage Accounts</a></li>
+                        <li><a href="../pages/lgu/lgu_staff_dashboard.php" class="nav-link" target="_parent">📊 Staff Dashboard</a></li>
+                        <li><a href="../pages/admin/admin_dashboard.php" class="nav-link" target="_parent">🔧 Admin Dashboard</a></li>
+                        <li><a href="../pages/admin/manage_accounts.php" class="nav-link" target="_parent">👥 Manage Accounts</a></li>
                     </ul>
                 </div>
                 <div class="nav-section">
                     <div class="nav-section-title">Monitoring</div>
                     <ul style="list-style: none;">
-                        <li><a href="../pages/monitoring/road_transportation_monitoring.php" class="nav-link" target="_parent">🗺️ Road and Transportation Reporting</a></li>
-                        <li><a href="../pages/monitoring/verification_monitoring.php" class="nav-link" target="_parent">✅ Verification Reports</a></li>
-                        <li><a href="../pages/monitoring/report_management.php" class="nav-link" target="_parent">📊 Report Management</a></li>
+                        <li><a href="../pages/shared/road_transportation_monitoring.php" class="nav-link" target="_parent">🗺️ Road and Transportation Reporting</a></li>
+                        <li><a href="../pages/admin/verification_monitoring.php" class="nav-link" target="_parent">✅ Verification Reports</a></li>
+                        <li><a href="../pages/admin/report_management.php" class="nav-link" target="_parent">📊 Report Management</a></li>
                     </ul>
                 </div>
                 <div class="nav-section">
                     <div class="nav-section-title">Transparency</div>
                     <ul style="list-style: none;">
-                        <li><a href="../pages/transparency/public_transparency.php" class="nav-link" target="_parent">👁️ Public Transparency</a></li>
+                        <li><a href="../pages/shared/public_transparency.php" class="nav-link" target="_parent">👁️ Public Transparency</a></li>
                     </ul>
                 </div>
                 <div class="nav-section">
                     <div class="nav-section-title">Reports</div>
                     <ul style="list-style: none;">
-                        <li><a href="../pages/reports/analytics.php" class="nav-link" target="_parent">📊 Analytics</a></li>
-                        <li><a href="../pages/reports/sla_dashboard.php" class="nav-link" target="_parent">⚖️ SLA Compliance</a></li>
-                        <li><a href="../pages/reports/audit_trail.php" class="nav-link" target="_parent">📋 Audit Trail</a></li>
+                        <li><a href="../pages/shared/analytics.php" class="nav-link" target="_parent">📊 Analytics</a></li>
+                        <li><a href="../pages/shared/sla_dashboard.php" class="nav-link" target="_parent">⚖️ SLA Compliance</a></li>
+                        <li><a href="../pages/admin/audit_trail.php" class="nav-link" target="_parent">📋 Audit Trail</a></li>
                     </ul>
                 </div>
                 <div class="nav-section">
                     <div class="nav-section-title">System</div>
                     <ul style="list-style: none;">
-                        <li><a href="../pages/main/notifications.php" class="nav-link" target="_parent">🔔 Notifications</a></li>
-                        <li><a href="../pages/monitoring/archive.php" class="nav-link" target="_parent">📦 Archive</a></li>
-                        <li><a href="../pages/main/settings.php" class="nav-link" target="_parent">⚙️ Settings</a></li>
+                        <li><a href="../pages/shared/notifications.php" class="nav-link" target="_parent">🔔 Notifications</a></li>
+                        <li><a href="../pages/admin/archive.php" class="nav-link" target="_parent">📦 Archive</a></li>
+                        <li><a href="../pages/shared/settings.php" class="nav-link" target="_parent">⚙️ Settings</a></li>
                     </ul>
                 </div>
                 <div class="nav-section">
