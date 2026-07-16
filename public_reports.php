@@ -107,6 +107,7 @@ function getTimeAgoShort($datetime) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="lgu_staff/css/progress-updates.css">
+    <link rel="stylesheet" href="styles/transition.css">
     <style>
         :root { --primary: #1e3c72; --primary-light: #2a5298; --accent: #4CAF50; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -596,6 +597,13 @@ function getTimeAgoShort($datetime) {
         });
         <?php endif; ?>
     </script>
+    <div class="page-transition-overlay" id="pageTransitionOverlay">
+        <div class="transition-content">
+            <div class="transition-spinner"><i class="fas fa-spinner"></i></div>
+            <div class="transition-text">Loading...</div>
+        </div>
+    </div>
+    <script src="lgu_staff/js/page-transition.js"></script>
     <?php include __DIR__ . '/includes/a11y_js.php'; ?>
 </body>
 </html>

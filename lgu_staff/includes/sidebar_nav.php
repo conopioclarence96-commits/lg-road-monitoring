@@ -195,6 +195,7 @@ foreach ($nav_items as $section => $items) {
     </nav>
 </aside>
 
+<script src="../../js/page-transition.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     var logoutBtn = document.getElementById('logoutBtn');
@@ -210,7 +211,6 @@ document.addEventListener('DOMContentLoaded', function() {
     var activeLink = document.querySelector('.sidebar-menu .nav-link.active');
     if (activeLink) {
         activeLink.classList.add('active-animate');
-        // Scroll active link into view within sidebar
         activeLink.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 });

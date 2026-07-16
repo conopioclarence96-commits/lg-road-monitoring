@@ -1106,19 +1106,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             observer.observe(card);
         });
 
-        // Page transition for login button
-        document.querySelectorAll('a[href*="login.php"]').forEach(link => {
-            link.addEventListener('click', function (e) {
-                e.preventDefault();
-                const overlay = document.getElementById('pageTransitionOverlay');
-                overlay.classList.add('active');
-                
-                setTimeout(() => {
-                    window.location.href = this.href;
-                }, 1000);
-            });
-        });
-
         // Before & After Comparison Slider
         document.querySelectorAll('[data-slider]').forEach(slider => {
             const imgBefore = slider.querySelector('.img-before');
@@ -1204,6 +1191,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             <div class="transition-text">Loading...</div>
         </div>
     </div>
+    <script src="lgu_staff/js/page-transition.js"></script>
     <?php include __DIR__ . '/includes/a11y_js.php'; ?>
 </body>
 </html>

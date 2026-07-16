@@ -15,9 +15,10 @@
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
+    transform: translateY(-100%);
 }
 
-/* Page Transition Overlay */
+/* Page Transition Overlay - slides down from top */
 .page-transition-overlay {
     position: fixed;
     top: 0;
@@ -32,13 +33,15 @@
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
+    transform: translateY(-100%);
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease 0.1s;
 }
 
 .page-transition-overlay.active {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
-    transition: opacity 0.4s ease;
+    transform: translateY(0);
 }
 
 .transition-content {

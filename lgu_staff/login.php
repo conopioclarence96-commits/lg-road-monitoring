@@ -1013,21 +1013,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
         </div>
     </div>
     
-    <script>
-        // Page transition for home link
-        document.addEventListener('DOMContentLoaded', function() {
-            document.querySelectorAll('a[href*="index.php"]').forEach(link => {
-                link.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    const overlay = document.getElementById('pageTransitionOverlay');
-                    overlay.classList.add('active');
-                    
-                    setTimeout(() => {
-                        window.location.href = this.href;
-                    }, 800);
-                });
-            });
-        });
-    </script>
+    <script src="js/page-transition.js"></script>
   </body>
 </html>

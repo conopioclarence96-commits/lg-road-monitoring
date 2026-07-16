@@ -140,16 +140,6 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
         </div>
     </footer>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        document.querySelectorAll('a[href*="login.php"]').forEach(link => {
-            link.addEventListener('click', function (e) {
-                e.preventDefault();
-                const overlay = document.getElementById('pageTransitionOverlay');
-                if (overlay) { overlay.classList.add('active'); }
-                setTimeout(() => { window.location.href = this.href; }, 1000);
-            });
-        });
-    </script>
     <?php include __DIR__ . '/includes/a11y_html.php'; ?>
     <div class="page-transition-overlay" id="pageTransitionOverlay">
         <div class="transition-content">
@@ -157,6 +147,7 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
             <div class="transition-text">Loading...</div>
         </div>
     </div>
+    <script src="lgu_staff/js/page-transition.js"></script>
     <?php include __DIR__ . '/includes/a11y_js.php'; ?>
 </body>
 </html>
