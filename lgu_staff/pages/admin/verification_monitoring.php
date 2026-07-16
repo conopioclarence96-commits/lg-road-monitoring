@@ -4,11 +4,6 @@ require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 require_once __DIR__ . '/../../api/cimm_verification_data.php';
 
-// Backward compatibility for PHP < 7.2
-if (!defined('JSON_INVALID_UTF8_IGNORE')) {
-    define('JSON_INVALID_UTF8_IGNORE', 0);
-}
-
 // Session timeout configuration
 $session_timeout = 5 * 60; // 5 minutes in seconds
 
@@ -185,12 +180,12 @@ function getAllReports($conn, $status_filter = 'all', $source_filter = 'all') {
             $maintenance_where = " WHERE status IN ('cancelled')";
         }
     }
-    // Exclude citizen-submitted (created_by = 0) and CIMM-inserted (created_by = -1) reports
-    // from the main workflow list — they have their own dedicated panels.
+    // Exclude citizen-submitted reports (created_by = 0) from main workflow list
+    // Citizen reports have their own dedicated panel.
     if ($transport_where === '') {
-        $transport_where = " WHERE (created_by IS NULL OR created_by NOT IN (0, -1))";
+        $transport_where = " WHERE (created_by IS NULL OR created_by != 0)";
     } else {
-        $transport_where .= " AND (created_by IS NULL OR created_by NOT IN (0, -1))";
+        $transport_where .= " AND (created_by IS NULL OR created_by != 0)";
     }
     if ($source_filter === 'transport') {
         $q = "(SELECT 'transport' as source, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$transport_where})";
@@ -375,52 +370,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $report_id = (int) $_POST['report_id'];
         $source = $_POST['source'];
         $action = $_POST['action'];
-        
-        // Handle CIMM-specific actions
-        if ($source === 'cimm') {
-            try {
-                $pdo = rgmap_verification_pdo();
-                if ($action === 'approve') {
-                    $stmt = $pdo->prepare("UPDATE cimm_verification_reports SET approval_status = 'Approved', verification_status = 'Verified' WHERE id = ?");
-                    $stmt->execute([$report_id]);
-                    
-                    $fetch = $pdo->prepare("SELECT * FROM cimm_verification_reports WHERE id = ?");
-                    $fetch->execute([$report_id]);
-                    $cimm_row = $fetch->fetch(PDO::FETCH_ASSOC);
-                    
-                    if ($cimm_row) {
-                        $lat = (float)($cimm_row['coord_lat'] ?? 0);
-                        $lng = (float)($cimm_row['coord_lng'] ?? 0);
-                        $ins = $conn->prepare("INSERT INTO road_transportation_reports 
-                            (report_id, title, report_type, department, priority, status, description, location, latitude, longitude, created_by, reporter_name, created_date, created_at, updated_at) 
-                            VALUES (?, ?, 'infrastructure_issue', 'engineering', ?, 'approved', ?, ?, ?, ?, -1, ?, CURDATE(), NOW(), NOW())");
-                        $ins->bind_param('ssssssds',
-                            $cimm_row['reference_code'],
-                            $cimm_row['infrastructure'],
-                            $cimm_row['priority'],
-                            $cimm_row['issue'],
-                            $cimm_row['location'],
-                            $lat,
-                            $lng,
-                            $cimm_row['reporter_name']
-                        );
-                        $ins->execute();
-                    }
-                } elseif ($action === 'reject') {
-                    $stmt = $pdo->prepare("UPDATE cimm_verification_reports SET approval_status = 'Rejected' WHERE id = ?");
-                    $stmt->execute([$report_id]);
-                } elseif ($action === 'delete') {
-                    $stmt = $pdo->prepare("UPDATE cimm_verification_reports SET approval_status = 'Archived' WHERE id = ?");
-                    $stmt->execute([$report_id]);
-                }
-                $_SESSION['verification_message'] = 'CIMM Report ' . $action . 'd successfully!';
-            } catch (Exception $e) {
-                $_SESSION['verification_message'] = 'Error processing CIMM report: ' . $e->getMessage();
-            }
-            header('Location: ../admin/verification_monitoring.php');
-            exit();
-        }
-        
         $table = ($source === 'transport') ? 'road_transportation_reports' : 'road_maintenance_reports';
         
         // Archive report then remove from active table
@@ -533,10 +482,6 @@ $activity_timeline = getActivityTimeline($conn);
 // CIMM reports data (live, via RGMAO sync)
 $cimm_filter = $_GET['cimm_filter'] ?? 'all';
 $cimm_reports = getCimmReports($cimm_filter);
-// Hide already approved/rejected/archived CIMM reports from the panel
-$cimm_reports = array_values(array_filter($cimm_reports, function ($r) {
-    return !in_array($r['approval_status'] ?? '', ['Approved', 'Rejected', 'Archived']);
-}));
 $cimm_counts = getCimmReportCounts();
 
 // Reports from reports.sql table
@@ -545,17 +490,9 @@ $sql_reports = getSqlReports($conn);
 // Infrastructure-specific reports
 $infra_reports = getInfraReports($conn);
 
-// Citizen-submitted reports — hide approved/rejected from verification panel
-$citizen_reports_all = getCitizenReports($conn, 'all');
-$citizen_reports = [];
-if ($citizen_reports_all && $citizen_reports_all->num_rows > 0) {
-    while ($cr = $citizen_reports_all->fetch_assoc()) {
-        if (!in_array($cr['status'], ['approved', 'completed', 'cancelled'])) {
-            $citizen_reports[] = $cr;
-        }
-    }
-}
-$citizen_count = count($citizen_reports);
+// Citizen-submitted reports
+$citizen_reports = getCitizenReports($conn, $status_filter);
+$citizen_count = $citizen_reports ? $citizen_reports->num_rows : 0;
 
 // Handle AJAX request for report details
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'get_report_details') {
@@ -3292,33 +3229,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             $hasAnyReports = true;
                         ?>
                         <tr>
-                            <td style="white-space:nowrap;">
-                                <button class="dept-action-btn btn-view-cimm" data-cimm='<?php echo json_encode($row, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_IGNORE); ?>'>
+                            <td>
+                                <button class="dept-action-btn" onclick="viewCimmReport(<?php echo $row['id']; ?>)">
                                     <i class="fas fa-eye"></i>
                                 </button>
-                                <?php if (empty($row['approval_status']) || $row['approval_status'] === 'Pending'): ?>
-                                <form method="POST" style="display:inline-flex;">
-                                    <input type="hidden" name="report_id" value="<?php echo $row['id']; ?>">
-                                    <input type="hidden" name="source" value="cimm">
-                                    <button type="submit" name="action" value="approve" class="dept-action-btn" style="background:rgba(16,185,129,0.1);color:#10b981;" title="Approve">
-                                        <i class="fas fa-check"></i>
-                                    </button>
-                                </form>
-                                <form method="POST" style="display:inline-flex;">
-                                    <input type="hidden" name="report_id" value="<?php echo $row['id']; ?>">
-                                    <input type="hidden" name="source" value="cimm">
-                                    <button type="submit" name="action" value="reject" class="dept-action-btn" style="background:rgba(220,53,69,0.1);color:#ef4444;" title="Reject" onclick="return confirm('Reject this CIMM report?')">
-                                        <i class="fas fa-times"></i>
-                                    </button>
-                                </form>
-                                <?php endif; ?>
-                                <form method="POST" style="display:inline-flex;">
-                                    <input type="hidden" name="report_id" value="<?php echo $row['id']; ?>">
-                                    <input type="hidden" name="source" value="cimm">
-                                    <button type="submit" name="action" value="delete" class="dept-action-btn" style="background:rgba(108,117,125,0.1);color:#6c757d;" title="Delete" onclick="return confirm('Remove this CIMM report? It will be archived.')">
-                                        <i class="fas fa-trash-alt"></i>
-                                    </button>
-                                </form>
                             </td>
                             <td><?php echo htmlspecialchars($row['rep_number']); ?></td>
                             <td><?php echo htmlspecialchars($row['infrastructure']); ?></td>
@@ -3537,8 +3451,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <tbody>
                         <?php
                         $hasCitizenReports = false;
-                        if (!empty($citizen_reports)):
-                            foreach ($citizen_reports as $crow):
+                        if ($citizen_reports && $citizen_reports->num_rows > 0):
+                            $citizen_reports->data_seek(0);
+                            while ($crow = $citizen_reports->fetch_assoc()):
                                 $hasCitizenReports = true;
                                 $cstatus_class = '';
                                 if ($crow['status'] === 'approved') $cstatus_class = 'approved';
@@ -3624,7 +3539,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <td><?php echo $crow['created_at'] ? date('M d, Y', strtotime($crow['created_at'])) : '—'; ?></td>
                         </tr>
                         <?php
-                            endforeach;
+                            endwhile;
                         endif;
                         ?>
 
@@ -3713,7 +3628,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         
         // Show success message if available
         <?php if (isset($success_message)): ?>
-        showNotification(<?php echo json_encode($success_message, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_IGNORE); ?>, 'success');
+        showNotification('<?php echo htmlspecialchars($success_message); ?>', 'success');
         <?php endif; ?>
 
         // CIMM Reports tab filtering
@@ -3757,52 +3672,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         // CIMM & SQL report data maps (populated from PHP)
-        var cimmDataMap = <?php echo json_encode(array_column($cimm_reports, null, 'id'), JSON_INVALID_UTF8_IGNORE) ?: '{}'; ?>;
-        document.querySelectorAll('.btn-view-cimm').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                try { var r = JSON.parse(this.dataset.cimm); } catch(e) { var r = null; }
-                if (!r) { alert('Report data not found.'); return; }
-                document.getElementById('cimmModalTitle').textContent = 'CIMM Report — ' + (r.rep_number || 'Details');
-                setModalField('dm-rep-number', r.rep_number);
-                setModalField('dm-infrastructure', r.infrastructure);
-                setModalField('dm-location', r.location);
-                setModalField('dm-issue', r.issue_notes);
-                setModalField('dm-engineer', r.engineer);
-                setModalField('dm-reported-by', r.reported_by);
-                setModalField('dm-start-date', formatDate(r.start_date));
-                setModalField('dm-end-date', formatDate(r.end_date));
-                document.getElementById('dm-priority').innerHTML = priorityBadgeHtml(r.priority);
-                setModalField('dm-budget', formatCurrency(r.budget));
-                document.getElementById('dm-status').innerHTML = statusBadgeHtml(r.status, r.status ? r.status.replace(/-/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}) : '—');
-                var extra = '';
-                if (r.verification_status) extra += '<div class="detail-row"><div class="detail-label">Verification Status</div><div class="detail-value">' + statusBadgeHtml(r.status, r.verification_status) + '</div></div>';
-                if (r.approval_status) extra += '<div class="detail-row"><div class="detail-label">Approval Status</div><div class="detail-value">' + statusBadgeHtml(r.status, r.approval_status) + '</div></div>';
-                if (r.cimm_req_id) extra += '<div class="detail-row"><div class="detail-label">CIMM Request ID</div><div class="detail-value">' + r.cimm_req_id + '</div></div>';
-                document.getElementById('dm-extra-fields').innerHTML = extra;
-                openCimmDetailModal();
-            });
-        });
+        var cimmDataMap = <?php echo json_encode(array_column($cimm_reports, null, 'id')); ?>;
         var sqlDataMap = {};
         <?php
+        $sql_reports->data_seek(0);
         if ($sql_reports && $sql_reports->num_rows > 0):
-            $sql_reports->data_seek(0);
             while ($sr = $sql_reports->fetch_assoc()):
         ?>
         sqlDataMap[<?php echo (int)$sr['rep_id']; ?>] = {
             rep_id: <?php echo (int)$sr['rep_id']; ?>,
             res_id: <?php echo (int)$sr['res_id']; ?>,
-            starting_date: <?php echo json_encode($sr['starting_date'], JSON_INVALID_UTF8_IGNORE); ?>,
-            estimated_end_date: <?php echo json_encode($sr['estimated_end_date'], JSON_INVALID_UTF8_IGNORE); ?>,
-            engineer_id: <?php echo json_encode($sr['engineer_id'], JSON_INVALID_UTF8_IGNORE); ?>,
+            starting_date: <?php echo json_encode($sr['starting_date']); ?>,
+            estimated_end_date: <?php echo json_encode($sr['estimated_end_date']); ?>,
+            engineer_id: <?php echo json_encode($sr['engineer_id']); ?>,
             report_by: <?php echo (int)$sr['report_by']; ?>,
-            priority_lvl: <?php echo json_encode($sr['priority_lvl'], JSON_INVALID_UTF8_IGNORE); ?>,
-            budget: <?php echo json_encode($sr['budget'], JSON_INVALID_UTF8_IGNORE); ?>,
-            created_at: <?php echo json_encode($sr['created_at'], JSON_INVALID_UTF8_IGNORE); ?>,
+            priority_lvl: <?php echo json_encode($sr['priority_lvl']); ?>,
+            budget: <?php echo json_encode($sr['budget']); ?>,
+            created_at: <?php echo json_encode($sr['created_at']); ?>,
             engineer_accepted: <?php echo (int)$sr['engineer_accepted']; ?>,
-            decline_reason: <?php echo json_encode($sr['decline_reason'], JSON_INVALID_UTF8_IGNORE); ?>,
-            decline_reviewed: <?php echo json_encode($sr['decline_reviewed'], JSON_INVALID_UTF8_IGNORE); ?>,
-            decline_review_note: <?php echo json_encode($sr['decline_review_note'], JSON_INVALID_UTF8_IGNORE); ?>,
-            reporter_name: <?php echo json_encode($sr['reporter_name'] ?? 'User #' . $sr['report_by'], JSON_INVALID_UTF8_IGNORE); ?>
+            decline_reason: <?php echo json_encode($sr['decline_reason']); ?>,
+            decline_reviewed: <?php echo json_encode($sr['decline_reviewed']); ?>,
+            decline_review_note: <?php echo json_encode($sr['decline_review_note']); ?>,
+            reporter_name: <?php echo json_encode($sr['reporter_name'] ?? 'User #' . $sr['report_by']); ?>
         };
         <?php
             endwhile;
@@ -3968,24 +3859,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $infra_reports->data_seek(0);
             while ($ir = $infra_reports->fetch_assoc()):
         ?>
-        infraDataMap[<?php echo (int)$ir['id']; ?>_<?php echo json_encode($ir['source'], JSON_INVALID_UTF8_IGNORE); ?>] = {
+        infraDataMap[<?php echo (int)$ir['id']; ?>_<?php echo json_encode($ir['source']); ?>] = {
             id: <?php echo (int)$ir['id']; ?>,
-            source: <?php echo json_encode($ir['source'], JSON_INVALID_UTF8_IGNORE); ?>,
-            report_id: <?php echo json_encode($ir['report_id'], JSON_INVALID_UTF8_IGNORE); ?>,
-            title: <?php echo json_encode($ir['title'], JSON_INVALID_UTF8_IGNORE); ?>,
-            report_type: <?php echo json_encode($ir['report_type'], JSON_INVALID_UTF8_IGNORE); ?>,
-            department: <?php echo json_encode($ir['department'], JSON_INVALID_UTF8_IGNORE); ?>,
-            priority: <?php echo json_encode($ir['priority'], JSON_INVALID_UTF8_IGNORE); ?>,
-            status: <?php echo json_encode($ir['status'], JSON_INVALID_UTF8_IGNORE); ?>,
-            location: <?php echo json_encode($ir['location'], JSON_INVALID_UTF8_IGNORE); ?>,
-            description: <?php echo json_encode($ir['description'], JSON_INVALID_UTF8_IGNORE); ?>,
-            created_date: <?php echo json_encode($ir['created_date'], JSON_INVALID_UTF8_IGNORE); ?>,
-            created_at: <?php echo json_encode($ir['created_at'], JSON_INVALID_UTF8_IGNORE); ?>,
-            due_date: <?php echo json_encode($ir['due_date'], JSON_INVALID_UTF8_IGNORE); ?>,
-            reporter_name: <?php echo json_encode($ir['reporter_name'] ?? '—', JSON_INVALID_UTF8_IGNORE); ?>,
-            estimated_cost: <?php echo json_encode($ir['estimated_cost'] ?? null, JSON_INVALID_UTF8_IGNORE); ?>,
-            actual_cost: <?php echo json_encode($ir['actual_cost'] ?? null, JSON_INVALID_UTF8_IGNORE); ?>,
-            maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—', JSON_INVALID_UTF8_IGNORE); ?>
+            source: <?php echo json_encode($ir['source']); ?>,
+            report_id: <?php echo json_encode($ir['report_id']); ?>,
+            title: <?php echo json_encode($ir['title']); ?>,
+            report_type: <?php echo json_encode($ir['report_type']); ?>,
+            department: <?php echo json_encode($ir['department']); ?>,
+            priority: <?php echo json_encode($ir['priority']); ?>,
+            status: <?php echo json_encode($ir['status']); ?>,
+            location: <?php echo json_encode($ir['location']); ?>,
+            description: <?php echo json_encode($ir['description']); ?>,
+            created_date: <?php echo json_encode($ir['created_date']); ?>,
+            created_at: <?php echo json_encode($ir['created_at']); ?>,
+            due_date: <?php echo json_encode($ir['due_date']); ?>,
+            reporter_name: <?php echo json_encode($ir['reporter_name'] ?? '—'); ?>,
+            estimated_cost: <?php echo json_encode($ir['estimated_cost'] ?? null); ?>,
+            actual_cost: <?php echo json_encode($ir['actual_cost'] ?? null); ?>,
+            maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>
         };
         <?php
             endwhile;
@@ -4067,32 +3958,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         // Citizen Reports data map (populated from PHP)
         var citizenDataMap = {};
         <?php
-        if (!empty($citizen_reports)):
-            foreach ($citizen_reports as $cr):
+        if ($citizen_reports && $citizen_reports->num_rows > 0):
+            $citizen_reports->data_seek(0);
+            while ($cr = $citizen_reports->fetch_assoc()):
         ?>
         citizenDataMap[<?php echo (int)$cr['id']; ?>] = {
             id: <?php echo (int)$cr['id']; ?>,
-            report_id: <?php echo json_encode($cr['report_id'], JSON_INVALID_UTF8_IGNORE); ?>,
-            title: <?php echo json_encode($cr['title'], JSON_INVALID_UTF8_IGNORE); ?>,
-            report_type: <?php echo json_encode($cr['report_type'], JSON_INVALID_UTF8_IGNORE); ?>,
-            location: <?php echo json_encode($cr['location'], JSON_INVALID_UTF8_IGNORE); ?>,
-            description: <?php echo json_encode($cr['description'], JSON_INVALID_UTF8_IGNORE); ?>,
-            severity: <?php echo json_encode($cr['severity'], JSON_INVALID_UTF8_IGNORE); ?>,
-            priority: <?php echo json_encode($cr['priority'], JSON_INVALID_UTF8_IGNORE); ?>,
-            status: <?php echo json_encode($cr['status'], JSON_INVALID_UTF8_IGNORE); ?>,
-            created_at: <?php echo json_encode($cr['created_at'], JSON_INVALID_UTF8_IGNORE); ?>,
-            created_date: <?php echo json_encode($cr['created_date'], JSON_INVALID_UTF8_IGNORE); ?>,
-            reporter_email: <?php echo json_encode($cr['reporter_email'] ?? '', JSON_INVALID_UTF8_IGNORE); ?>,
-            reporter_name: <?php echo json_encode($cr['reporter_name'] ?? '', JSON_INVALID_UTF8_IGNORE); ?>,
-            latitude: <?php echo json_encode($cr['latitude'], JSON_INVALID_UTF8_IGNORE); ?>,
-            longitude: <?php echo json_encode($cr['longitude'], JSON_INVALID_UTF8_IGNORE); ?>,
-            attachments: <?php echo json_encode($cr['attachments'], JSON_INVALID_UTF8_IGNORE); ?>,
-            image_path: <?php echo json_encode($cr['image_path'], JSON_INVALID_UTF8_IGNORE); ?>,
-            approved_at: <?php echo json_encode($cr['approved_at'], JSON_INVALID_UTF8_IGNORE); ?>,
-            rejected_at: <?php echo json_encode($cr['rejected_at'], JSON_INVALID_UTF8_IGNORE); ?>
+            report_id: <?php echo json_encode($cr['report_id']); ?>,
+            title: <?php echo json_encode($cr['title']); ?>,
+            report_type: <?php echo json_encode($cr['report_type']); ?>,
+            location: <?php echo json_encode($cr['location']); ?>,
+            description: <?php echo json_encode($cr['description']); ?>,
+            severity: <?php echo json_encode($cr['severity']); ?>,
+            priority: <?php echo json_encode($cr['priority']); ?>,
+            status: <?php echo json_encode($cr['status']); ?>,
+            created_at: <?php echo json_encode($cr['created_at']); ?>,
+            created_date: <?php echo json_encode($cr['created_date']); ?>,
+            reporter_email: <?php echo json_encode($cr['reporter_email'] ?? ''); ?>,
+            reporter_name: <?php echo json_encode($cr['reporter_name'] ?? ''); ?>,
+            latitude: <?php echo json_encode($cr['latitude']); ?>,
+            longitude: <?php echo json_encode($cr['longitude']); ?>,
+            attachments: <?php echo json_encode($cr['attachments']); ?>,
+            image_path: <?php echo json_encode($cr['image_path']); ?>,
+            approved_at: <?php echo json_encode($cr['approved_at']); ?>,
+            rejected_at: <?php echo json_encode($cr['rejected_at']); ?>
         };
         <?php
-            endforeach;
+            endwhile;
         endif;
         ?>
 
