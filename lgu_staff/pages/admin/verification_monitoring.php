@@ -2514,35 +2514,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             </div>
         </div>
 
-        <!-- Activity Timeline Panel -->
-        <div class="section-panel">
-            <div class="timeline-section" style="margin-bottom:0; box-shadow:none; border:none; border-radius:0;">
-                <h3 class="timeline-header">
-                    <i class="fas fa-history"></i>
-                    Recent Activity Timeline
-            </h3>
-            <div class="timeline">
-                <?php if ($activity_timeline->num_rows > 0): ?>
-                    <?php while ($activity = $activity_timeline->fetch_assoc()): ?>
-                        <div class="timeline-item">
-                            <div class="timeline-marker <?php echo htmlspecialchars($activity['status']); ?>"></div>
-                            <div class="timeline-content">
-                                <div class="timeline-title"><?php echo getActivityTitle($activity); ?></div>
-                                <div class="timeline-description">
-                                    <?php echo htmlspecialchars(substr($activity['description'], 0, 100)) . '...'; ?>
-                                </div>
-                                <div class="timeline-time"><?php echo getTimeAgo($activity['updated_at']); ?></div>
-                            </div>
-                        </div>
-                    <?php endwhile; ?>
-                <?php else: ?>
-                    <div style="text-align: center; padding: 40px; color: #666;">
-                        <i class="fas fa-clock" style="font-size: 48px; margin-bottom: 20px; opacity: 0.5;"></i>
-                        <p>No recent activity to display.</p>
-                    </div>
-                <?php endif; ?>
-            </div>
-        </div>
         </div>
     </div>
 
