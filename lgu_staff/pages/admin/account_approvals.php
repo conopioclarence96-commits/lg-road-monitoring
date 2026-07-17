@@ -318,6 +318,33 @@ $pending_changes_count = count($change_requests);
         .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; }
         .sync-dot.syncing { animation: syncPulse 0.8s ease-in-out infinite; background: #f59e0b; }
         @keyframes syncPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+        .cr-modal-section { background: #f8fafc; border-radius: 10px; padding: 16px; margin-bottom: 16px; border: 1px solid #e2e8f0; }
+        .cr-modal-section-title { font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .cr-modal-section-title i { font-size: 14px; }
+        .cr-compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .cr-compare-item { display: flex; flex-direction: column; gap: 4px; }
+        .cr-compare-label { font-size: 11px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
+        .cr-compare-old { font-size: 13px; color: #64748b; padding: 8px 12px; background: #f1f5f9; border-radius: 6px; border-left: 3px solid #cbd5e1; }
+        .cr-compare-new { font-size: 13px; color: #1e3c72; padding: 8px 12px; background: #eff6ff; border-radius: 6px; border-left: 3px solid #3762c8; font-weight: 500; }
+        .cr-compare-new.no-change { color: #94a3b8; background: #f8fafc; border-left-color: #e2e8f0; font-weight: 400; }
+        .cr-media-preview { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: #f1f5f9; border-radius: 6px; border-left: 3px solid #3762c8; }
+        .cr-media-preview img { width: 70px; height: 70px; border-radius: 8px; object-fit: cover; border: 2px solid #e2e8f0; }
+        .cr-media-preview .cr-media-label { font-size: 12px; color: #64748b; }
+        .cr-staff-header { display: flex; align-items: center; gap: 14px; padding-bottom: 14px; border-bottom: 1px solid #e2e8f0; margin-bottom: 16px; }
+        .cr-staff-avatar { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, #3762c8, #1e3c72); display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; font-weight: 600; flex-shrink: 0; }
+        .cr-staff-info { flex: 1; }
+        .cr-staff-name { font-size: 16px; font-weight: 600; color: #1e3c72; }
+        .cr-staff-date { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+        .cr-admin-notes textarea { width: 100%; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; resize: vertical; font-family: 'Poppins', sans-serif; transition: border-color 0.2s; }
+        .cr-admin-notes textarea:focus { outline: none; border-color: #3762c8; box-shadow: 0 0 0 3px rgba(55,98,200,0.1); }
+        .cr-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; padding-top: 16px; border-top: 1px solid #e2e8f0; }
+        .cr-btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 8px; }
+        .cr-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .cr-btn-reject { background: #ef4444; color: white; }
+        .cr-btn-approve { background: #22c55e; color: white; }
+        .cr-btn-close { background: #e2e8f0; color: #475569; }
+        .cr-btn-close:hover { background: #cbd5e1; }
         .workflow-content { max-height: 500px; overflow-y: auto; padding-right: 10px; }
         .workflow-content::-webkit-scrollbar { width: 6px; }
         .workflow-content::-webkit-scrollbar-track { background: rgba(55,98,200,0.1); border-radius: 3px; }
@@ -367,6 +394,19 @@ $pending_changes_count = count($change_requests);
         body.dark-mode .modal-title { color: #e4e6ea; }
         body.dark-mode .form-group label { color: #9ca3af; }
         body.dark-mode input, body.dark-mode select, body.dark-mode textarea { background: #22262e; border-color: #2d323b; color: #e4e6ea; }
+        body.dark-mode .cr-modal-section { background: #1a1d23; border-color: #2d323b; }
+        body.dark-mode .cr-modal-section-title { color: #9ca3af; }
+        body.dark-mode .cr-compare-old { background: #22262e; color: #9ca3af; border-left-color: #4b5563; }
+        body.dark-mode .cr-compare-new { background: #1e293b; color: #93c5fd; border-left-color: #60a5fa; }
+        body.dark-mode .cr-compare-new.no-change { color: #6b7280; background: #1a1d23; border-left-color: #2d323b; }
+        body.dark-mode .cr-media-preview { background: #22262e; }
+        body.dark-mode .cr-media-preview img { border-color: #2d323b; }
+        body.dark-mode .cr-staff-header { border-color: #2d323b; }
+        body.dark-mode .cr-staff-name { color: #e4e6ea; }
+        body.dark-mode .cr-admin-notes textarea { background: #22262e; border-color: #2d323b; color: #e4e6ea; }
+        body.dark-mode .cr-actions { border-color: #2d323b; }
+        body.dark-mode .cr-btn-close { background: #2d323b; color: #9ca3af; }
+        body.dark-mode .cr-btn-close:hover { background: #374151; }
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
@@ -606,11 +646,20 @@ $pending_changes_count = count($change_requests);
 
     <!-- Change Request Review Modal (read-only review) -->
     <div id="changeRequestModal" class="modal">
-        <div class="modal-content" style="max-width: 650px;">
-            <div class="modal-header">
-                <h2 class="modal-title">Review Change Request</h2>
+        <div class="modal-content" style="max-width: 680px;">
+            <div class="modal-header" style="border-bottom:none; padding-bottom:0;">
+                <h2 class="modal-title"><i class="fas fa-clipboard-check" style="color:#3762c8; margin-right:8px;"></i>Review Change Request</h2>
                 <span class="close" onclick="closeChangeRequestModal()">&times;</span>
             </div>
+
+            <div class="cr-staff-header" id="crStaffHeader">
+                <div class="cr-staff-avatar" id="crStaffAvatar">S</div>
+                <div class="cr-staff-info">
+                    <div class="cr-staff-name" id="crStaffName">Staff Name</div>
+                    <div class="cr-staff-date" id="crStaffDate">Submitted on --</div>
+                </div>
+            </div>
+
             <form id="changeRequestForm">
                 <input type="hidden" id="crAction" name="action">
                 <input type="hidden" id="crRequestId" name="request_id">
@@ -624,52 +673,54 @@ $pending_changes_count = count($change_requests);
                 <input type="hidden" id="crBirthday" name="new_birthday">
                 <input type="hidden" id="crPassword" name="new_password">
 
-                <div style="background:#f8fafc; border-radius:8px; padding:12px; margin-bottom:15px;">
-                    <label style="font-weight:600; font-size:13px; color:#475569; display:block; margin-bottom:8px;">Current Information</label>
-                    <div id="crCurrentDetails" style="font-size:13px; color:#64748b;"></div>
-                    <div id="crCurrentProfilePic" style="margin-top:8px;"></div>
+                <div class="cr-modal-section" id="crCurrentSection">
+                    <div class="cr-modal-section-title"><i class="fas fa-user"></i> Current Information</div>
+                    <div class="cr-compare-grid" id="crCurrentGrid"></div>
                 </div>
 
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-                    <div class="form-group">
-                        <label>Email</label>
-                        <div id="crEmailDisplay" style="padding:8px 12px; background:#f1f5f9; border-radius:5px; font-size:13px; color:#333; min-height:36px; display:flex; align-items:center;"></div>
-                    </div>
-                    <div class="form-group">
-                        <label>Address</label>
-                        <div id="crAddressDisplay" style="padding:8px 12px; background:#f1f5f9; border-radius:5px; font-size:13px; color:#333; min-height:36px; display:flex; align-items:center;"></div>
-                    </div>
-                    <div class="form-group">
-                        <label>Civil Status</label>
-                        <div id="crCivilStatusDisplay" style="padding:8px 12px; background:#f1f5f9; border-radius:5px; font-size:13px; color:#333; min-height:36px; display:flex; align-items:center;"></div>
-                    </div>
-                    <div class="form-group">
-                        <label>Birthday</label>
-                        <div id="crBirthdayDisplay" style="padding:8px 12px; background:#f1f5f9; border-radius:5px; font-size:13px; color:#333; min-height:36px; display:flex; align-items:center;"></div>
-                    </div>
-                    <div class="form-group">
-                        <label>New Password</label>
-                        <div id="crPasswordDisplay" style="padding:8px 12px; background:#f1f5f9; border-radius:5px; font-size:13px; color:#333; min-height:36px; display:flex; align-items:center;"></div>
-                    </div>
-                    <div class="form-group" id="crIdFileGroup" style="display:none;">
-                        <label>New ID Photo</label>
-                        <div id="crIdFilePreview" style="margin-top:5px;"></div>
-                    </div>
-                    <div class="form-group" id="crProfilePicGroup" style="display:none;">
-                        <label>New Profile Picture</label>
-                        <div id="crProfilePicPreview" style="margin-top:5px;"></div>
+                <div class="cr-modal-section" style="background:#eff6ff; border-color:#bfdbfe;">
+                    <div class="cr-modal-section-title" style="color:#1e40af;"><i class="fas fa-pen"></i> Requested Changes</div>
+                    <div class="cr-compare-grid">
+                        <div class="cr-compare-item">
+                            <span class="cr-compare-label">Email</span>
+                            <div class="cr-compare-new" id="crEmailDisplay">--</div>
+                        </div>
+                        <div class="cr-compare-item">
+                            <span class="cr-compare-label">Address</span>
+                            <div class="cr-compare-new" id="crAddressDisplay">--</div>
+                        </div>
+                        <div class="cr-compare-item">
+                            <span class="cr-compare-label">Civil Status</span>
+                            <div class="cr-compare-new" id="crCivilStatusDisplay">--</div>
+                        </div>
+                        <div class="cr-compare-item">
+                            <span class="cr-compare-label">Birthday</span>
+                            <div class="cr-compare-new" id="crBirthdayDisplay">--</div>
+                        </div>
+                        <div class="cr-compare-item">
+                            <span class="cr-compare-label">New Password</span>
+                            <div class="cr-compare-new" id="crPasswordDisplay">--</div>
+                        </div>
+                        <div class="cr-compare-item" id="crIdFileGroup" style="display:none;">
+                            <span class="cr-compare-label">New ID Photo</span>
+                            <div class="cr-media-preview" id="crIdFilePreview"></div>
+                        </div>
+                        <div class="cr-compare-item" id="crProfilePicGroup" style="display:none;">
+                            <span class="cr-compare-label">New Profile Picture</span>
+                            <div class="cr-media-preview" id="crProfilePicPreview"></div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="form-group" style="margin-top:12px;">
-                    <label>Admin Notes</label>
-                    <textarea id="crAdminNotes" name="admin_notes" rows="2" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:5px; font-size:13px; resize:vertical;" placeholder="Optional notes for the staff..."></textarea>
+                <div class="cr-modal-section cr-admin-notes">
+                    <div class="cr-modal-section-title"><i class="fas fa-sticky-note"></i> Admin Notes</div>
+                    <textarea id="crAdminNotes" name="admin_notes" rows="2" placeholder="Optional notes for the staff..."></textarea>
                 </div>
 
-                <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:15px;">
-                    <button type="button" class="btn-sm btn-reject" onclick="rejectChangeRequest()"><i class="fas fa-times"></i> Reject</button>
-                    <button type="button" class="btn-sm btn-approve" onclick="approveChangeRequest()"><i class="fas fa-check"></i> Approve & Update</button>
-                    <button type="button" class="btn-sm btn-manage" onclick="closeChangeRequestModal()">Close</button>
+                <div class="cr-actions">
+                    <button type="button" class="cr-btn cr-btn-close" onclick="closeChangeRequestModal()"><i class="fas fa-times"></i> Close</button>
+                    <button type="button" class="cr-btn cr-btn-reject" onclick="rejectChangeRequest()"><i class="fas fa-times"></i> Reject</button>
+                    <button type="button" class="cr-btn cr-btn-approve" onclick="approveChangeRequest()"><i class="fas fa-check"></i> Approve & Update</button>
                 </div>
             </form>
         </div>
@@ -758,62 +809,88 @@ $pending_changes_count = count($change_requests);
             document.getElementById('crRequestId').value = cr.id;
             document.getElementById('crUserId').value = cr.user_id;
 
-            var profilePicHtml = '';
-            if (data.profile_picture) {
-                profilePicHtml = '<div style="margin-top:6px;"><img src="../../uploads/profile_pictures/' + data.profile_picture + '" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid #ddd;"></div>';
+            // Staff header
+            var initials = (cr.user_name || 'S').split(' ').map(function(w){ return w.charAt(0); }).join('').substring(0,2).toUpperCase();
+            document.getElementById('crStaffAvatar').textContent = initials;
+            document.getElementById('crStaffName').textContent = cr.user_name || 'Unknown Staff';
+            document.getElementById('crStaffDate').textContent = 'Submitted on ' + new Date(cr.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+            // Current information grid
+            var currentHtml = '';
+            var fields = [
+                { key: 'email', label: 'Email', value: cr.user_email },
+                { key: 'address', label: 'Address', value: cr.user_address },
+                { key: 'civil_status', label: 'Civil Status', value: cr.user_civil_status ? cr.user_civil_status.charAt(0).toUpperCase() + cr.user_civil_status.slice(1) : 'N/A' },
+                { key: 'birthday', label: 'Birthday', value: cr.user_birthday }
+            ];
+            fields.forEach(function(f) {
+                currentHtml += '<div class="cr-compare-item"><span class="cr-compare-label">' + f.label + '</span><div class="cr-compare-old">' + escapeHtml(f.value || 'N/A') + '</div></div>';
+            });
+            if (cr.user_id_file) {
+                var ext = cr.user_id_file.split('.').pop().toLowerCase();
+                if (['jpg','jpeg','png','gif'].includes(ext)) {
+                    currentHtml += '<div class="cr-compare-item" style="grid-column:1/-1;"><span class="cr-compare-label">Current ID Photo</span><div class="cr-media-preview"><img src="../../' + cr.user_id_file + '" alt="Current ID"><span class="cr-media-label">Uploaded ID file</span></div></div>';
+                }
             }
-            document.getElementById('crCurrentProfilePic').innerHTML = profilePicHtml;
+            document.getElementById('crCurrentGrid').innerHTML = currentHtml;
 
-            document.getElementById('crCurrentDetails').innerHTML =
-                '<strong>Email:</strong> ' + (cr.user_email || 'N/A') + '<br>' +
-                '<strong>Address:</strong> ' + (cr.user_address || 'N/A') + '<br>' +
-                '<strong>Civil Status:</strong> ' + (cr.user_civil_status ? cr.user_civil_status.charAt(0).toUpperCase() + cr.user_civil_status.slice(1) : 'N/A') + '<br>' +
-                '<strong>Birthday:</strong> ' + (cr.user_birthday || 'N/A');
-
+            // Requested changes
             document.getElementById('crEmail').value = data.email || cr.user_email || '';
             document.getElementById('crEmailDisplay').textContent = data.email || 'N/A';
+            document.getElementById('crEmailDisplay').className = (data.email && data.email !== cr.user_email) ? 'cr-compare-new' : 'cr-compare-new no-change';
+
             document.getElementById('crAddress').value = data.address || cr.user_address || '';
             document.getElementById('crAddressDisplay').textContent = data.address || 'N/A';
+            document.getElementById('crAddressDisplay').className = (data.address && data.address !== cr.user_address) ? 'cr-compare-new' : 'cr-compare-new no-change';
+
             document.getElementById('crCivilStatus').value = data.civil_status || cr.user_civil_status || '';
-            document.getElementById('crCivilStatusDisplay').textContent = data.civil_status ? data.civil_status.charAt(0).toUpperCase() + data.civil_status.slice(1) : 'N/A';
+            var csDisplay = data.civil_status ? data.civil_status.charAt(0).toUpperCase() + data.civil_status.slice(1) : 'N/A';
+            document.getElementById('crCivilStatusDisplay').textContent = csDisplay;
+            document.getElementById('crCivilStatusDisplay').className = (data.civil_status && data.civil_status !== cr.user_civil_status) ? 'cr-compare-new' : 'cr-compare-new no-change';
+
             document.getElementById('crBirthday').value = data.birthday || cr.user_birthday || '';
             document.getElementById('crBirthdayDisplay').textContent = data.birthday || 'N/A';
+            document.getElementById('crBirthdayDisplay').className = (data.birthday && data.birthday !== cr.user_birthday) ? 'cr-compare-new' : 'cr-compare-new no-change';
+
             var pwVal = '';
-            if (data.new_password_hash) {
-                pwVal = data.new_password_hash;
-            } else if (data.new_password && typeof data.new_password === 'string') {
-                pwVal = data.new_password;
-            }
+            if (data.new_password_hash) { pwVal = data.new_password_hash; }
+            else if (data.new_password && typeof data.new_password === 'string') { pwVal = data.new_password; }
             document.getElementById('crPassword').value = pwVal;
-            document.getElementById('crPasswordDisplay').innerHTML = (data.new_password || data.new_password_hash) ? '<span style="color:#f59e0b;"><i class="fas fa-key"></i> New password requested</span>' : '<span style="color:#94a3b8;">No change</span>';
+            var hasPw = !!(data.new_password || data.new_password_hash);
+            document.getElementById('crPasswordDisplay').innerHTML = hasPw ? '<i class="fas fa-key" style="color:#f59e0b; margin-right:6px;"></i>New password requested' : 'No change';
+            document.getElementById('crPasswordDisplay').className = hasPw ? 'cr-compare-new' : 'cr-compare-new no-change';
+
             document.getElementById('crIdFilePath').value = data.id_file_path || '';
             document.getElementById('crProfilePicture').value = data.profile_picture || '';
             document.getElementById('crAdminNotes').value = '';
 
-            const idFileGroup = document.getElementById('crIdFileGroup');
-            const idFilePreview = document.getElementById('crIdFilePreview');
+            // ID file preview
+            var idFileGroup = document.getElementById('crIdFileGroup');
+            var idFilePreview = document.getElementById('crIdFilePreview');
             if (data.id_file_path) {
                 idFileGroup.style.display = 'block';
-                const ext = data.id_file_path.split('.').pop().toLowerCase();
+                var ext = data.id_file_path.split('.').pop().toLowerCase();
                 if (['jpg','jpeg','png','gif'].includes(ext)) {
-                    idFilePreview.innerHTML = '<img src="../../' + data.id_file_path + '" style="max-width:150px; max-height:120px; border-radius:6px; border:1px solid #ddd;">';
+                    idFilePreview.innerHTML = '<img src="../../' + data.id_file_path + '" alt="New ID"><span class="cr-media-label">New ID photo uploaded</span>';
                 } else {
-                    idFilePreview.innerHTML = '<a href="../../' + data.id_file_path + '" target="_blank" style="color:#3762c8;"><i class="fas fa-file"></i> View uploaded file</a>';
+                    idFilePreview.innerHTML = '<a href="../../' + data.id_file_path + '" target="_blank" style="color:#3762c8; font-size:13px;"><i class="fas fa-file"></i> View uploaded file</a>';
                 }
             } else {
                 idFileGroup.style.display = 'none';
                 idFilePreview.innerHTML = '';
             }
 
-            const profilePicGroup = document.getElementById('crProfilePicGroup');
-            const profilePicPreview = document.getElementById('crProfilePicPreview');
+            // Profile picture preview
+            var profilePicGroup = document.getElementById('crProfilePicGroup');
+            var profilePicPreview = document.getElementById('crProfilePicPreview');
             if (data.profile_picture) {
                 profilePicGroup.style.display = 'block';
-                profilePicPreview.innerHTML = '<img src="../../uploads/profile_pictures/' + data.profile_picture + '" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:2px solid #3762c8;">';
+                profilePicPreview.innerHTML = '<img src="../../uploads/profile_pictures/' + data.profile_picture + '" alt="New Profile Pic" style="border-radius:50%;"><span class="cr-media-label">New profile picture uploaded</span>';
             } else {
                 profilePicGroup.style.display = 'none';
                 profilePicPreview.innerHTML = '';
             }
+
             document.getElementById('changeRequestModal').style.display = 'block';
         }
 
