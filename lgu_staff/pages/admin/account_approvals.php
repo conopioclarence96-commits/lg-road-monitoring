@@ -320,6 +320,8 @@ $pending_changes_count = count($change_requests);
         @keyframes syncPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
         .cr-modal-section { background: #f8fafc; border-radius: 10px; padding: 16px; margin-bottom: 16px; border: 1px solid #e2e8f0; }
+        .cr-modal-section.cr-requested { background: #eff6ff; border-color: #bfdbfe; }
+        .cr-modal-section.cr-requested .cr-modal-section-title { color: #1e40af; }
         .cr-modal-section-title { font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
         .cr-modal-section-title i { font-size: 14px; }
         .cr-compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
@@ -395,6 +397,8 @@ $pending_changes_count = count($change_requests);
         body.dark-mode .form-group label { color: #9ca3af; }
         body.dark-mode input, body.dark-mode select, body.dark-mode textarea { background: #22262e; border-color: #2d323b; color: #e4e6ea; }
         body.dark-mode .cr-modal-section { background: #1a1d23; border-color: #2d323b; }
+        body.dark-mode .cr-modal-section.cr-requested { background: #172033; border-color: #1e3a5f; }
+        body.dark-mode .cr-modal-section.cr-requested .cr-modal-section-title { color: #60a5fa; }
         body.dark-mode .cr-modal-section-title { color: #9ca3af; }
         body.dark-mode .cr-compare-old { background: #22262e; color: #9ca3af; border-left-color: #4b5563; }
         body.dark-mode .cr-compare-new { background: #1e293b; color: #93c5fd; border-left-color: #60a5fa; }
@@ -678,8 +682,8 @@ $pending_changes_count = count($change_requests);
                     <div class="cr-compare-grid" id="crCurrentGrid"></div>
                 </div>
 
-                <div class="cr-modal-section" style="background:#eff6ff; border-color:#bfdbfe;">
-                    <div class="cr-modal-section-title" style="color:#1e40af;"><i class="fas fa-pen"></i> Requested Changes</div>
+                <div class="cr-modal-section cr-requested">
+                    <div class="cr-modal-section-title"><i class="fas fa-pen"></i> Requested Changes</div>
                     <div class="cr-compare-grid">
                         <div class="cr-compare-item">
                             <span class="cr-compare-label">Email</span>
