@@ -252,8 +252,29 @@ try {
 
         .stat-icon {
             font-size: 24px;
-            color: #3762c8;
-            margin-bottom: 10px;
+            color: white;
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 12px;
+        }
+
+        .stat-card:nth-child(1) .stat-icon {
+            padding: 14px 18px;
+        }
+
+        .stat-card:nth-child(2) .stat-icon {
+            padding: 14px 20px;
+        }
+
+        .stat-card:nth-child(3) .stat-icon {
+            padding: 14px 16px;
+        }
+
+        .stat-card:nth-child(4) .stat-icon {
+            padding: 14px 20px;
         }
 
         .stat-number {
