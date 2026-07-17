@@ -365,10 +365,11 @@ $pending_changes_count = count($change_requests);
         .btn-view { background: #3762c8; color: white; }
 
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); overflow-y: auto; }
-        .modal-content { background-color: white; margin: 5% auto; padding: 30px; border-radius: 10px; width: 90%; max-width: 650px; position: relative; max-height: 85vh; overflow-y: auto; }
-        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .modal-title { margin: 0; color: #333; font-size: 20px; }
-        .close { font-size: 28px; font-weight: bold; cursor: pointer; }
+        .modal-content { background-color: white; margin: 5% auto; padding: 0 30px 30px 30px; border-radius: 12px; width: 90%; max-width: 650px; position: relative; max-height: 85vh; overflow-y: auto; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; margin: -30px -30px 20px -30px; background: linear-gradient(135deg, #1e3c72, #3762c8); border-radius: 12px 12px 0 0; }
+        .modal-title { margin: 0; color: #ffffff; font-size: 20px; }
+        .close { font-size: 28px; font-weight: bold; cursor: pointer; color: #cbd5e1; transition: color 0.2s; }
+        .close:hover { color: #ffffff; }
         .form-group { margin-bottom: 15px; }
         .form-group label { display: block; margin-bottom: 5px; font-weight: 500; font-size: 13px; color: #333; }
         .modal-form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; }
@@ -393,7 +394,10 @@ $pending_changes_count = count($change_requests);
         body.dark-mode th { background: #1a1d23; color: #9ca3af; }
         body.dark-mode td { border-color: #2d323b; color: #d1d5db; }
         body.dark-mode .modal-content { background: #1a1d23; }
-        body.dark-mode .modal-title { color: #e4e6ea; }
+        body.dark-mode .modal-header { background: linear-gradient(135deg, #0f172a, #1e293b); }
+        body.dark-mode .modal-title { color: #f1f5f9; }
+        body.dark-mode .close { color: #94a3b8; }
+        body.dark-mode .close:hover { color: #f1f5f9; }
         body.dark-mode .form-group label { color: #9ca3af; }
         body.dark-mode input, body.dark-mode select, body.dark-mode textarea { background: #22262e; border-color: #2d323b; color: #e4e6ea; }
         body.dark-mode .cr-modal-section { background: #1a1d23; border-color: #2d323b; }
@@ -651,8 +655,8 @@ $pending_changes_count = count($change_requests);
     <!-- Change Request Review Modal (read-only review) -->
     <div id="changeRequestModal" class="modal">
         <div class="modal-content" style="max-width: 680px;">
-            <div class="modal-header" style="border-bottom:none; padding-bottom:0;">
-                <h2 class="modal-title"><i class="fas fa-clipboard-check" style="color:#3762c8; margin-right:8px;"></i>Review Change Request</h2>
+            <div class="modal-header">
+                <h2 class="modal-title">Review Change Request</h2>
                 <span class="close" onclick="closeChangeRequestModal()">&times;</span>
             </div>
 
