@@ -258,23 +258,9 @@ try {
             display: flex;
             align-items: center;
             justify-content: center;
+            width: 56px;
+            height: 56px;
             margin: 0 auto 12px;
-        }
-
-        .stat-card:nth-child(1) .stat-icon {
-            padding: 14px 18px;
-        }
-
-        .stat-card:nth-child(2) .stat-icon {
-            padding: 14px 20px;
-        }
-
-        .stat-card:nth-child(3) .stat-icon {
-            padding: 14px 16px;
-        }
-
-        .stat-card:nth-child(4) .stat-icon {
-            padding: 14px 20px;
         }
 
         .stat-number {
