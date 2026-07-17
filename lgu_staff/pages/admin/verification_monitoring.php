@@ -1745,23 +1745,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         .dept-empty-icon {
-            width: 64px;
-            height: 64px;
-            background: rgba(55, 98, 200, 0.1);
-            border-radius: 14px;
+            width: 56px;
+            height: 56px;
+            background: rgba(55, 98, 200, 0.12);
+            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 0 auto 20px;
+            margin: 0 auto 16px;
         }
 
         .dept-empty-icon i {
-            font-size: 28px;
+            font-size: 26px;
             color: #3762c8;
         }
 
         body.dark-mode .dept-empty-icon {
-            background: rgba(96, 165, 250, 0.1);
+            background: rgba(96, 165, 250, 0.12);
         }
 
         body.dark-mode .dept-empty-icon i {
@@ -1780,8 +1780,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         .dept-empty-state p {
-            font-size: 13px;
+            font-size: 14px;
             color: #9ca3af;
+            font-weight: 500;
         }
 
         @media (max-width: 768px) {
@@ -2426,7 +2427,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         </div>
 
         <!-- Dept Reports Panel -->
-        <?php if ($cimm_filter === 'dept'): ?>
         <div class="dept-reports-panel">
             <div class="dept-reports-header">
                 <div class="dept-reports-header-left">
@@ -2454,11 +2454,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             </div>
 
             <div class="dept-table-wrapper">
-                <?php 
-                // Reset pointer for dept reports
-                $cimm_reports->data_seek(0);
-                if ($cimm_reports && $cimm_reports->num_rows > 0): 
-                ?>
                 <table class="dept-table" id="deptTable">
                     <thead>
                         <tr>
@@ -2477,6 +2472,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         </tr>
                     </thead>
                     <tbody>
+                        <?php 
+                        // Reset pointer for dept reports
+                        $cimm_reports->data_seek(0);
+                        if ($cimm_reports && $cimm_reports->num_rows > 0): 
+                        ?>
                         <?php while ($row = $cimm_reports->fetch_assoc()): ?>
                         <tr>
                             <td>
@@ -2497,20 +2497,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <td><span class="dept-status-badge <?php echo htmlspecialchars($row['status']); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $row['status']))); ?></span></td>
                         </tr>
                         <?php endwhile; ?>
+                        <?php else: ?>
+                        <tr>
+                            <td colspan="12">
+                                <div class="dept-empty-state">
+                                    <div class="dept-empty-icon">
+                                        <i class="fas fa-sync-alt"></i>
+                                    </div>
+                                    <p>No department reports at this time.</p>
+                                </div>
+                            </td>
+                        </tr>
+                        <?php endif; ?>
                     </tbody>
                 </table>
-                <?php else: ?>
-                <div class="dept-empty-state">
-                    <div class="dept-empty-icon">
-                        <i class="fas fa-inbox"></i>
-                    </div>
-                    <h4>No department reports at this time.</h4>
-                    <p>Department-submitted reports will appear here once received from CIMM.</p>
-                </div>
-                <?php endif; ?>
             </div>
         </div>
-        <?php endif; ?>
 
         <!-- Activity Timeline Panel -->
         <div class="section-panel">
