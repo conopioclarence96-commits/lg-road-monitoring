@@ -314,6 +314,10 @@ $pending_changes_count = count($change_requests);
         }
         .workflow-title { font-size: 18px; font-weight: 600; color: #1e3c72; display: flex; align-items: center; gap: 10px; }
         .workflow-badge { background: #3762c8; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+        .sync-indicator { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #64748b; }
+        .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; }
+        .sync-dot.syncing { animation: syncPulse 0.8s ease-in-out infinite; background: #f59e0b; }
+        @keyframes syncPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         .workflow-content { max-height: 500px; overflow-y: auto; padding-right: 10px; }
         .workflow-content::-webkit-scrollbar { width: 6px; }
         .workflow-content::-webkit-scrollbar-track { background: rgba(55,98,200,0.1); border-radius: 3px; }
@@ -378,6 +382,10 @@ $pending_changes_count = count($change_requests);
                 <div class="date-time">
                     <div id="currentDate"></div>
                     <div id="currentTime"></div>
+                    <div class="sync-indicator" id="syncIndicator">
+                        <div class="sync-dot" id="syncDot"></div>
+                        <span id="syncText">Auto-sync on</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -389,22 +397,22 @@ $pending_changes_count = count($change_requests);
         <div class="quick-stats">
             <div class="stat-card">
                 <div class="stat-icon"><i class="fas fa-user-clock"></i></div>
-                <div class="stat-number"><?php echo $stats['pending_users']; ?></div>
+                <div class="stat-number" id="statPendingUsers"><?php echo $stats['pending_users']; ?></div>
                 <div class="stat-label">Pending Users</div>
             </div>
             <div class="stat-card">
                 <div class="stat-icon"><i class="fas fa-user-check"></i></div>
-                <div class="stat-number"><?php echo $stats['approved_users']; ?></div>
+                <div class="stat-number" id="statApprovedUsers"><?php echo $stats['approved_users']; ?></div>
                 <div class="stat-label">Approved Users</div>
             </div>
             <div class="stat-card">
                 <div class="stat-icon"><i class="fas fa-user-slash"></i></div>
-                <div class="stat-number"><?php echo $stats['deactivated_users']; ?></div>
+                <div class="stat-number" id="statDeactivated"><?php echo $stats['deactivated_users']; ?></div>
                 <div class="stat-label">Deactivated</div>
             </div>
             <div class="stat-card">
                 <div class="stat-icon"><i class="fas fa-user-edit"></i></div>
-                <div class="stat-number"><?php echo $pending_changes_count; ?></div>
+                <div class="stat-number" id="statChangeRequests"><?php echo $pending_changes_count; ?></div>
                 <div class="stat-label">Change Requests</div>
             </div>
         </div>
@@ -415,7 +423,7 @@ $pending_changes_count = count($change_requests);
                     <h3 class="workflow-title">
                         <i class="fas fa-user-clock"></i>
                         <span>Pending Account Approvals</span>
-                        <span class="workflow-badge"><?php echo count($users); ?></span>
+                        <span class="workflow-badge" id="pendingUsersBadge"><?php echo count($users); ?></span>
                     </h3>
                 </div>
                 <div class="workflow-content">
@@ -431,7 +439,7 @@ $pending_changes_count = count($change_requests);
                                     <th>Actions</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="pendingUsersBody">
                                 <?php if (empty($users)): ?>
                                     <tr><td colspan="6" style="text-align:center; color:#64748b;">No pending users</td></tr>
                                 <?php else: ?>
@@ -461,7 +469,7 @@ $pending_changes_count = count($change_requests);
                     <h3 class="workflow-title">
                         <i class="fas fa-user-edit"></i>
                         <span>Staff Change Requests</span>
-                        <span class="workflow-badge"><?php echo $pending_changes_count; ?></span>
+                        <span class="workflow-badge" id="changeRequestsBadge"><?php echo $pending_changes_count; ?></span>
                     </h3>
                 </div>
                 <div class="workflow-content">
@@ -477,7 +485,7 @@ $pending_changes_count = count($change_requests);
                                     <th>Actions</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="changeRequestsBody">
                                 <?php if (empty($change_requests)): ?>
                                     <tr><td colspan="6" style="text-align:center; color:#64748b;">No pending change requests</td></tr>
                                 <?php else: ?>
@@ -859,6 +867,159 @@ $pending_changes_count = count($change_requests);
                 setTimeout(() => a.remove(), 500);
             });
         }, 5000);
+
+        let syncInterval = null;
+        let previousChangeRequestIds = changeRequestsData.map(r => r.id);
+        let previousUserIds = usersData.map(u => u.id);
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+        }
+
+        function renderPendingUsersRow(user) {
+            return '<tr>' +
+                '<td>' + escapeHtml(user.full_name) + '</td>' +
+                '<td>' + escapeHtml(user.email) + '</td>' +
+                '<td>' + escapeHtml(user.role) + '</td>' +
+                '<td>' + escapeHtml(user.department || 'N/A') + '</td>' +
+                '<td>' + new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + '</td>' +
+                '<td><div class="action-buttons"><button class="btn-sm btn-manage" onclick="showUserModal(' + user.id + ')">Manage</button></div></td>' +
+                '</tr>';
+        }
+
+        function renderChangeRequestRow(cr) {
+            var reqData = {};
+            try { reqData = JSON.parse(cr.requested_data); } catch(e) {}
+            var fields = ['email', 'address', 'civil_status', 'birthday'];
+            var currentMap = {
+                'email': cr.user_email,
+                'address': cr.user_address,
+                'civil_status': cr.user_civil_status,
+                'birthday': cr.user_birthday
+            };
+            var changedFields = [];
+            fields.forEach(function(f) {
+                if (reqData[f] && reqData[f] !== '' && reqData[f] !== (currentMap[f] || '')) {
+                    changedFields.push(f);
+                }
+            });
+
+            var currentHtml = '';
+            var requestedHtml = '';
+            if (changedFields.length === 0 && !reqData.new_password && !reqData.new_password_hash && !reqData.profile_picture && !reqData.id_file_path) {
+                currentHtml = 'No changes';
+                requestedHtml = 'No changes';
+            } else {
+                changedFields.forEach(function(f) {
+                    var label = f.charAt(0).toUpperCase() + f.slice(1).replace(/_/g, ' ');
+                    currentHtml += '<strong>' + label + ':</strong> ' + escapeHtml(currentMap[f] || 'N/A') + '<br>';
+                    requestedHtml += '<strong>' + label + ':</strong> ' + escapeHtml(reqData[f]) + '<br>';
+                });
+                if (reqData.new_password || reqData.new_password_hash) {
+                    currentHtml += '<span style="color:#d97706;"><i class="fas fa-key"></i> Current password</span><br>';
+                    requestedHtml += '<span style="color:#f59e0b; font-weight:600;"><i class="fas fa-key"></i> New password requested</span><br>';
+                }
+                if (reqData.profile_picture) {
+                    currentHtml += '<span style="color:#7c3aed;"><i class="fas fa-user-circle"></i> Current profile picture</span><br>';
+                    requestedHtml += '<span style="color:#8b5cf6; font-weight:600;"><i class="fas fa-user-circle"></i> New profile picture</span><br>';
+                }
+                if (reqData.id_file_path) {
+                    currentHtml += '<span style="color:#059669;"><i class="fas fa-id-card"></i> Current ID photo</span><br>';
+                    requestedHtml += '<span style="color:#10b981; font-weight:600;"><i class="fas fa-id-card"></i> New ID photo</span><br>';
+                }
+            }
+
+            return '<tr>' +
+                '<td>' + escapeHtml(cr.user_name) + '</td>' +
+                '<td><small style="color:#666;">' + currentHtml + '</small></td>' +
+                '<td><small style="color:#1e3c72;">' + requestedHtml + '</small></td>' +
+                '<td><small>' + escapeHtml(cr.reason || 'N/A') + '</small></td>' +
+                '<td><small>' + new Date(cr.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + '</small></td>' +
+                '<td><div class="action-buttons"><button class="btn-sm btn-approve" onclick="showChangeRequestModal(' + cr.id + ', ' + cr.user_id + ')">Review</button></div></td>' +
+                '</tr>';
+        }
+
+        function refreshApprovalsData() {
+            var dot = document.getElementById('syncDot');
+            var text = document.getElementById('syncText');
+            dot.classList.add('syncing');
+            text.textContent = 'Syncing...';
+
+            fetch('../api/get_account_approvals_data.php')
+            .then(function(response) { return response.json(); })
+            .then(function(result) {
+                if (!result.success) return;
+
+                var data = result.data;
+
+                // Update stat cards
+                document.getElementById('statPendingUsers').textContent = data.stats.pending_users;
+                document.getElementById('statApprovedUsers').textContent = data.stats.approved_users;
+                document.getElementById('statDeactivated').textContent = data.stats.deactivated_users;
+                document.getElementById('statChangeRequests').textContent = data.stats.change_requests;
+
+                // Update workflow badges
+                document.getElementById('pendingUsersBadge').textContent = data.pending_users.length;
+                document.getElementById('changeRequestsBadge').textContent = data.change_requests.length;
+
+                // Update pending users table
+                var pendingUsersBody = document.getElementById('pendingUsersBody');
+                if (data.pending_users.length === 0) {
+                    pendingUsersBody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#64748b;">No pending users</td></tr>';
+                } else {
+                    var usersHtml = '';
+                    data.pending_users.forEach(function(user) { usersHtml += renderPendingUsersRow(user); });
+                    pendingUsersBody.innerHTML = usersHtml;
+                }
+
+                // Update change requests table
+                var changeRequestsBody = document.getElementById('changeRequestsBody');
+                if (data.change_requests.length === 0) {
+                    changeRequestsBody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#64748b;">No pending change requests</td></tr>';
+                } else {
+                    var crHtml = '';
+                    data.change_requests.forEach(function(cr) { crHtml += renderChangeRequestRow(cr); });
+                    changeRequestsBody.innerHTML = crHtml;
+                }
+
+                // Update the JS data arrays so modals work with fresh data
+                usersData = data.pending_users;
+                changeRequestsData = data.change_requests;
+
+                // Check for new change requests and flash notification
+                var newCrIds = data.change_requests.map(function(r) { return r.id; });
+                var hasNewRequests = newCrIds.some(function(id) { return previousChangeRequestIds.indexOf(id) === -1; });
+                if (hasNewRequests && previousChangeRequestIds.length > 0) {
+                    var badge = document.getElementById('changeRequestsBadge');
+                    badge.style.transition = 'background 0.3s';
+                    badge.style.background = '#f59e0b';
+                    setTimeout(function() { badge.style.background = '#3762c8'; }, 2000);
+                }
+                previousChangeRequestIds = newCrIds;
+
+                // Check for new pending users
+                var newUserIds = data.pending_users.map(function(u) { return u.id; });
+                var hasNewUsers = newUserIds.some(function(id) { return previousUserIds.indexOf(id) === -1; });
+                if (hasNewUsers && previousUserIds.length > 0) {
+                    var badge = document.getElementById('pendingUsersBadge');
+                    badge.style.transition = 'background 0.3s';
+                    badge.style.background = '#f59e0b';
+                    setTimeout(function() { badge.style.background = '#3762c8'; }, 2000);
+                }
+                previousUserIds = newUserIds;
+
+                dot.classList.remove('syncing');
+                text.textContent = 'Synced just now';
+            })
+            .catch(function(error) {
+                console.error('Sync error:', error);
+                dot.classList.remove('syncing');
+                text.textContent = 'Sync failed';
+            });
+        }
+
+        syncInterval = setInterval(refreshApprovalsData, 30000);
     </script>
 
 
