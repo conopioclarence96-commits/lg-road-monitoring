@@ -1452,6 +1452,350 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
         }
 
+        /* Section Panel Wrappers */
+        .section-panel {
+            background: #f0f4fa;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e0e0e0;
+            margin-bottom: 25px;
+            overflow: hidden;
+        }
+
+        body.dark-mode .section-panel {
+            background: #1e2229;
+            border-color: #2d323b;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Dept Reports Panel */
+        .dept-reports-panel {
+            background: #f0f4fa;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e0e0e0;
+            margin-bottom: 25px;
+            overflow: hidden;
+        }
+
+        body.dark-mode .dept-reports-panel {
+            background: #1e2229;
+            border-color: #2d323b;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .dept-reports-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 25px;
+            border-bottom: 2px solid rgba(55, 98, 200, 0.1);
+        }
+
+        .dept-reports-header-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .dept-reports-icon {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+        }
+
+        .dept-reports-title-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .dept-reports-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1e3c72;
+            margin: 0;
+        }
+
+        body.dark-mode .dept-reports-title {
+            color: #f0f4fa;
+        }
+
+        .dept-reports-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            background: #3762c8;
+            color: white;
+        }
+
+        .dept-reports-badge.pending {
+            background: rgba(251, 191, 36, 0.15);
+            color: #f59e0b;
+        }
+
+        .dept-reports-badge.in-progress {
+            background: rgba(59, 130, 246, 0.15);
+            color: #3b82f6;
+        }
+
+        .dept-reports-badge.completed {
+            background: rgba(34, 197, 94, 0.15);
+            color: #22c55e;
+        }
+
+        .dept-reports-subtitle {
+            font-size: 13px;
+            color: #6b7280;
+            margin: 2px 0 0 0;
+        }
+
+        body.dark-mode .dept-reports-subtitle {
+            color: #9ca3af;
+        }
+
+        .dept-reports-search {
+            display: flex;
+            gap: 12px;
+            padding: 18px 25px;
+            border-bottom: 1px solid rgba(55, 98, 200, 0.08);
+        }
+
+        .dept-search-wrapper {
+            position: relative;
+            flex: 1;
+        }
+
+        .dept-search-wrapper i {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        .dept-search-input {
+            width: 100%;
+            padding: 11px 16px 11px 40px;
+            background: #ffffff;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            color: #333;
+            font-size: 13px;
+            font-family: 'Poppins', sans-serif;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        body.dark-mode .dept-search-input {
+            background: #2d323b;
+            border-color: rgba(255, 255, 255, 0.1);
+            color: #e4e6ea;
+        }
+
+        .dept-search-input::placeholder {
+            color: #9ca3af;
+        }
+
+        .dept-search-input:focus {
+            border-color: #3762c8;
+            box-shadow: 0 0 0 3px rgba(55, 98, 200, 0.1);
+        }
+
+        .dept-sort-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+            cursor: pointer;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+
+        .dept-sort-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(55, 98, 200, 0.3);
+        }
+
+        .dept-table-wrapper {
+            overflow-x: auto;
+            padding: 0;
+        }
+
+        .dept-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .dept-table thead th {
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+            color: white;
+            padding: 14px 16px;
+            font-size: 12px;
+            font-weight: 700;
+            text-align: left;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+
+        .dept-table thead th:first-child {
+            border-radius: 0;
+        }
+
+        .dept-table thead th:last-child {
+            border-radius: 0;
+        }
+
+        .dept-table tbody tr {
+            border-bottom: 1px solid rgba(55, 98, 200, 0.08);
+            transition: background 0.2s;
+        }
+
+        .dept-table tbody tr:hover {
+            background: rgba(55, 98, 200, 0.05);
+        }
+
+        .dept-table tbody td {
+            padding: 14px 16px;
+            color: #333;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        body.dark-mode .dept-table tbody td {
+            color: #c0c8d8;
+        }
+
+        body.dark-mode .dept-table tbody tr {
+            border-bottom-color: rgba(255, 255, 255, 0.05);
+        }
+
+        body.dark-mode .dept-table tbody tr:hover {
+            background: rgba(55, 98, 200, 0.08);
+        }
+
+        .dept-action-btn {
+            padding: 6px 12px;
+            background: rgba(55, 98, 200, 0.1);
+            color: #3762c8;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .dept-action-btn:hover {
+            background: rgba(55, 98, 200, 0.2);
+        }
+
+        body.dark-mode .dept-action-btn {
+            background: rgba(55, 98, 200, 0.15);
+            color: #60a5fa;
+        }
+
+        .dept-status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+
+        .dept-status-badge.pending {
+            background: rgba(251, 191, 36, 0.15);
+            color: #f59e0b;
+        }
+
+        .dept-status-badge.in-progress {
+            background: rgba(59, 130, 246, 0.15);
+            color: #3b82f6;
+        }
+
+        .dept-status-badge.completed,
+        .dept-status-badge.resolved {
+            background: rgba(34, 197, 94, 0.15);
+            color: #22c55e;
+        }
+
+        .dept-empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6b7280;
+        }
+
+        .dept-empty-icon {
+            width: 64px;
+            height: 64px;
+            background: rgba(55, 98, 200, 0.1);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+        }
+
+        .dept-empty-icon i {
+            font-size: 28px;
+            color: #3762c8;
+        }
+
+        body.dark-mode .dept-empty-icon {
+            background: rgba(96, 165, 250, 0.1);
+        }
+
+        body.dark-mode .dept-empty-icon i {
+            color: #60a5fa;
+        }
+
+        .dept-empty-state h4 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 6px;
+        }
+
+        body.dark-mode .dept-empty-state h4 {
+            color: #e4e6ea;
+        }
+
+        .dept-empty-state p {
+            font-size: 13px;
+            color: #9ca3af;
+        }
+
+        @media (max-width: 768px) {
+            .dept-reports-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+
+            .dept-reports-search {
+                flex-direction: column;
+            }
+        }
+
         /* Modal Styles */
         .modal-overlay {
             display: none;
@@ -1648,65 +1992,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     <?php include '../../includes/sidebar_nav.php'; ?>
 
     <div class="main-content">
-        <!-- Verification Header -->
-        <div class="verification-header">
-            <div class="header-content">
-                <div class="header-title">
-                    <h1>Verification & Monitoring Reports</h1>
-                    <p>Review and approve infrastructure reports and monitoring data</p>
-                </div>
-                <div class="workflow-stats">
-                    <div class="workflow-stat">
-                        <div class="workflow-number"><?php echo number_format($stats['pending']); ?></div>
-                        <div class="workflow-label">Pending</div>
+        <!-- Verification Header Panel -->
+        <div class="section-panel">
+            <div class="verification-header" style="margin-bottom:0; box-shadow:none; border:none; border-radius:0;">
+                <div class="header-content">
+                    <div class="header-title">
+                        <h1>Verification & Monitoring Reports</h1>
+                        <p>Review and approve infrastructure reports and monitoring data</p>
                     </div>
-                    <div class="workflow-stat">
-                        <div class="workflow-number"><?php echo number_format($stats['in_review']); ?></div>
-                        <div class="workflow-label">In Review</div>
-                    </div>
-                    <div class="workflow-stat">
-                        <div class="workflow-number"><?php echo number_format($stats['approved']); ?></div>
-                        <div class="workflow-label">Approved</div>
+                    <div class="workflow-stats">
+                        <div class="workflow-stat">
+                            <div class="workflow-number"><?php echo number_format($stats['pending']); ?></div>
+                            <div class="workflow-label">Pending</div>
+                        </div>
+                        <div class="workflow-stat">
+                            <div class="workflow-number"><?php echo number_format($stats['in_review']); ?></div>
+                            <div class="workflow-label">In Review</div>
+                        </div>
+                        <div class="workflow-stat">
+                            <div class="workflow-number"><?php echo number_format($stats['approved']); ?></div>
+                            <div class="workflow-label">Approved</div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Filters -->
-        <div class="filters-section" style="margin-bottom:24px;">
-            <div class="filter-group">
-                <div>
-                    <label class="form-label">Status Filter</label>
-                    <select class="filter-select" id="statusFilter" onchange="filterReports()">
-                        <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
-                        <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending / In Progress</option>
-                        <option value="approved" <?php echo $status_filter === 'approved' ? 'selected' : ''; ?>>Approved / Completed</option>
-                        <option value="rejected" <?php echo $status_filter === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="form-label">Source System</label>
-                    <select class="filter-select" id="sourceFilter" onchange="filterReports()">
-                        <option value="all" <?php echo $source_filter === 'all' ? 'selected' : ''; ?>>All Sources</option>
-                        <option value="transport" <?php echo $source_filter === 'transport' ? 'selected' : ''; ?>>Road & Transportation (Our LGU)</option>
-                        <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>External Systems (Maintenance/infrastructure)</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="form-label">&nbsp;</label>
+        <!-- Filters Panel -->
+        <div class="section-panel">
+            <div class="filters-section" style="margin-bottom:0; box-shadow:none; border:none; border-radius:0;">
+                <div class="filter-group">
                     <div>
-                        <button class="btn-secondary-custom" onclick="resetFilters()">
-                            <i class="fas fa-arrow-clockwise"></i> Reset
-                        </button>
+                        <label class="form-label">Status Filter</label>
+                        <select class="filter-select" id="statusFilter" onchange="filterReports()">
+                            <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
+                            <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending / In Progress</option>
+                            <option value="approved" <?php echo $status_filter === 'approved' ? 'selected' : ''; ?>>Approved / Completed</option>
+                            <option value="rejected" <?php echo $status_filter === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Source System</label>
+                        <select class="filter-select" id="sourceFilter" onchange="filterReports()">
+                            <option value="all" <?php echo $source_filter === 'all' ? 'selected' : ''; ?>>All Sources</option>
+                            <option value="transport" <?php echo $source_filter === 'transport' ? 'selected' : ''; ?>>Road & Transportation (Our LGU)</option>
+                            <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>External Systems (Maintenance/infrastructure)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">&nbsp;</label>
+                        <div>
+                            <button class="btn-secondary-custom" onclick="resetFilters()">
+                                <i class="fas fa-arrow-clockwise"></i> Reset
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Workflow Container -->
-        <div class="workflow-container">
-            <!-- All Reports (filterable) -->
-            <div class="workflow-card">
+        <!-- Workflow Container Panel -->
+        <div class="section-panel">
+            <div class="workflow-container" style="margin-bottom:0;">
+                <!-- All Reports (filterable) -->
+                <div class="workflow-card" style="box-shadow:none; border:none; border-radius:0;">
                 <div class="workflow-header">
                     <h3 class="workflow-title">
                         <i class="fas fa-list"></i>
@@ -2022,7 +2371,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <?php endif; ?>
                 </div>
 
-                <!-- CIMM Received Reports Table -->
+                <!-- CIMM Received Reports Table (hidden when dept tab is active) -->
+                <?php if ($cimm_filter !== 'dept'): ?>
                 <div style="border-top: 2px solid rgba(55, 98, 200, 0.1); margin-top: 20px; padding-top: 20px;">
                     <div class="cimm-table-wrapper">
                         <?php if ($cimm_reports && $cimm_reports->num_rows > 0): ?>
@@ -2069,15 +2419,105 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         <?php endif; ?>
                     </div>
                 </div>
-            </div>
+                <?php endif; ?>
+                </div>
 
+            </div>
         </div>
 
-        <!-- Activity Timeline -->
-        <div class="timeline-section">
-            <h3 class="timeline-header">
-                <i class="fas fa-history"></i>
-                Recent Activity Timeline
+        <!-- Dept Reports Panel -->
+        <?php if ($cimm_filter === 'dept'): ?>
+        <div class="dept-reports-panel">
+            <div class="dept-reports-header">
+                <div class="dept-reports-header-left">
+                    <div class="dept-reports-icon">
+                        <i class="fas fa-building"></i>
+                    </div>
+                    <div>
+                        <div class="dept-reports-title-group">
+                            <h2 class="dept-reports-title">Dept. Reports</h2>
+                            <span class="dept-reports-badge in-progress"><?php echo $cimm_counts['dept']; ?> Reports</span>
+                        </div>
+                        <p class="dept-reports-subtitle">Department-submitted infrastructure reports from CIMM</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dept-reports-search">
+                <div class="dept-search-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" class="dept-search-input" id="deptSearchInput" placeholder="Search by Rep #, Infrastructure, Location, Engineer, Priority...">
+                </div>
+                <button class="dept-sort-btn" onclick="toggleDeptSort()">
+                    <i class="fas fa-sort"></i> Sort
+                </button>
+            </div>
+
+            <div class="dept-table-wrapper">
+                <?php 
+                // Reset pointer for dept reports
+                $cimm_reports->data_seek(0);
+                if ($cimm_reports && $cimm_reports->num_rows > 0): 
+                ?>
+                <table class="dept-table" id="deptTable">
+                    <thead>
+                        <tr>
+                            <th>Action</th>
+                            <th>Rep #</th>
+                            <th>Infrastructure</th>
+                            <th>Location</th>
+                            <th>Issue / Notes</th>
+                            <th>Engineer</th>
+                            <th>Reported By</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
+                            <th>Priority</th>
+                            <th>Budget</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php while ($row = $cimm_reports->fetch_assoc()): ?>
+                        <tr>
+                            <td>
+                                <button class="dept-action-btn" onclick="viewCimmReport(<?php echo $row['id']; ?>)">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </td>
+                            <td><?php echo htmlspecialchars($row['rep_number']); ?></td>
+                            <td><?php echo htmlspecialchars($row['infrastructure']); ?></td>
+                            <td><?php echo htmlspecialchars($row['location']); ?></td>
+                            <td><?php echo htmlspecialchars(strlen($row['issue_notes'] ?? '') > 40 ? substr($row['issue_notes'], 0, 40) . '...' : ($row['issue_notes'] ?? '')); ?></td>
+                            <td><?php echo htmlspecialchars($row['engineer']); ?></td>
+                            <td><?php echo htmlspecialchars($row['reported_by']); ?></td>
+                            <td><?php echo $row['start_date'] ? date('M d, Y', strtotime($row['start_date'])) : '—'; ?></td>
+                            <td><?php echo $row['end_date'] ? date('M d, Y', strtotime($row['end_date'])) : '—'; ?></td>
+                            <td><span class="dept-status-badge <?php echo htmlspecialchars($row['priority']); ?>"><?php echo ucfirst(htmlspecialchars($row['priority'])); ?></span></td>
+                            <td><?php echo $row['budget'] ? '₱' . number_format($row['budget'], 2) : '—'; ?></td>
+                            <td><span class="dept-status-badge <?php echo htmlspecialchars($row['status']); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $row['status']))); ?></span></td>
+                        </tr>
+                        <?php endwhile; ?>
+                    </tbody>
+                </table>
+                <?php else: ?>
+                <div class="dept-empty-state">
+                    <div class="dept-empty-icon">
+                        <i class="fas fa-inbox"></i>
+                    </div>
+                    <h4>No department reports at this time.</h4>
+                    <p>Department-submitted reports will appear here once received from CIMM.</p>
+                </div>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- Activity Timeline Panel -->
+        <div class="section-panel">
+            <div class="timeline-section" style="margin-bottom:0; box-shadow:none; border:none; border-radius:0;">
+                <h3 class="timeline-header">
+                    <i class="fas fa-history"></i>
+                    Recent Activity Timeline
             </h3>
             <div class="timeline">
                 <?php if ($activity_timeline->num_rows > 0): ?>
@@ -2100,6 +2540,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     </div>
                 <?php endif; ?>
             </div>
+        </div>
         </div>
     </div>
 
@@ -2209,6 +2650,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         // View CIMM report details (placeholder)
         function viewCimmReport(id) {
             alert('Viewing CIMM Report #' + id + ' — Details panel coming soon.');
+        }
+
+        // Dept Reports search functionality
+        document.getElementById('deptSearchInput')?.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const table = document.getElementById('deptTable');
+            if (!table) return;
+            const rows = table.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(searchTerm) ? '' : 'none';
+            });
+        });
+
+        // Dept Reports sort functionality
+        let deptSortAsc = true;
+        function toggleDeptSort() {
+            const table = document.getElementById('deptTable');
+            if (!table) return;
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            deptSortAsc = !deptSortAsc;
+            rows.sort((a, b) => {
+                const aText = a.cells[1]?.textContent.trim() || '';
+                const bText = b.cells[1]?.textContent.trim() || '';
+                return deptSortAsc ? aText.localeCompare(bText) : bText.localeCompare(aText);
+            });
+            rows.forEach(row => tbody.appendChild(row));
         }
         
         // Close modal after form submission in modal (if element exists)
