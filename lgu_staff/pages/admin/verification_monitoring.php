@@ -75,6 +75,27 @@ if ($check_arch2 && $check_arch2->num_rows === 0) {
     $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN report_source ENUM('local','external') DEFAULT 'local' AFTER report_category");
 }
 
+// Ensure reports table exists (from reports.sql)
+$conn->query("CREATE TABLE IF NOT EXISTS reports (
+    rep_id int(10) unsigned NOT NULL AUTO_INCREMENT,
+    res_id int(10) unsigned NOT NULL,
+    starting_date date NOT NULL,
+    estimated_end_date date NOT NULL,
+    engineer_id int(10) unsigned DEFAULT NULL,
+    report_by int(10) unsigned NOT NULL,
+    priority_lvl varchar(50) DEFAULT NULL,
+    budget decimal(15,2) NOT NULL DEFAULT 0.00,
+    created_at timestamp NOT NULL DEFAULT current_timestamp(),
+    engineer_accepted tinyint(1) NOT NULL DEFAULT 0,
+    decline_reason text DEFAULT NULL,
+    decline_reviewed tinyint(1) DEFAULT NULL COMMENT '1=valid,0=invalid',
+    decline_review_note text DEFAULT NULL,
+    PRIMARY KEY (rep_id),
+    KEY fk_report_res (res_id),
+    KEY fk_report_engineer (engineer_id),
+    KEY fk_report_reporter (report_by)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
 // Check if user is logged in
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'system_admin') {
     header('Location: ../../login.php');
@@ -256,6 +277,22 @@ function getCimmReportCounts($conn) {
     return $counts;
 }
 
+// Function to get reports from reports.sql table
+function getSqlReports($conn) {
+    $query = "SELECT r.rep_id, r.res_id, r.starting_date, r.estimated_end_date,
+                     r.engineer_id, r.report_by, r.priority_lvl, r.budget, r.created_at,
+                     r.engineer_accepted, r.decline_reason, r.decline_reviewed, r.decline_review_note,
+                     u.full_name as reporter_name
+              FROM reports r
+              LEFT JOIN users u ON r.report_by = u.id
+              ORDER BY r.created_at DESC";
+    $result = $conn->query($query);
+    if (!$result) {
+        error_log("Query error in getSqlReports: " . $conn->error);
+    }
+    return $result;
+}
+
 // Handle verification actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action']) && isset($_POST['report_id']) && isset($_POST['source'])) {
@@ -375,6 +412,9 @@ $activity_timeline = getActivityTimeline($conn);
 $cimm_filter = $_GET['cimm_filter'] ?? 'all';
 $cimm_reports = getCimmReports($conn, $cimm_filter);
 $cimm_counts = getCimmReportCounts($conn);
+
+// Reports from reports.sql table
+$sql_reports = getSqlReports($conn);
 
 // Handle AJAX request for report details
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'get_report_details') {
@@ -2436,7 +2476,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <div>
                         <div class="dept-reports-title-group">
                             <h2 class="dept-reports-title">Dept. Reports</h2>
-                            <span class="dept-reports-badge in-progress"><?php echo $cimm_counts['dept']; ?> Reports</span>
+                            <span class="dept-reports-badge in-progress"><?php echo $cimm_counts['dept'] + ($sql_reports ? $sql_reports->num_rows : 0); ?> Reports</span>
                         </div>
                         <p class="dept-reports-subtitle">Department-submitted infrastructure reports from CIMM</p>
                     </div>
@@ -2475,9 +2515,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         <?php 
                         // Reset pointer for dept reports
                         $cimm_reports->data_seek(0);
+                        $hasAnyReports = false;
                         if ($cimm_reports && $cimm_reports->num_rows > 0): 
                         ?>
-                        <?php while ($row = $cimm_reports->fetch_assoc()): ?>
+                        <?php while ($row = $cimm_reports->fetch_assoc()): 
+                            $hasAnyReports = true;
+                        ?>
                         <tr>
                             <td>
                                 <button class="dept-action-btn" onclick="viewCimmReport(<?php echo $row['id']; ?>)">
@@ -2497,7 +2540,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <td><span class="dept-status-badge <?php echo htmlspecialchars($row['status']); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $row['status']))); ?></span></td>
                         </tr>
                         <?php endwhile; ?>
-                        <?php else: ?>
+                        <?php endif; ?>
+
+                        <?php 
+                        // Display reports from reports.sql table
+                        if ($sql_reports && $sql_reports->num_rows > 0):
+                            while ($row = $sql_reports->fetch_assoc()):
+                                $hasAnyReports = true;
+                                $status = 'pending';
+                                if ($row['engineer_accepted'] == 1) {
+                                    $status = 'completed';
+                                } elseif (!empty($row['decline_reason'])) {
+                                    $status = 'cancelled';
+                                } elseif (!empty($row['decline_reviewed'])) {
+                                    $status = $row['decline_reviewed'] == 1 ? 'in-progress' : 'cancelled';
+                                }
+                        ?>
+                        <tr>
+                            <td>
+                                <button class="dept-action-btn" onclick="viewSqlReport(<?php echo $row['rep_id']; ?>)">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </td>
+                            <td>REP-<?php echo $row['rep_id']; ?></td>
+                            <td><?php echo htmlspecialchars($row['res_id']); ?></td>
+                            <td>—</td>
+                            <td><?php echo htmlspecialchars(strlen($row['decline_reason'] ?? '') > 40 ? substr($row['decline_reason'], 0, 40) . '...' : ($row['decline_reason'] ?? '—')); ?></td>
+                            <td><?php echo $row['engineer_id'] ? 'Engineer #' . htmlspecialchars($row['engineer_id']) : '—'; ?></td>
+                            <td><?php echo htmlspecialchars($row['reporter_name'] ?? 'User #' . $row['report_by']); ?></td>
+                            <td><?php echo $row['starting_date'] ? date('M d, Y', strtotime($row['starting_date'])) : '—'; ?></td>
+                            <td><?php echo $row['estimated_end_date'] ? date('M d, Y', strtotime($row['estimated_end_date'])) : '—'; ?></td>
+                            <td><span class="dept-status-badge <?php echo strtolower(htmlspecialchars($row['priority_lvl'])); ?>"><?php echo ucfirst(htmlspecialchars($row['priority_lvl'])); ?></span></td>
+                            <td><?php echo $row['budget'] ? '₱' . number_format($row['budget'], 2) : '—'; ?></td>
+                            <td><span class="dept-status-badge <?php echo $status; ?>"><?php echo ucfirst(htmlspecialchars($status)); ?></span></td>
+                        </tr>
+                        <?php 
+                            endwhile;
+                        endif;
+                        ?>
+
+                        <?php if (!$hasAnyReports): ?>
                         <tr>
                             <td colspan="12">
                                 <div class="dept-empty-state">
@@ -2623,6 +2705,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         // View CIMM report details (placeholder)
         function viewCimmReport(id) {
             alert('Viewing CIMM Report #' + id + ' — Details panel coming soon.');
+        }
+
+        // View SQL reports table details (placeholder)
+        function viewSqlReport(repId) {
+            alert('Viewing Report REP-' + repId + ' from reports table — Details panel coming soon.');
         }
 
         // Dept Reports search functionality
