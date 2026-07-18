@@ -70,17 +70,17 @@ try {
             $toLat = (float)($tomtomParams['to_lat'] ?? 0);
             $toLng = (float)($tomtomParams['to_lng'] ?? 0);
             if (!$fromLat || !$fromLng || !$toLat || !$toLng) json_error('from_lat, from_lng, to_lat, to_lng parameters required');
-            echo json_encode($routing->calculateRouteWithDescription($fromLat, $fromLng, $toLat, $toLng, $tomtomParams));
+            echo json_encode($routing->calculateRouteV3($fromLat, $fromLng, $toLat, $toLng, $tomtomParams));
             break;
 
         case 'route_extended':
-            $extRouting = new ExtendedRoutingService();
+            $routing = new RoutingService();
             $fromLat = (float)($tomtomParams['from_lat'] ?? 0);
             $fromLng = (float)($tomtomParams['from_lng'] ?? 0);
             $toLat = (float)($tomtomParams['to_lat'] ?? 0);
             $toLng = (float)($tomtomParams['to_lng'] ?? 0);
             if (!$fromLat || !$fromLng || !$toLat || !$toLng) json_error('from_lat, from_lng, to_lat, to_lng parameters required');
-            echo json_encode($extRouting->calculateRouteWithFullDetails($fromLat, $fromLng, $toLat, $toLng, $tomtomParams));
+            echo json_encode($routing->calculateRouteV3($fromLat, $fromLng, $toLat, $toLng, $tomtomParams));
             break;
 
         case 'matrix_routing':

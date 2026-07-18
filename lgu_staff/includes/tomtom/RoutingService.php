@@ -111,6 +111,41 @@ class RoutingService {
         return $this->client->request('/routing/1/calculateRoute/' . $locStr . '/json', $params);
     }
 
+    public function calculateRouteV3(
+        float $fromLat, float $fromLng,
+        float $toLat, float $toLng,
+        array $params = []
+    ): array {
+        $url = 'https://api.tomtom.com/maps/orbis/routing/routes/calculate';
+        $apiKey = $this->client->getApiKey();
+
+        $body = [
+            'routePlanningLocations' => [
+                'origin' => [
+                    'type' => 'Point',
+                    'coordinates' => [$fromLng, $fromLat],
+                ],
+                'destination' => [
+                    'type' => 'Point',
+                    'coordinates' => [$toLng, $toLat],
+                ],
+            ],
+            'vehicleEngineType' => $params['vehicleEngineType'] ?? 'combustion',
+            'routeType' => $params['routeType'] ?? 'fastest',
+        ];
+
+        unset($params['vehicleEngineType'], $params['routeType']);
+
+        $headers = [
+            'Content-Type: application/json',
+            'TomTom-Api-Version: 3',
+            'TomTom-Api-Key: ' . $apiKey,
+            'Attributes: routes',
+        ];
+
+        return $this->client->requestRaw($url, 'POST', $body, $headers);
+    }
+
     public function snapToRoads(
         array $points,
         array $params = []
