@@ -452,21 +452,14 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../../css/sidebar.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
-    <link rel="stylesheet" type="text/css" href="https://api.tomtom.com/maps-sdk-for-web/cdn/6.x/6.25.0/maps/maps.css"/>
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl/dist/maplibre-gl.css"/>
     <link rel="stylesheet" href="../../css/progress-updates.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
-    <script src="https://api.tomtom.com/maps-sdk-for-web/cdn/6.x/6.25.0/maps/maps-web.min.js"></script>
-    <script src="https://api.tomtom.com/maps-sdk-for-web/cdn/6.x/6.25.0/services/services-web.min.js"></script>
+    <script src="https://unpkg.com/maplibre-gl/dist/maplibre-gl.js"></script>
     <script src="../../js/progress-updates.js"></script>
     <script src="../../js/tomtom-services.js?v=<?php echo filemtime(__DIR__ . '/../../js/tomtom-services.js'); ?>"></script>
     <script>
         const TOMTOM_API_KEY = '<?php echo TOMTOM_API_KEY; ?>';
-        const TOMTOM_PROXY_URL = '<?php
-            $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-            $host = $_SERVER['HTTP_HOST'];
-            $scriptDir = dirname($_SERVER['SCRIPT_NAME']);
-            echo $protocol . '://' . $host . $scriptDir . '/../api/tomtom/proxy.php';
-        ?>';
     </script>
     <style>
         body {
@@ -1535,16 +1528,38 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         const QC_CENTER_LNG = 121.0500;
         const QC_CENTER_LAT = 14.6500;
 
-        const map = tt.map({
-            key: TOMTOM_API_KEY,
+        const BASIC_STYLE = {
+            version: 8, name: 'TomTom Basic',
+            sources: {
+                'tomtom-raster': {
+                    type: 'raster',
+                    tiles: ['https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY],
+                    tileSize: 256, attribution: '© TomTom', maxzoom: 18
+                }
+            },
+            layers: [{ id: 'tomtom-raster-layer', type: 'raster', source: 'tomtom-raster', minzoom: 0, maxzoom: 18 }]
+        };
+        const SATELLITE_STYLE = {
+            version: 8, name: 'TomTom Satellite',
+            sources: {
+                'tomtom-raster': {
+                    type: 'raster',
+                    tiles: ['https://api.tomtom.com/map/1/tile/hybrid/main/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY],
+                    tileSize: 256, attribution: '© TomTom', maxzoom: 18
+                }
+            },
+            layers: [{ id: 'tomtom-raster-layer', type: 'raster', source: 'tomtom-raster', minzoom: 0, maxzoom: 18 }]
+        };
+
+        const map = new maplibregl.Map({
             container: 'map',
             center: [QC_CENTER_LNG, QC_CENTER_LAT],
             zoom: 13,
-            style: 'tomtom://vector/1/basic-main',
-            dragPan: true,
+            style: BASIC_STYLE,
             minZoom: 11,
             maxZoom: 18
         });
+        map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
         // Define Quezon City approximate boundary polygon — [lng, lat] format
         const QC_POLYGON_COORDS = [
@@ -1645,9 +1660,9 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                         const el = document.createElement('div');
                         el.innerHTML = `<div style="background:${color};color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);"><i class="fas fa-${m.report_type === 'road_damage' ? 'road' : 'traffic-light'}"></i></div>`;
                         const popupHtml = `<b>${escapeHtml(m.title)}</b><br><small>${escapeHtml(m.description || '')}</small><br><span style="color:${color}">${sevLabel} • ${m.status}</span>`;
-                        const marker = new tt.Marker({element: el.firstElementChild})
+                        const marker = new maplibregl.Marker({element: el.firstElementChild})
                             .setLngLat([parseFloat(m.longitude), parseFloat(m.latitude)])
-                            .setPopup(new tt.Popup({closeButton: false}).setHTML(popupHtml))
+                            .setPopup(new maplibregl.Popup({closeButton: false}).setHTML(popupHtml))
                             .addTo(map);
                         marker._reportId = m.id;
                         reportMarkersArr.push(marker);
@@ -1668,33 +1683,41 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         }
 
         // Toggle traffic overlay layer
-        let trafficVisible = true;
+        let trafficVisible = false;
+        const TRAFFIC_SOURCE_ID = 'traffic-flow-source';
+        const TRAFFIC_LAYER_ID = 'traffic-flow-layer';
         function toggleTrafficLayer() {
             trafficVisible = !trafficVisible;
             const btn = document.getElementById('toggleTrafficBtn');
-            map.on('style.load', function() {
-                const layers = map.getStyle().layers;
-                layers.forEach(l => {
-                    if (l.id.includes('traffic-flow') || l.id.includes('traffic_flow')) {
-                        map.setLayoutProperty(l.id, 'visibility', trafficVisible ? 'visible' : 'none');
-                    }
-                });
-            });
             if (trafficVisible) {
+                if (!map.getSource(TRAFFIC_SOURCE_ID)) {
+                    map.addSource(TRAFFIC_SOURCE_ID, {
+                        type: 'raster',
+                        tiles: ['https://api.tomtom.com/traffic/map/4/tile/flow/absolute/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY],
+                        tileSize: 256, attribution: '© TomTom Traffic', maxzoom: 18
+                    });
+                    map.addLayer({ id: TRAFFIC_LAYER_ID, type: 'raster', source: TRAFFIC_SOURCE_ID, minzoom: 0, maxzoom: 18 });
+                } else {
+                    map.setLayoutProperty(TRAFFIC_LAYER_ID, 'visibility', 'visible');
+                }
                 btn.style.background = 'rgba(55,98,200,0.1)';
                 btn.style.color = '#3762c8';
             } else {
+                if (map.getLayer(TRAFFIC_LAYER_ID)) {
+                    map.setLayoutProperty(TRAFFIC_LAYER_ID, 'visibility', 'none');
+                }
                 btn.style.background = '#6c757d';
                 btn.style.color = '#fff';
             }
         }
 
         // Toggle map fullscreen
-        function toggleMapFullscreen() {
+         function toggleMapFullscreen() {
             mapFullscreen = !mapFullscreen;
             document.body.classList.toggle('map-fullscreen-active', mapFullscreen);
             const btn = document.getElementById('fullscreenMapBtn');
             btn.innerHTML = mapFullscreen ? '<i class="fas fa-compress"></i> Exit' : '<i class="fas fa-expand"></i> Fullscreen';
+            setTimeout(() => map.resize(), 300);
         }
 
         // Focus map on a specific report by ID
@@ -1802,7 +1825,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             }
             
             if (pinMarker) pinMarker.remove();
-            pinMarker = new tt.Marker({draggable: true})
+            pinMarker = new maplibregl.Marker({draggable: true})
                 .setLngLat([lng, lat])
                 .addTo(map);
             
@@ -1816,14 +1839,14 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                         addr.postalCode || '',
                         addr.country || ''
                     ].filter(Boolean);
-                    pinMarker.setPopup(new tt.Popup({closeButton: false}).setHTML('<b>' + parts.join(', ') + '</b>'));
+                    pinMarker.setPopup(new maplibregl.Popup({closeButton: false}).setHTML('<b>' + parts.join(', ') + '</b>'));
                     pinMarker.getPopup().open();
                 } else {
-                    pinMarker.setPopup(new tt.Popup({closeButton: false}).setHTML(lat.toFixed(5) + ', ' + lng.toFixed(5)));
+                    pinMarker.setPopup(new maplibregl.Popup({closeButton: false}).setHTML(lat.toFixed(5) + ', ' + lng.toFixed(5)));
                     pinMarker.getPopup().open();
                 }
             }).catch(() => {
-                pinMarker.setPopup(new tt.Popup({closeButton: false}).setHTML(lat.toFixed(5) + ', ' + lng.toFixed(5)));
+                pinMarker.setPopup(new maplibregl.Popup({closeButton: false}).setHTML(lat.toFixed(5) + ', ' + lng.toFixed(5)));
                 pinMarker.getPopup().open();
             });
             
@@ -2257,7 +2280,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         map.flyTo({center: [lng, lat], zoom: zoom || 14});
         document.getElementById('mapSearchResults').style.display = 'none';
         if (pinMarker) pinMarker.remove();
-        pinMarker = new tt.Marker({draggable: true}).setLngLat([lng, lat]).addTo(map);
+        pinMarker = new maplibregl.Marker({draggable: true}).setLngLat([lng, lat]).addTo(map);
         TomTomServices.reverseGeocodeOrbis(lat, lng).then(data => {
             const addr = data.data?.results?.[0]?.address;
             if (addr) {
@@ -2268,7 +2291,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                     addr.postalCode || '',
                     addr.country || ''
                 ].filter(Boolean);
-                pinMarker.setPopup(new tt.Popup({closeButton: false}).setHTML('<b>' + parts.join(', ') + '</b>'));
+                pinMarker.setPopup(new maplibregl.Popup({closeButton: false}).setHTML('<b>' + parts.join(', ') + '</b>'));
                 pinMarker.getPopup().open();
             }
         }).catch(() => {});
@@ -2282,9 +2305,9 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
     function addRouteMarker(lngLat, color, label) {
         const el = document.createElement('div');
         el.style.cssText = 'background:' + color + ';border-radius:50%;width:16px;height:16px;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);';
-        const m = new tt.Marker({element: el})
+        const m = new maplibregl.Marker({element: el})
             .setLngLat([lngLat.lng, lngLat.lat])
-            .setPopup(new tt.Popup({closeButton: false}).setHTML(label))
+            .setPopup(new maplibregl.Popup({closeButton: false}).setHTML(label))
             .addTo(map);
         m.getPopup().open();
         return m;
@@ -2435,7 +2458,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
     let satelliteMode = false;
     function toggleSatelliteLayer() {
         satelliteMode = !satelliteMode;
-        map.setStyle(satelliteMode ? 'tomtom://vector/1/satellite-main' : 'tomtom://vector/1/basic-main');
+        map.setStyle(satelliteMode ? SATELLITE_STYLE : BASIC_STYLE);
         showNotification(satelliteMode ? 'Satellite view enabled' : 'Satellite view disabled', satelliteMode ? 'success' : 'info');
     }
 
@@ -2459,9 +2482,9 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                         const ev = inc.properties || inc.event;
                         const el = document.createElement('div');
                         el.innerHTML = '<div style="background:#ef4444;color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);"><i class="fas fa-exclamation"></i></div>';
-                        const m = new tt.Marker({element: el.firstElementChild})
+                        const m = new maplibregl.Marker({element: el.firstElementChild})
                             .setLngLat([pos.lon || pos.longitude || 0, pos.lat || pos.latitude || 0])
-                            .setPopup(new tt.Popup({closeButton: false}).setHTML(`<b>${ev?.type || 'Traffic Incident'}</b><br>${ev?.description || ev?.iconCategory || ''}`))
+                            .setPopup(new maplibregl.Popup({closeButton: false}).setHTML(`<b>${ev?.type || 'Traffic Incident'}</b><br>${ev?.description || ev?.iconCategory || ''}`))
                             .addTo(map);
                         incidentsMarkers.push(m);
                     }
@@ -2500,9 +2523,9 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                 if (pos) {
                     const el = document.createElement('div');
                     el.innerHTML = '<div style="background:#10b981;color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);"><i class="fas fa-charging-station"></i></div>';
-                    const m = new tt.Marker({element: el.firstElementChild})
+                    const m = new maplibregl.Marker({element: el.firstElementChild})
                         .setLngLat([pos.lon, pos.lat])
-                        .setPopup(new tt.Popup({closeButton: false}).setHTML(`<b>${s.poi?.name || 'EV Station'}</b><br>${s.address?.freeformAddress || ''}`))
+                        .setPopup(new maplibregl.Popup({closeButton: false}).setHTML(`<b>${s.poi?.name || 'EV Station'}</b><br>${s.address?.freeformAddress || ''}`))
                         .addTo(map);
                     evMarkersList.push(m);
                     resultsDiv.innerHTML += `${i+1}. ${s.poi?.name || 'Station'} - ${s.address?.freeformAddress || ''}<br>`;
@@ -2524,9 +2547,9 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             rangeCenterPoint = {lat: e.lngLat.lat, lng: e.lngLat.lng};
             const el = document.createElement('div');
             el.style.cssText = 'background:#3762c8;border-radius:50%;width:12px;height:12px;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);';
-            const cm = new tt.Marker({element: el})
+            const cm = new maplibregl.Marker({element: el})
                 .setLngLat([e.lngLat.lng, e.lngLat.lat])
-                .setPopup(new tt.Popup({closeButton: false}).setHTML('Center'))
+                .setPopup(new maplibregl.Popup({closeButton: false}).setHTML('Center'))
                 .addTo(map);
             cm.getPopup().open();
             map.off('click', mapClickHandler);
