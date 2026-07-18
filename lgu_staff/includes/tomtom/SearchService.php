@@ -15,6 +15,11 @@ class SearchService {
         return $this->client->request('/search/2/search/' . urlencode($query) . '.json', $params);
     }
 
+    public function poiSearch(string $query, array $params = []): array {
+        $params['limit'] = $params['limit'] ?? 10;
+        return $this->client->request('/search/2/poiSearch/' . urlencode($query) . '.json', $params);
+    }
+
     public function fuzzySearch(string $query, array $params = []): array {
         $params['limit'] = $params['limit'] ?? 10;
         $params['typeahead'] = $params['typeahead'] ?? 'true';
