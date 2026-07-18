@@ -1400,8 +1400,8 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         const QC_CENTER = [14.6500, 121.0500];
         const map = L.map('map').setView(QC_CENTER, 13);
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
+        L.tileLayer('https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?view=Unified&key=i6kR3bj7mdc5l8onrDIHX6MpcVbvm1oV', {
+            attribution: '© TomTom'
         }).addTo(map);
 
         // Define Quezon City approximate boundary polygon
