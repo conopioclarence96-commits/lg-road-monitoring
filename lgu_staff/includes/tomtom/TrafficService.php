@@ -15,7 +15,7 @@ class TrafficService {
 
     public function trafficFlowTile(int $z, int $x, int $y, array $params = []): string {
         $query = http_build_query(array_merge(['key' => $this->client->getApiKey()], $params));
-        return $this->client->getBaseUrl() . '/traffic/map/4/tile/flow/absolute/' . $z . '/' . $x . '/' . $y . '.png?' . $query;
+        return $this->client->getBaseUrl() . '/traffic/map/4/tile/flow/relative0/' . $z . '/' . $x . '/' . $y . '.png?' . $query;
     }
 
     public function trafficFlowExtendedTile(int $z, int $x, int $y, array $params = []): string {

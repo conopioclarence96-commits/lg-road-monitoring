@@ -1538,7 +1538,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             attribution: '© TomTom'
         }).addTo(map);
 
-        const trafficLayer = L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/absolute/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
+        const trafficLayer = L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
             attribution: '© TomTom Traffic',
             opacity: 0.7
         }).addTo(map);

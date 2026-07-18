@@ -166,7 +166,7 @@ const TomTomServices = (function() {
             return {
                 basic: 'https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?view=Unified&key=' + window.TOMTOM_API_KEY,
                 satellite: 'https://api.tomtom.com/map/1/tile/satellite/main/{z}/{x}/{y}.png?view=Unified&key=' + window.TOMTOM_API_KEY,
-                traffic: 'https://api.tomtom.com/traffic/map/4/tile/flow/absolute/{z}/{x}/{y}.png?view=Unified&key=' + window.TOMTOM_API_KEY,
+                traffic: 'https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?view=Unified&key=' + window.TOMTOM_API_KEY,
             };
         },
 
