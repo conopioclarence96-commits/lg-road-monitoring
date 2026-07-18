@@ -10,13 +10,13 @@ class SearchService {
     }
 
     public function search(string $query, array $params = []): array {
-        $params['query'] = $query;
         $params['limit'] = $params['limit'] ?? 10;
+        $params['typeahead'] = $params['typeahead'] ?? 'true';
         return $this->client->request('/search/2/search/' . urlencode($query) . '.json', $params);
     }
 
     public function fuzzySearch(string $query, array $params = []): array {
-        $params['query'] = $query;
+        $params['limit'] = $params['limit'] ?? 10;
         $params['typeahead'] = $params['typeahead'] ?? 'true';
         return $this->client->request('/search/2/search/' . urlencode($query) . '.json', $params);
     }
@@ -33,7 +33,7 @@ class SearchService {
     public function nearbySearch(float $lat, float $lng, array $params = []): array {
         $params['lat'] = $lat;
         $params['lon'] = $lng;
-        return $this->client->request('/search/2/nearbySearch/.json', $params);
+        return $this->client->request('/search/2/nearbySearch.json', $params);
     }
 
     public function geometrySearch(string $geometryList, array $params = []): array {
