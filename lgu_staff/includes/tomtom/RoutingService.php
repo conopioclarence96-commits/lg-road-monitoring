@@ -119,31 +119,24 @@ class RoutingService {
         $url = 'https://api.tomtom.com/maps/orbis/routing/routes/calculate';
         $apiKey = $this->client->getApiKey();
 
-        $body = [
-            'routePlanningLocations' => [
-                'origin' => [
-                    'type' => 'Point',
-                    'coordinates' => [round($fromLng, 6), round($fromLat, 6)],
-                ],
-                'destination' => [
-                    'type' => 'Point',
-                    'coordinates' => [round($toLng, 6), round($toLat, 6)],
-                ],
-            ],
-            'vehicleEngineType' => $params['vehicleEngineType'] ?? 'combustion',
-            'routeType' => $params['routeType'] ?? 'short',
-        ];
+        $vehicle = json_encode($params['vehicleEngineType'] ?? 'combustion');
+        $type = json_encode($params['routeType'] ?? 'short');
 
         unset($params['vehicleEngineType'], $params['routeType']);
 
+        $json = sprintf(
+            '{"routePlanningLocations":{"origin":{"type":"Point","coordinates":[%.6f,%.6f]},"destination":{"type":"Point","coordinates":[%.6f,%.6f]}},"vehicleEngineType":%s,"routeType":%s}',
+            $fromLng, $fromLat, $toLng, $toLat,
+            $vehicle, $type
+        );
+
         $headers = [
-            'Content-Type: application/json',
             'TomTom-Api-Version: 3',
             'TomTom-Api-Key: ' . $apiKey,
             'Attributes: routes',
         ];
 
-        return $this->client->requestRaw($url, 'POST', $body, $headers);
+        return $this->client->requestRaw($url, 'POST', null, $headers, $json);
     }
 
     public function snapToRoads(

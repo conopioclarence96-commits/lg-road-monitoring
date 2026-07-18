@@ -81,7 +81,7 @@ class TomTomClient {
     public function requestRaw(
         string $url,
         string $method = 'GET',
-        ?array $body = null,
+        array|string|null $body = null,
         array $headers = []
     ): array {
         $ch = curl_init();
@@ -96,9 +96,13 @@ class TomTomClient {
         if ($method === 'POST') {
             curl_setopt($ch, CURLOPT_POST, true);
             if ($body) {
-                $prev = ini_set('serialize_precision', 10);
-                $json = json_encode($body, JSON_PRESERVE_ZERO_FRACTION);
-                ini_set('serialize_precision', $prev);
+                if (is_array($body)) {
+                    $prev = ini_set('serialize_precision', 10);
+                    $json = json_encode($body, JSON_PRESERVE_ZERO_FRACTION);
+                    ini_set('serialize_precision', $prev);
+                } else {
+                    $json = $body;
+                }
                 curl_setopt($ch, CURLOPT_POSTFIELDS, $json);
                 $headers[] = 'Content-Type: application/json';
             }
