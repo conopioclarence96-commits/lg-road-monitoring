@@ -67,7 +67,7 @@ class SearchService {
         $radius = $params['radiusInMeters'] ?? 100;
         $heading = $params['vehicleHeadingInDegrees'] ?? 0;
         $url = 'https://api.tomtom.com/maps/orbis/places/reverseGeocode'
-            . '?position=' . $lat . ',' . $lng
+            . '?position=' . $lng . ',' . $lat
             . '&radiusInMeters=' . $radius
             . '&vehicleHeadingInDegrees=' . $heading;
         $headers = [
