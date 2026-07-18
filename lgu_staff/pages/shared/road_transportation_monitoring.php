@@ -457,7 +457,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="../../js/progress-updates.js"></script>
-    <script src="../../js/tomtom-services.js"></script>
+    <script src="../../js/tomtom-services.js?v=<?php echo filemtime(__DIR__ . '/../../js/tomtom-services.js'); ?>"></script>
     <script>
         const TOMTOM_API_KEY = '<?php echo TOMTOM_API_KEY; ?>';
         const TOMTOM_PROXY_URL = '<?php
