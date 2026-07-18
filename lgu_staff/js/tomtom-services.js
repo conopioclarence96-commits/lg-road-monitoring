@@ -6,7 +6,7 @@ const TomTomServices = (function() {
     const API_PROXY = '../api/tomtom/proxy.php';
 
     function request(service, params = {}, method = 'GET', body = null) {
-        const url = new URL(API_PROXY, window.location.href);
+        const url = new URL(API_PROXY, window.location.origin);
         url.searchParams.set('service', service);
         Object.keys(params).forEach(k => {
             if (params[k] !== undefined && params[k] !== null) {
