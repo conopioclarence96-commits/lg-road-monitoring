@@ -981,7 +981,8 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
 
         .search-results-dropdown {
             position:absolute;top:100%;left:0;right:0;background:#fff;border-radius:0 0 8px 8px;
-            box-shadow:0 8px 24px rgba(0,0,0,0.15);z-index:1000;max-height:250px;overflow-y:auto;display:none;
+            box-shadow:0 8px 24px rgba(0,0,0,0.15);z-index:99999;max-height:250px;overflow-y:auto;display:none;
+            min-width:280px;
         }
         .search-result-item {
             padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid rgba(0,0,0,0.05);transition:background 0.2s;
@@ -1255,9 +1256,10 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                             <span class="map-legend-item"><span class="map-legend-dot" style="background:#ffc107;"></span> Medium</span>
                             <span class="map-legend-item"><span class="map-legend-dot" style="background:#6c757d;"></span> Low</span>
                         </div>
-                        <div class="map-search-box" style="display:flex;align-items:center;gap:6px;margin-left:8px;">
-                            <input type="text" id="mapSearchInput" placeholder="Search places..." style="padding:5px 10px;border:1px solid rgba(55,98,200,0.3);border-radius:6px;font-size:12px;width:160px;">
+                        <div class="map-search-box" style="display:flex;align-items:center;gap:6px;margin-left:8px;position:relative;">
+                            <input type="text" id="mapSearchInput" placeholder="Search places..." autocomplete="off" style="padding:5px 10px;border:1px solid rgba(55,98,200,0.3);border-radius:6px;font-size:12px;width:160px;">
                             <button class="map-fullscreen-btn" onclick="doMapSearch()" title="Search"><i class="fas fa-search"></i></button>
+                            <div id="mapSearchResults" class="search-results-dropdown"></div>
                         </div>
                     </div>
                     <div class="map-toolbar-right">
@@ -1405,7 +1407,6 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                     <div id="evResults" class="route-info-box" style="display:none;"></div>
                 </div>
 
-                <div id="mapSearchResults" class="search-results-dropdown"></div>
             </div>
 
             <!-- Sidebar -->
@@ -1782,6 +1783,9 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
 
         // Map click: place pin and show form
         map.on('click', function(e) {
+            // Don't place report pin when routing tools are active
+            if (window.__routingActive || window.__rangeActive) return;
+
             const { lat, lng } = e.latlng;
             
             // Check if clicked location is within Quezon City polygon
@@ -2172,6 +2176,8 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             map.off('click', mapClickHandler);
             mapClickHandler = null;
         }
+        window.__routingActive = false;
+        window.__rangeActive = false;
     }
 
     // ===== SEARCH / GEOCODING =====
@@ -2218,25 +2224,30 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
     }
 
     // ===== ROUTE PLANNER =====
+    let routeMarkers = [];
+
     function showRoutePlanner() {
         closeAllPanels();
         document.getElementById('routePlannerPanel').style.display = 'block';
         showNotification('Click on the map to set start point, then destination', 'info');
         routeFromPoint = null;
         routeToPoint = null;
+        routeMarkers = [];
         clearRoute();
-        // Set map click to set start point
+        window.__routingActive = true;
         if (mapClickHandler) map.off('click', mapClickHandler);
         mapClickHandler = function(e) {
             if (!routeFromPoint) {
                 routeFromPoint = e.latlng;
                 document.getElementById('routeFrom').value = e.latlng.lat.toFixed(5) + ', ' + e.latlng.lng.toFixed(5);
-                L.circleMarker(e.latlng, { color: '#10b981', radius: 8, fillOpacity: 0.8 }).addTo(map).bindPopup('Start').openPopup();
+                let m = L.circleMarker(e.latlng, { color: '#10b981', radius: 8, fillOpacity: 0.8 }).addTo(map).bindPopup('Start').openPopup();
+                routeMarkers.push(m);
                 showNotification('Now click destination point', 'info');
             } else if (!routeToPoint) {
                 routeToPoint = e.latlng;
                 document.getElementById('routeTo').value = e.latlng.lat.toFixed(5) + ', ' + e.latlng.lng.toFixed(5);
-                L.circleMarker(e.latlng, { color: '#ef4444', radius: 8, fillOpacity: 0.8 }).addTo(map).bindPopup('End').openPopup();
+                let m = L.circleMarker(e.latlng, { color: '#ef4444', radius: 8, fillOpacity: 0.8 }).addTo(map).bindPopup('End').openPopup();
+                routeMarkers.push(m);
                 map.off('click', mapClickHandler);
                 mapClickHandler = null;
                 planRoute();
@@ -2249,10 +2260,12 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         if (mapClickHandler) map.off('click', mapClickHandler);
         routeFromPoint = null;
         document.getElementById('routeFrom').value = '';
+        window.__routingActive = true;
         mapClickHandler = function(e) {
             routeFromPoint = e.latlng;
             document.getElementById('routeFrom').value = e.latlng.lat.toFixed(5) + ', ' + e.latlng.lng.toFixed(5);
-            L.circleMarker(e.latlng, { color: '#10b981', radius: 8, fillOpacity: 0.8 }).addTo(map).bindPopup('Start').openPopup();
+            let m = L.circleMarker(e.latlng, { color: '#10b981', radius: 8, fillOpacity: 0.8 }).addTo(map).bindPopup('Start').openPopup();
+            routeMarkers.push(m);
             map.off('click', mapClickHandler);
             mapClickHandler = null;
         };
@@ -2263,10 +2276,12 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         if (mapClickHandler) map.off('click', mapClickHandler);
         routeToPoint = null;
         document.getElementById('routeTo').value = '';
+        window.__routingActive = true;
         mapClickHandler = function(e) {
             routeToPoint = e.latlng;
             document.getElementById('routeTo').value = e.latlng.lat.toFixed(5) + ', ' + e.latlng.lng.toFixed(5);
-            L.circleMarker(e.latlng, { color: '#ef4444', radius: 8, fillOpacity: 0.8 }).addTo(map).bindPopup('End').openPopup();
+            let m = L.circleMarker(e.latlng, { color: '#ef4444', radius: 8, fillOpacity: 0.8 }).addTo(map).bindPopup('End').openPopup();
+            routeMarkers.push(m);
             map.off('click', mapClickHandler);
             mapClickHandler = null;
         };
@@ -2344,11 +2359,14 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
 
     function clearRoute() {
         if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+        routeMarkers.forEach(m => map.removeLayer(m));
+        routeMarkers = [];
         document.getElementById('routeInfo').style.display = 'none';
         document.getElementById('routeFrom').value = '';
         document.getElementById('routeTo').value = '';
         routeFromPoint = null;
         routeToPoint = null;
+        window.__routingActive = false;
     }
 
     // ===== SATELLITE VIEW =====
@@ -2458,6 +2476,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         closeAllPanels();
         document.getElementById('reachableRangePanel').style.display = 'block';
         rangeCenterPoint = null;
+        window.__rangeActive = true;
         showNotification('Click on the map to set center point', 'info');
         if (mapClickHandler) map.off('click', mapClickHandler);
         mapClickHandler = function(e) {
@@ -2465,6 +2484,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             L.circleMarker(e.latlng, { color: '#3762c8', radius: 6, fillOpacity: 0.8 }).addTo(map).bindPopup('Center').openPopup();
             map.off('click', mapClickHandler);
             mapClickHandler = null;
+            window.__rangeActive = false;
             calcReachableRange();
         };
         map.on('click', mapClickHandler);
@@ -2537,6 +2557,11 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             document.getElementById(id).style.display = 'none';
         });
         if (mapClickHandler) { map.off('click', mapClickHandler); mapClickHandler = null; }
+        routeMarkers.forEach(m => map.removeLayer(m));
+        routeMarkers = [];
+        if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+        window.__routingActive = false;
+        window.__rangeActive = false;
     }
 
     </script>
