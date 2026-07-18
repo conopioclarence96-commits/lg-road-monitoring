@@ -1214,6 +1214,9 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                         </div>
                     </div>
                     <div class="map-toolbar-right">
+                        <button class="map-fullscreen-btn" id="toggleTrafficBtn" onclick="toggleTrafficLayer()">
+                            <i class="fas fa-car"></i> Traffic
+                        </button>
                         <button class="map-fullscreen-btn" onclick="toggleMapFullscreen()" id="fullscreenMapBtn">
                             <i class="fas fa-expand"></i> Fullscreen
                         </button>
@@ -1404,6 +1407,11 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             attribution: '© TomTom'
         }).addTo(map);
 
+        const trafficLayer = L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/absolute/{z}/{x}/{y}.png?view=Unified&key=i6kR3bj7mdc5l8onrDIHX6MpcVbvm1oV', {
+            attribution: '© TomTom Traffic',
+            opacity: 0.7
+        }).addTo(map);
+
         // Define Quezon City approximate boundary polygon
         const QC_POLYGON_COORDS = [
             [14.605, 120.982],
@@ -1527,6 +1535,22 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
             document.querySelector(`.filter-btn[data-filter="${filter}"]`).classList.add('active');
             loadMarkers(filter);
+        }
+
+        // Toggle traffic overlay layer
+        let trafficVisible = true;
+        function toggleTrafficLayer() {
+            trafficVisible = !trafficVisible;
+            const btn = document.getElementById('toggleTrafficBtn');
+            if (trafficVisible) {
+                trafficLayer.addTo(map);
+                btn.style.background = 'rgba(55,98,200,0.1)';
+                btn.style.color = '#3762c8';
+            } else {
+                map.removeLayer(trafficLayer);
+                btn.style.background = '#6c757d';
+                btn.style.color = '#fff';
+            }
         }
 
         // Toggle map fullscreen
