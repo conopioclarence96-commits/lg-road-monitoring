@@ -136,7 +136,7 @@ class RoutingService {
             'Attributes: routes',
         ];
 
-        return $this->client->requestRaw($url, 'POST', null, $headers, $json);
+        return $this->client->requestRaw($url, 'POST', $json, $headers);
     }
 
     public function snapToRoads(
