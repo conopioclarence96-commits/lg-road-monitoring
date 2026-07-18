@@ -1788,7 +1788,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             }
         }
 
-        // Map click: place pin and show form
+        // Map click: place pin, show form, and fetch address details
         map.on('click', function(e) {
             const { lat, lng } = e.latlng;
             
@@ -1802,19 +1802,52 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             pinMarker = L.marker([lat, lng], {
                 draggable: true
             }).addTo(map);
+            
+            // Fetch address details from reverse geocode
+            TomTomServices.reverseGeocodeOrbis(lat, lng).then(data => {
+                const addr = data.data?.results?.[0]?.address;
+                if (addr) {
+                    const parts = [
+                        addr.street && addr.houseNumber ? addr.houseNumber + ' ' + addr.street : addr.street || '',
+                        addr.municipality || '',
+                        addr.countrySubdivision || '',
+                        addr.postalCode || '',
+                        addr.country || ''
+                    ].filter(Boolean);
+                    pinMarker.bindPopup('<b>' + parts.join(', ') + '</b>').openPopup();
+                } else {
+                    pinMarker.bindPopup(lat.toFixed(5) + ', ' + lng.toFixed(5)).openPopup();
+                }
+            }).catch(() => {
+                pinMarker.bindPopup(lat.toFixed(5) + ', ' + lng.toFixed(5)).openPopup();
+            });
+            
             pinMarker.on('dragend', function() {
                 const pos = pinMarker.getLatLng();
                 
                 // Validate dragged position is still within QC polygon
                 if (!isInsideQCBounds(pos.lat, pos.lng)) {
                     showNotification('Please keep the marker within Quezon City boundaries', 'error');
-                    // Reset to previous valid position
                     pinMarker.setLatLng([lat, lng]);
                     return;
                 }
                 
                 pinLat.value = pos.lat;
                 pinLng.value = pos.lng;
+                // Re-fetch address on drag
+                TomTomServices.reverseGeocodeOrbis(pos.lat, pos.lng).then(data => {
+                    const addr = data.data?.results?.[0]?.address;
+                    if (addr) {
+                        const parts = [
+                            addr.street && addr.houseNumber ? addr.houseNumber + ' ' + addr.street : addr.street || '',
+                            addr.municipality || '',
+                            addr.countrySubdivision || '',
+                            addr.postalCode || '',
+                            addr.country || ''
+                        ].filter(Boolean);
+                        pinMarker.setPopupContent('<b>' + parts.join(', ') + '</b>');
+                    }
+                });
             });
             pinLat.value = lat;
             pinLng.value = lng;
@@ -1823,7 +1856,6 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             pinLat.value = lat;
             pinLng.value = lng;
             document.getElementById('severity').value = 'medium';
-            // Reset specific type dropdown
             updateSpecificTypes();
         });
 
@@ -2223,6 +2255,19 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         document.getElementById('mapSearchResults').style.display = 'none';
         if (pinMarker) map.removeLayer(pinMarker);
         pinMarker = L.marker([lat, lng], { draggable: true }).addTo(map);
+        TomTomServices.reverseGeocodeOrbis(lat, lng).then(data => {
+            const addr = data.data?.results?.[0]?.address;
+            if (addr) {
+                const parts = [
+                    addr.street && addr.houseNumber ? addr.houseNumber + ' ' + addr.street : addr.street || '',
+                    addr.municipality || '',
+                    addr.countrySubdivision || '',
+                    addr.postalCode || '',
+                    addr.country || ''
+                ].filter(Boolean);
+                pinMarker.bindPopup('<b>' + parts.join(', ') + '</b>').openPopup();
+            }
+        }).catch(() => {});
         pinLat.value = lat;
         pinLng.value = lng;
         reportPanel.style.display = 'block';

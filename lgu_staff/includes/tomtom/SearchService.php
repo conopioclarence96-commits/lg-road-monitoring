@@ -62,6 +62,22 @@ class SearchService {
         return $this->client->request('/search/2/batch/' . $batchId . '/results.json', $params);
     }
 
+    public function reverseGeocodeOrbis(float $lat, float $lng, array $params = []): array {
+        $apiKey = $this->client->getApiKey();
+        $radius = $params['radiusInMeters'] ?? 100;
+        $heading = $params['vehicleHeadingInDegrees'] ?? 0;
+        $url = 'https://api.tomtom.com/maps/orbis/places/reverseGeocode'
+            . '?position=' . $lat . ',' . $lng
+            . '&radiusInMeters=' . $radius
+            . '&vehicleHeadingInDegrees=' . $heading;
+        $headers = [
+            'TomTom-Api-Version: 2',
+            'TomTom-Api-Key: ' . $apiKey,
+            'Attributes: results',
+        ];
+        return $this->client->requestRaw($url, 'GET', null, $headers);
+    }
+
     public function EVChargingStations(float $lat, float $lng, array $params = []): array {
         $params['lat'] = $lat;
         $params['lon'] = $lng;

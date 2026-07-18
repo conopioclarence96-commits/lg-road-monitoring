@@ -68,6 +68,9 @@ const TomTomServices = (function() {
         placesSearch: function(query, params = {}) {
             return this.search(query, params);
         },
+        reverseGeocodeOrbis: function(lat, lng, params = {}) {
+            return request('reverse_geocode_orbis', { lat, lng, ...params });
+        },
 
         // EV Charging Stations Availability API
         evCharging: function(lat, lng, params = {}) {

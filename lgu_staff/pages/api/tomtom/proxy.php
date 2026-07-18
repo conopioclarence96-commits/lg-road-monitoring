@@ -63,6 +63,14 @@ try {
             echo json_encode($search->categorySearch($category, $tomtomParams));
             break;
 
+        case 'reverse_geocode_orbis':
+            $search = new SearchService();
+            $lat = (float)($tomtomParams['lat'] ?? 0);
+            $lng = (float)($tomtomParams['lng'] ?? 0);
+            if (!$lat || !$lng) json_error('lat and lng parameters required');
+            echo json_encode($search->reverseGeocodeOrbis($lat, $lng, $tomtomParams));
+            break;
+
         case 'route':
             $routing = new RoutingService();
             $fromLat = (float)($tomtomParams['from_lat'] ?? 0);
