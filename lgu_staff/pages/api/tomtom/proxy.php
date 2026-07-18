@@ -41,13 +41,6 @@ try {
             echo json_encode($search->search($query, $tomtomParams));
             break;
 
-        case 'poi_search':
-            $search = new SearchService();
-            $query = $tomtomParams['query'] ?? '';
-            if (empty($query)) json_error('Query parameter required');
-            echo json_encode($search->poiSearch($query, $tomtomParams));
-            break;
-
         case 'nearby_search':
             $search = new SearchService();
             $lat = (float)($tomtomParams['lat'] ?? 0);
