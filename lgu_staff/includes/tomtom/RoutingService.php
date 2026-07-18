@@ -131,7 +131,7 @@ class RoutingService {
                 ],
             ],
             'vehicleEngineType' => $params['vehicleEngineType'] ?? 'combustion',
-            'routeType' => $params['routeType'] ?? 'fastest',
+            'routeType' => $params['routeType'] ?? 'short',
         ];
 
         unset($params['vehicleEngineType'], $params['routeType']);

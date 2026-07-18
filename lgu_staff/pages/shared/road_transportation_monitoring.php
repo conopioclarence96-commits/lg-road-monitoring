@@ -2335,18 +2335,25 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
     function drawRoutePolyline(routeData) {
         if (routeLayer) map.removeLayer(routeLayer);
         try {
-            // Try to decode polyline or use route path
+            const points = [];
             if (routeData.legs) {
-                const points = [];
                 routeData.legs.forEach(leg => {
-                    if (leg.points) {
+                    // v3 API uses leg.path.coordinates [lng, lat] arrays
+                    if (leg.path && leg.path.coordinates) {
+                        leg.path.coordinates.forEach(c => points.push([c[1], c[0]]));
+                    // v1 API uses leg.points[].latitude / .longitude
+                    } else if (leg.points) {
                         leg.points.forEach(p => points.push([p.latitude, p.longitude]));
                     }
                 });
-                if (points.length > 0) {
-                    routeLayer = L.polyline(points, { color: '#3762c8', weight: 4, opacity: 0.7 }).addTo(map);
-                    map.fitBounds(routeLayer.getBounds().pad(0.1));
-                }
+            }
+            // Fallback: check for path at route level
+            if (points.length === 0 && routeData.path && routeData.path.coordinates) {
+                routeData.path.coordinates.forEach(c => points.push([c[1], c[0]]));
+            }
+            if (points.length > 0) {
+                routeLayer = L.polyline(points, { color: '#3762c8', weight: 4, opacity: 0.7 }).addTo(map);
+                map.fitBounds(routeLayer.getBounds().pad(0.1));
             }
         } catch (e) {
             console.error('Draw route error:', e);
