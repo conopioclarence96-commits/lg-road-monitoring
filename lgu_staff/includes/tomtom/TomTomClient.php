@@ -7,9 +7,6 @@ class TomTomClient {
 
     public function __construct(?string $apiKey = null) {
         $this->apiKey = $apiKey ?? (defined('TOMTOM_API_KEY') ? TOMTOM_API_KEY : '');
-        if (empty($this->apiKey)) {
-            $this->apiKey = 'i6kR3bj7mdc5l8onrDIHX6MpcVbvm1oV';
-        }
     }
 
     public function setApiKey(string $key): void {

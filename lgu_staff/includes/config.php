@@ -159,9 +159,9 @@ define('MAX_FILE_SIZE', 5 * 1024 * 1024); // 5MB
 define('ALLOWED_FILE_TYPES', ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'jpg', 'jpeg', 'png']);
 
 // TomTom API Key - Load from .env or environment variable
-$tomtomEnvFile = __DIR__ . '/../../.env';
-$tomtomEnvVars = file_exists($tomtomEnvFile) ? parse_ini_file($tomtomEnvFile) : [];
-define('TOMTOM_API_KEY', $tomtomEnvVars['TOMTOM_API_KEY'] ?? getenv('TOMTOM_API_KEY') ?: 'i6kR3bj7mdc5l8onrDIHX6MpcVbvm1oV');
+$envFile = __DIR__ . '/../../.env';
+$envVariables = file_exists($envFile) ? parse_ini_file($envFile) : [];
+define('TOMTOM_API_KEY', $envVariables['TOMTOM_API_KEY'] ?? getenv('TOMTOM_API_KEY'));
 
 // TomTom API Services
 require_once __DIR__ . '/tomtom/autoload.php';
