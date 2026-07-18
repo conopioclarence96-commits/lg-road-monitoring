@@ -126,12 +126,6 @@ $nav_items = [
         ['href' => $nav_base . 'pages/admin/verification_monitoring.php', 'icon' => 'shield-alt', 'title' => 'Verification Reports', 'roles' => ['system_admin']],
         ['href' => $nav_base . 'pages/admin/report_management.php', 'icon' => 'clipboard-list', 'title' => 'Report Management', 'roles' => ['system_admin']],
     ],
-    'tomtom' => [
-        ['href' => $nav_base . 'pages/shared/road_transportation_monitoring.php', 'icon' => 'globe', 'title' => 'TomTom Map Services', 'roles' => ['lgu_staff', 'system_admin']],
-        ['href' => $nav_base . 'pages/shared/road_transportation_monitoring.php?service=geocoding', 'icon' => 'search-location', 'title' => 'Geocoding & Search', 'roles' => ['lgu_staff', 'system_admin']],
-        ['href' => $nav_base . 'pages/shared/road_transportation_monitoring.php?service=routing', 'icon' => 'route', 'title' => 'Routing & Navigation', 'roles' => ['lgu_staff', 'system_admin']],
-        ['href' => $nav_base . 'pages/shared/road_transportation_monitoring.php?service=traffic', 'icon' => 'traffic-light', 'title' => 'Traffic & Incidents', 'roles' => ['lgu_staff', 'system_admin']],
-    ],
     'transparency' => [
         ['href' => $nav_base . 'pages/shared/public_transparency.php', 'icon' => 'eye', 'title' => 'Public Transparency', 'roles' => ['system_admin', 'lgu_staff']],
     ],
@@ -169,7 +163,7 @@ foreach ($nav_items as $section => $items) {
     <nav class="sidebar-menu">
         <?php foreach ($filtered_items as $section => $items): ?>
             <?php if (!empty($items)): ?>
-                <div class="menu-label"><?php echo $section === 'tomtom' ? 'TomTom Services' : ucfirst($section); ?></div>
+                <div class="menu-label"><?php echo ucfirst($section); ?></div>
                 <ul>
                     <?php foreach ($items as $item): ?>
                         <?php
