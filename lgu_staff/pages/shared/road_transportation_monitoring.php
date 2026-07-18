@@ -452,11 +452,10 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../../css/sidebar.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
-    <link rel="stylesheet" type="text/css" href="https://api.tomtom.com/maps-sdk-for-web/cdn/6.x/6.25.0/maps/maps.css"/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="../../css/progress-updates.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
-    <script src="https://api.tomtom.com/maps-sdk-for-web/cdn/6.x/6.25.0/maps/maps-web.min.js"></script>
-    <script src="https://api.tomtom.com/maps-sdk-for-web/cdn/6.x/6.25.0/services/services-web.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="../../js/progress-updates.js"></script>
     <script src="../../js/tomtom-services.js?v=<?php echo filemtime(__DIR__ . '/../../js/tomtom-services.js'); ?>"></script>
     <script>
@@ -1532,69 +1531,66 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
 
     <script>
         // Quezon City center
-        const QC_CENTER_LNG = 121.0500;
-        const QC_CENTER_LAT = 14.6500;
+        const QC_CENTER = [14.6500, 121.0500];
+        const map = L.map('map').setView(QC_CENTER, 13);
 
-        const map = tt.map({
-            key: TOMTOM_API_KEY,
-            container: 'map',
-            center: [QC_CENTER_LNG, QC_CENTER_LAT],
-            zoom: 13,
-            style: 'tomtom://vector/1/basic-main',
-            dragPan: true,
-            minZoom: 11,
-            maxZoom: 18
-        });
+        L.tileLayer('https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
+            attribution: '© TomTom'
+        }).addTo(map);
 
-        // Define Quezon City approximate boundary polygon — [lng, lat] format
+        const trafficLayer = L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/absolute/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
+            attribution: '© TomTom Traffic',
+            opacity: 0.7
+        }).addTo(map);
+
+        // Define Quezon City approximate boundary polygon
         const QC_POLYGON_COORDS = [
-            [120.982, 14.605], [120.985, 14.620], [120.988, 14.640], [120.990, 14.660],
-            [120.995, 14.680], [121.005, 14.700], [121.020, 14.715], [121.035, 14.730],
-            [121.050, 14.745], [121.065, 14.755], [121.080, 14.765], [121.095, 14.773],
-            [121.110, 14.770], [121.125, 14.762], [121.135, 14.750], [121.142, 14.735],
-            [121.146, 14.718], [121.148, 14.700], [121.142, 14.682], [121.135, 14.665],
-            [121.125, 14.650], [121.112, 14.638], [121.098, 14.628], [121.080, 14.618],
-            [121.062, 14.612], [121.045, 14.607], [121.028, 14.605], [121.010, 14.603],
-            [121.000, 14.602], [120.990, 14.603]
+            [14.605, 120.982],
+            [14.620, 120.985],
+            [14.640, 120.988],
+            [14.660, 120.990],
+            [14.680, 120.995],
+            [14.700, 121.005],
+            [14.715, 121.020],
+            [14.730, 121.035],
+            [14.745, 121.050],
+            [14.755, 121.065],
+            [14.765, 121.080],
+            [14.773, 121.095],
+            [14.770, 121.110],
+            [14.762, 121.125],
+            [14.750, 121.135],
+            [14.735, 121.142],
+            [14.718, 121.146],
+            [14.700, 121.148],
+            [14.682, 121.142],
+            [14.665, 121.135],
+            [14.650, 121.125],
+            [14.638, 121.112],
+            [14.628, 121.098],
+            [14.618, 121.080],
+            [14.612, 121.062],
+            [14.607, 121.045],
+            [14.605, 121.028],
+            [14.603, 121.010],
+            [14.602, 121.000],
+            [14.603, 120.990]
         ];
-
-        // Add QC boundary polygon once style loads
-        let QC_POLYGON_ID = null;
-        map.on('style.load', function() {
-            map.addLayer({
-                id: 'qc-boundary',
-                type: 'line',
-                source: {
-                    type: 'geojson',
-                    data: {
-                        type: 'Feature',
-                        geometry: { type: 'Polygon', coordinates: [QC_POLYGON_COORDS] }
-                    }
-                },
-                paint: { 'line-color': '#3762c8', 'line-width': 2, 'line-opacity': 0.8 }
-            });
-            map.addLayer({
-                id: 'qc-boundary-fill',
-                type: 'fill',
-                source: {
-                    type: 'geojson',
-                    data: {
-                        type: 'Feature',
-                        geometry: { type: 'Polygon', coordinates: [QC_POLYGON_COORDS] }
-                    }
-                },
-                paint: { 'fill-color': '#3762c8', 'fill-opacity': 0.08 }
-            });
-            QC_POLYGON_ID = 'qc-boundary';
-        });
+        const QC_POLYGON = L.polygon(QC_POLYGON_COORDS, {
+            color: '#3762c8',
+            weight: 2,
+            opacity: 0.8,
+            fillOpacity: 0.08,
+            fillColor: '#3762c8'
+        }).addTo(map);
 
         // Point-in-polygon check using ray casting
         function isInsideQCBounds(lat, lng) {
-            const polygon = QC_POLYGON_COORDS.map(p => [p[1], p[0]]);
+            const polygon = QC_POLYGON.getLatLngs()[0];
             let inside = false;
             for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-                const xi = polygon[i][0], yi = polygon[i][1];
-                const xj = polygon[j][0], yj = polygon[j][1];
+                const xi = polygon[i].lat, yi = polygon[i].lng;
+                const xj = polygon[j].lat, yj = polygon[j].lng;
                 if ((yi > lng) !== (yj > lng) && lat < (xj - xi) * (lng - yi) / (yj - yi) + xi) {
                     inside = !inside;
                 }
@@ -1602,17 +1598,23 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             return inside;
         }
 
-        // Restrict map panning
+        // Restrict map panning with a padded bounding box of QC
+        const QC_BBOX = L.latLngBounds(QC_POLYGON_COORDS);
+        map.setMaxBounds(QC_BBOX.pad(0.15));
+        map.setMinZoom(11);
+        map.setMaxZoom(18);
+
+        // Force map back to Quezon City if user tries to pan out
         map.on('moveend', function() {
-            const c = map.getCenter();
-            if (c.lat < 14.55 || c.lat > 14.78 || c.lng < 120.95 || c.lng > 121.17) {
-                map.flyTo({center: [QC_CENTER_LNG, QC_CENTER_LAT], zoom: 13});
+            const center = map.getCenter();
+            if (!QC_BBOX.contains(center)) {
+                map.setView(QC_CENTER, 13);
                 showNotification('Map view restricted to Quezon City area', 'info');
             }
         });
 
         let pinMarker = null;
-        const reportMarkersArr = [];
+        const reportMarkersLayer = L.layerGroup().addTo(map);
         const reportPanel = document.getElementById('report-form-panel');
         const form = document.getElementById('report-form');
         const pinLat = document.getElementById('pin-lat');
@@ -1627,8 +1629,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         // Load existing report markers
         function loadMarkers(filter, callback) {
             filter = filter || activeFilter;
-            reportMarkersArr.forEach(m => { try { m.remove(); } catch(e) {} });
-            reportMarkersArr.length = 0;
+            reportMarkersLayer.clearLayers();
             allMarkerObjects = [];
             fetch('?action=get_markers')
                 .then(r => r.json())
@@ -1641,16 +1642,16 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                         }
                         const sev = (m.severity || m.priority || 'low').toLowerCase();
                         const color = (sev === 'critical' || sev === 'high') ? '#dc3545' : sev === 'medium' ? '#ffc107' : '#6c757d';
+                        const icon = L.divIcon({
+                            html: `<div style="background:${color};color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);"><i class="fas fa-${m.report_type === 'road_damage' ? 'road' : 'traffic-light'}"></i></div>`,
+                            className: '',
+                            iconSize: [28, 28]
+                        });
                         const sevLabel = m.severity || m.priority || 'low';
-                        const el = document.createElement('div');
-                        el.innerHTML = `<div style="background:${color};color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);"><i class="fas fa-${m.report_type === 'road_damage' ? 'road' : 'traffic-light'}"></i></div>`;
-                        const popupHtml = `<b>${escapeHtml(m.title)}</b><br><small>${escapeHtml(m.description || '')}</small><br><span style="color:${color}">${sevLabel} • ${m.status}</span>`;
-                        const marker = new tt.Marker({element: el.firstElementChild})
-                            .setLngLat([parseFloat(m.longitude), parseFloat(m.latitude)])
-                            .setPopup(new tt.Popup({closeButton: false}).setHTML(popupHtml))
-                            .addTo(map);
+                        const marker = L.marker([parseFloat(m.latitude), parseFloat(m.longitude)], { icon })
+                            .addTo(reportMarkersLayer)
+                            .bindPopup(`<b>${escapeHtml(m.title)}</b><br><small>${escapeHtml(m.description || '')}</small><br><span style="color:${color}">${sevLabel} • ${m.status}</span>`);
                         marker._reportId = m.id;
-                        reportMarkersArr.push(marker);
                         allMarkerObjects.push(marker);
                     });
                     if (callback) callback();
@@ -1672,18 +1673,12 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         function toggleTrafficLayer() {
             trafficVisible = !trafficVisible;
             const btn = document.getElementById('toggleTrafficBtn');
-            map.on('style.load', function() {
-                const layers = map.getStyle().layers;
-                layers.forEach(l => {
-                    if (l.id.includes('traffic-flow') || l.id.includes('traffic_flow')) {
-                        map.setLayoutProperty(l.id, 'visibility', trafficVisible ? 'visible' : 'none');
-                    }
-                });
-            });
             if (trafficVisible) {
+                trafficLayer.addTo(map);
                 btn.style.background = 'rgba(55,98,200,0.1)';
                 btn.style.color = '#3762c8';
             } else {
+                map.removeLayer(trafficLayer);
                 btn.style.background = '#6c757d';
                 btn.style.color = '#fff';
             }
@@ -1695,18 +1690,19 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             document.body.classList.toggle('map-fullscreen-active', mapFullscreen);
             const btn = document.getElementById('fullscreenMapBtn');
             btn.innerHTML = mapFullscreen ? '<i class="fas fa-compress"></i> Exit' : '<i class="fas fa-expand"></i> Fullscreen';
+            setTimeout(() => map.invalidateSize(), 300);
         }
 
         // Focus map on a specific report by ID
         function focusReportOnMap(reportId) {
+            // First try to find in existing markers (fast path)
             const found = allMarkerObjects.find(m => m._reportId === reportId);
             if (found) {
-                const ll = found.getLngLat();
-                map.flyTo({center: [ll.lng, ll.lat], zoom: 16});
-                const popup = found.getPopup();
-                if (popup) popup.open();
+                map.setView(found.getLatLng(), 16);
+                found.openPopup();
                 return;
             }
+            // Not in current markers — fetch all markers directly and locate it
             activeFilter = 'all';
             document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
             const allBtn = document.querySelector('.filter-btn[data-filter="all"]');
@@ -1718,7 +1714,8 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                     if (report && report.latitude && report.longitude) {
                         const lat = parseFloat(report.latitude);
                         const lng = parseFloat(report.longitude);
-                        map.flyTo({center: [lng, lat], zoom: 16});
+                        map.setView([lat, lng], 16);
+                        // Also refresh markers on map with all filter
                         loadMarkers('all');
                     } else {
                         showNotification('Report has no location data on the map.', 'info');
@@ -1793,19 +1790,20 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
 
         // Map click: place pin, show form, and fetch address details
         map.on('click', function(e) {
-            const lat = e.lngLat.lat;
-            const lng = e.lngLat.lng;
+            const { lat, lng } = e.latlng;
             
+            // Check if clicked location is within Quezon City polygon
             if (!isInsideQCBounds(lat, lng)) {
                 showNotification('Please select a location within Quezon City boundaries', 'error');
                 return;
             }
             
-            if (pinMarker) pinMarker.remove();
-            pinMarker = new tt.Marker({draggable: true})
-                .setLngLat([lng, lat])
-                .addTo(map);
+            if (pinMarker) map.removeLayer(pinMarker);
+            pinMarker = L.marker([lat, lng], {
+                draggable: true
+            }).addTo(map);
             
+            // Fetch address details from reverse geocode
             TomTomServices.reverseGeocodeOrbis(lat, lng).then(data => {
                 const addr = data.data?.results?.[0]?.address;
                 if (addr) {
@@ -1816,28 +1814,27 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                         addr.postalCode || '',
                         addr.country || ''
                     ].filter(Boolean);
-                    pinMarker.setPopup(new tt.Popup({closeButton: false}).setHTML('<b>' + parts.join(', ') + '</b>'));
-                    pinMarker.getPopup().open();
+                    pinMarker.bindPopup('<b>' + parts.join(', ') + '</b>').openPopup();
                 } else {
-                    pinMarker.setPopup(new tt.Popup({closeButton: false}).setHTML(lat.toFixed(5) + ', ' + lng.toFixed(5)));
-                    pinMarker.getPopup().open();
+                    pinMarker.bindPopup(lat.toFixed(5) + ', ' + lng.toFixed(5)).openPopup();
                 }
             }).catch(() => {
-                pinMarker.setPopup(new tt.Popup({closeButton: false}).setHTML(lat.toFixed(5) + ', ' + lng.toFixed(5)));
-                pinMarker.getPopup().open();
+                pinMarker.bindPopup(lat.toFixed(5) + ', ' + lng.toFixed(5)).openPopup();
             });
             
             pinMarker.on('dragend', function() {
-                const pos = pinMarker.getLngLat();
+                const pos = pinMarker.getLatLng();
                 
+                // Validate dragged position is still within QC polygon
                 if (!isInsideQCBounds(pos.lat, pos.lng)) {
                     showNotification('Please keep the marker within Quezon City boundaries', 'error');
-                    pinMarker.setLngLat([lng, lat]);
+                    pinMarker.setLatLng([lat, lng]);
                     return;
                 }
                 
                 pinLat.value = pos.lat;
                 pinLng.value = pos.lng;
+                // Re-fetch address on drag
                 TomTomServices.reverseGeocodeOrbis(pos.lat, pos.lng).then(data => {
                     const addr = data.data?.results?.[0]?.address;
                     if (addr) {
@@ -1848,7 +1845,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                             addr.postalCode || '',
                             addr.country || ''
                         ].filter(Boolean);
-                        if (pinMarker.getPopup()) pinMarker.getPopup().setHTML('<b>' + parts.join(', ') + '</b>');
+                        pinMarker.setPopupContent('<b>' + parts.join(', ') + '</b>');
                     }
                 });
             });
@@ -1863,7 +1860,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         });
 
         document.getElementById('cancel-pin-btn').addEventListener('click', function() {
-            if (pinMarker) { pinMarker.remove(); pinMarker = null; }
+            if (pinMarker) { map.removeLayer(pinMarker); pinMarker = null; }
             reportPanel.style.display = 'none';
         });
 
@@ -1964,7 +1961,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                         const data = JSON.parse(text);
                         if (data.success) {
                             showNotification(data.message, 'success');
-                            if (pinMarker) { pinMarker.remove(); pinMarker = null; }
+                            if (pinMarker) { map.removeLayer(pinMarker); pinMarker = null; }
                             reportPanel.style.display = 'none';
                             form.reset();
                             selectedFiles = [];
@@ -2254,10 +2251,10 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
     });
 
     function flyToLocation(lat, lng, zoom) {
-        map.flyTo({center: [lng, lat], zoom: zoom || 14});
+        map.setView([lat, lng], zoom || 14);
         document.getElementById('mapSearchResults').style.display = 'none';
-        if (pinMarker) pinMarker.remove();
-        pinMarker = new tt.Marker({draggable: true}).setLngLat([lng, lat]).addTo(map);
+        if (pinMarker) map.removeLayer(pinMarker);
+        pinMarker = L.marker([lat, lng], { draggable: true }).addTo(map);
         TomTomServices.reverseGeocodeOrbis(lat, lng).then(data => {
             const addr = data.data?.results?.[0]?.address;
             if (addr) {
@@ -2268,8 +2265,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                     addr.postalCode || '',
                     addr.country || ''
                 ].filter(Boolean);
-                pinMarker.setPopup(new tt.Popup({closeButton: false}).setHTML('<b>' + parts.join(', ') + '</b>'));
-                pinMarker.getPopup().open();
+                pinMarker.bindPopup('<b>' + parts.join(', ') + '</b>').openPopup();
             }
         }).catch(() => {});
         pinLat.value = lat;
@@ -2278,17 +2274,6 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
     }
 
     // ===== ROUTE PLANNER =====
-    let routeStartMarker = null, routeEndMarker = null;
-    function addRouteMarker(lngLat, color, label) {
-        const el = document.createElement('div');
-        el.style.cssText = 'background:' + color + ';border-radius:50%;width:16px;height:16px;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);';
-        const m = new tt.Marker({element: el})
-            .setLngLat([lngLat.lng, lngLat.lat])
-            .setPopup(new tt.Popup({closeButton: false}).setHTML(label))
-            .addTo(map);
-        m.getPopup().open();
-        return m;
-    }
     function showRoutePlanner() {
         closeAllPanels();
         document.getElementById('routePlannerPanel').style.display = 'block';
@@ -2296,17 +2281,18 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         routeFromPoint = null;
         routeToPoint = null;
         clearRoute();
+        // Set map click to set start point
         if (mapClickHandler) map.off('click', mapClickHandler);
         mapClickHandler = function(e) {
             if (!routeFromPoint) {
-                routeFromPoint = {lat: e.lngLat.lat, lng: e.lngLat.lng};
-                document.getElementById('routeFrom').value = e.lngLat.lat.toFixed(5) + ', ' + e.lngLat.lng.toFixed(5);
-                routeStartMarker = addRouteMarker(e.lngLat, '#10b981', 'Start');
+                routeFromPoint = e.latlng;
+                document.getElementById('routeFrom').value = e.latlng.lat.toFixed(5) + ', ' + e.latlng.lng.toFixed(5);
+                L.circleMarker(e.latlng, { color: '#10b981', radius: 8, fillOpacity: 0.8 }).addTo(map).bindPopup('Start').openPopup();
                 showNotification('Now click destination point', 'info');
             } else if (!routeToPoint) {
-                routeToPoint = {lat: e.lngLat.lat, lng: e.lngLat.lng};
-                document.getElementById('routeTo').value = e.lngLat.lat.toFixed(5) + ', ' + e.lngLat.lng.toFixed(5);
-                routeEndMarker = addRouteMarker(e.lngLat, '#ef4444', 'End');
+                routeToPoint = e.latlng;
+                document.getElementById('routeTo').value = e.latlng.lat.toFixed(5) + ', ' + e.latlng.lng.toFixed(5);
+                L.circleMarker(e.latlng, { color: '#ef4444', radius: 8, fillOpacity: 0.8 }).addTo(map).bindPopup('End').openPopup();
                 map.off('click', mapClickHandler);
                 mapClickHandler = null;
                 planRoute();
@@ -2320,9 +2306,9 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         routeFromPoint = null;
         document.getElementById('routeFrom').value = '';
         mapClickHandler = function(e) {
-            routeFromPoint = {lat: e.lngLat.lat, lng: e.lngLat.lng};
-            document.getElementById('routeFrom').value = e.lngLat.lat.toFixed(5) + ', ' + e.lngLat.lng.toFixed(5);
-            routeStartMarker = addRouteMarker(e.lngLat, '#10b981', 'Start');
+            routeFromPoint = e.latlng;
+            document.getElementById('routeFrom').value = e.latlng.lat.toFixed(5) + ', ' + e.latlng.lng.toFixed(5);
+            L.circleMarker(e.latlng, { color: '#10b981', radius: 8, fillOpacity: 0.8 }).addTo(map).bindPopup('Start').openPopup();
             map.off('click', mapClickHandler);
             mapClickHandler = null;
         };
@@ -2334,9 +2320,9 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         routeToPoint = null;
         document.getElementById('routeTo').value = '';
         mapClickHandler = function(e) {
-            routeToPoint = {lat: e.lngLat.lat, lng: e.lngLat.lng};
-            document.getElementById('routeTo').value = e.lngLat.lat.toFixed(5) + ', ' + e.lngLat.lng.toFixed(5);
-            routeEndMarker = addRouteMarker(e.lngLat, '#ef4444', 'End');
+            routeToPoint = e.latlng;
+            document.getElementById('routeTo').value = e.latlng.lat.toFixed(5) + ', ' + e.latlng.lng.toFixed(5);
+            L.circleMarker(e.latlng, { color: '#ef4444', radius: 8, fillOpacity: 0.8 }).addTo(map).bindPopup('End').openPopup();
             map.off('click', mapClickHandler);
             mapClickHandler = null;
         };
@@ -2347,18 +2333,24 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         const fromText = document.getElementById('routeFrom').value.trim();
         const toText = document.getElementById('routeTo').value.trim();
         const mode = document.getElementById('routeMode').value;
+
+        // Try to parse lat,lng or geocode
         const fromMatch = fromText.match(/^(-?\d+\.?\d*),\s*(-?\d+\.?\d*)$/);
         const toMatch = toText.match(/^(-?\d+\.?\d*),\s*(-?\d+\.?\d*)$/);
+
         if (!fromMatch && !routeFromPoint) { showNotification('Please set a start location', 'error'); return; }
         if (!toMatch && !routeToPoint) { showNotification('Please set a destination', 'error'); return; }
+
         const fromLat = routeFromPoint ? routeFromPoint.lat : parseFloat(fromMatch[1]);
         const fromLng = routeFromPoint ? routeFromPoint.lng : parseFloat(fromMatch[2]);
         const toLat = routeToPoint ? routeToPoint.lat : parseFloat(toMatch[1]);
         const toLng = routeToPoint ? routeToPoint.lng : parseFloat(toMatch[2]);
+
         const routes = mode === 'truck' ? TomTomServices.extendedRoute(fromLat, fromLng, toLat, toLng, { vehicleCommercial: 'true' })
             : mode === 'pedestrian' ? TomTomServices.extendedRoute(fromLat, fromLng, toLat, toLng, { travelMode: 'pedestrian' })
             : mode === 'bicycle' ? TomTomServices.extendedRoute(fromLat, fromLng, toLat, toLng, { travelMode: 'bicycle' })
             : TomTomServices.calculateRoute(fromLat, fromLng, toLat, toLng);
+
         routes.then(data => {
             if (!data.success || !data.data) {
                 showNotification('Route calculation failed', 'error');
@@ -2375,6 +2367,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                     Distance: ${distKm} km<br>
                     Duration: ${timeMin} min<br>
                     Mode: ${mode}`;
+
                 if (route.routes[0].legs) {
                     drawRoutePolyline(route.routes[0]);
                 }
@@ -2384,36 +2377,28 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         });
     }
 
-    let routeLineId = null;
     function drawRoutePolyline(routeData) {
-        if (routeLineId) { map.removeLayer(routeLineId); if (map.getSource('route-line')) map.removeSource('route-line'); routeLineId = null; }
+        if (routeLayer) map.removeLayer(routeLayer);
         try {
-            const coords = [];
+            const points = [];
             if (routeData.legs) {
                 routeData.legs.forEach(leg => {
+                    // v3 API uses leg.path.coordinates [lng, lat] arrays
                     if (leg.path && leg.path.coordinates) {
-                        leg.path.coordinates.forEach(c => coords.push(c));
+                        leg.path.coordinates.forEach(c => points.push([c[1], c[0]]));
+                    // v1 API uses leg.points[].latitude / .longitude
                     } else if (leg.points) {
-                        leg.points.forEach(p => coords.push([p.longitude, p.latitude]));
+                        leg.points.forEach(p => points.push([p.latitude, p.longitude]));
                     }
                 });
             }
-            if (coords.length === 0 && routeData.path && routeData.path.coordinates) {
-                routeData.path.coordinates.forEach(c => coords.push(c));
+            // Fallback: check for path at route level
+            if (points.length === 0 && routeData.path && routeData.path.coordinates) {
+                routeData.path.coordinates.forEach(c => points.push([c[1], c[0]]));
             }
-            if (coords.length > 0) {
-                map.addLayer({
-                    id: 'route-line',
-                    type: 'line',
-                    source: {
-                        type: 'geojson',
-                        data: { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } }
-                    },
-                    paint: { 'line-color': '#3762c8', 'line-width': 4, 'line-opacity': 0.7 }
-                });
-                routeLineId = 'route-line';
-                const lngs = coords.map(c => c[0]), lats = coords.map(c => c[1]);
-                map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], {padding: 80});
+            if (points.length > 0) {
+                routeLayer = L.polyline(points, { color: '#3762c8', weight: 4, opacity: 0.7 }).addTo(map);
+                map.fitBounds(routeLayer.getBounds().pad(0.1));
             }
         } catch (e) {
             console.error('Draw route error:', e);
@@ -2421,9 +2406,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
     }
 
     function clearRoute() {
-        if (routeLineId) { map.removeLayer(routeLineId); if (map.getSource('route-line')) map.removeSource('route-line'); routeLineId = null; }
-        if (routeStartMarker) { routeStartMarker.remove(); routeStartMarker = null; }
-        if (routeEndMarker) { routeEndMarker.remove(); routeEndMarker = null; }
+        if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
         document.getElementById('routeInfo').style.display = 'none';
         document.getElementById('routeFrom').value = '';
         document.getElementById('routeTo').value = '';
@@ -2432,59 +2415,78 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
     }
 
     // ===== SATELLITE VIEW =====
-    let satelliteMode = false;
     function toggleSatelliteLayer() {
-        satelliteMode = !satelliteMode;
-        map.setStyle(satelliteMode ? 'tomtom://vector/1/satellite-main' : 'tomtom://vector/1/basic-main');
-        showNotification(satelliteMode ? 'Satellite view enabled' : 'Satellite view disabled', satelliteMode ? 'success' : 'info');
+        if (satelliteLayer) {
+            map.removeLayer(satelliteLayer);
+            satelliteLayer = null;
+            showNotification('Satellite view disabled', 'info');
+            return;
+        }
+        satelliteLayer = L.tileLayer('https://api.tomtom.com/map/1/tile/satellite/main/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
+            attribution: '© TomTom',
+            maxZoom: 18
+        }).addTo(map);
+        showNotification('Satellite view enabled', 'success');
     }
 
     // ===== TRAFFIC INCIDENTS =====
-    let incidentsMarkers = [];
     function toggleTrafficIncidentsLayer() {
         const btn = document.getElementById('toggleIncidentsBtn');
-        if (incidentsMarkers.length > 0) {
-            incidentsMarkers.forEach(m => m.remove());
-            incidentsMarkers = [];
+        if (incidentsLayer) {
+            map.removeLayer(incidentsLayer);
+            incidentsLayer = null;
             btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Traffic Incidents';
             showNotification('Traffic incidents layer disabled', 'info');
             return;
         }
+
+        // Fetch incident data and show markers
         const center = map.getCenter();
         TomTomServices.trafficIncidents(center.lat, center.lng, 15).then(data => {
             if (data.success && data.data && data.data.incidents) {
+                incidentsLayer = L.layerGroup().addTo(map);
                 data.data.incidents.forEach(inc => {
                     const pos = inc.geometry?.point || inc.properties?.geometryCoordinates;
                     if (pos) {
+                        const icon = L.divIcon({
+                            html: '<div style="background:#ef4444;color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);"><i class="fas fa-exclamation"></i></div>',
+                            className: '', iconSize: [24, 24]
+                        });
                         const ev = inc.properties || inc.event;
-                        const el = document.createElement('div');
-                        el.innerHTML = '<div style="background:#ef4444;color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);"><i class="fas fa-exclamation"></i></div>';
-                        const m = new tt.Marker({element: el.firstElementChild})
-                            .setLngLat([pos.lon || pos.longitude || 0, pos.lat || pos.latitude || 0])
-                            .setPopup(new tt.Popup({closeButton: false}).setHTML(`<b>${ev?.type || 'Traffic Incident'}</b><br>${ev?.description || ev?.iconCategory || ''}`))
-                            .addTo(map);
-                        incidentsMarkers.push(m);
+                        L.marker([pos.lat || pos.latitude, pos.lon || pos.longitude], { icon })
+                            .bindPopup(`<b>${ev?.type || 'Traffic Incident'}</b><br>${ev?.description || ev?.iconCategory || ''}`)
+                            .addTo(incidentsLayer);
                     }
                 });
                 btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Hide Incidents';
-                showNotification(data.data.incidents.length + ' traffic incidents found', data.data.incidents.length > 0 ? 'info' : 'warning');
+                if (data.data.incidents.length === 0) {
+                    showNotification('No traffic incidents in this area', 'info');
+                } else {
+                    showNotification(data.data.incidents.length + ' traffic incidents found', 'info');
+                }
             } else {
-                showNotification('No traffic incident data available', 'info');
+                // Use extended tiles as fallback
+                incidentsLayer = L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/incidents/absolute/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
+                    attribution: '© TomTom Incidents', opacity: 0.7
+                }).addTo(map);
+                btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Hide Incidents';
+                showNotification('Traffic incidents overlay enabled', 'success');
             }
         });
     }
 
     // ===== EV CHARGING STATIONS =====
-    let evMarkersList = [];
+    let evMarkerObjects = [];
     function showEVCharging() {
         closeAllPanels();
         document.getElementById('evChargingPanel').style.display = 'block';
         findEVStations();
     }
+
     function findEVStations() {
         const center = map.getCenter();
-        evMarkersList.forEach(m => m.remove());
-        evMarkersList = [];
+        if (evMarkersLayer) { map.removeLayer(evMarkersLayer); evMarkersLayer = null; }
+
         TomTomServices.evCharging(center.lat, center.lng, { limit: 20 }).then(data => {
             const resultsDiv = document.getElementById('evResults');
             if (!data.success || !data.data || !data.data.results) {
@@ -2493,18 +2495,20 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                 return;
             }
             const stations = data.data.results;
+            evMarkersLayer = L.layerGroup().addTo(map);
             resultsDiv.style.display = 'block';
             resultsDiv.innerHTML = '<strong>' + stations.length + ' EV stations found</strong><br>';
+
             stations.forEach((s, i) => {
                 const pos = s.position;
                 if (pos) {
-                    const el = document.createElement('div');
-                    el.innerHTML = '<div style="background:#10b981;color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);"><i class="fas fa-charging-station"></i></div>';
-                    const m = new tt.Marker({element: el.firstElementChild})
-                        .setLngLat([pos.lon, pos.lat])
-                        .setPopup(new tt.Popup({closeButton: false}).setHTML(`<b>${s.poi?.name || 'EV Station'}</b><br>${s.address?.freeformAddress || ''}`))
-                        .addTo(map);
-                    evMarkersList.push(m);
+                    const icon = L.divIcon({
+                        html: '<div style="background:#10b981;color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);"><i class="fas fa-charging-station"></i></div>',
+                        className: '', iconSize: [24, 24]
+                    });
+                    L.marker([pos.lat, pos.lon], { icon })
+                        .bindPopup(`<b>${s.poi?.name || 'EV Station'}</b><br>${s.address?.freeformAddress || ''}`)
+                        .addTo(evMarkersLayer);
                     resultsDiv.innerHTML += `${i+1}. ${s.poi?.name || 'Station'} - ${s.address?.freeformAddress || ''}<br>`;
                 }
             });
@@ -2513,7 +2517,6 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
 
     // ===== REACHABLE RANGE =====
     let rangeCenterPoint = null;
-    let rangePolygonId = null;
     function showReachableRange() {
         closeAllPanels();
         document.getElementById('reachableRangePanel').style.display = 'block';
@@ -2521,24 +2524,20 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         showNotification('Click on the map to set center point', 'info');
         if (mapClickHandler) map.off('click', mapClickHandler);
         mapClickHandler = function(e) {
-            rangeCenterPoint = {lat: e.lngLat.lat, lng: e.lngLat.lng};
-            const el = document.createElement('div');
-            el.style.cssText = 'background:#3762c8;border-radius:50%;width:12px;height:12px;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);';
-            const cm = new tt.Marker({element: el})
-                .setLngLat([e.lngLat.lng, e.lngLat.lat])
-                .setPopup(new tt.Popup({closeButton: false}).setHTML('Center'))
-                .addTo(map);
-            cm.getPopup().open();
+            rangeCenterPoint = e.latlng;
+            L.circleMarker(e.latlng, { color: '#3762c8', radius: 6, fillOpacity: 0.8 }).addTo(map).bindPopup('Center').openPopup();
             map.off('click', mapClickHandler);
             mapClickHandler = null;
             calcReachableRange();
         };
         map.on('click', mapClickHandler);
     }
+
     function calcReachableRange() {
-        const center = rangeCenterPoint || {lat: map.getCenter().lat, lng: map.getCenter().lng};
+        const center = rangeCenterPoint || map.getCenter();
         const timeMin = parseInt(document.getElementById('rangeTimeBudget').value) || 30;
         const timeSec = timeMin * 60;
+
         TomTomServices.reachableRange(center.lat, center.lng, { timeBudget: timeSec }).then(data => {
             const infoDiv = document.getElementById('rangeInfo');
             if (!data.success || !data.data) {
@@ -2549,31 +2548,16 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             infoDiv.style.display = 'block';
             const range = data.data;
             infoDiv.innerHTML = `<strong>Reachable Range</strong><br>Time: ${timeMin} minutes`;
-            if (rangePolygonId) { map.removeLayer(rangePolygonId); if (map.getSource('range-polygon')) map.removeSource('range-polygon'); rangePolygonId = null; }
+
+            // Draw reachable area polygon
+            if (rangeLayer) map.removeLayer(rangeLayer);
             if (range.reachableRange && range.reachableRange.boundary) {
-                const coords = range.reachableRange.boundary.map(p => [p.longitude, p.latitude]);
+                const coords = range.reachableRange.boundary.map(p => [p.latitude, p.longitude]);
                 if (coords.length > 0) {
-                    map.addLayer({
-                        id: 'range-polygon',
-                        type: 'fill',
-                        source: {
-                            type: 'geojson',
-                            data: { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] } }
-                        },
-                        paint: { 'fill-color': '#10b981', 'fill-opacity': 0.15 }
-                    });
-                    map.addLayer({
-                        id: 'range-polygon-outline',
-                        type: 'line',
-                        source: {
-                            type: 'geojson',
-                            data: { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] } }
-                        },
-                        paint: { 'line-color': '#10b981', 'line-width': 2 }
-                    });
-                    rangePolygonId = 'range-polygon';
-                    const lngs = coords.map(c => c[0]), lats = coords.map(c => c[1]);
-                    map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], {padding: 80});
+                    rangeLayer = L.polygon(coords, {
+                        color: '#10b981', weight: 2, fillOpacity: 0.15, fillColor: '#10b981'
+                    }).addTo(map);
+                    map.fitBounds(rangeLayer.getBounds().pad(0.1));
                     infoDiv.innerHTML += `<br>Area polygon drawn on map.`;
                 }
             }
