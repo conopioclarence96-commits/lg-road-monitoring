@@ -35,14 +35,18 @@ class TomTomClient {
         if ($method === 'POST') {
             curl_setopt($ch, CURLOPT_POST, true);
             if ($body) {
-                $json = json_encode($body);
+                $prev = ini_set('serialize_precision', 10);
+                $json = json_encode($body, JSON_PRESERVE_ZERO_FRACTION);
+                ini_set('serialize_precision', $prev);
                 curl_setopt($ch, CURLOPT_POSTFIELDS, $json);
                 $headers[] = 'Content-Type: application/json';
             }
         } elseif ($method === 'PUT') {
             curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
             if ($body) {
-                $json = json_encode($body);
+                $prev = ini_set('serialize_precision', 10);
+                $json = json_encode($body, JSON_PRESERVE_ZERO_FRACTION);
+                ini_set('serialize_precision', $prev);
                 curl_setopt($ch, CURLOPT_POSTFIELDS, $json);
                 $headers[] = 'Content-Type: application/json';
             }
@@ -92,7 +96,9 @@ class TomTomClient {
         if ($method === 'POST') {
             curl_setopt($ch, CURLOPT_POST, true);
             if ($body) {
-                $json = json_encode($body);
+                $prev = ini_set('serialize_precision', 10);
+                $json = json_encode($body, JSON_PRESERVE_ZERO_FRACTION);
+                ini_set('serialize_precision', $prev);
                 curl_setopt($ch, CURLOPT_POSTFIELDS, $json);
                 $headers[] = 'Content-Type: application/json';
             }

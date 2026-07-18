@@ -123,11 +123,11 @@ class RoutingService {
             'routePlanningLocations' => [
                 'origin' => [
                     'type' => 'Point',
-                    'coordinates' => [$fromLng, $fromLat],
+                    'coordinates' => [round($fromLng, 6), round($fromLat, 6)],
                 ],
                 'destination' => [
                     'type' => 'Point',
-                    'coordinates' => [$toLng, $toLat],
+                    'coordinates' => [round($toLng, 6), round($toLat, 6)],
                 ],
             ],
             'vehicleEngineType' => $params['vehicleEngineType'] ?? 'combustion',
