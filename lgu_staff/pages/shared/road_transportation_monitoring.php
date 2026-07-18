@@ -2180,25 +2180,17 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         if (!q) return;
         const resultsDiv = document.getElementById('mapSearchResults');
 
-        const params = {
-            limit: 8,
-            typeahead: 'true',
-            countrySet: 'PH',
-            idxSet: 'PAD,POI,Str',
-        };
-        TomTomServices.search(q, params).then(data => {
+        TomTomServices.geocode(q, { limit: 8 }).then(data => {
             if (!data.success || !data.data || !data.data.results) {
                 resultsDiv.style.display = 'none';
                 return;
             }
             const results = data.data.results;
             resultsDiv.innerHTML = results.map(r => {
-                const pos = r.position || {};
-                const lat = pos.lat || pos.latitude || 0;
-                const lon = pos.lon || pos.longitude || 0;
-                return `<div class="search-result-item" data-lat="${lat}" data-lon="${lon}" onclick="flyToLocation(${lat}, ${lon}, 15)">
-                    <i class="fas fa-map-pin" style="color:#3762c8;margin-right:6px;"></i>${r.poi?.name || r.address?.freeformAddress || 'Unknown'}
-                    <small>${r.address?.freeformAddress || ''}${r.address?.countrySubdivision ? ', ' + r.address.countrySubdivision : ''}</small>
+                const pos = r.position || r.addressPosition || {};
+                return `<div class="search-result-item" onclick="flyToLocation(${pos.lat || 0}, ${pos.lon || 0}, 15)">
+                    <i class="fas fa-map-pin" style="color:#3762c8;margin-right:6px;"></i>${r.address?.freeformAddress || r.poi?.name || 'Unknown'}
+                    <small>${r.address?.countrySecondarySubdivision || ''}${r.address?.countrySubdivision ? ', ' + r.address.countrySubdivision : ''}</small>
                 </div>`;
             }).join('');
             resultsDiv.style.display = 'block';
