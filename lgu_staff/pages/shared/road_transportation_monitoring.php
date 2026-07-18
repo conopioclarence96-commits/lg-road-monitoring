@@ -458,7 +458,15 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="../../js/progress-updates.js"></script>
     <script src="../../js/tomtom-services.js"></script>
-    <script>const TOMTOM_API_KEY = '<?php echo TOMTOM_API_KEY; ?>';</script>
+    <script>
+        const TOMTOM_API_KEY = '<?php echo TOMTOM_API_KEY; ?>';
+        const TOMTOM_PROXY_URL = '<?php
+            $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+            $host = $_SERVER['HTTP_HOST'];
+            $scriptDir = dirname($_SERVER['SCRIPT_NAME']);
+            echo $protocol . '://' . $host . $scriptDir . '/../api/tomtom/proxy.php';
+        ?>';
+    </script>
     <style>
         body {
             background: #f7f5f0;
