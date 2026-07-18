@@ -59,6 +59,9 @@ const TomTomServices = (function() {
         categorySearch: function(category, params = {}) {
             return request('category_search', { category, ...params });
         },
+        poiSearch: function(query, params = {}) {
+            return request('poi_search', { query, ...params });
+        },
         batchSearch: function(queries) {
             return request('batch_search', {}, 'POST', { queries });
         },

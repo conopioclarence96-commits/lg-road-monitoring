@@ -25,6 +25,11 @@ class SearchService {
         return $this->search($query, $params);
     }
 
+    public function poiSearch(string $query, array $params = []): array {
+        $params['limit'] = $params['limit'] ?? 10;
+        return $this->client->request('/search/2/poiSearch/' . rawurlencode($query) . '.json', $params);
+    }
+
     public function categorySearch(string $category, array $params = []): array {
         $params['category'] = $category;
         return $this->client->request('/search/2/categorySearch/' . urlencode($category) . '.json', $params);

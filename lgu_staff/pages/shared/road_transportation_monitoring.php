@@ -2180,17 +2180,20 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         if (!q) return;
         const resultsDiv = document.getElementById('mapSearchResults');
 
-        TomTomServices.geocode(q, { limit: 8 }).then(data => {
+        TomTomServices.poiSearch(q, { limit: 10 }).then(data => {
             if (!data.success || !data.data || !data.data.results) {
                 resultsDiv.style.display = 'none';
                 return;
             }
             const results = data.data.results;
+            if (results.length > 0 && results[0].position) {
+                flyToLocation(results[0].position.lat, results[0].position.lon, 15);
+            }
             resultsDiv.innerHTML = results.map(r => {
-                const pos = r.position || r.addressPosition || {};
+                const pos = r.position || {};
                 return `<div class="search-result-item" onclick="flyToLocation(${pos.lat || 0}, ${pos.lon || 0}, 15)">
-                    <i class="fas fa-map-pin" style="color:#3762c8;margin-right:6px;"></i>${r.address?.freeformAddress || r.poi?.name || 'Unknown'}
-                    <small>${r.address?.countrySecondarySubdivision || ''}${r.address?.countrySubdivision ? ', ' + r.address.countrySubdivision : ''}</small>
+                    <i class="fas fa-map-pin" style="color:#3762c8;margin-right:6px;"></i>${r.poi?.name || r.address?.freeformAddress || 'Unknown'}
+                    <small>${r.address?.freeformAddress || ''}</small>
                 </div>`;
             }).join('');
             resultsDiv.style.display = 'block';
