@@ -158,10 +158,13 @@ define('SALT_LENGTH', 32);
 define('MAX_FILE_SIZE', 5 * 1024 * 1024); // 5MB
 define('ALLOWED_FILE_TYPES', ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'jpg', 'jpeg', 'png']);
 
-// Google Maps API Key
-// Get your key from: https://console.cloud.google.com/apis/credentials
-// Enable "Maps JavaScript API" in APIs & Services > Library
-define('GOOGLE_MAPS_API_KEY', 'AIzaSyC8YEmmPXEJEi5YsTToD4e1Ks9EUV4ihPc');
+// TomTom API Key - Load from .env or environment variable
+$tomtomEnvFile = __DIR__ . '/../../.env';
+$tomtomEnvVars = file_exists($tomtomEnvFile) ? parse_ini_file($tomtomEnvFile) : [];
+define('TOMTOM_API_KEY', $tomtomEnvVars['TOMTOM_API_KEY'] ?? getenv('TOMTOM_API_KEY') ?: 'i6kR3bj7mdc5l8onrDIHX6MpcVbvm1oV');
+
+// TomTom API Services
+require_once __DIR__ . '/tomtom/autoload.php';
 
 // Pagination settings
 define('ITEMS_PER_PAGE', 20);
