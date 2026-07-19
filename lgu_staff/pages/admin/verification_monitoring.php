@@ -20,7 +20,7 @@ $_SESSION['last_activity'] = time();
 
 // NOTE: cimm_reports (the local mock table) has been retired. CIMM reports now
 // come live from the real cimm_verification_reports table, populated by the
-// webhook/pull sync (see /lgu_staff/api/cimm-reports-webhook.php and
+// webhook/pull sync (see /lgu_staff/pages/api/cimm-reports-webhook.php and
 // cimm-reports-pull.php) and read through rgmap_fetch_cimm_verification_reports()
 // in cimm_verification_data.php.
 
