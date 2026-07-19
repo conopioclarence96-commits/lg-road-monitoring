@@ -1,4 +1,4 @@
-<?php
+ch<?php
 header('Content-Type: application/json');
 
 ini_set('session.cookie_httponly', 1);
