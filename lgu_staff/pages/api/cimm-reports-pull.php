@@ -110,6 +110,9 @@ foreach ($reports as $report) {
         CURLOPT_HTTPHEADER => [
             'Content-Type: application/json',
             'Authorization: Bearer ' . $WEBHOOK_KEY,
+            // See cimm_rgmap_push_payload() in CIMM's cimm_rgmap_sync.php for
+            // why this is sent redundantly alongside Authorization.
+            'X-API-Key: ' . $WEBHOOK_KEY,
         ],
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT => 20,
