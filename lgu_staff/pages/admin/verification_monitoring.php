@@ -442,6 +442,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
     exit;
 }
 
+// Handle AJAX request for SQL reports table details
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'get_sql_report_details') {
+    header('Content-Type: application/json');
+    $rep_id = isset($_GET['rep_id']) ? (int)$_GET['rep_id'] : 0;
+
+    if ($rep_id) {
+        $query = "SELECT r.*, u.full_name as reporter_name,
+                         e.full_name as engineer_name
+                  FROM reports r
+                  LEFT JOIN users u ON r.report_by = u.id
+                  LEFT JOIN users e ON r.engineer_id = e.id
+                  WHERE r.rep_id = ?";
+        $stmt = $conn->prepare($query);
+        $stmt->bind_param('i', $rep_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $report = $result->fetch_assoc();
+
+        if ($report) {
+            echo json_encode(['success' => true, 'report' => $report]);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Report not found']);
+        }
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Invalid parameters']);
+    }
+    exit;
+}
+
 // Publish completed project to Public Transparency (AJAX)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'publish_completed_project') {
     header('Content-Type: application/json');
@@ -1977,6 +2006,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
 
+        body.dark-mode #sqlReportModal .modal-content { background: #1e2229; }
+        body.dark-mode #sqlReportModal .modal-header h2 { color: #f0f4fa; }
+        body.dark-mode #sqlReportModal .modal-close { color: #9ca3af; }
+        body.dark-mode #sqlReportModal .modal-close:hover { background: rgba(220,53,69,0.2); color: #dc3545; }
+        body.dark-mode #sqlReportModal .modal-header { border-color: #2d323b; }
+        body.dark-mode #sqlReportModal .detail-item { background: #1a1d23; border-color: #2d323b; }
+        body.dark-mode #sqlReportModal .detail-item strong { color: #f0f2f5; }
+        body.dark-mode #sqlReportModal .detail-item span { color: #c0c8d8; }
+        body.dark-mode #sqlReportModal .modal-footer { border-color: #2d323b; }
 
         @media (max-width: 768px) {
             .header-content {
@@ -2707,9 +2745,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             alert('Viewing CIMM Report #' + id + ' — Details panel coming soon.');
         }
 
-        // View SQL reports table details (placeholder)
+        // View SQL reports table details - open modal
         function viewSqlReport(repId) {
-            alert('Viewing Report REP-' + repId + ' from reports table — Details panel coming soon.');
+            fetch('verification_monitoring.php?action=get_sql_report_details&rep_id=' + repId)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        const r = data.report;
+                        document.getElementById('modalRepId').textContent = 'REP-' + r.rep_id;
+                        document.getElementById('modalResId').textContent = r.res_id || '—';
+                        document.getElementById('modalStartDate').textContent = r.starting_date || '—';
+                        document.getElementById('modalEndDate').textContent = r.estimated_end_date || '—';
+                        document.getElementById('modalEngineer').textContent = r.engineer_name || (r.engineer_id ? 'Engineer #' + r.engineer_id : '—');
+                        document.getElementById('modalReporter').textContent = r.reporter_name || 'User #' + r.report_by;
+                        document.getElementById('modalPriority').textContent = r.priority_lvl || '—';
+                        document.getElementById('modalBudget').textContent = r.budget ? '₱' + parseFloat(r.budget).toLocaleString('en-PH', {minimumFractionDigits: 2}) : '—';
+                        document.getElementById('modalAccepted').textContent = r.engineer_accepted == 1 ? 'Yes' : 'No';
+                        document.getElementById('modalCreated').textContent = r.created_at || '—';
+                        document.getElementById('modalNotes').textContent = r.decline_reason || r.decline_review_note || '—';
+
+                        let statusText = 'Pending';
+                        let statusClass = 'pending';
+                        if (r.engineer_accepted == 1) { statusText = 'Completed'; statusClass = 'completed'; }
+                        else if (r.decline_reason) { statusText = 'Cancelled'; statusClass = 'cancelled'; }
+                        const statusEl = document.getElementById('modalStatus');
+                        statusEl.textContent = statusText;
+                        statusEl.className = 'cimm-status-badge ' + statusClass;
+
+                        document.getElementById('modalSqlRepId').value = r.rep_id;
+                        document.getElementById('modalSqlPriority').value = r.priority_lvl || 'medium';
+                        document.getElementById('modalSqlReporter').value = r.reporter_name || ('User #' + r.report_by);
+                        document.getElementById('modalSqlNotes').value = r.decline_reason || r.decline_review_note || 'Department report from reports table';
+
+                        document.querySelector('#sqlReportModal input[name="title"]').value = 'Dept Report REP-' + r.rep_id;
+                        document.querySelector('#sqlReportModal input[name="location"]').value = 'Resource #' + (r.res_id || '');
+
+                        document.getElementById('sqlReportModal').classList.add('active');
+                    }
+                })
+                .catch(err => {
+                    alert('Failed to load report details.');
+                    console.error(err);
+                });
+        }
+
+        function closeSqlReportModal() {
+            document.getElementById('sqlReportModal').classList.remove('active');
         }
 
         // Dept Reports search functionality
@@ -2753,6 +2834,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
     </script>
     
+
+    <!-- SQL Report Details Modal -->
+    <div id="sqlReportModal" class="modal-overlay" onclick="if(event.target===this) closeSqlReportModal()">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h2><i class="fas fa-file-alt" style="margin-right:10px; color:#3762c8;"></i> Dept Report Details</h2>
+                <button class="modal-close" onclick="closeSqlReportModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="detail-grid">
+                    <div class="detail-item">
+                        <strong>Report ID:</strong> <span id="modalRepId"></span>
+                    </div>
+                    <div class="detail-item">
+                        <strong>Status:</strong> <span id="modalStatus" class="cimm-status-badge"></span>
+                    </div>
+                    <div class="detail-item">
+                        <strong>Resource ID:</strong> <span id="modalResId"></span>
+                    </div>
+                    <div class="detail-item">
+                        <strong>Priority:</strong> <span id="modalPriority"></span>
+                    </div>
+                    <div class="detail-item">
+                        <strong>Start Date:</strong> <span id="modalStartDate"></span>
+                    </div>
+                    <div class="detail-item">
+                        <strong>End Date:</strong> <span id="modalEndDate"></span>
+                    </div>
+                    <div class="detail-item">
+                        <strong>Engineer:</strong> <span id="modalEngineer"></span>
+                    </div>
+                    <div class="detail-item">
+                        <strong>Reported By:</strong> <span id="modalReporter"></span>
+                    </div>
+                    <div class="detail-item">
+                        <strong>Budget:</strong> <span id="modalBudget"></span>
+                    </div>
+                    <div class="detail-item">
+                        <strong>Engineer Accepted:</strong> <span id="modalAccepted"></span>
+                    </div>
+                    <div class="detail-item full-width">
+                        <strong>Notes:</strong>
+                        <div style="margin-top:8px; padding:12px; background:rgba(55,98,200,0.05); border-radius:8px;">
+                            <span id="modalNotes"></span>
+                        </div>
+                    </div>
+                    <div class="detail-item full-width">
+                        <strong>Created At:</strong> <span id="modalCreated"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <form method="POST" action="report_management.php" style="display:flex; gap:10px; width:100%; justify-content:flex-end;">
+                    <input type="hidden" name="action" value="accept_department_report">
+                    <input type="hidden" name="report_id" id="modalSqlRepId">
+                    <input type="hidden" name="title" value="">
+                    <input type="hidden" name="description" id="modalSqlNotes">
+                    <input type="hidden" name="location" value="Department Location">
+                    <input type="hidden" name="priority" id="modalSqlPriority">
+                    <input type="hidden" name="report_type" value="maintenance">
+                    <input type="hidden" name="source" id="modalSqlReporter">
+                    <button type="submit" class="btn-verify" onclick="return confirm('Accept this report? It will be redirected to Report Management.')">
+                        <i class="fas fa-check"></i> Accept Report
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
 
     <!-- Session Timeout Modal -->
     <div id="sessionTimeoutOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); z-index:10000;"></div>
