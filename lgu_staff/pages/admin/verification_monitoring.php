@@ -2,6 +2,7 @@
 require_once '../../includes/session_config.php';
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
+require_once __DIR__ . '/../../api/cimm_verification_data.php';
 
 // Session timeout configuration
 $session_timeout = 5 * 60; // 5 minutes in seconds
@@ -17,31 +18,11 @@ if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > 
 // Update last activity time
 $_SESSION['last_activity'] = time();
 
-// Ensure cimm_reports table exists
-$conn->query("CREATE TABLE IF NOT EXISTS cimm_reports (
-    id int(11) unsigned NOT NULL AUTO_INCREMENT,
-    rep_number varchar(50) NOT NULL,
-    infrastructure varchar(255) NOT NULL,
-    location varchar(255) DEFAULT NULL,
-    issue_notes text DEFAULT NULL,
-    engineer varchar(255) DEFAULT NULL,
-    reported_by varchar(255) DEFAULT NULL,
-    report_type enum('staff','dept') NOT NULL DEFAULT 'staff',
-    start_date date DEFAULT NULL,
-    end_date date DEFAULT NULL,
-    priority enum('low','medium','high','critical') DEFAULT 'medium',
-    budget decimal(12,2) DEFAULT NULL,
-    status enum('pending','in-progress','completed','resolved') DEFAULT 'pending',
-    latitude varchar(50) DEFAULT NULL,
-    longitude varchar(50) DEFAULT NULL,
-    attachments text DEFAULT NULL,
-    created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    KEY idx_rep_number (rep_number),
-    KEY idx_status (status),
-    KEY idx_report_type (report_type)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+// NOTE: cimm_reports (the local mock table) has been retired. CIMM reports now
+// come live from the real cimm_verification_reports table, populated by the
+// webhook/pull sync (see /lgu_staff/api/cimm-reports-webhook.php and
+// cimm-reports-pull.php) and read through rgmap_fetch_cimm_verification_reports()
+// in cimm_verification_data.php.
 
 // Ensure required columns exist in report tables
 foreach (['road_transportation_reports', 'road_maintenance_reports'] as $tbl) {
@@ -245,35 +226,72 @@ function getActivityTimeline($conn) {
     return $result;
 }
 
-// Function to get CIMM reports by filter
-function getCimmReports($conn, $filter = 'all') {
-    $where = '';
-    if ($filter === 'staff') {
-        $where = " WHERE report_type = 'staff'";
-    } elseif ($filter === 'dept') {
-        $where = " WHERE report_type = 'dept'";
-    }
-    $query = "SELECT * FROM cimm_reports{$where} ORDER BY created_at DESC";
-    $result = $conn->query($query);
-    if (!$result) {
-        error_log("Query error in getCimmReports: " . $conn->error);
-    }
-    return $result;
+// Map a synced cimm_verification_reports row (from cimm_verification_data.php)
+// into the flat shape the CIMM/Dept tables on this page already render.
+//
+// Two known gaps vs. the old mock data, left explicit rather than guessed:
+//  1) "engineer" — CIMM doesn't sync an assigned engineer name; shows '—'
+//     until/unless CIMM starts sending one (e.g. via cprf_facility_name or a
+//     future assigned_engineer field).
+//  2) "report_type" (staff vs dept) — CIMM's sync payload has no staff/dept
+//     category today, so every synced row is bucketed as 'staff' for now.
+//     Update this mapping once CIMM adds a category field to the payload.
+function rgmap_map_cimm_row_for_display(array $row): array {
+    $verification = $row['verification_status'] ?? 'Pending Review';
+    $statusMap = [
+        'Pending Review' => 'pending',
+        'Flagged'        => 'in-progress',
+        'Verified'       => 'completed',
+        'Dismissed'      => 'resolved',
+    ];
+
+    return [
+        'id'            => $row['id'] ?? $row['cimm_req_id'] ?? 0,
+        'rep_number'    => $row['reference_code'] ?? ('REQ-' . ($row['cimm_req_id'] ?? '')),
+        'infrastructure'=> $row['infrastructure'] ?? '',
+        'location'      => $row['location'] ?? '',
+        'issue_notes'   => $row['issue'] ?? '',
+        'engineer'      => $row['cprf_facility_name'] ?? '—',
+        'reported_by'   => $row['reporter_name'] ?? '—',
+        'report_type'   => 'staff', // see gap #2 above
+        'start_date'    => $row['starting_date'] ?? null,
+        'end_date'      => $row['estimated_end_date'] ?? null,
+        'priority'      => strtolower((string)($row['priority'] ?? 'medium')),
+        'budget'        => $row['budget'] ?? null,
+        'status'        => $statusMap[$verification] ?? 'pending',
+        'approval_status'      => $row['approval_status'] ?? null,
+        'verification_status'  => $verification,
+        'cimm_req_id'          => $row['cimm_req_id'] ?? null,
+    ];
 }
 
-// Function to get CIMM report counts by type
-function getCimmReportCounts($conn) {
-    $counts = ['all' => 0, 'staff' => 0, 'dept' => 0];
-    
-    $result = $conn->query("SELECT COUNT(*) as total FROM cimm_reports");
-    if ($result) $counts['all'] = $result->fetch_assoc()['total'];
-    
-    $result = $conn->query("SELECT COUNT(*) as total FROM cimm_reports WHERE report_type = 'staff'");
-    if ($result) $counts['staff'] = $result->fetch_assoc()['total'];
-    
-    $result = $conn->query("SELECT COUNT(*) as total FROM cimm_reports WHERE report_type = 'dept'");
-    if ($result) $counts['dept'] = $result->fetch_assoc()['total'];
-    
+// Function to get CIMM reports by filter (live data from CIMM via RGMAO sync)
+function getCimmReports($filter = 'all') {
+    $pdo = rgmap_verification_pdo();
+    $rows = rgmap_fetch_cimm_verification_reports($pdo, ['limit' => 500]);
+
+    $mapped = array_map('rgmap_map_cimm_row_for_display', $rows);
+
+    if ($filter === 'staff' || $filter === 'dept') {
+        $mapped = array_values(array_filter($mapped, function ($r) use ($filter) {
+            return $r['report_type'] === $filter;
+        }));
+    }
+
+    return $mapped;
+}
+
+// Function to get CIMM report counts by type (live data from CIMM via RGMAO sync)
+function getCimmReportCounts() {
+    $pdo = rgmap_verification_pdo();
+    $rows = rgmap_fetch_cimm_verification_reports($pdo, ['limit' => 500]);
+    $mapped = array_map('rgmap_map_cimm_row_for_display', $rows);
+
+    $counts = ['all' => count($mapped), 'staff' => 0, 'dept' => 0];
+    foreach ($mapped as $r) {
+        $counts[$r['report_type']] = ($counts[$r['report_type']] ?? 0) + 1;
+    }
+
     return $counts;
 }
 
@@ -408,10 +426,10 @@ $all_reports = getAllReports($conn, $status_filter, $source_filter);
 $recent_approvals = getRecentApprovals($conn);
 $activity_timeline = getActivityTimeline($conn);
 
-// CIMM reports data
+// CIMM reports data (live, via RGMAO sync)
 $cimm_filter = $_GET['cimm_filter'] ?? 'all';
-$cimm_reports = getCimmReports($conn, $cimm_filter);
-$cimm_counts = getCimmReportCounts($conn);
+$cimm_reports = getCimmReports($cimm_filter);
+$cimm_counts = getCimmReportCounts();
 
 // Reports from reports.sql table
 $sql_reports = getSqlReports($conn);
@@ -2416,7 +2434,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 <?php if ($cimm_filter !== 'dept'): ?>
                 <div style="border-top: 2px solid rgba(55, 98, 200, 0.1); margin-top: 20px; padding-top: 20px;">
                     <div class="cimm-table-wrapper">
-                        <?php if ($cimm_reports && $cimm_reports->num_rows > 0): ?>
+                        <?php if (!empty($cimm_reports)): ?>
                         <table class="cimm-table" id="cimmTable">
                             <thead>
                                 <tr>
@@ -2435,7 +2453,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php while ($row = $cimm_reports->fetch_assoc()): ?>
+                                <?php foreach ($cimm_reports as $row): ?>
                                 <tr>
                                     <td>
                                         <button class="cimm-action-btn" onclick="viewCimmReport(<?php echo $row['id']; ?>)">
@@ -2454,7 +2472,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     <td><?php echo $row['budget'] ? '₱' . number_format($row['budget'], 2) : '—'; ?></td>
                                     <td><span class="cimm-status-badge <?php echo htmlspecialchars($row['status']); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $row['status']))); ?></span></td>
                                 </tr>
-                                <?php endwhile; ?>
+                                <?php endforeach; ?>
                             </tbody>
                         </table>
                         <?php endif; ?>
@@ -2513,12 +2531,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     </thead>
                     <tbody>
                         <?php 
-                        // Reset pointer for dept reports
-                        $cimm_reports->data_seek(0);
+                        // Dept panel reuses the same filtered $cimm_reports array (no data_seek needed for plain arrays)
                         $hasAnyReports = false;
-                        if ($cimm_reports && $cimm_reports->num_rows > 0): 
+                        if (!empty($cimm_reports)): 
                         ?>
-                        <?php while ($row = $cimm_reports->fetch_assoc()): 
+                        <?php foreach ($cimm_reports as $row): 
                             $hasAnyReports = true;
                         ?>
                         <tr>
@@ -2539,7 +2556,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <td><?php echo $row['budget'] ? '₱' . number_format($row['budget'], 2) : '—'; ?></td>
                             <td><span class="dept-status-badge <?php echo htmlspecialchars($row['status']); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $row['status']))); ?></span></td>
                         </tr>
-                        <?php endwhile; ?>
+                        <?php endforeach; ?>
                         <?php endif; ?>
 
                         <?php 
