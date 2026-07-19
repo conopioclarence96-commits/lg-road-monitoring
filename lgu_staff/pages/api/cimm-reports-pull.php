@@ -7,7 +7,7 @@
  * is created/validated/rejected. Run this on a cron (every 5-15 min) to
  * backfill anything a push might have missed (e.g. a network blip):
  *
- *   curl -s "http://localhost/<road-monitor-folder>/lgu_staff/api/cimm-reports-pull.php?key=CIMM_RGMAP_SHARED_KEY_2026"
+ *   curl -s "http://localhost/<road-monitor-folder>/lgu_staff/pages/api/cimm-reports-pull.php?key=CIMM_RGMAP_SHARED_KEY_2026"
  *
  * Env overrides (set real values before deploying anywhere public):
  *   CIMM_RGMAP_API_KEY       — key this endpoint requires to be called
@@ -87,9 +87,12 @@ if ($httpCode < 200 || $httpCode >= 300 || !is_array($decoded) || empty($decoded
 
 $reports = $decoded['reports'] ?? [];
 $WEBHOOK_KEY = getenv('CIMM_RGMAP_WEBHOOK_KEY') ?: 'CIMM_RGMAP_SHARED_KEY_2026';
+// Fixed: this was missing the "/pages/" segment — the webhook actually
+// lives at lgu_staff/pages/api/cimm-reports-webhook.php, so the old default
+// 404'd against this very server, silently breaking the catch-up path too.
 $webhookUrl = getenv('RGMAP_CIMM_WEBHOOK_URL')
     ?: ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http')
-    . '://' . $host . '/lgu_staff/api/cimm-reports-webhook.php';
+    . '://' . $host . '/lgu_staff/pages/api/cimm-reports-webhook.php';
 
 $synced = 0;
 $failed = 0;
