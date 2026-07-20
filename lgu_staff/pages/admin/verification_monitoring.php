@@ -2445,7 +2445,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     </div>
                     <div>
                         <div class="dept-reports-title-group">
-                            <h2 class="dept-reports-title">Dept. Reports</h2>
+                            <h2 class="dept-reports-title">CIMM Reports</h2>
                             <span class="dept-reports-badge in-progress"><?php echo count($cimm_reports) + ($sql_reports ? $sql_reports->num_rows : 0); ?> Reports</span>
                         </div>
                         <p class="dept-reports-subtitle">Department-submitted infrastructure reports from CIMM</p>
