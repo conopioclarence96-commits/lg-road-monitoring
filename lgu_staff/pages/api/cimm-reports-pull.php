@@ -90,9 +90,16 @@ $WEBHOOK_KEY = getenv('CIMM_RGMAP_WEBHOOK_KEY') ?: 'CIMM_RGMAP_SHARED_KEY_2026';
 // Fixed: this was missing the "/pages/" segment — the webhook actually
 // lives at lgu_staff/pages/api/cimm-reports-webhook.php, so the old default
 // 404'd against this very server, silently breaking the catch-up path too.
+//
+// Also fixed: on local XAMPP dev this app isn't at the domain root, it's
+// under a folder (matching this repo's own default folder name,
+// "lg-road-monitoring") — e.g. http://localhost/lg-road-monitoring/... —
+// so the root-relative default 404'd locally even after the /pages/ fix.
+// Only the live infragovservices.com host is actually served from root.
+$defaultWebhookPath = $isLocal ? '/lg-road-monitoring/lgu_staff/pages/api/cimm-reports-webhook.php' : '/lgu_staff/pages/api/cimm-reports-webhook.php';
 $webhookUrl = getenv('RGMAP_CIMM_WEBHOOK_URL')
     ?: ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http')
-    . '://' . $host . '/lgu_staff/pages/api/cimm-reports-webhook.php';
+    . '://' . $host . $defaultWebhookPath;
 
 $synced = 0;
 $failed = 0;
@@ -110,6 +117,9 @@ foreach ($reports as $report) {
         CURLOPT_HTTPHEADER => [
             'Content-Type: application/json',
             'Authorization: Bearer ' . $WEBHOOK_KEY,
+            // See cimm_rgmap_push_payload() in CIMM's cimm_rgmap_sync.php for
+            // why this is sent redundantly alongside Authorization.
+            'X-API-Key: ' . $WEBHOOK_KEY,
         ],
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT => 20,

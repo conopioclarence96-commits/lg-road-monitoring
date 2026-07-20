@@ -1,0 +1,18 @@
+# Apache + mod_php (XAMPP's default setup) does not populate
+# $_SERVER['HTTP_AUTHORIZATION'] by default — it strips the header before
+# PHP ever sees it. cimm-reports-webhook.php needs that header to verify
+# CIMM's sync requests, so forward it explicitly here.
+#
+# (cimm-reports-webhook.php also falls back to X-API-Key and to
+# getallheaders()/apache_request_headers() on its own, so this file is a
+# second layer of defense, not the only fix — but it's the standard/expected
+# fix for this specific Apache behavior.)
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTP:Authorization} ^(.*)
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%1]
+</IfModule>
+
+<IfModule mod_setenvif.c>
+    SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+</IfModule>

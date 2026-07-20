@@ -20,7 +20,7 @@
  */
 declare(strict_types=1);
 
-require_once __DIR__ . '/../includes/config.php';
+require_once __DIR__ . '/../../includes/config.php';
 require_once __DIR__ . '/cimm_verification_data.php';
 
 header('Content-Type: application/json; charset=utf-8');
@@ -40,12 +40,38 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
 
 $WEBHOOK_KEY = getenv('CIMM_RGMAP_WEBHOOK_KEY') ?: 'CIMM_RGMAP_SHARED_KEY_2026';
 
-$auth = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+// On stock Apache + mod_php (e.g. XAMPP's default config), the Authorization
+// header is stripped before it ever reaches $_SERVER unless the host is
+// explicitly configured to forward it (no .htaccess rule does this here).
+// getallheaders()/apache_request_headers() can still see it in that case, so
+// check those too instead of relying on $_SERVER alone — this is what was
+// silently turning every CIMM sync into a 401, even though CIMM's requests
+// table had the report the whole time.
+function rgmap_webhook_header(string $name): string {
+    $server_key = 'HTTP_' . str_replace('-', '_', strtoupper($name));
+    if (!empty($_SERVER[$server_key])) {
+        return (string) $_SERVER[$server_key];
+    }
+    $all = [];
+    if (function_exists('getallheaders')) {
+        $all = getallheaders() ?: [];
+    } elseif (function_exists('apache_request_headers')) {
+        $all = apache_request_headers() ?: [];
+    }
+    foreach ($all as $k => $v) {
+        if (strcasecmp($k, $name) === 0) {
+            return (string) $v;
+        }
+    }
+    return '';
+}
+
+$auth = rgmap_webhook_header('Authorization');
 $authorized = false;
 if (preg_match('/^\s*Bearer\s+(\S+)\s*$/i', $auth, $m) && hash_equals($WEBHOOK_KEY, $m[1])) {
     $authorized = true;
 } else {
-    $alt = $_SERVER['HTTP_X_API_KEY'] ?? '';
+    $alt = rgmap_webhook_header('X-API-Key');
     if ($alt !== '' && hash_equals($WEBHOOK_KEY, $alt)) {
         $authorized = true;
     }
