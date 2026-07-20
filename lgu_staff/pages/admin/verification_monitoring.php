@@ -2671,14 +2671,157 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             rows.forEach(row => tbody.appendChild(row));
         }
 
-        // View CIMM report details (placeholder)
-        function viewCimmReport(id) {
-            alert('Viewing CIMM Report #' + id + ' — Details panel coming soon.');
+        // CIMM & SQL report data maps (populated from PHP)
+        var cimmDataMap = <?php echo json_encode(array_column($cimm_reports, null, 'id')); ?>;
+        var sqlDataMap = {};
+        <?php
+        $sql_reports->data_seek(0);
+        if ($sql_reports && $sql_reports->num_rows > 0):
+            while ($sr = $sql_reports->fetch_assoc()):
+        ?>
+        sqlDataMap[<?php echo (int)$sr['rep_id']; ?>] = {
+            rep_id: <?php echo (int)$sr['rep_id']; ?>,
+            res_id: <?php echo (int)$sr['res_id']; ?>,
+            starting_date: <?php echo json_encode($sr['starting_date']); ?>,
+            estimated_end_date: <?php echo json_encode($sr['estimated_end_date']); ?>,
+            engineer_id: <?php echo json_encode($sr['engineer_id']); ?>,
+            report_by: <?php echo (int)$sr['report_by']; ?>,
+            priority_lvl: <?php echo json_encode($sr['priority_lvl']); ?>,
+            budget: <?php echo json_encode($sr['budget']); ?>,
+            created_at: <?php echo json_encode($sr['created_at']); ?>,
+            engineer_accepted: <?php echo (int)$sr['engineer_accepted']; ?>,
+            decline_reason: <?php echo json_encode($sr['decline_reason']); ?>,
+            decline_reviewed: <?php echo json_encode($sr['decline_reviewed']); ?>,
+            decline_review_note: <?php echo json_encode($sr['decline_review_note']); ?>,
+            reporter_name: <?php echo json_encode($sr['reporter_name'] ?? 'User #' . $sr['report_by']); ?>
+        };
+        <?php
+            endwhile;
+        endif;
+        ?>
+
+        function setModalField(id, value) {
+            var el = document.getElementById(id);
+            if (el) el.textContent = value || '—';
         }
 
-        // View SQL reports table details (placeholder)
+        function openCimmDetailModal() {
+            var modal = document.getElementById('cimmDetailModal');
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeCimmDetailModal() {
+            var modal = document.getElementById('cimmDetailModal');
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        function statusBadgeHtml(status, label) {
+            var colors = {
+                'pending':        'background:rgba(251,191,36,0.15);color:#f59e0b;',
+                'in-progress':    'background:rgba(59,130,246,0.15);color:#3b82f6;',
+                'completed':      'background:rgba(34,197,94,0.15);color:#22c55e;',
+                'resolved':       'background:rgba(34,197,94,0.15);color:#22c55e;',
+                'approved':       'background:rgba(34,197,94,0.15);color:#22c55e;',
+                'cancelled':      'background:rgba(220,53,69,0.15);color:#ef4444;'
+            };
+            var c = colors[status] || '';
+            return '<span style="display:inline-block;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;text-transform:capitalize;' + c + '">' + (label || status || '—') + '</span>';
+        }
+
+        function priorityBadgeHtml(priority) {
+            var colors = {
+                'high':   'background:rgba(220,53,69,0.15);color:#ef4444;',
+                'medium': 'background:rgba(251,191,36,0.15);color:#f59e0b;',
+                'low':    'background:rgba(34,197,94,0.15);color:#22c55e;'
+            };
+            var p = (priority || 'medium').toLowerCase();
+            var c = colors[p] || '';
+            return '<span style="display:inline-block;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;text-transform:capitalize;' + c + '">' + (priority || '—') + '</span>';
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '—';
+            var d = new Date(dateStr);
+            if (isNaN(d.getTime())) return dateStr;
+            var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+        }
+
+        function formatCurrency(val) {
+            if (!val || val == 0) return '—';
+            return '₱' + parseFloat(val).toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2});
+        }
+
+        // View CIMM report details
+        function viewCimmReport(id) {
+            var r = cimmDataMap[id];
+            if (!r) { alert('Report data not found.'); return; }
+
+            document.getElementById('cimmModalTitle').textContent = 'CIMM Report — ' + (r.rep_number || 'Details');
+            setModalField('dm-rep-number', r.rep_number);
+            setModalField('dm-infrastructure', r.infrastructure);
+            setModalField('dm-location', r.location);
+            setModalField('dm-issue', r.issue_notes);
+            setModalField('dm-engineer', r.engineer);
+            setModalField('dm-reported-by', r.reported_by);
+            setModalField('dm-start-date', formatDate(r.start_date));
+            setModalField('dm-end-date', formatDate(r.end_date));
+            document.getElementById('dm-priority').innerHTML = priorityBadgeHtml(r.priority);
+            setModalField('dm-budget', formatCurrency(r.budget));
+            document.getElementById('dm-status').innerHTML = statusBadgeHtml(r.status, r.status ? r.status.replace(/-/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}) : '—');
+
+            var extra = '';
+            if (r.verification_status) {
+                extra += '<div class="detail-row"><div class="detail-label">Verification Status</div><div class="detail-value">' + statusBadgeHtml(r.status, r.verification_status) + '</div></div>';
+            }
+            if (r.approval_status) {
+                extra += '<div class="detail-row"><div class="detail-label">Approval Status</div><div class="detail-value">' + statusBadgeHtml(r.status, r.approval_status) + '</div></div>';
+            }
+            if (r.cimm_req_id) {
+                extra += '<div class="detail-row"><div class="detail-label">CIMM Request ID</div><div class="detail-value">' + r.cimm_req_id + '</div></div>';
+            }
+            document.getElementById('dm-extra-fields').innerHTML = extra;
+
+            openCimmDetailModal();
+        }
+
+        // View SQL reports table details
         function viewSqlReport(repId) {
-            alert('Viewing Report REP-' + repId + ' from reports table — Details panel coming soon.');
+            var r = sqlDataMap[repId];
+            if (!r) { alert('Report data not found.'); return; }
+
+            var status = 'pending';
+            if (r.engineer_accepted == 1) status = 'completed';
+            else if (r.decline_reason) status = 'cancelled';
+            else if (r.decline_reviewed != null) status = r.decline_reviewed == 1 ? 'in-progress' : 'cancelled';
+
+            document.getElementById('cimmModalTitle').textContent = 'Report — REP-' + r.rep_id;
+            setModalField('dm-rep-number', 'REP-' + r.rep_id);
+            setModalField('dm-infrastructure', 'Resource #' + r.res_id);
+            setModalField('dm-location', '—');
+            setModalField('dm-issue', r.decline_reason || '—');
+            setModalField('dm-engineer', r.engineer_id ? 'Engineer #' + r.engineer_id : '—');
+            setModalField('dm-reported-by', r.reporter_name);
+            setModalField('dm-start-date', formatDate(r.starting_date));
+            setModalField('dm-end-date', formatDate(r.estimated_end_date));
+            document.getElementById('dm-priority').innerHTML = priorityBadgeHtml(r.priority_lvl);
+            setModalField('dm-budget', formatCurrency(r.budget));
+            document.getElementById('dm-status').innerHTML = statusBadgeHtml(status, status.charAt(0).toUpperCase() + status.slice(1));
+
+            var extra = '';
+            extra += '<div class="detail-row"><div class="detail-label">Created At</div><div class="detail-value">' + formatDate(r.created_at) + '</div></div>';
+            extra += '<div class="detail-row"><div class="detail-label">Engineer Accepted</div><div class="detail-value">' + (r.engineer_accepted ? 'Yes' : 'No') + '</div></div>';
+            if (r.decline_reviewed != null) {
+                extra += '<div class="detail-row"><div class="detail-label">Decline Reviewed</div><div class="detail-value">' + (r.decline_reviewed == 1 ? 'Valid' : 'Invalid') + '</div></div>';
+            }
+            if (r.decline_review_note) {
+                extra += '<div class="detail-row"><div class="detail-label">Decline Review Note</div><div class="detail-value">' + r.decline_review_note + '</div></div>';
+            }
+            document.getElementById('dm-extra-fields').innerHTML = extra;
+
+            openCimmDetailModal();
         }
 
         // Dept Reports search functionality
@@ -2722,6 +2865,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
     </script>
     
+
+    <!-- CIMM / SQL Report Detail Modal -->
+    <div id="cimmDetailModal" class="modal-overlay" onclick="if(event.target===this)closeCimmDetailModal()">
+        <div class="modal-content" style="max-width:700px;">
+            <div class="modal-header">
+                <h2 id="cimmModalTitle">Report Details</h2>
+                <button class="modal-close" onclick="closeCimmDetailModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="cimmModalBody">
+                    <div class="detail-row">
+                        <div class="detail-label">Report #</div>
+                        <div class="detail-value" id="dm-rep-number">—</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Infrastructure</div>
+                        <div class="detail-value" id="dm-infrastructure">—</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Location</div>
+                        <div class="detail-value" id="dm-location">—</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Issue / Notes</div>
+                        <div class="detail-value" id="dm-issue">—</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Engineer</div>
+                        <div class="detail-value" id="dm-engineer">—</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Reported By</div>
+                        <div class="detail-value" id="dm-reported-by">—</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Start Date</div>
+                        <div class="detail-value" id="dm-start-date">—</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">End Date</div>
+                        <div class="detail-value" id="dm-end-date">—</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Priority</div>
+                        <div class="detail-value" id="dm-priority">—</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Budget</div>
+                        <div class="detail-value" id="dm-budget">—</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Status</div>
+                        <div class="detail-value" id="dm-status">—</div>
+                    </div>
+                    <div id="dm-extra-fields"></div>
+                </div>
+            </div>
+            <div class="modal-footer" id="cimmModalFooter">
+                <button type="button" class="btn-review" onclick="closeCimmDetailModal()">
+                    <i class="fas fa-times"></i> Close
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- Session Timeout Modal -->
     <div id="sessionTimeoutOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); z-index:10000;"></div>
