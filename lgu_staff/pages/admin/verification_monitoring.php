@@ -2430,55 +2430,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <?php endif; ?>
                 </div>
 
-                <!-- CIMM Received Reports Table (hidden when dept tab is active) -->
-                <?php if ($cimm_filter !== 'dept'): ?>
-                <div style="border-top: 2px solid rgba(55, 98, 200, 0.1); margin-top: 20px; padding-top: 20px;">
-                    <div class="cimm-table-wrapper">
-                        <?php if (!empty($cimm_reports)): ?>
-                        <table class="cimm-table" id="cimmTable">
-                            <thead>
-                                <tr>
-                                    <th>Action</th>
-                                    <th>Rep #</th>
-                                    <th>Infrastructure</th>
-                                    <th>Location</th>
-                                    <th>Issue / Notes</th>
-                                    <th>Engineer</th>
-                                    <th>Reported By</th>
-                                    <th>Start Date</th>
-                                    <th>End Date</th>
-                                    <th>Priority</th>
-                                    <th>Budget</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($cimm_reports as $row): ?>
-                                <tr>
-                                    <td>
-                                        <button class="cimm-action-btn" onclick="viewCimmReport(<?php echo $row['id']; ?>)">
-                                            <i class="fas fa-eye"></i>
-                                        </button>
-                                    </td>
-                                    <td><?php echo htmlspecialchars($row['rep_number']); ?></td>
-                                    <td><?php echo htmlspecialchars($row['infrastructure']); ?></td>
-                                    <td><?php echo htmlspecialchars($row['location']); ?></td>
-                                    <td><?php echo htmlspecialchars(strlen($row['issue_notes'] ?? '') > 40 ? substr($row['issue_notes'], 0, 40) . '...' : ($row['issue_notes'] ?? '')); ?></td>
-                                    <td><?php echo htmlspecialchars($row['engineer']); ?></td>
-                                    <td><?php echo htmlspecialchars($row['reported_by']); ?></td>
-                                    <td><?php echo $row['start_date'] ? date('M d, Y', strtotime($row['start_date'])) : '—'; ?></td>
-                                    <td><?php echo $row['end_date'] ? date('M d, Y', strtotime($row['end_date'])) : '—'; ?></td>
-                                    <td><span class="cimm-status-badge <?php echo htmlspecialchars($row['priority']); ?>"><?php echo ucfirst(htmlspecialchars($row['priority'])); ?></span></td>
-                                    <td><?php echo $row['budget'] ? '₱' . number_format($row['budget'], 2) : '—'; ?></td>
-                                    <td><span class="cimm-status-badge <?php echo htmlspecialchars($row['status']); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $row['status']))); ?></span></td>
-                                </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                        <?php endif; ?>
-                    </div>
-                </div>
-                <?php endif; ?>
+
                 </div>
 
             </div>
