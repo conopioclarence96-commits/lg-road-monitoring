@@ -3523,18 +3523,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 ];
                                 echo htmlspecialchars($type_labels[$crow['report_type']] ?? ucfirst($crow['report_type']));
                             ?></td>
-                            <td><?php
-                                $loc = $crow['location'] ?? '';
-                                if ($loc === '' || $loc === 'Pinned location' || $loc === '—') {
-                                    if (!empty($crow['latitude']) && !empty($crow['longitude'])) {
-                                        echo htmlspecialchars($crow['latitude'] . ', ' . $crow['longitude']);
-                                    } else {
-                                        echo '—';
-                                    }
-                                } else {
-                                    echo htmlspecialchars($loc);
-                                }
-                            ?></td>
+                            <td><?php echo htmlspecialchars($crow['location'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars($reporterName); ?></td>
                             <td><span class="citizen-status-badge <?php echo htmlspecialchars($crow['severity'] ?? 'medium'); ?>"><?php echo ucfirst(htmlspecialchars($crow['severity'] ?? 'medium')); ?></span></td>
                             <td><span class="citizen-status-badge <?php echo htmlspecialchars($crow['priority']); ?>"><?php echo ucfirst(htmlspecialchars($crow['priority'])); ?></span></td>
