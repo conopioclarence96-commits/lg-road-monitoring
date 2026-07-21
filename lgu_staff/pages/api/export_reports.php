@@ -14,10 +14,10 @@ if (!is_logged_in()) {
 }
 
 $status_filter = $_GET['status'] ?? 'all';
-$type_filter = $_GET['type'] ?? 'all';
+$source_filter = $_GET['source'] ?? 'all';
 
 // Get reports data
-function get_export_reports($status_filter, $type_filter) {
+function get_export_reports($status_filter, $source_filter) {
     global $conn;
     
     $reports = [];
@@ -34,13 +34,16 @@ function get_export_reports($status_filter, $type_filter) {
         $params[] = $status_filter;
     }
     
-    if ($type_filter !== 'all') {
-        if ($type_filter === 'transportation') {
+    if ($source_filter !== 'all') {
+        if ($source_filter === 'transport') {
             $transport_query .= " WHERE " . implode(' AND ', $where_conditions);
             $maintenance_query = "SELECT NULL FROM road_maintenance_reports WHERE 1=0";
-        } else {
+        } elseif ($source_filter === 'maintenance') {
             $transport_query = "SELECT NULL FROM road_transportation_reports WHERE 1=0";
             $maintenance_query .= " WHERE " . implode(' AND ', $where_conditions);
+        } else {
+            $transport_query = "SELECT NULL FROM road_transportation_reports WHERE 1=0";
+            $maintenance_query = "SELECT NULL FROM road_maintenance_reports WHERE 1=0";
         }
     } elseif (!empty($where_conditions)) {
         $transport_query .= " WHERE " . implode(' AND ', $where_conditions);
@@ -75,7 +78,7 @@ function get_export_reports($status_filter, $type_filter) {
     return $all_reports;
 }
 
-$reports = get_export_reports($status_filter, $type_filter);
+$reports = get_export_reports($status_filter, $source_filter);
 
 // Prepare CSV data
 $headers = ['ID', 'Title', 'Description', 'Location', 'Type', 'Priority', 'Status', 'Assigned To', 'Source', 'Receiver', 'Created At', 'Updated At'];
@@ -101,7 +104,7 @@ foreach ($reports as $report) {
 // Generate filename
 $filename = 'reports_export_' . date('Y-m-d_H-i-s') . '.csv';
 if ($status_filter !== 'all') $filename = str_replace('.csv', "_{$status_filter}.csv", $filename);
-if ($type_filter !== 'all') $filename = str_replace('.csv', "_{$type_filter}.csv", $filename);
+if ($source_filter !== 'all') $filename = str_replace('.csv', "_{$source_filter}.csv", $filename);
 
 // Export to CSV
 export_to_csv($csv_data, $filename, $headers);

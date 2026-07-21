@@ -436,7 +436,7 @@ function handle_accept_department_report() {
 }
 
 // Get reports for display
-function get_reports($status_filter = 'all', $type_filter = 'all', $limit = 50, $offset = 0) {
+function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50, $offset = 0) {
     global $conn;
     
     $reports = [];
@@ -455,19 +455,19 @@ function get_reports($status_filter = 'all', $type_filter = 'all', $limit = 50, 
         $maintenance_estimation_exists = true;
     }
     
-    // Get transportation reports
+    // Get transportation reports (Citizen Reports)
     if ($transport_estimation_exists) {
-        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, estimation, resolution_notes as notes, department, created_date, created_at, updated_at, attachments, image_path, 'transportation' as report_type FROM road_transportation_reports";
+        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, estimation, resolution_notes as notes, department, created_date, created_at, updated_at, attachments, image_path, 'transportation' as report_type, 'transport' as source_system FROM road_transportation_reports";
     } else {
-        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, 0 as estimation, resolution_notes as notes, department, created_date, created_at, updated_at, attachments, image_path, 'transportation' as report_type FROM road_transportation_reports";
+        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, 0 as estimation, resolution_notes as notes, department, created_date, created_at, updated_at, attachments, image_path, 'transportation' as report_type, 'transport' as source_system FROM road_transportation_reports";
     }
     $transport_params = [];
     
-    // Get maintenance reports
+    // Get maintenance reports (Infrastructure Projects)
     if ($maintenance_estimation_exists) {
-        $maintenance_query = "SELECT id, report_id, title, description, location, priority, status, maintenance_team as assigned_to, estimation, department, created_date, created_at, updated_at, NULL as attachments, NULL as image_path, 'maintenance' as report_type FROM road_maintenance_reports";
+        $maintenance_query = "SELECT id, report_id, title, description, location, priority, status, maintenance_team as assigned_to, estimation, department, created_date, created_at, updated_at, NULL as attachments, NULL as image_path, 'maintenance' as report_type, 'maintenance' as source_system FROM road_maintenance_reports";
     } else {
-        $maintenance_query = "SELECT id, report_id, title, description, location, priority, status, maintenance_team as assigned_to, 0 as estimation, department, created_date, created_at, updated_at, NULL as attachments, NULL as image_path, 'maintenance' as report_type FROM road_maintenance_reports";
+        $maintenance_query = "SELECT id, report_id, title, description, location, priority, status, maintenance_team as assigned_to, 0 as estimation, department, created_date, created_at, updated_at, NULL as attachments, NULL as image_path, 'maintenance' as report_type, 'maintenance' as source_system FROM road_maintenance_reports";
     }
     $maintenance_params = [];
     
@@ -475,20 +475,23 @@ function get_reports($status_filter = 'all', $type_filter = 'all', $limit = 50, 
     $where_conditions = [];
     
     $status_filter = $_GET['status'] ?? 'all';
-    $type_filter = $_GET['type'] ?? 'all';
+    $source_filter = $_GET['source'] ?? 'all';
     
     if ($status_filter !== 'all') {
         $where_conditions[] = "status = ?";
         $params[] = $status_filter;
     }
     
-    if ($type_filter !== 'all') {
-        if ($type_filter === 'transportation') {
+    if ($source_filter !== 'all') {
+        if ($source_filter === 'transport') {
             $transport_query .= " WHERE " . implode(' AND ', $where_conditions);
-            $maintenance_query = "SELECT NULL FROM road_maintenance_reports WHERE 1=0"; // Empty result
-        } else {
-            $transport_query = "SELECT NULL FROM road_transportation_reports WHERE 1=0"; // Empty result
+            $maintenance_query = "SELECT NULL FROM road_maintenance_reports WHERE 1=0";
+        } elseif ($source_filter === 'maintenance') {
+            $transport_query = "SELECT NULL FROM road_transportation_reports WHERE 1=0";
             $maintenance_query .= " WHERE " . implode(' AND ', $where_conditions);
+        } elseif ($source_filter === 'cimm') {
+            $transport_query = "SELECT NULL FROM road_transportation_reports WHERE 1=0";
+            $maintenance_query = "SELECT NULL FROM road_maintenance_reports WHERE 1=0";
         }
     } elseif (!empty($where_conditions)) {
         $transport_query .= " WHERE " . implode(' AND ', $where_conditions);
@@ -581,10 +584,10 @@ $offset = ($page - 1) * $per_page;
 
 // Filters
 $status_filter = $_GET['status'] ?? 'all';
-$type_filter = $_GET['type'] ?? 'all';
+$source_filter = $_GET['source'] ?? 'all';
 
 // Get data
-$reports = get_reports($status_filter, $type_filter, $per_page, $offset);
+$reports = get_reports($status_filter, $source_filter, $per_page, $offset);
 $stats = get_report_stats();
 $csrf_token = generate_csrf_token();
 $flash_message = get_flash_message();
@@ -1368,11 +1371,12 @@ if (!empty($reports)) {
                     </select>
                 </div>
                 <div>
-                    <label class="form-label">Report Type</label>
-                    <select class="filter-select" id="typeFilter" onchange="filterReports()">
-                        <option value="all" <?php echo $type_filter === 'all' ? 'selected' : ''; ?>>All Types</option>
-                        <option value="transportation" <?php echo $type_filter === 'transportation' ? 'selected' : ''; ?>>Transportation</option>
-                        <option value="maintenance" <?php echo $type_filter === 'maintenance' ? 'selected' : ''; ?>>Maintenance</option>
+                    <label class="form-label">Source System</label>
+                    <select class="filter-select" id="sourceFilter" onchange="filterReports()">
+                        <option value="all" <?php echo $source_filter === 'all' ? 'selected' : ''; ?>>All Sources</option>
+                        <option value="transport" <?php echo $source_filter === 'transport' ? 'selected' : ''; ?>>Citizen Reports</option>
+                        <option value="cimm" <?php echo $source_filter === 'cimm' ? 'selected' : ''; ?>>CIMM Reports</option>
+                        <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>Infrastructure Projects</option>
                     </select>
                 </div>
                 <div>
@@ -1656,10 +1660,10 @@ if (!empty($reports)) {
 
         function filterReports() {
             const status = document.getElementById('statusFilter').value;
-            const type = document.getElementById('typeFilter').value;
+            const source = document.getElementById('sourceFilter').value;
             const url = new URL(window.location);
             url.searchParams.set('status', status);
-            url.searchParams.set('type', type);
+            url.searchParams.set('source', source);
             url.searchParams.set('page', '1');
             window.location.href = url.toString();
         }
@@ -1667,15 +1671,15 @@ if (!empty($reports)) {
         function resetFilters() {
             const url = new URL(window.location);
             url.searchParams.delete('status');
-            url.searchParams.delete('type');
+            url.searchParams.delete('source');
             url.searchParams.set('page', '1');
             window.location.href = url.toString();
         }
 
         function exportReports() {
             const status = document.getElementById('statusFilter').value;
-            const type = document.getElementById('typeFilter').value;
-            const url = `../api/export_reports.php?status=${status}&type=${type}`;
+            const source = document.getElementById('sourceFilter').value;
+            const url = `../api/export_reports.php?status=${status}&source=${source}`;
             window.open(url, '_blank');
         }
 
