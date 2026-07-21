@@ -1526,6 +1526,289 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
         }
 
+        /* Infra Reports Panel */
+        .infra-reports-panel {
+            background: #f0f4fa;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e0e0e0;
+            margin-bottom: 25px;
+            overflow: hidden;
+        }
+
+        body.dark-mode .infra-reports-panel {
+            background: #1e2229;
+            border-color: #2d323b;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .infra-reports-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 25px;
+            border-bottom: 2px solid rgba(16, 185, 129, 0.15);
+        }
+
+        .infra-reports-header-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .infra-reports-icon {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+        }
+
+        .infra-reports-title-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .infra-reports-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1e3c72;
+            margin: 0;
+        }
+
+        body.dark-mode .infra-reports-title {
+            color: #f0f4fa;
+        }
+
+        .infra-reports-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            background: #10b981;
+            color: white;
+        }
+
+        .infra-reports-subtitle {
+            font-size: 13px;
+            color: #6b7280;
+            margin: 2px 0 0 0;
+        }
+
+        body.dark-mode .infra-reports-subtitle {
+            color: #9ca3af;
+        }
+
+        .infra-reports-search {
+            display: flex;
+            gap: 12px;
+            padding: 18px 25px;
+            border-bottom: 1px solid rgba(16, 185, 129, 0.1);
+        }
+
+        .infra-search-wrapper {
+            position: relative;
+            flex: 1;
+        }
+
+        .infra-search-wrapper i {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        .infra-search-input {
+            width: 100%;
+            padding: 11px 16px 11px 40px;
+            background: #ffffff;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            color: #333;
+            font-size: 13px;
+            font-family: 'Poppins', sans-serif;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        body.dark-mode .infra-search-input {
+            background: #2d323b;
+            border-color: rgba(255, 255, 255, 0.1);
+            color: #e4e6ea;
+        }
+
+        .infra-search-input::placeholder {
+            color: #9ca3af;
+        }
+
+        .infra-search-input:focus {
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+
+        .infra-sort-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+            cursor: pointer;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+
+        .infra-sort-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .infra-table-wrapper {
+            overflow-x: auto;
+            padding: 0;
+        }
+
+        .infra-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .infra-table thead th {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            padding: 14px 16px;
+            font-size: 12px;
+            font-weight: 700;
+            text-align: left;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+
+        .infra-table tbody tr {
+            border-bottom: 1px solid rgba(16, 185, 129, 0.08);
+            transition: background 0.2s;
+        }
+
+        .infra-table tbody tr:hover {
+            background: rgba(16, 185, 129, 0.04);
+        }
+
+        .infra-table tbody td {
+            padding: 14px 16px;
+            color: #333;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        body.dark-mode .infra-table tbody td {
+            color: #e4e6ea;
+        }
+
+        .infra-action-btn {
+            padding: 6px 10px;
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 13px;
+        }
+
+        .infra-action-btn:hover {
+            background: #10b981;
+            color: white;
+        }
+
+        .infra-status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+
+        .infra-status-badge.pending {
+            background: rgba(251, 191, 36, 0.15);
+            color: #f59e0b;
+        }
+
+        .infra-status-badge.in-progress {
+            background: rgba(59, 130, 246, 0.15);
+            color: #3b82f6;
+        }
+
+        .infra-status-badge.approved,
+        .infra-status-badge.completed {
+            background: rgba(34, 197, 94, 0.15);
+            color: #22c55e;
+        }
+
+        .infra-status-badge.cancelled,
+        .infra-status-badge.rejected {
+            background: rgba(220, 53, 69, 0.15);
+            color: #ef4444;
+        }
+
+        .infra-status-badge.high {
+            background: rgba(220, 53, 69, 0.15);
+            color: #ef4444;
+        }
+
+        .infra-status-badge.medium {
+            background: rgba(251, 191, 36, 0.15);
+            color: #f59e0b;
+        }
+
+        .infra-status-badge.low {
+            background: rgba(34, 197, 94, 0.15);
+            color: #22c55e;
+        }
+
+        .infra-empty-state {
+            text-align: center;
+            padding: 50px 20px;
+            color: #6b7280;
+        }
+
+        .infra-empty-icon {
+            width: 60px;
+            height: 60px;
+            background: rgba(16, 185, 129, 0.1);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+        }
+
+        .infra-empty-icon i {
+            font-size: 24px;
+            color: #10b981;
+        }
+
+        .infra-empty-state p {
+            font-size: 14px;
+            color: #8892a4;
+        }
+
         /* Dept Reports Panel */
         .dept-reports-panel {
             background: #f0f4fa;
@@ -2134,7 +2417,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         </button>
                         <button class="cimm-tab <?php echo $cimm_filter === 'dept' ? 'active' : ''; ?>" onclick="filterCimmReports('dept')">
                             <i class="fas fa-building"></i>
-                            Infra Reports
+                            Dept. Reports
                             <span class="cimm-tab-badge"><?php echo $cimm_counts['dept']; ?></span>
                         </button>
                     </div>
@@ -2436,7 +2719,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             </div>
         </div>
 
-        <!-- Infra Reports Panel -->
+        <!-- CIMM Reports Panel -->
         <div class="dept-reports-panel">
             <div class="dept-reports-header">
                 <div class="dept-reports-header-left">
@@ -2445,10 +2728,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     </div>
                     <div>
                         <div class="dept-reports-title-group">
-                            <h2 class="dept-reports-title">Infra Reports</h2>
+                            <h2 class="dept-reports-title">CIMM Reports</h2>
                             <span class="dept-reports-badge in-progress"><?php echo count($cimm_reports) + ($sql_reports ? $sql_reports->num_rows : 0); ?> Reports</span>
                         </div>
-                        <p class="dept-reports-subtitle">Infrastructure reports submitted via CIMM</p>
+                        <p class="dept-reports-subtitle">Department-submitted infrastructure reports from CIMM</p>
                     </div>
                 </div>
             </div>
@@ -2556,6 +2839,105 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                         <i class="fas fa-sync-alt"></i>
                                     </div>
                                     <p>No department reports at this time.</p>
+                                </div>
+                            </td>
+                        </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Infra Reports Panel -->
+        <?php
+        $infra_query = "(SELECT 'transportation' as infra_source, id, report_id, title, report_type, report_category, report_source,
+                         department, priority, status, created_date, due_date, description, location, created_at, updated_at
+                         FROM road_transportation_reports WHERE report_category = 'road')
+                         UNION ALL
+                         (SELECT 'maintenance' as infra_source, id, report_id, title, report_type, NULL as report_category, NULL as report_source,
+                         department, priority, status, created_date, due_date, description, location, created_at, updated_at
+                         FROM road_maintenance_reports)
+                         ORDER BY created_at DESC";
+        $infra_reports = $conn->query($infra_query);
+        $infra_count = $infra_reports ? $infra_reports->num_rows : 0;
+        ?>
+        <div class="infra-reports-panel">
+            <div class="infra-reports-header">
+                <div class="infra-reports-header-left">
+                    <div class="infra-reports-icon">
+                        <i class="fas fa-road"></i>
+                    </div>
+                    <div>
+                        <div class="infra-reports-title-group">
+                            <h2 class="infra-reports-title">Infra Reports</h2>
+                            <span class="infra-reports-badge"><?php echo $infra_count; ?> Reports</span>
+                        </div>
+                        <p class="infra-reports-subtitle">Road and infrastructure reports from LGU departments</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="infra-reports-search">
+                <div class="infra-search-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" class="infra-search-input" id="infraSearchInput" placeholder="Search by Rep #, Title, Location, Department, Priority...">
+                </div>
+                <button class="infra-sort-btn" onclick="toggleInfraSort()">
+                    <i class="fas fa-sort"></i> Sort
+                </button>
+            </div>
+
+            <div class="infra-table-wrapper">
+                <table class="infra-table" id="infraTable">
+                    <thead>
+                        <tr>
+                            <th>Action</th>
+                            <th>Rep #</th>
+                            <th>Title</th>
+                            <th>Type</th>
+                            <th>Department</th>
+                            <th>Location</th>
+                            <th>Priority</th>
+                            <th>Date Created</th>
+                            <th>Due Date</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if ($infra_reports && $infra_count > 0): ?>
+                        <?php while ($row = $infra_reports->fetch_assoc()):
+                            $infra_status_class = '';
+                            if ($row['status'] === 'approved') $infra_status_class = 'approved';
+                            elseif ($row['status'] === 'cancelled') $infra_status_class = 'cancelled';
+                            elseif ($row['status'] === 'pending') $infra_status_class = 'pending';
+                            elseif ($row['status'] === 'in-progress') $infra_status_class = 'in-progress';
+                            elseif ($row['status'] === 'completed') $infra_status_class = 'completed';
+                        ?>
+                        <tr>
+                            <td>
+                                <button class="infra-action-btn" onclick="viewInfraReport(<?php echo $row['id']; ?>, '<?php echo htmlspecialchars($row['infra_source']); ?>')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </td>
+                            <td><?php echo htmlspecialchars($row['report_id']); ?></td>
+                            <td><?php echo htmlspecialchars($row['title']); ?></td>
+                            <td><?php echo ucfirst(htmlspecialchars(str_replace('_', ' ', $row['report_type']))); ?></td>
+                            <td><?php echo htmlspecialchars($row['department']); ?></td>
+                            <td><?php echo htmlspecialchars($row['location']); ?></td>
+                            <td><span class="infra-status-badge <?php echo htmlspecialchars(strtolower($row['priority'])); ?>"><?php echo ucfirst(htmlspecialchars($row['priority'])); ?></span></td>
+                            <td><?php echo $row['created_at'] ? date('M d, Y', strtotime($row['created_at'])) : '—'; ?></td>
+                            <td><?php echo $row['due_date'] ? date('M d, Y', strtotime($row['due_date'])) : '—'; ?></td>
+                            <td><span class="infra-status-badge <?php echo $infra_status_class; ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $row['status']))); ?></span></td>
+                        </tr>
+                        <?php endwhile; ?>
+                        <?php else: ?>
+                        <tr>
+                            <td colspan="10">
+                                <div class="infra-empty-state">
+                                    <div class="infra-empty-icon">
+                                        <i class="fas fa-road"></i>
+                                    </div>
+                                    <p>No infrastructure reports at this time.</p>
                                 </div>
                             </td>
                         </tr>
@@ -2850,6 +3232,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 return deptSortAsc ? aText.localeCompare(bText) : bText.localeCompare(aText);
             });
             rows.forEach(row => tbody.appendChild(row));
+        }
+
+        // Infra Reports search functionality
+        document.getElementById('infraSearchInput')?.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const table = document.getElementById('infraTable');
+            if (!table) return;
+            const rows = table.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(searchTerm) ? '' : 'none';
+            });
+        });
+
+        // Infra Reports sort functionality
+        let infraSortAsc = true;
+        function toggleInfraSort() {
+            const table = document.getElementById('infraTable');
+            if (!table) return;
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            infraSortAsc = !infraSortAsc;
+            rows.sort((a, b) => {
+                const aText = a.cells[1]?.textContent.trim() || '';
+                const bText = b.cells[1]?.textContent.trim() || '';
+                return infraSortAsc ? aText.localeCompare(bText) : bText.localeCompare(aText);
+            });
+            rows.forEach(row => tbody.appendChild(row));
+        }
+
+        // View Infra Report detail (reuses CIMM detail modal)
+        var infraDataMap = <?php
+            $infra_data_rows = [];
+            if ($infra_reports && $infra_count > 0) {
+                $infra_reports->data_seek(0);
+                while ($ir = $infra_reports->fetch_assoc()) {
+                    $infra_data_rows[$ir['id'] . '_' . $ir['infra_source']] = $ir;
+                }
+            }
+            echo json_encode($infra_data_rows);
+        ?>;
+        function viewInfraReport(id, source) {
+            var key = id + '_' + source;
+            var r = infraDataMap[key];
+            if (!r) { showNotification('Report data not found.', 'error'); return; }
+            document.getElementById('dm-rep-number').textContent = r.report_id || '—';
+            document.getElementById('dm-infra').textContent = r.title || '—';
+            document.getElementById('dm-location').textContent = r.location || '—';
+            document.getElementById('dm-issue').textContent = r.description || '—';
+            document.getElementById('dm-engineer').textContent = r.department || '—';
+            document.getElementById('dm-reported-by').textContent = r.department || '—';
+            document.getElementById('dm-start-date').textContent = r.created_at ? new Date(r.created_at).toLocaleDateString() : '—';
+            document.getElementById('dm-end-date').textContent = r.due_date ? new Date(r.due_date).toLocaleDateString() : '—';
+            document.getElementById('dm-priority').innerHTML = r.priority ? priorityBadgeHtml(r.priority) : '—';
+            document.getElementById('dm-budget').textContent = '—';
+            document.getElementById('dm-status').innerHTML = statusBadgeHtml(r.status, r.status);
+            document.getElementById('dm-extra-fields').innerHTML =
+                '<div class="detail-row"><div class="detail-label">Report Type</div><div class="detail-value">' + (r.report_type || '—') + '</div></div>' +
+                '<div class="detail-row"><div class="detail-label">Source Table</div><div class="detail-value">' + source + '</div></div>';
+            openCimmDetailModal();
         }
         
         // Close modal after form submission in modal (if element exists)
