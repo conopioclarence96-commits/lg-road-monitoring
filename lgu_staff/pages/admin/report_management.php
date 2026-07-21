@@ -510,17 +510,17 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
     
     // Get transportation reports (Citizen Reports)
     if ($transport_estimation_exists) {
-        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, estimation, resolution_notes as notes, department, created_date, created_at, updated_at, attachments, image_path, 'transportation' as report_type, 'transport' as source_system FROM road_transportation_reports";
+        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, 'transportation' as report_type, 'transport' as source_system FROM road_transportation_reports";
     } else {
-        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, 0 as estimation, resolution_notes as notes, department, created_date, created_at, updated_at, attachments, image_path, 'transportation' as report_type, 'transport' as source_system FROM road_transportation_reports";
+        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, 0 as estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, 'transportation' as report_type, 'transport' as source_system FROM road_transportation_reports";
     }
     $transport_params = [];
     
     // Get maintenance reports (Infrastructure Projects)
     if ($maintenance_estimation_exists) {
-        $maintenance_query = "SELECT id, report_id, title, description, location, priority, status, maintenance_team as assigned_to, estimation, department, created_date, created_at, updated_at, NULL as attachments, NULL as image_path, 'maintenance' as report_type, 'maintenance' as source_system FROM road_maintenance_reports";
+        $maintenance_query = "SELECT id, report_id, title, description, location, priority, status, maintenance_team as assigned_to, estimation, department, created_date, created_at, updated_at, approved_at, NULL as attachments, NULL as image_path, 'maintenance' as report_type, 'maintenance' as source_system FROM road_maintenance_reports";
     } else {
-        $maintenance_query = "SELECT id, report_id, title, description, location, priority, status, maintenance_team as assigned_to, 0 as estimation, department, created_date, created_at, updated_at, NULL as attachments, NULL as image_path, 'maintenance' as report_type, 'maintenance' as source_system FROM road_maintenance_reports";
+        $maintenance_query = "SELECT id, report_id, title, description, location, priority, status, maintenance_team as assigned_to, 0 as estimation, department, created_date, created_at, updated_at, approved_at, NULL as attachments, NULL as image_path, 'maintenance' as report_type, 'maintenance' as source_system FROM road_maintenance_reports";
     }
     $maintenance_params = [];
     
@@ -602,6 +602,7 @@ function get_report_stats() {
         'total_reports' => 0,
         'pending_reports' => 0,
         'in_progress_reports' => 0,
+        'approved_reports' => 0,
         'completed_reports' => 0,
         'high_priority_reports' => 0
     ];
@@ -611,6 +612,7 @@ function get_report_stats() {
         COUNT(*) as total,
         SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
         SUM(CASE WHEN status = 'in-progress' THEN 1 ELSE 0 END) as in_progress,
+        SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved,
         SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
         SUM(CASE WHEN priority = 'high' THEN 1 ELSE 0 END) as high_priority_count
         FROM road_transportation_reports");
@@ -620,6 +622,7 @@ function get_report_stats() {
         COUNT(*) as total,
         SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
         SUM(CASE WHEN status = 'in-progress' THEN 1 ELSE 0 END) as in_progress,
+        SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved,
         SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
         SUM(CASE WHEN priority = 'high' THEN 1 ELSE 0 END) as high_priority_count
         FROM road_maintenance_reports");
@@ -628,6 +631,7 @@ function get_report_stats() {
         $stats['total_reports'] += $transport_stats['total'];
         $stats['pending_reports'] += $transport_stats['pending'];
         $stats['in_progress_reports'] += $transport_stats['in_progress'];
+        $stats['approved_reports'] += $transport_stats['approved'];
         $stats['completed_reports'] += $transport_stats['completed'];
         $stats['high_priority_reports'] += $transport_stats['high_priority_count'];
     }
@@ -636,6 +640,7 @@ function get_report_stats() {
         $stats['total_reports'] += $maintenance_stats['total'];
         $stats['pending_reports'] += $maintenance_stats['pending'];
         $stats['in_progress_reports'] += $maintenance_stats['in_progress'];
+        $stats['approved_reports'] += $maintenance_stats['approved'];
         $stats['completed_reports'] += $maintenance_stats['completed'];
         $stats['high_priority_reports'] += $maintenance_stats['high_priority_count'];
     }
@@ -647,7 +652,10 @@ function get_report_stats() {
         foreach ($cimm_all as $cimm_report) {
             if ($cimm_report['status'] === 'pending') $stats['pending_reports']++;
             elseif ($cimm_report['status'] === 'in-progress') $stats['in_progress_reports']++;
-            elseif ($cimm_report['status'] === 'completed') $stats['completed_reports']++;
+            elseif ($cimm_report['status'] === 'completed') {
+                $stats['completed_reports']++;
+                $stats['approved_reports']++;
+            }
             if (($cimm_report['priority'] ?? '') === 'high') $stats['high_priority_reports']++;
         }
     } catch (Exception $e) {
@@ -1795,11 +1803,18 @@ foreach ($reports as $report) {
                 <div class="stat-label">Pending</div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #22c55e, #16a34a);">
                     <i class="fas fa-cogs"></i>
                 </div>
                 <div class="stat-number"><?php echo number_format($stats['in_progress_reports']); ?></div>
                 <div class="stat-label">In Progress</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #059669, #047857);">
+                    <i class="fas fa-check-double"></i>
+                </div>
+                <div class="stat-number"><?php echo number_format($stats['approved_reports']); ?></div>
+                <div class="stat-label">Approved</div>
             </div>
             <div class="stat-card">
                 <div class="stat-icon">
@@ -1937,7 +1952,12 @@ foreach ($reports as $report) {
                             <td><?php echo htmlspecialchars(ucfirst($report['department'] ?? '')); ?></td>
                             <td><span class="rm-priority-badge <?php echo htmlspecialchars($report['priority']); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'])); ?></span></td>
                             <td><span class="rm-status-badge <?php echo htmlspecialchars($report['status']); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span></td>
-                            <td><?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?></td>
+                            <td>
+                                <?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?>
+                                <?php if (($report['status'] ?? '') === 'approved' && !empty($report['approved_at'])): ?>
+                                    <br><small style="color:#059669;font-weight:600;">Approved: <?php echo date('M d, Y', strtotime($report['approved_at'])); ?></small>
+                                <?php endif; ?>
+                            </td>
                         </tr>
                         <?php
                             endforeach;
@@ -2125,7 +2145,12 @@ foreach ($reports as $report) {
                             <td><?php echo htmlspecialchars(ucfirst($report['department'] ?? '')); ?></td>
                             <td><span class="rm-priority-badge <?php echo htmlspecialchars($report['priority']); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'])); ?></span></td>
                             <td><span class="rm-status-badge <?php echo htmlspecialchars($report['status']); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span></td>
-                            <td><?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?></td>
+                            <td>
+                                <?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?>
+                                <?php if (($report['status'] ?? '') === 'approved' && !empty($report['approved_at'])): ?>
+                                    <br><small style="color:#059669;font-weight:600;">Approved: <?php echo date('M d, Y', strtotime($report['approved_at'])); ?></small>
+                                <?php endif; ?>
+                            </td>
                         </tr>
                         <?php
                             endforeach;
