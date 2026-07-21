@@ -1462,75 +1462,6 @@ if ($citizen_result && $citizen_result->num_rows > 0) {
             white-space: nowrap;
         }
         .cimm-sort-btn:hover { background: rgba(55, 98, 200, 0.2); }
-        .cimm-table-wrapper {
-            overflow-x: auto;
-            padding: 0;
-        }
-        .cimm-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .cimm-table thead th {
-            background: linear-gradient(135deg, #3762c8, #1e3c72);
-            color: white;
-            padding: 14px 16px;
-            font-size: 12px;
-            font-weight: 700;
-            text-align: left;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            white-space: nowrap;
-        }
-        .cimm-table tbody tr {
-            border-bottom: 1px solid rgba(55, 98, 200, 0.08);
-            transition: background 0.2s;
-        }
-        .cimm-table tbody tr:hover { background: rgba(55, 98, 200, 0.05); }
-        .cimm-table tbody td {
-            padding: 14px 16px;
-            color: #333;
-            font-size: 13px;
-            white-space: nowrap;
-        }
-        body.dark-mode .cimm-table tbody td { color: #c0c8d8; }
-        body.dark-mode .cimm-table tbody tr { border-bottom-color: rgba(255, 255, 255, 0.05); }
-        body.dark-mode .cimm-table tbody tr:hover { background: rgba(55, 98, 200, 0.08); }
-        .cimm-action-btn {
-            padding: 6px 12px;
-            background: rgba(55, 98, 200, 0.1);
-            color: #3762c8;
-            border: none;
-            border-radius: 6px;
-            font-size: 12px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .cimm-action-btn:hover { background: rgba(55, 98, 200, 0.2); }
-        body.dark-mode .cimm-action-btn { background: rgba(55, 98, 200, 0.15); color: #60a5fa; }
-        .cimm-status-badge {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: capitalize;
-        }
-        .cimm-status-badge.pending { background: rgba(251, 191, 36, 0.15); color: #f59e0b; }
-        .cimm-status-badge.in-progress { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
-        .cimm-status-badge.completed,
-        .cimm-status-badge.resolved { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
-        .cimm-empty-state { text-align: center; padding: 60px 20px; color: #6b7280; }
-        .cimm-empty-icon {
-            width: 56px; height: 56px; background: rgba(55, 98, 200, 0.12);
-            border-radius: 12px; display: flex; align-items: center; justify-content: center;
-            margin: 0 auto 16px;
-        }
-        .cimm-empty-icon i { font-size: 26px; color: #3762c8; }
-        body.dark-mode .cimm-empty-icon { background: rgba(96, 165, 250, 0.12); }
-        body.dark-mode .cimm-empty-icon i { color: #60a5fa; }
-        .cimm-empty-state h4 { font-size: 16px; font-weight: 600; color: #333; margin-bottom: 6px; }
-        body.dark-mode .cimm-empty-state h4 { color: #e4e6ea; }
-        .cimm-empty-state p { font-size: 14px; color: #9ca3af; font-weight: 500; }
 
         /* ── Infrastructure Projects Panel ── */
         .infra-panel {
@@ -1640,76 +1571,6 @@ if ($citizen_result && $citizen_result->num_rows > 0) {
             transition: all 0.2s;
         }
         .infra-sort-btn:hover { background: rgba(249, 115, 22, 0.2); }
-        .infra-table-wrapper {
-            overflow-x: auto;
-            padding: 0;
-        }
-        .infra-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .infra-table thead th {
-            background: linear-gradient(135deg, #f97316, #ea580c);
-            color: white;
-            padding: 14px 16px;
-            font-size: 12px;
-            font-weight: 700;
-            text-align: left;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            white-space: nowrap;
-        }
-        .infra-table tbody tr {
-            border-bottom: 1px solid rgba(249, 115, 22, 0.08);
-            transition: background 0.2s;
-        }
-        .infra-table tbody tr:hover { background: rgba(249, 115, 22, 0.05); }
-        .infra-table tbody td {
-            padding: 14px 16px;
-            color: #333;
-            font-size: 13px;
-            white-space: nowrap;
-        }
-        body.dark-mode .infra-table tbody td { color: #c0c8d8; }
-        body.dark-mode .infra-table tbody tr { border-bottom-color: rgba(255, 255, 255, 0.05); }
-        body.dark-mode .infra-table tbody tr:hover { background: rgba(249, 115, 22, 0.08); }
-        .infra-action-btn {
-            padding: 6px 12px;
-            background: rgba(249, 115, 22, 0.1);
-            color: #f97316;
-            border: none;
-            border-radius: 6px;
-            font-size: 12px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .infra-action-btn:hover { background: rgba(249, 115, 22, 0.2); }
-        body.dark-mode .infra-action-btn { background: rgba(249, 115, 22, 0.15); color: #fb923c; }
-        .infra-status-badge {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: capitalize;
-        }
-        .infra-status-badge.pending { background: rgba(251, 191, 36, 0.15); color: #f59e0b; }
-        .infra-status-badge.active,
-        .infra-status-badge.in-progress { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
-        .infra-status-badge.completed { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
-        .infra-status-badge.delayed { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
-        .infra-empty-state { text-align: center; padding: 60px 20px; color: #92400e; }
-        .infra-empty-icon {
-            width: 56px; height: 56px; background: rgba(249, 115, 22, 0.12);
-            border-radius: 12px; display: flex; align-items: center; justify-content: center;
-            margin: 0 auto 16px;
-        }
-        .infra-empty-icon i { font-size: 26px; color: #f97316; }
-        body.dark-mode .infra-empty-icon { background: rgba(251, 146, 60, 0.12); }
-        body.dark-mode .infra-empty-icon i { color: #fb923c; }
-        .infra-empty-state h4 { font-size: 16px; font-weight: 600; color: #333; margin-bottom: 6px; }
-        body.dark-mode .infra-empty-state h4 { color: #e4e6ea; }
-        .infra-empty-state p { font-size: 14px; color: #9ca3af; font-weight: 500; }
 
         /* ── Citizen Reports Panel ── */
         .citizen-panel {
@@ -1819,76 +1680,6 @@ if ($citizen_result && $citizen_result->num_rows > 0) {
             transition: all 0.2s;
         }
         .citizen-sort-btn:hover { background: rgba(16, 185, 129, 0.2); }
-        .citizen-table-wrapper {
-            overflow-x: auto;
-            padding: 0;
-        }
-        .citizen-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .citizen-table thead th {
-            background: linear-gradient(135deg, #10b981, #059669);
-            color: white;
-            padding: 14px 16px;
-            font-size: 12px;
-            font-weight: 700;
-            text-align: left;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            white-space: nowrap;
-        }
-        .citizen-table tbody tr {
-            border-bottom: 1px solid rgba(16, 185, 129, 0.08);
-            transition: background 0.2s;
-        }
-        .citizen-table tbody tr:hover { background: rgba(16, 185, 129, 0.05); }
-        .citizen-table tbody td {
-            padding: 14px 16px;
-            color: #333;
-            font-size: 13px;
-            white-space: nowrap;
-        }
-        body.dark-mode .citizen-table tbody td { color: #c0c8d8; }
-        body.dark-mode .citizen-table tbody tr { border-bottom-color: rgba(255, 255, 255, 0.05); }
-        body.dark-mode .citizen-table tbody tr:hover { background: rgba(16, 185, 129, 0.08); }
-        .citizen-action-btn {
-            padding: 6px 12px;
-            background: rgba(16, 185, 129, 0.1);
-            color: #10b981;
-            border: none;
-            border-radius: 6px;
-            font-size: 12px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .citizen-action-btn:hover { background: rgba(16, 185, 129, 0.2); }
-        body.dark-mode .citizen-action-btn { background: rgba(16, 185, 129, 0.15); color: #34d399; }
-        .citizen-status-badge {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: capitalize;
-        }
-        .citizen-status-badge.pending { background: rgba(251, 191, 36, 0.15); color: #f59e0b; }
-        .citizen-status-badge.in-review { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
-        .citizen-status-badge.responded { background: rgba(139, 92, 246, 0.15); color: #8b5cf6; }
-        .citizen-status-badge.resolved { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
-        .citizen-status-badge.closed { background: rgba(107, 114, 128, 0.15); color: #6b7280; }
-        .citizen-empty-state { text-align: center; padding: 60px 20px; color: #065f46; }
-        .citizen-empty-icon {
-            width: 56px; height: 56px; background: rgba(16, 185, 129, 0.12);
-            border-radius: 12px; display: flex; align-items: center; justify-content: center;
-            margin: 0 auto 16px;
-        }
-        .citizen-empty-icon i { font-size: 26px; color: #10b981; }
-        body.dark-mode .citizen-empty-icon { background: rgba(52, 211, 153, 0.12); }
-        body.dark-mode .citizen-empty-icon i { color: #34d399; }
-        .citizen-empty-state h4 { font-size: 16px; font-weight: 600; color: #333; margin-bottom: 6px; }
-        body.dark-mode .citizen-empty-state h4 { color: #e4e6ea; }
-        .citizen-empty-state p { font-size: 14px; color: #9ca3af; font-weight: 500; }
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
@@ -2084,57 +1875,46 @@ if ($citizen_result && $citizen_result->num_rows > 0) {
                     <i class="fas fa-search"></i>
                     <input type="text" class="cimm-search-input" id="cimmSearchInput" placeholder="Search by Rep #, Infrastructure, Location...">
                 </div>
-                <button class="cimm-sort-btn" onclick="toggleCimmSort()">
-                    <i class="fas fa-sort"></i> Sort
-                </button>
+
             </div>
-            <div class="cimm-table-wrapper">
-                <table class="cimm-table" id="cimmTable">
-                    <thead>
-                        <tr>
-                            <th>Rep #</th>
-                            <th>Infrastructure</th>
-                            <th>Location</th>
-                            <th>Issue</th>
-                            <th>Reported By</th>
-                            <th>Priority</th>
-                            <th>Budget</th>
-                            <th>Start Date</th>
-                            <th>End Date</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (!empty($cimm_reports)): ?>
-                            <?php foreach ($cimm_reports as $row): ?>
-                            <tr>
-                                <td><?php echo htmlspecialchars($row['reference_code'] ?? '—'); ?></td>
-                                <td><?php echo htmlspecialchars($row['infrastructure'] ?? '—'); ?></td>
-                                <td><?php echo htmlspecialchars($row['location'] ?? '—'); ?></td>
-                                <td><?php echo htmlspecialchars(strlen($row['issue'] ?? '') > 40 ? substr($row['issue'], 0, 40) . '...' : ($row['issue'] ?? '—')); ?></td>
-                                <td><?php echo htmlspecialchars($row['reporter_name'] ?? '—'); ?></td>
-                                <td><span class="cimm-status-badge <?php echo htmlspecialchars($row['priority'] ?? 'medium'); ?>"><?php echo ucfirst(htmlspecialchars($row['priority'] ?? 'medium')); ?></span></td>
-                                <td><?php echo isset($row['budget']) && $row['budget'] ? '₱' . number_format($row['budget'], 2) : '—'; ?></td>
-                                <td><?php echo !empty($row['starting_date']) ? date('M d, Y', strtotime($row['starting_date'])) : '—'; ?></td>
-                                <td><?php echo !empty($row['estimated_end_date']) ? date('M d, Y', strtotime($row['estimated_end_date'])) : '—'; ?></td>
-                                <td><span class="cimm-status-badge <?php echo $row['_display_status'] ?? 'pending'; ?>"><?php echo ucfirst(str_replace('-', ' ', $row['_display_status'] ?? 'pending')); ?></span></td>
-                            </tr>
-                            <?php endforeach; ?>
-                        <?php else: ?>
-                        <tr>
-                            <td colspan="10">
-                                <div class="cimm-empty-state">
-                                    <div class="cimm-empty-icon">
-                                        <i class="fas fa-sync-alt"></i>
+            <div class="main-grid">
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h3 class="chart-title">CIMM Reports List</h3>
+                        <span class="text-muted"><?php echo count($cimm_reports); ?> reports found</span>
+                    </div>
+                    
+                    <?php if (empty($cimm_reports)): ?>
+                        <div style="text-align: center; padding: 40px; color: #666;">
+                            <i class="fas fa-sync-alt" style="font-size: 48px; margin-bottom: 15px; opacity: 0.5;"></i>
+                            <p>No CIMM reports have been synced yet.</p>
+                        </div>
+                    <?php else: ?>
+                        <?php foreach ($cimm_reports as $row): ?>
+                        <div class="report-card priority-<?php echo htmlspecialchars($row['priority'] ?? 'medium'); ?>">
+                            <div class="report-header">
+                                <div>
+                                    <div class="report-title"><?php echo htmlspecialchars($row['infrastructure'] ?? 'Untitled'); ?></div>
+                                    <div class="report-meta">
+                                        <i class="fas fa-hashtag"></i> <?php echo htmlspecialchars($row['reference_code'] ?? '—'); ?> • 
+                                        <i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($row['location'] ?? '—'); ?> • 
+                                        <i class="fas fa-user"></i> <?php echo htmlspecialchars($row['reporter_name'] ?? '—'); ?> • 
+                                        <i class="fas fa-flag"></i> Priority: <?php echo ucfirst(htmlspecialchars($row['priority'] ?? 'medium')); ?> • 
+                                        <i class="fas fa-money-bill"></i> <?php echo isset($row['budget']) && $row['budget'] ? '₱' . number_format($row['budget'], 2) : 'No budget'; ?> • 
+                                        <i class="fas fa-calendar"></i> <?php echo !empty($row['starting_date']) ? date('M d, Y', strtotime($row['starting_date'])) : '—'; ?> - <?php echo !empty($row['estimated_end_date']) ? date('M d, Y', strtotime($row['estimated_end_date'])) : '—'; ?>
                                     </div>
-                                    <h4>No CIMM Reports</h4>
-                                    <p>No CIMM reports have been synced yet.</p>
                                 </div>
-                            </td>
-                        </tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
+                                <span class="status-badge status-<?php echo $row['_display_status'] ?? 'pending'; ?>">
+                                    <?php echo ucfirst(str_replace('-', ' ', $row['_display_status'] ?? 'pending')); ?>
+                                </span>
+                            </div>
+                            <div class="report-description">
+                                <?php echo htmlspecialchars($row['issue'] ?? 'No description provided.'); ?>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
 
@@ -2159,58 +1939,54 @@ if ($citizen_result && $citizen_result->num_rows > 0) {
                     <i class="fas fa-search"></i>
                     <input type="text" class="infra-search-input" id="infraSearchInput" placeholder="Search by Project Name, Location...">
                 </div>
-                <button class="infra-sort-btn" onclick="toggleInfraSort()">
-                    <i class="fas fa-sort"></i> Sort
-                </button>
+
             </div>
-            <div class="infra-table-wrapper">
-                <table class="infra-table" id="infraTable">
-                    <thead>
-                        <tr>
-                            <th>Project Name</th>
-                            <th>Location</th>
-                            <th>Budget</th>
-                            <th>Progress</th>
-                            <th>Status</th>
-                            <th>Start Date</th>
-                            <th>End Date</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (!empty($infra_projects)): ?>
-                            <?php foreach ($infra_projects as $project): ?>
-                            <tr>
-                                <td><?php echo htmlspecialchars($project['name'] ?? '—'); ?></td>
-                                <td><?php echo htmlspecialchars($project['location'] ?? '—'); ?></td>
-                                <td><?php echo isset($project['budget']) && $project['budget'] ? '₱' . number_format($project['budget'], 2) : '—'; ?></td>
-                                <td>
-                                    <div style="display:flex;align-items:center;gap:8px;">
-                                        <div style="flex:1;max-width:100px;background:#e5e7eb;border-radius:4px;height:8px;overflow:hidden;">
-                                            <div style="height:100%;width:<?php echo min(100, max(0, intval($project['progress'] ?? 0))); ?>%;background:linear-gradient(90deg,#f97316,#ea580c);border-radius:4px;"></div>
-                                        </div>
-                                        <span style="font-size:12px;font-weight:600;color:#666;"><?php echo intval($project['progress'] ?? 0); ?>%</span>
+            <div class="main-grid">
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Infrastructure Projects List</h3>
+                        <span class="text-muted"><?php echo count($infra_projects); ?> projects found</span>
+                    </div>
+                    
+                    <?php if (empty($infra_projects)): ?>
+                        <div style="text-align: center; padding: 40px; color: #666;">
+                            <i class="fas fa-hard-hat" style="font-size: 48px; margin-bottom: 15px; opacity: 0.5;"></i>
+                            <p>No infrastructure projects have been created yet.</p>
+                        </div>
+                    <?php else: ?>
+                        <?php foreach ($infra_projects as $project): ?>
+                        <?php 
+                            $prog = intval($project['progress'] ?? 0);
+                            $pStatus = $project['status'] ?? 'active';
+                            $barColor = $pStatus === 'completed' ? '#22c55e' : ($pStatus === 'delayed' ? '#ef4444' : '#f97316');
+                        ?>
+                        <div class="report-card">
+                            <div class="report-header">
+                                <div>
+                                    <div class="report-title"><?php echo htmlspecialchars($project['name'] ?? 'Untitled'); ?></div>
+                                    <div class="report-meta">
+                                        <i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($project['location'] ?? '—'); ?> • 
+                                        <i class="fas fa-money-bill"></i> <?php echo isset($project['budget']) && $project['budget'] ? '₱' . number_format($project['budget'], 2) : 'No budget'; ?> • 
+                                        <i class="fas fa-calendar"></i> <?php echo !empty($project['start_date']) ? date('M d, Y', strtotime($project['start_date'])) : '—'; ?> - <?php echo !empty($project['end_date']) ? date('M d, Y', strtotime($project['end_date'])) : '—'; ?>
                                     </div>
-                                </td>
-                                <td><span class="infra-status-badge <?php echo htmlspecialchars($project['status'] ?? 'pending'); ?>"><?php echo ucfirst(htmlspecialchars($project['status'] ?? 'pending')); ?></span></td>
-                                <td><?php echo !empty($project['start_date']) ? date('M d, Y', strtotime($project['start_date'])) : '—'; ?></td>
-                                <td><?php echo !empty($project['end_date']) ? date('M d, Y', strtotime($project['end_date'])) : '—'; ?></td>
-                            </tr>
-                            <?php endforeach; ?>
-                        <?php else: ?>
-                        <tr>
-                            <td colspan="7">
-                                <div class="infra-empty-state">
-                                    <div class="infra-empty-icon">
-                                        <i class="fas fa-hard-hat"></i>
-                                    </div>
-                                    <h4>No Infrastructure Projects</h4>
-                                    <p>No infrastructure projects have been created yet.</p>
                                 </div>
-                            </td>
-                        </tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
+                                <span class="status-badge status-<?php echo $pStatus === 'active' ? 'in-progress' : $pStatus; ?>">
+                                    <?php echo ucfirst($pStatus); ?>
+                                </span>
+                            </div>
+                            <div class="report-description">
+                                <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+                                    <span style="font-size:13px;font-weight:500;color:#666;min-width:70px;">Progress:</span>
+                                    <div style="flex:1;max-width:300px;background:#e5e7eb;border-radius:6px;height:10px;overflow:hidden;">
+                                        <div style="height:100%;width:<?php echo min(100, max(0, $prog)); ?>%;background:linear-gradient(90deg,<?php echo $barColor; ?>,<?php echo $barColor; ?>cc);border-radius:6px;transition:width 0.5s ease;"></div>
+                                    </div>
+                                    <span style="font-size:13px;font-weight:700;color:#333;"><?php echo $prog; ?>%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
 
@@ -2235,53 +2011,46 @@ if ($citizen_result && $citizen_result->num_rows > 0) {
                     <i class="fas fa-search"></i>
                     <input type="text" class="citizen-search-input" id="citizenSearchInput" placeholder="Search by Citizen Name, Subject, Department...">
                 </div>
-                <button class="citizen-sort-btn" onclick="toggleCitizenSort()">
-                    <i class="fas fa-sort"></i> Sort
-                </button>
+
             </div>
-            <div class="citizen-table-wrapper">
-                <table class="citizen-table" id="citizenTable">
-                    <thead>
-                        <tr>
-                            <th>Feedback ID</th>
-                            <th>Citizen Name</th>
-                            <th>Subject</th>
-                            <th>Type</th>
-                            <th>Department</th>
-                            <th>Priority</th>
-                            <th>Status</th>
-                            <th>Date Submitted</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (!empty($citizen_reports)): ?>
-                            <?php foreach ($citizen_reports as $fb): ?>
-                            <tr>
-                                <td><?php echo htmlspecialchars($fb['feedback_id'] ?? '#' . $fb['id']); ?></td>
-                                <td><?php echo $fb['anonymous'] ? 'Anonymous' : htmlspecialchars($fb['citizen_name'] ?? '—'); ?></td>
-                                <td><?php echo htmlspecialchars(strlen($fb['subject'] ?? '') > 40 ? substr($fb['subject'], 0, 40) . '...' : ($fb['subject'] ?? '—')); ?></td>
-                                <td><?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $fb['feedback_type'] ?? '—'))); ?></td>
-                                <td><?php echo htmlspecialchars(ucfirst($fb['department'] ?? '—')); ?></td>
-                                <td><span class="citizen-status-badge <?php echo htmlspecialchars($fb['priority'] ?? 'medium'); ?>"><?php echo ucfirst(htmlspecialchars($fb['priority'] ?? 'medium')); ?></span></td>
-                                <td><span class="citizen-status-badge <?php echo htmlspecialchars(str_replace('_', '-', $fb['status'] ?? 'pending')); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('_', ' ', $fb['status'] ?? 'pending'))); ?></span></td>
-                                <td><?php echo !empty($fb['created_at']) ? date('M d, Y', strtotime($fb['created_at'])) : '—'; ?></td>
-                            </tr>
-                            <?php endforeach; ?>
-                        <?php else: ?>
-                        <tr>
-                            <td colspan="8">
-                                <div class="citizen-empty-state">
-                                    <div class="citizen-empty-icon">
-                                        <i class="fas fa-users"></i>
+            <div class="main-grid">
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Citizen Reports List</h3>
+                        <span class="text-muted"><?php echo count($citizen_reports); ?> reports found</span>
+                    </div>
+                    
+                    <?php if (empty($citizen_reports)): ?>
+                        <div style="text-align: center; padding: 40px; color: #666;">
+                            <i class="fas fa-users" style="font-size: 48px; margin-bottom: 15px; opacity: 0.5;"></i>
+                            <p>No citizen feedback or reports have been submitted yet.</p>
+                        </div>
+                    <?php else: ?>
+                        <?php foreach ($citizen_reports as $fb): ?>
+                        <div class="report-card priority-<?php echo htmlspecialchars($fb['priority'] ?? 'medium'); ?>">
+                            <div class="report-header">
+                                <div>
+                                    <div class="report-title"><?php echo htmlspecialchars($fb['subject'] ?? 'No Subject'); ?></div>
+                                    <div class="report-meta">
+                                        <i class="fas fa-hashtag"></i> <?php echo htmlspecialchars($fb['feedback_id'] ?? '#' . $fb['id']); ?> • 
+                                        <i class="fas fa-user"></i> <?php echo $fb['anonymous'] ? 'Anonymous' : htmlspecialchars($fb['citizen_name'] ?? '—'); ?> • 
+                                        <i class="fas fa-tag"></i> <?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $fb['feedback_type'] ?? '—'))); ?> • 
+                                        <i class="fas fa-building"></i> <?php echo htmlspecialchars(ucfirst($fb['department'] ?? '—')); ?> • 
+                                        <i class="fas fa-flag"></i> Priority: <?php echo ucfirst(htmlspecialchars($fb['priority'] ?? 'medium')); ?> • 
+                                        <i class="fas fa-clock"></i> <?php echo !empty($fb['created_at']) ? date('M d, Y', strtotime($fb['created_at'])) : '—'; ?>
                                     </div>
-                                    <h4>No Citizen Reports</h4>
-                                    <p>No citizen feedback or reports have been submitted yet.</p>
                                 </div>
-                            </td>
-                        </tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
+                                <span class="status-badge status-<?php echo str_replace('_', '-', $fb['status'] ?? 'pending'); ?>">
+                                    <?php echo ucfirst(htmlspecialchars(str_replace('_', ' ', $fb['status'] ?? 'pending'))); ?>
+                                </span>
+                            </div>
+                            <div class="report-description">
+                                <?php echo htmlspecialchars(strlen($fb['message'] ?? '') > 200 ? substr($fb['message'], 0, 200) . '...' : ($fb['message'] ?? 'No message provided.')); ?>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
     </div>
@@ -3172,82 +2941,37 @@ if ($citizen_result && $citizen_result->num_rows > 0) {
             }, 500);
         }
 
-        // ── CIMM Table Search ──
+        // ── CIMM Card Search ──
         const cimmInput = document.getElementById('cimmSearchInput');
         if (cimmInput) {
             cimmInput.addEventListener('keyup', function() {
                 const q = this.value.toLowerCase();
-                document.querySelectorAll('#cimmTable tbody tr').forEach(function(row) {
-                    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+                document.querySelectorAll('#cimmPanel .report-card').forEach(function(card) {
+                    card.style.display = card.textContent.toLowerCase().includes(q) ? '' : 'none';
                 });
             });
         }
 
-        // ── Infrastructure Table Search ──
+        // ── Infrastructure Card Search ──
         const infraInput = document.getElementById('infraSearchInput');
         if (infraInput) {
             infraInput.addEventListener('keyup', function() {
                 const q = this.value.toLowerCase();
-                document.querySelectorAll('#infraTable tbody tr').forEach(function(row) {
-                    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+                document.querySelectorAll('#infraPanel .report-card').forEach(function(card) {
+                    card.style.display = card.textContent.toLowerCase().includes(q) ? '' : 'none';
                 });
             });
         }
 
-        // ── Citizen Table Search ──
+        // ── Citizen Card Search ──
         const citizenInput = document.getElementById('citizenSearchInput');
         if (citizenInput) {
             citizenInput.addEventListener('keyup', function() {
                 const q = this.value.toLowerCase();
-                document.querySelectorAll('#citizenTable tbody tr').forEach(function(row) {
-                    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+                document.querySelectorAll('#citizenPanel .report-card').forEach(function(card) {
+                    card.style.display = card.textContent.toLowerCase().includes(q) ? '' : 'none';
                 });
             });
-        }
-
-        // ── CIMM Sort Toggle ──
-        let cimmSortAsc = true;
-        function toggleCimmSort() {
-            cimmSortAsc = !cimmSortAsc;
-            var tbody = document.querySelector('#cimmTable tbody');
-            var rows = Array.from(tbody.querySelectorAll('tr'));
-            if (rows.length === 1 && rows[0].querySelector('td[colspan]')) return;
-            rows.sort(function(a, b) {
-                var aVal = a.cells[1]?.textContent.trim().toLowerCase() || '';
-                var bVal = b.cells[1]?.textContent.trim().toLowerCase() || '';
-                return cimmSortAsc ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-            });
-            rows.forEach(function(r) { tbody.appendChild(r); });
-        }
-
-        // ── Infra Sort Toggle ──
-        let infraSortAsc = true;
-        function toggleInfraSort() {
-            infraSortAsc = !infraSortAsc;
-            var tbody = document.querySelector('#infraTable tbody');
-            var rows = Array.from(tbody.querySelectorAll('tr'));
-            if (rows.length === 1 && rows[0].querySelector('td[colspan]')) return;
-            rows.sort(function(a, b) {
-                var aVal = a.cells[0]?.textContent.trim().toLowerCase() || '';
-                var bVal = b.cells[0]?.textContent.trim().toLowerCase() || '';
-                return infraSortAsc ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-            });
-            rows.forEach(function(r) { tbody.appendChild(r); });
-        }
-
-        // ── Citizen Sort Toggle ──
-        let citizenSortAsc = true;
-        function toggleCitizenSort() {
-            citizenSortAsc = !citizenSortAsc;
-            var tbody = document.querySelector('#citizenTable tbody');
-            var rows = Array.from(tbody.querySelectorAll('tr'));
-            if (rows.length === 1 && rows[0].querySelector('td[colspan]')) return;
-            rows.sort(function(a, b) {
-                var aVal = a.cells[1]?.textContent.trim().toLowerCase() || '';
-                var bVal = b.cells[1]?.textContent.trim().toLowerCase() || '';
-                return citizenSortAsc ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-            });
-            rows.forEach(function(r) { tbody.appendChild(r); });
         }
     </script>
     
