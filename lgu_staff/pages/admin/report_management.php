@@ -1,6 +1,4 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', '1');
 require_once '../../includes/session_config.php';
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
@@ -601,77 +599,76 @@ if (!empty($reports)) {
     }
 }
 
-// Fetch CIMM Reports, Infrastructure Projects, and Citizen Reports
+// Include CIMM verification data functions
+require_once __DIR__ . '/../api/cimm_verification_data.php';
+
+// Fetch CIMM Reports
 $cimm_reports = [];
-$infra_projects = [];
-$citizen_reports = [];
-
 try {
-    // CIMM reports
-    if (file_exists(__DIR__ . '/../api/cimm_verification_data.php')) {
-        require_once __DIR__ . '/../api/cimm_verification_data.php';
-        $pdo = rgmap_verification_pdo();
-        $cimm_rows = rgmap_fetch_cimm_verification_reports($pdo, ['limit' => 200]);
-        foreach ($cimm_rows as $row) {
-            $status = 'pending';
-            $vs = $row['verification_status'] ?? 'Pending Review';
-            if ($vs === 'Verified') $status = 'completed';
-            elseif ($vs === 'Flagged') $status = 'in-progress';
-            elseif ($vs === 'Dismissed') $status = 'resolved';
-            $row['_display_status'] = $status;
-            $cimm_reports[] = $row;
-        }
-    }
-
-    // Infrastructure projects
-    $conn->query("CREATE TABLE IF NOT EXISTS infrastructure_projects (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        location VARCHAR(255),
-        budget DECIMAL(12,2),
-        progress INT DEFAULT 0,
-        status VARCHAR(20) DEFAULT 'active',
-        start_date DATE,
-        end_date DATE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-    $infra_result = $conn->query("SELECT * FROM infrastructure_projects ORDER BY created_at DESC LIMIT 200");
-    if ($infra_result && $infra_result->num_rows > 0) {
-        $infra_projects = $infra_result->fetch_all(MYSQLI_ASSOC);
-    }
-
-    // Citizen feedback
-    $conn->query("CREATE TABLE IF NOT EXISTS citizen_feedback (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        feedback_id VARCHAR(50) NOT NULL,
-        feedback_type VARCHAR(30) DEFAULT 'complaint',
-        category VARCHAR(100),
-        department VARCHAR(50),
-        service_area VARCHAR(100),
-        rating INT,
-        subject VARCHAR(255),
-        message TEXT,
-        citizen_name VARCHAR(100),
-        citizen_email VARCHAR(100),
-        citizen_phone VARCHAR(20),
-        anonymous TINYINT(1) DEFAULT 0,
-        status VARCHAR(20) DEFAULT 'pending',
-        priority VARCHAR(10) DEFAULT 'medium',
-        response TEXT,
-        response_date TIMESTAMP NULL,
-        responded_by INT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_feedback_id (feedback_id),
-        INDEX idx_status (status),
-        INDEX idx_created_at (created_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-    $citizen_result = $conn->query("SELECT * FROM citizen_feedback ORDER BY created_at DESC LIMIT 200");
-    if ($citizen_result && $citizen_result->num_rows > 0) {
-        $citizen_reports = $citizen_result->fetch_all(MYSQLI_ASSOC);
+    $pdo = rgmap_verification_pdo();
+    $cimm_rows = rgmap_fetch_cimm_verification_reports($pdo, ['limit' => 200]);
+    foreach ($cimm_rows as $row) {
+        $status = 'pending';
+        $vs = $row['verification_status'] ?? 'Pending Review';
+        if ($vs === 'Verified') $status = 'completed';
+        elseif ($vs === 'Flagged') $status = 'in-progress';
+        elseif ($vs === 'Dismissed') $status = 'resolved';
+        $row['_display_status'] = $status;
+        $cimm_reports[] = $row;
     }
 } catch (Exception $e) {
-    error_log('Report management supplemental data error: ' . $e->getMessage());
+    error_log('CIMM fetch error: ' . $e->getMessage());
+}
+
+// Ensure infrastructure_projects table exists
+$conn->query("CREATE TABLE IF NOT EXISTS infrastructure_projects (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    location VARCHAR(255),
+    budget DECIMAL(12,2),
+    progress INT DEFAULT 0,
+    status ENUM('active', 'completed', 'delayed', 'pending') DEFAULT 'active',
+    start_date DATE,
+    end_date DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+// Ensure citizen_feedback table exists
+$conn->query("CREATE TABLE IF NOT EXISTS citizen_feedback (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    feedback_id VARCHAR(50) UNIQUE NOT NULL,
+    feedback_type ENUM('complaint','suggestion','compliment','inquiry','service_rating') NOT NULL,
+    category VARCHAR(100),
+    department VARCHAR(50),
+    service_area VARCHAR(100),
+    rating INT,
+    subject VARCHAR(255),
+    message TEXT NOT NULL,
+    citizen_name VARCHAR(100),
+    citizen_email VARCHAR(100),
+    citizen_phone VARCHAR(20),
+    anonymous BOOLEAN DEFAULT FALSE,
+    status ENUM('pending','in_review','responded','resolved','closed') DEFAULT 'pending',
+    priority ENUM('low','medium','high','urgent') DEFAULT 'medium',
+    response TEXT,
+    response_date TIMESTAMP NULL,
+    responded_by INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+// Fetch Infrastructure Projects
+$infra_projects = [];
+$infra_result = $conn->query("SELECT * FROM infrastructure_projects ORDER BY created_at DESC LIMIT 200");
+if ($infra_result && $infra_result->num_rows > 0) {
+    $infra_projects = $infra_result->fetch_all(MYSQLI_ASSOC);
+}
+
+// Fetch Citizen Reports (feedback)
+$citizen_reports = [];
+$citizen_result = $conn->query("SELECT * FROM citizen_feedback ORDER BY created_at DESC LIMIT 200");
+if ($citizen_result && $citizen_result->num_rows > 0) {
+    $citizen_reports = $citizen_result->fetch_all(MYSQLI_ASSOC);
 }
 ?>
 
