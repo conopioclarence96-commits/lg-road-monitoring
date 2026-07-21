@@ -2482,20 +2482,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         <span class="workflow-badge" id="section-badge"><?php echo $all_reports->num_rows; ?></span>
                     </h3>
                     <div class="cimm-tabs">
-                        <button class="cimm-tab <?php echo $cimm_filter === 'all' ? 'active' : ''; ?>" onclick="filterCimmReports('all')">
+                        <button class="cimm-tab active" data-tab="all" onclick="filterCimmReports('all')">
                             <i class="fas fa-list"></i>
                             All
                             <span class="cimm-tab-badge"><?php echo $cimm_counts['all']; ?></span>
                         </button>
-                        <button class="cimm-tab <?php echo $cimm_filter === 'staff' ? 'active' : ''; ?>" onclick="filterCimmReports('staff')">
-                            <i class="fas fa-user"></i>
+                        <button class="cimm-tab" data-tab="cimm" onclick="filterCimmReports('cimm')">
+                            <i class="fas fa-building"></i>
                             CIMM Reports
                             <span class="cimm-tab-badge"><?php echo $cimm_counts['staff']; ?></span>
                         </button>
-                        <button class="cimm-tab <?php echo $cimm_filter === 'staff' ? 'active' : ''; ?>" onclick="filterCimmReports('staff')">
-                            <i class="fas fa-user"></i>
+                        <button class="cimm-tab" data-tab="infra" onclick="filterCimmReports('infra')">
+                            <i class="fas fa-hard-hat"></i>
                             Infra Reports
-                            <span class="cimm-tab-badge"><?php echo $cimm_counts['staff']; ?></span>
+                            <?php $infra_count = $infra_reports ? $infra_reports->num_rows : 0; ?>
+                            <span class="cimm-tab-badge"><?php echo $infra_count; ?></span>
                         </button>
                     </div>
                 </div>
@@ -2797,7 +2798,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         </div>
 
         <!-- CIMM Reports Panel -->
-        <div class="dept-reports-panel">
+        <div class="dept-reports-panel" id="cimmReportsPanel">
             <div class="dept-reports-header">
                 <div class="dept-reports-header-left">
                     <div class="dept-reports-icon">
@@ -2926,7 +2927,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         </div>
 
         <!-- Infrastructure Reports Panel -->
-        <div class="infra-reports-panel">
+        <div class="infra-reports-panel" id="infraReportsPanel">
             <div class="infra-reports-header">
                 <div class="infra-reports-header-left">
                     <div class="infra-reports-icon">
@@ -3101,9 +3102,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         // CIMM Reports tab filtering
         function filterCimmReports(filter) {
-            const url = new URL(window.location);
-            url.searchParams.set('cimm_filter', filter);
-            window.location.href = url.toString();
+            document.querySelectorAll('.cimm-tabs .cimm-tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`.cimm-tabs .cimm-tab[data-tab="${filter}"]`)?.classList.add('active');
+            const cimmPanel = document.getElementById('cimmReportsPanel');
+            const infraPanel = document.getElementById('infraReportsPanel');
+            cimmPanel.style.display = (filter === 'all' || filter === 'cimm') ? '' : 'none';
+            infraPanel.style.display = (filter === 'all' || filter === 'infra') ? '' : 'none';
         }
 
         // CIMM search functionality
