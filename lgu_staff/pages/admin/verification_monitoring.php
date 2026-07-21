@@ -2365,8 +2365,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         <label class="form-label">Source System</label>
                         <select class="filter-select" id="sourceFilter" onchange="filterReports()">
                             <option value="all" <?php echo $source_filter === 'all' ? 'selected' : ''; ?>>All Sources</option>
-                            <option value="transport" <?php echo $source_filter === 'transport' ? 'selected' : ''; ?>>Road & Transportation (Our LGU)</option>
-                            <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>External Systems (Maintenance/infrastructure)</option>
+                            <option value="transport" <?php echo $source_filter === 'transport' ? 'selected' : ''; ?>>Citizen Reports</option>
+                            <option value="cimm" <?php echo $source_filter === 'cimm' ? 'selected' : ''; ?>>CIMM Reports</option>
+                            <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>Infrastructure Reports</option>
                         </select>
                     </div>
                     <div>
@@ -2382,7 +2383,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         </div>
 
         <!-- Workflow Container Panel -->
-        <div class="section-panel">
+        <div class="section-panel" id="citizenReportsPanel">
             <div class="workflow-container" style="margin-bottom:0;">
                 <!-- All Reports (filterable) -->
                 <div class="workflow-card" style="box-shadow:none; border:none; border-radius:0;">
@@ -2944,6 +2945,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             url.searchParams.delete('source');
             window.location.href = url.toString();
         }
+
+        // Apply source filter to show/hide panels on page load
+        (function() {
+            var urlParams = new URLSearchParams(window.location.search);
+            var source = urlParams.get('source') || 'all';
+            var citizenPanel = document.getElementById('citizenReportsPanel');
+            var cimmPanel = document.getElementById('cimmReportsPanel');
+            var infraPanel = document.getElementById('infraReportsPanel');
+
+            if (source === 'cimm') {
+                if (citizenPanel) citizenPanel.style.display = 'none';
+                if (cimmPanel) cimmPanel.style.display = '';
+                if (infraPanel) infraPanel.style.display = 'none';
+            } else if (source === 'maintenance') {
+                if (citizenPanel) citizenPanel.style.display = 'none';
+                if (cimmPanel) cimmPanel.style.display = 'none';
+                if (infraPanel) infraPanel.style.display = '';
+            } else if (source === 'transport') {
+                if (citizenPanel) citizenPanel.style.display = '';
+                if (cimmPanel) cimmPanel.style.display = 'none';
+                if (infraPanel) infraPanel.style.display = 'none';
+            } else {
+                // 'all' or unset — show everything
+                if (citizenPanel) citizenPanel.style.display = '';
+                if (cimmPanel) cimmPanel.style.display = '';
+                if (infraPanel) infraPanel.style.display = '';
+            }
+        })();
 
 
 
