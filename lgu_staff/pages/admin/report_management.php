@@ -1680,14 +1680,7 @@ if ($citizen_result && $citizen_result->num_rows > 0) {
             transition: all 0.2s;
         }
         .citizen-sort-btn:hover { background: rgba(16, 185, 129, 0.2); }
-
-        /* Scrollable containers for the 3 bottom panels (show ~5 cards) */
-        #cimmPanel .chart-container,
-        #infraPanel .chart-container,
-        #citizenPanel .chart-container {
-            max-height: 780px;
-            overflow-y: auto;
-        }
+    </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
     <!-- SIDEBAR -->
