@@ -4,6 +4,11 @@ require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 require_once __DIR__ . '/../../api/cimm_verification_data.php';
 
+// Backward compatibility for PHP < 7.2
+if (!defined('JSON_INVALID_UTF8_IGNORE')) {
+    define('JSON_INVALID_UTF8_IGNORE', 0);
+}
+
 // Session timeout configuration
 $session_timeout = 5 * 60; // 5 minutes in seconds
 
