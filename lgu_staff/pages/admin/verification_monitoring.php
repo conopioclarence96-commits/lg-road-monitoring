@@ -2132,6 +2132,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             CIMM Reports
                             <span class="cimm-tab-badge"><?php echo $cimm_counts['staff']; ?></span>
                         </button>
+                        <button class="cimm-tab <?php echo $cimm_filter === 'staff' ? 'active' : ''; ?>" onclick="filterCimmReports('staff')">
+                            <i class="fas fa-user"></i>
+                            Infra Reports
+                            <span class="cimm-tab-badge"><?php echo $cimm_counts['staff']; ?></span>
+                        </button>
                     </div>
                 </div>
                 
