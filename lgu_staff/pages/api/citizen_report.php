@@ -157,45 +157,49 @@ function handleSubmitReport() {
 
     // Insert into database
     global $conn;
-    $stmt = $conn->prepare("INSERT INTO road_transportation_reports 
-        (report_id, report_type, report_category, report_source, title, description, 
-         latitude, longitude, location, severity, priority, status, created_date, 
-         reporter_email, attachments, image_path, created_by)
-        VALUES (?, ?, 'transportation', 'local', ?, ?, ?, ?, ?, ?, ?, 'pending', CURDATE(), ?, ?, ?, 0)");
+    try {
+        $stmt = $conn->prepare("INSERT INTO road_transportation_reports 
+            (report_id, report_type, report_category, report_source, title, description, 
+             latitude, longitude, location, severity, priority, status, created_date, 
+             reporter_email, attachments, image_path, created_by)
+            VALUES (?, ?, 'transportation', 'local', ?, ?, ?, ?, ?, ?, ?, 'pending', CURDATE(), ?, ?, ?, 0)");
 
-    $location = $_POST['address'] ?? 'Pinned location';
-    $attachmentsJson = json_encode($attachments);
-    $stmt->bind_param('ssssssssssss',
-        $reportId,
-        $issueType,
-        $title,
-        $description,
-        $latitude,
-        $longitude,
-        $location,
-        $severity,
-        $priority,
-        $email,
-        $attachmentsJson,
-        $imagePath
-    );
+        $location = $_POST['address'] ?? 'Pinned location';
+        $attachmentsJson = json_encode($attachments);
+        $stmt->bind_param('ssssssssssss',
+            $reportId,
+            $issueType,
+            $title,
+            $description,
+            $latitude,
+            $longitude,
+            $location,
+            $severity,
+            $priority,
+            $email,
+            $attachmentsJson,
+            $imagePath
+        );
 
-    if ($stmt->execute()) {
-        // Update rate limit
-        if ($reportData['date'] !== $today) {
-            $_SESSION['citizen_reports'][$email] = ['date' => $today, 'count' => 1];
+        if ($stmt->execute()) {
+            // Update rate limit
+            if ($reportData['date'] !== $today) {
+                $_SESSION['citizen_reports'][$email] = ['date' => $today, 'count' => 1];
+            } else {
+                $_SESSION['citizen_reports'][$email]['count']++;
+            }
+
+            // Clear session verification
+            unset($_SESSION['citizen_report_verified']);
+            unset($_SESSION['citizen_report_email']);
+
+            echo json_encode(['success' => true, 'message' => 'Report submitted successfully!']);
         } else {
-            $_SESSION['citizen_reports'][$email]['count']++;
+            echo json_encode(['success' => false, 'message' => 'Failed to submit report. Please try again.']);
         }
 
-        // Clear session verification
-        unset($_SESSION['citizen_report_verified']);
-        unset($_SESSION['citizen_report_email']);
-
-        echo json_encode(['success' => true, 'message' => 'Report submitted successfully!']);
-    } else {
-        echo json_encode(['success' => false, 'message' => 'Failed to submit report. Please try again.']);
+        $stmt->close();
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
     }
-
-    $stmt->close();
 }
