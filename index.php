@@ -204,6 +204,8 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- Transition CSS -->
     <link rel="stylesheet" href="styles/transition.css">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
         :root {
@@ -695,6 +697,211 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
 
 
+        .citizen-report-section {
+            background: #f0f4f8;
+            padding: 0;
+            overflow: hidden;
+            transition: all 0.4s ease;
+        }
+        .citizen-report-section.open {
+            padding: 40px 0;
+        }
+        .citizen-report-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .citizen-report-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 20px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .citizen-report-header h3 {
+            margin: 0;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+        .citizen-report-header .close-btn {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .citizen-report-header .close-btn:hover {
+            background: rgba(255,255,255,0.35);
+        }
+        .citizen-report-body {
+            padding: 24px;
+        }
+        .citizen-report-map {
+            height: 320px;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            border: 2px dashed #ddd;
+        }
+        .citizen-report-map.has-pin {
+            border-color: var(--accent-color);
+        }
+        .citizen-report-hint {
+            text-align: center;
+            color: #999;
+            font-size: 0.9rem;
+            margin-bottom: 16px;
+        }
+        .cr-form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .cr-form-group {
+            margin-bottom: 16px;
+        }
+        .cr-form-group label {
+            display: block;
+            font-weight: 600;
+            color: var(--dark-text);
+            margin-bottom: 6px;
+            font-size: 0.9rem;
+        }
+        .cr-form-group select,
+        .cr-form-group input,
+        .cr-form-group textarea {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-family: inherit;
+            transition: border-color 0.3s;
+        }
+        .cr-form-group select:focus,
+        .cr-form-group input:focus,
+        .cr-form-group textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(30,60,114,0.1);
+        }
+        .cr-form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        .cr-verification-box {
+            background: #f8f9ff;
+            border: 1px solid #e0e4f0;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .cr-verification-box h4 {
+            font-size: 1rem;
+            color: var(--primary-color);
+            margin-bottom: 12px;
+        }
+        .cr-otp-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .cr-otp-row input {
+            flex: 1;
+            padding: 10px 14px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-family: inherit;
+        }
+        .cr-btn {
+            padding: 10px 22px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+        .cr-btn-primary {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+        }
+        .cr-btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(30,60,114,0.3);
+        }
+        .cr-btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .cr-btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        .cr-btn-secondary:hover {
+            background: #5a6268;
+        }
+        .cr-btn-success {
+            background: #28a745;
+            color: white;
+        }
+        .cr-btn-success:hover {
+            background: #218838;
+        }
+        .cr-btn-outline {
+            background: transparent;
+            border: 2px solid var(--primary-color);
+            color: var(--primary-color);
+        }
+        .cr-btn-outline:hover {
+            background: var(--primary-color);
+            color: white;
+        }
+        .cr-status {
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            margin-top: 10px;
+            display: none;
+        }
+        .cr-status.success {
+            display: block;
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .cr-status.error {
+            display: block;
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .cr-status.info {
+            display: block;
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        @media (max-width: 768px) {
+            .cr-form-row {
+                grid-template-columns: 1fr;
+            }
+            .cr-otp-row {
+                flex-direction: column;
+            }
+        }
     </style>
     <?php include __DIR__ . '/includes/a11y_css.php'; ?>
 </head>
@@ -785,6 +992,86 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 <a href="road-updates.php" class="btn btn-secondary-hero btn-hero">
                     <i class="fas fa-newspaper"></i> Latest Updates
                 </a>
+                <button onclick="toggleCitizenReport()" class="btn btn-primary-hero btn-hero">
+                    <i class="fas fa-pen-alt"></i> Make a Report
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Citizen Report Section -->
+    <section class="citizen-report-section" id="citizenReportSection">
+        <div class="container">
+            <div class="citizen-report-card">
+                <div class="citizen-report-header">
+                    <h3><i class="fas fa-pen-alt"></i> Report a Transportation Issue</h3>
+                    <button class="close-btn" onclick="toggleCitizenReport()"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="citizen-report-body">
+                    <div class="citizen-report-map" id="citizenMap"></div>
+                    <p class="citizen-report-hint"><i class="fas fa-mouse-pointer"></i> Click on the map to pin the exact location of the issue</p>
+
+                    <form id="citizenReportForm">
+                        <input type="hidden" name="latitude" id="crLat">
+                        <input type="hidden" name="longitude" id="crLng">
+                        <input type="hidden" name="address" id="crAddress">
+
+                        <div class="cr-form-row">
+                            <div class="cr-form-group">
+                                <label><i class="fas fa-exclamation-triangle"></i> Issue Type</label>
+                                <select name="issue_type" id="crIssueType" required>
+                                    <option value="traffic_jam">Traffic Jam</option>
+                                    <option value="accident">Vehicle Accident</option>
+                                    <option value="road_closure">Road Closure</option>
+                                    <option value="traffic_light_outage">Traffic Light Outage</option>
+                                    <option value="congestion">Heavy Congestion</option>
+                                    <option value="parking_violation">Illegal Parking</option>
+                                    <option value="public_transport_issue">Public Transport Issue</option>
+                                </select>
+                            </div>
+                            <div class="cr-form-group">
+                                <label><i class="fas fa-exclamation-circle"></i> Severity</label>
+                                <select name="severity" id="crSeverity" required>
+                                    <option value="low">Low</option>
+                                    <option value="medium" selected>Medium</option>
+                                    <option value="high">High</option>
+                                    <option value="severe">Severe</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="cr-form-group">
+                            <label><i class="fas fa-comment"></i> Description of the Issue</label>
+                            <textarea name="description" id="crDescription" rows="3" required placeholder="Describe what you observed..."></textarea>
+                        </div>
+
+                        <div class="cr-form-group">
+                            <label><i class="fas fa-camera"></i> Add Photos (optional)</label>
+                            <input type="file" name="photos[]" id="crPhotos" multiple accept="image/jpeg,image/jpg,image/png">
+                        </div>
+
+                        <div class="cr-verification-box">
+                            <h4><i class="fas fa-shield-alt"></i> Email Verification</h4>
+                            <p style="font-size:0.85rem;color:#666;margin-bottom:12px;">Enter your Gmail to receive a verification code. Limit of 2 reports per day.</p>
+                            <div class="cr-otp-row">
+                                <input type="email" id="crEmail" placeholder="your.email@gmail.com" required>
+                                <button type="button" class="cr-btn cr-btn-primary" id="sendOtpBtn" onclick="sendOtp()"><i class="fas fa-paper-plane"></i> Send Code</button>
+                            </div>
+                            <div class="cr-otp-row" style="margin-top:10px;">
+                                <input type="text" id="crOtp" placeholder="Enter 6-digit code" maxlength="6" inputmode="numeric" pattern="[0-9]*">
+                                <button type="button" class="cr-btn cr-btn-success" id="verifyOtpBtn" onclick="verifyOtp()" disabled><i class="fas fa-check"></i> Verify</button>
+                            </div>
+                            <div id="crOtpStatus" class="cr-status"></div>
+                        </div>
+
+                        <div style="display:flex;gap:10px;justify-content:flex-end;">
+                            <button type="button" class="cr-btn cr-btn-secondary" onclick="toggleCitizenReport()">Cancel</button>
+                            <button type="submit" class="cr-btn cr-btn-primary" id="submitReportBtn" disabled>
+                                <i class="fas fa-paper-plane"></i> Submit Report
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     </section>
@@ -1056,6 +1343,9 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
     <?php include __DIR__ . '/includes/a11y_html.php'; ?>
 
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
@@ -1185,5 +1475,200 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
     <script src="lgu_staff/js/page-transition.js"></script>
     <?php include __DIR__ . '/includes/a11y_js.php'; ?>
+
+    <script>
+        const TOMTOM_API_KEY = '<?php echo TOMTOM_API_KEY; ?>';
+        const CITIZEN_API = 'lgu_staff/pages/api/citizen_report.php';
+
+        let citizenMap = null;
+        let citizenPin = null;
+        let otpVerified = false;
+
+        function toggleCitizenReport() {
+            const section = document.getElementById('citizenReportSection');
+            const isOpen = section.classList.toggle('open');
+            section.style.display = isOpen ? '' : 'none';
+            if (isOpen) {
+                if (!citizenMap) {
+                    initCitizenMap();
+                }
+                setTimeout(() => citizenMap?.invalidateSize(), 400);
+            }
+        }
+
+        function initCitizenMap() {
+            citizenMap = L.map('citizenMap').setView([14.6500, 121.0500], 13);
+            L.tileLayer('https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
+                attribution: '&copy; TomTom',
+                maxZoom: 18
+            }).addTo(citizenMap);
+
+            citizenMap.on('click', function(e) {
+                const { lat, lng } = e.latlng;
+                placeCitizenPin(lat, lng);
+            });
+        }
+
+        function placeCitizenPin(lat, lng) {
+            if (citizenPin) citizenMap.removeLayer(citizenPin);
+            citizenPin = L.marker([lat, lng], { draggable: true }).addTo(citizenMap);
+            document.getElementById('crLat').value = lat;
+            document.getElementById('crLng').value = lng;
+            document.getElementById('citizenMap').classList.add('has-pin');
+
+            // Reverse geocode
+            fetch(CITIZEN_API + '?action=geocode&lat=' + lat + '&lng=' + lng)
+                .catch(() => {});
+            TomTomServices?.reverseGeocode(lat, lng).then(data => {
+                if (data?.success && data?.data?.address?.freeformAddress) {
+                    document.getElementById('crAddress').value = data.data.address.freeformAddress;
+                }
+            }).catch(() => {});
+
+            citizenPin.on('dragend', function() {
+                const pos = citizenPin.getLatLng();
+                document.getElementById('crLat').value = pos.lat;
+                document.getElementById('crLng').value = pos.lng;
+            });
+        }
+
+        function sendOtp() {
+            const email = document.getElementById('crEmail').value.trim();
+            if (!email || !email.includes('@')) {
+                showCrStatus('Please enter a valid email address.', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('sendOtpBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+
+            const fd = new FormData();
+            fd.append('action', 'send_otp');
+            fd.append('email', email);
+
+            fetch(CITIZEN_API, { method: 'POST', body: fd })
+                .then(r => r.json())
+                .then(data => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Code';
+                    if (data.success) {
+                        showCrStatus(data.message, 'success');
+                        document.getElementById('verifyOtpBtn').disabled = false;
+                        document.getElementById('crOtp').focus();
+                    } else {
+                        showCrStatus(data.message, 'error');
+                    }
+                })
+                .catch(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Code';
+                    showCrStatus('Failed to send code. Please try again.', 'error');
+                });
+        }
+
+        function verifyOtp() {
+            const otp = document.getElementById('crOtp').value.trim();
+            if (!otp || otp.length < 6) {
+                showCrStatus('Please enter the 6-digit verification code.', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('verifyOtpBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
+
+            const fd = new FormData();
+            fd.append('action', 'verify_otp');
+            fd.append('otp', otp);
+
+            fetch(CITIZEN_API, { method: 'POST', body: fd })
+                .then(r => r.json())
+                .then(data => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-check"></i> Verify';
+                    if (data.success) {
+                        otpVerified = true;
+                        showCrStatus('Email verified! You can now submit your report.', 'success');
+                        document.getElementById('submitReportBtn').disabled = false;
+                        document.getElementById('crEmail').readOnly = true;
+                        document.getElementById('sendOtpBtn').disabled = true;
+                        document.getElementById('verifyOtpBtn').disabled = true;
+                    } else {
+                        showCrStatus(data.message, 'error');
+                    }
+                })
+                .catch(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-check"></i> Verify';
+                    showCrStatus('Verification failed. Please try again.', 'error');
+                });
+        }
+
+        document.getElementById('citizenReportForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (!otpVerified) {
+                showCrStatus('Please verify your email first.', 'error');
+                return;
+            }
+
+            const lat = document.getElementById('crLat').value;
+            const lng = document.getElementById('crLng').value;
+            if (!lat || !lng) {
+                showCrStatus('Please pin a location on the map.', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('submitReportBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+
+            const fd = new FormData(this);
+            fd.append('action', 'submit_report');
+
+            fetch(CITIZEN_API, { method: 'POST', body: fd })
+                .then(r => r.json())
+                .then(data => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Report';
+                    if (data.success) {
+                        showCrStatus(data.message, 'success');
+                        setTimeout(() => {
+                            toggleCitizenReport();
+                            resetCitizenForm();
+                        }, 2000);
+                    } else {
+                        showCrStatus(data.message, 'error');
+                    }
+                })
+                .catch(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Report';
+                    showCrStatus('Submission failed. Please try again.', 'error');
+                });
+        });
+
+        function showCrStatus(msg, type) {
+            const el = document.getElementById('crOtpStatus');
+            el.textContent = msg;
+            el.className = 'cr-status ' + type;
+            el.style.display = 'block';
+        }
+
+        function resetCitizenForm() {
+            document.getElementById('citizenReportForm').reset();
+            document.getElementById('crOtpStatus').style.display = 'none';
+            document.getElementById('submitReportBtn').disabled = true;
+            document.getElementById('verifyOtpBtn').disabled = true;
+            document.getElementById('sendOtpBtn').disabled = false;
+            document.getElementById('crEmail').readOnly = false;
+            document.getElementById('citizenMap').classList.remove('has-pin');
+            otpVerified = false;
+            if (citizenPin) { citizenMap.removeLayer(citizenPin); citizenPin = null; }
+        }
+
+        // Initialize hidden by default
+        document.getElementById('citizenReportSection').style.display = 'none';
+    </script>
 </body>
 </html>
