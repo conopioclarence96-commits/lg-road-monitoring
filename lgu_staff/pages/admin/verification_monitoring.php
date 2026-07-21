@@ -180,12 +180,12 @@ function getAllReports($conn, $status_filter = 'all', $source_filter = 'all') {
             $maintenance_where = " WHERE status IN ('cancelled')";
         }
     }
-    // Exclude citizen-submitted reports (created_by = 0) from main workflow list
-    // Citizen reports have their own dedicated panel.
+    // Exclude citizen-submitted (created_by = 0) and CIMM-inserted (created_by = -1) reports
+    // from the main workflow list — they have their own dedicated panels.
     if ($transport_where === '') {
-        $transport_where = " WHERE (created_by IS NULL OR created_by != 0)";
+        $transport_where = " WHERE (created_by IS NULL OR created_by NOT IN (0, -1))";
     } else {
-        $transport_where .= " AND (created_by IS NULL OR created_by != 0)";
+        $transport_where .= " AND (created_by IS NULL OR created_by NOT IN (0, -1))";
     }
     if ($source_filter === 'transport') {
         $q = "(SELECT 'transport' as source, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$transport_where})";
@@ -370,6 +370,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $report_id = (int) $_POST['report_id'];
         $source = $_POST['source'];
         $action = $_POST['action'];
+        
+        // Handle CIMM-specific actions
+        if ($source === 'cimm') {
+            try {
+                $pdo = rgmap_verification_pdo();
+                if ($action === 'approve') {
+                    $stmt = $pdo->prepare("UPDATE cimm_verification_reports SET approval_status = 'Approved', verification_status = 'Verified' WHERE id = ?");
+                    $stmt->execute([$report_id]);
+                    
+                    $fetch = $pdo->prepare("SELECT * FROM cimm_verification_reports WHERE id = ?");
+                    $fetch->execute([$report_id]);
+                    $cimm_row = $fetch->fetch(PDO::FETCH_ASSOC);
+                    
+                    if ($cimm_row) {
+                        $lat = (float)($cimm_row['coord_lat'] ?? 0);
+                        $lng = (float)($cimm_row['coord_lng'] ?? 0);
+                        $ins = $conn->prepare("INSERT INTO road_transportation_reports 
+                            (report_id, title, report_type, department, priority, status, description, location, latitude, longitude, created_by, reporter_name, created_at, updated_at) 
+                            VALUES (?, ?, 'infrastructure_issue', 'engineering', ?, 'approved', ?, ?, ?, ?, -1, ?, NOW(), NOW())");
+                        $ins->bind_param('ssssssds',
+                            $cimm_row['reference_code'],
+                            $cimm_row['infrastructure'],
+                            $cimm_row['priority'],
+                            $cimm_row['issue'],
+                            $cimm_row['location'],
+                            $lat,
+                            $lng,
+                            $cimm_row['reporter_name']
+                        );
+                        $ins->execute();
+                    }
+                } elseif ($action === 'reject') {
+                    $stmt = $pdo->prepare("UPDATE cimm_verification_reports SET approval_status = 'Rejected' WHERE id = ?");
+                    $stmt->execute([$report_id]);
+                } elseif ($action === 'delete') {
+                    $stmt = $pdo->prepare("UPDATE cimm_verification_reports SET approval_status = 'Archived' WHERE id = ?");
+                    $stmt->execute([$report_id]);
+                }
+                $_SESSION['verification_message'] = 'CIMM Report ' . $action . 'd successfully!';
+            } catch (Exception $e) {
+                $_SESSION['verification_message'] = 'Error processing CIMM report: ' . $e->getMessage();
+            }
+            header('Location: ../admin/verification_monitoring.php');
+            exit();
+        }
+        
         $table = ($source === 'transport') ? 'road_transportation_reports' : 'road_maintenance_reports';
         
         // Archive report then remove from active table
@@ -3229,10 +3275,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             $hasAnyReports = true;
                         ?>
                         <tr>
-                            <td>
+                            <td style="white-space:nowrap;">
                                 <button class="dept-action-btn" onclick="viewCimmReport(<?php echo $row['id']; ?>)">
                                     <i class="fas fa-eye"></i>
                                 </button>
+                                <?php if (empty($row['approval_status']) || $row['approval_status'] === 'Pending'): ?>
+                                <form method="POST" style="display:inline-flex;">
+                                    <input type="hidden" name="report_id" value="<?php echo $row['id']; ?>">
+                                    <input type="hidden" name="source" value="cimm">
+                                    <button type="submit" name="action" value="approve" class="dept-action-btn" style="background:rgba(16,185,129,0.1);color:#10b981;" title="Approve">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                </form>
+                                <form method="POST" style="display:inline-flex;">
+                                    <input type="hidden" name="report_id" value="<?php echo $row['id']; ?>">
+                                    <input type="hidden" name="source" value="cimm">
+                                    <button type="submit" name="action" value="reject" class="dept-action-btn" style="background:rgba(220,53,69,0.1);color:#ef4444;" title="Reject" onclick="return confirm('Reject this CIMM report?')">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </form>
+                                <?php endif; ?>
+                                <form method="POST" style="display:inline-flex;">
+                                    <input type="hidden" name="report_id" value="<?php echo $row['id']; ?>">
+                                    <input type="hidden" name="source" value="cimm">
+                                    <button type="submit" name="action" value="delete" class="dept-action-btn" style="background:rgba(108,117,125,0.1);color:#6c757d;" title="Delete" onclick="return confirm('Remove this CIMM report? It will be archived.')">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </form>
                             </td>
                             <td><?php echo htmlspecialchars($row['rep_number']); ?></td>
                             <td><?php echo htmlspecialchars($row['infrastructure']); ?></td>

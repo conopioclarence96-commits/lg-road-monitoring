@@ -642,6 +642,13 @@ $ct_result = $conn->query("SELECT id, report_id, title, description, location, l
 if ($ct_result && $ct_result->num_rows > 0) {
     $citizen_transport_reports = $ct_result->fetch_all(MYSQLI_ASSOC);
 }
+
+// Fetch approved CIMM reports (created_by = -1 = inserted from CIMM approval)
+$cimm_approved_reports = [];
+$cimm_result = $conn->query("SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, department, created_date, created_at, updated_at, attachments, image_path, reporter_name, reporter_email, severity, report_type, approved_at, rejected_at FROM road_transportation_reports WHERE created_by = -1 AND status = 'approved' ORDER BY updated_at DESC LIMIT 200");
+if ($cimm_result && $cimm_result->num_rows > 0) {
+    $cimm_approved_reports = $cimm_result->fetch_all(MYSQLI_ASSOC);
+}
 ?>
 
 <!DOCTYPE html>
@@ -1917,6 +1924,94 @@ if ($ct_result && $ct_result->num_rows > 0) {
             </div>
         </div>
 
+        <!-- Approved CIMM Reports Panel -->
+        <div class="citizen-panel" id="cimmApprovedPanel">
+            <div class="citizen-header" style="background:linear-gradient(135deg, rgba(55, 98, 200, 0.08), rgba(47, 72, 148, 0.05));border-bottom-color:rgba(55,98,200,0.1);">
+                <div class="citizen-header-left">
+                    <div class="citizen-icon" style="background:linear-gradient(135deg,#3762c8,#2f4894);">
+                        <i class="fas fa-building"></i>
+                    </div>
+                    <div>
+                        <div class="citizen-title-group">
+                            <h2 class="citizen-title" style="color:#1e3a8a;">Approved CIMM Reports</h2>
+                            <span class="citizen-badge" style="background:rgba(55,98,200,0.15);color:#3762c8;"><?php echo count($cimm_approved_reports); ?> Reports</span>
+                        </div>
+                        <p class="citizen-subtitle" style="color:#1e3a8a;">Approved infrastructure reports from the CIMM system</p>
+                    </div>
+                </div>
+            </div>
+            <div class="citizen-search">
+                <div class="citizen-search-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" class="citizen-search-input" id="cimmApprovedSearchInput" placeholder="Search by Title, Location, Reporter...">
+                </div>
+            </div>
+            <div class="main-grid">
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Approved CIMM Reports</h3>
+                        <span class="text-muted"><?php echo count($cimm_approved_reports); ?> reports found</span>
+                    </div>
+                    
+                    <?php if (empty($cimm_approved_reports)): ?>
+                        <div style="text-align: center; padding: 40px; color: #666;">
+                            <i class="fas fa-building" style="font-size: 48px; margin-bottom: 15px; opacity: 0.5;"></i>
+                            <p>No approved CIMM reports yet.</p>
+                        </div>
+                    <?php else: ?>
+                        <?php foreach ($cimm_approved_reports as $cim): ?>
+                            <div class="report-card priority-<?php echo $cim['priority']; ?>" data-id="<?php echo $cim['id']; ?>">
+                                <div class="report-header">
+                                    <div>
+                                        <div class="report-title"><?php echo htmlspecialchars($cim['title']); ?></div>
+                                        <div class="report-meta">
+                                            <?php if (!empty($cim['report_id'])): ?>
+                                            <i class="fas fa-hashtag"></i> <?php echo htmlspecialchars($cim['report_id']); ?> • 
+                                            <?php endif; ?>
+                                            <i class="fas fa-user"></i> <?php echo htmlspecialchars($cim['reporter_name'] ?: 'CIMM'); ?> • 
+                                            <i class="fas fa-tag"></i> Infrastructure Issue • 
+                                            <i class="fas fa-geo-alt"></i> <?php echo htmlspecialchars($cim['location']); ?> • 
+                                            <i class="fas fa-flag"></i> Priority: <?php echo ucfirst($cim['priority']); ?> • 
+                                            <i class="fas fa-clock"></i> <?php echo format_datetime($cim['created_at']); ?>
+                                        </div>
+                                    </div>
+                                    <span class="status-badge status-approved">
+                                        Approved
+                                    </span>
+                                </div>
+                                
+                                <div class="report-description">
+                                    <?php echo htmlspecialchars($cim['description']); ?>
+                                </div>
+                                
+                                <?php if (!empty($cim['approved_at'])): ?>
+                                <div style="margin-bottom:10px;padding:8px 12px;background:rgba(55,98,200,0.1);border-radius:6px;border-left:3px solid #3762c8;font-size:13px;color:#1e3a8a;">
+                                    <i class="fas fa-check-circle"></i> 
+                                    <strong>Approved:</strong> <?php echo format_datetime($cim['approved_at']); ?>
+                                </div>
+                                <?php endif; ?>
+                                
+                                <div class="report-actions">
+                                    <button class="btn-action btn-view" onclick="viewReport(<?php echo $cim['id']; ?>, '<?php echo $cim['report_type']; ?>')">
+                                        <i class="fas fa-eye"></i> View
+                                    </button>
+                                    <button class="btn-action btn-edit" onclick="editReport(<?php echo $cim['id']; ?>, '<?php echo $cim['report_type']; ?>')">
+                                        <i class="fas fa-pencil"></i> Edit
+                                    </button>
+                                    <button class="btn-action btn-delete" onclick="deleteReport(<?php echo $cim['id']; ?>, '<?php echo $cim['report_type']; ?>')">
+                                        <i class="fas fa-trash"></i> Delete
+                                    </button>
+                                    <button class="btn-action btn-view" style="background:linear-gradient(135deg,#3762c8,#2f4894);" onclick="viewReportUpdates(<?php echo $cim['id']; ?>, '<?php echo $cim['report_type']; ?>')">
+                                        <i class="fas fa-clock"></i> Updates
+                                    </button>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <!-- Received Reports Modal -->
@@ -2811,6 +2906,17 @@ if ($ct_result && $ct_result->num_rows > 0) {
             citizenTransportInput.addEventListener('keyup', function() {
                 const q = this.value.toLowerCase();
                 document.querySelectorAll('#citizenTransportPanel .report-card').forEach(function(card) {
+                    card.style.display = card.textContent.toLowerCase().includes(q) ? '' : 'none';
+                });
+            });
+        }
+
+        // ── Approved CIMM Reports Search ──
+        const cimmApprovedInput = document.getElementById('cimmApprovedSearchInput');
+        if (cimmApprovedInput) {
+            cimmApprovedInput.addEventListener('keyup', function() {
+                const q = this.value.toLowerCase();
+                document.querySelectorAll('#cimmApprovedPanel .report-card').forEach(function(card) {
                     card.style.display = card.textContent.toLowerCase().includes(q) ? '' : 'none';
                 });
             });
