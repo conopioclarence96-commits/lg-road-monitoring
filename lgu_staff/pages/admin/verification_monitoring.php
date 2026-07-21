@@ -3033,6 +3033,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 
     <script>
+        console.log('Script started executing');
         // Filter functionality
         function filterReports() {
             const status = document.getElementById('statusFilter').value;
@@ -3136,10 +3137,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         // CIMM & SQL report data maps (populated from PHP)
         var cimmDataMap = {};
         try {
+            console.log('Initializing cimmDataMap...');
             var cimmDataRaw = <?php echo json_encode(array_column($cimm_reports, null, 'id')); ?>;
             if (typeof cimmDataRaw === 'object' && cimmDataRaw !== null) {
                 cimmDataMap = cimmDataRaw;
             }
+            console.log('cimmDataMap initialized successfully');
         } catch(e) {
             console.error('Error initializing cimmDataMap:', e);
             cimmDataMap = {};
@@ -3443,6 +3446,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 }
             });
         }
+
+        console.log('Script finished executing');
+        console.log('toggleDetails is', typeof toggleDetails);
+        console.log('viewCimmReport is', typeof viewCimmReport);
+        console.log('viewInfraReport is', typeof viewInfraReport);
 
     </script>
     
