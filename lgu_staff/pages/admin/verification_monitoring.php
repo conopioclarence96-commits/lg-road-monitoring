@@ -3523,7 +3523,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 ];
                                 echo htmlspecialchars($type_labels[$crow['report_type']] ?? ucfirst($crow['report_type']));
                             ?></td>
-                            <td><?php echo htmlspecialchars($crow['location'] ?? '—'); ?></td>
+                            <td><?php
+                                $loc = $crow['location'] ?? '';
+                                if ($loc === '' || $loc === 'Pinned location' || $loc === '—') {
+                                    $loc = (!empty($crow['latitude']) && !empty($crow['longitude'])) ? $crow['latitude'] . ', ' . $crow['longitude'] : '—';
+                                }
+                                echo htmlspecialchars($loc);
+                                if (!empty($crow['latitude']) && !empty($crow['longitude'])):
+                                ?><br><a href="https://www.google.com/maps?q=<?php echo htmlspecialchars($crow['latitude']); ?>,<?php echo htmlspecialchars($crow['longitude']); ?>" target="_blank" style="color:#10b981;font-size:11px;text-decoration:none;white-space:nowrap;"><i class="fas fa-external-link-alt"></i> View on Map</a>
+                                <?php endif; ?></td>
                             <td><?php echo htmlspecialchars($reporterName); ?></td>
                             <td><span class="citizen-status-badge <?php echo htmlspecialchars($crow['severity'] ?? 'medium'); ?>"><?php echo ucfirst(htmlspecialchars($crow['severity'] ?? 'medium')); ?></span></td>
                             <td><span class="citizen-status-badge <?php echo htmlspecialchars($crow['priority']); ?>"><?php echo ucfirst(htmlspecialchars($crow['priority'])); ?></span></td>
