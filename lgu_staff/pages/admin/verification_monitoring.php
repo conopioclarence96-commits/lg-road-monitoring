@@ -3148,38 +3148,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             cimmDataMap = {};
         }
         var sqlDataMap = {};
-        try {
-            <?php
-            if ($sql_reports && method_exists($sql_reports, 'data_seek')):
-                $sql_reports->data_seek(0);
-                if ($sql_reports->num_rows > 0):
-                    while ($sr = $sql_reports->fetch_assoc()):
-            ?>
-            sqlDataMap[<?php echo (int)$sr['rep_id']; ?>] = {
-                rep_id: <?php echo (int)$sr['rep_id']; ?>,
-                res_id: <?php echo (int)$sr['res_id']; ?>,
-                starting_date: <?php echo json_encode($sr['starting_date']); ?>,
-                estimated_end_date: <?php echo json_encode($sr['estimated_end_date']); ?>,
-                engineer_id: <?php echo json_encode($sr['engineer_id']); ?>,
-                report_by: <?php echo (int)$sr['report_by']; ?>,
-                priority_lvl: <?php echo json_encode($sr['priority_lvl']); ?>,
-                budget: <?php echo json_encode($sr['budget']); ?>,
-                created_at: <?php echo json_encode($sr['created_at']); ?>,
-                engineer_accepted: <?php echo (int)$sr['engineer_accepted']; ?>,
-                decline_reason: <?php echo json_encode($sr['decline_reason']); ?>,
-                decline_reviewed: <?php echo json_encode($sr['decline_reviewed']); ?>,
-                decline_review_note: <?php echo json_encode($sr['decline_review_note']); ?>,
-                reporter_name: <?php echo json_encode($sr['reporter_name'] ?? 'User #' . $sr['report_by']); ?>
-            };
-            <?php
-                    endwhile;
-                endif;
+        <?php
+        if ($sql_reports && method_exists($sql_reports, 'data_seek')):
+            $sql_reports->data_seek(0);
+            if ($sql_reports->num_rows > 0):
+                while ($sr = $sql_reports->fetch_assoc()):
+        ?>
+        (function() {
+            try {
+                sqlDataMap[<?php echo (int)$sr['rep_id']; ?>] = {
+                    rep_id: <?php echo (int)$sr['rep_id']; ?>,
+                    res_id: <?php echo (int)$sr['res_id']; ?>,
+                    starting_date: <?php echo json_encode($sr['starting_date']); ?>,
+                    estimated_end_date: <?php echo json_encode($sr['estimated_end_date']); ?>,
+                    engineer_id: <?php echo json_encode($sr['engineer_id']); ?>,
+                    report_by: <?php echo (int)$sr['report_by']; ?>,
+                    priority_lvl: <?php echo json_encode($sr['priority_lvl']); ?>,
+                    budget: <?php echo json_encode($sr['budget']); ?>,
+                    created_at: <?php echo json_encode($sr['created_at']); ?>,
+                    engineer_accepted: <?php echo (int)$sr['engineer_accepted']; ?>,
+                    decline_reason: <?php echo json_encode($sr['decline_reason']); ?>,
+                    decline_reviewed: <?php echo json_encode($sr['decline_reviewed']); ?>,
+                    decline_review_note: <?php echo json_encode($sr['decline_review_note']); ?>,
+                    reporter_name: <?php echo json_encode($sr['reporter_name'] ?? 'User #' . $sr['report_by']); ?>
+                };
+            } catch(e) {
+                console.error('Error adding SQL report to map:', e);
+            }
+        })();
+        <?php
+                endwhile;
             endif;
-            ?>
-        } catch(e) {
-            console.error('Error initializing sqlDataMap:', e);
-            sqlDataMap = {};
-        }
+        endif;
+        ?>
 
         function setModalField(id, value) {
             var el = document.getElementById(id);
@@ -3336,29 +3337,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         // Infra Reports data map (populated from PHP)
         var infraDataMap = {};
         <?php
-        if ($infra_reports && $infra_reports->num_rows > 0):
+        if ($infra_reports && method_exists($infra_reports, 'data_seek') && $infra_reports->num_rows > 0):
             $infra_reports->data_seek(0);
             while ($ir = $infra_reports->fetch_assoc()):
         ?>
-        infraDataMap[<?php echo (int)$ir['id']; ?>_<?php echo json_encode($ir['source']); ?>] = {
-            id: <?php echo (int)$ir['id']; ?>,
-            source: <?php echo json_encode($ir['source']); ?>,
-            report_id: <?php echo json_encode($ir['report_id']); ?>,
-            title: <?php echo json_encode($ir['title']); ?>,
-            report_type: <?php echo json_encode($ir['report_type']); ?>,
-            department: <?php echo json_encode($ir['department']); ?>,
-            priority: <?php echo json_encode($ir['priority']); ?>,
-            status: <?php echo json_encode($ir['status']); ?>,
-            location: <?php echo json_encode($ir['location']); ?>,
-            description: <?php echo json_encode($ir['description']); ?>,
-            created_date: <?php echo json_encode($ir['created_date']); ?>,
-            created_at: <?php echo json_encode($ir['created_at']); ?>,
-            due_date: <?php echo json_encode($ir['due_date']); ?>,
-            reporter_name: <?php echo json_encode($ir['reporter_name'] ?? '—'); ?>,
-            estimated_cost: <?php echo json_encode($ir['estimated_cost'] ?? null); ?>,
-            actual_cost: <?php echo json_encode($ir['actual_cost'] ?? null); ?>,
-            maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>
-        };
+        (function() {
+            try {
+                infraDataMap[<?php echo (int)$ir['id']; ?> + '_' + <?php echo json_encode($ir['source']); ?>] = {
+                    id: <?php echo (int)$ir['id']; ?>,
+                    source: <?php echo json_encode($ir['source']); ?>,
+                    report_id: <?php echo json_encode($ir['report_id']); ?>,
+                    title: <?php echo json_encode($ir['title']); ?>,
+                    report_type: <?php echo json_encode($ir['report_type']); ?>,
+                    department: <?php echo json_encode($ir['department']); ?>,
+                    priority: <?php echo json_encode($ir['priority']); ?>,
+                    status: <?php echo json_encode($ir['status']); ?>,
+                    location: <?php echo json_encode($ir['location']); ?>,
+                    description: <?php echo json_encode($ir['description']); ?>,
+                    created_date: <?php echo json_encode($ir['created_date']); ?>,
+                    created_at: <?php echo json_encode($ir['created_at']); ?>,
+                    due_date: <?php echo json_encode($ir['due_date']); ?>,
+                    reporter_name: <?php echo json_encode($ir['reporter_name'] ?? '—'); ?>,
+                    estimated_cost: <?php echo json_encode($ir['estimated_cost'] ?? null); ?>,
+                    actual_cost: <?php echo json_encode($ir['actual_cost'] ?? null); ?>,
+                    maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>
+                };
+            } catch(e) {
+                console.error('Error adding infra report to map:', e);
+            }
+        })();
         <?php
             endwhile;
         endif;
@@ -3413,7 +3420,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             setModalField('dm-location', r.location);
             setModalField('dm-issue', r.description || '—');
             setModalField('dm-engineer', r.maintenance_team || '—');
-            setModalField('dm-reported-by', r.reporter_name || '—');
+            setModalField('dm-reported-by', r.reporter_name || '');
             setModalField('dm-start-date', formatDate(r.created_date));
             setModalField('dm-end-date', formatDate(r.due_date));
             document.getElementById('dm-priority').innerHTML = priorityBadgeHtml(r.priority);
