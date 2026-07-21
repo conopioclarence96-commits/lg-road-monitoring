@@ -1241,68 +1241,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         /* CIMM Received Reports Panel */
 
-        .cimm-tabs {
-            display: flex;
-            background: #e8ecf4;
-            border-radius: 10px;
-            padding: 4px;
-            gap: 3px;
-        }
-
-        .cimm-tab {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            padding: 8px 14px;
-            border: none;
-            border-radius: 8px;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            color: #6b7280;
-            background: transparent;
-            white-space: nowrap;
-        }
-
-        .cimm-tab:hover {
-            color: #374151;
-            background: rgba(255, 255, 255, 0.5);
-        }
-
-        .cimm-tab.active {
-            background: #ffffff;
-            color: #1e3c72;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-        }
-
-        .cimm-tab i {
-            font-size: 14px;
-        }
-
-        .cimm-tab-badge {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 20px;
-            height: 20px;
-            padding: 0 5px;
-            border-radius: 5px;
-            font-size: 10px;
-            font-weight: 700;
-        }
-
-        .cimm-tab.active .cimm-tab-badge {
-            background: #3762c8;
-            color: white;
-        }
-
-        .cimm-tab:not(.active) .cimm-tab-badge {
-            background: rgba(0, 0, 0, 0.08);
-            color: #6b7280;
-        }
-
         .cimm-search-bar {
             display: flex;
             gap: 12px;
@@ -1478,29 +1416,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             background: rgba(55, 98, 200, 0.2);
         }
 
-        body.dark-mode .cimm-tabs {
-            background: #1a2332;
-        }
-
-        body.dark-mode .cimm-tab {
-            color: #8892a4;
-        }
-
-        body.dark-mode .cimm-tab:hover {
-            color: #c0c8d8;
-            background: rgba(255, 255, 255, 0.05);
-        }
-
-        body.dark-mode .cimm-tab.active {
-            background: #2d3a4e;
-            color: #f0f4fa;
-        }
-
-        body.dark-mode .cimm-tab:not(.active) .cimm-tab-badge {
-            background: rgba(255, 255, 255, 0.08);
-            color: #8892a4;
-        }
-
         body.dark-mode .cimm-search-input {
             background: #1a2332;
             border-color: rgba(255, 255, 255, 0.1);
@@ -1525,10 +1440,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         @media (max-width: 768px) {
-            .cimm-tabs {
-                flex-direction: column;
-            }
-
             .cimm-search-bar {
                 flex-direction: column;
             }
@@ -2478,27 +2389,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 <div class="workflow-header">
                     <h3 class="workflow-title">
                         <i class="fas fa-list"></i>
-                        <span id="section-title">Reports</span>
+                        <span id="section-title">All Reports</span>
                         <span class="workflow-badge" id="section-badge"><?php echo $all_reports->num_rows; ?></span>
                     </h3>
-                    <div class="cimm-tabs">
-                        <button class="cimm-tab active" data-tab="all" onclick="filterCimmReports('all')">
-                            <i class="fas fa-list"></i>
-                            All
-                            <span class="cimm-tab-badge"><?php echo $cimm_counts['all']; ?></span>
-                        </button>
-                        <button class="cimm-tab" data-tab="cimm" onclick="filterCimmReports('cimm')">
-                            <i class="fas fa-building"></i>
-                            CIMM Reports
-                            <span class="cimm-tab-badge"><?php echo $cimm_counts['staff']; ?></span>
-                        </button>
-                        <button class="cimm-tab" data-tab="infra" onclick="filterCimmReports('infra')">
-                            <i class="fas fa-hard-hat"></i>
-                            Infra Projects
-                            <?php $infra_count = $infra_reports ? $infra_reports->num_rows : 0; ?>
-                            <span class="cimm-tab-badge"><?php echo $infra_count; ?></span>
-                        </button>
-                    </div>
                 </div>
                 
                 <div class="workflow-content" id="reports-container">
@@ -3100,15 +2993,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         showNotification('<?php echo htmlspecialchars($success_message); ?>', 'success');
         <?php endif; ?>
 
-        // CIMM Reports tab filtering
-        function filterCimmReports(filter) {
-            document.querySelectorAll('.cimm-tabs .cimm-tab').forEach(t => t.classList.remove('active'));
-            document.querySelector(`.cimm-tabs .cimm-tab[data-tab="${filter}"]`)?.classList.add('active');
-            const cimmPanel = document.getElementById('cimmReportsPanel');
-            const infraPanel = document.getElementById('infraReportsPanel');
-            cimmPanel.style.display = (filter === 'all' || filter === 'cimm') ? '' : 'none';
-            infraPanel.style.display = (filter === 'all' || filter === 'infra') ? '' : 'none';
-        }
+        // CIMM Reports panel is now always visible (no tab filtering)
 
         // CIMM search functionality
         document.getElementById('cimmSearchInput')?.addEventListener('input', function() {
