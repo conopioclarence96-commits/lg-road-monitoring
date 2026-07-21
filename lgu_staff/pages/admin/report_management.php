@@ -672,13 +672,18 @@ $stats = get_report_stats();
 $csrf_token = generate_csrf_token();
 $flash_message = get_flash_message();
 
-// Debug: Check if estimation values are present
-if (!empty($reports)) {
-    foreach ($reports as $index => $report) {
-        if (isset($report['estimation']) && $report['estimation'] > 0) {
-            // Found a report with estimation
-            error_log("Report ID {$report['id']} has estimation: {$report['estimation']}");
-        }
+// Separate reports by source system for panel display
+$citizen_reports = [];
+$cimm_reports_list = [];
+$infra_reports_list = [];
+foreach ($reports as $report) {
+    $src = $report['source_system'] ?? 'transport';
+    if ($src === 'cimm') {
+        $cimm_reports_list[] = $report;
+    } elseif ($src === 'maintenance') {
+        $infra_reports_list[] = $report;
+    } else {
+        $citizen_reports[] = $report;
     }
 }
 ?>
@@ -1403,6 +1408,346 @@ if (!empty($reports)) {
             background: rgba(251, 146, 60, 0.15);
             color: #fb923c;
         }
+
+        /* Section Panel Wrappers */
+        .section-panel {
+            background: #f0f4fa;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e0e0e0;
+            margin-bottom: 25px;
+            overflow: hidden;
+        }
+
+        body.dark-mode .section-panel {
+            background: #1e2229;
+            border-color: #2d323b;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Report Panel Styles (shared) */
+        .rm-panel {
+            background: #f0f4fa;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e0e0e0;
+            margin-bottom: 25px;
+            overflow: hidden;
+        }
+
+        body.dark-mode .rm-panel {
+            background: #1e2229;
+            border-color: #2d323b;
+        }
+
+        .rm-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 25px;
+            border-bottom: 2px solid rgba(55, 98, 200, 0.1);
+        }
+
+        .rm-panel-header-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .rm-panel-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+        }
+
+        .rm-panel-icon.citizen {
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+        }
+
+        .rm-panel-icon.cimm {
+            background: linear-gradient(135deg, #f97316, #ea580c);
+        }
+
+        .rm-panel-icon.infra {
+            background: linear-gradient(135deg, #17a2b8, #138496);
+        }
+
+        .rm-panel-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1e3c72;
+            margin: 0;
+        }
+
+        body.dark-mode .rm-panel-title {
+            color: #f0f4fa;
+        }
+
+        .rm-panel-title-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .rm-panel-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            color: white;
+        }
+
+        .rm-panel-badge.citizen { background: #3762c8; }
+        .rm-panel-badge.cimm { background: #f97316; }
+        .rm-panel-badge.infra { background: #17a2b8; }
+
+        .rm-panel-subtitle {
+            font-size: 13px;
+            color: #6b7280;
+            margin: 2px 0 0 0;
+        }
+
+        body.dark-mode .rm-panel-subtitle {
+            color: #9ca3af;
+        }
+
+        .rm-panel-search {
+            display: flex;
+            gap: 12px;
+            padding: 18px 25px;
+            border-bottom: 1px solid rgba(55, 98, 200, 0.08);
+        }
+
+        .rm-search-wrapper {
+            position: relative;
+            flex: 1;
+        }
+
+        .rm-search-wrapper i {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        .rm-search-input {
+            width: 100%;
+            padding: 11px 16px 11px 40px;
+            background: #ffffff;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            color: #333;
+            font-size: 13px;
+            font-family: 'Poppins', sans-serif;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        body.dark-mode .rm-search-input {
+            background: #2d323b;
+            border-color: rgba(255,255,255,0.1);
+            color: #e4e6ea;
+        }
+
+        .rm-search-input::placeholder {
+            color: #9ca3af;
+        }
+
+        .rm-search-input:focus {
+            border-color: #3762c8;
+            box-shadow: 0 0 0 3px rgba(55, 98, 200, 0.1);
+        }
+
+        .rm-sort-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+            cursor: pointer;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+
+        .rm-sort-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(55, 98, 200, 0.3);
+        }
+
+        .rm-table-wrapper {
+            overflow-x: auto;
+        }
+
+        .rm-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .rm-table thead th {
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+            color: white;
+            padding: 14px 16px;
+            font-size: 12px;
+            font-weight: 700;
+            text-align: left;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+
+        .rm-table thead th:first-child { border-radius: 0; }
+        .rm-table thead th:last-child { border-radius: 0; }
+
+        .rm-table tbody tr {
+            border-bottom: 1px solid rgba(55, 98, 200, 0.08);
+            transition: background 0.2s;
+        }
+
+        .rm-table tbody tr:hover {
+            background: rgba(55, 98, 200, 0.05);
+        }
+
+        .rm-table tbody td {
+            padding: 14px 16px;
+            color: #333;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        body.dark-mode .rm-table tbody td { color: #c0c8d8; }
+        body.dark-mode .rm-table tbody tr { border-bottom-color: rgba(255,255,255,0.05); }
+        body.dark-mode .rm-table tbody tr:hover { background: rgba(55, 98, 200, 0.08); }
+
+        .rm-action-btn {
+            padding: 5px 10px;
+            background: rgba(55, 98, 200, 0.1);
+            color: #3762c8;
+            border: none;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .rm-action-btn:hover {
+            background: rgba(55, 98, 200, 0.2);
+        }
+
+        body.dark-mode .rm-action-btn {
+            background: rgba(55, 98, 200, 0.15);
+            color: #60a5fa;
+        }
+
+        .rm-status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+
+        .rm-status-badge.pending { background: rgba(251, 191, 36, 0.15); color: #f59e0b; }
+        .rm-status-badge.in-progress { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+        .rm-status-badge.completed, .rm-status-badge.approved, .rm-status-badge.resolved { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+        .rm-status-badge.cancelled { background: rgba(220, 53, 69, 0.15); color: #ef4444; }
+
+        .rm-priority-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+
+        .rm-priority-badge.high { background: rgba(220, 53, 69, 0.15); color: #ef4444; }
+        .rm-priority-badge.medium { background: rgba(251, 191, 36, 0.15); color: #f59e0b; }
+        .rm-priority-badge.low { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+
+        .rm-empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6b7280;
+        }
+
+        .rm-empty-icon {
+            width: 56px;
+            height: 56px;
+            background: rgba(55, 98, 200, 0.12);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+        }
+
+        .rm-empty-icon i {
+            font-size: 26px;
+            color: #3762c8;
+        }
+
+        body.dark-mode .rm-empty-icon { background: rgba(96, 165, 250, 0.12); }
+        body.dark-mode .rm-empty-icon i { color: #60a5fa; }
+        .rm-empty-state h4 { font-size: 16px; font-weight: 600; color: #333; margin-bottom: 6px; }
+        body.dark-mode .rm-empty-state h4 { color: #e4e6ea; }
+        .rm-empty-state p { font-size: 14px; color: #9ca3af; font-weight: 500; }
+
+        .rm-action-group {
+            display: inline-flex;
+            gap: 4px;
+            align-items: center;
+        }
+
+        .rm-edit-btn {
+            padding: 5px 10px;
+            background: rgba(251, 191, 36, 0.1);
+            color: #f59e0b;
+            border: none;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .rm-edit-btn:hover { background: rgba(251, 191, 36, 0.2); }
+
+        .rm-delete-btn {
+            padding: 5px 10px;
+            background: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+            border: none;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .rm-delete-btn:hover { background: rgba(220, 53, 69, 0.2); }
+
+        @media (max-width: 768px) {
+            .rm-panel-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+            .rm-panel-search { flex-direction: column; }
+        }
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
@@ -1512,89 +1857,299 @@ if (!empty($reports)) {
             </div>
         </div>
 
-        <!-- Reports List -->
-        <div class="main-grid">
-            <div class="chart-container">
-                <div class="chart-header">
-                    <h3 class="chart-title">Reports</h3>
-                    <span class="text-muted"><?php echo count($reports); ?> reports found</span>
-                </div>
-                
-                <?php if (empty($reports)): ?>
-                    <div style="text-align: center; padding: 40px; color: #666;">
-                        <i class="fas fa-inbox" style="font-size: 48px; margin-bottom: 15px; opacity: 0.5;"></i>
-                        <p>No reports found matching your criteria.</p>
+        <!-- Citizen Reports Panel -->
+        <div class="rm-panel" id="citizenReportsPanel">
+            <div class="rm-panel-header">
+                <div class="rm-panel-header-left">
+                    <div class="rm-panel-icon citizen">
+                        <i class="fas fa-users"></i>
                     </div>
-                <?php else: ?>
-                    <?php foreach ($reports as $report): ?>
-                        <div class="report-card priority-<?php echo $report['priority']; ?>" data-id="<?php echo $report['id']; ?>">
-                            <div class="report-header">
-                                <div>
-                                    <div class="report-title"><?php echo htmlspecialchars($report['title']); ?></div>
-                                    <div class="report-meta">
-                                        <?php if (!empty($report['report_id'])): ?>
-                                        <i class="fas fa-hashtag"></i> <?php echo htmlspecialchars($report['report_id']); ?> • 
-                                        <?php endif; ?>
-                                        <i class="fas fa-building"></i> <?php echo htmlspecialchars($report['department'] ?? 'Not specified'); ?> • 
-                                        <i class="fas fa-tag"></i> <?php echo ucfirst($report['report_type']); ?> • 
-                                        <i class="fas fa-geo-alt"></i> <?php echo htmlspecialchars($report['location']); ?> • 
-                                        <i class="fas fa-flag"></i> Priority: <?php echo ucfirst($report['priority']); ?> • 
-                                        <i class="fas fa-clock"></i> <?php echo format_datetime($report['created_at']); ?>
-                                    </div>
-                                </div>
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <span class="source-badge source-<?php echo htmlspecialchars($report['source_system']); ?>">
-                                        <?php
-                                        $source_labels = [
-                                            'transport'    => '<i class="fas fa-users"></i> Citizen',
-                                            'maintenance'  => '<i class="fas fa-hard-hat"></i> Infrastructure',
-                                            'cimm'         => '<i class="fas fa-building"></i> CIMM',
-                                        ];
-                                        echo $source_labels[$report['source_system']] ?? ucfirst($report['source_system']);
-                                        ?>
-                                    </span>
-                                    <span class="status-badge status-<?php echo str_replace('_', '-', $report['status']); ?>">
-                                        <?php echo ucwords(str_replace('-', ' ', str_replace('_', ' ', $report['status']))); ?>
-                                    </span>
-                                </div>
-                            </div>
-                            
-                            <div class="report-description">
-                                <?php echo htmlspecialchars($report['description']); ?>
-                            </div>
-                            
-                            <?php if (!empty($report['assigned_to'])): ?>
-                            <div class="assignment-info" style="margin-bottom: 10px; padding: 8px 12px; background: rgba(55, 98, 200, 0.1); border-radius: 6px; border-left: 3px solid #3762c8;">
-                                <i class="fas fa-user-hard-hat"></i> 
-                                <strong>Assigned to:</strong> <?php echo htmlspecialchars($report['assigned_to']); ?>
-                            </div>
-                            <?php endif; ?>
-                            
-                            <div class="report-actions">
-                                <?php if ($report['source_system'] === 'cimm'): ?>
-                                    <span style="font-size: 11px; color: #6b7280; display: flex; align-items: center; gap: 5px;">
-                                        <i class="fas fa-external-link-alt"></i> CIMM External Report — managed via Verification Monitoring
-                                    </span>
-                                <?php else: ?>
-                                    <button class="btn-action btn-view" onclick="viewReport(<?php echo $report['id']; ?>, '<?php echo $report['report_type']; ?>')">
-                                        <i class="fas fa-eye"></i> View
-                                    </button>
-                                    <button class="btn-action btn-edit" onclick="editReport(<?php echo $report['id']; ?>, '<?php echo $report['report_type']; ?>')">
-                                        <i class="fas fa-pencil"></i> Edit
-                                    </button>
-                                    <button class="btn-action btn-delete" onclick="deleteReport(<?php echo $report['id']; ?>, '<?php echo $report['report_type']; ?>')">
-                                        <i class="fas fa-trash"></i> Delete
-                                    </button>
-                                    <button class="btn-action btn-view" style="background:linear-gradient(135deg,#10b981,#059669);" onclick="viewReportUpdates(<?php echo $report['id']; ?>, '<?php echo $report['report_type']; ?>')">
-                                        <i class="fas fa-clock"></i> Updates
-                                    </button>
-                                <?php endif; ?>
-                            </div>
+                    <div>
+                        <div class="rm-panel-title-group">
+                            <h2 class="rm-panel-title">Citizen Reports</h2>
+                            <span class="rm-panel-badge citizen"><?php echo count($citizen_reports); ?> Reports</span>
                         </div>
-                    <?php endforeach; ?>
-                <?php endif; ?>
+                        <p class="rm-panel-subtitle">Reports submitted by citizens via the road monitoring system</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rm-panel-search">
+                <div class="rm-search-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" class="rm-search-input" id="citizenSearchInput" placeholder="Search by Report #, Title, Type, Location, Department...">
+                </div>
+                <button class="rm-sort-btn" onclick="toggleCitizenSort()">
+                    <i class="fas fa-sort"></i> Sort
+                </button>
+            </div>
+
+            <div class="rm-table-wrapper">
+                <table class="rm-table" id="citizenTable">
+                    <thead>
+                        <tr>
+                            <th>Action</th>
+                            <th>Report #</th>
+                            <th>Title</th>
+                            <th>Type</th>
+                            <th>Location</th>
+                            <th>Department</th>
+                            <th>Priority</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        $hasCitizen = false;
+                        if (!empty($citizen_reports)):
+                            foreach ($citizen_reports as $report):
+                                $hasCitizen = true;
+                        ?>
+                        <tr data-id="<?php echo (int)$report['id']; ?>">
+                            <td>
+                                <div class="rm-action-group">
+                                    <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                        <i class="fas fa-pencil"></i>
+                                    </button>
+                                    <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                            <td><?php echo htmlspecialchars($report['report_id'] ?? '—'); ?></td>
+                            <td><?php echo htmlspecialchars(strlen($report['title'] ?? '') > 35 ? substr($report['title'], 0, 35) . '...' : ($report['title'] ?? '')); ?></td>
+                            <td><?php
+                                $type_labels = [
+                                    'infrastructure_issue' => 'Infrastructure Issue',
+                                    'traffic_jam' => 'Traffic Jam',
+                                    'accident' => 'Vehicle Accident',
+                                    'road_closure' => 'Road Closure',
+                                    'potholes' => 'Potholes',
+                                    'road_damage' => 'Road Damage',
+                                ];
+                                echo htmlspecialchars($type_labels[$report['report_type']] ?? ucfirst($report['report_type']));
+                            ?></td>
+                            <td><?php echo htmlspecialchars($report['location'] ?? '—'); ?></td>
+                            <td><?php echo htmlspecialchars(ucfirst($report['department'] ?? '')); ?></td>
+                            <td><span class="rm-priority-badge <?php echo htmlspecialchars($report['priority']); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'])); ?></span></td>
+                            <td><span class="rm-status-badge <?php echo htmlspecialchars($report['status']); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span></td>
+                            <td><?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?></td>
+                        </tr>
+                        <?php
+                            endforeach;
+                        endif;
+                        ?>
+
+                        <?php if (!$hasCitizen): ?>
+                        <tr>
+                            <td colspan="9">
+                                <div class="rm-empty-state">
+                                    <div class="rm-empty-icon">
+                                        <i class="fas fa-users"></i>
+                                    </div>
+                                    <h4>No Citizen Reports</h4>
+                                    <p>No citizen-submitted reports found.</p>
+                                </div>
+                            </td>
+                        </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
             </div>
         </div>
+
+        <!-- CIMM Reports Panel -->
+        <div class="rm-panel" id="cimmReportsPanel">
+            <div class="rm-panel-header" style="border-bottom-color: rgba(249, 115, 22, 0.15);">
+                <div class="rm-panel-header-left">
+                    <div class="rm-panel-icon cimm">
+                        <i class="fas fa-building"></i>
+                    </div>
+                    <div>
+                        <div class="rm-panel-title-group">
+                            <h2 class="rm-panel-title" style="color: #c2410c;">CIMM Reports</h2>
+                            <span class="rm-panel-badge cimm"><?php echo count($cimm_reports_list); ?> Reports</span>
+                        </div>
+                        <p class="rm-panel-subtitle" style="color: #92400e;">External reports from the CIMM system — managed via Verification Monitoring</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rm-panel-search" style="border-bottom-color: rgba(249, 115, 22, 0.08);">
+                <div class="rm-search-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" class="rm-search-input" id="cimmSearchInput" placeholder="Search by Rep #, Infrastructure, Location, Engineer, Priority...">
+                </div>
+                <button class="rm-sort-btn" style="background: linear-gradient(135deg, #f97316, #ea580c);" onclick="toggleCimmSort()">
+                    <i class="fas fa-sort"></i> Sort
+                </button>
+            </div>
+
+            <div class="rm-table-wrapper">
+                <table class="rm-table" id="cimmTable" style="--thead-bg: linear-gradient(135deg, #f97316, #ea580c);">
+                    <thead>
+                        <tr>
+                            <th style="background: linear-gradient(135deg, #f97316, #ea580c);">Rep #</th>
+                            <th style="background: linear-gradient(135deg, #f97316, #ea580c);">Infrastructure</th>
+                            <th style="background: linear-gradient(135deg, #f97316, #ea580c);">Location</th>
+                            <th style="background: linear-gradient(135deg, #f97316, #ea580c);">Issue / Notes</th>
+                            <th style="background: linear-gradient(135deg, #f97316, #ea580c);">Engineer</th>
+                            <th style="background: linear-gradient(135deg, #f97316, #ea580c);">Priority</th>
+                            <th style="background: linear-gradient(135deg, #f97316, #ea580c);">Budget</th>
+                            <th style="background: linear-gradient(135deg, #f97316, #ea580c);">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        $hasCimm = false;
+                        $cimmIdx = 0;
+                        if (!empty($cimm_reports_list)):
+                            foreach ($cimm_reports_list as $row):
+                                $hasCimm = true;
+                        ?>
+                        <tr style="cursor:pointer" onclick="viewCimmReport(<?php echo $cimmIdx; ?>)">
+                            <td><?php echo htmlspecialchars($row['report_id'] ?? '—'); ?></td>
+                            <td><?php echo htmlspecialchars($row['title'] ?? '—'); ?></td>
+                            <td><?php echo htmlspecialchars($row['location'] ?? '—'); ?></td>
+                            <td><?php echo htmlspecialchars(strlen($row['description'] ?? '') > 40 ? substr($row['description'], 0, 40) . '...' : ($row['description'] ?? '')); ?></td>
+                            <td><?php echo htmlspecialchars($row['assigned_to'] ?? '—'); ?></td>
+                            <td><span class="rm-priority-badge <?php echo htmlspecialchars($row['priority']); ?>"><?php echo ucfirst(htmlspecialchars($row['priority'])); ?></span></td>
+                            <td><?php echo !empty($row['estimation']) ? '₱' . number_format($row['estimation'], 2) : '—'; ?></td>
+                            <td><span class="rm-status-badge <?php echo htmlspecialchars($row['status']); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $row['status']))); ?></span></td>
+                        </tr>
+                        <?php
+                            $cimmIdx++;
+                            endforeach;
+                        endif;
+                        ?>
+
+                        <?php if (!$hasCimm): ?>
+                        <tr>
+                            <td colspan="8">
+                                <div class="rm-empty-state">
+                                    <div class="rm-empty-icon" style="background: rgba(249, 115, 22, 0.12);">
+                                        <i class="fas fa-building" style="color: #f97316;"></i>
+                                    </div>
+                                    <h4>No CIMM Reports</h4>
+                                    <p>No reports from the CIMM system found.</p>
+                                </div>
+                            </td>
+                        </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Infrastructure Reports Panel -->
+        <div class="rm-panel" id="infraReportsPanel">
+            <div class="rm-panel-header" style="border-bottom-color: rgba(23, 162, 184, 0.15);">
+                <div class="rm-panel-header-left">
+                    <div class="rm-panel-icon infra">
+                        <i class="fas fa-hard-hat"></i>
+                    </div>
+                    <div>
+                        <div class="rm-panel-title-group">
+                            <h2 class="rm-panel-title" style="color: #138496;">Infrastructure Projects</h2>
+                            <span class="rm-panel-badge infra"><?php echo count($infra_reports_list); ?> Reports</span>
+                        </div>
+                        <p class="rm-panel-subtitle" style="color: #0c5460;">Infrastructure maintenance and project reports</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rm-panel-search" style="border-bottom-color: rgba(23, 162, 184, 0.08);">
+                <div class="rm-search-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" class="rm-search-input" id="infraSearchInput" placeholder="Search by Report #, Title, Type, Location, Department...">
+                </div>
+                <button class="rm-sort-btn" style="background: linear-gradient(135deg, #17a2b8, #138496);" onclick="toggleInfraSort()">
+                    <i class="fas fa-sort"></i> Sort
+                </button>
+            </div>
+
+            <div class="rm-table-wrapper">
+                <table class="rm-table" id="infraTable">
+                    <thead>
+                        <tr>
+                            <th style="background: linear-gradient(135deg, #17a2b8, #138496);">Action</th>
+                            <th style="background: linear-gradient(135deg, #17a2b8, #138496);">Report #</th>
+                            <th style="background: linear-gradient(135deg, #17a2b8, #138496);">Title</th>
+                            <th style="background: linear-gradient(135deg, #17a2b8, #138496);">Type</th>
+                            <th style="background: linear-gradient(135deg, #17a2b8, #138496);">Location</th>
+                            <th style="background: linear-gradient(135deg, #17a2b8, #138496);">Department</th>
+                            <th style="background: linear-gradient(135deg, #17a2b8, #138496);">Priority</th>
+                            <th style="background: linear-gradient(135deg, #17a2b8, #138496);">Status</th>
+                            <th style="background: linear-gradient(135deg, #17a2b8, #138496);">Created</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        $hasInfra = false;
+                        if (!empty($infra_reports_list)):
+                            foreach ($infra_reports_list as $report):
+                                $hasInfra = true;
+                        ?>
+                        <tr data-id="<?php echo (int)$report['id']; ?>">
+                            <td>
+                                <div class="rm-action-group">
+                                    <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                        <i class="fas fa-pencil"></i>
+                                    </button>
+                                    <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                            <td><?php echo htmlspecialchars($report['report_id'] ?? '—'); ?></td>
+                            <td><?php echo htmlspecialchars(strlen($report['title'] ?? '') > 35 ? substr($report['title'], 0, 35) . '...' : ($report['title'] ?? '')); ?></td>
+                            <td><?php
+                                $type_labels = [
+                                    'infrastructure_issue' => 'Infrastructure Issue',
+                                    'routine' => 'Routine Maintenance',
+                                    'emergency' => 'Emergency Repair',
+                                    'preventive' => 'Preventive Maintenance',
+                                    'corrective' => 'Corrective Maintenance',
+                                    'scheduled' => 'Scheduled Maintenance',
+                                ];
+                                echo htmlspecialchars($type_labels[$report['report_type']] ?? ucfirst($report['report_type']));
+                            ?></td>
+                            <td><?php echo htmlspecialchars($report['location'] ?? '—'); ?></td>
+                            <td><?php echo htmlspecialchars(ucfirst($report['department'] ?? '')); ?></td>
+                            <td><span class="rm-priority-badge <?php echo htmlspecialchars($report['priority']); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'])); ?></span></td>
+                            <td><span class="rm-status-badge <?php echo htmlspecialchars($report['status']); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span></td>
+                            <td><?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?></td>
+                        </tr>
+                        <?php
+                            endforeach;
+                        endif;
+                        ?>
+
+                        <?php if (!$hasInfra): ?>
+                        <tr>
+                            <td colspan="9">
+                                <div class="rm-empty-state">
+                                    <div class="rm-empty-icon" style="background: rgba(23, 162, 184, 0.12);">
+                                        <i class="fas fa-hard-hat" style="color: #17a2b8;"></i>
+                                    </div>
+                                    <h4>No Infrastructure Reports</h4>
+                                    <p>No infrastructure project reports found.</p>
+                                </div>
+                            </td>
+                        </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
     </div>
 
     <!-- Received Reports Modal -->
@@ -1776,6 +2331,9 @@ if (!empty($reports)) {
     </div>
 
     <script>
+        // CIMM data for detail viewing (read-only)
+        const cimmData = <?php echo json_encode(array_values($cimm_reports_list), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+
         // Modal functions
         function openModal(modalId) {
             document.getElementById(modalId).style.display = 'block';
@@ -2467,18 +3025,102 @@ if (!empty($reports)) {
             });
         });
 
+        // Panel search filtering — client-side within each panel
+        function panelSearch(inputId, tableId) {
+            const query = document.getElementById(inputId).value.toLowerCase();
+            const tbody = document.querySelector('#' + tableId + ' tbody');
+            if (!tbody) return;
+            const rows = tbody.querySelectorAll('tr');
+            rows.forEach(row => {
+                if (row.querySelector('.rm-empty-state')) return;
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(query) ? '' : 'none';
+            });
+        }
+
+        document.getElementById('citizenSearchInput').addEventListener('input', function() { panelSearch('citizenSearchInput', 'citizenTable'); });
+        document.getElementById('cimmSearchInput').addEventListener('input', function() { panelSearch('cimmSearchInput', 'cimmTable'); });
+        document.getElementById('infraSearchInput').addEventListener('input', function() { panelSearch('infraSearchInput', 'infraTable'); });
+
+        // Sort toggle state
+        const sortState = { citizen: 'asc', cimm: 'asc', infra: 'asc' };
+
+        function toggleSort(tableId, key) {
+            const tbody = document.querySelector('#' + tableId + ' tbody');
+            if (!tbody) return;
+            const rows = Array.from(tbody.querySelectorAll('tr')).filter(r => !r.querySelector('.rm-empty-state'));
+            sortState[key] = sortState[key] === 'asc' ? 'desc' : 'asc';
+            const dir = sortState[key] === 'asc' ? 1 : -1;
+            rows.sort((a, b) => {
+                const aText = a.cells[key === 'cimm' ? 0 : 1].textContent.trim().toLowerCase();
+                const bText = b.cells[key === 'cimm' ? 0 : 1].textContent.trim().toLowerCase();
+                return aText.localeCompare(bText) * dir;
+            });
+            rows.forEach(row => tbody.appendChild(row));
+        }
+
+        function toggleCitizenSort() { toggleSort('citizenTable', 'citizen'); }
+        function toggleCimmSort()   { toggleSort('cimmTable', 'cimm'); }
+        function toggleInfraSort()   { toggleSort('infraTable', 'infra'); }
+
+        // CIMM detail viewer (read-only)
+        function viewCimmReport(idx) {
+            var r = cimmData[idx];
+            if (!r) return;
+            var statusLabels = { 'pending': 'Pending Review', 'in-progress': 'Flagged', 'completed': 'Verified', 'cancelled': 'Dismissed' };
+            var priorityColors = { 'high': '#ef4444', 'medium': '#f59e0b', 'low': '#22c55e', 'critical': '#dc2626' };
+            var content = document.getElementById('viewReportContent');
+            content.innerHTML = '' +
+                '<div style="line-height:1.6;">' +
+                    '<h6 style="color:#c2410c;margin-bottom:15px;">CIMM Report — ' + (r.report_id || '—') + '</h6>' +
+                    '<div style="background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.2);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:#92400e;">' +
+                        '<i class="fas fa-info-circle"></i> This report originates from the CIMM system and is managed via Verification Monitoring.' +
+                    '</div>' +
+                    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px;">' +
+                        '<div><strong>Report #</strong><br>' + (r.report_id || '—') + '</div>' +
+                        '<div><strong>Infrastructure</strong><br>' + (r.title || '—') + '</div>' +
+                        '<div><strong>Location</strong><br>' + (r.location || '—') + '</div>' +
+                        '<div><strong>Engineer</strong><br>' + (r.assigned_to || '—') + '</div>' +
+                        '<div><strong>Reported By</strong><br>' + (r.reporter_name || '—') + '</div>' +
+                        '<div><strong>Start Date</strong><br>' + (r.start_date || '—') + '</div>' +
+                        '<div><strong>End Date</strong><br>' + (r.end_date || '—') + '</div>' +
+                        '<div><strong>Budget</strong><br>' + (r.estimation ? '₱' + parseFloat(r.estimation).toLocaleString('en-PH', {minimumFractionDigits:2}) : '—') + '</div>' +
+                        '<div><strong>Priority</strong><br><span style="display:inline-block;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:600;color:white;background:' + (priorityColors[r.priority] || '#6b7280') + ';">' + (r.priority ? r.priority.charAt(0).toUpperCase() + r.priority.slice(1) : '—') + '</span></div>' +
+                        '<div><strong>Status</strong><br><span style="display:inline-block;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:600;color:white;background:' + (r.status === 'completed' ? '#22c55e' : r.status === 'in-progress' ? '#f59e0b' : r.status === 'cancelled' ? '#ef4444' : '#6b7280') + ';">' + (statusLabels[r.status] || r.status || '—') + '</span></div>' +
+                    '</div>' +
+                    '<div style="margin-bottom:20px;"><strong>Issue / Notes</strong><p style="margin-top:5px;">' + (r.description || '—') + '</p></div>' +
+                '</div>';
+            document.querySelector('#viewReportModal .modal-title').textContent = 'CIMM Report Details';
+            openModal('viewReportModal');
+        }
+
+        // Source filter — toggle panel visibility
+        function filterSource(source) {
+            const citizen = document.getElementById('citizenReportsPanel');
+            const cimm    = document.getElementById('cimmReportsPanel');
+            const infra   = document.getElementById('infraReportsPanel');
+            citizen.style.display = (source === 'all' || source === 'transport') ? '' : 'none';
+            cimm.style.display    = (source === 'all' || source === 'cimm')      ? '' : 'none';
+            infra.style.display   = (source === 'all' || source === 'maintenance') ? '' : 'none';
+        }
+
+        // Sync source filter dropdown with panels on page load
+        const sourceFilter = document.getElementById('sourceFilter');
+        if (sourceFilter) {
+            filterSource(sourceFilter.value);
+            sourceFilter.addEventListener('change', function() { filterSource(this.value); });
+        }
+
         // Scroll to specific report if id param is in URL
         const urlParams = new URLSearchParams(window.location.search);
         const focusId = urlParams.get('id');
         if (focusId) {
             setTimeout(() => {
-                const card = document.querySelector(`.report-card[data-id="${focusId}"]`);
-                if (card) {
-                    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    card.style.boxShadow = '0 0 0 3px #3762c8, 0 8px 32px rgba(55,98,200,0.3)';
-                    setTimeout(() => {
-                        card.style.boxShadow = '';
-                    }, 3000);
+                const row = document.querySelector(`tr[data-id="${focusId}"]`);
+                if (row) {
+                    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    row.style.boxShadow = '0 0 0 3px #3762c8, 0 8px 32px rgba(55,98,200,0.3)';
+                    setTimeout(() => { row.style.boxShadow = ''; }, 3000);
                 }
             }, 500);
         }
