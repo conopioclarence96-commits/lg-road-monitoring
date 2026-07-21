@@ -3713,7 +3713,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         
         // Show success message if available
         <?php if (isset($success_message)): ?>
-        showNotification('<?php echo htmlspecialchars($success_message); ?>', 'success');
+        showNotification(<?php echo json_encode($success_message, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_IGNORE); ?>, 'success');
         <?php endif; ?>
 
         // CIMM Reports tab filtering
