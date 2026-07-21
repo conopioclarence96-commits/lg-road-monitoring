@@ -122,6 +122,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         case 'update_report':
             handle_update_report();
             break;
+        case 'update_cimm_report':
+            handle_update_cimm_report();
+            break;
         case 'delete_report':
             handle_delete_report();
             break;
@@ -318,6 +321,30 @@ function handle_update_report() {
             echo json_encode(['success' => false, 'message' => 'Failed to update report: ' . $conn->error]);
             exit;
         }
+    }
+}
+
+function handle_update_cimm_report() {
+    global $conn, $user_id;
+
+    $report_id = intval($_POST['report_id'] ?? 0);
+    $status = sanitize_input($_POST['status'] ?? '');
+    $assigned_to = sanitize_input($_POST['assigned_to'] ?? '');
+
+    if ($report_id <= 0 || empty($status)) {
+        set_flash_message('error', 'Invalid report data');
+        return;
+    }
+
+    $query = "UPDATE road_transportation_reports SET status = ?, assigned_to = ?, updated_at = NOW() WHERE id = ? AND created_by = -1";
+    $stmt = $conn->prepare($query);
+    $stmt->bind_param('ssi', $status, $assigned_to, $report_id);
+
+    if ($stmt->execute()) {
+        log_audit_action($user_id, "Updated CIMM report", "Report ID: {$report_id}, New Status: {$status}, Assigned to: {$assigned_to}");
+        set_flash_message('success', 'CIMM report updated successfully');
+    } else {
+        set_flash_message('error', 'Failed to update CIMM report: ' . $conn->error);
     }
 }
 
@@ -1995,7 +2022,7 @@ if ($cimm_result && $cimm_result->num_rows > 0) {
                                     <button class="btn-action btn-view" onclick="viewReport(<?php echo $cim['id']; ?>, '<?php echo $cim['report_type']; ?>')">
                                         <i class="fas fa-eye"></i> View
                                     </button>
-                                    <button class="btn-action btn-edit" onclick="editReport(<?php echo $cim['id']; ?>, '<?php echo $cim['report_type']; ?>')">
+                                    <button class="btn-action btn-edit" onclick="editCimmReport(<?php echo $cim['id']; ?>)">
                                         <i class="fas fa-pencil"></i> Edit
                                     </button>
                                     <button class="btn-action btn-delete" onclick="deleteReport(<?php echo $cim['id']; ?>, '<?php echo $cim['report_type']; ?>')">
@@ -2143,6 +2170,48 @@ if ($cimm_result && $cimm_result->num_rows > 0) {
                             <i class="fas fa-save"></i> Save Changes
                         </button>
                     </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit CIMM Report Modal (simplified - status + assignee only) -->
+    <div id="editCimmModal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-edit"></i> Update CIMM Report</h5>
+                <button class="close" onclick="closeModal('editCimmModal')">&times;</button>
+            </div>
+            <form method="POST" id="editCimmForm">
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
+                    <input type="hidden" name="action" value="update_cimm_report">
+                    <input type="hidden" name="report_id" id="editCimmReportId">
+
+                    <div class="form-section">
+                        <h6><i class="fas fa-info-circle"></i> Status & Assignment</h6>
+                        <div class="form-group">
+                            <label for="editCimmStatus" class="form-label">Status *</label>
+                            <select class="form-control" name="status" id="editCimmStatus" required>
+                                <option value="pending">Pending</option>
+                                <option value="approved">Approved</option>
+                                <option value="in-progress">In Progress</option>
+                                <option value="completed">Completed</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="editCimmAssignee" class="form-label">Assign To</label>
+                            <input type="text" class="form-control" name="assigned_to" id="editCimmAssignee" placeholder="LGU Staff" value="LGU Staff">
+                            <small style="color: #666; font-size: 12px;">Enter the person or team responsible (default: LGU Staff)</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer" style="justify-content: flex-end; gap: 10px;">
+                    <button type="button" class="btn-secondary-custom" onclick="closeModal('editCimmModal')">Cancel</button>
+                    <button type="submit" class="btn-primary-custom">
+                        <i class="fas fa-save"></i> Save Changes
+                    </button>
                 </div>
             </form>
         </div>
@@ -2415,6 +2484,26 @@ if ($cimm_result && $cimm_result->num_rows > 0) {
                 .catch(error => {
                     console.error('Error:', error);
                     showNotification('Error loading report details', 'error');
+                });
+        }
+
+        // ── Edit CIMM Report (simplified: status + assignee only) ──
+        function editCimmReport(id) {
+            fetch(`../api/get_report_details.php?id=${id}&type=transportation`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('editCimmReportId').value = data.report.id;
+                        document.getElementById('editCimmStatus').value = data.report.status;
+                        document.getElementById('editCimmAssignee').value = data.report.assigned_to || 'LGU Staff';
+                        openModal('editCimmModal');
+                    } else {
+                        showNotification('Failed to load CIMM report details', 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showNotification('Error loading CIMM report details', 'error');
                 });
         }
 
