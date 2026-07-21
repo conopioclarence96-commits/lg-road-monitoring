@@ -3134,33 +3134,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         // CIMM & SQL report data maps (populated from PHP)
-        var cimmDataMap = <?php echo json_encode(array_column($cimm_reports, null, 'id')); ?>;
+        var cimmDataMap = {};
+        try {
+            var cimmDataRaw = <?php echo json_encode(array_column($cimm_reports, null, 'id')); ?>;
+            if (typeof cimmDataRaw === 'object' && cimmDataRaw !== null) {
+                cimmDataMap = cimmDataRaw;
+            }
+        } catch(e) {
+            console.error('Error initializing cimmDataMap:', e);
+            cimmDataMap = {};
+        }
         var sqlDataMap = {};
-        <?php
-        $sql_reports->data_seek(0);
-        if ($sql_reports && $sql_reports->num_rows > 0):
-            while ($sr = $sql_reports->fetch_assoc()):
-        ?>
-        sqlDataMap[<?php echo (int)$sr['rep_id']; ?>] = {
-            rep_id: <?php echo (int)$sr['rep_id']; ?>,
-            res_id: <?php echo (int)$sr['res_id']; ?>,
-            starting_date: <?php echo json_encode($sr['starting_date']); ?>,
-            estimated_end_date: <?php echo json_encode($sr['estimated_end_date']); ?>,
-            engineer_id: <?php echo json_encode($sr['engineer_id']); ?>,
-            report_by: <?php echo (int)$sr['report_by']; ?>,
-            priority_lvl: <?php echo json_encode($sr['priority_lvl']); ?>,
-            budget: <?php echo json_encode($sr['budget']); ?>,
-            created_at: <?php echo json_encode($sr['created_at']); ?>,
-            engineer_accepted: <?php echo (int)$sr['engineer_accepted']; ?>,
-            decline_reason: <?php echo json_encode($sr['decline_reason']); ?>,
-            decline_reviewed: <?php echo json_encode($sr['decline_reviewed']); ?>,
-            decline_review_note: <?php echo json_encode($sr['decline_review_note']); ?>,
-            reporter_name: <?php echo json_encode($sr['reporter_name'] ?? 'User #' . $sr['report_by']); ?>
-        };
-        <?php
-            endwhile;
-        endif;
-        ?>
+        try {
+            <?php
+            if ($sql_reports && method_exists($sql_reports, 'data_seek')):
+                $sql_reports->data_seek(0);
+                if ($sql_reports->num_rows > 0):
+                    while ($sr = $sql_reports->fetch_assoc()):
+            ?>
+            sqlDataMap[<?php echo (int)$sr['rep_id']; ?>] = {
+                rep_id: <?php echo (int)$sr['rep_id']; ?>,
+                res_id: <?php echo (int)$sr['res_id']; ?>,
+                starting_date: <?php echo json_encode($sr['starting_date']); ?>,
+                estimated_end_date: <?php echo json_encode($sr['estimated_end_date']); ?>,
+                engineer_id: <?php echo json_encode($sr['engineer_id']); ?>,
+                report_by: <?php echo (int)$sr['report_by']; ?>,
+                priority_lvl: <?php echo json_encode($sr['priority_lvl']); ?>,
+                budget: <?php echo json_encode($sr['budget']); ?>,
+                created_at: <?php echo json_encode($sr['created_at']); ?>,
+                engineer_accepted: <?php echo (int)$sr['engineer_accepted']; ?>,
+                decline_reason: <?php echo json_encode($sr['decline_reason']); ?>,
+                decline_reviewed: <?php echo json_encode($sr['decline_reviewed']); ?>,
+                decline_review_note: <?php echo json_encode($sr['decline_review_note']); ?>,
+                reporter_name: <?php echo json_encode($sr['reporter_name'] ?? 'User #' . $sr['report_by']); ?>
+            };
+            <?php
+                    endwhile;
+                endif;
+            endif;
+            ?>
+        } catch(e) {
+            console.error('Error initializing sqlDataMap:', e);
+            sqlDataMap = {};
+        }
 
         function setModalField(id, value) {
             var el = document.getElementById(id);
