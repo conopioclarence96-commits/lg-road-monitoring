@@ -3293,7 +3293,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         ?>
                         <tr>
                             <td style="white-space:nowrap;">
-                                <button class="dept-action-btn" onclick="viewCimmReport(<?php echo $row['id']; ?>)">
+                                <button class="dept-action-btn btn-view-cimm" data-cimm='<?php echo json_encode($row, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_IGNORE); ?>'>
                                     <i class="fas fa-eye"></i>
                                 </button>
                                 <?php if (empty($row['approval_status']) || $row['approval_status'] === 'Pending'): ?>
@@ -3758,6 +3758,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         // CIMM & SQL report data maps (populated from PHP)
         var cimmDataMap = <?php echo json_encode(array_column($cimm_reports, null, 'id'), JSON_INVALID_UTF8_IGNORE) ?: '{}'; ?>;
+        document.querySelectorAll('.btn-view-cimm').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                try { var r = JSON.parse(this.dataset.cimm); } catch(e) { var r = null; }
+                if (!r) { alert('Report data not found.'); return; }
+                document.getElementById('cimmModalTitle').textContent = 'CIMM Report — ' + (r.rep_number || 'Details');
+                setModalField('dm-rep-number', r.rep_number);
+                setModalField('dm-infrastructure', r.infrastructure);
+                setModalField('dm-location', r.location);
+                setModalField('dm-issue', r.issue_notes);
+                setModalField('dm-engineer', r.engineer);
+                setModalField('dm-reported-by', r.reported_by);
+                setModalField('dm-start-date', formatDate(r.start_date));
+                setModalField('dm-end-date', formatDate(r.end_date));
+                document.getElementById('dm-priority').innerHTML = priorityBadgeHtml(r.priority);
+                setModalField('dm-budget', formatCurrency(r.budget));
+                document.getElementById('dm-status').innerHTML = statusBadgeHtml(r.status, r.status ? r.status.replace(/-/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}) : '—');
+                var extra = '';
+                if (r.verification_status) extra += '<div class="detail-row"><div class="detail-label">Verification Status</div><div class="detail-value">' + statusBadgeHtml(r.status, r.verification_status) + '</div></div>';
+                if (r.approval_status) extra += '<div class="detail-row"><div class="detail-label">Approval Status</div><div class="detail-value">' + statusBadgeHtml(r.status, r.approval_status) + '</div></div>';
+                if (r.cimm_req_id) extra += '<div class="detail-row"><div class="detail-label">CIMM Request ID</div><div class="detail-value">' + r.cimm_req_id + '</div></div>';
+                document.getElementById('dm-extra-fields').innerHTML = extra;
+                openCimmDetailModal();
+            });
+        });
         var sqlDataMap = {};
         <?php
         if ($sql_reports && $sql_reports->num_rows > 0):
