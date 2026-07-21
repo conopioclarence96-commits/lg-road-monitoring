@@ -4026,14 +4026,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             document.getElementById('cimmModalTitle').textContent = 'Citizen Report — ' + (r.report_id || 'Details');
             setModalField('dm-rep-number', r.report_id);
             setModalField('dm-infrastructure', typeLabels[r.report_type] || r.report_type);
-            var locHtml = r.location || 'Pinned location';
-            if (r.latitude && r.longitude) {
-                locHtml += '<br><span style="font-size:12px;color:#6b7280;">' + r.latitude + ', ' + r.longitude + '</span>';
-                locHtml += ' <a href="https://www.google.com/maps?q=' + r.latitude + ',' + r.longitude + '" target="_blank" style="color:#3762c8;font-size:12px;text-decoration:none;white-space:nowrap;"><i class="fas fa-external-link-alt"></i> View on Map</a>';
-            }
-            document.getElementById('dm-location').innerHTML = locHtml;
+            setModalField('dm-location', r.location || '—');
 
-            document.getElementById('dm-issue').innerHTML = r.description || '—';
+            var desc = r.description || '—';
+            if (r.latitude && r.longitude) {
+                desc += '<br><br><a href="https://www.google.com/maps?q=' + r.latitude + ',' + r.longitude + '" target="_blank" style="color:#3762c8;"><i class="fas fa-map-marker-alt"></i> View on Google Maps</a>';
+            }
+            document.getElementById('dm-issue').innerHTML = desc;
 
             setModalField('dm-engineer', '—');
             var reportedBy = r.reporter_name || r.reporter_email || 'Citizen';
