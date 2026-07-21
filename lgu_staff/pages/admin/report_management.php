@@ -329,6 +329,7 @@ function handle_update_cimm_report() {
 
     $report_id = intval($_POST['report_id'] ?? 0);
     $status = sanitize_input($_POST['status'] ?? '');
+    $priority = sanitize_input($_POST['priority'] ?? 'medium');
     $assigned_to = sanitize_input($_POST['assigned_to'] ?? '');
 
     if ($report_id <= 0 || empty($status)) {
@@ -336,12 +337,12 @@ function handle_update_cimm_report() {
         return;
     }
 
-    $query = "UPDATE road_transportation_reports SET status = ?, assigned_to = ?, updated_at = NOW() WHERE id = ? AND created_by = -1";
+    $query = "UPDATE road_transportation_reports SET status = ?, priority = ?, assigned_to = ?, updated_at = NOW() WHERE id = ? AND created_by = -1";
     $stmt = $conn->prepare($query);
-    $stmt->bind_param('ssi', $status, $assigned_to, $report_id);
+    $stmt->bind_param('sssi', $status, $priority, $assigned_to, $report_id);
 
     if ($stmt->execute()) {
-        log_audit_action($user_id, "Updated CIMM report", "Report ID: {$report_id}, New Status: {$status}, Assigned to: {$assigned_to}");
+        log_audit_action($user_id, "Updated CIMM report", "Report ID: {$report_id}, New Status: {$status}, Priority: {$priority}, Assigned to: {$assigned_to}");
         set_flash_message('success', 'CIMM report updated successfully');
     } else {
         set_flash_message('error', 'Failed to update CIMM report: ' . $conn->error);
@@ -2019,16 +2020,16 @@ if ($cimm_result && $cimm_result->num_rows > 0) {
                                 <?php endif; ?>
                                 
                                 <div class="report-actions">
-                                    <button class="btn-action btn-view" onclick="viewReport(<?php echo $cim['id']; ?>, '<?php echo $cim['report_type']; ?>')">
+                                    <button class="btn-action btn-view" onclick="viewReport(<?php echo $cim['id']; ?>, 'transportation')">
                                         <i class="fas fa-eye"></i> View
                                     </button>
                                     <button class="btn-action btn-edit" onclick="editCimmReport(<?php echo $cim['id']; ?>)">
                                         <i class="fas fa-pencil"></i> Edit
                                     </button>
-                                    <button class="btn-action btn-delete" onclick="deleteReport(<?php echo $cim['id']; ?>, '<?php echo $cim['report_type']; ?>')">
+                                    <button class="btn-action btn-delete" onclick="deleteReport(<?php echo $cim['id']; ?>, 'transportation')">
                                         <i class="fas fa-trash"></i> Delete
                                     </button>
-                                    <button class="btn-action btn-view" style="background:linear-gradient(135deg,#3762c8,#2f4894);" onclick="viewReportUpdates(<?php echo $cim['id']; ?>, '<?php echo $cim['report_type']; ?>')">
+                                    <button class="btn-action btn-view" style="background:linear-gradient(135deg,#3762c8,#2f4894);" onclick="viewReportUpdates(<?php echo $cim['id']; ?>, 'transportation')">
                                         <i class="fas fa-clock"></i> Updates
                                     </button>
                                 </div>
@@ -2198,6 +2199,15 @@ if ($cimm_result && $cimm_result->num_rows > 0) {
                                 <option value="in-progress">In Progress</option>
                                 <option value="completed">Completed</option>
                                 <option value="cancelled">Cancelled</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="editCimmPriority" class="form-label">Priority</label>
+                            <select class="form-control" name="priority" id="editCimmPriority">
+                                <option value="low">Low</option>
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                                <option value="critical">Critical</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -2495,6 +2505,7 @@ if ($cimm_result && $cimm_result->num_rows > 0) {
                     if (data.success) {
                         document.getElementById('editCimmReportId').value = data.report.id;
                         document.getElementById('editCimmStatus').value = data.report.status;
+                        document.getElementById('editCimmPriority').value = data.report.priority || 'medium';
                         document.getElementById('editCimmAssignee').value = data.report.assigned_to || 'LGU Staff';
                         openModal('editCimmModal');
                     } else {
