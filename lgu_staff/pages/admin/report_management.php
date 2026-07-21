@@ -989,6 +989,81 @@ if ($cimm_result && $cimm_result->num_rows > 0) {
             margin-bottom: 30px;
         }
 
+        /* ── Management Panel Tabs ── */
+        .management-tabs {
+            display: flex;
+            background: #e8ecf4;
+            border-radius: 10px;
+            padding: 4px;
+            gap: 3px;
+            margin-bottom: 18px;
+            flex-wrap: wrap;
+        }
+        .management-tab {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 8px 14px;
+            border: none;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: #6b7280;
+            background: transparent;
+            white-space: nowrap;
+        }
+        .management-tab:hover {
+            color: #374151;
+            background: rgba(255, 255, 255, 0.5);
+        }
+        .management-tab.active {
+            background: #ffffff;
+            color: #1e3c72;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+        .management-tab i { font-size: 14px; }
+        .management-tab-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 20px;
+            height: 20px;
+            padding: 0 5px;
+            border-radius: 5px;
+            font-size: 10px;
+            font-weight: 700;
+        }
+        .management-tab.active .management-tab-badge {
+            background: #3762c8;
+            color: white;
+        }
+        .management-tab:not(.active) .management-tab-badge {
+            background: rgba(0, 0, 0, 0.08);
+            color: #6b7280;
+        }
+        body.dark-mode .management-tabs {
+            background: #252a33;
+        }
+        body.dark-mode .management-tab {
+            color: #9ca3af;
+        }
+        body.dark-mode .management-tab:hover {
+            color: #e4e6ea;
+            background: rgba(255,255,255,0.05);
+        }
+        body.dark-mode .management-tab.active {
+            background: #2d323b;
+            color: #e4e6ea;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        body.dark-mode .management-tab:not(.active) .management-tab-badge {
+            background: rgba(255,255,255,0.08);
+            color: #9ca3af;
+        }
+
         .filter-group {
             display: flex;
             gap: 15px;
@@ -1761,6 +1836,28 @@ if ($cimm_result && $cimm_result->num_rows > 0) {
             <div class="chart-header">
                 <h3 class="chart-title">Filters</h3>
             </div>
+            <div class="management-tabs">
+                <button class="management-tab active" data-tab="all" onclick="filterManagementPanels('all')">
+                    <i class="fas fa-list"></i>
+                    All
+                    <span class="management-tab-badge"><?php echo count($reports) + count($citizen_transport_reports) + count($cimm_approved_reports); ?></span>
+                </button>
+                <button class="management-tab" data-tab="main" onclick="filterManagementPanels('main')">
+                    <i class="fas fa-file-alt"></i>
+                    Main Reports
+                    <span class="management-tab-badge"><?php echo count($reports); ?></span>
+                </button>
+                <button class="management-tab" data-tab="citizen" onclick="filterManagementPanels('citizen')">
+                    <i class="fas fa-users"></i>
+                    Approved Citizen
+                    <span class="management-tab-badge"><?php echo count($citizen_transport_reports); ?></span>
+                </button>
+                <button class="management-tab" data-tab="cimm" onclick="filterManagementPanels('cimm')">
+                    <i class="fas fa-building"></i>
+                    Approved CIMM
+                    <span class="management-tab-badge"><?php echo count($cimm_approved_reports); ?></span>
+                </button>
+            </div>
             <div class="filter-group">
                 <div>
                     <label class="form-label">Status Filter</label>
@@ -1796,7 +1893,7 @@ if ($cimm_result && $cimm_result->num_rows > 0) {
         </div>
 
         <!-- Reports List -->
-        <div class="main-grid">
+        <div class="main-grid" id="mainReportsPanel">
             <div class="chart-container">
                 <div class="chart-header">
                     <h3 class="chart-title">Reports</h3>
@@ -2307,6 +2404,18 @@ if ($cimm_result && $cimm_result->num_rows > 0) {
             url.searchParams.delete('type');
             url.searchParams.set('page', '1');
             window.location.href = url.toString();
+        }
+
+        // ── Panel Tabs ──
+        function filterManagementPanels(tab) {
+            document.querySelectorAll('.management-tabs .management-tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`.management-tabs .management-tab[data-tab="${tab}"]`)?.classList.add('active');
+            const mainPanel = document.getElementById('mainReportsPanel');
+            const citizenPanel = document.getElementById('citizenTransportPanel');
+            const cimmPanel = document.getElementById('cimmApprovedPanel');
+            mainPanel.style.display = (tab === 'all' || tab === 'main') ? '' : 'none';
+            citizenPanel.style.display = (tab === 'all' || tab === 'citizen') ? '' : 'none';
+            cimmPanel.style.display = (tab === 'all' || tab === 'cimm') ? '' : 'none';
         }
 
         function exportReports() {
