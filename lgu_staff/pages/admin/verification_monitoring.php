@@ -449,13 +449,11 @@ $activity_timeline = getActivityTimeline($conn);
 
 // CIMM reports data (live, via RGMAO sync)
 $cimm_filter = $_GET['cimm_filter'] ?? 'all';
-$cimm_reports = getCimmReports($cimm_filter === 'cimm' ? 'staff' : $cimm_filter);
+$cimm_reports = getCimmReports($cimm_filter);
 $cimm_counts = getCimmReportCounts();
 
 // Reports from reports.sql table
 $sql_reports = getSqlReports($conn);
-$show_sql_reports = $sql_reports && ($cimm_filter === 'all' || $cimm_filter === 'infra');
-$show_cimm_reports = $cimm_filter === 'all' || $cimm_filter === 'cimm';
 
 // Infrastructure-specific reports
 $infra_reports = getInfraReports($conn);
@@ -2489,16 +2487,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             All
                             <span class="cimm-tab-badge"><?php echo $cimm_counts['all']; ?></span>
                         </button>
-                        <button class="cimm-tab <?php echo $cimm_filter === 'cimm' ? 'active' : ''; ?>" onclick="filterCimmReports('cimm')">
-                            <i class="fas fa-building"></i>
+                        <button class="cimm-tab <?php echo $cimm_filter === 'staff' ? 'active' : ''; ?>" onclick="filterCimmReports('staff')">
+                            <i class="fas fa-user"></i>
                             CIMM Reports
                             <span class="cimm-tab-badge"><?php echo $cimm_counts['staff']; ?></span>
                         </button>
-                        <button class="cimm-tab <?php echo $cimm_filter === 'infra' ? 'active' : ''; ?>" onclick="filterCimmReports('infra')">
-                            <i class="fas fa-road"></i>
+                        <button class="cimm-tab <?php echo $cimm_filter === 'staff' ? 'active' : ''; ?>" onclick="filterCimmReports('staff')">
+                            <i class="fas fa-user"></i>
                             Infra Reports
-                            <?php $infra_count = $sql_reports ? $sql_reports->num_rows : 0; ?>
-                            <span class="cimm-tab-badge"><?php echo $infra_count; ?></span>
+                            <span class="cimm-tab-badge"><?php echo $cimm_counts['staff']; ?></span>
                         </button>
                     </div>
                 </div>
@@ -2848,7 +2845,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         <?php 
                         // Dept panel reuses the same filtered $cimm_reports array (no data_seek needed for plain arrays)
                         $hasAnyReports = false;
-                        if (!empty($cimm_reports) && $show_cimm_reports): 
+                        if (!empty($cimm_reports)): 
                         ?>
                         <?php foreach ($cimm_reports as $row): 
                             $hasAnyReports = true;
@@ -2876,7 +2873,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
                         <?php 
                         // Display reports from reports.sql table
-                        if ($sql_reports && $sql_reports->num_rows > 0 && $show_sql_reports):
+                        if ($sql_reports && $sql_reports->num_rows > 0):
                             while ($row = $sql_reports->fetch_assoc()):
                                 $hasAnyReports = true;
                                 $status = 'pending';
