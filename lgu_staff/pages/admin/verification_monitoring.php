@@ -2875,8 +2875,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         ?>
                         <?php foreach ($cimm_reports as $row): 
                             $hasAnyReports = true;
+                            // Map CIMM status to filter categories
+                            $cimm_filter_status = 'pending';
+                            if (in_array($row['status'], ['completed'])) $cimm_filter_status = 'approved';
+                            elseif (in_array($row['status'], ['resolved'])) $cimm_filter_status = 'rejected';
                         ?>
-                        <tr>
+                        <tr data-status="<?php echo $cimm_filter_status; ?>">
                             <td>
                                 <div class="dept-action-group">
                                     <button class="dept-action-btn" onclick="viewCimmReport(<?php echo $row['id']; ?>)">
@@ -2927,8 +2931,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 } elseif (!empty($row['decline_reviewed'])) {
                                     $status = $row['decline_reviewed'] == 1 ? 'in-progress' : 'cancelled';
                                 }
+                                // Map SQL report status to filter categories
+                                $sql_filter_status = 'pending';
+                                if (in_array($status, ['completed'])) $sql_filter_status = 'approved';
+                                elseif (in_array($status, ['cancelled'])) $sql_filter_status = 'rejected';
                         ?>
-                        <tr>
+                        <tr data-status="<?php echo $sql_filter_status; ?>">
                             <td>
                                 <button class="dept-action-btn" onclick="viewSqlReport(<?php echo $row['rep_id']; ?>)">
                                     <i class="fas fa-eye"></i>
@@ -3022,8 +3030,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 elseif ($irow['status'] === 'pending') $istatus_class = 'pending';
                                 elseif ($irow['status'] === 'in-progress') $istatus_class = 'in-progress';
                                 elseif ($irow['status'] === 'completed') $istatus_class = 'completed';
+                                // Map infra status to filter categories
+                                $infra_filter_status = 'pending';
+                                if (in_array($irow['status'], ['approved', 'completed'])) $infra_filter_status = 'approved';
+                                elseif (in_array($irow['status'], ['cancelled'])) $infra_filter_status = 'rejected';
                         ?>
-                        <tr>
+                        <tr data-status="<?php echo $infra_filter_status; ?>">
                             <td>
                                 <div class="infra-action-group">
                                     <button class="infra-action-btn" onclick="viewInfraReport(<?php echo $irow['id']; ?>, '<?php echo htmlspecialchars($irow['source'], ENT_QUOTES); ?>')">
@@ -3137,6 +3149,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 if (citizenPanel) citizenPanel.style.display = '';
                 if (cimmPanel) cimmPanel.style.display = '';
                 if (infraPanel) infraPanel.style.display = '';
+            }
+        })();
+
+        // Apply status filter to hide/show rows in CIMM and Infra panels on page load
+        (function() {
+            var urlParams = new URLSearchParams(window.location.search);
+            var statusFilter = urlParams.get('status') || 'all';
+            if (statusFilter === 'all') return;
+
+            // Filter CIMM panel rows
+            var cimmTable = document.getElementById('deptTable');
+            if (cimmTable) {
+                cimmTable.querySelectorAll('tbody tr[data-status]').forEach(function(row) {
+                    row.style.display = (row.getAttribute('data-status') === statusFilter) ? '' : 'none';
+                });
+            }
+
+            // Filter Infra panel rows
+            var infraTable = document.getElementById('infraTable');
+            if (infraTable) {
+                infraTable.querySelectorAll('tbody tr[data-status]').forEach(function(row) {
+                    row.style.display = (row.getAttribute('data-status') === statusFilter) ? '' : 'none';
+                });
             }
         })();
 
