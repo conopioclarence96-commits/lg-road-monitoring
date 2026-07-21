@@ -3138,7 +3138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         var cimmDataMap = {};
         try {
             console.log('Initializing cimmDataMap...');
-            var cimmDataRaw = <?php echo json_encode(array_column($cimm_reports, null, 'id')); ?>;
+            var cimmDataRaw = JSON.parse('<?php echo addslashes(json_encode(array_column($cimm_reports, null, 'id'))); ?>');
             if (typeof cimmDataRaw === 'object' && cimmDataRaw !== null) {
                 cimmDataMap = cimmDataRaw;
             }
