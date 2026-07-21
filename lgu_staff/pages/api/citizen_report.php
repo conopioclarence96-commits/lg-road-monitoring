@@ -164,7 +164,8 @@ function handleSubmitReport() {
              reporter_email, attachments, image_path, created_by)
             VALUES (?, ?, 'transportation', 'local', ?, ?, ?, ?, ?, ?, ?, 'pending', CURDATE(), ?, ?, ?, 0)");
 
-        $location = $_POST['address'] ?? 'Pinned location';
+        $address = trim($_POST['address'] ?? '');
+        $location = $address ?: "Lat: {$latitude}, Lng: {$longitude}";
         $attachmentsJson = json_encode($attachments);
         $stmt->bind_param('ssssssssssss',
             $reportId,
