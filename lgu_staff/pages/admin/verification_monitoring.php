@@ -387,8 +387,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $lat = (float)($cimm_row['coord_lat'] ?? 0);
                         $lng = (float)($cimm_row['coord_lng'] ?? 0);
                         $ins = $conn->prepare("INSERT INTO road_transportation_reports 
-                            (report_id, title, report_type, department, priority, status, description, location, latitude, longitude, created_by, reporter_name, created_at, updated_at) 
-                            VALUES (?, ?, 'infrastructure_issue', 'engineering', ?, 'approved', ?, ?, ?, ?, -1, ?, NOW(), NOW())");
+                            (report_id, title, report_type, department, priority, status, description, location, latitude, longitude, created_by, reporter_name, created_date, created_at, updated_at) 
+                            VALUES (?, ?, 'infrastructure_issue', 'engineering', ?, 'approved', ?, ?, ?, ?, -1, ?, CURDATE(), NOW(), NOW())");
                         $ins->bind_param('ssssssds',
                             $cimm_row['reference_code'],
                             $cimm_row['infrastructure'],
