@@ -540,8 +540,8 @@ $sql_reports = getSqlReports($conn);
 // Infrastructure-specific reports
 $infra_reports = getInfraReports($conn);
 
-// Citizen-submitted reports
-$citizen_reports = getCitizenReports($conn, $status_filter);
+// Citizen-submitted reports (pending/in-progress only — approved/rejected hidden)
+$citizen_reports = getCitizenReports($conn, 'pending');
 $citizen_count = $citizen_reports ? $citizen_reports->num_rows : 0;
 
 // Handle AJAX request for report details
