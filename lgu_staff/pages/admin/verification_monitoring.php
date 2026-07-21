@@ -428,6 +428,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// Handle CIMM report verification/rejection
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && in_array($_POST['action'], ['verify_cimm', 'reject_cimm']) && isset($_POST['cimm_req_id'])) {
+    $cimm_req_id = (int) $_POST['cimm_req_id'];
+    $action = $_POST['action'];
+    $pdo = rgmap_verification_pdo();
+
+    if ($action === 'verify_cimm') {
+        $ok = rgmap_update_verification_status($pdo, $cimm_req_id, 'Verified', null, $_SESSION['user_id'] ?? null);
+        if ($ok) {
+            $_SESSION['verification_message'] = 'CIMM report #' . $cimm_req_id . ' verified successfully.';
+        } else {
+            $_SESSION['verification_message'] = 'Failed to verify CIMM report #' . $cimm_req_id . '.';
+        }
+    } else {
+        $reason = trim($_POST['rejection_reason'] ?? '');
+        $ok = rgmap_update_verification_status($pdo, $cimm_req_id, 'Dismissed', $reason ?: 'Rejected by admin', $_SESSION['user_id'] ?? null);
+        if ($ok) {
+            $_SESSION['verification_message'] = 'CIMM report #' . $cimm_req_id . ' rejected successfully.';
+        } else {
+            $_SESSION['verification_message'] = 'Failed to reject CIMM report #' . $cimm_req_id . '.';
+        }
+    }
+
+    header('Location: ../admin/verification_monitoring.php');
+    exit();
+}
+
 // Show success message if set
 if (isset($_SESSION['verification_message'])) {
     $success_message = $_SESSION['verification_message'];
@@ -1706,6 +1733,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             color: #60a5fa;
         }
 
+        .dept-action-group {
+            display: inline-flex;
+            gap: 4px;
+            align-items: center;
+        }
+
+        .dept-verify-btn {
+            padding: 5px 10px;
+            background: rgba(34, 197, 94, 0.1);
+            color: #16a34a;
+            border: none;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .dept-verify-btn:hover {
+            background: rgba(34, 197, 94, 0.2);
+        }
+
+        body.dark-mode .dept-verify-btn {
+            background: rgba(34, 197, 94, 0.15);
+            color: #4ade80;
+        }
+
+        .dept-reject-btn {
+            padding: 5px 10px;
+            background: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+            border: none;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .dept-reject-btn:hover {
+            background: rgba(220, 53, 69, 0.2);
+        }
+
+        body.dark-mode .dept-reject-btn {
+            background: rgba(220, 53, 69, 0.15);
+            color: #f87171;
+        }
+
+        .dept-action-form {
+            display: inline;
+        }
+
         .dept-status-badge {
             display: inline-block;
             padding: 4px 10px;
@@ -2024,6 +2103,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         body.dark-mode .infra-action-btn {
             background: rgba(249, 115, 22, 0.15);
             color: #fb923c;
+        }
+
+        .infra-action-group {
+            display: inline-flex;
+            gap: 4px;
+            align-items: center;
+        }
+
+        .infra-verify-btn {
+            padding: 5px 10px;
+            background: rgba(34, 197, 94, 0.1);
+            color: #16a34a;
+            border: none;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .infra-verify-btn:hover {
+            background: rgba(34, 197, 94, 0.2);
+        }
+
+        body.dark-mode .infra-verify-btn {
+            background: rgba(34, 197, 94, 0.15);
+            color: #4ade80;
+        }
+
+        .infra-reject-btn {
+            padding: 5px 10px;
+            background: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+            border: none;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .infra-reject-btn:hover {
+            background: rgba(220, 53, 69, 0.2);
+        }
+
+        body.dark-mode .infra-reject-btn {
+            background: rgba(220, 53, 69, 0.15);
+            color: #f87171;
+        }
+
+        .infra-action-form {
+            display: inline;
         }
 
         .infra-status-badge {
@@ -2747,9 +2878,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         ?>
                         <tr>
                             <td>
-                                <button class="dept-action-btn" onclick="viewCimmReport(<?php echo $row['id']; ?>)">
-                                    <i class="fas fa-eye"></i>
-                                </button>
+                                <div class="dept-action-group">
+                                    <button class="dept-action-btn" onclick="viewCimmReport(<?php echo $row['id']; ?>)">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <?php if ($row['status'] === 'pending'): ?>
+                                    <form method="POST" class="dept-action-form" onsubmit="return confirm('Are you sure you want to verify this CIMM report?');">
+                                        <input type="hidden" name="cimm_req_id" value="<?php echo (int)$row['cimm_req_id']; ?>">
+                                        <button type="submit" name="action" value="verify_cimm" class="dept-verify-btn" title="Verify report">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                    </form>
+                                    <form method="POST" class="dept-action-form" onsubmit="return confirm('Are you sure you want to reject this CIMM report?');">
+                                        <input type="hidden" name="cimm_req_id" value="<?php echo (int)$row['cimm_req_id']; ?>">
+                                        <input type="hidden" name="rejection_reason" value="Rejected by admin">
+                                        <button type="submit" name="action" value="reject_cimm" class="dept-reject-btn" title="Reject report">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </form>
+                                    <?php endif; ?>
+                                </div>
                             </td>
                             <td><?php echo htmlspecialchars($row['rep_number']); ?></td>
                             <td><?php echo htmlspecialchars($row['infrastructure']); ?></td>
@@ -2877,9 +3025,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         ?>
                         <tr>
                             <td>
-                                <button class="infra-action-btn" onclick="viewInfraReport(<?php echo $irow['id']; ?>, '<?php echo htmlspecialchars($irow['source'], ENT_QUOTES); ?>')">
-                                    <i class="fas fa-eye"></i>
-                                </button>
+                                <div class="infra-action-group">
+                                    <button class="infra-action-btn" onclick="viewInfraReport(<?php echo $irow['id']; ?>, '<?php echo htmlspecialchars($irow['source'], ENT_QUOTES); ?>')">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <?php if ($irow['status'] === 'pending'): ?>
+                                    <form method="POST" class="infra-action-form" onsubmit="return confirm('Are you sure you want to verify this infrastructure report?');">
+                                        <input type="hidden" name="report_id" value="<?php echo (int)$irow['id']; ?>">
+                                        <input type="hidden" name="source" value="<?php echo htmlspecialchars($irow['source'], ENT_QUOTES); ?>">
+                                        <button type="submit" name="action" value="approve" class="infra-verify-btn" title="Verify report">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                    </form>
+                                    <form method="POST" class="infra-action-form" onsubmit="return confirm('Are you sure you want to reject this infrastructure report?');">
+                                        <input type="hidden" name="report_id" value="<?php echo (int)$irow['id']; ?>">
+                                        <input type="hidden" name="source" value="<?php echo htmlspecialchars($irow['source'], ENT_QUOTES); ?>">
+                                        <button type="submit" name="action" value="reject" class="infra-reject-btn" title="Reject report">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </form>
+                                    <?php endif; ?>
+                                </div>
                             </td>
                             <td><?php echo htmlspecialchars($irow['report_id']); ?></td>
                             <td><?php echo htmlspecialchars(strlen($irow['title'] ?? '') > 35 ? substr($irow['title'], 0, 35) . '...' : ($irow['title'] ?? '')); ?></td>
