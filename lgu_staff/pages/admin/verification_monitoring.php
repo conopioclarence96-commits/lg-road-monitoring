@@ -2134,7 +2134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         </button>
                         <button class="cimm-tab <?php echo $cimm_filter === 'dept' ? 'active' : ''; ?>" onclick="filterCimmReports('dept')">
                             <i class="fas fa-building"></i>
-                            Dept. Reports
+                            Infra Reports
                             <span class="cimm-tab-badge"><?php echo $cimm_counts['dept']; ?></span>
                         </button>
                     </div>
@@ -2436,7 +2436,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             </div>
         </div>
 
-        <!-- Dept Reports Panel -->
+        <!-- Infra Reports Panel -->
         <div class="dept-reports-panel">
             <div class="dept-reports-header">
                 <div class="dept-reports-header-left">
@@ -2445,10 +2445,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     </div>
                     <div>
                         <div class="dept-reports-title-group">
-                            <h2 class="dept-reports-title">CIMM Reports</h2>
+                            <h2 class="dept-reports-title">Infra Reports</h2>
                             <span class="dept-reports-badge in-progress"><?php echo count($cimm_reports) + ($sql_reports ? $sql_reports->num_rows : 0); ?> Reports</span>
                         </div>
-                        <p class="dept-reports-subtitle">Department-submitted infrastructure reports from CIMM</p>
+                        <p class="dept-reports-subtitle">Infrastructure reports submitted via CIMM</p>
                     </div>
                 </div>
             </div>
