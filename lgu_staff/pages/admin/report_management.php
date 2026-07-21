@@ -132,6 +132,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         case 'accept_department_report':
             handle_accept_department_report();
             break;
+        case 'update_cimm_report':
+            handle_update_cimm_report();
+            break;
+        case 'delete_cimm_report':
+            handle_delete_cimm_report();
+            break;
     }
 }
 
@@ -359,6 +365,120 @@ function handle_delete_report() {
         log_audit_action($user_id, "Archived {$report_type} report", "Report ID: {$report_id}, Title: {$report_title}");
     } else {
         set_flash_message('error', 'Failed to archive report: ' . $conn->error);
+    }
+}
+
+function handle_update_cimm_report() {
+    global $conn, $user_id;
+
+    $report_id = intval($_POST['report_id'] ?? 0);
+    $status = sanitize_input($_POST['status'] ?? '');
+    $priority = sanitize_input($_POST['priority'] ?? '');
+    $notes = sanitize_input($_POST['notes'] ?? '');
+    $assigned_to = sanitize_input($_POST['assigned_to'] ?? '');
+    $estimation = floatval($_POST['estimation'] ?? 0);
+
+    if ($report_id <= 0) {
+        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => 'Invalid report ID']);
+            exit;
+        }
+        set_flash_message('error', 'Invalid report ID');
+        return;
+    }
+
+    $statusMap = [
+        'pending'     => 'Pending Review',
+        'in-progress' => 'Flagged',
+        'completed'   => 'Verified',
+        'cancelled'   => 'Dismissed',
+    ];
+    $verification_status = $statusMap[$status] ?? 'Pending Review';
+
+    $update_fields = "verification_status = ?, verification_note = ?, verified_by = ?";
+    $params = [$verification_status, $notes, $user_id];
+    $types = "ssi";
+
+    if (!empty($assigned_to)) {
+        $update_fields .= ", cprf_facility_name = ?";
+        $params[] = $assigned_to;
+        $types .= "s";
+    }
+
+    $update_fields .= ", priority = ?";
+    $params[] = $priority;
+    $types .= "s";
+
+    if ($estimation > 0) {
+        $update_fields .= ", budget = ?";
+        $params[] = $estimation;
+        $types .= "d";
+    }
+
+    $params[] = $report_id;
+    $types .= "i";
+
+    $query = "UPDATE cimm_verification_reports SET {$update_fields} WHERE id = ?";
+    $stmt = $conn->prepare($query);
+    $stmt->bind_param($types, ...$params);
+
+    if ($stmt->execute()) {
+        log_audit_action($user_id, "Updated CIMM report", "Report ID: {$report_id}, Status: {$verification_status}");
+
+        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true, 'message' => 'CIMM report updated successfully']);
+            exit;
+        }
+        set_flash_message('success', 'CIMM report updated successfully');
+    } else {
+        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => 'Failed to update CIMM report: ' . $conn->error]);
+            exit;
+        }
+        set_flash_message('error', 'Failed to update CIMM report: ' . $conn->error);
+    }
+}
+
+function handle_delete_cimm_report() {
+    global $conn, $user_id;
+
+    $report_id = intval($_POST['report_id'] ?? 0);
+
+    if ($report_id <= 0) {
+        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => 'Invalid report ID']);
+            exit;
+        }
+        set_flash_message('error', 'Invalid report ID');
+        return;
+    }
+
+    $info = fetch_one("SELECT reference_code, infrastructure FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
+
+    $stmt = $conn->prepare("DELETE FROM cimm_verification_reports WHERE id = ?");
+    $stmt->bind_param("i", $report_id);
+
+    if ($stmt->execute()) {
+        $label = $info ? ($info['reference_code'] ?? $info['infrastructure'] ?? 'Unknown') : 'Unknown';
+        log_audit_action($user_id, "Deleted CIMM report", "Report ID: {$report_id}, Label: {$label}");
+
+        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true, 'message' => 'CIMM report deleted successfully']);
+            exit;
+        }
+        set_flash_message('success', 'CIMM report deleted successfully');
+    } else {
+        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => 'Failed to delete CIMM report: ' . $conn->error]);
+            exit;
+        }
+        set_flash_message('error', 'Failed to delete CIMM report: ' . $conn->error);
     }
 }
 
@@ -2013,6 +2133,7 @@ foreach ($reports as $report) {
                 <table class="rm-table" id="cimmTable" style="--thead-bg: linear-gradient(135deg, #f97316, #ea580c);">
                     <thead>
                         <tr>
+                            <th style="background: linear-gradient(135deg, #f97316, #ea580c);">Action</th>
                             <th style="background: linear-gradient(135deg, #f97316, #ea580c);">Rep #</th>
                             <th style="background: linear-gradient(135deg, #f97316, #ea580c);">Infrastructure</th>
                             <th style="background: linear-gradient(135deg, #f97316, #ea580c);">Location</th>
@@ -2031,7 +2152,20 @@ foreach ($reports as $report) {
                             foreach ($cimm_reports_list as $row):
                                 $hasCimm = true;
                         ?>
-                        <tr style="cursor:pointer" onclick="viewCimmReport(<?php echo $cimmIdx; ?>)">
+                        <tr>
+                            <td>
+                                <div class="rm-action-group">
+                                    <button class="rm-action-btn" onclick="viewCimmReport(<?php echo $cimmIdx; ?>)">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <button class="rm-edit-btn" onclick="editCimmReport(<?php echo $cimmIdx; ?>)">
+                                        <i class="fas fa-pencil"></i>
+                                    </button>
+                                    <button class="rm-delete-btn" onclick="deleteCimmReport(<?php echo $cimmIdx; ?>)">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
                             <td><?php echo htmlspecialchars($row['report_id'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars($row['title'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars($row['location'] ?? '—'); ?></td>
@@ -2049,7 +2183,7 @@ foreach ($reports as $report) {
 
                         <?php if (!$hasCimm): ?>
                         <tr>
-                            <td colspan="8">
+                            <td colspan="9">
                                 <div class="rm-empty-state">
                                     <div class="rm-empty-icon" style="background: rgba(249, 115, 22, 0.12);">
                                         <i class="fas fa-building" style="color: #f97316;"></i>
@@ -2303,6 +2437,88 @@ foreach ($reports as $report) {
                     <div style="display: flex; gap: 10px;">
                         <button type="button" class="btn-secondary-custom" onclick="closeModal('editReportModal')">Cancel</button>
                         <button type="submit" class="btn-primary-custom" id="updateSubmitBtn">
+                            <i class="fas fa-save"></i> Save Changes
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- CIMM Edit Report Modal -->
+    <div id="editCimmModal" class="modal">
+        <div class="modal-content" style="max-width: 650px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #f97316, #ea580c); color: white;">
+                <h5 class="modal-title"><i class="fas fa-edit"></i> Edit CIMM Report</h5>
+                <button class="close" onclick="closeModal('editCimmModal')" style="color: white;">&times;</button>
+            </div>
+            <form method="POST" id="editCimmForm">
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
+                    <input type="hidden" name="action" value="update_cimm_report">
+                    <input type="hidden" name="report_id" id="editCimmReportId">
+
+                    <div class="form-section">
+                        <h6><i class="fas fa-info-circle"></i> CIMM Report Details</h6>
+                        <div class="form-group">
+                            <label class="form-label">Report #</label>
+                            <input type="text" class="form-control" id="editCimmRepNumber" readonly style="background: #f3f4f6;">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Infrastructure</label>
+                            <input type="text" class="form-control" id="editCimmInfrastructure" readonly style="background: #f3f4f6;">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Location</label>
+                            <input type="text" class="form-control" id="editCimmLocation" readonly style="background: #f3f4f6;">
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h6><i class="fas fa-tasks"></i> Editable Fields</h6>
+                        <div style="display: flex; gap: 15px;">
+                            <div class="form-group" style="flex: 1;">
+                                <label class="form-label">Status *</label>
+                                <select class="form-control" name="status" id="editCimmStatus" required>
+                                    <option value="pending">Pending Review</option>
+                                    <option value="in-progress">Flagged</option>
+                                    <option value="completed">Verified</option>
+                                    <option value="cancelled">Dismissed</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="flex: 1;">
+                                <label class="form-label">Priority *</label>
+                                <select class="form-control" name="priority" id="editCimmPriority" required>
+                                    <option value="low">Low</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="high">High</option>
+                                    <option value="critical">Critical</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Engineer / Facility</label>
+                            <input type="text" class="form-control" name="assigned_to" id="editCimmAssignedTo" placeholder="Assigned engineer or facility">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Budget (₱)</label>
+                            <input type="number" class="form-control" name="estimation" id="editCimmEstimation" step="0.01" min="0" placeholder="0.00">
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h6><i class="fas fa-sticky-note"></i> Notes</h6>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Verification Notes</label>
+                            <textarea class="form-control" name="notes" id="editCimmNotes" rows="3" placeholder="Add verification notes or comments..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer" style="justify-content: space-between;">
+                    <span id="cimmEditIndicator" style="font-size: 12px; color: #666;"></span>
+                    <div style="display: flex; gap: 10px;">
+                        <button type="button" class="btn-secondary-custom" onclick="closeModal('editCimmModal')">Cancel</button>
+                        <button type="submit" class="btn-primary-custom" id="cimmEditSubmitBtn">
                             <i class="fas fa-save"></i> Save Changes
                         </button>
                     </div>
@@ -3118,6 +3334,81 @@ foreach ($reports as $report) {
             document.querySelector('#viewReportModal .modal-title').textContent = 'CIMM Report Details';
             openModal('viewReportModal');
         }
+
+        // CIMM edit
+        function editCimmReport(idx) {
+            var r = cimmData[idx];
+            if (!r) return;
+            document.getElementById('editCimmReportId').value = r.id;
+            document.getElementById('editCimmRepNumber').value = r.report_id || '';
+            document.getElementById('editCimmInfrastructure').value = r.title || '';
+            document.getElementById('editCimmLocation').value = r.location || '';
+            document.getElementById('editCimmStatus').value = r.status || 'pending';
+            document.getElementById('editCimmPriority').value = r.priority || 'medium';
+            document.getElementById('editCimmAssignedTo').value = r.assigned_to || '';
+            document.getElementById('editCimmEstimation').value = r.estimation || '';
+            document.getElementById('editCimmNotes').value = r.notes || '';
+            document.getElementById('cimmEditIndicator').textContent = '';
+            document.getElementById('cimmEditSubmitBtn').disabled = false;
+            document.getElementById('cimmEditSubmitBtn').innerHTML = '<i class="fas fa-save"></i> Save Changes';
+            openModal('editCimmModal');
+        }
+
+        // CIMM delete
+        function deleteCimmReport(idx) {
+            var r = cimmData[idx];
+            if (!r) return;
+            if (!confirm('Are you sure you want to delete CIMM report "' + (r.report_id || '') + '"? This cannot be undone.')) return;
+
+            var form = document.createElement('form');
+            form.method = 'POST';
+            form.innerHTML =
+                '<input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">' +
+                '<input type="hidden" name="action" value="delete_cimm_report">' +
+                '<input type="hidden" name="report_id" value="' + r.id + '">';
+            document.body.appendChild(form);
+            form.submit();
+        }
+
+        // CIMM edit form submission
+        document.getElementById('editCimmForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            var formData = new FormData(this);
+            var submitBtn = document.getElementById('cimmEditSubmitBtn');
+            var indicator = document.getElementById('cimmEditIndicator');
+            var originalHTML = submitBtn.innerHTML;
+
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+            submitBtn.disabled = true;
+            indicator.textContent = 'Saving changes...';
+
+            fetch('', {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: formData
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                submitBtn.innerHTML = originalHTML;
+                submitBtn.disabled = false;
+                if (data.success) {
+                    showNotification(data.message || 'CIMM report updated successfully', 'success');
+                    closeModal('editCimmModal');
+                    indicator.textContent = '';
+                    setTimeout(function() { location.reload(); }, 800);
+                } else {
+                    showNotification(data.message || 'Failed to update CIMM report', 'error');
+                    indicator.textContent = 'Failed to save changes';
+                }
+            })
+            .catch(function(err) {
+                console.error('Error:', err);
+                showNotification('Error updating CIMM report', 'error');
+                submitBtn.innerHTML = originalHTML;
+                submitBtn.disabled = false;
+                indicator.textContent = 'Error saving changes';
+            });
+        });
 
         // Source filter — toggle panel visibility
         function filterSource(source) {
