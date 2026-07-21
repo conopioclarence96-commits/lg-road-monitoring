@@ -1825,97 +1825,98 @@ if ($ct_result && $ct_result->num_rows > 0) {
                 <?php endif; ?>
             </div>
         </div>
-    </div>
 
-    <!-- Approved Citizen Transportation Reports Panel -->
-    <div class="citizen-panel" id="citizenTransportPanel">
-        <div class="citizen-header">
-            <div class="citizen-header-left">
-                <div class="citizen-icon" style="background:linear-gradient(135deg,#10b981,#059669);">
-                    <i class="fas fa-check-circle"></i>
-                </div>
-                <div>
-                    <div class="citizen-title-group">
-                        <h2 class="citizen-title">Approved Citizen Reports</h2>
-                        <span class="citizen-badge pending" style="background:rgba(16,185,129,0.15);color:#10b981;"><?php echo count($citizen_transport_reports); ?> Reports</span>
+        <!-- Approved Citizen Transportation Reports Panel -->
+        <div class="citizen-panel" id="citizenTransportPanel">
+            <div class="citizen-header">
+                <div class="citizen-header-left">
+                    <div class="citizen-icon" style="background:linear-gradient(135deg,#10b981,#059669);">
+                        <i class="fas fa-check-circle"></i>
                     </div>
-                    <p class="citizen-subtitle">Public-submitted transportation reports that have been approved</p>
-                </div>
-            </div>
-        </div>
-        <div class="citizen-search">
-            <div class="citizen-search-wrapper">
-                <i class="fas fa-search"></i>
-                <input type="text" class="citizen-search-input" id="citizenTransportSearchInput" placeholder="Search by Title, Location, Reporter...">
-            </div>
-        </div>
-        <div class="main-grid">
-            <div class="chart-container">
-                <div class="chart-header">
-                    <h3 class="chart-title">Approved Reports</h3>
-                    <span class="text-muted"><?php echo count($citizen_transport_reports); ?> reports found</span>
-                </div>
-                
-                <?php if (empty($citizen_transport_reports)): ?>
-                    <div style="text-align: center; padding: 40px; color: #666;">
-                        <i class="fas fa-check-circle" style="font-size: 48px; margin-bottom: 15px; opacity: 0.5;"></i>
-                        <p>No approved citizen transportation reports yet.</p>
-                    </div>
-                <?php else: ?>
-                    <?php foreach ($citizen_transport_reports as $ctr): ?>
-                        <div class="report-card priority-<?php echo $ctr['priority']; ?>" data-id="<?php echo $ctr['id']; ?>">
-                            <div class="report-header">
-                                <div>
-                                    <div class="report-title"><?php echo htmlspecialchars($ctr['title']); ?></div>
-                                    <div class="report-meta">
-                                        <?php if (!empty($ctr['report_id'])): ?>
-                                        <i class="fas fa-hashtag"></i> <?php echo htmlspecialchars($ctr['report_id']); ?> • 
-                                        <?php endif; ?>
-                                        <i class="fas fa-user"></i> <?php echo htmlspecialchars($ctr['reporter_name'] ?: $ctr['reporter_email'] ?: 'Citizen'); ?> • 
-                                        <i class="fas fa-tag"></i> <?php echo ucfirst($ctr['report_type']); ?> • 
-                                        <i class="fas fa-geo-alt"></i> <?php echo htmlspecialchars($ctr['location']); ?> • 
-                                        <i class="fas fa-flag"></i> Priority: <?php echo ucfirst($ctr['priority']); ?> • 
-                                        <i class="fas fa-clock"></i> <?php echo format_datetime($ctr['created_at']); ?>
-                                    </div>
-                                </div>
-                                <span class="status-badge status-approved">
-                                    Approved
-                                </span>
-                            </div>
-                            
-                            <div class="report-description">
-                                <?php echo htmlspecialchars($ctr['description']); ?>
-                            </div>
-                            
-                            <?php if (!empty($ctr['approved_at'])): ?>
-                            <div style="margin-bottom:10px;padding:8px 12px;background:rgba(16,185,129,0.1);border-radius:6px;border-left:3px solid #10b981;font-size:13px;color:#065f46;">
-                                <i class="fas fa-check-circle"></i> 
-                                <strong>Approved:</strong> <?php echo format_datetime($ctr['approved_at']); ?>
-                                <?php if (!empty($ctr['rejected_at'])): ?>
-                                &nbsp;•&nbsp; <strong>Rejected:</strong> <?php echo format_datetime($ctr['rejected_at']); ?>
-                                <?php endif; ?>
-                            </div>
-                            <?php endif; ?>
-                            
-                            <div class="report-actions">
-                                <button class="btn-action btn-view" onclick="viewReport(<?php echo $ctr['id']; ?>, '<?php echo $ctr['report_type']; ?>')">
-                                    <i class="fas fa-eye"></i> View
-                                </button>
-                                <button class="btn-action btn-edit" onclick="editReport(<?php echo $ctr['id']; ?>, '<?php echo $ctr['report_type']; ?>')">
-                                    <i class="fas fa-pencil"></i> Edit
-                                </button>
-                                <button class="btn-action btn-delete" onclick="deleteReport(<?php echo $ctr['id']; ?>, '<?php echo $ctr['report_type']; ?>')">
-                                    <i class="fas fa-trash"></i> Delete
-                                </button>
-                                <button class="btn-action btn-view" style="background:linear-gradient(135deg,#10b981,#059669);" onclick="viewReportUpdates(<?php echo $ctr['id']; ?>, '<?php echo $ctr['report_type']; ?>')">
-                                    <i class="fas fa-clock"></i> Updates
-                                </button>
-                            </div>
+                    <div>
+                        <div class="citizen-title-group">
+                            <h2 class="citizen-title">Approved Citizen Reports</h2>
+                            <span class="citizen-badge pending" style="background:rgba(16,185,129,0.15);color:#10b981;"><?php echo count($citizen_transport_reports); ?> Reports</span>
                         </div>
-                    <?php endforeach; ?>
-                <?php endif; ?>
+                        <p class="citizen-subtitle">Public-submitted transportation reports that have been approved</p>
+                    </div>
+                </div>
+            </div>
+            <div class="citizen-search">
+                <div class="citizen-search-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" class="citizen-search-input" id="citizenTransportSearchInput" placeholder="Search by Title, Location, Reporter...">
+                </div>
+            </div>
+            <div class="main-grid">
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Approved Reports</h3>
+                        <span class="text-muted"><?php echo count($citizen_transport_reports); ?> reports found</span>
+                    </div>
+                    
+                    <?php if (empty($citizen_transport_reports)): ?>
+                        <div style="text-align: center; padding: 40px; color: #666;">
+                            <i class="fas fa-check-circle" style="font-size: 48px; margin-bottom: 15px; opacity: 0.5;"></i>
+                            <p>No approved citizen transportation reports yet.</p>
+                        </div>
+                    <?php else: ?>
+                        <?php foreach ($citizen_transport_reports as $ctr): ?>
+                            <div class="report-card priority-<?php echo $ctr['priority']; ?>" data-id="<?php echo $ctr['id']; ?>">
+                                <div class="report-header">
+                                    <div>
+                                        <div class="report-title"><?php echo htmlspecialchars($ctr['title']); ?></div>
+                                        <div class="report-meta">
+                                            <?php if (!empty($ctr['report_id'])): ?>
+                                            <i class="fas fa-hashtag"></i> <?php echo htmlspecialchars($ctr['report_id']); ?> • 
+                                            <?php endif; ?>
+                                            <i class="fas fa-user"></i> <?php echo htmlspecialchars($ctr['reporter_name'] ?: $ctr['reporter_email'] ?: 'Citizen'); ?> • 
+                                            <i class="fas fa-tag"></i> <?php echo ucfirst($ctr['report_type']); ?> • 
+                                            <i class="fas fa-geo-alt"></i> <?php echo htmlspecialchars($ctr['location']); ?> • 
+                                            <i class="fas fa-flag"></i> Priority: <?php echo ucfirst($ctr['priority']); ?> • 
+                                            <i class="fas fa-clock"></i> <?php echo format_datetime($ctr['created_at']); ?>
+                                        </div>
+                                    </div>
+                                    <span class="status-badge status-approved">
+                                        Approved
+                                    </span>
+                                </div>
+                                
+                                <div class="report-description">
+                                    <?php echo htmlspecialchars($ctr['description']); ?>
+                                </div>
+                                
+                                <?php if (!empty($ctr['approved_at'])): ?>
+                                <div style="margin-bottom:10px;padding:8px 12px;background:rgba(16,185,129,0.1);border-radius:6px;border-left:3px solid #10b981;font-size:13px;color:#065f46;">
+                                    <i class="fas fa-check-circle"></i> 
+                                    <strong>Approved:</strong> <?php echo format_datetime($ctr['approved_at']); ?>
+                                    <?php if (!empty($ctr['rejected_at'])): ?>
+                                    &nbsp;•&nbsp; <strong>Rejected:</strong> <?php echo format_datetime($ctr['rejected_at']); ?>
+                                    <?php endif; ?>
+                                </div>
+                                <?php endif; ?>
+                                
+                                <div class="report-actions">
+                                    <button class="btn-action btn-view" onclick="viewReport(<?php echo $ctr['id']; ?>, '<?php echo $ctr['report_type']; ?>')">
+                                        <i class="fas fa-eye"></i> View
+                                    </button>
+                                    <button class="btn-action btn-edit" onclick="editReport(<?php echo $ctr['id']; ?>, '<?php echo $ctr['report_type']; ?>')">
+                                        <i class="fas fa-pencil"></i> Edit
+                                    </button>
+                                    <button class="btn-action btn-delete" onclick="deleteReport(<?php echo $ctr['id']; ?>, '<?php echo $ctr['report_type']; ?>')">
+                                        <i class="fas fa-trash"></i> Delete
+                                    </button>
+                                    <button class="btn-action btn-view" style="background:linear-gradient(135deg,#10b981,#059669);" onclick="viewReportUpdates(<?php echo $ctr['id']; ?>, '<?php echo $ctr['report_type']; ?>')">
+                                        <i class="fas fa-clock"></i> Updates
+                                    </button>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
+
     </div>
 
     <!-- Received Reports Modal -->
