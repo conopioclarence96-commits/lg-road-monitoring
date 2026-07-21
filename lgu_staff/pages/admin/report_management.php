@@ -1839,7 +1839,7 @@ if ($cimm_result && $cimm_result->num_rows > 0) {
                                 <i class="fas fa-user-hard-hat"></i> 
                                 <strong>Assigned to:</strong> <?php echo htmlspecialchars($report['assigned_to']); ?>
                             </div>
-                            <?php endif; ?>s
+                            <?php endif; ?>
                             
                             <div class="report-actions">
                                 <button class="btn-action btn-view" onclick="viewReport(<?php echo $report['id']; ?>, '<?php echo $report['report_type']; ?>')">
