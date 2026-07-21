@@ -540,17 +540,9 @@ $sql_reports = getSqlReports($conn);
 // Infrastructure-specific reports
 $infra_reports = getInfraReports($conn);
 
-// Citizen-submitted reports — hide approved/rejected from verification panel
-$citizen_reports_all = getCitizenReports($conn, 'all');
-$citizen_reports = [];
-if ($citizen_reports_all && $citizen_reports_all->num_rows > 0) {
-    while ($cr = $citizen_reports_all->fetch_assoc()) {
-        if (!in_array($cr['status'], ['approved', 'completed', 'cancelled'])) {
-            $citizen_reports[] = $cr;
-        }
-    }
-}
-$citizen_count = count($citizen_reports);
+// Citizen-submitted reports
+$citizen_reports = getCitizenReports($conn, $status_filter);
+$citizen_count = $citizen_reports ? $citizen_reports->num_rows : 0;
 
 // Handle AJAX request for report details
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'get_report_details') {
@@ -3532,8 +3524,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <tbody>
                         <?php
                         $hasCitizenReports = false;
-                        if (!empty($citizen_reports)):
-                            foreach ($citizen_reports as $crow):
+                        if ($citizen_reports && $citizen_reports->num_rows > 0):
+                            $citizen_reports->data_seek(0);
+                            while ($crow = $citizen_reports->fetch_assoc()):
                                 $hasCitizenReports = true;
                                 $cstatus_class = '';
                                 if ($crow['status'] === 'approved') $cstatus_class = 'approved';
@@ -4038,8 +4031,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         // Citizen Reports data map (populated from PHP)
         var citizenDataMap = {};
         <?php
-        if (!empty($citizen_reports)):
-            foreach ($citizen_reports as $cr):
+        if ($citizen_reports && $citizen_reports->num_rows > 0):
+            $citizen_reports->data_seek(0);
+            while ($cr = $citizen_reports->fetch_assoc()):
         ?>
         citizenDataMap[<?php echo (int)$cr['id']; ?>] = {
             id: <?php echo (int)$cr['id']; ?>,
