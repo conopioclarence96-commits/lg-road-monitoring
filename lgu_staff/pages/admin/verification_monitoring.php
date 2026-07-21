@@ -180,6 +180,13 @@ function getAllReports($conn, $status_filter = 'all', $source_filter = 'all') {
             $maintenance_where = " WHERE status IN ('cancelled')";
         }
     }
+    // Exclude citizen-submitted reports (created_by = 0) from main workflow list
+    // Citizen reports have their own dedicated panel.
+    if ($transport_where === '') {
+        $transport_where = " WHERE (created_by IS NULL OR created_by != 0)";
+    } else {
+        $transport_where .= " AND (created_by IS NULL OR created_by != 0)";
+    }
     if ($source_filter === 'transport') {
         $q = "(SELECT 'transport' as source, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$transport_where})";
         $parts[] = $q;
