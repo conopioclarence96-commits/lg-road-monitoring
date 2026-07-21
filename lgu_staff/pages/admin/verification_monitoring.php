@@ -3033,6 +3033,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 
     <script>
+        console.log('Script started executing');
         // Filter functionality
         function filterReports() {
             const status = document.getElementById('statusFilter').value;
@@ -3134,12 +3135,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         // CIMM & SQL report data maps (populated from PHP)
-        var cimmDataMap = <?php echo json_encode(array_column($cimm_reports, null, 'id')); ?>;
+        var cimmDataMap = {};
+        <?php
+        if (is_array($cimm_reports) && !empty($cimm_reports)):
+        ?>
+        try {
+            var cimmDataRaw = <?php echo json_encode(array_column($cimm_reports, null, 'id')); ?>;
+            if (typeof cimmDataRaw === 'object' && cimmDataRaw !== null) {
+                cimmDataMap = cimmDataRaw;
+            }
+        } catch(e) {
+            console.error('Error initializing cimmDataMap:', e);
+            cimmDataMap = {};
+        }
+        <?php
+        endif;
+        ?>
         var sqlDataMap = {};
         <?php
-        $sql_reports->data_seek(0);
-        if ($sql_reports && $sql_reports->num_rows > 0):
-            while ($sr = $sql_reports->fetch_assoc()):
+        if ($sql_reports && method_exists($sql_reports, 'data_seek')):
+            $sql_reports->data_seek(0);
+            if ($sql_reports->num_rows > 0):
+                while ($sr = $sql_reports->fetch_assoc()):
         ?>
         sqlDataMap[<?php echo (int)$sr['rep_id']; ?>] = {
             rep_id: <?php echo (int)$sr['rep_id']; ?>,
@@ -3158,7 +3175,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             reporter_name: <?php echo json_encode($sr['reporter_name'] ?? 'User #' . $sr['report_by']); ?>
         };
         <?php
-            endwhile;
+                endwhile;
+            endif;
         endif;
         ?>
 
@@ -3218,6 +3236,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         // View CIMM report details
         function viewCimmReport(id) {
+            console.log('viewCimmReport called with id:', id);
             var r = cimmDataMap[id];
             if (!r) { alert('Report data not found.'); return; }
 
@@ -3317,7 +3336,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         // Infra Reports data map (populated from PHP)
         var infraDataMap = {};
         <?php
-        if ($infra_reports && $infra_reports->num_rows > 0):
+        if ($infra_reports && method_exists($infra_reports, 'data_seek') && $infra_reports->num_rows > 0):
             $infra_reports->data_seek(0);
             while ($ir = $infra_reports->fetch_assoc()):
         ?>
@@ -3427,6 +3446,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 }
             });
         }
+
+        console.log('Script finished executing, viewCimmReport is', typeof viewCimmReport);
 
     </script>
     
