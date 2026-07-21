@@ -2,6 +2,7 @@
 require_once '../../includes/session_config.php';
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
+require_once __DIR__ . '/../../pages/api/cimm_verification_data.php';
 
 // Session timeout configuration
 $session_timeout = 5 * 60; // 5 minutes in seconds
@@ -435,6 +436,58 @@ function handle_accept_department_report() {
     }
 }
 
+// Map a CIMM verification report row into the flat report format used by report_management
+function mapCimmToReportManagement(array $row): array {
+    $verification = $row['verification_status'] ?? 'Pending Review';
+    $statusMap = [
+        'Pending Review' => 'pending',
+        'Flagged'        => 'in-progress',
+        'Verified'       => 'completed',
+        'Dismissed'      => 'cancelled',
+    ];
+
+    return [
+        'id'            => $row['cimm_req_id'] ?? $row['id'] ?? 0,
+        'report_id'     => $row['reference_code'] ?? ('REQ-' . ($row['cimm_req_id'] ?? '')),
+        'title'         => $row['infrastructure'] ?? 'CIMM Report',
+        'description'   => $row['issue'] ?? '',
+        'location'      => $row['location'] ?? '',
+        'latitude'      => $row['coord_lat'] ?? null,
+        'longitude'     => $row['coord_lng'] ?? null,
+        'priority'      => strtolower((string)($row['priority'] ?? 'medium')),
+        'status'        => $statusMap[$verification] ?? 'pending',
+        'assigned_to'   => $row['cprf_facility_name'] ?? null,
+        'estimation'    => $row['budget'] ?? 0,
+        'notes'         => $row['issue'] ?? '',
+        'department'    => 'cimm',
+        'created_date'  => $row['starting_date'] ?? date('Y-m-d'),
+        'created_at'    => $row['submitted_at'] ?? $row['created_at'] ?? date('Y-m-d H:i:s'),
+        'updated_at'    => $row['verified_at'] ?? $row['synced_at'] ?? null,
+        'attachments'   => null,
+        'image_path'    => null,
+        'report_type'   => 'infrastructure_issue',
+        'source_system' => 'cimm',
+    ];
+}
+
+// Get CIMM reports for report management display
+function getCimmReportsForManagement($status_filter = 'all') {
+    $pdo = rgmap_verification_pdo();
+
+    $opts = ['limit' => 500];
+    $rows = rgmap_fetch_cimm_verification_reports($pdo, $opts);
+
+    $mapped = array_map('mapCimmToReportManagement', $rows);
+
+    if ($status_filter !== 'all') {
+        $mapped = array_values(array_filter($mapped, function ($r) use ($status_filter) {
+            return $r['status'] === $status_filter;
+        }));
+    }
+
+    return $mapped;
+}
+
 // Get reports for display
 function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50, $offset = 0) {
     global $conn;
@@ -482,21 +535,21 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
         $params[] = $status_filter;
     }
     
-    if ($source_filter !== 'all') {
-        if ($source_filter === 'transport') {
-            $transport_query .= " WHERE " . implode(' AND ', $where_conditions);
-            $maintenance_query = "SELECT NULL FROM road_maintenance_reports WHERE 1=0";
-        } elseif ($source_filter === 'maintenance') {
-            $transport_query = "SELECT NULL FROM road_transportation_reports WHERE 1=0";
-            $maintenance_query .= " WHERE " . implode(' AND ', $where_conditions);
-        } elseif ($source_filter === 'cimm') {
-            $transport_query = "SELECT NULL FROM road_transportation_reports WHERE 1=0";
-            $maintenance_query = "SELECT NULL FROM road_maintenance_reports WHERE 1=0";
-        }
+    $include_cimm = ($source_filter === 'all' || $source_filter === 'cimm');
+    $include_transport = ($source_filter === 'all' || $source_filter === 'transport');
+    $include_maintenance = ($source_filter === 'all' || $source_filter === 'maintenance');
+    
+    if (!$include_transport) {
+        $transport_query = "SELECT NULL FROM road_transportation_reports WHERE 1=0";
     } elseif (!empty($where_conditions)) {
         $transport_query .= " WHERE " . implode(' AND ', $where_conditions);
-        $maintenance_query .= " WHERE " . implode(' AND ', $where_conditions);
         $transport_params = $params;
+    }
+    
+    if (!$include_maintenance) {
+        $maintenance_query = "SELECT NULL FROM road_maintenance_reports WHERE 1=0";
+    } elseif (!empty($where_conditions)) {
+        $maintenance_query .= " WHERE " . implode(' AND ', $where_conditions);
         $maintenance_params = $params;
     }
     
@@ -509,18 +562,31 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
         $stmt->bind_param(str_repeat('s', count($transport_params)), ...$transport_params);
         $stmt->execute();
         $transport_reports = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        
+    } elseif ($include_transport) {
+        $transport_reports = fetch_all($transport_query);
+    } else {
+        $transport_reports = [];
+    }
+    
+    if (!empty($maintenance_params)) {
         $stmt = $conn->prepare($maintenance_query);
         $stmt->bind_param(str_repeat('s', count($maintenance_params)), ...$maintenance_params);
         $stmt->execute();
         $maintenance_reports = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-    } else {
-        $transport_reports = fetch_all($transport_query);
+    } elseif ($include_maintenance) {
         $maintenance_reports = fetch_all($maintenance_query);
+    } else {
+        $maintenance_reports = [];
+    }
+    
+    // Get CIMM reports if needed
+    $cimm_reports = [];
+    if ($include_cimm) {
+        $cimm_reports = getCimmReportsForManagement($status_filter);
     }
     
     // Combine and sort
-    $all_reports = array_merge($transport_reports ?: [], $maintenance_reports ?: []);
+    $all_reports = array_merge($transport_reports ?: [], $maintenance_reports ?: [], $cimm_reports ?: []);
     usort($all_reports, function($a, $b) {
         return strtotime($b['created_at']) - strtotime($a['created_at']);
     });
@@ -572,6 +638,20 @@ function get_report_stats() {
         $stats['in_progress_reports'] += $maintenance_stats['in_progress'];
         $stats['completed_reports'] += $maintenance_stats['completed'];
         $stats['high_priority_reports'] += $maintenance_stats['high_priority_count'];
+    }
+    
+    // CIMM stats
+    try {
+        $cimm_all = getCimmReportsForManagement();
+        $stats['total_reports'] += count($cimm_all);
+        foreach ($cimm_all as $cimm_report) {
+            if ($cimm_report['status'] === 'pending') $stats['pending_reports']++;
+            elseif ($cimm_report['status'] === 'in-progress') $stats['in_progress_reports']++;
+            elseif ($cimm_report['status'] === 'completed') $stats['completed_reports']++;
+            if (($cimm_report['priority'] ?? '') === 'high') $stats['high_priority_reports']++;
+        }
+    } catch (Exception $e) {
+        error_log("CIMM stats fetch failed: " . $e->getMessage());
     }
     
     return $stats;
@@ -901,6 +981,33 @@ if (!empty($reports)) {
         .status-completed {
             background: rgba(40, 167, 69, 0.2);
             color: #155724;
+        }
+
+        .source-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .source-badge.source-transport {
+            background: rgba(55, 98, 200, 0.12);
+            color: #3762c8;
+        }
+
+        .source-badge.source-maintenance {
+            background: rgba(23, 162, 184, 0.12);
+            color: #17a2b8;
+        }
+
+        .source-badge.source-cimm {
+            background: rgba(249, 115, 22, 0.12);
+            color: #f97316;
         }
 
         .filters-section {
@@ -1284,6 +1391,18 @@ if (!empty($reports)) {
         body.dark-mode .stat-label {
             color: #9ca3af;
         }
+        body.dark-mode .source-badge.source-transport {
+            background: rgba(96, 165, 250, 0.15);
+            color: #60a5fa;
+        }
+        body.dark-mode .source-badge.source-maintenance {
+            background: rgba(45, 212, 191, 0.15);
+            color: #2dd4bf;
+        }
+        body.dark-mode .source-badge.source-cimm {
+            background: rgba(251, 146, 60, 0.15);
+            color: #fb923c;
+        }
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
@@ -1423,9 +1542,21 @@ if (!empty($reports)) {
                                         <i class="fas fa-clock"></i> <?php echo format_datetime($report['created_at']); ?>
                                     </div>
                                 </div>
-                                <span class="status-badge status-<?php echo str_replace('_', '-', $report['status']); ?>">
-                                    <?php echo ucwords(str_replace('-', ' ', str_replace('_', ' ', $report['status']))); ?>
-                                </span>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span class="source-badge source-<?php echo htmlspecialchars($report['source_system']); ?>">
+                                        <?php
+                                        $source_labels = [
+                                            'transport'    => '<i class="fas fa-users"></i> Citizen',
+                                            'maintenance'  => '<i class="fas fa-hard-hat"></i> Infrastructure',
+                                            'cimm'         => '<i class="fas fa-building"></i> CIMM',
+                                        ];
+                                        echo $source_labels[$report['source_system']] ?? ucfirst($report['source_system']);
+                                        ?>
+                                    </span>
+                                    <span class="status-badge status-<?php echo str_replace('_', '-', $report['status']); ?>">
+                                        <?php echo ucwords(str_replace('-', ' ', str_replace('_', ' ', $report['status']))); ?>
+                                    </span>
+                                </div>
                             </div>
                             
                             <div class="report-description">
@@ -1440,18 +1571,24 @@ if (!empty($reports)) {
                             <?php endif; ?>
                             
                             <div class="report-actions">
-                                <button class="btn-action btn-view" onclick="viewReport(<?php echo $report['id']; ?>, '<?php echo $report['report_type']; ?>')">
-                                    <i class="fas fa-eye"></i> View
-                                </button>
-                                <button class="btn-action btn-edit" onclick="editReport(<?php echo $report['id']; ?>, '<?php echo $report['report_type']; ?>')">
-                                    <i class="fas fa-pencil"></i> Edit
-                                </button>
-                                <button class="btn-action btn-delete" onclick="deleteReport(<?php echo $report['id']; ?>, '<?php echo $report['report_type']; ?>')">
-                                    <i class="fas fa-trash"></i> Delete
-                                </button>
-                                <button class="btn-action btn-view" style="background:linear-gradient(135deg,#10b981,#059669);" onclick="viewReportUpdates(<?php echo $report['id']; ?>, '<?php echo $report['report_type']; ?>')">
-                                    <i class="fas fa-clock"></i> Updates
-                                </button>
+                                <?php if ($report['source_system'] === 'cimm'): ?>
+                                    <span style="font-size: 11px; color: #6b7280; display: flex; align-items: center; gap: 5px;">
+                                        <i class="fas fa-external-link-alt"></i> CIMM External Report — managed via Verification Monitoring
+                                    </span>
+                                <?php else: ?>
+                                    <button class="btn-action btn-view" onclick="viewReport(<?php echo $report['id']; ?>, '<?php echo $report['report_type']; ?>')">
+                                        <i class="fas fa-eye"></i> View
+                                    </button>
+                                    <button class="btn-action btn-edit" onclick="editReport(<?php echo $report['id']; ?>, '<?php echo $report['report_type']; ?>')">
+                                        <i class="fas fa-pencil"></i> Edit
+                                    </button>
+                                    <button class="btn-action btn-delete" onclick="deleteReport(<?php echo $report['id']; ?>, '<?php echo $report['report_type']; ?>')">
+                                        <i class="fas fa-trash"></i> Delete
+                                    </button>
+                                    <button class="btn-action btn-view" style="background:linear-gradient(135deg,#10b981,#059669);" onclick="viewReportUpdates(<?php echo $report['id']; ?>, '<?php echo $report['report_type']; ?>')">
+                                        <i class="fas fa-clock"></i> Updates
+                                    </button>
+                                <?php endif; ?>
                             </div>
                         </div>
                     <?php endforeach; ?>
