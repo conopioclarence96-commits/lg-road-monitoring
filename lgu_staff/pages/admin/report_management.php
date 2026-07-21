@@ -599,27 +599,6 @@ if (!empty($reports)) {
     }
 }
 
-// Include CIMM verification data functions
-require_once __DIR__ . '/../api/cimm_verification_data.php';
-
-// Fetch CIMM Reports
-$cimm_reports = [];
-try {
-    $pdo = rgmap_verification_pdo();
-    $cimm_rows = rgmap_fetch_cimm_verification_reports($pdo, ['limit' => 200]);
-    foreach ($cimm_rows as $row) {
-        $status = 'pending';
-        $vs = $row['verification_status'] ?? 'Pending Review';
-        if ($vs === 'Verified') $status = 'completed';
-        elseif ($vs === 'Flagged') $status = 'in-progress';
-        elseif ($vs === 'Dismissed') $status = 'resolved';
-        $row['_display_status'] = $status;
-        $cimm_reports[] = $row;
-    }
-} catch (Exception $e) {
-    error_log('CIMM fetch error: ' . $e->getMessage());
-}
-
 // Ensure infrastructure_projects table exists
 $conn->query("CREATE TABLE IF NOT EXISTS infrastructure_projects (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -657,18 +636,11 @@ $conn->query("CREATE TABLE IF NOT EXISTS citizen_feedback (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
-// Fetch Infrastructure Projects
-$infra_projects = [];
-$infra_result = $conn->query("SELECT * FROM infrastructure_projects ORDER BY created_at DESC LIMIT 200");
-if ($infra_result && $infra_result->num_rows > 0) {
-    $infra_projects = $infra_result->fetch_all(MYSQLI_ASSOC);
-}
-
-// Fetch Citizen Reports (feedback)
-$citizen_reports = [];
-$citizen_result = $conn->query("SELECT * FROM citizen_feedback ORDER BY created_at DESC LIMIT 200");
-if ($citizen_result && $citizen_result->num_rows > 0) {
-    $citizen_reports = $citizen_result->fetch_all(MYSQLI_ASSOC);
+// Fetch approved citizen transportation reports (created_by = 0 = public submission)
+$citizen_transport_reports = [];
+$ct_result = $conn->query("SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, department, created_date, created_at, updated_at, attachments, image_path, reporter_name, reporter_email, severity, report_type, 'transportation' as report_type, approved_at, rejected_at FROM road_transportation_reports WHERE created_by = 0 AND status = 'approved' ORDER BY updated_at DESC LIMIT 200");
+if ($ct_result && $ct_result->num_rows > 0) {
+    $citizen_transport_reports = $ct_result->fetch_all(MYSQLI_ASSOC);
 }
 ?>
 
@@ -1853,204 +1825,95 @@ if ($citizen_result && $citizen_result->num_rows > 0) {
                 <?php endif; ?>
             </div>
         </div>
+    </div>
 
-        <!-- CIMM Reports Panel -->
-        <div class="cimm-panel" id="cimmPanel">
-            <div class="cimm-header">
-                <div class="cimm-header-left">
-                    <div class="cimm-icon">
-                        <i class="fas fa-building"></i>
-                    </div>
-                    <div>
-                        <div class="cimm-title-group">
-                            <h2 class="cimm-title">CIMM Reports</h2>
-                            <span class="cimm-badge pending"><?php echo count($cimm_reports); ?> Reports</span>
-                        </div>
-                        <p class="cimm-subtitle">CIMM-submitted infrastructure project reports</p>
-                    </div>
+    <!-- Approved Citizen Transportation Reports Panel -->
+    <div class="citizen-panel" id="citizenTransportPanel">
+        <div class="citizen-header">
+            <div class="citizen-header-left">
+                <div class="citizen-icon" style="background:linear-gradient(135deg,#10b981,#059669);">
+                    <i class="fas fa-check-circle"></i>
                 </div>
-            </div>
-            <div class="cimm-search">
-                <div class="cimm-search-wrapper">
-                    <i class="fas fa-search"></i>
-                    <input type="text" class="cimm-search-input" id="cimmSearchInput" placeholder="Search by Rep #, Infrastructure, Location...">
-                </div>
-
-            </div>
-            <div class="main-grid">
-                <div class="chart-container">
-                    <div class="chart-header">
-                        <h3 class="chart-title">CIMM Reports List</h3>
-                        <span class="text-muted"><?php echo count($cimm_reports); ?> reports found</span>
+                <div>
+                    <div class="citizen-title-group">
+                        <h2 class="citizen-title">Approved Citizen Reports</h2>
+                        <span class="citizen-badge pending" style="background:rgba(16,185,129,0.15);color:#10b981;"><?php echo count($citizen_transport_reports); ?> Reports</span>
                     </div>
-                    
-                    <?php if (empty($cimm_reports)): ?>
-                        <div style="text-align: center; padding: 40px; color: #666;">
-                            <i class="fas fa-sync-alt" style="font-size: 48px; margin-bottom: 15px; opacity: 0.5;"></i>
-                            <p>No CIMM reports have been synced yet.</p>
-                        </div>
-                    <?php else: ?>
-                        <?php foreach ($cimm_reports as $row): ?>
-                        <div class="report-card priority-<?php echo htmlspecialchars($row['priority'] ?? 'medium'); ?>">
-                            <div class="report-header">
-                                <div>
-                                    <div class="report-title"><?php echo htmlspecialchars($row['infrastructure'] ?? 'Untitled'); ?></div>
-                                    <div class="report-meta">
-                                        <i class="fas fa-hashtag"></i> <?php echo htmlspecialchars($row['reference_code'] ?? '—'); ?> • 
-                                        <i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($row['location'] ?? '—'); ?> • 
-                                        <i class="fas fa-user"></i> <?php echo htmlspecialchars($row['reporter_name'] ?? '—'); ?> • 
-                                        <i class="fas fa-flag"></i> Priority: <?php echo ucfirst(htmlspecialchars($row['priority'] ?? 'medium')); ?> • 
-                                        <i class="fas fa-money-bill"></i> <?php echo isset($row['budget']) && $row['budget'] ? '₱' . number_format($row['budget'], 2) : 'No budget'; ?> • 
-                                        <i class="fas fa-calendar"></i> <?php echo !empty($row['starting_date']) ? date('M d, Y', strtotime($row['starting_date'])) : '—'; ?> - <?php echo !empty($row['estimated_end_date']) ? date('M d, Y', strtotime($row['estimated_end_date'])) : '—'; ?>
-                                    </div>
-                                </div>
-                                <span class="status-badge status-<?php echo $row['_display_status'] ?? 'pending'; ?>">
-                                    <?php echo ucfirst(str_replace('-', ' ', $row['_display_status'] ?? 'pending')); ?>
-                                </span>
-                            </div>
-                            <div class="report-description">
-                                <?php echo htmlspecialchars($row['issue'] ?? 'No description provided.'); ?>
-                            </div>
-                        </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
+                    <p class="citizen-subtitle">Public-submitted transportation reports that have been approved</p>
                 </div>
             </div>
         </div>
-
-        <!-- Infrastructure Projects Panel -->
-        <div class="infra-panel" id="infraPanel">
-            <div class="infra-header">
-                <div class="infra-header-left">
-                    <div class="infra-icon">
-                        <i class="fas fa-hard-hat"></i>
-                    </div>
-                    <div>
-                        <div class="infra-title-group">
-                            <h2 class="infra-title">Infrastructure Projects</h2>
-                            <span class="infra-badge active"><?php echo count($infra_projects); ?> Projects</span>
-                        </div>
-                        <p class="infra-subtitle">Ongoing and completed infrastructure projects</p>
-                    </div>
-                </div>
-            </div>
-            <div class="infra-search">
-                <div class="infra-search-wrapper">
-                    <i class="fas fa-search"></i>
-                    <input type="text" class="infra-search-input" id="infraSearchInput" placeholder="Search by Project Name, Location...">
-                </div>
-
-            </div>
-            <div class="main-grid">
-                <div class="chart-container">
-                    <div class="chart-header">
-                        <h3 class="chart-title">Infrastructure Projects List</h3>
-                        <span class="text-muted"><?php echo count($infra_projects); ?> projects found</span>
-                    </div>
-                    
-                    <?php if (empty($infra_projects)): ?>
-                        <div style="text-align: center; padding: 40px; color: #666;">
-                            <i class="fas fa-hard-hat" style="font-size: 48px; margin-bottom: 15px; opacity: 0.5;"></i>
-                            <p>No infrastructure projects have been created yet.</p>
-                        </div>
-                    <?php else: ?>
-                        <?php foreach ($infra_projects as $project): ?>
-                        <?php 
-                            $prog = intval($project['progress'] ?? 0);
-                            $pStatus = $project['status'] ?? 'active';
-                            $barColor = $pStatus === 'completed' ? '#22c55e' : ($pStatus === 'delayed' ? '#ef4444' : '#f97316');
-                        ?>
-                        <div class="report-card">
-                            <div class="report-header">
-                                <div>
-                                    <div class="report-title"><?php echo htmlspecialchars($project['name'] ?? 'Untitled'); ?></div>
-                                    <div class="report-meta">
-                                        <i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($project['location'] ?? '—'); ?> • 
-                                        <i class="fas fa-money-bill"></i> <?php echo isset($project['budget']) && $project['budget'] ? '₱' . number_format($project['budget'], 2) : 'No budget'; ?> • 
-                                        <i class="fas fa-calendar"></i> <?php echo !empty($project['start_date']) ? date('M d, Y', strtotime($project['start_date'])) : '—'; ?> - <?php echo !empty($project['end_date']) ? date('M d, Y', strtotime($project['end_date'])) : '—'; ?>
-                                    </div>
-                                </div>
-                                <span class="status-badge status-<?php echo $pStatus === 'active' ? 'in-progress' : $pStatus; ?>">
-                                    <?php echo ucfirst($pStatus); ?>
-                                </span>
-                            </div>
-                            <div class="report-description">
-                                <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
-                                    <span style="font-size:13px;font-weight:500;color:#666;min-width:70px;">Progress:</span>
-                                    <div style="flex:1;max-width:300px;background:#e5e7eb;border-radius:6px;height:10px;overflow:hidden;">
-                                        <div style="height:100%;width:<?php echo min(100, max(0, $prog)); ?>%;background:linear-gradient(90deg,<?php echo $barColor; ?>,<?php echo $barColor; ?>cc);border-radius:6px;transition:width 0.5s ease;"></div>
-                                    </div>
-                                    <span style="font-size:13px;font-weight:700;color:#333;"><?php echo $prog; ?>%</span>
-                                </div>
-                            </div>
-                        </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
+        <div class="citizen-search">
+            <div class="citizen-search-wrapper">
+                <i class="fas fa-search"></i>
+                <input type="text" class="citizen-search-input" id="citizenTransportSearchInput" placeholder="Search by Title, Location, Reporter...">
             </div>
         </div>
-
-        <!-- Citizen Reports Panel -->
-        <div class="citizen-panel" id="citizenPanel">
-            <div class="citizen-header">
-                <div class="citizen-header-left">
-                    <div class="citizen-icon">
-                        <i class="fas fa-users"></i>
-                    </div>
-                    <div>
-                        <div class="citizen-title-group">
-                            <h2 class="citizen-title">Citizen Reports</h2>
-                            <span class="citizen-badge pending"><?php echo count($citizen_reports); ?> Reports</span>
-                        </div>
-                        <p class="citizen-subtitle">Feedback and reports submitted by citizens</p>
-                    </div>
+        <div class="main-grid">
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h3 class="chart-title">Approved Reports</h3>
+                    <span class="text-muted"><?php echo count($citizen_transport_reports); ?> reports found</span>
                 </div>
-            </div>
-            <div class="citizen-search">
-                <div class="citizen-search-wrapper">
-                    <i class="fas fa-search"></i>
-                    <input type="text" class="citizen-search-input" id="citizenSearchInput" placeholder="Search by Citizen Name, Subject, Department...">
-                </div>
-
-            </div>
-            <div class="main-grid">
-                <div class="chart-container">
-                    <div class="chart-header">
-                        <h3 class="chart-title">Citizen Reports List</h3>
-                        <span class="text-muted"><?php echo count($citizen_reports); ?> reports found</span>
+                
+                <?php if (empty($citizen_transport_reports)): ?>
+                    <div style="text-align: center; padding: 40px; color: #666;">
+                        <i class="fas fa-check-circle" style="font-size: 48px; margin-bottom: 15px; opacity: 0.5;"></i>
+                        <p>No approved citizen transportation reports yet.</p>
                     </div>
-                    
-                    <?php if (empty($citizen_reports)): ?>
-                        <div style="text-align: center; padding: 40px; color: #666;">
-                            <i class="fas fa-users" style="font-size: 48px; margin-bottom: 15px; opacity: 0.5;"></i>
-                            <p>No citizen feedback or reports have been submitted yet.</p>
-                        </div>
-                    <?php else: ?>
-                        <?php foreach ($citizen_reports as $fb): ?>
-                        <div class="report-card priority-<?php echo htmlspecialchars($fb['priority'] ?? 'medium'); ?>">
+                <?php else: ?>
+                    <?php foreach ($citizen_transport_reports as $ctr): ?>
+                        <div class="report-card priority-<?php echo $ctr['priority']; ?>" data-id="<?php echo $ctr['id']; ?>">
                             <div class="report-header">
                                 <div>
-                                    <div class="report-title"><?php echo htmlspecialchars($fb['subject'] ?? 'No Subject'); ?></div>
+                                    <div class="report-title"><?php echo htmlspecialchars($ctr['title']); ?></div>
                                     <div class="report-meta">
-                                        <i class="fas fa-hashtag"></i> <?php echo htmlspecialchars($fb['feedback_id'] ?? '#' . $fb['id']); ?> • 
-                                        <i class="fas fa-user"></i> <?php echo $fb['anonymous'] ? 'Anonymous' : htmlspecialchars($fb['citizen_name'] ?? '—'); ?> • 
-                                        <i class="fas fa-tag"></i> <?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $fb['feedback_type'] ?? '—'))); ?> • 
-                                        <i class="fas fa-building"></i> <?php echo htmlspecialchars(ucfirst($fb['department'] ?? '—')); ?> • 
-                                        <i class="fas fa-flag"></i> Priority: <?php echo ucfirst(htmlspecialchars($fb['priority'] ?? 'medium')); ?> • 
-                                        <i class="fas fa-clock"></i> <?php echo !empty($fb['created_at']) ? date('M d, Y', strtotime($fb['created_at'])) : '—'; ?>
+                                        <?php if (!empty($ctr['report_id'])): ?>
+                                        <i class="fas fa-hashtag"></i> <?php echo htmlspecialchars($ctr['report_id']); ?> • 
+                                        <?php endif; ?>
+                                        <i class="fas fa-user"></i> <?php echo htmlspecialchars($ctr['reporter_name'] ?: $ctr['reporter_email'] ?: 'Citizen'); ?> • 
+                                        <i class="fas fa-tag"></i> <?php echo ucfirst($ctr['report_type']); ?> • 
+                                        <i class="fas fa-geo-alt"></i> <?php echo htmlspecialchars($ctr['location']); ?> • 
+                                        <i class="fas fa-flag"></i> Priority: <?php echo ucfirst($ctr['priority']); ?> • 
+                                        <i class="fas fa-clock"></i> <?php echo format_datetime($ctr['created_at']); ?>
                                     </div>
                                 </div>
-                                <span class="status-badge status-<?php echo str_replace('_', '-', $fb['status'] ?? 'pending'); ?>">
-                                    <?php echo ucfirst(htmlspecialchars(str_replace('_', ' ', $fb['status'] ?? 'pending'))); ?>
+                                <span class="status-badge status-approved">
+                                    Approved
                                 </span>
                             </div>
+                            
                             <div class="report-description">
-                                <?php echo htmlspecialchars(strlen($fb['message'] ?? '') > 200 ? substr($fb['message'], 0, 200) . '...' : ($fb['message'] ?? 'No message provided.')); ?>
+                                <?php echo htmlspecialchars($ctr['description']); ?>
+                            </div>
+                            
+                            <?php if (!empty($ctr['approved_at'])): ?>
+                            <div style="margin-bottom:10px;padding:8px 12px;background:rgba(16,185,129,0.1);border-radius:6px;border-left:3px solid #10b981;font-size:13px;color:#065f46;">
+                                <i class="fas fa-check-circle"></i> 
+                                <strong>Approved:</strong> <?php echo format_datetime($ctr['approved_at']); ?>
+                                <?php if (!empty($ctr['rejected_at'])): ?>
+                                &nbsp;•&nbsp; <strong>Rejected:</strong> <?php echo format_datetime($ctr['rejected_at']); ?>
+                                <?php endif; ?>
+                            </div>
+                            <?php endif; ?>
+                            
+                            <div class="report-actions">
+                                <button class="btn-action btn-view" onclick="viewReport(<?php echo $ctr['id']; ?>, '<?php echo $ctr['report_type']; ?>')">
+                                    <i class="fas fa-eye"></i> View
+                                </button>
+                                <button class="btn-action btn-edit" onclick="editReport(<?php echo $ctr['id']; ?>, '<?php echo $ctr['report_type']; ?>')">
+                                    <i class="fas fa-pencil"></i> Edit
+                                </button>
+                                <button class="btn-action btn-delete" onclick="deleteReport(<?php echo $ctr['id']; ?>, '<?php echo $ctr['report_type']; ?>')">
+                                    <i class="fas fa-trash"></i> Delete
+                                </button>
+                                <button class="btn-action btn-view" style="background:linear-gradient(135deg,#10b981,#059669);" onclick="viewReportUpdates(<?php echo $ctr['id']; ?>, '<?php echo $ctr['report_type']; ?>')">
+                                    <i class="fas fa-clock"></i> Updates
+                                </button>
                             </div>
                         </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -2941,34 +2804,12 @@ if ($citizen_result && $citizen_result->num_rows > 0) {
             }, 500);
         }
 
-        // ── CIMM Card Search ──
-        const cimmInput = document.getElementById('cimmSearchInput');
-        if (cimmInput) {
-            cimmInput.addEventListener('keyup', function() {
+        // ── Approved Citizen Transport Search ──
+        const citizenTransportInput = document.getElementById('citizenTransportSearchInput');
+        if (citizenTransportInput) {
+            citizenTransportInput.addEventListener('keyup', function() {
                 const q = this.value.toLowerCase();
-                document.querySelectorAll('#cimmPanel .report-card').forEach(function(card) {
-                    card.style.display = card.textContent.toLowerCase().includes(q) ? '' : 'none';
-                });
-            });
-        }
-
-        // ── Infrastructure Card Search ──
-        const infraInput = document.getElementById('infraSearchInput');
-        if (infraInput) {
-            infraInput.addEventListener('keyup', function() {
-                const q = this.value.toLowerCase();
-                document.querySelectorAll('#infraPanel .report-card').forEach(function(card) {
-                    card.style.display = card.textContent.toLowerCase().includes(q) ? '' : 'none';
-                });
-            });
-        }
-
-        // ── Citizen Card Search ──
-        const citizenInput = document.getElementById('citizenSearchInput');
-        if (citizenInput) {
-            citizenInput.addEventListener('keyup', function() {
-                const q = this.value.toLowerCase();
-                document.querySelectorAll('#citizenPanel .report-card').forEach(function(card) {
+                document.querySelectorAll('#citizenTransportPanel .report-card').forEach(function(card) {
                     card.style.display = card.textContent.toLowerCase().includes(q) ? '' : 'none';
                 });
             });
