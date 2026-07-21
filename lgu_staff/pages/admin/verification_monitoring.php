@@ -2417,7 +2417,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 <div class="header-content">
                     <div class="header-title">
                         <h1>Verification & Monitoring Reports</h1>
-                        <p>Review and approve infrastructure reports and monitoring data</p>
+                        <p>Review and approve infrastructure Projects and monitoring data</p>
                     </div>
                     <div class="workflow-stats">
                         <div class="workflow-stat">
@@ -2494,7 +2494,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         </button>
                         <button class="cimm-tab" data-tab="infra" onclick="filterCimmReports('infra')">
                             <i class="fas fa-hard-hat"></i>
-                            Infra Reports
+                            Infra Projects
                             <?php $infra_count = $infra_reports ? $infra_reports->num_rows : 0; ?>
                             <span class="cimm-tab-badge"><?php echo $infra_count; ?></span>
                         </button>
@@ -2809,7 +2809,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <h2 class="dept-reports-title">CIMM Reports</h2>
                             <span class="dept-reports-badge in-progress"><?php echo count($cimm_reports) + ($sql_reports ? $sql_reports->num_rows : 0); ?> Reports</span>
                         </div>
-                        <p class="dept-reports-subtitle">Department-submitted infrastructure reports from CIMM</p>
+                        <p class="dept-reports-subtitle">Department-submitted infrastructure Projects from CIMM</p>
                     </div>
                 </div>
             </div>
@@ -2935,7 +2935,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     </div>
                     <div>
                         <div class="infra-reports-title-group">
-                            <h2 class="infra-reports-title">Infrastructure Reports</h2>
+                            <h2 class="infra-reports-title">Infrastructure Projects</h2>
                             <span class="infra-reports-badge in-progress"><?php echo $infra_reports ? $infra_reports->num_rows : 0; ?> Reports</span>
                         </div>
                         <p class="infra-reports-subtitle">Infrastructure maintenance and infrastructure issue reports</p>
@@ -3018,7 +3018,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     <div class="infra-empty-icon">
                                         <i class="fas fa-hard-hat"></i>
                                     </div>
-                                    <p>No infrastructure reports at this time.</p>
+                                    <p>No infrastructure projects at this time.</p>
                                 </div>
                             </td>
                         </tr>
