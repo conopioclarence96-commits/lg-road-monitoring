@@ -528,6 +528,10 @@ $activity_timeline = getActivityTimeline($conn);
 // CIMM reports data (live, via RGMAO sync)
 $cimm_filter = $_GET['cimm_filter'] ?? 'all';
 $cimm_reports = getCimmReports($cimm_filter);
+// Hide already approved/rejected/archived CIMM reports from the panel
+$cimm_reports = array_values(array_filter($cimm_reports, function ($r) {
+    return !in_array($r['approval_status'] ?? '', ['Approved', 'Rejected', 'Archived']);
+}));
 $cimm_counts = getCimmReportCounts();
 
 // Reports from reports.sql table
