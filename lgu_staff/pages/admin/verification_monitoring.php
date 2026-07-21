@@ -3748,28 +3748,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         // CIMM & SQL report data maps (populated from PHP)
-        var cimmDataMap = <?php echo json_encode(array_column($cimm_reports, null, 'id'), JSON_INVALID_UTF8_IGNORE) ?: '{}'; ?>;
+        var cimmDataMap = <?php echo json_encode(array_column($cimm_reports, null, 'id')); ?>;
         var sqlDataMap = {};
         <?php
+        $sql_reports->data_seek(0);
         if ($sql_reports && $sql_reports->num_rows > 0):
-            $sql_reports->data_seek(0);
             while ($sr = $sql_reports->fetch_assoc()):
         ?>
         sqlDataMap[<?php echo (int)$sr['rep_id']; ?>] = {
             rep_id: <?php echo (int)$sr['rep_id']; ?>,
             res_id: <?php echo (int)$sr['res_id']; ?>,
-            starting_date: <?php echo json_encode($sr['starting_date'], JSON_INVALID_UTF8_IGNORE); ?>,
-            estimated_end_date: <?php echo json_encode($sr['estimated_end_date'], JSON_INVALID_UTF8_IGNORE); ?>,
-            engineer_id: <?php echo json_encode($sr['engineer_id'], JSON_INVALID_UTF8_IGNORE); ?>,
+            starting_date: <?php echo json_encode($sr['starting_date']); ?>,
+            estimated_end_date: <?php echo json_encode($sr['estimated_end_date']); ?>,
+            engineer_id: <?php echo json_encode($sr['engineer_id']); ?>,
             report_by: <?php echo (int)$sr['report_by']; ?>,
-            priority_lvl: <?php echo json_encode($sr['priority_lvl'], JSON_INVALID_UTF8_IGNORE); ?>,
-            budget: <?php echo json_encode($sr['budget'], JSON_INVALID_UTF8_IGNORE); ?>,
-            created_at: <?php echo json_encode($sr['created_at'], JSON_INVALID_UTF8_IGNORE); ?>,
+            priority_lvl: <?php echo json_encode($sr['priority_lvl']); ?>,
+            budget: <?php echo json_encode($sr['budget']); ?>,
+            created_at: <?php echo json_encode($sr['created_at']); ?>,
             engineer_accepted: <?php echo (int)$sr['engineer_accepted']; ?>,
-            decline_reason: <?php echo json_encode($sr['decline_reason'], JSON_INVALID_UTF8_IGNORE); ?>,
-            decline_reviewed: <?php echo json_encode($sr['decline_reviewed'], JSON_INVALID_UTF8_IGNORE); ?>,
-            decline_review_note: <?php echo json_encode($sr['decline_review_note'], JSON_INVALID_UTF8_IGNORE); ?>,
-            reporter_name: <?php echo json_encode($sr['reporter_name'] ?? 'User #' . $sr['report_by'], JSON_INVALID_UTF8_IGNORE); ?>
+            decline_reason: <?php echo json_encode($sr['decline_reason']); ?>,
+            decline_reviewed: <?php echo json_encode($sr['decline_reviewed']); ?>,
+            decline_review_note: <?php echo json_encode($sr['decline_review_note']); ?>,
+            reporter_name: <?php echo json_encode($sr['reporter_name'] ?? 'User #' . $sr['report_by']); ?>
         };
         <?php
             endwhile;
@@ -3935,24 +3935,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $infra_reports->data_seek(0);
             while ($ir = $infra_reports->fetch_assoc()):
         ?>
-        infraDataMap[<?php echo (int)$ir['id']; ?>_<?php echo json_encode($ir['source'], JSON_INVALID_UTF8_IGNORE); ?>] = {
+        infraDataMap[<?php echo (int)$ir['id']; ?>_<?php echo json_encode($ir['source']); ?>] = {
             id: <?php echo (int)$ir['id']; ?>,
-            source: <?php echo json_encode($ir['source'], JSON_INVALID_UTF8_IGNORE); ?>,
-            report_id: <?php echo json_encode($ir['report_id'], JSON_INVALID_UTF8_IGNORE); ?>,
-            title: <?php echo json_encode($ir['title'], JSON_INVALID_UTF8_IGNORE); ?>,
-            report_type: <?php echo json_encode($ir['report_type'], JSON_INVALID_UTF8_IGNORE); ?>,
-            department: <?php echo json_encode($ir['department'], JSON_INVALID_UTF8_IGNORE); ?>,
-            priority: <?php echo json_encode($ir['priority'], JSON_INVALID_UTF8_IGNORE); ?>,
-            status: <?php echo json_encode($ir['status'], JSON_INVALID_UTF8_IGNORE); ?>,
-            location: <?php echo json_encode($ir['location'], JSON_INVALID_UTF8_IGNORE); ?>,
-            description: <?php echo json_encode($ir['description'], JSON_INVALID_UTF8_IGNORE); ?>,
-            created_date: <?php echo json_encode($ir['created_date'], JSON_INVALID_UTF8_IGNORE); ?>,
-            created_at: <?php echo json_encode($ir['created_at'], JSON_INVALID_UTF8_IGNORE); ?>,
-            due_date: <?php echo json_encode($ir['due_date'], JSON_INVALID_UTF8_IGNORE); ?>,
-            reporter_name: <?php echo json_encode($ir['reporter_name'] ?? '—', JSON_INVALID_UTF8_IGNORE); ?>,
-            estimated_cost: <?php echo json_encode($ir['estimated_cost'] ?? null, JSON_INVALID_UTF8_IGNORE); ?>,
-            actual_cost: <?php echo json_encode($ir['actual_cost'] ?? null, JSON_INVALID_UTF8_IGNORE); ?>,
-            maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—', JSON_INVALID_UTF8_IGNORE); ?>
+            source: <?php echo json_encode($ir['source']); ?>,
+            report_id: <?php echo json_encode($ir['report_id']); ?>,
+            title: <?php echo json_encode($ir['title']); ?>,
+            report_type: <?php echo json_encode($ir['report_type']); ?>,
+            department: <?php echo json_encode($ir['department']); ?>,
+            priority: <?php echo json_encode($ir['priority']); ?>,
+            status: <?php echo json_encode($ir['status']); ?>,
+            location: <?php echo json_encode($ir['location']); ?>,
+            description: <?php echo json_encode($ir['description']); ?>,
+            created_date: <?php echo json_encode($ir['created_date']); ?>,
+            created_at: <?php echo json_encode($ir['created_at']); ?>,
+            due_date: <?php echo json_encode($ir['due_date']); ?>,
+            reporter_name: <?php echo json_encode($ir['reporter_name'] ?? '—'); ?>,
+            estimated_cost: <?php echo json_encode($ir['estimated_cost'] ?? null); ?>,
+            actual_cost: <?php echo json_encode($ir['actual_cost'] ?? null); ?>,
+            maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>
         };
         <?php
             endwhile;
@@ -4039,24 +4039,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         ?>
         citizenDataMap[<?php echo (int)$cr['id']; ?>] = {
             id: <?php echo (int)$cr['id']; ?>,
-            report_id: <?php echo json_encode($cr['report_id'], JSON_INVALID_UTF8_IGNORE); ?>,
-            title: <?php echo json_encode($cr['title'], JSON_INVALID_UTF8_IGNORE); ?>,
-            report_type: <?php echo json_encode($cr['report_type'], JSON_INVALID_UTF8_IGNORE); ?>,
-            location: <?php echo json_encode($cr['location'], JSON_INVALID_UTF8_IGNORE); ?>,
-            description: <?php echo json_encode($cr['description'], JSON_INVALID_UTF8_IGNORE); ?>,
-            severity: <?php echo json_encode($cr['severity'], JSON_INVALID_UTF8_IGNORE); ?>,
-            priority: <?php echo json_encode($cr['priority'], JSON_INVALID_UTF8_IGNORE); ?>,
-            status: <?php echo json_encode($cr['status'], JSON_INVALID_UTF8_IGNORE); ?>,
-            created_at: <?php echo json_encode($cr['created_at'], JSON_INVALID_UTF8_IGNORE); ?>,
-            created_date: <?php echo json_encode($cr['created_date'], JSON_INVALID_UTF8_IGNORE); ?>,
-            reporter_email: <?php echo json_encode($cr['reporter_email'] ?? '', JSON_INVALID_UTF8_IGNORE); ?>,
-            reporter_name: <?php echo json_encode($cr['reporter_name'] ?? '', JSON_INVALID_UTF8_IGNORE); ?>,
-            latitude: <?php echo json_encode($cr['latitude'], JSON_INVALID_UTF8_IGNORE); ?>,
-            longitude: <?php echo json_encode($cr['longitude'], JSON_INVALID_UTF8_IGNORE); ?>,
-            attachments: <?php echo json_encode($cr['attachments'], JSON_INVALID_UTF8_IGNORE); ?>,
-            image_path: <?php echo json_encode($cr['image_path'], JSON_INVALID_UTF8_IGNORE); ?>,
-            approved_at: <?php echo json_encode($cr['approved_at'], JSON_INVALID_UTF8_IGNORE); ?>,
-            rejected_at: <?php echo json_encode($cr['rejected_at'], JSON_INVALID_UTF8_IGNORE); ?>
+            report_id: <?php echo json_encode($cr['report_id']); ?>,
+            title: <?php echo json_encode($cr['title']); ?>,
+            report_type: <?php echo json_encode($cr['report_type']); ?>,
+            location: <?php echo json_encode($cr['location']); ?>,
+            description: <?php echo json_encode($cr['description']); ?>,
+            severity: <?php echo json_encode($cr['severity']); ?>,
+            priority: <?php echo json_encode($cr['priority']); ?>,
+            status: <?php echo json_encode($cr['status']); ?>,
+            created_at: <?php echo json_encode($cr['created_at']); ?>,
+            created_date: <?php echo json_encode($cr['created_date']); ?>,
+            reporter_email: <?php echo json_encode($cr['reporter_email'] ?? ''); ?>,
+            reporter_name: <?php echo json_encode($cr['reporter_name'] ?? ''); ?>,
+            latitude: <?php echo json_encode($cr['latitude']); ?>,
+            longitude: <?php echo json_encode($cr['longitude']); ?>,
+            attachments: <?php echo json_encode($cr['attachments']); ?>,
+            image_path: <?php echo json_encode($cr['image_path']); ?>,
+            approved_at: <?php echo json_encode($cr['approved_at']); ?>,
+            rejected_at: <?php echo json_encode($cr['rejected_at']); ?>
         };
         <?php
             endwhile;
