@@ -144,12 +144,12 @@ function handleSubmitReport() {
             if ($result['success']) {
                 $entry = [
                     'filename' => $result['filename'],
-                    'file_path' => $result['filepath'],
+                    'file_path' => 'uploads/report_images/' . $result['filename'],
                     'type' => 'image',
                 ];
                 $attachments[] = $entry;
                 if ($imagePath === null) {
-                    $imagePath = $result['filepath'];
+                    $imagePath = 'uploads/report_images/' . $result['filename'];
                 }
             }
         }
