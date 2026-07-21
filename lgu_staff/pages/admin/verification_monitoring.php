@@ -3288,7 +3288,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         ?>
                         <tr>
                             <td style="white-space:nowrap;">
-                                <button class="dept-action-btn" onclick="viewCimmReport(<?php echo $row['id']; ?>)">
+                                <button class="dept-action-btn" onclick='viewCimmReport(<?php echo json_encode($row, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_IGNORE); ?>)'>
                                     <i class="fas fa-eye"></i>
                                 </button>
                                 <?php if (empty($row['approval_status']) || $row['approval_status'] === 'Pending'): ?>
@@ -3708,7 +3708,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         
         // Show success message if available
         <?php if (isset($success_message)): ?>
-        showNotification('<?php echo htmlspecialchars($success_message); ?>', 'success');
+        showNotification(<?php echo json_encode($success_message, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_IGNORE); ?>, 'success');
         <?php endif; ?>
 
         // CIMM Reports tab filtering
@@ -3836,7 +3836,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         // View CIMM report details
         function viewCimmReport(id) {
-            var r = cimmDataMap[id];
+            var r = typeof id === 'object' ? id : cimmDataMap[id];
             if (!r) { alert('Report data not found.'); return; }
 
             document.getElementById('cimmModalTitle').textContent = 'CIMM Report — ' + (r.rep_number || 'Details');
