@@ -220,7 +220,7 @@ function handleSubmitReport() {
             unset($_SESSION['citizen_report_verified']);
             unset($_SESSION['citizen_report_email']);
 
-            echo json_encode(['success' => true, 'message' => 'Report submitted successfully!']);
+            echo json_encode(['success' => true, 'message' => 'Report submitted successfully!', 'redirect_url' => 'verification_monitoring.php']);
         } else {
             echo json_encode(['success' => false, 'message' => 'Failed to submit report. Please try again.']);
         }

@@ -316,6 +316,22 @@ function getSqlReports($conn) {
     return $result;
 }
 
+// Function to get citizen-submitted reports (report_source=local, report_category=transportation)
+function getCitizenReports($conn) {
+    $query = "SELECT id, report_id, title, report_type, report_category, report_source,
+                     department, priority, status, created_date, due_date, description, location, 
+                     attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at,
+                     reporter_name, reporter_email, reporter_phone, image_path, created_by
+              FROM road_transportation_reports 
+              WHERE report_source = 'local' AND report_category = 'transportation'
+              ORDER BY created_at DESC";
+    $result = $conn->query($query);
+    if (!$result) {
+        error_log("Query error in getCitizenReports: " . $conn->error);
+    }
+    return $result;
+}
+
 // Function to get infrastructure-only reports (road_transportation_reports where report_type = 'infrastructure_issue' + road_maintenance_reports)
 function getInfraReports($conn) {
     $query = "(SELECT 'transport' as source, id, report_id, title, report_type, report_category, report_source,
@@ -486,6 +502,9 @@ $cimm_counts = getCimmReportCounts();
 
 // Reports from reports.sql table
 $sql_reports = getSqlReports($conn);
+
+// Citizen-submitted reports
+$citizen_reports = getCitizenReports($conn);
 
 // Infrastructure-specific reports
 $infra_reports = getInfraReports($conn);
@@ -2240,6 +2259,95 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             font-weight: 500;
         }
 
+        /* Citizen Reports Panel */
+        .citizen-reports-panel {
+            background: #f0f8f4;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid #cce0d4;
+            margin-bottom: 25px;
+            overflow: hidden;
+        }
+
+        body.dark-mode .citizen-reports-panel {
+            background: #1e2229;
+            border-color: #1a3d2a;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .citizen-reports-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 25px;
+            border-bottom: 2px solid rgba(22, 163, 74, 0.15);
+        }
+
+        .citizen-reports-header-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .citizen-reports-icon {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, #16a34a, #15803d);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+        }
+
+        .citizen-reports-title-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .citizen-reports-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #15803d;
+            margin: 0;
+        }
+
+        body.dark-mode .citizen-reports-title {
+            color: #86efac;
+        }
+
+        .citizen-reports-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            background: #16a34a;
+            color: white;
+        }
+
+        .citizen-reports-subtitle {
+            font-size: 13px;
+            color: #166534;
+            margin: 2px 0 0 0;
+        }
+
+        body.dark-mode .citizen-reports-subtitle {
+            color: #6ee7b7;
+        }
+
+        .citizen-reports-content {
+            padding: 20px 25px;
+        }
+
+        .citizen-reports-content .workflow-content {
+            max-height: none;
+        }
+
         @media (max-width: 768px) {
             .dept-reports-header {
                 flex-direction: column;
@@ -2259,6 +2367,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
             .infra-reports-search {
                 flex-direction: column;
+            }
+
+            .citizen-reports-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
             }
         }
 
@@ -2981,6 +3095,260 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             </div>
         </div>
 
+        <!-- Citizen Reports Panel -->
+        <div class="citizen-reports-panel" id="citizenPanel">
+            <div class="citizen-reports-header">
+                <div class="citizen-reports-header-left">
+                    <div class="citizen-reports-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div>
+                        <div class="citizen-reports-title-group">
+                            <h2 class="citizen-reports-title">Citizen Reports</h2>
+                            <span class="citizen-reports-badge"><?php echo $citizen_reports ? $citizen_reports->num_rows : 0; ?> Reports</span>
+                        </div>
+                        <p class="citizen-reports-subtitle">Reports submitted by citizens via the public portal</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="citizen-reports-content">
+                <?php if ($citizen_reports && $citizen_reports->num_rows > 0): ?>
+                    <?php while ($creport = $citizen_reports->fetch_assoc()): 
+                        $c_status_class = '';
+                        if ($creport['status'] === 'approved') $c_status_class = 'approved';
+                        elseif ($creport['status'] === 'cancelled') $c_status_class = 'rejected';
+                        elseif ($creport['status'] === 'pending') $c_status_class = 'pending';
+                        elseif ($creport['status'] === 'in-progress') $c_status_class = 'in-progress';
+                        elseif ($creport['status'] === 'completed') $c_status_class = 'completed';
+
+                        $c_report_category = $creport['report_category'] ?? null;
+                        $c_report_source = $creport['report_source'] ?? null;
+                        $c_can_verify = canVerifyReport($c_report_category, $c_report_source);
+                        $c_pending_ext_verify = ($creport['status'] === 'pending' && !$c_can_verify);
+                    ?>
+                        <div class="verification-item" data-status="<?php echo htmlspecialchars($creport['status']); ?>">
+                            <div class="verification-priority priority-<?php echo htmlspecialchars($creport['priority'] ?? 'medium'); ?>"></div>
+                            <div class="verification-icon">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <div class="verification-content">
+                                <div class="verification-title"><?php echo htmlspecialchars($creport['title']); ?></div>
+                                <div class="verification-meta">
+                                    <div class="meta-item">
+                                        <i class="fas fa-tag"></i>
+                                        <?php 
+                                        $c_type = $creport['report_type'] ?? '';
+                                        $c_type_labels = [
+                                            'traffic_jam' => 'Traffic Jam',
+                                            'accident' => 'Vehicle Accident',
+                                            'road_closure' => 'Road Closure',
+                                            'traffic_light_outage' => 'Traffic Light Outage',
+                                            'congestion' => 'Heavy Congestion',
+                                            'parking_violation' => 'Illegal Parking',
+                                            'public_transport_issue' => 'Public Transport Issue',
+                                        ];
+                                        echo $c_type_labels[$c_type] ?? ucfirst($c_type);
+                                        ?>
+                                    </div>
+                                    <div class="meta-item">
+                                        <i class="fas fa-user"></i>
+                                        <?php echo htmlspecialchars($creport['reporter_name'] ?? 'Anonymous'); ?>
+                                    </div>
+                                    <div class="meta-item">
+                                        <i class="fas fa-calendar"></i>
+                                        <?php echo getTimeAgo($creport['created_at']); ?>
+                                    </div>
+                                    <div class="meta-item">
+                                        <i class="fas fa-map-marker-alt"></i>
+                                        <?php 
+                                        if (!empty($creport['latitude']) && !empty($creport['longitude'])) {
+                                            echo '<a href="https://www.google.com/maps?q=' . htmlspecialchars($creport['latitude']) . ',' . htmlspecialchars($creport['longitude']) . '" target="_blank" style="color: #3762c8; text-decoration: none;">';
+                                            echo htmlspecialchars($creport['location'] ?? 'View on Map');
+                                            echo ' <i class="fas fa-external-link-alt" style="font-size: 10px;"></i></a>';
+                                        } else {
+                                            echo htmlspecialchars($creport['location'] ?? 'Not specified');
+                                        }
+                                        ?>
+                                    </div>
+                                </div>
+                                <div class="verification-description">
+                                    <?php 
+                                    $c_desc = $creport['description'] ?? '';
+                                    echo htmlspecialchars(strlen($c_desc) > 150 ? substr($c_desc, 0, 150) . '...' : $c_desc); 
+                                    ?>
+                                </div>
+                                <?php
+                                if (!empty($creport['attachments'])) {
+                                    $c_attachments = json_decode($creport['attachments'], true);
+                                    if (is_array($c_attachments) && !empty($c_attachments)) {
+                                        foreach ($c_attachments as $c_attachment) {
+                                            if (isset($c_attachment['type']) && $c_attachment['type'] === 'image' && isset($c_attachment['file_path'])) {
+                                                echo '<div style="margin-top: 12px;">';
+                                                echo '<img src="../../' . htmlspecialchars($c_attachment['file_path']) . '" alt="Report Image" style="max-width: 100%; max-height: 200px; border-radius: 8px; border: 1px solid rgba(55, 98, 200, 0.3); cursor: pointer;" onclick="window.open(this.src, \'_blank\')" title="Click to view full size" />';
+                                                echo '</div>';
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                                ?>
+                                <div class="expanded-details" id="cdetails-<?php echo $creport['id']; ?>" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 2px solid rgba(55, 98, 200, 0.1);">
+                                    <div class="detail-grid">
+                                        <div class="detail-item">
+                                            <strong>Report ID:</strong> <?php echo htmlspecialchars($creport['report_id'] ?? 'N/A'); ?>
+                                        </div>
+                                        <div class="detail-item">
+                                            <strong>Type:</strong> 
+                                            <?php 
+                                            $c_t2 = $creport['report_type'] ?? '';
+                                            echo $c_type_labels[$c_t2] ?? ucfirst($c_t2);
+                                            ?>
+                                        </div>
+                                        <div class="detail-item">
+                                            <strong>Priority:</strong> <span class="workflow-badge"><?php echo htmlspecialchars($creport['priority'] ?? 'medium'); ?></span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <strong>Status:</strong> 
+                                            <span class="workflow-badge <?php echo $c_status_class; ?>"><?php echo htmlspecialchars($creport['status'] ?? 'N/A'); ?></span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <strong>Reporter:</strong> <?php echo htmlspecialchars($creport['reporter_name'] ?? 'Anonymous'); ?>
+                                        </div>
+                                        <div class="detail-item">
+                                            <strong>Email:</strong> <?php echo htmlspecialchars($creport['reporter_email'] ?? 'N/A'); ?>
+                                        </div>
+                                        <?php if (!empty($creport['reporter_phone'])): ?>
+                                        <div class="detail-item">
+                                            <strong>Phone:</strong> <?php echo htmlspecialchars($creport['reporter_phone']); ?>
+                                        </div>
+                                        <?php endif; ?>
+                                        <div class="detail-item full-width">
+                                            <strong>Full Description:</strong>
+                                            <div style="margin-top: 8px; padding: 12px; background: rgba(55, 98, 200, 0.05); border-radius: 8px;">
+                                                <?php echo nl2br(htmlspecialchars($creport['description'] ?? 'No description provided')); ?>
+                                            </div>
+                                        </div>
+                                        <?php if (!empty($creport['latitude']) && !empty($creport['longitude'])): ?>
+                                        <div class="detail-item full-width">
+                                            <strong>Location Coordinates:</strong>
+                                            <div style="margin-top: 8px;">
+                                                Latitude: <?php echo htmlspecialchars($creport['latitude']); ?>, 
+                                                Longitude: <?php echo htmlspecialchars($creport['longitude']); ?>
+                                                <a href="https://www.google.com/maps?q=<?php echo htmlspecialchars($creport['latitude']); ?>,<?php echo htmlspecialchars($creport['longitude']); ?>" target="_blank" style="color: #3762c8; margin-left: 10px;">
+                                                    <i class="fas fa-map-marker-alt"></i> View on Map
+                                                </a>
+                                            </div>
+                                        </div>
+                                        <?php endif; ?>
+                                        <?php if (!empty($creport['attachments'])): 
+                                            $c_attachments = json_decode($creport['attachments'], true);
+                                            if (is_array($c_attachments) && !empty($c_attachments)): ?>
+                                        <div class="detail-item full-width">
+                                            <strong>Attached Images:</strong>
+                                            <div style="margin-top: 12px; display: flex; gap: 15px; flex-wrap: wrap;">
+                                                <?php foreach ($c_attachments as $c_attachment): 
+                                                    if (isset($c_attachment['type']) && $c_attachment['type'] === 'image' && isset($c_attachment['file_path'])): ?>
+                                                    <img src="../../<?php echo htmlspecialchars($c_attachment['file_path']); ?>" 
+                                                         alt="Report Image" 
+                                                         style="max-width: 300px; max-height: 300px; border-radius: 8px; border: 1px solid rgba(55, 98, 200, 0.3); cursor: pointer;" 
+                                                         onclick="window.open(this.src, '_blank')" 
+                                                         title="Click to view full size" />
+                                                <?php endif; endforeach; ?>
+                                            </div>
+                                        </div>
+                                        <?php endif; endif; ?>
+                                        <div class="detail-item">
+                                            <strong>Created:</strong> <?php echo htmlspecialchars($creport['created_at'] ?? 'N/A'); ?>
+                                        </div>
+                                        <?php if (!empty($creport['updated_at']) && $creport['updated_at'] !== $creport['created_at']): ?>
+                                        <div class="detail-item">
+                                            <strong>Last Updated:</strong> <?php echo htmlspecialchars($creport['updated_at']); ?>
+                                        </div>
+                                        <?php endif; ?>
+                                        <?php if (!empty($creport['approved_at'])): ?>
+                                        <div class="detail-item">
+                                            <strong>Approved At:</strong> <?php echo htmlspecialchars($creport['approved_at']); ?>
+                                        </div>
+                                        <?php endif; ?>
+                                        <?php if (!empty($creport['rejected_at'])): ?>
+                                        <div class="detail-item">
+                                            <strong>Rejected At:</strong> <?php echo htmlspecialchars($creport['rejected_at']); ?>
+                                        </div>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+
+                                <div class="verification-actions">
+                                    <?php if ($c_pending_ext_verify): ?>
+                                        <button type="button" onclick="toggleDetails('cdetails-<?php echo $creport['id']; ?>')" class="btn-review">
+                                            <i class="fas fa-eye"></i>
+                                            <span>View Details</span>
+                                        </button>
+                                        <span class="workflow-badge" style="background:#fef3c7;color:#92400e;font-size:12px;padding:4px 14px;border-radius:20px;display:inline-flex;align-items:center;gap:6px;">
+                                            <i class="fas fa-external-link-alt" style="font-size:11px;"></i> Awaiting External Verification
+                                        </span>
+                                    <?php elseif ($creport['status'] === 'pending'): ?>
+                                        <button type="button" onclick="toggleDetails('cdetails-<?php echo $creport['id']; ?>')" class="btn-review">
+                                            <i class="fas fa-eye"></i>
+                                            <span>View Details</span>
+                                        </button>
+                                        <form method="POST" style="display: inline-flex;">
+                                            <input type="hidden" name="report_id" value="<?php echo $creport['id']; ?>">
+                                            <input type="hidden" name="source" value="transport">
+                                            <button type="submit" name="action" value="approve" class="btn-verify">
+                                                <i class="fas fa-check"></i> Approve
+                                            </button>
+                                        </form>
+                                        <form method="POST" style="display: inline-flex;">
+                                            <input type="hidden" name="report_id" value="<?php echo $creport['id']; ?>">
+                                            <input type="hidden" name="source" value="transport">
+                                            <button type="submit" name="action" value="reject" class="btn-reject" onclick="return confirm('Are you sure you want to reject this report?')">
+                                                <i class="fas fa-times"></i> Reject
+                                            </button>
+                                        </form>
+                                    <?php elseif ($creport['status'] === 'approved'): ?>
+                                        <span class="workflow-badge approved" style="margin-right: 10px;">Approved</span>
+                                        <?php if (!empty($creport['approved_at'])): ?>
+                                        <span style="font-size: 12px; color: #6b7280; margin-right: 10px;"><i class="fas fa-clock"></i> <?php echo date('M d, Y g:i A', strtotime($creport['approved_at'])); ?></span>
+                                        <?php endif; ?>
+                                        <button type="button" onclick="toggleDetails('cdetails-<?php echo $creport['id']; ?>')" class="btn-review">
+                                            <i class="fas fa-eye"></i> <span>View Details</span>
+                                        </button>
+                                    <?php elseif ($creport['status'] === 'cancelled'): ?>
+                                        <span class="workflow-badge rejected" style="margin-right: 10px;">Rejected</span>
+                                        <?php if (!empty($creport['rejected_at'])): ?>
+                                        <span style="font-size: 12px; color: #6b7280; margin-right: 10px;"><i class="fas fa-clock"></i> <?php echo date('M d, Y g:i A', strtotime($creport['rejected_at'])); ?></span>
+                                        <?php endif; ?>
+                                        <button type="button" onclick="toggleDetails('cdetails-<?php echo $creport['id']; ?>')" class="btn-review">
+                                            <i class="fas fa-eye"></i> <span>View Details</span>
+                                        </button>
+                                    <?php else: ?>
+                                        <span class="workflow-badge" style="margin-right: 10px;"><?php echo ucfirst($creport['status']); ?></span>
+                                        <button type="button" onclick="toggleDetails('cdetails-<?php echo $creport['id']; ?>')" class="btn-review">
+                                            <i class="fas fa-eye"></i> <span>View Details</span>
+                                        </button>
+                                    <?php endif; ?>
+                                    <form method="POST" style="display: inline-flex; margin-left: auto;" onsubmit="return confirm('Are you sure you want to remove this report? It will be moved to the archive.');">
+                                        <input type="hidden" name="report_id" value="<?php echo $creport['id']; ?>">
+                                        <input type="hidden" name="source" value="transport">
+                                        <button type="submit" name="action" value="delete" class="btn-remove" title="Remove report">
+                                            <i class="fas fa-trash-alt"></i> Remove
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endwhile; ?>
+                <?php else: ?>
+                    <div style="text-align: center; padding: 40px; color: #666;">
+                        <i class="fas fa-flag" style="font-size: 48px; margin-bottom: 20px; opacity: 0.5;"></i>
+                        <p>No citizen reports at this time.</p>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
         <!-- Infrastructure Reports Panel -->
         <div class="infra-reports-panel" id="infraReportsPanel">
             <div class="infra-reports-header">
@@ -3133,27 +3501,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         (function() {
             var urlParams = new URLSearchParams(window.location.search);
             var source = urlParams.get('source') || 'all';
-            var citizenPanel = document.getElementById('citizenReportsPanel');
+            var allReportsPanel = document.getElementById('citizenReportsPanel');
             var cimmPanel = document.getElementById('cimmReportsPanel');
             var infraPanel = document.getElementById('infraReportsPanel');
+            var citizenPanel = document.getElementById('citizenPanel');
 
             if (source === 'cimm') {
-                if (citizenPanel) citizenPanel.style.display = 'none';
+                if (allReportsPanel) allReportsPanel.style.display = 'none';
                 if (cimmPanel) cimmPanel.style.display = '';
                 if (infraPanel) infraPanel.style.display = 'none';
-            } else if (source === 'maintenance') {
                 if (citizenPanel) citizenPanel.style.display = 'none';
+            } else if (source === 'maintenance') {
+                if (allReportsPanel) allReportsPanel.style.display = 'none';
                 if (cimmPanel) cimmPanel.style.display = 'none';
                 if (infraPanel) infraPanel.style.display = '';
+                if (citizenPanel) citizenPanel.style.display = 'none';
             } else if (source === 'transport') {
-                if (citizenPanel) citizenPanel.style.display = '';
+                if (allReportsPanel) allReportsPanel.style.display = '';
                 if (cimmPanel) cimmPanel.style.display = 'none';
                 if (infraPanel) infraPanel.style.display = 'none';
+                if (citizenPanel) citizenPanel.style.display = '';
             } else {
                 // 'all' or unset — show everything
-                if (citizenPanel) citizenPanel.style.display = '';
+                if (allReportsPanel) allReportsPanel.style.display = '';
                 if (cimmPanel) cimmPanel.style.display = '';
                 if (infraPanel) infraPanel.style.display = '';
+                if (citizenPanel) citizenPanel.style.display = '';
             }
         })();
 
@@ -3184,18 +3557,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         // Toggle expanded details inline
         function toggleDetails(reportId) {
-            const detailsDiv = document.getElementById('details-' + reportId);
-            const icon = document.getElementById('icon-' + reportId);
-            const text = document.getElementById('text-' + reportId);
+            // Support both numeric IDs (All Reports) and prefixed IDs (Citizen Reports)
+            var detailsDiv = document.getElementById(reportId);
+            if (!detailsDiv && !reportId.toString().startsWith('cdetails-')) {
+                detailsDiv = document.getElementById('details-' + reportId);
+            } else if (!detailsDiv) {
+                return;
+            }
+            var icon = document.getElementById('icon-' + reportId);
+            var text = document.getElementById('text-' + reportId);
             
             if (detailsDiv.style.display === 'none') {
                 detailsDiv.style.display = 'block';
-                icon.className = 'fas fa-eye-slash';
-                text.textContent = 'Hide Details';
+                if (icon) icon.className = 'fas fa-eye-slash';
+                if (text) text.textContent = 'Hide Details';
             } else {
                 detailsDiv.style.display = 'none';
-                icon.className = 'fas fa-eye';
-                text.textContent = 'View Details';
+                if (icon) icon.className = 'fas fa-eye';
+                if (text) text.textContent = 'View Details';
             }
         }
 
