@@ -569,7 +569,7 @@ function mapCimmToReportManagement(array $row): array {
     ];
 
     return [
-        'id'            => $row['cimm_req_id'] ?? $row['id'] ?? 0,
+        'id'            => $row['id'] ?? $row['cimm_req_id'] ?? 0,
         'report_id'     => $row['reference_code'] ?? ('REQ-' . ($row['cimm_req_id'] ?? '')),
         'title'         => $row['infrastructure'] ?? 'CIMM Report',
         'description'   => $row['issue'] ?? '',
