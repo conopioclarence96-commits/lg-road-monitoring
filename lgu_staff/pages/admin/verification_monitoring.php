@@ -180,16 +180,16 @@ function getAllReports($conn, $status_filter = 'all', $source_filter = 'all') {
             $maintenance_where = " WHERE status IN ('cancelled')";
         }
     }
-    $infra_exclude = "report_type != 'infrastructure_issue'";
+    $transport_exclude = "report_type != 'infrastructure_issue' AND (report_source IS NULL OR report_category IS NULL OR report_source != 'local' OR report_category != 'transportation')";
     if ($source_filter === 'transport') {
-        $where = $transport_where ? "{$transport_where} AND {$infra_exclude}" : " WHERE {$infra_exclude}";
+        $where = $transport_where ? "{$transport_where} AND {$transport_exclude}" : " WHERE {$transport_exclude}";
         $q = "(SELECT 'transport' as source, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$where})";
         $parts[] = $q;
     } elseif ($source_filter === 'maintenance') {
         $q = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
         $parts[] = $q;
     } else {
-        $where = $transport_where ? "{$transport_where} AND {$infra_exclude}" : " WHERE {$infra_exclude}";
+        $where = $transport_where ? "{$transport_where} AND {$transport_exclude}" : " WHERE {$transport_exclude}";
         $parts[] = "(SELECT 'transport' as source, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$where})";
         $parts[] = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
     }
