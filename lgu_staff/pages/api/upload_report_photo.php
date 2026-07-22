@@ -15,7 +15,8 @@ if ($report_id <= 0 || empty($report_type)) {
     json_error('Invalid report data');
 }
 
-$table = ($report_type === 'transportation') ? 'road_transportation_reports' : 'road_maintenance_reports';
+$transport_types = ['transportation', 'infrastructure_issue', 'traffic_jam', 'accident', 'road_closure', 'potholes', 'road_damage'];
+$table = in_array($report_type, $transport_types) ? 'road_transportation_reports' : 'road_maintenance_reports';
 
 $report = fetch_one("SELECT id, image_path, attachments FROM {$table} WHERE id = ?", [$report_id], "i");
 if (!$report) {

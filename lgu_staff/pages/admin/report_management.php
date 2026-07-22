@@ -205,7 +205,8 @@ function handle_update_report() {
     }
     
     // Update the report
-    $table = ($report_type === 'transportation') ? 'road_transportation_reports' : 'road_maintenance_reports';
+    $transport_types = ['transportation', 'infrastructure_issue', 'traffic_jam', 'accident', 'road_closure', 'potholes', 'road_damage'];
+    $table = in_array($report_type, $transport_types) ? 'road_transportation_reports' : 'road_maintenance_reports';
     
     $update_fields = [];
     $params = [];
@@ -340,14 +341,15 @@ function handle_delete_report() {
     }
     
     // Get report info for logging
-    $table = ($report_type === 'transportation') ? 'road_transportation_reports' : 'road_maintenance_reports';
+    $transport_types = ['transportation', 'infrastructure_issue', 'traffic_jam', 'accident', 'road_closure', 'potholes', 'road_damage'];
+    $table = in_array($report_type, $transport_types) ? 'road_transportation_reports' : 'road_maintenance_reports';
     $stmt = $conn->prepare("SELECT title, location FROM {$table} WHERE id = ?");
     $stmt->bind_param("i", $report_id);
     $stmt->execute();
     $report_info = $stmt->get_result()->fetch_assoc();
     
     // Archive the report first
-    if ($report_type === 'transportation') {
+    if ($table === 'road_transportation_reports') {
         $insert = "INSERT INTO road_transportation_reports_archive SELECT * FROM {$table} WHERE id = ?";
     } else {
         $insert = "INSERT INTO road_transportation_reports_archive (id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at) SELECT id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL, NULL, NULL, created_at, updated_at, approved_at, rejected_at FROM {$table} WHERE id = ?";
@@ -628,11 +630,11 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
         $maintenance_estimation_exists = true;
     }
     
-    // Get transportation reports (Citizen Reports)
+    // Get transportation reports (Citizen Reports + Infrastructure Issues from transport table)
     if ($transport_estimation_exists) {
-        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, 'transportation' as report_type, 'transport' as source_system FROM road_transportation_reports";
+        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' ELSE 'transport' END as source_system FROM road_transportation_reports";
     } else {
-        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, 0 as estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, 'transportation' as report_type, 'transport' as source_system FROM road_transportation_reports";
+        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, 0 as estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' ELSE 'transport' END as source_system FROM road_transportation_reports";
     }
     $transport_params = [];
     

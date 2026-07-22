@@ -15,12 +15,12 @@ if ($report_id <= 0 || empty($report_type)) {
     json_response(['success' => false, 'error' => 'Invalid report parameters']);
 }
 
-$table = ($report_type === 'transportation') ? 'road_transportation_reports' : 'road_maintenance_reports';
+$transport_types = ['transportation', 'infrastructure_issue', 'traffic_jam', 'accident', 'road_closure', 'potholes', 'road_damage'];
+$table = in_array($report_type, $transport_types) ? 'road_transportation_reports' : 'road_maintenance_reports';
 
 try {
     // Check if estimation column exists
     $estimation_column_exists = false;
-    $table = ($report_type === 'transportation') ? 'road_transportation_reports' : 'road_maintenance_reports';
     $result = $conn->query("SHOW COLUMNS FROM {$table} LIKE 'estimation'");
     if ($result && $result->num_rows > 0) {
         $estimation_column_exists = true;
@@ -42,7 +42,7 @@ try {
     if ($approved_at_exists) $extra_cols .= ', approved_at';
     if ($rejected_at_exists) $extra_cols .= ', rejected_at';
     
-    if ($report_type === 'transportation') {
+    if ($table === 'road_transportation_reports') {
         $query = "SELECT id, report_id, report_type, title, department, priority, status, created_date, due_date, description,
                     location, latitude, longitude, reporter_name, reporter_email, severity, reported_date, resolved_date, assigned_to,
                     resolution_notes as notes, estimation, attachments, created_by, created_at, updated_at, image_path 

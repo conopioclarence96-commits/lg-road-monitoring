@@ -45,8 +45,9 @@ if ($estimation_value > 10000000) {
 }
 
 // Determine table and prepare update
-$table = ($report_type === 'transportation') ? 'road_transportation_reports' : 'road_maintenance_reports';
-$assign_field = ($report_type === 'transportation') ? 'assigned_to' : 'maintenance_team';
+$transport_types = ['transportation', 'infrastructure_issue', 'traffic_jam', 'accident', 'road_closure', 'potholes', 'road_damage'];
+$table = in_array($report_type, $transport_types) ? 'road_transportation_reports' : 'road_maintenance_reports';
+$assign_field = in_array($report_type, $transport_types) ? 'assigned_to' : 'maintenance_team';
 
 try {
     // Check if estimation column exists
