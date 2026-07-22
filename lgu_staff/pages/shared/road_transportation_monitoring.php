@@ -436,6 +436,17 @@ $status_filter = $_GET['status'] ?? 'all';
 $type_filter = $_GET['type'] ?? 'all';
 $source_param = $_GET['source'] ?? '';
 
+// Map source parameter to type filter value
+$source_type_map = [
+    'transport'    => 'citizen_reports',
+    'cimm'         => 'cimm_reports',
+    'maintenance'  => 'infrastructure_projects',
+];
+
+if (!empty($source_param) && isset($source_type_map[$source_param])) {
+    $type_filter = $source_type_map[$source_param];
+}
+
 // Get data for the page
 $alerts = getActiveAlerts();
 $roads = getRoadStatus();
