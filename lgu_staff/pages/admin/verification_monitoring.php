@@ -3575,27 +3575,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         (function() {
             var urlParams = new URLSearchParams(window.location.search);
             var source = urlParams.get('source') || 'all';
-            var citizenPanel = document.getElementById('citizenReportsPanel');
+            var allReportsPanel = document.getElementById('citizenReportsPanel');
             var cimmPanel = document.getElementById('cimmReportsPanel');
             var infraPanel = document.getElementById('infraReportsPanel');
+            var citizenPanel = document.getElementById('citizenPanel');
 
             if (source === 'cimm') {
-                if (citizenPanel) citizenPanel.style.display = 'none';
+                if (allReportsPanel) allReportsPanel.style.display = 'none';
                 if (cimmPanel) cimmPanel.style.display = '';
                 if (infraPanel) infraPanel.style.display = 'none';
-            } else if (source === 'maintenance') {
                 if (citizenPanel) citizenPanel.style.display = 'none';
+            } else if (source === 'maintenance') {
+                if (allReportsPanel) allReportsPanel.style.display = 'none';
                 if (cimmPanel) cimmPanel.style.display = 'none';
                 if (infraPanel) infraPanel.style.display = '';
+                if (citizenPanel) citizenPanel.style.display = 'none';
             } else if (source === 'transport') {
-                if (citizenPanel) citizenPanel.style.display = '';
+                if (allReportsPanel) allReportsPanel.style.display = '';
                 if (cimmPanel) cimmPanel.style.display = 'none';
                 if (infraPanel) infraPanel.style.display = 'none';
+                if (citizenPanel) citizenPanel.style.display = '';
             } else {
                 // 'all' or unset — show everything
-                if (citizenPanel) citizenPanel.style.display = '';
+                if (allReportsPanel) allReportsPanel.style.display = '';
                 if (cimmPanel) cimmPanel.style.display = '';
                 if (infraPanel) infraPanel.style.display = '';
+                if (citizenPanel) citizenPanel.style.display = '';
             }
         })();
 
