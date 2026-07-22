@@ -124,7 +124,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             handle_update_report();
             break;
         case 'delete_report':
+            ob_start();
             handle_delete_report();
+            ob_end_clean();
             header('Location: report_management.php');
             exit();
             break;
@@ -138,7 +140,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             handle_update_cimm_report();
             break;
         case 'delete_cimm_report':
+            ob_start();
             handle_delete_cimm_report();
+            ob_end_clean();
             header('Location: report_management.php');
             exit();
             break;
