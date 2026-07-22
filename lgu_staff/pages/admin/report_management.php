@@ -11,12 +11,6 @@ $session_timeout = 5 * 60; // 5 minutes in seconds
 if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
     session_destroy();
     setcookie(session_name(), '', time() - 3600, '/');
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
-        header('Content-Type: application/json');
-        http_response_code(401);
-        echo json_encode(['success' => false, 'message' => 'Session expired. Please log in again.']);
-        exit;
-    }
     header('Location: ../../login.php?timeout=1');
     exit();
 }
@@ -115,12 +109,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $csrf_token = $_POST['csrf_token'] ?? '';
     
     if (!verify_csrf_token($csrf_token)) {
-        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
-            header('Content-Type: application/json');
-            http_response_code(403);
-            echo json_encode(['success' => false, 'message' => 'Invalid CSRF token. Please refresh and try again.']);
-            exit;
-        }
         set_flash_message('error', 'Invalid CSRF token');
         header('Location: ../admin/report_management.php');
         exit();
@@ -212,11 +200,6 @@ function handle_update_report() {
     $location = sanitize_input($_POST['location'] ?? '');
     
     if ($report_id <= 0 || empty($report_type) || empty($status)) {
-        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
-            header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'message' => 'Invalid report data']);
-            exit;
-        }
         set_flash_message('error', 'Invalid report data');
         return;
     }
