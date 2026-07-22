@@ -194,7 +194,7 @@ function rgmap_update_verification_status(
     ?string $note = null,
     ?int $verifiedBy = null
 ): bool {
-    $allowed = ['Pending Review', 'Verified', 'Flagged', 'Dismissed'];
+    $allowed = ['Pending Review', 'Verified', 'Flagged', 'Dismissed', 'Pending', 'Approved', 'In Progress', 'Completed', 'Cancelled'];
     if (!in_array($verificationStatus, $allowed, true)) {
         return false;
     }

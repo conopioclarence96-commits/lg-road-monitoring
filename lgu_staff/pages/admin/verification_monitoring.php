@@ -243,6 +243,11 @@ function rgmap_map_cimm_row_for_display(array $row): array {
         'Flagged'        => 'in-progress',
         'Verified'       => 'completed',
         'Dismissed'      => 'resolved',
+        'Pending'        => 'pending',
+        'Approved'       => 'approved',
+        'In Progress'    => 'in-progress',
+        'Completed'      => 'completed',
+        'Cancelled'      => 'cancelled',
     ];
 
     return [

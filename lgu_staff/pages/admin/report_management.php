@@ -391,12 +391,13 @@ function handle_update_cimm_report() {
     }
 
     $statusMap = [
-        'pending'     => 'Pending Review',
-        'in-progress' => 'Flagged',
-        'completed'   => 'Verified',
-        'cancelled'   => 'Dismissed',
+        'pending'     => 'Pending',
+        'approved'    => 'Approved',
+        'in-progress' => 'In Progress',
+        'completed'   => 'Completed',
+        'cancelled'   => 'Cancelled',
     ];
-    $verification_status = $statusMap[$status] ?? 'Pending Review';
+    $verification_status = $statusMap[$status] ?? 'Pending';
 
     $update_fields = "verification_status = ?, verification_note = ?, verified_by = ?";
     $params = [$verification_status, $notes, $user_id];
@@ -566,6 +567,11 @@ function mapCimmToReportManagement(array $row): array {
         'Flagged'        => 'in-progress',
         'Verified'       => 'completed',
         'Dismissed'      => 'cancelled',
+        'Pending'        => 'pending',
+        'Approved'       => 'approved',
+        'In Progress'    => 'in-progress',
+        'Completed'      => 'completed',
+        'Cancelled'      => 'cancelled',
     ];
 
     return [
@@ -2503,10 +2509,11 @@ foreach ($reports as $report) {
                             <div class="form-group" style="flex: 1;">
                                 <label class="form-label">Status *</label>
                                 <select class="form-control" name="status" id="editCimmStatus" required>
-                                    <option value="pending">Pending Review</option>
-                                    <option value="in-progress">Flagged</option>
-                                    <option value="completed">Verified</option>
-                                    <option value="cancelled">Dismissed</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="approved">Approved</option>
+                                    <option value="in-progress">In Progress</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="cancelled">Cancelled</option>
                                 </select>
                             </div>
                             <div class="form-group" style="flex: 1;">
