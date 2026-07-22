@@ -3065,6 +3065,7 @@ foreach ($reports as $report) {
         function deleteReport(id, type) {
             _pendingDeleteReport = id;
             _pendingDeleteType = type;
+            _pendingDeleteCimmIdx = null;
             document.getElementById('deleteConfirmTitle').textContent = 'Delete Report';
             document.getElementById('deleteConfirmMsg').textContent = 'Are you sure you want to delete this report? It will be moved to the archive.';
             document.getElementById('deleteConfirmInput').value = '';
@@ -3617,6 +3618,8 @@ foreach ($reports as $report) {
             var r = cimmData[idx];
             if (!r) return;
             _pendingDeleteCimmIdx = idx;
+            _pendingDeleteReport = null;
+            _pendingDeleteType = null;
             document.getElementById('deleteConfirmTitle').textContent = 'Delete CIMM Report';
             document.getElementById('deleteConfirmMsg').textContent = 'Are you sure you want to delete CIMM report "' + (r.report_id || '') + '"? This cannot be undone.';
             document.getElementById('deleteConfirmInput').value = '';
