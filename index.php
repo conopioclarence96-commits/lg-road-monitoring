@@ -1860,6 +1860,10 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                     if (data.success) {
                         showCrStatus(data.message, 'success');
                         setTimeout(() => {
+                            if (data.redirect_url) {
+                                window.location.href = data.redirect_url;
+                                return;
+                            }
                             const modal = bootstrap.Modal.getInstance(document.getElementById('citizenReportModal'));
                             if (modal) modal.hide();
                             resetCitizenForm();
