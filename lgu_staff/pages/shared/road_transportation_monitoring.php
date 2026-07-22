@@ -1481,8 +1481,9 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                     </select>
                     <select class="filter-select" id="typeFilter" onchange="filterReports()">
                         <option value="all" <?php echo $type_filter === 'all' ? 'selected' : ''; ?>>All Types</option>
-                        <option value="transportation" <?php echo $type_filter === 'transportation' ? 'selected' : ''; ?>>Transportation</option>
-                        <option value="maintenance" <?php echo $type_filter === 'maintenance' ? 'selected' : ''; ?>>Maintenance</option>
+                        <option value="citizen_reports" <?php echo $type_filter === 'citizen_reports' ? 'selected' : ''; ?>>Citizen Reports</option>
+                        <option value="cimm_reports" <?php echo $type_filter === 'cimm_reports' ? 'selected' : ''; ?>>CIMM Reports</option>
+                        <option value="infrastructure_projects" <?php echo $type_filter === 'infrastructure_projects' ? 'selected' : ''; ?>>Infrastructure Projects</option>
                     </select>
                     <button class="btn-secondary-custom" onclick="resetFilters()" title="Reset Filters">
                         <i class="fas fa-arrow-clockwise"></i>

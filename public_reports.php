@@ -280,8 +280,9 @@ function getTimeAgoShort($datetime) {
             </select>
             <select id="typeFilter" onchange="applyFilters()">
                 <option value="all" <?php echo $type_filter === 'all' ? 'selected' : ''; ?>>All Types</option>
-                <option value="transportation" <?php echo $type_filter === 'transportation' ? 'selected' : ''; ?>>Transportation</option>
-                <option value="maintenance" <?php echo $type_filter === 'maintenance' ? 'selected' : ''; ?>>Maintenance</option>
+                <option value="citizen_reports" <?php echo $type_filter === 'citizen_reports' ? 'selected' : ''; ?>>Citizen Reports</option>
+                <option value="cimm_reports" <?php echo $type_filter === 'cimm_reports' ? 'selected' : ''; ?>>CIMM Reports</option>
+                <option value="infrastructure_projects" <?php echo $type_filter === 'infrastructure_projects' ? 'selected' : ''; ?>>Infrastructure Projects</option>
             </select>
             <span class="result-count"><i class="fas fa-list"></i> <?php echo count($all_reports); ?> report(s) found</span>
         </div>
