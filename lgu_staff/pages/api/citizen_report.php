@@ -102,6 +102,13 @@ function handleSubmitReport() {
         echo json_encode(['success' => false, 'message' => 'Please pin a location on the map.']);
         return;
     }
+
+    // Validate coordinates are within Quezon City boundary
+    $qcGeoJson = json_decode(file_get_contents(__DIR__ . '/qc_boundary.json'), true);
+    if (!isInsideQC($latitude, $longitude, $qcGeoJson)) {
+        echo json_encode(['success' => false, 'message' => 'Reports can only be submitted within Quezon City.']);
+        return;
+    }
     if (empty($issueType)) {
         echo json_encode(['success' => false, 'message' => 'Please select an issue type.']);
         return;
@@ -222,4 +229,33 @@ function handleSubmitReport() {
     } catch (Exception $e) {
         echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
     }
+}
+
+function isInsideQC($lat, $lng, $geoJson) {
+    if (empty($geoJson) || !isset($geoJson['coordinates'])) return false;
+
+    $rings = $geoJson['coordinates'][0];
+    if (empty($rings)) return false;
+
+    $x = (float)$lng;
+    $y = (float)$lat;
+    $inside = false;
+
+    foreach ($rings as $ring) {
+        $n = count($ring);
+        $j = $n - 1;
+        for ($i = 0; $i < $n; $i++) {
+            $xi = $ring[$i][0];
+            $yi = $ring[$i][1];
+            $xj = $ring[$j][0];
+            $yj = $ring[$j][1];
+
+            if (($yi > $y) !== ($yj > $y) && $x < ($xj - $xi) * ($y - $yi) / ($yj - $yi) + $xi) {
+                $inside = !$inside;
+            }
+            $j = $i;
+        }
+    }
+
+    return $inside;
 }
