@@ -3267,11 +3267,8 @@ foreach ($reports as $report) {
                     closeModal('editReportModal');
                     indicator.textContent = 'Changes saved. Loading report view...';
 
-                    const updatedReportId = document.getElementById('editReportId').value;
-                    const updatedReportType = document.getElementById('editReportType').value;
-
                     setTimeout(() => {
-                        viewReport(parseInt(updatedReportId), updatedReportType);
+                        window.location.href = '../shared/road_transportation_monitoring.php';
                     }, 500);
                 } else {
                     showNotification(data.message || 'Failed to update report', 'error');
@@ -3418,7 +3415,7 @@ foreach ($reports as $report) {
                     showNotification(data.message || 'CIMM report updated successfully', 'success');
                     closeModal('editCimmModal');
                     indicator.textContent = '';
-                    setTimeout(function() { location.reload(); }, 800);
+                    setTimeout(function() { window.location.href = '../shared/road_transportation_monitoring.php'; }, 800);
                 } else {
                     showNotification(data.message || 'Failed to update CIMM report', 'error');
                     indicator.textContent = 'Failed to save changes';
