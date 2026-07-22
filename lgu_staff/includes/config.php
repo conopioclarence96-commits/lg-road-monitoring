@@ -93,6 +93,23 @@ try {
         error_log("report_notifications table creation: " . $e->getMessage());
     }
     
+    // Ensure citizen report columns exist
+    try {
+        $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS report_category VARCHAR(50) AFTER report_type");
+    } catch (Exception $e) {}
+    try {
+        $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS report_source VARCHAR(50) AFTER report_category");
+    } catch (Exception $e) {}
+    try {
+        $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS image_path VARCHAR(500) AFTER attachments");
+    } catch (Exception $e) {}
+    try {
+        $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS reporter_name VARCHAR(100) AFTER reporter_email");
+    } catch (Exception $e) {}
+    try {
+        $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS reporter_phone VARCHAR(20) AFTER reporter_name");
+    } catch (Exception $e) {}
+    
     // Ensure account_status supports 'deactivated' value
     try {
         $row = $conn->query("SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'users' AND COLUMN_NAME = 'account_status' AND TABLE_SCHEMA = '" . DB_NAME . "'")->fetch_assoc();
