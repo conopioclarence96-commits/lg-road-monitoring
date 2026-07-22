@@ -2053,6 +2053,9 @@ foreach ($reports as $report) {
                                     <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-trash"></i>
                                     </button>
+                                    <button class="rm-action-btn" style="background:rgba(16,185,129,0.1);color:#10b981;" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                        <i class="fas fa-clock"></i>
+                                    </button>
                                 </div>
                             </td>
                             <td><?php echo htmlspecialchars($report['report_id'] ?? '—'); ?></td>
@@ -2259,6 +2262,9 @@ foreach ($reports as $report) {
                                     </button>
                                     <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-trash"></i>
+                                    </button>
+                                    <button class="rm-action-btn" style="background:rgba(16,185,129,0.1);color:#10b981;" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                        <i class="fas fa-clock"></i>
                                     </button>
                                 </div>
                             </td>
