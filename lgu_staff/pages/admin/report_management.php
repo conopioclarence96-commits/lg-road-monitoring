@@ -2219,7 +2219,7 @@ foreach ($reports as $report) {
             </div>
         </div>
 
-        <!-- Infrastructure Reports Panel -->
+        <!-- Infrastructure Projects Panel -->
         <div class="rm-panel" id="infraReportsPanel">
             <div class="rm-panel-header" style="border-bottom-color: rgba(23, 162, 184, 0.15);">
                 <div class="rm-panel-header-left">
@@ -2229,9 +2229,9 @@ foreach ($reports as $report) {
                     <div>
                         <div class="rm-panel-title-group">
                             <h2 class="rm-panel-title" style="color: #138496;">Infrastructure Projects</h2>
-                            <span class="rm-panel-badge infra"><?php echo count($infra_reports_list); ?> Reports</span>
+                            <span class="rm-panel-badge infra"><?php echo count($infra_reports_list); ?> Projects</span>
                         </div>
-                        <p class="rm-panel-subtitle" style="color: #0c5460;">Infrastructure maintenance and project reports</p>
+                        <p class="rm-panel-subtitle" style="color: #0c5460;">Infrastructure maintenance and project records</p>
                     </div>
                 </div>
             </div>
@@ -2321,8 +2321,8 @@ foreach ($reports as $report) {
                                     <div class="rm-empty-icon" style="background: rgba(23, 162, 184, 0.12);">
                                         <i class="fas fa-hard-hat" style="color: #17a2b8;"></i>
                                     </div>
-                                    <h4>No Infrastructure Reports</h4>
-                                    <p>No infrastructure project reports found.</p>
+                                    <h4>No Infrastructure Projects</h4>
+                                    <p>No infrastructure projects found.</p>
                                 </div>
                             </td>
                         </tr>
