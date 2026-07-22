@@ -1899,6 +1899,167 @@ foreach ($reports as $report) {
             .rm-panel-header { flex-direction: column; align-items: flex-start; gap: 12px; }
             .rm-panel-search { flex-direction: column; }
         }
+
+        .delete-confirm-overlay {
+            display: none;
+            position: fixed;
+            z-index: 10002;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+        }
+
+        .delete-confirm-box {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border-radius: 14px;
+            padding: 0;
+            width: 420px;
+            max-width: 92vw;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+            animation: modalSlideIn 0.25s ease;
+            overflow: hidden;
+        }
+
+        .dark-mode .delete-confirm-box { background: #1e293b; }
+
+        .delete-confirm-header {
+            background: linear-gradient(135deg, #dc3545, #a71d2a);
+            color: white;
+            padding: 18px 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .delete-confirm-header i {
+            font-size: 22px;
+        }
+
+        .delete-confirm-header h3 {
+            margin: 0;
+            font-size: 17px;
+            font-weight: 700;
+        }
+
+        .delete-confirm-body {
+            padding: 24px;
+            text-align: center;
+        }
+
+        .delete-confirm-body p {
+            margin: 0 0 6px;
+            color: #495057;
+            font-size: 14px;
+        }
+
+        .dark-mode .delete-confirm-body p { color: #cbd5e1; }
+
+        .delete-confirm-body .delete-warning {
+            color: #dc3545;
+            font-weight: 600;
+            font-size: 13px;
+            margin-bottom: 16px;
+        }
+
+        .delete-confirm-body .delete-type-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            text-align: left;
+        }
+
+        .dark-mode .delete-confirm-body .delete-type-label { color: #94a3b8; }
+
+        .delete-confirm-body .delete-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 700;
+            text-align: center;
+            letter-spacing: 3px;
+            outline: none;
+            transition: border-color 0.2s;
+            box-sizing: border-box;
+            text-transform: uppercase;
+        }
+
+        .dark-mode .delete-confirm-body .delete-input {
+            background: #0f172a;
+            color: #f1f5f9;
+            border-color: #334155;
+        }
+
+        .delete-confirm-body .delete-input:focus {
+            border-color: #dc3545;
+        }
+
+        .delete-confirm-body .delete-input.valid {
+            border-color: #28a745;
+            background: #f0fff4;
+        }
+
+        .dark-mode .delete-confirm-body .delete-input.valid {
+            background: #0d2818;
+        }
+
+        .delete-confirm-footer {
+            padding: 0 24px 24px;
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .delete-confirm-footer button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .delete-confirm-footer .btn-cancel {
+            background: #e9ecef;
+            color: #495057;
+        }
+
+        .dark-mode .delete-confirm-footer .btn-cancel {
+            background: #334155;
+            color: #cbd5e1;
+        }
+
+        .delete-confirm-footer .btn-cancel:hover {
+            background: #dee2e6;
+        }
+
+        .delete-confirm-footer .btn-confirm-delete {
+            background: #dc3545;
+            color: white;
+            opacity: 0.4;
+            pointer-events: none;
+        }
+
+        .delete-confirm-footer .btn-confirm-delete.enabled {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .delete-confirm-footer .btn-confirm-delete.enabled:hover {
+            background: #a71d2a;
+        }
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
@@ -2612,11 +2773,74 @@ foreach ($reports as $report) {
             document.body.style.overflow = 'auto';
         }
 
+        document.getElementById('deleteConfirmInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                cancelDeleteConfirm();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (document.getElementById('deleteConfirmBtn').classList.contains('enabled')) {
+                    confirmDeleteAction();
+                }
+            }
+        });
+
         // Close modal when clicking outside
         window.onclick = function(event) {
             if (event.target.classList.contains('modal')) {
                 event.target.style.display = 'none';
                 document.body.style.overflow = 'auto';
+            }
+        }
+
+        function validateDeleteInput() {
+            var input = document.getElementById('deleteConfirmInput');
+            var btn = document.getElementById('deleteConfirmBtn');
+            if (input.value.toUpperCase() === 'DELETE') {
+                input.classList.add('valid');
+                btn.classList.add('enabled');
+            } else {
+                input.classList.remove('valid');
+                btn.classList.remove('enabled');
+            }
+        }
+
+        function cancelDeleteConfirm() {
+            document.getElementById('deleteConfirmOverlay').style.display = 'none';
+            document.getElementById('deleteConfirmInput').value = '';
+            document.getElementById('deleteConfirmInput').classList.remove('valid');
+            document.getElementById('deleteConfirmBtn').classList.remove('enabled');
+            _pendingDeleteReport = null;
+            _pendingDeleteType = null;
+            _pendingDeleteCimmIdx = null;
+        }
+
+        function confirmDeleteAction() {
+            if (_pendingDeleteReport !== null) {
+                var id = _pendingDeleteReport;
+                var type = _pendingDeleteType;
+                cancelDeleteConfirm();
+                var form = document.createElement('form');
+                form.method = 'POST';
+                form.innerHTML =
+                    '<input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">' +
+                    '<input type="hidden" name="action" value="delete_report">' +
+                    '<input type="hidden" name="report_id" value="' + id + '">' +
+                    '<input type="hidden" name="report_type" value="' + type + '">';
+                document.body.appendChild(form);
+                form.submit();
+            } else if (_pendingDeleteCimmIdx !== null) {
+                var idx = _pendingDeleteCimmIdx;
+                var r = cimmData[idx];
+                cancelDeleteConfirm();
+                if (!r) return;
+                var form = document.createElement('form');
+                form.method = 'POST';
+                form.innerHTML =
+                    '<input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">' +
+                    '<input type="hidden" name="action" value="delete_cimm_report">' +
+                    '<input type="hidden" name="report_id" value="' + r.id + '">';
+                document.body.appendChild(form);
+                form.submit();
             }
         }
 
@@ -2826,19 +3050,19 @@ foreach ($reports as $report) {
                 });
         }
 
+        var _pendingDeleteReport = null;
+        var _pendingDeleteType = null;
+
         function deleteReport(id, type) {
-            if (confirm('Are you sure you want to delete this report? It will be moved to the archive.')) {
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.innerHTML = `
-                    <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
-                    <input type="hidden" name="action" value="delete_report">
-                    <input type="hidden" name="report_id" value="${id}">
-                    <input type="hidden" name="report_type" value="${type}">
-                `;
-                document.body.appendChild(form);
-                form.submit();
-            }
+            _pendingDeleteReport = id;
+            _pendingDeleteType = type;
+            document.getElementById('deleteConfirmTitle').textContent = 'Delete Report';
+            document.getElementById('deleteConfirmMsg').textContent = 'Are you sure you want to delete this report? It will be moved to the archive.';
+            document.getElementById('deleteConfirmInput').value = '';
+            document.getElementById('deleteConfirmInput').classList.remove('valid');
+            document.getElementById('deleteConfirmBtn').classList.remove('enabled');
+            document.getElementById('deleteConfirmOverlay').style.display = 'block';
+            setTimeout(function() { document.getElementById('deleteConfirmInput').focus(); }, 100);
         }
 
         function refreshReceivedReports() {
@@ -3378,19 +3602,19 @@ foreach ($reports as $report) {
         }
 
         // CIMM delete
+        var _pendingDeleteCimmIdx = null;
+
         function deleteCimmReport(idx) {
             var r = cimmData[idx];
             if (!r) return;
-            if (!confirm('Are you sure you want to delete CIMM report "' + (r.report_id || '') + '"? This cannot be undone.')) return;
-
-            var form = document.createElement('form');
-            form.method = 'POST';
-            form.innerHTML =
-                '<input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">' +
-                '<input type="hidden" name="action" value="delete_cimm_report">' +
-                '<input type="hidden" name="report_id" value="' + r.id + '">';
-            document.body.appendChild(form);
-            form.submit();
+            _pendingDeleteCimmIdx = idx;
+            document.getElementById('deleteConfirmTitle').textContent = 'Delete CIMM Report';
+            document.getElementById('deleteConfirmMsg').textContent = 'Are you sure you want to delete CIMM report "' + (r.report_id || '') + '"? This cannot be undone.';
+            document.getElementById('deleteConfirmInput').value = '';
+            document.getElementById('deleteConfirmInput').classList.remove('valid');
+            document.getElementById('deleteConfirmBtn').classList.remove('enabled');
+            document.getElementById('deleteConfirmOverlay').style.display = 'block';
+            setTimeout(function() { document.getElementById('deleteConfirmInput').focus(); }, 100);
         }
 
         // CIMM edit form submission
@@ -3467,6 +3691,26 @@ foreach ($reports as $report) {
     
 
     <!-- Session Timeout Modal -->
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteConfirmOverlay" class="delete-confirm-overlay" onclick="cancelDeleteConfirm()">
+        <div class="delete-confirm-box" onclick="event.stopPropagation()">
+            <div class="delete-confirm-header">
+                <i class="fas fa-exclamation-triangle"></i>
+                <h3 id="deleteConfirmTitle">Confirm Deletion</h3>
+            </div>
+            <div class="delete-confirm-body">
+                <p id="deleteConfirmMsg">Are you sure you want to delete this report?</p>
+                <p class="delete-warning"><i class="fas fa-info-circle"></i> This action cannot be undone.</p>
+                <div class="delete-type-label">Type <strong>DELETE</strong> to confirm:</div>
+                <input type="text" id="deleteConfirmInput" class="delete-input" placeholder="DELETE" autocomplete="off" oninput="validateDeleteInput()">
+            </div>
+            <div class="delete-confirm-footer">
+                <button class="btn-cancel" onclick="cancelDeleteConfirm()">Cancel</button>
+                <button id="deleteConfirmBtn" class="btn-confirm-delete" onclick="confirmDeleteAction()"><i class="fas fa-trash"></i> Delete</button>
+            </div>
+        </div>
+    </div>
+
     <div id="sessionTimeoutOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); z-index:10000;"></div>
     <div id="sessionTimeoutModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; border-radius:12px; padding:32px; z-index:10001; width:400px; max-width:90vw; box-shadow:0 16px 48px rgba(0,0,0,0.3); text-align:center;">
         <div style="font-size:48px; color:#e74c3c; margin-bottom:16px;">
