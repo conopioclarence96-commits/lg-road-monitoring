@@ -124,11 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             handle_update_report();
             break;
         case 'delete_report':
-            ob_start();
             handle_delete_report();
-            ob_end_clean();
-            header('Location: report_management.php');
-            exit();
             break;
         case 'accept_external_report':
             handle_accept_external_report();
@@ -140,11 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             handle_update_cimm_report();
             break;
         case 'delete_cimm_report':
-            ob_start();
             handle_delete_cimm_report();
-            ob_end_clean();
-            header('Location: report_management.php');
-            exit();
             break;
     }
 }
@@ -340,42 +332,51 @@ function handle_update_report() {
 function handle_delete_report() {
     global $conn, $user_id;
     
-    $report_id = intval($_POST['report_id'] ?? 0);
-    $report_type = sanitize_input($_POST['report_type'] ?? '');
-    
-    if ($report_id <= 0 || empty($report_type)) {
-        set_flash_message('error', 'Invalid report data');
-        return;
-    }
-    
-    // Get report info for logging
-    $transport_types = ['transportation', 'infrastructure_issue', 'traffic_jam', 'accident', 'road_closure', 'potholes', 'road_damage'];
-    $table = in_array($report_type, $transport_types) ? 'road_transportation_reports' : 'road_maintenance_reports';
-    $stmt = $conn->prepare("SELECT title, location FROM {$table} WHERE id = ?");
-    $stmt->bind_param("i", $report_id);
-    $stmt->execute();
-    $report_info = $stmt->get_result()->fetch_assoc();
-    
-    // Archive the report first
-    if ($table === 'road_transportation_reports') {
-        $insert = "INSERT INTO road_transportation_reports_archive SELECT * FROM {$table} WHERE id = ?";
-    } else {
-        $insert = "INSERT INTO road_transportation_reports_archive (id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at) SELECT id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL, NULL, NULL, created_at, updated_at, approved_at, rejected_at FROM {$table} WHERE id = ?";
-    }
-    $stmt = $conn->prepare($insert);
-    $stmt->bind_param("i", $report_id);
-    $stmt->execute();
-    
-    // Delete the report from the active table
-    $stmt = $conn->prepare("DELETE FROM {$table} WHERE id = ?");
-    $stmt->bind_param("i", $report_id);
-    
-    if ($stmt->execute()) {
-        $report_title = $report_info['title'] ?? 'Unknown Report';
-        log_audit_action($user_id, "Archived {$report_type} report", "Report ID: {$report_id}, Title: {$report_title}");
-        set_flash_message('success', 'Report deleted successfully and moved to archive.');
-    } else {
-        set_flash_message('error', 'Failed to archive report: ' . $conn->error);
+    try {
+        $report_id = intval($_POST['report_id'] ?? 0);
+        $report_type = sanitize_input($_POST['report_type'] ?? '');
+        
+        if ($report_id <= 0 || empty($report_type)) {
+            set_flash_message('error', 'Invalid report data');
+            return;
+        }
+        
+        $transport_types = ['transportation', 'infrastructure_issue', 'traffic_jam', 'accident', 'road_closure', 'potholes', 'road_damage'];
+        $table = in_array($report_type, $transport_types) ? 'road_transportation_reports' : 'road_maintenance_reports';
+        $stmt = $conn->prepare("SELECT title, location FROM {$table} WHERE id = ?");
+        $stmt->bind_param("i", $report_id);
+        $stmt->execute();
+        $report_info = $stmt->get_result()->fetch_assoc();
+        
+        $archived = false;
+        try {
+            if ($table === 'road_transportation_reports') {
+                $insert = "INSERT INTO road_transportation_reports_archive SELECT * FROM {$table} WHERE id = ?";
+            } else {
+                $insert = "INSERT INTO road_transportation_reports_archive (id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at) SELECT id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL, NULL, NULL, created_at, updated_at, approved_at, rejected_at FROM {$table} WHERE id = ?";
+            }
+            $stmt = $conn->prepare($insert);
+            $stmt->bind_param("i", $report_id);
+            $stmt->execute();
+            $archived = true;
+        } catch (Exception $e) {
+            error_log('Archive failed for report ' . $report_id . ': ' . $e->getMessage());
+        }
+        
+        $stmt = $conn->prepare("DELETE FROM {$table} WHERE id = ?");
+        $stmt->bind_param("i", $report_id);
+        
+        if ($stmt->execute()) {
+            $report_title = $report_info['title'] ?? 'Unknown Report';
+            log_audit_action($user_id, "Deleted {$report_type} report", "Report ID: {$report_id}, Title: {$report_title}");
+            $msg = $archived ? 'Report deleted successfully and moved to archive.' : 'Report deleted successfully.';
+            set_flash_message('success', $msg);
+        } else {
+            set_flash_message('error', 'Failed to delete report: ' . $conn->error);
+        }
+    } catch (Exception $e) {
+        error_log('Delete report error: ' . $e->getMessage());
+        set_flash_message('error', 'Failed to delete report. Please try again.');
     }
 }
 
@@ -457,40 +458,29 @@ function handle_update_cimm_report() {
 function handle_delete_cimm_report() {
     global $conn, $user_id;
 
-    $report_id = intval($_POST['report_id'] ?? 0);
+    try {
+        $report_id = intval($_POST['report_id'] ?? 0);
 
-    if ($report_id <= 0) {
-        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
-            header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'message' => 'Invalid report ID']);
-            exit;
+        if ($report_id <= 0) {
+            set_flash_message('error', 'Invalid report ID');
+            return;
         }
-        set_flash_message('error', 'Invalid report ID');
-        return;
-    }
 
-    $info = fetch_one("SELECT reference_code, infrastructure FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
+        $info = fetch_one("SELECT reference_code, infrastructure FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
 
-    $stmt = $conn->prepare("DELETE FROM cimm_verification_reports WHERE id = ?");
-    $stmt->bind_param("i", $report_id);
+        $stmt = $conn->prepare("DELETE FROM cimm_verification_reports WHERE id = ?");
+        $stmt->bind_param("i", $report_id);
 
-    if ($stmt->execute()) {
-        $label = $info ? ($info['reference_code'] ?? $info['infrastructure'] ?? 'Unknown') : 'Unknown';
-        log_audit_action($user_id, "Deleted CIMM report", "Report ID: {$report_id}, Label: {$label}");
-
-        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
-            header('Content-Type: application/json');
-            echo json_encode(['success' => true, 'message' => 'CIMM report deleted successfully']);
-            exit;
+        if ($stmt->execute()) {
+            $label = $info ? ($info['reference_code'] ?? $info['infrastructure'] ?? 'Unknown') : 'Unknown';
+            log_audit_action($user_id, "Deleted CIMM report", "Report ID: {$report_id}, Label: {$label}");
+            set_flash_message('success', 'CIMM report deleted successfully');
+        } else {
+            set_flash_message('error', 'Failed to delete CIMM report: ' . $conn->error);
         }
-        set_flash_message('success', 'CIMM report deleted successfully');
-    } else {
-        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
-            header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'message' => 'Failed to delete CIMM report: ' . $conn->error]);
-            exit;
-        }
-        set_flash_message('error', 'Failed to delete CIMM report: ' . $conn->error);
+    } catch (Exception $e) {
+        error_log('Delete CIMM report error: ' . $e->getMessage());
+        set_flash_message('error', 'Failed to delete CIMM report. Please try again.');
     }
 }
 
