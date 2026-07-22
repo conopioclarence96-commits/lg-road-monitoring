@@ -125,6 +125,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             break;
         case 'delete_report':
             handle_delete_report();
+            header('Location: report_management.php');
+            exit();
             break;
         case 'accept_external_report':
             handle_accept_external_report();
@@ -137,6 +139,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             break;
         case 'delete_cimm_report':
             handle_delete_cimm_report();
+            header('Location: report_management.php');
+            exit();
             break;
     }
 }
@@ -365,6 +369,7 @@ function handle_delete_report() {
     if ($stmt->execute()) {
         $report_title = $report_info['title'] ?? 'Unknown Report';
         log_audit_action($user_id, "Archived {$report_type} report", "Report ID: {$report_id}, Title: {$report_title}");
+        set_flash_message('success', 'Report deleted successfully and moved to archive.');
     } else {
         set_flash_message('error', 'Failed to archive report: ' . $conn->error);
     }
