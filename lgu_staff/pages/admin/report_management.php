@@ -699,7 +699,7 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
         $stmt->bind_param(str_repeat('s', count($transport_params)), ...$transport_params);
         $stmt->execute();
         $transport_reports = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-    } elseif ($include_transport) {
+    } elseif ($include_transport || $include_maintenance) {
         $transport_reports = fetch_all($transport_query);
     } else {
         $transport_reports = [];
