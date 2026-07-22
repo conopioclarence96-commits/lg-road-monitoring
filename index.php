@@ -907,6 +907,58 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             background: #dc3545;
             transform: scale(1.1);
         }
+        .file-upload-area {
+            position: relative;
+            margin-bottom: 8px;
+        }
+        .file-upload-area input[type="file"] {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            border: 0;
+        }
+        .file-upload-label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px 20px;
+            border: 2px dashed #ccc;
+            border-radius: 12px;
+            background: #fafbfc;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .file-upload-label:hover {
+            border-color: var(--primary-color);
+            background: #f0f2f8;
+        }
+        .file-upload-label i {
+            font-size: 2rem;
+            color: var(--primary-color);
+            margin-bottom: 8px;
+        }
+        .file-upload-text {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+        .file-upload-hint {
+            font-size: 0.8rem;
+            color: #999;
+            margin-top: 4px;
+        }
+        .file-count {
+            display: block;
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 6px;
+            text-align: center;
+        }
         @media (max-width: 768px) {
             .cr-form-row {
                 grid-template-columns: 1fr;
@@ -1082,9 +1134,17 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
                         <div class="cr-form-group">
                             <label><i class="fas fa-camera"></i> Add Photos <span class="text-danger">*</span></label>
-                            <input type="file" name="photos[]" id="crPhotos" multiple accept="image/jpeg,image/jpg,image/png" required>
+                            <div class="file-upload-area">
+                                <input type="file" name="photos[]" id="crPhotos" multiple accept="image/jpeg,image/jpg,image/png" required>
+                                <label for="crPhotos" class="file-upload-label">
+                                    <i class="fas fa-cloud-upload-alt"></i>
+                                    <span class="file-upload-text">Add Files</span>
+                                    <span class="file-upload-hint">Click here to select multiple photos</span>
+                                </label>
+                                <span class="file-count" id="fileCount">No files selected</span>
+                            </div>
                             <div id="photoPreview" class="photo-preview-grid"></div>
-                            <small class="text-muted">Upload at least one photo. Click the <strong>X</strong> on a photo to remove it.</small>
+                            <small class="text-muted">Click <strong>Add Files</strong> to choose photos. You can select multiple at once. Click the <strong>X</strong> on a photo to remove it.</small>
                         </div>
 
                         <div class="cr-verification-box">
@@ -1591,6 +1651,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 }
             });
             renderPhotoPreviews();
+            document.getElementById('fileCount').textContent = photoFiles.length + ' file(s) selected';
             this.value = '';
         });
 
@@ -1611,12 +1672,15 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 container.appendChild(wrapper);
             });
 
+            document.getElementById('fileCount').textContent = photoFiles.length + ' file(s) selected';
+
             document.querySelectorAll('.photo-delete-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
                     const idx = parseInt(this.dataset.index);
                     photoFiles.splice(idx, 1);
                     renderPhotoPreviews();
                     document.getElementById('crPhotos').required = photoFiles.length === 0;
+                    document.getElementById('fileCount').textContent = photoFiles.length + ' file(s) selected';
                 });
             });
         }
@@ -1794,6 +1858,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             document.getElementById('photoPreview').innerHTML = '';
             photoFiles = [];
             document.getElementById('crPhotos').required = true;
+            document.getElementById('fileCount').textContent = 'No files selected';
             otpVerified = false;
             if (citizenPin) { citizenMap.removeLayer(citizenPin); citizenPin = null; }
         }
