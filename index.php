@@ -204,6 +204,8 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- Transition CSS -->
     <link rel="stylesheet" href="styles/transition.css">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
         :root {
@@ -695,6 +697,228 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
 
 
+        /* Citizen Report Modal Styles */
+        .modal-header.bg-primary {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%) !important;
+        }
+        .modal-content {
+            border: none;
+            border-radius: 16px;
+            overflow: hidden;
+        }
+        .modal-body {
+            padding: 24px;
+        }
+        .citizen-report-map {
+            height: 300px;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 12px;
+            border: 2px dashed #ddd;
+        }
+        .citizen-report-map.has-pin {
+            border-color: var(--accent-color);
+        }
+        .citizen-report-hint {
+            text-align: center;
+            color: #999;
+            font-size: 0.85rem;
+            margin-bottom: 16px;
+        }
+        .cr-form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .cr-form-group {
+            margin-bottom: 16px;
+        }
+        .cr-form-group label {
+            display: block;
+            font-weight: 600;
+            color: var(--dark-text);
+            margin-bottom: 6px;
+            font-size: 0.9rem;
+        }
+        .cr-form-group select,
+        .cr-form-group input,
+        .cr-form-group textarea {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-family: inherit;
+            transition: border-color 0.3s;
+        }
+        .cr-form-group select:focus,
+        .cr-form-group input:focus,
+        .cr-form-group textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(30,60,114,0.1);
+        }
+        .cr-form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        .cr-verification-box {
+            background: #f8f9ff;
+            border: 1px solid #e0e4f0;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .cr-verification-box h4 {
+            font-size: 1rem;
+            color: var(--primary-color);
+            margin-bottom: 12px;
+        }
+        .cr-otp-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .cr-otp-row input {
+            flex: 1;
+            padding: 10px 14px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-family: inherit;
+        }
+        .cr-btn {
+            padding: 10px 22px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+        .cr-btn-primary {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+        }
+        .cr-btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(30,60,114,0.3);
+        }
+        .cr-btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .cr-btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        .cr-btn-secondary:hover {
+            background: #5a6268;
+        }
+        .cr-btn-success {
+            background: #28a745;
+            color: white;
+        }
+        .cr-btn-success:hover {
+            background: #218838;
+        }
+        .cr-btn-success:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .cr-btn-outline {
+            background: transparent;
+            border: 2px solid var(--primary-color);
+            color: var(--primary-color);
+        }
+        .cr-btn-outline:hover {
+            background: var(--primary-color);
+            color: white;
+        }
+        .cr-status {
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            margin-top: 10px;
+            display: none;
+        }
+        .cr-status.success {
+            display: block;
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .cr-status.error {
+            display: block;
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .cr-status.info {
+            display: block;
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .photo-preview-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 10px;
+        }
+        .photo-preview-item {
+            position: relative;
+            width: 100px;
+            height: 100px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid #e0e0e0;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+        .photo-preview-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .photo-delete-btn {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 24px;
+            height: 24px;
+            background: rgba(220, 53, 69, 0.9);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+            z-index: 5;
+            line-height: 1;
+        }
+        .photo-delete-btn:hover {
+            background: #dc3545;
+            transform: scale(1.1);
+        }
+        @media (max-width: 768px) {
+            .cr-form-row {
+                grid-template-columns: 1fr;
+            }
+            .cr-otp-row {
+                flex-direction: column;
+            }
+            .photo-preview-item {
+                width: 80px;
+                height: 80px;
+            }
+        }
     </style>
     <?php include __DIR__ . '/includes/a11y_css.php'; ?>
 </head>
@@ -785,9 +1009,110 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 <a href="road-updates.php" class="btn btn-secondary-hero btn-hero">
                     <i class="fas fa-newspaper"></i> Latest Updates
                 </a>
+                <button data-bs-toggle="modal" data-bs-target="#citizenReportModal" class="btn btn-primary-hero btn-hero">
+                    <i class="fas fa-pen-alt"></i> Make a Report
+                </button>
             </div>
         </div>
     </section>
+
+    <!-- Citizen Report Modal -->
+    <div class="modal fade" id="citizenReportModal" tabindex="-1" aria-labelledby="citizenReportModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="citizenReportModalLabel">
+                        <i class="fas fa-pen-alt"></i> Report a Transportation Issue
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="citizen-report-map" id="citizenMap"></div>
+                    <p class="citizen-report-hint">
+                        <i class="fas fa-mouse-pointer"></i> Click on the map to pin the exact location of the issue
+                        <br><small class="text-muted">Map is restricted to Quezon City area</small>
+                    </p>
+
+                    <form id="citizenReportForm">
+                        <input type="hidden" name="latitude" id="crLat">
+                        <input type="hidden" name="longitude" id="crLng">
+                        <input type="hidden" name="address" id="crAddress">
+
+                        <div class="cr-form-row">
+                            <div class="cr-form-group">
+                                <label><i class="fas fa-exclamation-triangle"></i> Issue Type <span class="text-danger">*</span></label>
+                                <select name="issue_type" id="crIssueType" required>
+                                    <option value="">-- Select Issue Type --</option>
+                                    <option value="traffic_jam">Traffic Jam</option>
+                                    <option value="accident">Vehicle Accident</option>
+                                    <option value="road_closure">Road Closure</option>
+                                    <option value="traffic_light_outage">Traffic Light Outage</option>
+                                    <option value="congestion">Heavy Congestion</option>
+                                    <option value="parking_violation">Illegal Parking</option>
+                                    <option value="public_transport_issue">Public Transport Issue</option>
+                                </select>
+                            </div>
+                            <div class="cr-form-group">
+                                <label><i class="fas fa-exclamation-circle"></i> Severity <span class="text-danger">*</span></label>
+                                <select name="severity" id="crSeverity" required>
+                                    <option value="">-- Select Severity --</option>
+                                    <option value="low">Low</option>
+                                    <option value="medium" selected>Medium</option>
+                                    <option value="high">High</option>
+                                    <option value="severe">Severe</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="cr-form-group">
+                            <label><i class="fas fa-user"></i> Reporter Name <span class="text-danger">*</span></label>
+                            <input type="text" name="reporter_name" id="crName" required placeholder="Enter your full name">
+                        </div>
+
+                        <div class="cr-form-row">
+                            <div class="cr-form-group">
+                                <label><i class="fas fa-phone"></i> Phone Number <span class="text-danger">*</span></label>
+                                <input type="tel" name="phone" id="crPhone" required placeholder="e.g. 09171234567" pattern="[0-9]{11,}" title="Please enter a valid phone number (at least 11 digits)">
+                            </div>
+                            <div class="cr-form-group">
+                                <label><i class="fas fa-comment"></i> Description <span class="text-danger">*</span></label>
+                                <textarea name="description" id="crDescription" rows="3" required placeholder="Describe what you observed..."></textarea>
+                            </div>
+                        </div>
+
+                        <div class="cr-form-group">
+                            <label><i class="fas fa-camera"></i> Add Photos <span class="text-danger">*</span></label>
+                            <input type="file" name="photos[]" id="crPhotos" multiple accept="image/jpeg,image/jpg,image/png" required>
+                            <div id="photoPreview" class="photo-preview-grid"></div>
+                            <small class="text-muted">Upload at least one photo. Click the <strong>X</strong> on a photo to remove it.</small>
+                        </div>
+
+                        <div class="cr-verification-box">
+                            <h4><i class="fas fa-shield-alt"></i> Gmail Verification</h4>
+                            <p style="font-size:0.85rem;color:#666;margin-bottom:12px;">
+                                Enter your Gmail to receive a verification code. Limit of <strong>2 reports per day</strong>.
+                            </p>
+                            <div class="cr-otp-row">
+                                <input type="email" id="crEmail" placeholder="your.email@gmail.com" required>
+                                <button type="button" class="cr-btn cr-btn-primary" id="sendOtpBtn" onclick="sendOtp()"><i class="fas fa-paper-plane"></i> Send Code</button>
+                            </div>
+                            <div class="cr-otp-row" style="margin-top:10px;">
+                                <input type="text" id="crOtp" placeholder="Enter 6-digit code" maxlength="6" inputmode="numeric" pattern="[0-9]*">
+                                <button type="button" class="cr-btn cr-btn-success" id="verifyOtpBtn" onclick="verifyOtp()" disabled><i class="fas fa-check"></i> Verify</button>
+                            </div>
+                            <div id="crOtpStatus" class="cr-status"></div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="cr-btn cr-btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="cr-btn cr-btn-primary" id="submitReportBtn" disabled form="citizenReportForm">
+                        <i class="fas fa-paper-plane"></i> Submit Report
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Road Updates Section -->
     <section class="section" id="updates" <?php echo ($access_settings['hide_updates'] ?? '0') === '1' ? 'style="display:none"' : ''; ?>>
@@ -1056,6 +1381,9 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
     <?php include __DIR__ . '/includes/a11y_html.php'; ?>
 
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
@@ -1185,5 +1513,290 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
     <script src="lgu_staff/js/page-transition.js"></script>
     <?php include __DIR__ . '/includes/a11y_js.php'; ?>
+
+    <script>
+        const TOMTOM_API_KEY = '<?php echo TOMTOM_API_KEY; ?>';
+        const CITIZEN_API = 'lgu_staff/pages/api/citizen_report.php';
+
+        let citizenMap = null;
+        let citizenPin = null;
+        let otpVerified = false;
+        let photoFiles = [];
+
+        const QC_BOUNDS = [[14.58, 120.92], [14.78, 121.12]];
+        const QC_CENTER = [14.6500, 121.0500];
+
+        document.getElementById('citizenReportModal').addEventListener('shown.bs.modal', function () {
+            if (!citizenMap) {
+                initCitizenMap();
+            }
+            setTimeout(() => citizenMap?.invalidateSize(), 300);
+        });
+
+        document.getElementById('citizenReportModal').addEventListener('hidden.bs.modal', function () {
+            resetCitizenForm();
+        });
+
+        function initCitizenMap() {
+            citizenMap = L.map('citizenMap', {
+                maxBounds: QC_BOUNDS,
+                maxBoundsViscosity: 1.0,
+                minZoom: 12
+            }).setView(QC_CENTER, 13);
+
+            L.tileLayer('https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
+                attribution: '&copy; TomTom',
+                maxZoom: 18
+            }).addTo(citizenMap);
+
+            L.rectangle(QC_BOUNDS, {
+                color: '#2a5298',
+                weight: 2,
+                fill: false,
+                dashArray: '5, 10',
+                opacity: 0.7
+            }).addTo(citizenMap);
+
+            citizenMap.on('click', function(e) {
+                const { lat, lng } = e.latlng;
+                placeCitizenPin(lat, lng);
+            });
+        }
+
+        function placeCitizenPin(lat, lng) {
+            if (citizenPin) citizenMap.removeLayer(citizenPin);
+            citizenPin = L.marker([lat, lng], { draggable: true }).addTo(citizenMap);
+            document.getElementById('crLat').value = lat.toFixed(6);
+            document.getElementById('crLng').value = lng.toFixed(6);
+            document.getElementById('citizenMap').classList.add('has-pin');
+
+            TomTomServices?.reverseGeocode(lat, lng).then(data => {
+                if (data?.success && data?.data?.address?.freeformAddress) {
+                    document.getElementById('crAddress').value = data.data.address.freeformAddress;
+                }
+            }).catch(() => {});
+
+            citizenPin.on('dragend', function() {
+                const pos = citizenPin.getLatLng();
+                document.getElementById('crLat').value = pos.lat.toFixed(6);
+                document.getElementById('crLng').value = pos.lng.toFixed(6);
+            });
+        }
+
+        document.getElementById('crPhotos').addEventListener('change', function(e) {
+            const files = Array.from(e.target.files);
+            files.forEach(file => {
+                if (!photoFiles.some(f => f.name === file.name && f.size === file.size && f.lastModified === file.lastModified)) {
+                    photoFiles.push(file);
+                }
+            });
+            renderPhotoPreviews();
+            this.value = '';
+        });
+
+        function renderPhotoPreviews() {
+            const container = document.getElementById('photoPreview');
+            container.innerHTML = '';
+            photoFiles.forEach((file, index) => {
+                const reader = new FileReader();
+                const wrapper = document.createElement('div');
+                wrapper.className = 'photo-preview-item';
+                wrapper.innerHTML = '<button type="button" class="photo-delete-btn" data-index="' + index + '">&times;</button>';
+                const img = document.createElement('img');
+                reader.onload = function(e) {
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+                wrapper.prepend(img);
+                container.appendChild(wrapper);
+            });
+
+            document.querySelectorAll('.photo-delete-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const idx = parseInt(this.dataset.index);
+                    photoFiles.splice(idx, 1);
+                    renderPhotoPreviews();
+                    document.getElementById('crPhotos').required = photoFiles.length === 0;
+                });
+            });
+        }
+
+        function sendOtp() {
+            const email = document.getElementById('crEmail').value.trim();
+            if (!email || !email.includes('@')) {
+                showCrStatus('Please enter a valid email address.', 'error');
+                return;
+            }
+            if (!email.toLowerCase().endsWith('@gmail.com')) {
+                showCrStatus('Please use a Gmail address (@gmail.com) for verification.', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('sendOtpBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+
+            const fd = new FormData();
+            fd.append('action', 'send_otp');
+            fd.append('email', email);
+
+            fetch(CITIZEN_API, { method: 'POST', body: fd })
+                .then(r => r.json())
+                .then(data => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Code';
+                    if (data.success) {
+                        showCrStatus(data.message, 'success');
+                        document.getElementById('verifyOtpBtn').disabled = false;
+                        document.getElementById('crOtp').focus();
+                    } else {
+                        showCrStatus(data.message, 'error');
+                    }
+                })
+                .catch(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Code';
+                    showCrStatus('Failed to send code. Please try again.', 'error');
+                });
+        }
+
+        function verifyOtp() {
+            const otp = document.getElementById('crOtp').value.trim();
+            if (!otp || otp.length < 6) {
+                showCrStatus('Please enter the 6-digit verification code.', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('verifyOtpBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
+
+            const fd = new FormData();
+            fd.append('action', 'verify_otp');
+            fd.append('otp', otp);
+
+            fetch(CITIZEN_API, { method: 'POST', body: fd })
+                .then(r => r.json())
+                .then(data => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-check"></i> Verify';
+                    if (data.success) {
+                        otpVerified = true;
+                        showCrStatus('Email verified! You can now submit your report.', 'success');
+                        document.getElementById('submitReportBtn').disabled = false;
+                        document.getElementById('crEmail').readOnly = true;
+                        document.getElementById('sendOtpBtn').disabled = true;
+                        document.getElementById('verifyOtpBtn').disabled = true;
+                    } else {
+                        showCrStatus(data.message, 'error');
+                    }
+                })
+                .catch(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-check"></i> Verify';
+                    showCrStatus('Verification failed. Please try again.', 'error');
+                });
+        }
+
+        document.getElementById('citizenReportForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const errors = [];
+
+            const lat = document.getElementById('crLat').value;
+            const lng = document.getElementById('crLng').value;
+            if (!lat || !lng) errors.push('Please pin a location on the map.');
+
+            const issueType = document.getElementById('crIssueType').value;
+            if (!issueType) errors.push('Please select an issue type.');
+
+            const severity = document.getElementById('crSeverity').value;
+            if (!severity) errors.push('Please select a severity level.');
+
+            const name = document.getElementById('crName').value.trim();
+            if (!name) errors.push('Please enter your full name.');
+
+            const phone = document.getElementById('crPhone').value.trim();
+            if (!phone) errors.push('Please enter your phone number.');
+            else if (!/^[0-9]{11,}$/.test(phone)) errors.push('Please enter a valid phone number (at least 11 digits).');
+
+            const desc = document.getElementById('crDescription').value.trim();
+            if (!desc) errors.push('Please describe the issue.');
+
+            if (photoFiles.length === 0) errors.push('Please upload at least one photo.');
+
+            if (!otpVerified) errors.push('Please verify your email first.');
+
+            if (errors.length > 0) {
+                showCrStatus(errors.join('<br>'), 'error');
+                return;
+            }
+
+            const btn = document.getElementById('submitReportBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+
+            const fd = new FormData();
+            fd.append('latitude', document.getElementById('crLat').value);
+            fd.append('longitude', document.getElementById('crLng').value);
+            fd.append('address', document.getElementById('crAddress').value);
+            fd.append('issue_type', document.getElementById('crIssueType').value);
+            fd.append('severity', document.getElementById('crSeverity').value);
+            fd.append('reporter_name', document.getElementById('crName').value.trim());
+            fd.append('phone', document.getElementById('crPhone').value.trim());
+            fd.append('description', document.getElementById('crDescription').value.trim());
+
+            photoFiles.forEach(file => {
+                fd.append('photos[]', file);
+            });
+
+            fd.append('action', 'submit_report');
+
+            fetch(CITIZEN_API, { method: 'POST', body: fd })
+                .then(r => r.json())
+                .then(data => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Report';
+                    if (data.success) {
+                        showCrStatus(data.message, 'success');
+                        setTimeout(() => {
+                            const modal = bootstrap.Modal.getInstance(document.getElementById('citizenReportModal'));
+                            if (modal) modal.hide();
+                            resetCitizenForm();
+                        }, 2000);
+                    } else {
+                        showCrStatus(data.message, 'error');
+                    }
+                })
+                .catch(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Report';
+                    showCrStatus('Submission failed. Please try again.', 'error');
+                });
+        });
+
+        function showCrStatus(msg, type) {
+            const el = document.getElementById('crOtpStatus');
+            el.innerHTML = msg;
+            el.className = 'cr-status ' + type;
+            el.style.display = 'block';
+        }
+
+        function resetCitizenForm() {
+            document.getElementById('citizenReportForm').reset();
+            document.getElementById('crOtpStatus').style.display = 'none';
+            document.getElementById('submitReportBtn').disabled = true;
+            document.getElementById('verifyOtpBtn').disabled = true;
+            document.getElementById('sendOtpBtn').disabled = false;
+            document.getElementById('crEmail').readOnly = false;
+            document.getElementById('citizenMap').classList.remove('has-pin');
+            document.getElementById('crAddress').value = '';
+            document.getElementById('photoPreview').innerHTML = '';
+            photoFiles = [];
+            document.getElementById('crPhotos').required = true;
+            otpVerified = false;
+            if (citizenPin) { citizenMap.removeLayer(citizenPin); citizenPin = null; }
+        }
+    </script>
 </body>
 </html>
