@@ -434,6 +434,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 // Get filter parameters
 $status_filter = $_GET['status'] ?? 'all';
 $type_filter = $_GET['type'] ?? 'all';
+$source_param = $_GET['source'] ?? '';
+
+// Map source parameter to type filter value
+$source_type_map = [
+    'transport'    => 'citizen_reports',
+    'cimm'         => 'cimm_reports',
+    'maintenance'  => 'infrastructure_projects',
+];
+
+if (!empty($source_param) && isset($source_type_map[$source_param])) {
+    $type_filter = $source_type_map[$source_param];
+}
 
 // Get data for the page
 $alerts = getActiveAlerts();
@@ -1741,6 +1753,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             const url = new URL(window.location);
             url.searchParams.set('status', status);
             url.searchParams.set('type', type);
+            url.searchParams.delete('source');
             window.location.href = url.toString();
         }
 
@@ -1748,6 +1761,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             const url = new URL(window.location);
             url.searchParams.delete('status');
             url.searchParams.delete('type');
+            url.searchParams.delete('source');
             window.location.href = url.toString();
         }
 
@@ -2004,6 +2018,30 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                 setTimeout(() => el.remove(), 400);
             }, 4000);
         }
+
+        // Show notification when redirected from report management
+        (function() {
+            var sourceParam = new URLSearchParams(window.location.search).get('source');
+            if (sourceParam) {
+                var sourceLabels = {
+                    'transport': 'Citizen Report',
+                    'cimm': 'CIMM Report',
+                    'maintenance': 'Infrastructure Project'
+                };
+                var label = sourceLabels[sourceParam] || sourceParam;
+                setTimeout(function() {
+                    showNotification(label + ' updated successfully. Viewing filtered reports.', 'success');
+                }, 500);
+
+                // Auto-scroll to reports table
+                setTimeout(function() {
+                    var tableSection = document.querySelector('.reports-table-section');
+                    if (tableSection) {
+                        tableSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                }, 1200);
+            }
+        })();
 
         function openModal(modalId) {
             document.getElementById(modalId).style.display = 'block';

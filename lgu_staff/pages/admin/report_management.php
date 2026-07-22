@@ -3275,7 +3275,12 @@ foreach ($reports as $report) {
                     indicator.textContent = 'Changes saved. Loading report view...';
 
                     setTimeout(() => {
-                        window.location.href = '../shared/road_transportation_monitoring.php';
+                        var editType = document.getElementById('editReportType').value;
+                        var sourceParam = 'transport';
+                        if (editType === 'infrastructure_issue') {
+                            sourceParam = 'maintenance';
+                        }
+                        window.location.href = '../shared/road_transportation_monitoring.php?source=' + sourceParam;
                     }, 500);
                 } else {
                     showNotification(data.message || 'Failed to update report', 'error');
@@ -3422,7 +3427,7 @@ foreach ($reports as $report) {
                     showNotification(data.message || 'CIMM report updated successfully', 'success');
                     closeModal('editCimmModal');
                     indicator.textContent = '';
-                    setTimeout(function() { window.location.href = '../shared/road_transportation_monitoring.php'; }, 800);
+                    setTimeout(function() { window.location.href = '../shared/road_transportation_monitoring.php?source=cimm'; }, 800);
                 } else {
                     showNotification(data.message || 'Failed to update CIMM report', 'error');
                     indicator.textContent = 'Failed to save changes';
