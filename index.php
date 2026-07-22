@@ -167,6 +167,39 @@ if ($database_available && $conn) {
     }
 }
 
+// Get upcoming/ongoing road projects synced from IPMS (see
+// lgu_staff/pages/api/ipms-road-projects-pull.php for the poller that keeps
+// this cache fresh, and ipms_road_projects_data.php for the schema). This is
+// IPMS's own project data, kept intentionally separate from this app's
+// citizen-reported incident tables.
+require_once __DIR__ . '/lgu_staff/pages/api/ipms_road_projects_data.php';
+$ipms_road_projects = [];
+if ($database_available && $conn) {
+    try {
+        $ipms_road_projects = rgmap_fetch_ipms_road_projects(rgmap_ipms_pdo());
+    } catch (Exception $e) {
+        $ipms_road_projects = [];
+    }
+}
+
+// Display metadata (badge label/class, human status) for an IPMS project
+// status. IPMS sends the raw status string (approved/bidding/active/... —
+// see ipms-road-projects-pull.php doc comment for the full list); this just
+// maps it to something citizen-friendly.
+function ipms_status_meta(string $status): array {
+    $map = [
+        'approved'              => ['label' => 'Upcoming — Approved',        'class' => 'rp-upcoming'],
+        'bidding'               => ['label' => 'Upcoming — Bidding',         'class' => 'rp-upcoming'],
+        'awarded'               => ['label' => 'Upcoming — Awarded',        'class' => 'rp-upcoming'],
+        'assigned'              => ['label' => 'Upcoming — Assigned',       'class' => 'rp-upcoming'],
+        'active'                => ['label' => 'Ongoing',                    'class' => 'rp-active'],
+        'delayed'               => ['label' => 'Ongoing — Delayed',         'class' => 'rp-delayed'],
+        'on_hold'               => ['label' => 'On Hold',                    'class' => 'rp-on_hold'],
+        'completion_inspection' => ['label' => 'Final Inspection',          'class' => 'rp-completion_inspection'],
+    ];
+    return $map[$status] ?? ['label' => ucfirst(str_replace('_', ' ', $status)), 'class' => 'rp-upcoming'];
+}
+
 // Load access control settings
 $access_settings = [];
 if ($database_available && $conn) {
@@ -697,7 +730,100 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             color: #ccc;
         }
 
+        /* Upcoming & Ongoing Road Projects Section (IPMS feed) */
+        #roadProjectsMap {
+            height: 420px;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+            margin-bottom: 30px;
+        }
 
+        .road-projects-empty {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .road-projects-empty i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            color: #ccc;
+        }
+
+        .road-projects-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 20px;
+        }
+
+        .road-project-card {
+            background: white;
+            border-radius: 14px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            cursor: pointer;
+        }
+
+        .road-project-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        }
+
+        .road-project-card h4 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 8px;
+        }
+
+        .rp-status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: white;
+            margin-bottom: 10px;
+        }
+
+        .rp-status-badge.rp-upcoming { background: #2196f3; }
+        .rp-status-badge.rp-active { background: #28a745; }
+        .rp-status-badge.rp-delayed { background: #dc3545; }
+        .rp-status-badge.rp-on_hold { background: #6c757d; }
+        .rp-status-badge.rp-completion_inspection { background: #17a2b8; }
+
+        .rp-meta {
+            font-size: 0.85rem;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .rp-meta i {
+            color: var(--accent-color);
+            width: 16px;
+            text-align: center;
+            margin-right: 4px;
+        }
+
+        .rp-progress-track {
+            background: #eee;
+            border-radius: 10px;
+            height: 8px;
+            overflow: hidden;
+            margin: 10px 0 6px;
+        }
+
+        .rp-progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+        }
+
+        .rp-progress-label {
+            font-size: 0.75rem;
+            color: #999;
+        }
 
         /* Citizen Report Modal Styles */
         .modal-header.bg-primary {
@@ -1032,6 +1158,9 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         <a class="nav-link" href="road-updates.php">Road Updates</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="#road-projects">Road Projects</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="public_reports.php">Road Status</a>
                     </li>
                     <li class="nav-item">
@@ -1253,6 +1382,51 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                     <i class="fas fa-list"></i> View All Road Reports
                 </a>
             </div>
+        </div>
+    </section>
+
+    <!-- Upcoming & Ongoing Road Projects Section (IPMS feed) -->
+    <section class="section" id="road-projects" <?php echo ($access_settings['hide_road_projects'] ?? '0') === '1' ? 'style="display:none"' : ''; ?>>
+        <div class="container">
+            <h2 class="section-title">Upcoming &amp; Ongoing Road Projects</h2>
+            <p class="section-subtitle">See which roads are about to be, or currently being, worked on across the city</p>
+
+            <?php if (!empty($ipms_road_projects)): ?>
+            <div id="roadProjectsMap"></div>
+            <div class="road-projects-grid">
+                <?php foreach ($ipms_road_projects as $proj):
+                    $meta = ipms_status_meta($proj['project_status']);
+                    $progress = max(0, min(100, (int)$proj['progress_percent']));
+                ?>
+                <div class="road-project-card" onclick="focusRoadProjectOnMap(<?php echo (int)$proj['project_id']; ?>)">
+                    <span class="rp-status-badge <?php echo htmlspecialchars($meta['class']); ?>"><?php echo htmlspecialchars($meta['label']); ?></span>
+                    <h4><?php echo htmlspecialchars($proj['project_name']); ?></h4>
+                    <div class="rp-meta"><i class="fas fa-road"></i> <?php echo htmlspecialchars($proj['road_type']); ?> &middot; <?php echo htmlspecialchars($proj['road_status']); ?></div>
+                    <?php if (!empty($proj['barangays_covered'])): ?>
+                    <div class="rp-meta"><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars(implode(', ', $proj['barangays_covered'])); ?></div>
+                    <?php endif; ?>
+                    <?php if (!empty($proj['start_date']) || !empty($proj['end_date'])): ?>
+                    <div class="rp-meta">
+                        <i class="fas fa-calendar"></i>
+                        <?php echo !empty($proj['start_date']) ? htmlspecialchars(date('M Y', strtotime($proj['start_date']))) : '—'; ?>
+                        &ndash;
+                        <?php echo !empty($proj['end_date']) ? htmlspecialchars(date('M Y', strtotime($proj['end_date']))) : '—'; ?>
+                    </div>
+                    <?php endif; ?>
+                    <div class="rp-progress-track">
+                        <div class="rp-progress-fill" style="width: <?php echo $progress; ?>%;"></div>
+                    </div>
+                    <div class="rp-progress-label"><?php echo $progress; ?>% complete</div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+            <?php else: ?>
+            <div class="road-projects-empty">
+                <i class="fas fa-road"></i>
+                <h5>No Upcoming Projects Right Now</h5>
+                <p>Planned and ongoing road projects from IPMS will appear here once available.</p>
+            </div>
+            <?php endif; ?>
         </div>
     </section>
 
@@ -1579,6 +1753,88 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     <script>
         const TOMTOM_API_KEY = '<?php echo TOMTOM_API_KEY; ?>';
         const CITIZEN_API = 'lgu_staff/pages/api/citizen_report.php';
+
+        // Upcoming/ongoing road projects synced from IPMS (read-only cache —
+        // see lgu_staff/pages/api/ipms-road-projects-pull.php). Each
+        // polyline_coordinates pair is [lat, lng], start -> end.
+        const IPMS_ROAD_PROJECTS = <?php echo json_encode(array_map(function ($p) {
+            return [
+                'project_id' => (int)$p['project_id'],
+                'project_name' => $p['project_name'],
+                'project_status' => $p['project_status'],
+                'progress_percent' => (int)$p['progress_percent'],
+                'road_type' => $p['road_type'],
+                'road_status' => $p['road_status'],
+                'polyline' => $p['polyline_coordinates'],
+                'scope_bucket' => $p['scope_bucket'],
+            ];
+        }, $ipms_road_projects), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
+
+        const ROAD_PROJECT_COLORS = {
+            'active': '#28a745',
+            'delayed': '#dc3545',
+            'on_hold': '#6c757d',
+            'completion_inspection': '#17a2b8'
+        };
+        const roadProjectLayers = {};
+        let roadProjectsMap = null;
+
+        function initRoadProjectsMap() {
+            const mapEl = document.getElementById('roadProjectsMap');
+            if (!mapEl || typeof L === 'undefined') return;
+
+            roadProjectsMap = L.map('roadProjectsMap').setView([14.6760, 121.0437], 12);
+
+            L.tileLayer('https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
+                attribution: '&copy; TomTom',
+                maxZoom: 18
+            }).addTo(roadProjectsMap);
+
+            const allPoints = [];
+
+            IPMS_ROAD_PROJECTS.forEach(proj => {
+                if (!Array.isArray(proj.polyline) || proj.polyline.length < 2) return;
+                const latlngs = proj.polyline.map(pt => [pt[0], pt[1]]);
+                const color = ROAD_PROJECT_COLORS[proj.project_status] || '#2196f3';
+
+                const line = L.polyline(latlngs, {
+                    color: color,
+                    weight: 5,
+                    opacity: 0.85
+                }).addTo(roadProjectsMap);
+
+                line.bindPopup(
+                    '<strong>' + escapeRoadProjectHtml(proj.project_name) + '</strong><br>' +
+                    escapeRoadProjectHtml(proj.road_type) + ' &middot; ' + escapeRoadProjectHtml(proj.road_status) + '<br>' +
+                    proj.progress_percent + '% complete'
+                );
+
+                roadProjectLayers[proj.project_id] = line;
+                allPoints.push(...latlngs);
+            });
+
+            if (allPoints.length > 0) {
+                roadProjectsMap.fitBounds(L.latLngBounds(allPoints).pad(0.15));
+            }
+        }
+
+        function escapeRoadProjectHtml(text) {
+            const d = document.createElement('div');
+            d.textContent = text || '';
+            return d.innerHTML;
+        }
+
+        function focusRoadProjectOnMap(projectId) {
+            const line = roadProjectLayers[projectId];
+            if (!line || !roadProjectsMap) return;
+            document.getElementById('roadProjectsMap').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            roadProjectsMap.fitBounds(line.getBounds().pad(0.3));
+            line.openPopup(line.getBounds().getCenter());
+        }
+
+        if (IPMS_ROAD_PROJECTS.length > 0) {
+            initRoadProjectsMap();
+        }
 
         let citizenMap = null;
         let citizenPin = null;
