@@ -648,6 +648,7 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
     
     // Apply filters
     $where_conditions = [];
+    $params = [];
     
     $status_filter = $_GET['status'] ?? 'all';
     $source_filter = $_GET['source'] ?? 'all';
@@ -661,8 +662,22 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
     $include_transport = ($source_filter === 'all' || $source_filter === 'transport');
     $include_maintenance = ($source_filter === 'all' || $source_filter === 'maintenance');
     
-    if (!$include_transport) {
+    if (!$include_transport && !$include_maintenance) {
         $transport_query = "SELECT NULL FROM road_transportation_reports WHERE 1=0";
+    } elseif (!$include_transport && $include_maintenance) {
+        // When only maintenance is selected, include infrastructure issues from transport table
+        $transport_query .= " WHERE report_type = 'infrastructure_issue'";
+        if (!empty($where_conditions)) {
+            $transport_query .= " AND " . implode(' AND ', $where_conditions);
+        }
+        $transport_params = $params ?? [];
+    } elseif ($include_transport && !$include_maintenance) {
+        // When only transport is selected, exclude infrastructure issues (they belong in infra panel)
+        $transport_query .= " WHERE report_type != 'infrastructure_issue'";
+        if (!empty($where_conditions)) {
+            $transport_query .= " AND " . implode(' AND ', $where_conditions);
+        }
+        $transport_params = $params ?? [];
     } elseif (!empty($where_conditions)) {
         $transport_query .= " WHERE " . implode(' AND ', $where_conditions);
         $transport_params = $params;
