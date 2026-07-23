@@ -637,9 +637,9 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
     
     // Get transportation reports (Citizen Reports + Infrastructure Issues from transport table)
     if ($transport_estimation_exists) {
-        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' WHEN report_category = 'transportation' AND report_source = 'local' AND created_by != 0 THEN 'lgu_reports' ELSE 'transport' END as source_system FROM road_transportation_reports";
+        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' WHEN report_category = 'transportation' AND report_source = 'local' AND created_by != 0 AND status = 'approved' THEN 'lgu_reports' WHEN report_category = 'transportation' AND report_source = 'local' AND created_by != 0 THEN 'hidden' ELSE 'transport' END as source_system FROM road_transportation_reports";
     } else {
-        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, 0 as estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' WHEN report_category = 'transportation' AND report_source = 'local' AND created_by != 0 THEN 'lgu_reports' ELSE 'transport' END as source_system FROM road_transportation_reports";
+        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, 0 as estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' WHEN report_category = 'transportation' AND report_source = 'local' AND created_by != 0 AND status = 'approved' THEN 'lgu_reports' WHEN report_category = 'transportation' AND report_source = 'local' AND created_by != 0 THEN 'hidden' ELSE 'transport' END as source_system FROM road_transportation_reports";
     }
     $transport_params = [];
     
@@ -682,7 +682,7 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
         // When only transport is selected, exclude infrastructure issues (they belong in infra panel)
         $transport_query .= " WHERE report_type != 'infrastructure_issue'";
         if ($is_lgu_filter) {
-            $transport_query .= " AND report_category = 'transportation' AND report_source = 'local' AND created_by != 0";
+            $transport_query .= " AND report_category = 'transportation' AND report_source = 'local' AND created_by != 0 AND status = 'approved'";
         }
         if (!empty($where_conditions)) {
             $transport_query .= " AND " . implode(' AND ', $where_conditions);
@@ -840,6 +840,8 @@ foreach ($reports as $report) {
         $infra_reports_list[] = $report;
     } elseif ($src === 'lgu_reports') {
         $lgu_reports_list[] = $report;
+    } elseif ($src === 'hidden') {
+        // Skip unapproved LGU reports
     } else {
         $citizen_reports[] = $report;
     }
