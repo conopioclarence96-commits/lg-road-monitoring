@@ -93,6 +93,23 @@ try {
         error_log("report_notifications table creation: " . $e->getMessage());
     }
     
+    // Ensure citizen report columns exist
+    try {
+        $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS report_category VARCHAR(50) AFTER report_type");
+    } catch (Exception $e) {}
+    try {
+        $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS report_source VARCHAR(50) AFTER report_category");
+    } catch (Exception $e) {}
+    try {
+        $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS image_path VARCHAR(500) AFTER attachments");
+    } catch (Exception $e) {}
+    try {
+        $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS reporter_name VARCHAR(100) AFTER reporter_email");
+    } catch (Exception $e) {}
+    try {
+        $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS reporter_phone VARCHAR(20) AFTER reporter_name");
+    } catch (Exception $e) {}
+    
     // Ensure account_status supports 'deactivated' value
     try {
         $row = $conn->query("SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'users' AND COLUMN_NAME = 'account_status' AND TABLE_SCHEMA = '" . DB_NAME . "'")->fetch_assoc();
@@ -158,10 +175,13 @@ define('SALT_LENGTH', 32);
 define('MAX_FILE_SIZE', 5 * 1024 * 1024); // 5MB
 define('ALLOWED_FILE_TYPES', ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'jpg', 'jpeg', 'png']);
 
-// Google Maps API Key
-// Get your key from: https://console.cloud.google.com/apis/credentials
-// Enable "Maps JavaScript API" in APIs & Services > Library
-define('GOOGLE_MAPS_API_KEY', 'AIzaSyC8YEmmPXEJEi5YsTToD4e1Ks9EUV4ihPc');
+// TomTom API Key - Load from .env or environment variable
+$envFile = __DIR__ . '/../../.env';
+$envVariables = file_exists($envFile) ? parse_ini_file($envFile) : [];
+define('TOMTOM_API_KEY', $envVariables['TOMTOM_API_KEY'] ?? getenv('TOMTOM_API_KEY'));
+
+// TomTom API Services
+require_once __DIR__ . '/tomtom/autoload.php';
 
 // Pagination settings
 define('ITEMS_PER_PAGE', 20);

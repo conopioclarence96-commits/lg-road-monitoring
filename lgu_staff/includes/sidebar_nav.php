@@ -195,7 +195,7 @@ foreach ($nav_items as $section => $items) {
     </nav>
 </aside>
 
-<script src="../../js/page-transition.js"></script>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     var logoutBtn = document.getElementById('logoutBtn');

@@ -19,7 +19,8 @@ if ($report_id <= 0) {
     redirect('../admin/report_management.php');
 }
 
-$table = ($report_type === 'transportation') ? 'road_transportation_reports' : 'road_maintenance_reports';
+$transport_types = ['transportation', 'infrastructure_issue', 'traffic_jam', 'accident', 'road_closure', 'potholes', 'road_damage'];
+$table = in_array($report_type, $transport_types) ? 'road_transportation_reports' : 'road_maintenance_reports';
 $report = fetch_one("SELECT * FROM {$table} WHERE id = ?", [$report_id], "i");
 
 if (!$report) {

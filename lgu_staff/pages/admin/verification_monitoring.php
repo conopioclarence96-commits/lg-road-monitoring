@@ -5003,6 +5003,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             // Issue / Notes
             document.getElementById('cimm-issue').textContent = r.issue_notes || 'No notes provided.';
 
+            // Attachments
+            document.getElementById('cimm-attachments').innerHTML = '<div style="padding:8px 0;color:#9ca3af;font-size:14px;">No attachments.</div>';
+            
             // Attachments — evidence photos CIMM synced for this report
             // (r.evidence_urls, populated by rgmap_map_cimm_row_for_display()
             // from cimm_verification_reports.evidence_json).

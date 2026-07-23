@@ -79,7 +79,8 @@ if ($method === 'GET') {
         $report_type = sanitize_input($_POST['report_type'] ?? 'transportation');
         $title = sanitize_input($_POST['title'] ?? '');
         $description = sanitize_input($_POST['description'] ?? '');
-        $table = ($report_type === 'transportation') ? 'road_transportation_reports' : 'road_maintenance_reports';
+        $transport_types = ['transportation', 'infrastructure_issue', 'traffic_jam', 'accident', 'road_closure', 'potholes', 'road_damage'];
+        $table = in_array($report_type, $transport_types) ? 'road_transportation_reports' : 'road_maintenance_reports';
 
         if ($report_id <= 0) json_response(['success' => false, 'message' => 'Invalid report ID']);
         if (empty($description)) json_response(['success' => false, 'message' => 'Description is required']);
