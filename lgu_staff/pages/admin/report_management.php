@@ -1624,7 +1624,7 @@ foreach ($reports as $report) {
         }
 
         .rm-panel-icon.infra {
-            background: linear-gradient(135deg, #17a2b8, #138496);
+            background: linear-gradient(135deg, #f97316, #ea580c);
         }
 
         .rm-panel-title {
@@ -1657,7 +1657,7 @@ foreach ($reports as $report) {
 
         .rm-panel-badge.citizen { background: #16a34a; }
         .rm-panel-badge.cimm { background: #f97316; }
-        .rm-panel-badge.infra { background: #17a2b8; }
+        .rm-panel-badge.infra { background: #f97316; }
 
         #citizenReportsPanel.rm-panel {
             background: #f0f8f4;
@@ -1706,6 +1706,55 @@ foreach ($reports as $report) {
         }
         body.dark-mode #citizenReportsPanel .rm-table tbody tr:hover {
             background: rgba(22, 163, 74, 0.08);
+        }
+
+        #infraReportsPanel.rm-panel {
+            background: #fff8f0;
+            border-color: #f0e0cc;
+        }
+        body.dark-mode #infraReportsPanel.rm-panel {
+            background: #1e2229;
+            border-color: #3d3226;
+        }
+        #infraReportsPanel .rm-panel-header {
+            border-bottom-color: rgba(249, 115, 22, 0.15);
+        }
+        #infraReportsPanel .rm-panel-title {
+            color: #c2410c;
+        }
+        body.dark-mode #infraReportsPanel .rm-panel-title {
+            color: #fdba74;
+        }
+        #infraReportsPanel .rm-panel-subtitle {
+            color: #92400e;
+        }
+        body.dark-mode #infraReportsPanel .rm-panel-subtitle {
+            color: #d6a564;
+        }
+        #infraReportsPanel .rm-panel-search {
+            border-bottom-color: rgba(249, 115, 22, 0.08);
+        }
+        #infraReportsPanel .rm-search-input:focus {
+            border-color: #f97316;
+            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+        }
+        #infraReportsPanel .rm-sort-btn {
+            background: linear-gradient(135deg, #f97316, #ea580c);
+        }
+        #infraReportsPanel .rm-sort-btn:hover {
+            box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+        }
+        #infraReportsPanel .rm-table thead th {
+            background: linear-gradient(135deg, #f97316, #ea580c);
+        }
+        #infraReportsPanel .rm-table tbody tr {
+            border-bottom-color: rgba(249, 115, 22, 0.08);
+        }
+        #infraReportsPanel .rm-table tbody tr:hover {
+            background: rgba(249, 115, 22, 0.05);
+        }
+        body.dark-mode #infraReportsPanel .rm-table tbody tr:hover {
+            background: rgba(249, 115, 22, 0.08);
         }
 
         .rm-panel-subtitle {
@@ -2432,27 +2481,27 @@ foreach ($reports as $report) {
 
         <!-- Infrastructure Projects Panel -->
         <div class="rm-panel" id="infraReportsPanel">
-            <div class="rm-panel-header" style="border-bottom-color: rgba(23, 162, 184, 0.15);">
+            <div class="rm-panel-header">
                 <div class="rm-panel-header-left">
                     <div class="rm-panel-icon infra">
                         <i class="fas fa-hard-hat"></i>
                     </div>
                     <div>
                         <div class="rm-panel-title-group">
-                            <h2 class="rm-panel-title" style="color: #138496;">Infrastructure Projects</h2>
+                            <h2 class="rm-panel-title">Infrastructure Projects</h2>
                             <span class="rm-panel-badge infra"><?php echo count($infra_reports_list); ?> Projects</span>
                         </div>
-                        <p class="rm-panel-subtitle" style="color: #0c5460;">Infrastructure maintenance and project records</p>
+                        <p class="rm-panel-subtitle">Infrastructure maintenance and project records</p>
                     </div>
                 </div>
             </div>
 
-            <div class="rm-panel-search" style="border-bottom-color: rgba(23, 162, 184, 0.08);">
+            <div class="rm-panel-search">
                 <div class="rm-search-wrapper">
                     <i class="fas fa-search"></i>
                     <input type="text" class="rm-search-input" id="infraSearchInput" placeholder="Search by Report #, Title, Type, Location, Department...">
                 </div>
-                <button class="rm-sort-btn" style="background: linear-gradient(135deg, #17a2b8, #138496);" onclick="toggleInfraSort()">
+                <button class="rm-sort-btn" onclick="toggleInfraSort()">
                     <i class="fas fa-sort"></i> Sort
                 </button>
             </div>
@@ -2461,15 +2510,15 @@ foreach ($reports as $report) {
                 <table class="rm-table" id="infraTable">
                     <thead>
                         <tr>
-                            <th style="background: linear-gradient(135deg, #17a2b8, #138496);">Action</th>
-                            <th style="background: linear-gradient(135deg, #17a2b8, #138496);">Report #</th>
-                            <th style="background: linear-gradient(135deg, #17a2b8, #138496);">Title</th>
-                            <th style="background: linear-gradient(135deg, #17a2b8, #138496);">Type</th>
-                            <th style="background: linear-gradient(135deg, #17a2b8, #138496);">Location</th>
-                            <th style="background: linear-gradient(135deg, #17a2b8, #138496);">Department</th>
-                            <th style="background: linear-gradient(135deg, #17a2b8, #138496);">Priority</th>
-                            <th style="background: linear-gradient(135deg, #17a2b8, #138496);">Status</th>
-                            <th style="background: linear-gradient(135deg, #17a2b8, #138496);">Created</th>
+                            <th>Action</th>
+                            <th>Report #</th>
+                            <th>Title</th>
+                            <th>Type</th>
+                            <th>Location</th>
+                            <th>Department</th>
+                            <th>Priority</th>
+                            <th>Status</th>
+                            <th>Created</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -2529,8 +2578,8 @@ foreach ($reports as $report) {
                         <tr>
                             <td colspan="9">
                                 <div class="rm-empty-state">
-                                    <div class="rm-empty-icon" style="background: rgba(23, 162, 184, 0.12);">
-                                        <i class="fas fa-hard-hat" style="color: #17a2b8;"></i>
+                                    <div class="rm-empty-icon" style="background: rgba(249, 115, 22, 0.12);">
+                                        <i class="fas fa-hard-hat" style="color: #f97316;"></i>
                                     </div>
                                     <h4>No Infrastructure Projects</h4>
                                     <p>No infrastructure projects found.</p>
