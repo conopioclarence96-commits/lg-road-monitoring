@@ -146,8 +146,8 @@ function handleSubmitReport() {
     $attachments = [];
     $imagePath = null;
 
-    if (empty($_FILES['photos']['name'][0]) || count($_FILES['photos']['name']) < 2) {
-        echo json_encode(['success' => false, 'message' => 'Please upload at least 2 photos.']);
+    if (empty($_FILES['photos']['name'][0])) {
+        echo json_encode(['success' => false, 'message' => 'Please upload at least one photo.']);
         return;
     }
 
