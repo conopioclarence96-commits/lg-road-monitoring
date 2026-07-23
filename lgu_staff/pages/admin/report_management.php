@@ -2878,8 +2878,8 @@ if ($include_cimm) {
                         <h6><i class="fas fa-images"></i> Report Photos</h6>
                         <div id="existingPhotos" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;"></div>
                         <div class="form-group" style="margin-bottom: 0;">
-                            <label for="editPhotos" class="form-label">Add New Photos</label>
-                            <button type="button" id="add-edit-photos-btn" style="padding:8px 16px;background:#3762c8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;"><i class="fas fa-camera"></i> Add Photos</button>
+                            <label for="editPhotos" class="form-label">Adding Photos</label>
+                            <button type="button" id="add-edit-photos-btn" style="padding:8px 16px;background:#3762c8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;"><i class="fas fa-camera"></i> Adding Photos</button>
                             <input type="file" name="report_photos[]" id="editPhotos" 
                                    accept="image/jpeg,image/png,image/gif,image/webp" multiple
                                    style="display:none;">
