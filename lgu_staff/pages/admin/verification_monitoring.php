@@ -3268,6 +3268,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     </tbody>
                 </table>
             </div>
+        </div>
 
         <!-- CIMM Reports Panel -->
         <div class="dept-reports-panel" id="cimmReportsPanel">
