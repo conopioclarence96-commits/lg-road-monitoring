@@ -2263,6 +2263,295 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             font-weight: 500;
         }
 
+        /* LGU Monitoring Reports Panel */
+        .lgu-reports-panel {
+            background: #f0f4fa;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid #c8d0e0;
+            margin-bottom: 25px;
+            overflow: hidden;
+        }
+
+        body.dark-mode .lgu-reports-panel {
+            background: #1e2229;
+            border-color: #1a2a3d;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .lgu-reports-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 25px;
+            border-bottom: 2px solid rgba(30, 60, 114, 0.15);
+        }
+
+        .lgu-reports-header-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .lgu-reports-icon {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, #1e3c72, #0f274a);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+        }
+
+        .lgu-reports-title-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .lgu-reports-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1e3c72;
+            margin: 0;
+        }
+
+        body.dark-mode .lgu-reports-title {
+            color: #93b3e0;
+        }
+
+        .lgu-reports-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            background: #3762c8;
+            color: white;
+        }
+
+        .lgu-reports-subtitle {
+            font-size: 13px;
+            color: #4a5b82;
+            margin: 2px 0 0 0;
+        }
+
+        body.dark-mode .lgu-reports-subtitle {
+            color: #8aa3c8;
+        }
+
+        .lgu-reports-search {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 25px;
+            border-bottom: 1px solid rgba(30, 60, 114, 0.08);
+        }
+
+        .lgu-search-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: white;
+            border: 1px solid rgba(30, 60, 114, 0.2);
+            border-radius: 10px;
+            padding: 10px 16px;
+            transition: border-color 0.2s;
+        }
+
+        body.dark-mode .lgu-search-wrapper {
+            background: #2a2e37;
+            border-color: rgba(30, 60, 114, 0.3);
+        }
+
+        .lgu-search-wrapper:focus-within {
+            border-color: #3762c8;
+            box-shadow: 0 0 0 3px rgba(55, 98, 200, 0.1);
+        }
+
+        .lgu-search-wrapper i {
+            color: #9ca3af;
+            font-size: 14px;
+        }
+
+        .lgu-search-input {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-size: 13px;
+            color: #333;
+            background: transparent;
+        }
+
+        body.dark-mode .lgu-search-input {
+            color: #e4e6ea;
+        }
+
+        .lgu-search-input::placeholder {
+            color: #9ca3af;
+        }
+
+        .lgu-sort-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 18px;
+            background: linear-gradient(135deg, #1e3c72, #0f274a);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+
+        .lgu-sort-btn:hover {
+            background: linear-gradient(135deg, #0f274a, #0a1d35);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(30, 60, 114, 0.3);
+        }
+
+        .lgu-table-wrapper {
+            overflow-x: auto;
+            padding: 0;
+        }
+
+        .lgu-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .lgu-table thead th {
+            background: linear-gradient(135deg, #1e3c72, #0f274a);
+            color: white;
+            padding: 14px 16px;
+            font-size: 12px;
+            font-weight: 700;
+            text-align: left;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+
+        .lgu-table thead th:first-child { border-radius: 0; }
+        .lgu-table thead th:last-child { border-radius: 0; }
+
+        .lgu-table tbody tr {
+            border-bottom: 1px solid rgba(30, 60, 114, 0.08);
+            transition: background 0.2s;
+        }
+
+        .lgu-table tbody tr:hover {
+            background: rgba(55, 98, 200, 0.05);
+        }
+
+        .lgu-table tbody td {
+            padding: 14px 16px;
+            color: #333;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        body.dark-mode .lgu-table tbody td { color: #c0c8d8; }
+        body.dark-mode .lgu-table tbody tr { border-bottom-color: rgba(255,255,255,0.05); }
+        body.dark-mode .lgu-table tbody tr:hover { background: rgba(55,98,200,0.08); }
+
+        .lgu-action-btn {
+            padding: 6px 12px;
+            background: rgba(55, 98, 200, 0.1);
+            color: #3762c8;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .lgu-action-btn:hover { background: rgba(55, 98, 200, 0.2); }
+        body.dark-mode .lgu-action-btn { background: rgba(55,98,200,0.15); color: #60a5fa; }
+
+        .lgu-action-group {
+            display: inline-flex;
+            gap: 4px;
+            align-items: center;
+        }
+
+        .lgu-verify-btn {
+            padding: 5px 10px;
+            background: rgba(34, 197, 94, 0.1);
+            color: #16a34a;
+            border: none;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .lgu-verify-btn:hover { background: rgba(34, 197, 94, 0.2); }
+        body.dark-mode .lgu-verify-btn { background: rgba(34,197,94,0.15); color: #4ade80; }
+
+        .lgu-reject-btn {
+            padding: 5px 10px;
+            background: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+            border: none;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .lgu-reject-btn:hover { background: rgba(220, 53, 69, 0.2); }
+        body.dark-mode .lgu-reject-btn { background: rgba(220,53,69,0.15); color: #f87171; }
+
+        .lgu-action-form { display: inline; }
+
+        .lgu-status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+
+        .lgu-status-badge.pending { background: rgba(251,191,36,0.15); color: #f59e0b; }
+        .lgu-status-badge.in-progress { background: rgba(59,130,246,0.15); color: #3b82f6; }
+        .lgu-status-badge.completed,
+        .lgu-status-badge.approved,
+        .lgu-status-badge.resolved { background: rgba(34,197,94,0.15); color: #22c55e; }
+        .lgu-status-badge.cancelled { background: rgba(220,53,69,0.15); color: #ef4444; }
+
+        .lgu-empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #4a5b82;
+        }
+
+        .lgu-empty-icon {
+            width: 56px;
+            height: 56px;
+            background: rgba(55, 98, 200, 0.12);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+        }
+
+        .lgu-empty-icon i { font-size: 26px; color: #3762c8; }
+        body.dark-mode .lgu-empty-icon { background: rgba(55,98,200,0.12); }
+        body.dark-mode .lgu-empty-icon i { color: #60a5fa; }
+
         /* Citizen Reports Panel */
         .citizen-reports-panel {
             background: #f0f8f4;
@@ -2840,123 +3129,130 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             </div>
         </div>
 
-        <!-- Workflow Container Panel -->
-        <div class="section-panel" id="citizenReportsPanel">
-            <div class="workflow-container" style="margin-bottom:0;">
-                <!-- All Reports (filterable) -->
-                <div class="workflow-card" style="box-shadow:none; border:none; border-radius:0;">
-                <div class="workflow-header">
-                    <h3 class="workflow-title">
-                        <i class="fas fa-list"></i>
-                        <span id="section-title">All Reports</span>
-                        <span class="workflow-badge" id="section-badge"><?php echo $all_reports->num_rows; ?></span>
-                    </h3>
+        <!-- LGU Monitoring Reports Panel -->
+        <div class="lgu-reports-panel" id="lguMonitoringPanel">
+            <div class="lgu-reports-header">
+                <div class="lgu-reports-header-left">
+                    <div class="lgu-reports-icon">
+                        <i class="fas fa-clipboard-list"></i>
+                    </div>
+                    <div>
+                        <div class="lgu-reports-title-group">
+                            <h2 class="lgu-reports-title">LGU Monitoring Reports</h2>
+                            <span class="lgu-reports-badge"><?php echo $all_reports->num_rows; ?> Reports</span>
+                        </div>
+                        <p class="lgu-reports-subtitle">Reports submitted by the LGU Road &amp; Transportation Department.</p>
+                    </div>
                 </div>
-                
-                <div class="workflow-content" id="reports-container">
-                    <?php 
-                    // Reset pointer and display all reports
-                    $all_reports->data_seek(0);
-                    if ($all_reports->num_rows > 0): 
-                    ?>
-                        <?php while ($report = $all_reports->fetch_assoc()): 
-                            $status_class = '';
-                            if ($report['status'] === 'approved') $status_class = 'approved';
-                            elseif ($report['status'] === 'cancelled') $status_class = 'rejected';
-                            elseif ($report['status'] === 'pending') $status_class = 'pending';
-                            elseif ($report['status'] === 'in-progress') $status_class = 'in-progress';
-                            elseif ($report['status'] === 'completed') $status_class = 'completed';
+            </div>
 
-                            // Check if this report can be verified locally
-                            $report_category = $report['report_category'] ?? null;
-                            $report_source = $report['report_source'] ?? null;
-                            $can_verify = canVerifyReport($report_category, $report_source);
-                            // Road+local reports that are pending show as awaiting external verification
-                            $pending_ext_verify = ($report['status'] === 'pending' && !$can_verify);
+            <div class="lgu-reports-search">
+                <div class="lgu-search-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" class="lgu-search-input" id="lguSearchInput" placeholder="Search by Report #, Title, Type, Source, Status...">
+                </div>
+                <button class="lgu-sort-btn" onclick="toggleLguSort()">
+                    <i class="fas fa-sort"></i> Sort
+                </button>
+            </div>
+
+            <div class="lgu-table-wrapper">
+                <table class="lgu-table" id="lguTable">
+                    <thead>
+                        <tr>
+                            <th>Action</th>
+                            <th>Report #</th>
+                            <th>Title</th>
+                            <th>Type</th>
+                            <th>Source</th>
+                            <th>Priority</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php 
+                        // Reset pointer and display all reports
+                        $all_reports->data_seek(0);
+                        if ($all_reports->num_rows > 0): 
                         ?>
-                            <div class="verification-item" data-status="<?php echo htmlspecialchars($report['status']); ?>" data-source="<?php echo htmlspecialchars($report['source']); ?>" data-created-by="<?php echo htmlspecialchars($report['created_by'] ?? ''); ?>" data-reporter-name="<?php echo htmlspecialchars($report['reporter_name'] ?? ''); ?>">
-                                <div class="verification-priority priority-<?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?>"></div>
-                                <div class="verification-icon">
-                                    <i class="fas fa-<?php echo getReportIcon($report['report_type']); ?>"></i>
-                                </div>
-                                <div class="verification-content">
-                                    <div class="verification-title"><?php echo htmlspecialchars($report['title']); ?></div>
-                                    <div class="verification-meta">
-                                        <div class="meta-item">
-                                            <i class="fas fa-tag"></i>
-                                            <?php 
-                                            $report_type = $report['report_type'] ?? '';
-                                            $specific_types = [
-                                                'traffic_jam' => 'Traffic Jam',
-                                                'accident' => 'Vehicle Accident',
-                                                'road_closure' => 'Road Closure',
-                                                'traffic_light_outage' => 'Traffic Light Outage',
-                                                'congestion' => 'Heavy Congestion',
-                                                'parking_violation' => 'Illegal Parking',
-                                                'public_transport_issue' => 'Public Transport Issue',
-                                                'potholes' => 'Potholes',
-                                                'road_damage' => 'Road Damage',
-                                                'cracks' => 'Road Cracks',
-                                                'erosion' => 'Road Erosion',
-                                                'flooding' => 'Street Flooding',
-                                                'debris' => 'Road Debris',
-                                                'shoulder_damage' => 'Shoulder Damage',
-                                                'marking_fade' => 'Faded Road Markings'
-                                            ];
-                                            
-                                            if (isset($specific_types[$report_type])) {
-                                                echo $specific_types[$report_type];
-                                            } else {
-                                                echo ucfirst($report_type);
-                                            }
-                                            ?>
-                                        </div>
-                                        <div class="meta-item">
-                                            <i class="fas fa-user"></i>
-                                            <?php echo htmlspecialchars($report['department'] . ' Dept'); ?>
-                                        </div>
-                                        <div class="meta-item">
-                                            <i class="fas fa-calendar"></i>
-                                            <?php echo getTimeAgo($report['created_at']); ?>
-                                        </div>
-                                        <div class="meta-item">
-                                            <i class="fas fa-map-marker-alt"></i>
-                                            <?php 
-                                            if (!empty($report['latitude']) && !empty($report['longitude'])) {
-                                                echo '<a href="https://www.google.com/maps?q=' . htmlspecialchars($report['latitude']) . ',' . htmlspecialchars($report['longitude']) . '" target="_blank" style="color: #3762c8; text-decoration: none;">';
-                                                echo htmlspecialchars($report['location'] ?? 'View on Map');
-                                                echo ' <i class="fas fa-external-link-alt" style="font-size: 10px;"></i></a>';
-                                            } else {
-                                                echo htmlspecialchars($report['location'] ?? 'Not specified');
-                                            }
-                                            ?>
-                                        </div>
+                            <?php while ($report = $all_reports->fetch_assoc()): 
+                                $lgu_status_class = '';
+                                if ($report['status'] === 'approved') $lgu_status_class = 'approved';
+                                elseif ($report['status'] === 'cancelled') $lgu_status_class = 'cancelled';
+                                elseif ($report['status'] === 'pending') $lgu_status_class = 'pending';
+                                elseif ($report['status'] === 'in-progress') $lgu_status_class = 'in-progress';
+                                elseif ($report['status'] === 'completed') $lgu_status_class = 'completed';
+
+                                // Check if this report can be verified locally
+                                $report_category = $report['report_category'] ?? null;
+                                $report_source = $report['report_source'] ?? null;
+                                $can_verify = canVerifyReport($report_category, $report_source);
+                                // Road+local reports that are pending show as awaiting external verification
+                                $pending_ext_verify = ($report['status'] === 'pending' && !$can_verify);
+
+                                $lgu_type_labels = [
+                                    'traffic_jam' => 'Traffic Jam',
+                                    'accident' => 'Vehicle Accident',
+                                    'road_closure' => 'Road Closure',
+                                    'traffic_light_outage' => 'Traffic Light',
+                                    'congestion' => 'Congestion',
+                                    'parking_violation' => 'Parking Violation',
+                                    'public_transport_issue' => 'Public Transport',
+                                    'potholes' => 'Potholes',
+                                    'road_damage' => 'Road Damage',
+                                    'cracks' => 'Road Cracks',
+                                    'erosion' => 'Road Erosion',
+                                    'flooding' => 'Street Flooding',
+                                    'debris' => 'Road Debris',
+                                    'shoulder_damage' => 'Shoulder Damage',
+                                    'marking_fade' => 'Marking Fade',
+                                ];
+
+                                $lgu_source_labels = [
+                                    'transport' => 'Citizen',
+                                    'cimm' => 'CIMM',
+                                    'maintenance' => 'Infrastructure',
+                                ];
+
+                                $lgu_filter_status = 'pending';
+                                if (in_array($report['status'], ['approved', 'completed'])) $lgu_filter_status = 'approved';
+                                elseif (in_array($report['status'], ['cancelled'])) $lgu_filter_status = 'rejected';
+                            ?>
+                            <tr data-status="<?php echo $lgu_filter_status; ?>" data-source="<?php echo htmlspecialchars($report['source']); ?>">
+                                <td>
+                                    <div class="lgu-action-group">
+                                        <button class="lgu-action-btn" onclick="toggleDetails(<?php echo $report['id']; ?>)">
+                                            <i class="fas fa-eye" id="icon-<?php echo $report['id']; ?>"></i>
+                                        </button>
+                                        <?php if ($pending_ext_verify): ?>
+                                            <span class="lgu-status-badge" style="background:#fef3c7;color:#92400e;font-size:10px;padding:3px 8px;">Ext. Verify</span>
+                                        <?php elseif ($report['status'] === 'pending'): ?>
+                                            <form method="POST" class="lgu-action-form">
+                                                <input type="hidden" name="report_id" value="<?php echo $report['id']; ?>">
+                                                <input type="hidden" name="source" value="<?php echo htmlspecialchars($report['source']); ?>">
+                                                <button type="submit" name="action" value="approve" class="lgu-verify-btn" title="Approve report">
+                                                    <i class="fas fa-check"></i>
+                                                </button>
+                                            </form>
+                                            <form method="POST" class="lgu-action-form" onsubmit="return confirm('Are you sure you want to reject this report?');">
+                                                <input type="hidden" name="report_id" value="<?php echo $report['id']; ?>">
+                                                <input type="hidden" name="source" value="<?php echo htmlspecialchars($report['source']); ?>">
+                                                <button type="submit" name="action" value="reject" class="lgu-reject-btn" title="Reject report">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
+                                        <form method="POST" class="lgu-action-form" onsubmit="return confirm('Are you sure you want to remove this report? It will be moved to the archive.');" title="Remove report">
+                                            <input type="hidden" name="report_id" value="<?php echo $report['id']; ?>">
+                                            <input type="hidden" name="source" value="<?php echo htmlspecialchars($report['source']); ?>">
+                                            <button type="submit" name="action" value="delete" class="lgu-action-btn" style="background:rgba(220,53,69,0.1);color:#dc3545;">
+                                                <i class="fas fa-trash-alt"></i>
+                                            </button>
+                                        </form>
                                     </div>
-                                    <div class="verification-description">
-                                        <?php 
-                                        $desc = $report['description'] ?? '';
-                                        echo htmlspecialchars(strlen($desc) > 150 ? substr($desc, 0, 150) . '...' : $desc); 
-                                        ?>
-                                    </div>
-                                    <?php
-                                    // Display attached images if any
-                                    if (!empty($report['attachments'])) {
-                                        $attachments = json_decode($report['attachments'], true);
-                                        if (is_array($attachments) && !empty($attachments)) {
-                                            foreach ($attachments as $attachment) {
-                                                if (isset($attachment['type']) && $attachment['type'] === 'image' && isset($attachment['file_path'])) {
-                                                    // Path from pages/ directory: ../../ goes to project root
-                                                    echo '<div style="margin-top: 12px;">';
-                                                    echo '<img src="../../' . htmlspecialchars($attachment['file_path']) . '" alt="Report Image" style="max-width: 100%; max-height: 200px; border-radius: 8px; border: 1px solid rgba(55, 98, 200, 0.3); cursor: pointer;" onclick="window.open(this.src, \'_blank\')" title="Click to view full size" />';
-                                                    echo '</div>';
-                                                    break; // Show first image only
-                                                }
-                                            }
-                                        }
-                                    }
-                                    ?>
                                     <!-- Expandable Details Section -->
-                                    <div class="expanded-details" id="details-<?php echo $report['id']; ?>" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 2px solid rgba(55, 98, 200, 0.1);">
+                                    <div class="expanded-details" id="details-<?php echo $report['id']; ?>" style="display:none;margin-top:12px;padding-top:12px;border-top:2px solid rgba(30,60,114,0.1);">
                                         <div class="detail-grid">
                                             <div class="detail-item">
                                                 <strong>Report ID:</strong> <?php echo htmlspecialchars($report['report_id'] ?? 'N/A'); ?>
@@ -2964,56 +3260,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                             <div class="detail-item">
                                                 <strong>Type:</strong> 
                                                 <?php 
-                                                $report_type = $report['report_type'] ?? '';
-                                                $specific_types = [
-                                                    'traffic_jam' => 'Traffic Jam',
-                                                    'accident' => 'Vehicle Accident',
-                                                    'road_closure' => 'Road Closure',
-                                                    'traffic_light_outage' => 'Traffic Light Outage',
-                                                    'congestion' => 'Heavy Congestion',
-                                                    'parking_violation' => 'Illegal Parking',
-                                                    'public_transport_issue' => 'Public Transport Issue',
-                                                    'potholes' => 'Potholes',
-                                                    'road_damage' => 'Road Damage',
-                                                    'cracks' => 'Road Cracks',
-                                                    'erosion' => 'Road Erosion',
-                                                    'flooding' => 'Street Flooding',
-                                                    'debris' => 'Road Debris',
-                                                    'shoulder_damage' => 'Shoulder Damage',
-                                                    'marking_fade' => 'Faded Road Markings'
-                                                ];
-                                                
-                                                if (isset($specific_types[$report_type])) {
-                                                    echo $specific_types[$report_type];
-                                                } else {
-                                                    echo ucfirst($report_type);
-                                                }
+                                                $lgu_type = $report['report_type'] ?? '';
+                                                echo htmlspecialchars($lgu_type_labels[$lgu_type] ?? ucfirst($lgu_type));
                                                 ?>
                                             </div>
                                             <div class="detail-item">
-                                                <strong>Priority:</strong> <span class="workflow-badge priority-<?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?>"><?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?></span>
+                                                <strong>Priority:</strong> <span class="lgu-status-badge <?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?>"><?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?></span>
                                             </div>
                                             <div class="detail-item">
                                                 <strong>Status:</strong> 
                                                 <?php if ($pending_ext_verify): ?>
-                                                <span class="workflow-badge" style="background:#fef3c7;color:#92400e;">Awaiting External Verification</span>
+                                                <span class="lgu-status-badge" style="background:#fef3c7;color:#92400e;">Awaiting External Verification</span>
                                                 <?php else: ?>
-                                                <span class="workflow-badge <?php echo $report['status'] === 'approved' ? 'approved' : ($report['status'] === 'cancelled' ? 'rejected' : ($report['status'] === 'completed' ? 'completed' : 'pending')); ?>"><?php echo htmlspecialchars($report['status'] ?? 'N/A'); ?></span>
+                                                <span class="lgu-status-badge <?php echo $lgu_status_class; ?>"><?php echo htmlspecialchars($report['status'] ?? 'N/A'); ?></span>
                                                 <?php endif; ?>
                                             </div>
                                             <div class="detail-item full-width">
                                                 <strong>Full Description:</strong>
-                                                <div style="margin-top: 8px; padding: 12px; background: rgba(55, 98, 200, 0.05); border-radius: 8px;">
+                                                <div style="margin-top:8px;padding:12px;background:rgba(55,98,200,0.05);border-radius:8px;">
                                                     <?php echo nl2br(htmlspecialchars($report['description'] ?? 'No description provided')); ?>
                                                 </div>
                                             </div>
                                             <?php if (!empty($report['latitude']) && !empty($report['longitude'])): ?>
                                             <div class="detail-item full-width">
                                                 <strong>Location Coordinates:</strong>
-                                                <div style="margin-top: 8px;">
+                                                <div style="margin-top:8px;">
                                                     Latitude: <?php echo htmlspecialchars($report['latitude']); ?>, 
                                                     Longitude: <?php echo htmlspecialchars($report['longitude']); ?>
-                                                    <a href="https://www.google.com/maps?q=<?php echo htmlspecialchars($report['latitude']); ?>,<?php echo htmlspecialchars($report['longitude']); ?>" target="_blank" style="color: #3762c8; margin-left: 10px;">
+                                                    <a href="https://www.google.com/maps?q=<?php echo htmlspecialchars($report['latitude']); ?>,<?php echo htmlspecialchars($report['longitude']); ?>" target="_blank" style="color:#3762c8;margin-left:10px;">
                                                         <i class="fas fa-map-marker-alt"></i> View on Map
                                                     </a>
                                                 </div>
@@ -3024,12 +3298,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                 if (is_array($attachments) && !empty($attachments)): ?>
                                             <div class="detail-item full-width">
                                                 <strong>Attached Images:</strong>
-                                                <div style="margin-top: 12px; display: flex; gap: 15px; flex-wrap: wrap;">
+                                                <div style="margin-top:12px;display:flex;gap:15px;flex-wrap:wrap;">
                                                     <?php foreach ($attachments as $attachment): 
                                                         if (isset($attachment['type']) && $attachment['type'] === 'image' && isset($attachment['file_path'])): ?>
                                                         <img src="../../<?php echo htmlspecialchars($attachment['file_path']); ?>" 
                                                              alt="Report Image" 
-                                                             style="max-width: 300px; max-height: 300px; border-radius: 8px; border: 1px solid rgba(55, 98, 200, 0.3); cursor: pointer;" 
+                                                             style="max-width:300px;max-height:300px;border-radius:8px;border:1px solid rgba(55,98,200,0.3);cursor:pointer;" 
                                                              onclick="window.open(this.src, '_blank')" 
                                                              title="Click to view full size" />
                                                     <?php endif; endforeach; ?>
@@ -3056,96 +3330,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                             <?php endif; ?>
                                         </div>
                                     </div>
-                                    
-                                    <div class="verification-actions">
-                                        <?php if ($pending_ext_verify): ?>
-                                            <button type="button" onclick="toggleDetails(<?php echo $report['id']; ?>)" class="btn-review">
-                                                <i class="fas fa-eye" id="icon-<?php echo $report['id']; ?>"></i>
-                                                <span id="text-<?php echo $report['id']; ?>">View Details</span>
-                                            </button>
-                                            <span class="workflow-badge" style="background:#fef3c7;color:#92400e;font-size:12px;padding:4px 14px;border-radius:20px;display:inline-flex;align-items:center;gap:6px;">
-                                                <i class="fas fa-external-link-alt" style="font-size:11px;"></i> Awaiting External Verification
-                                            </span>
-                                            <span style="font-size:11px;color:#6b7280;max-width:200px;line-height:1.3;">
-                                                This road report was created by your LGU and must be verified by the Engineering Office.
-                                            </span>
-                                        <?php elseif ($report['status'] === 'pending'): ?>
-                                            <button type="button" onclick="toggleDetails(<?php echo $report['id']; ?>)" class="btn-review">
-                                                <i class="fas fa-eye" id="icon-<?php echo $report['id']; ?>"></i>
-                                                <span id="text-<?php echo $report['id']; ?>">View Details</span>
-                                            </button>
-                                            <form method="POST" style="display: inline-flex;">
-                                                <input type="hidden" name="report_id" value="<?php echo $report['id']; ?>">
-                                                <input type="hidden" name="source" value="<?php echo htmlspecialchars($report['source']); ?>">
-                                                <button type="submit" name="action" value="approve" class="btn-verify">
-                                                    <i class="fas fa-check"></i>
-                                                    Approve
-                                                </button>
-                                            </form>
-                                            <form method="POST" style="display: inline-flex;">
-                                                <input type="hidden" name="report_id" value="<?php echo $report['id']; ?>">
-                                                <input type="hidden" name="source" value="<?php echo htmlspecialchars($report['source']); ?>">
-                                                <button type="submit" name="action" value="reject" class="btn-reject" onclick="return confirm('Are you sure you want to reject this report?')">
-                                                    <i class="fas fa-times"></i>
-                                                    Reject
-                                                </button>
-                                            </form>
-                                        <?php elseif ($report['status'] === 'approved'): ?>
-                                            <span class="workflow-badge approved" style="margin-right: 10px;">Approved</span>
-                                            <?php if (!empty($report['approved_at'])): ?>
-                                            <span style="font-size: 12px; color: #6b7280; margin-right: 10px;"><i class="fas fa-clock"></i> <?php echo date('M d, Y g:i A', strtotime($report['approved_at'])); ?></span>
-                                            <?php endif; ?>
-                                            <button type="button" onclick="toggleDetails(<?php echo $report['id']; ?>)" class="btn-review">
-                                                <i class="fas fa-eye" id="icon-<?php echo $report['id']; ?>"></i>
-                                                <span id="text-<?php echo $report['id']; ?>">View Details</span>
-                                            </button>
-                                        <?php elseif ($report['status'] === 'completed'): ?>
-                                            <span class="workflow-badge" style="margin-right: 10px; background: #10b981; color: white;">Completed</span>
-                                            <?php if (!empty($report['approved_at'])): ?>
-                                            <span style="font-size: 12px; color: #6b7280; margin-right: 10px;"><i class="fas fa-clock"></i> Approved: <?php echo date('M d, Y g:i A', strtotime($report['approved_at'])); ?></span>
-                                            <?php endif; ?>
-                                            <button type="button" onclick="toggleDetails(<?php echo $report['id']; ?>)" class="btn-review">
-                                                <i class="fas fa-eye" id="icon-<?php echo $report['id']; ?>"></i>
-                                                <span id="text-<?php echo $report['id']; ?>">View Details</span>
-                                            </button>
-                                        <?php elseif ($report['status'] === 'cancelled'): ?>
-                                            <span class="workflow-badge rejected" style="margin-right: 10px;">Rejected</span>
-                                            <?php if (!empty($report['rejected_at'])): ?>
-                                            <span style="font-size: 12px; color: #6b7280; margin-right: 10px;"><i class="fas fa-clock"></i> <?php echo date('M d, Y g:i A', strtotime($report['rejected_at'])); ?></span>
-                                            <?php endif; ?>
-                                            <button type="button" onclick="toggleDetails(<?php echo $report['id']; ?>)" class="btn-review">
-                                                <i class="fas fa-eye" id="icon-<?php echo $report['id']; ?>"></i>
-                                                <span id="text-<?php echo $report['id']; ?>">View Details</span>
-                                            </button>
-                                        <?php else: ?>
-                                            <span class="workflow-badge" style="margin-right: 10px;"><?php echo ucfirst($report['status']); ?></span>
-                                            <button type="button" onclick="toggleDetails(<?php echo $report['id']; ?>)" class="btn-review">
-                                                <i class="fas fa-eye" id="icon-<?php echo $report['id']; ?>"></i>
-                                                <span id="text-<?php echo $report['id']; ?>">View Details</span>
-                                            </button>
-                                        <?php endif; ?>
-                                        <form method="POST" style="display: inline-flex; margin-left: auto;" onsubmit="return confirm('Are you sure you want to remove this report? It will be moved to the archive.');">
-                                            <input type="hidden" name="report_id" value="<?php echo $report['id']; ?>">
-                                            <input type="hidden" name="source" value="<?php echo htmlspecialchars($report['source']); ?>">
-                                            <button type="submit" name="action" value="delete" class="btn-remove" title="Remove report">
-                                                <i class="fas fa-trash-alt"></i> Remove
-                                            </button>
-                                        </form>
+                                </td>
+                                <td><?php echo htmlspecialchars($report['report_id']); ?></td>
+                                <td><?php echo htmlspecialchars(strlen($report['title'] ?? '') > 35 ? substr($report['title'], 0, 35) . '...' : ($report['title'] ?? '')); ?></td>
+                                <td><?php echo htmlspecialchars($lgu_type_labels[$report['report_type']] ?? ucfirst($report['report_type'])); ?></td>
+                                <td><?php echo htmlspecialchars($lgu_source_labels[$report['source']] ?? $report['department'] ?? '—'); ?></td>
+                                <td><span class="lgu-status-badge <?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'] ?? 'medium')); ?></span></td>
+                                <td>
+                                    <?php if ($pending_ext_verify): ?>
+                                    <span class="lgu-status-badge" style="background:#fef3c7;color:#92400e;">Awaiting Ext.</span>
+                                    <?php else: ?>
+                                    <span class="lgu-status-badge <?php echo $lgu_status_class; ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span>
+                                    <?php endif; ?>
+                                </td>
+                                <td><?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?></td>
+                            </tr>
+                            <?php endwhile; ?>
+                        <?php else: ?>
+                            <tr>
+                                <td colspan="8">
+                                    <div class="lgu-empty-state">
+                                        <div class="lgu-empty-icon"><i class="fas fa-clipboard-list"></i></div>
+                                        <p>No reports at this time.</p>
                                     </div>
-                                </div>
-                            </div>
-                        <?php endwhile; ?>
-                    <?php else: ?>
-                        <div style="text-align: center; padding: 40px; color: #666;">
-                            <i class="fas fa-check-circle" style="font-size: 48px; margin-bottom: 20px; opacity: 0.5;"></i>
-                            <p>No pending verifications at this time.</p>
-                        </div>
-                    <?php endif; ?>
-                </div>
-
-
-                </div>
-
+                                </td>
+                            </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -3579,7 +3791,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         (function() {
             var urlParams = new URLSearchParams(window.location.search);
             var source = urlParams.get('source') || 'all';
-            var allReportsPanel = document.getElementById('citizenReportsPanel');
+            var allReportsPanel = document.getElementById('lguMonitoringPanel');
             var cimmPanel = document.getElementById('cimmReportsPanel');
             var infraPanel = document.getElementById('infraReportsPanel');
             var citizenPanel = document.getElementById('citizenPanel');
@@ -3608,27 +3820,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
         })();
 
-        // Apply status filter to hide/show rows in CIMM and Infra panels on page load
+        // Apply status filter to hide/show rows in LGU, CIMM and Infra panels on page load
         (function() {
             var urlParams = new URLSearchParams(window.location.search);
             var statusFilter = urlParams.get('status') || 'all';
             if (statusFilter === 'all') return;
 
-            // Filter CIMM panel rows
-            var cimmTable = document.getElementById('deptTable');
-            if (cimmTable) {
-                cimmTable.querySelectorAll('tbody tr[data-status]').forEach(function(row) {
-                    row.style.display = (row.getAttribute('data-status') === statusFilter) ? '' : 'none';
-                });
-            }
-
-            // Filter Infra panel rows
-            var infraTable = document.getElementById('infraTable');
-            if (infraTable) {
-                infraTable.querySelectorAll('tbody tr[data-status]').forEach(function(row) {
-                    row.style.display = (row.getAttribute('data-status') === statusFilter) ? '' : 'none';
-                });
-            }
+            var tableIds = ['lguTable', 'deptTable', 'infraTable'];
+            tableIds.forEach(function(tableId) {
+                var table = document.getElementById(tableId);
+                if (table) {
+                    table.querySelectorAll('tbody tr[data-status]').forEach(function(row) {
+                        row.style.display = (row.getAttribute('data-status') === statusFilter) ? '' : 'none';
+                    });
+                }
+            });
         })();
 
 
@@ -3641,12 +3847,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             
             if (detailsDiv.style.display === 'none') {
                 detailsDiv.style.display = 'block';
-                icon.className = 'fas fa-eye-slash';
-                text.textContent = 'Hide Details';
+                if (icon) icon.className = 'fas fa-eye-slash';
+                if (text) text.textContent = 'Hide Details';
             } else {
                 detailsDiv.style.display = 'none';
-                icon.className = 'fas fa-eye';
-                text.textContent = 'View Details';
+                if (icon) icon.className = 'fas fa-eye';
+                if (text) text.textContent = 'View Details';
             }
         }
 
@@ -3692,6 +3898,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 row.style.display = text.includes(searchTerm) ? '' : 'none';
             });
         });
+
+        // LGU sort functionality
+        let lguSortAsc = true;
+        function toggleLguSort() {
+            const table = document.getElementById('lguTable');
+            if (!table) return;
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            lguSortAsc = !lguSortAsc;
+            rows.sort((a, b) => {
+                const aText = a.cells[2]?.textContent.trim() || '';
+                const bText = b.cells[2]?.textContent.trim() || '';
+                return lguSortAsc ? aText.localeCompare(bText) : bText.localeCompare(aText);
+            });
+            rows.forEach(row => tbody.appendChild(row));
+        }
 
         // CIMM sort functionality
         let cimmSortAsc = true;
