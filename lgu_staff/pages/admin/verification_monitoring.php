@@ -46,6 +46,19 @@ if ($check2 && $check2->num_rows === 0) {
     $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN report_source ENUM('local','external') DEFAULT 'local' AFTER report_category");
 }
 
+// Ensure reporter_phone / image_path exist — getCitizenReports() below
+// selects them, and without this guard a DB that predates those columns
+// (e.g. a fresh/older local install) throws "Unknown column" and takes
+// down the whole page before it ever reaches the CIMM panel further down.
+$check_phone = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'reporter_phone'");
+if ($check_phone && $check_phone->num_rows === 0) {
+    $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN reporter_phone VARCHAR(30) NULL DEFAULT NULL AFTER reporter_email");
+}
+$check_imgpath = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'image_path'");
+if ($check_imgpath && $check_imgpath->num_rows === 0) {
+    $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN image_path VARCHAR(500) NULL DEFAULT NULL AFTER attachments");
+}
+
 // Ensure the archive table exists — normally created lazily by archive.php,
 // but this page also queries it below (delete/archive action) and reads its
 // columns, so it must exist before landing here first.
