@@ -1216,7 +1216,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         <br><small class="text-muted">Map is restricted to Quezon City area</small>
                     </p>
 
-                    <form id="citizenReportForm">
+                    <form id="citizenReportForm" enctype="multipart/form-data">
                         <input type="hidden" name="latitude" id="crLat">
                         <input type="hidden" name="longitude" id="crLng">
                         <input type="hidden" name="address" id="crAddress">
@@ -1938,7 +1938,9 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             });
             renderPhotoPreviews();
             document.getElementById('fileCount').textContent = photoFiles.length + ' file(s) selected';
+            syncPhotoFiles();
             this.value = '';
+            syncPhotoFiles();
         });
 
         function renderPhotoPreviews() {
@@ -1965,10 +1967,17 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                     const idx = parseInt(this.dataset.index);
                     photoFiles.splice(idx, 1);
                     renderPhotoPreviews();
-                    document.getElementById('crPhotos').required = photoFiles.length === 0;
                     document.getElementById('fileCount').textContent = photoFiles.length + ' file(s) selected';
+                    syncPhotoFiles();
                 });
             });
+        }
+
+        function syncPhotoFiles() {
+            const dt = new DataTransfer();
+            photoFiles.forEach(file => dt.items.add(file));
+            const input = document.getElementById('crPhotos');
+            input.files = dt.files;
         }
 
         function sendOtp() {
@@ -2149,7 +2158,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             document.getElementById('crAddress').value = '';
             document.getElementById('photoPreview').innerHTML = '';
             photoFiles = [];
-            document.getElementById('crPhotos').required = true;
+            syncPhotoFiles();
             document.getElementById('fileCount').textContent = 'No files selected';
             otpVerified = false;
             if (citizenPin) { citizenMap.removeLayer(citizenPin); citizenPin = null; }
