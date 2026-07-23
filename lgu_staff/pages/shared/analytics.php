@@ -52,11 +52,14 @@ $monthly_data = array_reverse($monthly_data);
 
 $completion_times = [];
 foreach ($all_reports as $r) {
-    if (($r['status'] ?? '') === 'completed' && !empty($r['created_at']) && !empty($r['updated_at'])) {
-        $created = strtotime($r['created_at']);
-        $updated = strtotime($r['updated_at']);
-        if ($updated > $created) {
-            $completion_times[] = round(($updated - $created) / 86400, 1);
+    if (($r['status'] ?? '') === 'completed' && !empty($r['updated_at'])) {
+        $monitoring_start = !empty($r['approved_at']) ? $r['approved_at'] : $r['created_at'];
+        if (!empty($monitoring_start)) {
+            $start = strtotime($monitoring_start);
+            $updated = strtotime($r['updated_at']);
+            if ($updated > $start) {
+                $completion_times[] = round(($updated - $start) / 86400, 1);
+            }
         }
     }
 }
@@ -153,7 +156,7 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
                 <div class="stat-value"><?php echo $avg_completion_days; ?>d</div>
                 <div class="stat-label">Avg. Completion Time</div>
                 <div class="stat-trend neutral">
-                    <i class="fas fa-chart-line"></i> Across <?php echo count($completion_times); ?> completed reports
+                    <i class="fas fa-chart-line"></i> Post-monitoring completion (<?php echo count($completion_times); ?> reports)
                 </div>
             </div>
             <div class="stat-card">
