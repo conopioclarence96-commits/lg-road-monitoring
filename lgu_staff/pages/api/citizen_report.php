@@ -146,8 +146,8 @@ function handleSubmitReport() {
     $attachments = [];
     $imagePath = null;
 
-    if (empty($_FILES['photos']['name'][0])) {
-        echo json_encode(['success' => false, 'message' => 'Please upload at least one photo.']);
+    if (empty($_FILES['photos']['name'][0]) || count($_FILES['photos']['name']) < 2) {
+        echo json_encode(['success' => false, 'message' => 'Please upload at least 2 photos before submitting your report.']);
         return;
     }
 
@@ -193,7 +193,7 @@ function handleSubmitReport() {
 
         $location = $_POST['address'] ?? 'Pinned location';
         $attachmentsJson = json_encode($attachments);
-        $stmt->bind_param('sssssssssssssss',
+        $stmt->bind_param('ssssssssssssss',
             $reportId,
             $issueType,
             $title,
