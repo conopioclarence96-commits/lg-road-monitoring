@@ -2334,119 +2334,6 @@ foreach ($reports as $report) {
             </div>
         </div>
 
-        <!-- Citizen Reports Panel -->
-        <div class="rm-panel" id="citizenReportsPanel">
-            <div class="rm-panel-header">
-                <div class="rm-panel-header-left">
-                    <div class="rm-panel-icon citizen">
-                        <i class="fas fa-users"></i>
-                    </div>
-                    <div>
-                        <div class="rm-panel-title-group">
-                            <h2 class="rm-panel-title">Citizen Reports</h2>
-                            <span class="rm-panel-badge citizen"><?php echo count($citizen_reports); ?> Reports</span>
-                        </div>
-                        <p class="rm-panel-subtitle">Reports submitted by citizens via the road monitoring system</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="rm-panel-search">
-                <div class="rm-search-wrapper">
-                    <i class="fas fa-search"></i>
-                    <input type="text" class="rm-search-input" id="citizenSearchInput" placeholder="Search by Report #, Title, Type, Location, Department...">
-                </div>
-                <button class="rm-sort-btn" onclick="toggleCitizenSort()">
-                    <i class="fas fa-sort"></i> Sort
-                </button>
-            </div>
-
-            <div class="rm-table-wrapper">
-                <table class="rm-table" id="citizenTable">
-                    <thead>
-                        <tr>
-                            <th>Action</th>
-                            <th>Report #</th>
-                            <th>Title</th>
-                            <th>Type</th>
-                            <th>Location</th>
-                            <th>Department</th>
-                            <th>Priority</th>
-                            <th>Status</th>
-                            <th>Created</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php
-                        $hasCitizen = false;
-                        if (!empty($citizen_reports)):
-                            foreach ($citizen_reports as $report):
-                                $hasCitizen = true;
-                        ?>
-                        <tr data-id="<?php echo (int)$report['id']; ?>">
-                            <td>
-                                <div class="rm-action-group">
-                                    <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                    <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
-                                        <i class="fas fa-pencil"></i>
-                                    </button>
-                                    <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                    <button class="rm-action-btn" style="background:rgba(16,185,129,0.1);color:#10b981;" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
-                                        <i class="fas fa-clock"></i>
-                                    </button>
-                                </div>
-                            </td>
-                            <td><?php echo htmlspecialchars($report['report_id'] ?? '—'); ?></td>
-                            <td><?php echo htmlspecialchars(strlen($report['title'] ?? '') > 35 ? substr($report['title'], 0, 35) . '...' : ($report['title'] ?? '')); ?></td>
-                            <td><?php
-                                $type_labels = [
-                                    'infrastructure_issue' => 'Infrastructure Issue',
-                                    'traffic_jam' => 'Traffic Jam',
-                                    'accident' => 'Vehicle Accident',
-                                    'road_closure' => 'Road Closure',
-                                    'potholes' => 'Potholes',
-                                    'road_damage' => 'Road Damage',
-                                ];
-                                echo htmlspecialchars($type_labels[$report['report_type']] ?? ucfirst($report['report_type']));
-                            ?></td>
-                            <td><?php echo htmlspecialchars($report['location'] ?? '—'); ?></td>
-                            <td><?php echo htmlspecialchars(ucfirst($report['department'] ?? '')); ?></td>
-                            <td><span class="rm-priority-badge <?php echo htmlspecialchars($report['priority']); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'])); ?></span></td>
-                            <td><span class="rm-status-badge <?php echo htmlspecialchars($report['status']); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span></td>
-                            <td>
-                                <?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?>
-                                <?php if (($report['status'] ?? '') === 'approved' && !empty($report['approved_at'])): ?>
-                                    <br><small style="color:#059669;font-weight:600;">Approved: <?php echo date('M d, Y', strtotime($report['approved_at'])); ?></small>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                        <?php
-                            endforeach;
-                        endif;
-                        ?>
-
-                        <?php if (!$hasCitizen): ?>
-                        <tr>
-                            <td colspan="9">
-                                <div class="rm-empty-state">
-                                    <div class="rm-empty-icon">
-                                        <i class="fas fa-users"></i>
-                                    </div>
-                                    <h4>No Citizen Reports</h4>
-                                    <p>No citizen-submitted reports found.</p>
-                                </div>
-                            </td>
-                        </tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
         <!-- LGU Monitoring Reports Panel -->
         <div class="rm-panel" id="lguReportsPanel">
             <div class="rm-panel-header">
@@ -2551,6 +2438,119 @@ foreach ($reports as $report) {
                                     </div>
                                     <h4>No LGU Monitoring Reports</h4>
                                     <p>No LGU-created monitoring reports found.</p>
+                                </div>
+                            </td>
+                        </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Citizen Reports Panel -->
+        <div class="rm-panel" id="citizenReportsPanel">
+            <div class="rm-panel-header">
+                <div class="rm-panel-header-left">
+                    <div class="rm-panel-icon citizen">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div>
+                        <div class="rm-panel-title-group">
+                            <h2 class="rm-panel-title">Citizen Reports</h2>
+                            <span class="rm-panel-badge citizen"><?php echo count($citizen_reports); ?> Reports</span>
+                        </div>
+                        <p class="rm-panel-subtitle">Reports submitted by citizens via the road monitoring system</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rm-panel-search">
+                <div class="rm-search-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" class="rm-search-input" id="citizenSearchInput" placeholder="Search by Report #, Title, Type, Location, Department...">
+                </div>
+                <button class="rm-sort-btn" onclick="toggleCitizenSort()">
+                    <i class="fas fa-sort"></i> Sort
+                </button>
+            </div>
+
+            <div class="rm-table-wrapper">
+                <table class="rm-table" id="citizenTable">
+                    <thead>
+                        <tr>
+                            <th>Action</th>
+                            <th>Report #</th>
+                            <th>Title</th>
+                            <th>Type</th>
+                            <th>Location</th>
+                            <th>Department</th>
+                            <th>Priority</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        $hasCitizen = false;
+                        if (!empty($citizen_reports)):
+                            foreach ($citizen_reports as $report):
+                                $hasCitizen = true;
+                        ?>
+                        <tr data-id="<?php echo (int)$report['id']; ?>">
+                            <td>
+                                <div class="rm-action-group">
+                                    <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                        <i class="fas fa-pencil"></i>
+                                    </button>
+                                    <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                    <button class="rm-action-btn" style="background:rgba(16,185,129,0.1);color:#10b981;" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                        <i class="fas fa-clock"></i>
+                                    </button>
+                                </div>
+                            </td>
+                            <td><?php echo htmlspecialchars($report['report_id'] ?? '—'); ?></td>
+                            <td><?php echo htmlspecialchars(strlen($report['title'] ?? '') > 35 ? substr($report['title'], 0, 35) . '...' : ($report['title'] ?? '')); ?></td>
+                            <td><?php
+                                $type_labels = [
+                                    'infrastructure_issue' => 'Infrastructure Issue',
+                                    'traffic_jam' => 'Traffic Jam',
+                                    'accident' => 'Vehicle Accident',
+                                    'road_closure' => 'Road Closure',
+                                    'potholes' => 'Potholes',
+                                    'road_damage' => 'Road Damage',
+                                ];
+                                echo htmlspecialchars($type_labels[$report['report_type']] ?? ucfirst($report['report_type']));
+                            ?></td>
+                            <td><?php echo htmlspecialchars($report['location'] ?? '—'); ?></td>
+                            <td><?php echo htmlspecialchars(ucfirst($report['department'] ?? '')); ?></td>
+                            <td><span class="rm-priority-badge <?php echo htmlspecialchars($report['priority']); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'])); ?></span></td>
+                            <td><span class="rm-status-badge <?php echo htmlspecialchars($report['status']); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span></td>
+                            <td>
+                                <?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?>
+                                <?php if (($report['status'] ?? '') === 'approved' && !empty($report['approved_at'])): ?>
+                                    <br><small style="color:#059669;font-weight:600;">Approved: <?php echo date('M d, Y', strtotime($report['approved_at'])); ?></small>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                        <?php
+                            endforeach;
+                        endif;
+                        ?>
+
+                        <?php if (!$hasCitizen): ?>
+                        <tr>
+                            <td colspan="9">
+                                <div class="rm-empty-state">
+                                    <div class="rm-empty-icon">
+                                        <i class="fas fa-users"></i>
+                                    </div>
+                                    <h4>No Citizen Reports</h4>
+                                    <p>No citizen-submitted reports found.</p>
                                 </div>
                             </td>
                         </tr>
