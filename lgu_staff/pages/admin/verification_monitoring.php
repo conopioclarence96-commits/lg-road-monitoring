@@ -46,6 +46,11 @@ if ($check2 && $check2->num_rows === 0) {
     $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN report_source ENUM('local','external') DEFAULT 'local' AFTER report_category");
 }
 
+// Ensure the archive table exists — normally created lazily by archive.php,
+// but this page also queries it below (delete/archive action) and reads its
+// columns, so it must exist before landing here first.
+$conn->query("CREATE TABLE IF NOT EXISTS road_transportation_reports_archive LIKE road_transportation_reports");
+
 // Ensure the archive table has the same columns
 $check_arch = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE 'report_category'");
 if ($check_arch && $check_arch->num_rows === 0) {
@@ -262,6 +267,18 @@ function rgmap_map_cimm_row_for_display(array $row): array {
         'approval_status'      => $row['approval_status'] ?? null,
         'verification_status'  => $verification,
         'cimm_req_id'          => $row['cimm_req_id'] ?? null,
+        'contact_number'       => $row['contact_number'] ?? null,
+        'email'                => $row['email'] ?? null,
+        'district'             => $row['district'] ?? null,
+        'resolution_status'    => $row['resolution_status'] ?? null,
+        'resolution_note'      => $row['resolution_note'] ?? null,
+        'submitted_at'         => $row['submitted_at'] ?? null,
+        'portal_url'           => $row['portal_url'] ?? null,
+        // Evidence photos CIMM's sync pushed for this report — see
+        // cimm_rgmap_fetch_report() in the CIMM repo (evidence_images table)
+        // and the evidence_json column populated by cimm-reports-webhook.php.
+        'evidence_urls'        => is_array($row['evidence_urls'] ?? null) ? $row['evidence_urls'] : [],
+        'ai'                   => is_array($row['ai'] ?? null) ? $row['ai'] : [],
     ];
 }
 
@@ -430,6 +447,10 @@ $activity_timeline = getActivityTimeline($conn);
 $cimm_filter = $_GET['cimm_filter'] ?? 'all';
 $cimm_reports = getCimmReports($cimm_filter);
 $cimm_counts = getCimmReportCounts();
+
+// Keyed by id for the "View Details" modal's client-side lookup — includes
+// evidence photo URLs CIMM pushed for each report (see evidence_urls above).
+$cimm_reports_by_id = array_column($cimm_reports, null, 'id');
 
 // Reports from reports.sql table
 $sql_reports = getSqlReports($conn);
@@ -2616,9 +2637,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         </div>
     </div>
 
-
+    <!-- CIMM Report Details Modal (also used by the Dept. Reports panel) -->
+    <div class="modal-overlay" id="cimmReportModal" onclick="if (event.target === this) closeCimmReportModal();">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="cimmModalTitle">Report Details</h2>
+                <button type="button" class="modal-close" onclick="closeCimmReportModal();" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body" id="cimmModalBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary-custom" onclick="closeCimmReportModal();">Close</button>
+            </div>
+        </div>
+    </div>
 
     <script>
+        // CIMM reports, keyed by id, including evidence photo URLs synced from
+        // CIMM (evidence_urls) for the "View Details" modal below.
+        const cimmReportsData = <?php echo json_encode($cimm_reports_by_id, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES); ?>;
+
+        function closeCimmReportModal() {
+            const modal = document.getElementById('cimmReportModal');
+            if (modal) modal.classList.remove('active');
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeCimmReportModal();
+        });
+
         // Filter functionality
         function filterReports() {
             const status = document.getElementById('statusFilter').value;
@@ -2720,8 +2766,86 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         // View CIMM report details (placeholder)
+        function cimmEscapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/[&<>"']/g, function(c) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+            });
+        }
+
+        function cimmFormatDate(value) {
+            if (!value) return '—';
+            const d = new Date(value);
+            if (isNaN(d.getTime())) return cimmEscapeHtml(value);
+            return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+        }
+
+        function cimmDetailRow(label, value) {
+            const display = (value === null || value === undefined || value === '') ? '—' : cimmEscapeHtml(value);
+            return '<div class="detail-row"><div class="detail-label">' + cimmEscapeHtml(label) + '</div><div class="detail-value">' + display + '</div></div>';
+        }
+
+        // View CIMM report details, including evidence photos synced from
+        // CIMM's evidence_images table (see rgmap_map_cimm_row_for_display()
+        // and cimmReportsData above).
         function viewCimmReport(id) {
-            alert('Viewing CIMM Report #' + id + ' — Details panel coming soon.');
+            const report = cimmReportsData[id];
+            if (!report) {
+                alert('Report details not found for #' + id + '.');
+                return;
+            }
+
+            document.getElementById('cimmModalTitle').textContent = 'CIMM Report ' + (report.rep_number || ('#' + id));
+
+            let html = '';
+            html += cimmDetailRow('Infrastructure', report.infrastructure);
+            html += cimmDetailRow('Location', report.location);
+            html += cimmDetailRow('District', report.district);
+            html += cimmDetailRow('Issue', report.issue_notes);
+            html += cimmDetailRow('Reported By', report.reported_by);
+            html += cimmDetailRow('Contact Number', report.contact_number);
+            html += cimmDetailRow('Email', report.email);
+            html += cimmDetailRow('Priority', report.priority ? report.priority.charAt(0).toUpperCase() + report.priority.slice(1) : null);
+            html += cimmDetailRow('Budget', report.budget ? '₱' + Number(report.budget).toLocaleString(undefined, { minimumFractionDigits: 2 }) : null);
+            html += cimmDetailRow('Start Date', cimmFormatDate(report.start_date));
+            html += cimmDetailRow('End Date', cimmFormatDate(report.end_date));
+            html += cimmDetailRow('Approval Status', report.approval_status);
+            html += cimmDetailRow('Verification Status', report.verification_status);
+            if (report.resolution_status) html += cimmDetailRow('Resolution Status', report.resolution_status);
+            if (report.resolution_note) html += cimmDetailRow('Resolution Note', report.resolution_note);
+            html += cimmDetailRow('Submitted At', cimmFormatDate(report.submitted_at));
+            if (report.portal_url) {
+                html += '<div class="detail-row"><div class="detail-label">CIMM Portal</div><div class="detail-value"><a href="' + cimmEscapeHtml(report.portal_url) + '" target="_blank" rel="noopener" style="color:#3762c8;">Open in CIMM <i class="fas fa-external-link-alt" style="font-size:11px;"></i></a></div></div>';
+            }
+
+            const ai = report.ai || {};
+            const aiBits = [];
+            if (ai.is_legitimate !== null && ai.is_legitimate !== undefined) {
+                aiBits.push(ai.is_legitimate ? 'Legitimate' : 'Flagged as questionable');
+            }
+            if (ai.legitimacy_score !== null && ai.legitimacy_score !== undefined) {
+                aiBits.push('Score: ' + ai.legitimacy_score);
+            }
+            if (ai.damage_severity) aiBits.push('Severity: ' + ai.damage_severity);
+            if (ai.priority_recommendation) aiBits.push('Recommended priority: ' + ai.priority_recommendation);
+            if (aiBits.length) html += cimmDetailRow('AI Screening', aiBits.join(' · '));
+
+            const photos = Array.isArray(report.evidence_urls) ? report.evidence_urls : [];
+            html += '<div class="detail-row" style="flex-direction: column;">';
+            html += '<div class="detail-label" style="width:auto; margin-bottom: 10px;">Evidence Photos (' + photos.length + ')</div>';
+            if (photos.length) {
+                html += '<div class="detail-value" style="display:flex; gap:12px; flex-wrap:wrap;">';
+                photos.forEach(function(url) {
+                    html += '<div><img class="modal-image" style="max-width:220px; max-height:220px;" src="' + cimmEscapeHtml(url) + '" alt="Evidence photo" onclick="window.open(this.src, \'_blank\')" title="Click to view full size" onerror="this.parentElement.style.display=\'none\'"></div>';
+                });
+                html += '</div>';
+            } else {
+                html += '<div class="detail-value">No photos were submitted with this report.</div>';
+            }
+            html += '</div>';
+
+            document.getElementById('cimmModalBody').innerHTML = html;
+            document.getElementById('cimmReportModal').classList.add('active');
         }
 
         // View SQL reports table details (placeholder)
