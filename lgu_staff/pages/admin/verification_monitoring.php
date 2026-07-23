@@ -3593,6 +3593,263 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 padding: 0;
             }
         }
+
+        /* Infra Report Detail Modal */
+        .infra-modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+
+        .infra-modal-overlay.active {
+            display: flex;
+        }
+
+        .infra-modal-content {
+            background: #fff8f0;
+            border-radius: 16px;
+            max-width: 860px;
+            width: 100%;
+            max-height: calc(100vh - 40px);
+            position: relative;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            margin: auto;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            border: 1px solid #f0e0cc;
+        }
+
+        .infra-modal-header {
+            background: white;
+            border-radius: 16px 16px 0 0;
+            padding: 24px 28px 18px;
+            border-bottom: 2px solid rgba(249, 115, 22, 0.15);
+            flex-shrink: 0;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        .infra-modal-header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .infra-modal-title-area {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .infra-modal-report-id {
+            font-size: 13px;
+            color: #f97316;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            margin-bottom: 4px;
+        }
+
+        .infra-modal-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #c2410c;
+            margin: 0 0 10px 0;
+            line-height: 1.3;
+        }
+
+        .infra-modal-badges {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .infra-modal-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            color: #666;
+            cursor: pointer;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.3s;
+            flex-shrink: 0;
+            margin-left: 15px;
+        }
+
+        .infra-modal-close:hover {
+            background: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+        }
+
+        .infra-modal-body {
+            overflow-y: auto;
+            flex: 1;
+            min-height: 0;
+            padding: 24px 28px;
+        }
+
+        .infra-modal-body::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .infra-modal-body::-webkit-scrollbar-track {
+            background: rgba(249, 115, 22, 0.08);
+            border-radius: 4px;
+        }
+
+        .infra-modal-body::-webkit-scrollbar-thumb {
+            background: rgba(249, 115, 22, 0.2);
+            border-radius: 4px;
+        }
+
+        .infra-modal-body::-webkit-scrollbar-thumb:hover {
+            background: rgba(249, 115, 22, 0.35);
+        }
+
+        .infra-modal-section {
+            background: white;
+            border-radius: 12px;
+            padding: 18px 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            border: 1px solid rgba(249, 115, 22, 0.1);
+        }
+
+        .infra-modal-section-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #c2410c;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 14px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(249, 115, 22, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .infra-modal-section-title i {
+            color: #f97316;
+            font-size: 15px;
+        }
+
+        .infra-info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .infra-info-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 6px 0;
+        }
+
+        .infra-info-icon {
+            width: 28px;
+            height: 28px;
+            background: rgba(249, 115, 22, 0.1);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #f97316;
+            font-size: 13px;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .infra-info-label {
+            font-size: 11px;
+            color: #92400e;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-bottom: 2px;
+        }
+
+        .infra-info-value {
+            font-size: 14px;
+            color: #1f2937;
+            font-weight: 500;
+            line-height: 1.4;
+            word-break: break-word;
+        }
+
+        .infra-info-value-full {
+            grid-column: 1 / -1;
+        }
+
+        .infra-description-text {
+            font-size: 14px;
+            color: #374151;
+            line-height: 1.7;
+            padding: 8px 0;
+            white-space: pre-wrap;
+        }
+
+        .infra-modal-footer {
+            background: white;
+            border-radius: 0 0 16px 16px;
+            padding: 16px 28px;
+            border-top: 1px solid rgba(249, 115, 22, 0.1);
+            flex-shrink: 0;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .infra-modal-btn-close {
+            padding: 10px 24px;
+            background: rgba(249, 115, 22, 0.1);
+            color: #f97316;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .infra-modal-btn-close:hover {
+            background: rgba(249, 115, 22, 0.2);
+        }
+
+        @media (max-width: 640px) {
+            .infra-info-grid {
+                grid-template-columns: 1fr;
+            }
+            .infra-modal-header {
+                padding: 18px 16px;
+            }
+            .infra-modal-body {
+                padding: 16px;
+            }
+            .infra-modal-content {
+                max-width: 100%;
+                border-radius: 0;
+            }
+            .infra-modal-overlay {
+                padding: 0;
+            }
+        }
         
         .modal-footer {
             display: flex;
@@ -4842,7 +5099,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     reporter_name: <?php echo json_encode($ir['reporter_name'] ?? '—'); ?>,
                     estimated_cost: <?php echo json_encode($ir['estimated_cost'] ?? null); ?>,
                     actual_cost: <?php echo json_encode($ir['actual_cost'] ?? null); ?>,
-                    maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>
+                    maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
+                    attachments: <?php echo json_encode($ir['attachments'] ?? null); ?>
                 };
             } catch(e) {
                 console.error('Error adding infra report to map:', e);
@@ -4881,7 +5139,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             rows.forEach(row => tbody.appendChild(row));
         }
 
-        // View Infra report details (reuses cimmDetailModal)
+        // Helper: build an infra info item with icon
+        function infraInfoItem(icon, label, value) {
+            var displayVal = (value && value !== '—' && value !== null) ? value : '—';
+            return '<div class="infra-info-item"><div class="infra-info-icon"><i class="fas fa-' + icon + '"></i></div><div><div class="infra-info-label">' + label + '</div><div class="infra-info-value">' + displayVal + '</div></div></div>';
+        }
+
+        // Helper: infra badge HTML
+        function infraBadge(text, bg, color) {
+            return '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:' + bg + ';color:' + color + ';">' + text + '</span>';
+        }
+
+        // View Infra report details
         function viewInfraReport(id, source) {
             var key = id + '_' + source;
             var r = infraDataMap[key];
@@ -4896,34 +5165,123 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 'scheduled': 'Scheduled Maintenance'
             };
 
-            document.getElementById('dm-budget')?.closest('.detail-row')?.style.removeProperty('display');
-            document.getElementById('cimmModalTitle').textContent = 'Infra Report — ' + (r.report_id || 'Details');
-            setModalField('dm-rep-number', r.report_id);
-            setModalField('dm-infrastructure', typeLabels[r.report_type] || r.report_type);
-            setModalField('dm-location', r.location);
-            setModalField('dm-issue', r.description || '—');
-            setModalField('dm-engineer', r.maintenance_team || '—');
-            setModalField('dm-reported-by', r.reporter_name || '');
-            setModalField('dm-start-date', formatDate(r.created_date));
-            setModalField('dm-end-date', formatDate(r.due_date));
-            document.getElementById('dm-priority').innerHTML = priorityBadgeHtml(r.priority);
+            var statusStyles = {
+                'pending':    {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
+                'approved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
+                'completed':  {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
+                'cancelled':  {bg:'rgba(220,53,69,0.15)',  color:'#ef4444'},
+                'in-progress':{bg:'rgba(59,130,246,0.15)', color:'#3b82f6'}
+            };
+            var pStyles = {
+                'high':   {bg:'rgba(220,53,69,0.15)', color:'#ef4444'},
+                'medium': {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
+                'low':    {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'}
+            };
+
+            // Header
+            document.getElementById('infra-report-id').textContent = 'Report #' + (r.report_id || '—');
+            document.getElementById('infra-title').textContent = r.title || '—';
+
+            var st = (r.status || 'pending').toLowerCase();
+            var ss = statusStyles[st] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
+            var pp = (r.priority || 'medium').toLowerCase();
+            var ps = pStyles[pp] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
+
+            var sourceLabel = source === 'transport' ? 'Road & Transportation' : 'Maintenance';
+            var badgesHtml = infraBadge(r.status || '—', ss.bg, ss.color);
+            badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(249,115,22,0.12);color:#f97316;">' + sourceLabel + '</span>';
+            badgesHtml += infraBadge(r.priority || '—', ps.bg, ps.color);
+            document.getElementById('infra-badges').innerHTML = badgesHtml;
+
+            // Project Information
+            var projectGrid = '';
+            projectGrid += infraInfoItem('building', 'Report Type', typeLabels[r.report_type] || r.report_type);
+            projectGrid += infraInfoItem('folder', 'Department', r.department);
+            projectGrid += infraInfoItem('calendar-alt', 'Created Date', formatDate(r.created_date));
+            projectGrid += infraInfoItem('calendar-check', 'Due Date', formatDate(r.due_date));
             if (source === 'maintenance') {
-                setModalField('dm-budget', r.estimated_cost ? formatCurrency(r.estimated_cost) + ' (est)' : '—');
+                projectGrid += infraInfoItem('wallet', 'Est. Cost', r.estimated_cost ? formatCurrency(r.estimated_cost) + ' (est)' : '—');
+                if (r.actual_cost) {
+                    projectGrid += infraInfoItem('receipt', 'Actual Cost', formatCurrency(r.actual_cost));
+                }
             } else {
-                setModalField('dm-budget', '—');
+                projectGrid += infraInfoItem('wallet', 'Est. Cost', r.estimated_cost ? formatCurrency(r.estimated_cost) : '—');
             }
-            document.getElementById('dm-status').innerHTML = statusBadgeHtml(r.status, r.status ? r.status.replace(/-/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}) : '—');
+            document.getElementById('infra-project-grid').innerHTML = projectGrid;
 
-            var extra = '';
-            extra += '<div class="detail-row"><div class="detail-label">Source</div><div class="detail-value">' + (source === 'transport' ? 'Road & Transportation' : 'Maintenance') + '</div></div>';
-            extra += '<div class="detail-row"><div class="detail-label">Department</div><div class="detail-value">' + (r.department || '—') + '</div></div>';
-            extra += '<div class="detail-row"><div class="detail-label">Created At</div><div class="detail-value">' + formatDate(r.created_at) + '</div></div>';
-            if (source === 'maintenance' && r.actual_cost) {
-                extra += '<div class="detail-row"><div class="detail-label">Actual Cost</div><div class="detail-value">' + formatCurrency(r.actual_cost) + '</div></div>';
+            // Reporter & Department
+            var peopleGrid = '';
+            peopleGrid += infraInfoItem('user', 'Reported By', r.reporter_name);
+            peopleGrid += infraInfoItem('hard-hat', 'Maintenance Team', r.maintenance_team);
+            document.getElementById('infra-people-grid').innerHTML = peopleGrid;
+
+            // Location
+            var locationGrid = '';
+            locationGrid += '<div class="infra-info-item infra-info-value-full"><div class="infra-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="infra-info-label">Location</div><div class="infra-info-value">' + (r.location || '—') + '</div></div></div>';
+            document.getElementById('infra-location-grid').innerHTML = locationGrid;
+
+            // Description
+            document.getElementById('infra-description').textContent = r.description || 'No description provided.';
+
+            // Attachments
+            var images = [];
+            if (r.attachments && typeof r.attachments === 'string') {
+                try {
+                    var parsed = JSON.parse(r.attachments);
+                    if (Array.isArray(parsed)) {
+                        parsed.forEach(function(a) {
+                            if (a.type === 'image' && a.file_path) {
+                                images.push(a.file_path);
+                            }
+                        });
+                    }
+                } catch(e) {}
             }
-            document.getElementById('dm-extra-fields').innerHTML = extra;
+            var attachHtml = '';
+            if (images.length > 0) {
+                attachHtml = '<div class="citizen-photo-gallery">';
+                images.forEach(function(path) {
+                    attachHtml += '<div class="citizen-photo-item"><img src="../../' + path + '" alt="Report Photo" onclick="openLightbox(this.src)" loading="lazy"></div>';
+                });
+                attachHtml += '</div>';
+            } else {
+                attachHtml = '<div style="padding:8px 0;color:#9ca3af;font-size:14px;">No attachments.</div>';
+            }
+            document.getElementById('infra-attachments').innerHTML = attachHtml;
 
-            openCimmDetailModal();
+            // Timeline & Updates
+            var timelineGrid = '';
+            timelineGrid += infraInfoItem('calendar-plus', 'Created', formatDate(r.created_at));
+            timelineGrid += infraInfoItem('calendar-alt', 'Created Date', formatDate(r.created_date));
+            timelineGrid += infraInfoItem('calendar-check', 'Due Date', formatDate(r.due_date));
+            if (r.updated_at) {
+                timelineGrid += infraInfoItem('edit', 'Last Updated', formatDate(r.updated_at));
+            }
+            if (r.approved_at) {
+                timelineGrid += infraInfoItem('thumbs-up', 'Approved', formatDate(r.approved_at));
+            }
+            if (r.rejected_at) {
+                timelineGrid += infraInfoItem('thumbs-down', 'Rejected', formatDate(r.rejected_at));
+            }
+            document.getElementById('infra-timeline-grid').innerHTML = timelineGrid;
+
+            openInfraModal();
+        }
+
+        function openInfraModal() {
+            var modal = document.getElementById('infraReportModal');
+            if (modal) {
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        function closeInfraModal() {
+            var modal = document.getElementById('infraReportModal');
+            if (modal) {
+                modal.classList.remove('active');
+                document.body.style.overflow = '';
+            }
         }
 
         // Citizen Reports data map
@@ -5330,6 +5688,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             </div>
             <div class="cimm-modal-footer">
                 <button type="button" class="cimm-modal-btn-close" onclick="closeCimmModal()">
+                    <i class="fas fa-times"></i> Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Infra Report Detail Modal -->
+    <div id="infraReportModal" class="infra-modal-overlay" onclick="if(event.target===this)closeInfraModal()">
+        <div class="infra-modal-content">
+            <div class="infra-modal-header">
+                <div class="infra-modal-header-top">
+                    <div class="infra-modal-title-area">
+                        <div class="infra-modal-report-id" id="infra-report-id">—</div>
+                        <h3 class="infra-modal-title" id="infra-title">—</h3>
+                        <div class="infra-modal-badges" id="infra-badges"></div>
+                    </div>
+                    <button class="infra-modal-close" onclick="closeInfraModal()">&times;</button>
+                </div>
+            </div>
+            <div class="infra-modal-body">
+                <!-- Project Information -->
+                <div class="infra-modal-section">
+                    <div class="infra-modal-section-title"><i class="fas fa-info-circle"></i> Project Information</div>
+                    <div class="infra-info-grid" id="infra-project-grid"></div>
+                </div>
+                <!-- Reporter / Department -->
+                <div class="infra-modal-section">
+                    <div class="infra-modal-section-title"><i class="fas fa-user"></i> Reporter &amp; Department</div>
+                    <div class="infra-info-grid" id="infra-people-grid"></div>
+                </div>
+                <!-- Location -->
+                <div class="infra-modal-section">
+                    <div class="infra-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location</div>
+                    <div class="infra-info-grid" id="infra-location-grid"></div>
+                </div>
+                <!-- Description -->
+                <div class="infra-modal-section">
+                    <div class="infra-modal-section-title"><i class="fas fa-align-left"></i> Description</div>
+                    <div class="infra-description-text" id="infra-description">—</div>
+                </div>
+                <!-- Attachments -->
+                <div class="infra-modal-section">
+                    <div class="infra-modal-section-title"><i class="fas fa-paperclip"></i> Attachments</div>
+                    <div id="infra-attachments"></div>
+                </div>
+                <!-- Timeline / Updates -->
+                <div class="infra-modal-section">
+                    <div class="infra-modal-section-title"><i class="fas fa-clock"></i> Timeline &amp; Updates</div>
+                    <div class="infra-info-grid" id="infra-timeline-grid"></div>
+                </div>
+            </div>
+            <div class="infra-modal-footer">
+                <button type="button" class="infra-modal-btn-close" onclick="closeInfraModal()">
                     <i class="fas fa-times"></i> Close
                 </button>
             </div>
