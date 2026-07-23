@@ -637,9 +637,9 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
     
     // Get transportation reports (Citizen Reports + Infrastructure Issues from transport table)
     if ($transport_estimation_exists) {
-        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' ELSE 'transport' END as source_system FROM road_transportation_reports";
+        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' WHEN report_category = 'transportation' AND report_source = 'local' AND created_by != 0 THEN 'lgu_reports' ELSE 'transport' END as source_system FROM road_transportation_reports";
     } else {
-        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, 0 as estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' ELSE 'transport' END as source_system FROM road_transportation_reports";
+        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, 0 as estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' WHEN report_category = 'transportation' AND report_source = 'local' AND created_by != 0 THEN 'lgu_reports' ELSE 'transport' END as source_system FROM road_transportation_reports";
     }
     $transport_params = [];
     
@@ -664,8 +664,10 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
     }
     
     $include_cimm = ($source_filter === 'all' || $source_filter === 'cimm');
-    $include_transport = ($source_filter === 'all' || $source_filter === 'transport');
+    $include_transport = ($source_filter === 'all' || $source_filter === 'transport' || $source_filter === 'lgu_reports');
     $include_maintenance = ($source_filter === 'all' || $source_filter === 'maintenance');
+    
+    $is_lgu_filter = ($source_filter === 'lgu_reports');
     
     if (!$include_transport && !$include_maintenance) {
         $transport_query = "SELECT NULL FROM road_transportation_reports WHERE 1=0";
@@ -679,6 +681,9 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
     } elseif ($include_transport && !$include_maintenance) {
         // When only transport is selected, exclude infrastructure issues (they belong in infra panel)
         $transport_query .= " WHERE report_type != 'infrastructure_issue'";
+        if ($is_lgu_filter) {
+            $transport_query .= " AND report_category = 'transportation' AND report_source = 'local' AND created_by != 0";
+        }
         if (!empty($where_conditions)) {
             $transport_query .= " AND " . implode(' AND ', $where_conditions);
         }
@@ -824,6 +829,7 @@ $flash_message = get_flash_message();
 
 // Separate reports by source system for panel display
 $citizen_reports = [];
+$lgu_reports_list = [];
 $cimm_reports_list = [];
 $infra_reports_list = [];
 foreach ($reports as $report) {
@@ -832,6 +838,8 @@ foreach ($reports as $report) {
         $cimm_reports_list[] = $report;
     } elseif ($src === 'maintenance') {
         $infra_reports_list[] = $report;
+    } elseif ($src === 'lgu_reports') {
+        $lgu_reports_list[] = $report;
     } else {
         $citizen_reports[] = $report;
     }
@@ -1619,6 +1627,10 @@ foreach ($reports as $report) {
             background: linear-gradient(135deg, #16a34a, #15803d);
         }
 
+        .rm-panel-icon.lgu {
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+        }
+
         .rm-panel-icon.cimm {
             background: linear-gradient(135deg, #3762c8, #1e3c72);
         }
@@ -1656,6 +1668,7 @@ foreach ($reports as $report) {
         }
 
         .rm-panel-badge.citizen { background: #16a34a; }
+        .rm-panel-badge.lgu { background: #3762c8; }
         .rm-panel-badge.cimm { background: #3762c8; }
         .rm-panel-badge.infra { background: #f97316; }
 
@@ -1755,6 +1768,55 @@ foreach ($reports as $report) {
         }
         body.dark-mode #infraReportsPanel .rm-table tbody tr:hover {
             background: rgba(249, 115, 22, 0.08);
+        }
+
+        #lguReportsPanel.rm-panel {
+            background: #f0f4fa;
+            border-color: #c8d4e6;
+        }
+        body.dark-mode #lguReportsPanel.rm-panel {
+            background: #1e2229;
+            border-color: #1a2a44;
+        }
+        #lguReportsPanel .rm-panel-header {
+            border-bottom-color: rgba(55, 98, 200, 0.15);
+        }
+        #lguReportsPanel .rm-panel-title {
+            color: #1e3c72;
+        }
+        body.dark-mode #lguReportsPanel .rm-panel-title {
+            color: #93c5fd;
+        }
+        #lguReportsPanel .rm-panel-subtitle {
+            color: #1e40af;
+        }
+        body.dark-mode #lguReportsPanel .rm-panel-subtitle {
+            color: #90b4e3;
+        }
+        #lguReportsPanel .rm-panel-search {
+            border-bottom-color: rgba(55, 98, 200, 0.08);
+        }
+        #lguReportsPanel .rm-search-input:focus {
+            border-color: #3762c8;
+            box-shadow: 0 0 0 3px rgba(55, 98, 200, 0.1);
+        }
+        #lguReportsPanel .rm-sort-btn {
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+        }
+        #lguReportsPanel .rm-sort-btn:hover {
+            box-shadow: 0 4px 12px rgba(55, 98, 200, 0.3);
+        }
+        #lguReportsPanel .rm-table thead th {
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+        }
+        #lguReportsPanel .rm-table tbody tr {
+            border-bottom-color: rgba(55, 98, 200, 0.08);
+        }
+        #lguReportsPanel .rm-table tbody tr:hover {
+            background: rgba(55, 98, 200, 0.05);
+        }
+        body.dark-mode #lguReportsPanel .rm-table tbody tr:hover {
+            background: rgba(55, 98, 200, 0.08);
         }
 
         .rm-panel-subtitle {
@@ -2251,6 +2313,7 @@ foreach ($reports as $report) {
                     <select class="filter-select" id="sourceFilter" onchange="filterReports()">
                         <option value="all" <?php echo $source_filter === 'all' ? 'selected' : ''; ?>>All Sources</option>
                         <option value="transport" <?php echo $source_filter === 'transport' ? 'selected' : ''; ?>>Citizen Reports</option>
+                        <option value="lgu_reports" <?php echo $source_filter === 'lgu_reports' ? 'selected' : ''; ?>>LGU Monitoring Reports</option>
                         <option value="cimm" <?php echo $source_filter === 'cimm' ? 'selected' : ''; ?>>CIMM Reports</option>
                         <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>Infrastructure Projects</option>
                     </select>
@@ -2373,6 +2436,119 @@ foreach ($reports as $report) {
                                     </div>
                                     <h4>No Citizen Reports</h4>
                                     <p>No citizen-submitted reports found.</p>
+                                </div>
+                            </td>
+                        </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- LGU Monitoring Reports Panel -->
+        <div class="rm-panel" id="lguReportsPanel">
+            <div class="rm-panel-header">
+                <div class="rm-panel-header-left">
+                    <div class="rm-panel-icon lgu">
+                        <i class="fas fa-clipboard-list"></i>
+                    </div>
+                    <div>
+                        <div class="rm-panel-title-group">
+                            <h2 class="rm-panel-title">LGU Monitoring Reports</h2>
+                            <span class="rm-panel-badge lgu"><?php echo count($lgu_reports_list); ?> Reports</span>
+                        </div>
+                        <p class="rm-panel-subtitle">Reports created by LGU staff via the road monitoring system</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rm-panel-search">
+                <div class="rm-search-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" class="rm-search-input" id="lguSearchInput" placeholder="Search by Report #, Title, Type, Location, Department...">
+                </div>
+                <button class="rm-sort-btn" onclick="toggleLguSort()">
+                    <i class="fas fa-sort"></i> Sort
+                </button>
+            </div>
+
+            <div class="rm-table-wrapper">
+                <table class="rm-table" id="lguTable">
+                    <thead>
+                        <tr>
+                            <th>Action</th>
+                            <th>Report #</th>
+                            <th>Title</th>
+                            <th>Type</th>
+                            <th>Location</th>
+                            <th>Department</th>
+                            <th>Priority</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        $hasLgu = false;
+                        if (!empty($lgu_reports_list)):
+                            foreach ($lgu_reports_list as $report):
+                                $hasLgu = true;
+                        ?>
+                        <tr data-id="<?php echo (int)$report['id']; ?>">
+                            <td>
+                                <div class="rm-action-group">
+                                    <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                        <i class="fas fa-pencil"></i>
+                                    </button>
+                                    <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                    <button class="rm-action-btn" style="background:rgba(16,185,129,0.1);color:#10b981;" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                        <i class="fas fa-clock"></i>
+                                    </button>
+                                </div>
+                            </td>
+                            <td><?php echo htmlspecialchars($report['report_id'] ?? '—'); ?></td>
+                            <td><?php echo htmlspecialchars(strlen($report['title'] ?? '') > 35 ? substr($report['title'], 0, 35) . '...' : ($report['title'] ?? '')); ?></td>
+                            <td><?php
+                                $type_labels = [
+                                    'infrastructure_issue' => 'Infrastructure Issue',
+                                    'traffic_jam' => 'Traffic Jam',
+                                    'accident' => 'Vehicle Accident',
+                                    'road_closure' => 'Road Closure',
+                                    'potholes' => 'Potholes',
+                                    'road_damage' => 'Road Damage',
+                                ];
+                                echo htmlspecialchars($type_labels[$report['report_type']] ?? ucfirst($report['report_type']));
+                            ?></td>
+                            <td><?php echo htmlspecialchars($report['location'] ?? '—'); ?></td>
+                            <td><?php echo htmlspecialchars(ucfirst($report['department'] ?? '')); ?></td>
+                            <td><span class="rm-priority-badge <?php echo htmlspecialchars($report['priority']); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'])); ?></span></td>
+                            <td><span class="rm-status-badge <?php echo htmlspecialchars($report['status']); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span></td>
+                            <td>
+                                <?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?>
+                                <?php if (($report['status'] ?? '') === 'approved' && !empty($report['approved_at'])): ?>
+                                    <br><small style="color:#059669;font-weight:600;">Approved: <?php echo date('M d, Y', strtotime($report['approved_at'])); ?></small>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                        <?php
+                            endforeach;
+                        endif;
+                        ?>
+
+                        <?php if (!$hasLgu): ?>
+                        <tr>
+                            <td colspan="9">
+                                <div class="rm-empty-state">
+                                    <div class="rm-empty-icon" style="background: rgba(55, 98, 200, 0.12);">
+                                        <i class="fas fa-clipboard-list" style="color: #3762c8;"></i>
+                                    </div>
+                                    <h4>No LGU Monitoring Reports</h4>
+                                    <p>No LGU-created monitoring reports found.</p>
                                 </div>
                             </td>
                         </tr>
@@ -3625,11 +3801,12 @@ foreach ($reports as $report) {
         }
 
         document.getElementById('citizenSearchInput').addEventListener('input', function() { panelSearch('citizenSearchInput', 'citizenTable'); });
+        document.getElementById('lguSearchInput').addEventListener('input', function() { panelSearch('lguSearchInput', 'lguTable'); });
         document.getElementById('cimmSearchInput').addEventListener('input', function() { panelSearch('cimmSearchInput', 'cimmTable'); });
         document.getElementById('infraSearchInput').addEventListener('input', function() { panelSearch('infraSearchInput', 'infraTable'); });
 
         // Sort toggle state
-        const sortState = { citizen: 'asc', cimm: 'asc', infra: 'asc' };
+        const sortState = { citizen: 'asc', lgu: 'asc', cimm: 'asc', infra: 'asc' };
 
         function toggleSort(tableId, key) {
             const tbody = document.querySelector('#' + tableId + ' tbody');
@@ -3646,6 +3823,7 @@ foreach ($reports as $report) {
         }
 
         function toggleCitizenSort() { toggleSort('citizenTable', 'citizen'); }
+        function toggleLguSort()     { toggleSort('lguTable', 'lgu'); }
         function toggleCimmSort()   { toggleSort('cimmTable', 'cimm'); }
         function toggleInfraSort()   { toggleSort('infraTable', 'infra'); }
 
@@ -3760,9 +3938,11 @@ foreach ($reports as $report) {
         // Source filter — toggle panel visibility
         function filterSource(source) {
             const citizen = document.getElementById('citizenReportsPanel');
+            const lgu     = document.getElementById('lguReportsPanel');
             const cimm    = document.getElementById('cimmReportsPanel');
             const infra   = document.getElementById('infraReportsPanel');
             citizen.style.display = (source === 'all' || source === 'transport') ? '' : 'none';
+            lgu.style.display     = (source === 'all' || source === 'lgu_reports') ? '' : 'none';
             cimm.style.display    = (source === 'all' || source === 'cimm')      ? '' : 'none';
             infra.style.display   = (source === 'all' || source === 'maintenance') ? '' : 'none';
         }

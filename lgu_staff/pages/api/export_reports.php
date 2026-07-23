@@ -38,6 +38,12 @@ function get_export_reports($status_filter, $source_filter) {
         if ($source_filter === 'transport') {
             $transport_query .= " WHERE " . implode(' AND ', $where_conditions);
             $maintenance_query = "SELECT NULL FROM road_maintenance_reports WHERE 1=0";
+        } elseif ($source_filter === 'lgu_reports') {
+            $transport_query .= " WHERE report_category = 'transportation' AND report_source = 'local' AND created_by != 0";
+            if (!empty($where_conditions)) {
+                $transport_query .= " AND " . implode(' AND ', $where_conditions);
+            }
+            $maintenance_query = "SELECT NULL FROM road_maintenance_reports WHERE 1=0";
         } elseif ($source_filter === 'maintenance') {
             $transport_query = "SELECT NULL FROM road_transportation_reports WHERE 1=0";
             $maintenance_query .= " WHERE " . implode(' AND ', $where_conditions);
