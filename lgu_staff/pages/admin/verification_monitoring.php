@@ -3149,6 +3149,126 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             </div>
         </div>
 
+        <!-- Citizen Reports Panel -->
+        <div class="citizen-reports-panel" id="citizenPanel">
+            <div class="citizen-reports-header">
+                <div class="citizen-reports-header-left">
+                    <div class="citizen-reports-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div>
+                        <div class="citizen-reports-title-group">
+                            <h2 class="citizen-reports-title">Citizen Reports</h2>
+                            <span class="citizen-reports-badge"><?php echo $citizen_reports ? $citizen_reports->num_rows : 0; ?> Reports</span>
+                        </div>
+                        <p class="citizen-reports-subtitle">Reports submitted by citizens via the public portal</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="citizen-reports-search">
+                <div class="citizen-search-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" class="citizen-search-input" id="citizenSearchInput" placeholder="Search by Report #, Title, Type, Location, Reporter...">
+                </div>
+                <button class="citizen-sort-btn" onclick="toggleCitizenSort()">
+                    <i class="fas fa-sort"></i> Sort
+                </button>
+            </div>
+
+            <div class="citizen-table-wrapper">
+                <table class="citizen-table" id="citizenTable">
+                    <thead>
+                        <tr>
+                            <th>Action</th>
+                            <th>Report #</th>
+                            <th>Title</th>
+                            <th>Type</th>
+                            <th>Location</th>
+                            <th>Reporter</th>
+                            <th>Priority</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        $hasCitizenReports = false;
+                        if ($citizen_reports && $citizen_reports->num_rows > 0):
+                            while ($crow = $citizen_reports->fetch_assoc()):
+                                $hasCitizenReports = true;
+                                $c_status_class = '';
+                                if ($crow['status'] === 'approved') $c_status_class = 'approved';
+                                elseif ($crow['status'] === 'cancelled') $c_status_class = 'cancelled';
+                                elseif ($crow['status'] === 'pending') $c_status_class = 'pending';
+                                elseif ($crow['status'] === 'in-progress') $c_status_class = 'in-progress';
+                                elseif ($crow['status'] === 'completed') $c_status_class = 'completed';
+                                $citizen_filter_status = 'pending';
+                                if (in_array($crow['status'], ['approved', 'completed'])) $citizen_filter_status = 'approved';
+                                elseif (in_array($crow['status'], ['cancelled'])) $citizen_filter_status = 'rejected';
+                        ?>
+                        <tr data-status="<?php echo $citizen_filter_status; ?>">
+                            <td>
+                                <div class="citizen-action-group">
+                                    <button class="citizen-action-btn" onclick="viewCitizenReport(<?php echo $crow['id']; ?>)">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <?php if ($crow['status'] === 'pending'): ?>
+                                    <form method="POST" class="citizen-action-form" onsubmit="return confirm('Are you sure you want to approve this citizen report?');">
+                                        <input type="hidden" name="report_id" value="<?php echo (int)$crow['id']; ?>">
+                                        <input type="hidden" name="source" value="transport">
+                                        <button type="submit" name="action" value="approve" class="citizen-verify-btn" title="Approve report">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                    </form>
+                                    <form method="POST" class="citizen-action-form" onsubmit="return confirm('Are you sure you want to reject this citizen report?');">
+                                        <input type="hidden" name="report_id" value="<?php echo (int)$crow['id']; ?>">
+                                        <input type="hidden" name="source" value="transport">
+                                        <button type="submit" name="action" value="reject" class="citizen-reject-btn" title="Reject report">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </form>
+                                    <?php endif; ?>
+                                </div>
+                            </td>
+                            <td><?php echo htmlspecialchars($crow['report_id']); ?></td>
+                            <td><?php echo htmlspecialchars(strlen($crow['title'] ?? '') > 35 ? substr($crow['title'], 0, 35) . '...' : ($crow['title'] ?? '')); ?></td>
+                            <td><?php
+                                $c_type_labels = [
+                                    'traffic_jam' => 'Traffic Jam',
+                                    'accident' => 'Accident',
+                                    'road_closure' => 'Road Closure',
+                                    'traffic_light_outage' => 'Traffic Light',
+                                    'congestion' => 'Congestion',
+                                    'parking_violation' => 'Parking Violation',
+                                    'public_transport_issue' => 'Public Transport',
+                                ];
+                                echo htmlspecialchars($c_type_labels[$crow['report_type']] ?? ucfirst($crow['report_type']));
+                            ?></td>
+                            <td><?php echo htmlspecialchars($crow['location'] ?? '—'); ?></td>
+                            <td><?php echo htmlspecialchars($crow['reporter_name'] ?? '—'); ?></td>
+                            <td><span class="citizen-status-badge <?php echo htmlspecialchars($crow['priority']); ?>"><?php echo ucfirst(htmlspecialchars($crow['priority'])); ?></span></td>
+                            <td><span class="citizen-status-badge <?php echo $c_status_class; ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $crow['status']))); ?></span></td>
+                            <td><?php echo $crow['created_at'] ? date('M d, Y', strtotime($crow['created_at'])) : '—'; ?></td>
+                        </tr>
+                        <?php
+                            endwhile;
+                        endif;
+                        ?>
+                        <?php if (!$hasCitizenReports): ?>
+                        <tr>
+                            <td colspan="9">
+                                <div class="citizen-empty-state">
+                                    <div class="citizen-empty-icon"><i class="fas fa-users"></i></div>
+                                    <p>No citizen reports at this time.</p>
+                                </div>
+                            </td>
+                        </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+
         <!-- CIMM Reports Panel -->
         <div class="dept-reports-panel" id="cimmReportsPanel">
             <div class="dept-reports-header">
@@ -3427,125 +3547,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             </div>
         </div>
 
-        <!-- Citizen Reports Panel -->
-        <div class="citizen-reports-panel" id="citizenPanel">
-            <div class="citizen-reports-header">
-                <div class="citizen-reports-header-left">
-                    <div class="citizen-reports-icon">
-                        <i class="fas fa-users"></i>
-                    </div>
-                    <div>
-                        <div class="citizen-reports-title-group">
-                            <h2 class="citizen-reports-title">Citizen Reports</h2>
-                            <span class="citizen-reports-badge"><?php echo $citizen_reports ? $citizen_reports->num_rows : 0; ?> Reports</span>
-                        </div>
-                        <p class="citizen-reports-subtitle">Reports submitted by citizens via the public portal</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="citizen-reports-search">
-                <div class="citizen-search-wrapper">
-                    <i class="fas fa-search"></i>
-                    <input type="text" class="citizen-search-input" id="citizenSearchInput" placeholder="Search by Report #, Title, Type, Location, Reporter...">
-                </div>
-                <button class="citizen-sort-btn" onclick="toggleCitizenSort()">
-                    <i class="fas fa-sort"></i> Sort
-                </button>
-            </div>
-
-            <div class="citizen-table-wrapper">
-                <table class="citizen-table" id="citizenTable">
-                    <thead>
-                        <tr>
-                            <th>Action</th>
-                            <th>Report #</th>
-                            <th>Title</th>
-                            <th>Type</th>
-                            <th>Location</th>
-                            <th>Reporter</th>
-                            <th>Priority</th>
-                            <th>Status</th>
-                            <th>Date</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php
-                        $hasCitizenReports = false;
-                        if ($citizen_reports && $citizen_reports->num_rows > 0):
-                            while ($crow = $citizen_reports->fetch_assoc()):
-                                $hasCitizenReports = true;
-                                $c_status_class = '';
-                                if ($crow['status'] === 'approved') $c_status_class = 'approved';
-                                elseif ($crow['status'] === 'cancelled') $c_status_class = 'cancelled';
-                                elseif ($crow['status'] === 'pending') $c_status_class = 'pending';
-                                elseif ($crow['status'] === 'in-progress') $c_status_class = 'in-progress';
-                                elseif ($crow['status'] === 'completed') $c_status_class = 'completed';
-                                $citizen_filter_status = 'pending';
-                                if (in_array($crow['status'], ['approved', 'completed'])) $citizen_filter_status = 'approved';
-                                elseif (in_array($crow['status'], ['cancelled'])) $citizen_filter_status = 'rejected';
-                        ?>
-                        <tr data-status="<?php echo $citizen_filter_status; ?>">
-                            <td>
-                                <div class="citizen-action-group">
-                                    <button class="citizen-action-btn" onclick="viewCitizenReport(<?php echo $crow['id']; ?>)">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                    <?php if ($crow['status'] === 'pending'): ?>
-                                    <form method="POST" class="citizen-action-form" onsubmit="return confirm('Are you sure you want to approve this citizen report?');">
-                                        <input type="hidden" name="report_id" value="<?php echo (int)$crow['id']; ?>">
-                                        <input type="hidden" name="source" value="transport">
-                                        <button type="submit" name="action" value="approve" class="citizen-verify-btn" title="Approve report">
-                                            <i class="fas fa-check"></i>
-                                        </button>
-                                    </form>
-                                    <form method="POST" class="citizen-action-form" onsubmit="return confirm('Are you sure you want to reject this citizen report?');">
-                                        <input type="hidden" name="report_id" value="<?php echo (int)$crow['id']; ?>">
-                                        <input type="hidden" name="source" value="transport">
-                                        <button type="submit" name="action" value="reject" class="citizen-reject-btn" title="Reject report">
-                                            <i class="fas fa-times"></i>
-                                        </button>
-                                    </form>
-                                    <?php endif; ?>
-                                </div>
-                            </td>
-                            <td><?php echo htmlspecialchars($crow['report_id']); ?></td>
-                            <td><?php echo htmlspecialchars(strlen($crow['title'] ?? '') > 35 ? substr($crow['title'], 0, 35) . '...' : ($crow['title'] ?? '')); ?></td>
-                            <td><?php
-                                $c_type_labels = [
-                                    'traffic_jam' => 'Traffic Jam',
-                                    'accident' => 'Accident',
-                                    'road_closure' => 'Road Closure',
-                                    'traffic_light_outage' => 'Traffic Light',
-                                    'congestion' => 'Congestion',
-                                    'parking_violation' => 'Parking Violation',
-                                    'public_transport_issue' => 'Public Transport',
-                                ];
-                                echo htmlspecialchars($c_type_labels[$crow['report_type']] ?? ucfirst($crow['report_type']));
-                            ?></td>
-                            <td><?php echo htmlspecialchars($crow['location'] ?? '—'); ?></td>
-                            <td><?php echo htmlspecialchars($crow['reporter_name'] ?? '—'); ?></td>
-                            <td><span class="citizen-status-badge <?php echo htmlspecialchars($crow['priority']); ?>"><?php echo ucfirst(htmlspecialchars($crow['priority'])); ?></span></td>
-                            <td><span class="citizen-status-badge <?php echo $c_status_class; ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $crow['status']))); ?></span></td>
-                            <td><?php echo $crow['created_at'] ? date('M d, Y', strtotime($crow['created_at'])) : '—'; ?></td>
-                        </tr>
-                        <?php
-                            endwhile;
-                        endif;
-                        ?>
-                        <?php if (!$hasCitizenReports): ?>
-                        <tr>
-                            <td colspan="9">
-                                <div class="citizen-empty-state">
-                                    <div class="citizen-empty-icon"><i class="fas fa-users"></i></div>
-                                    <p>No citizen reports at this time.</p>
-                                </div>
-                            </td>
-                        </tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
+        
         </div>
 
         </div>
