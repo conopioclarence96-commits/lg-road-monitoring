@@ -181,7 +181,7 @@ function getAllReports($conn, $status_filter = 'all', $source_filter = 'all') {
         }
     }
     $infra_exclude = "report_type != 'infrastructure_issue'";
-    $citizen_exclude = "(report_source IS NULL OR report_source != 'local' OR report_category IS NULL OR report_category != 'transportation')";
+    $citizen_exclude = "(report_source IS NULL OR report_source != 'local' OR report_category IS NULL OR report_category != 'transportation' OR created_by IS NULL OR created_by != 0)";
     if ($source_filter === 'transport') {
         $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}" : " WHERE {$infra_exclude} AND {$citizen_exclude}";
         $q = "(SELECT 'transport' as source, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$where})";
@@ -327,7 +327,7 @@ function getCitizenReports($conn) {
                      attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at,
                      reporter_name, reporter_email, reporter_phone, image_path, created_by
               FROM road_transportation_reports 
-              WHERE report_source = 'local' AND report_category = 'transportation'
+              WHERE report_source = 'local' AND report_category = 'transportation' AND created_by = 0
               ORDER BY created_at DESC";
     $result = $conn->query($query);
     if (!$result) {
