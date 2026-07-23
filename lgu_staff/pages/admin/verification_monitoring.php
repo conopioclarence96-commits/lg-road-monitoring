@@ -3336,6 +3336,263 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 padding: 0;
             }
         }
+
+        /* CIMM Report Detail Modal */
+        .cimm-modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+
+        .cimm-modal-overlay.active {
+            display: flex;
+        }
+
+        .cimm-modal-content {
+            background: #f0f4fa;
+            border-radius: 16px;
+            max-width: 860px;
+            width: 100%;
+            max-height: calc(100vh - 40px);
+            position: relative;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            margin: auto;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            border: 1px solid #c8d0e0;
+        }
+
+        .cimm-modal-header {
+            background: white;
+            border-radius: 16px 16px 0 0;
+            padding: 24px 28px 18px;
+            border-bottom: 2px solid rgba(55, 98, 200, 0.15);
+            flex-shrink: 0;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        .cimm-modal-header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .cimm-modal-title-area {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .cimm-modal-report-id {
+            font-size: 13px;
+            color: #3762c8;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            margin-bottom: 4px;
+        }
+
+        .cimm-modal-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1e3c72;
+            margin: 0 0 10px 0;
+            line-height: 1.3;
+        }
+
+        .cimm-modal-badges {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .cimm-modal-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            color: #666;
+            cursor: pointer;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.3s;
+            flex-shrink: 0;
+            margin-left: 15px;
+        }
+
+        .cimm-modal-close:hover {
+            background: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+        }
+
+        .cimm-modal-body {
+            overflow-y: auto;
+            flex: 1;
+            min-height: 0;
+            padding: 24px 28px;
+        }
+
+        .cimm-modal-body::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .cimm-modal-body::-webkit-scrollbar-track {
+            background: rgba(55, 98, 200, 0.08);
+            border-radius: 4px;
+        }
+
+        .cimm-modal-body::-webkit-scrollbar-thumb {
+            background: rgba(55, 98, 200, 0.2);
+            border-radius: 4px;
+        }
+
+        .cimm-modal-body::-webkit-scrollbar-thumb:hover {
+            background: rgba(55, 98, 200, 0.35);
+        }
+
+        .cimm-modal-section {
+            background: white;
+            border-radius: 12px;
+            padding: 18px 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            border: 1px solid rgba(55, 98, 200, 0.1);
+        }
+
+        .cimm-modal-section-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #1e3c72;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 14px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(55, 98, 200, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .cimm-modal-section-title i {
+            color: #3762c8;
+            font-size: 15px;
+        }
+
+        .cimm-info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .cimm-info-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 6px 0;
+        }
+
+        .cimm-info-icon {
+            width: 28px;
+            height: 28px;
+            background: rgba(55, 98, 200, 0.1);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #3762c8;
+            font-size: 13px;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .cimm-info-label {
+            font-size: 11px;
+            color: #6b7280;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-bottom: 2px;
+        }
+
+        .cimm-info-value {
+            font-size: 14px;
+            color: #1f2937;
+            font-weight: 500;
+            line-height: 1.4;
+            word-break: break-word;
+        }
+
+        .cimm-info-value-full {
+            grid-column: 1 / -1;
+        }
+
+        .cimm-description-text {
+            font-size: 14px;
+            color: #374151;
+            line-height: 1.7;
+            padding: 8px 0;
+            white-space: pre-wrap;
+        }
+
+        .cimm-modal-footer {
+            background: white;
+            border-radius: 0 0 16px 16px;
+            padding: 16px 28px;
+            border-top: 1px solid rgba(55, 98, 200, 0.1);
+            flex-shrink: 0;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .cimm-modal-btn-close {
+            padding: 10px 24px;
+            background: rgba(55, 98, 200, 0.1);
+            color: #3762c8;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .cimm-modal-btn-close:hover {
+            background: rgba(55, 98, 200, 0.2);
+        }
+
+        @media (max-width: 640px) {
+            .cimm-info-grid {
+                grid-template-columns: 1fr;
+            }
+            .cimm-modal-header {
+                padding: 18px 16px;
+            }
+            .cimm-modal-body {
+                padding: 16px;
+            }
+            .cimm-modal-content {
+                max-width: 100%;
+                border-radius: 0;
+            }
+            .cimm-modal-overlay {
+                padding: 0;
+            }
+        }
         
         .modal-footer {
             display: flex;
@@ -4384,38 +4641,113 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             return '₱' + parseFloat(val).toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2});
         }
 
+        // Helper: build a CIMM info item with icon
+        function cimmInfoItem(icon, label, value) {
+            var displayVal = (value && value !== '—' && value !== null) ? value : '—';
+            return '<div class="cimm-info-item"><div class="cimm-info-icon"><i class="fas fa-' + icon + '"></i></div><div><div class="cimm-info-label">' + label + '</div><div class="cimm-info-value">' + displayVal + '</div></div></div>';
+        }
+
+        // Helper: CIMM badge HTML
+        function cimmBadge(text, bg, color) {
+            return '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:' + bg + ';color:' + color + ';">' + text + '</span>';
+        }
+
         // View CIMM report details
         function viewCimmReport(id) {
             var r = cimmDataMap[id];
             if (!r) { alert('Report data not found.'); return; }
 
-            document.getElementById('dm-budget')?.closest('.detail-row')?.style.removeProperty('display');
-            document.getElementById('cimmModalTitle').textContent = 'CIMM Report — ' + (r.rep_number || 'Details');
-            setModalField('dm-rep-number', r.rep_number);
-            setModalField('dm-infrastructure', r.infrastructure);
-            setModalField('dm-location', r.location);
-            setModalField('dm-issue', r.issue_notes);
-            setModalField('dm-engineer', r.engineer);
-            setModalField('dm-reported-by', r.reported_by);
-            setModalField('dm-start-date', formatDate(r.start_date));
-            setModalField('dm-end-date', formatDate(r.end_date));
-            document.getElementById('dm-priority').innerHTML = priorityBadgeHtml(r.priority);
-            setModalField('dm-budget', formatCurrency(r.budget));
-            document.getElementById('dm-status').innerHTML = statusBadgeHtml(r.status, r.status ? r.status.replace(/-/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}) : '—');
+            var statusStyles = {
+                'pending':    {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
+                'approved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
+                'completed':  {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
+                'cancelled':  {bg:'rgba(220,53,69,0.15)',  color:'#ef4444'},
+                'in-progress':{bg:'rgba(59,130,246,0.15)', color:'#3b82f6'},
+                'resolved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'}
+            };
+            var pStyles = {
+                'high':   {bg:'rgba(220,53,69,0.15)', color:'#ef4444'},
+                'medium': {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
+                'low':    {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'}
+            };
 
-            var extra = '';
-            if (r.verification_status) {
-                extra += '<div class="detail-row"><div class="detail-label">Verification Status</div><div class="detail-value">' + statusBadgeHtml(r.status, r.verification_status) + '</div></div>';
+            // Header
+            document.getElementById('cimm-report-id').textContent = 'Report #' + (r.rep_number || '—');
+            document.getElementById('cimm-title').textContent = r.infrastructure || '—';
+
+            var st = (r.status || 'pending').toLowerCase();
+            var ss = statusStyles[st] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
+            var pp = (r.priority || 'medium').toLowerCase();
+            var ps = pStyles[pp] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
+
+            var badgesHtml = cimmBadge(r.status || '—', ss.bg, ss.color);
+            if (r.verification_status && r.verification_status !== r.status) {
+                badgesHtml += cimmBadge(r.verification_status, 'rgba(55,98,200,0.12)', '#3762c8');
             }
             if (r.approval_status) {
-                extra += '<div class="detail-row"><div class="detail-label">Approval Status</div><div class="detail-value">' + statusBadgeHtml(r.status, r.approval_status) + '</div></div>';
+                badgesHtml += cimmBadge(r.approval_status, 'rgba(16,185,129,0.12)', '#10b981');
             }
             if (r.cimm_req_id) {
-                extra += '<div class="detail-row"><div class="detail-label">CIMM Request ID</div><div class="detail-value">' + r.cimm_req_id + '</div></div>';
+                badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(55,98,200,0.12);color:#3762c8;">ID: ' + r.cimm_req_id + '</span>';
             }
-            document.getElementById('dm-extra-fields').innerHTML = extra;
+            badgesHtml += cimmBadge(r.priority || '—', ps.bg, ps.color);
+            document.getElementById('cimm-badges').innerHTML = badgesHtml;
 
-            openCimmDetailModal();
+            // Project Information
+            var projectGrid = '';
+            projectGrid += cimmInfoItem('building', 'Infrastructure', r.infrastructure);
+            projectGrid += cimmInfoItem('folder', 'Report Type', r.report_type);
+            projectGrid += cimmInfoItem('calendar-alt', 'Start Date', formatDate(r.start_date));
+            projectGrid += cimmInfoItem('calendar-check', 'End Date', formatDate(r.end_date));
+            projectGrid += cimmInfoItem('wallet', 'Budget', formatCurrency(r.budget));
+            document.getElementById('cimm-project-grid').innerHTML = projectGrid;
+
+            // Reporter & Engineer
+            var peopleGrid = '';
+            peopleGrid += cimmInfoItem('user', 'Reported By', r.reported_by);
+            peopleGrid += cimmInfoItem('hard-hat', 'Engineer', r.engineer);
+            document.getElementById('cimm-people-grid').innerHTML = peopleGrid;
+
+            // Location
+            var locationGrid = '';
+            locationGrid += '<div class="cimm-info-item cimm-info-value-full"><div class="cimm-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="cimm-info-label">Location</div><div class="cimm-info-value">' + (r.location || '—') + '</div></div></div>';
+            document.getElementById('cimm-location-grid').innerHTML = locationGrid;
+
+            // Issue / Notes
+            document.getElementById('cimm-issue').textContent = r.issue_notes || 'No notes provided.';
+
+            // Attachments
+            document.getElementById('cimm-attachments').innerHTML = '<div style="padding:8px 0;color:#9ca3af;font-size:14px;">No attachments.</div>';
+
+            // Timeline & Updates
+            var timelineGrid = '';
+            timelineGrid += cimmInfoItem('calendar-alt', 'Start Date', formatDate(r.start_date));
+            timelineGrid += cimmInfoItem('calendar-check', 'End Date', formatDate(r.end_date));
+            if (r.verification_status) {
+                timelineGrid += cimmInfoItem('clipboard-check', 'Verification', r.verification_status);
+            }
+            if (r.approval_status) {
+                timelineGrid += cimmInfoItem('thumbs-up', 'Approval', r.approval_status);
+            }
+            document.getElementById('cimm-timeline-grid').innerHTML = timelineGrid;
+
+            openCimmModal();
+        }
+
+        function openCimmModal() {
+            var modal = document.getElementById('cimmReportModal');
+            if (modal) {
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        function closeCimmModal() {
+            var modal = document.getElementById('cimmReportModal');
+            if (modal) {
+                modal.classList.remove('active');
+                document.body.style.overflow = '';
+            }
         }
 
         // View SQL reports table details
@@ -4945,6 +5277,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             </div>
             <div class="citizen-modal-footer">
                 <button type="button" class="citizen-modal-btn-close" onclick="closeCitizenModal()">
+                    <i class="fas fa-times"></i> Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CIMM Report Detail Modal -->
+    <div id="cimmReportModal" class="cimm-modal-overlay" onclick="if(event.target===this)closeCimmModal()">
+        <div class="cimm-modal-content">
+            <div class="cimm-modal-header">
+                <div class="cimm-modal-header-top">
+                    <div class="cimm-modal-title-area">
+                        <div class="cimm-modal-report-id" id="cimm-report-id">—</div>
+                        <h3 class="cimm-modal-title" id="cimm-title">—</h3>
+                        <div class="cimm-modal-badges" id="cimm-badges"></div>
+                    </div>
+                    <button class="cimm-modal-close" onclick="closeCimmModal()">&times;</button>
+                </div>
+            </div>
+            <div class="cimm-modal-body">
+                <!-- Project Information -->
+                <div class="cimm-modal-section">
+                    <div class="cimm-modal-section-title"><i class="fas fa-info-circle"></i> Project Information</div>
+                    <div class="cimm-info-grid" id="cimm-project-grid"></div>
+                </div>
+                <!-- Reporter / Engineer Information -->
+                <div class="cimm-modal-section">
+                    <div class="cimm-modal-section-title"><i class="fas fa-user"></i> Reporter &amp; Engineer</div>
+                    <div class="cimm-info-grid" id="cimm-people-grid"></div>
+                </div>
+                <!-- Location -->
+                <div class="cimm-modal-section">
+                    <div class="cimm-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location</div>
+                    <div class="cimm-info-grid" id="cimm-location-grid"></div>
+                </div>
+                <!-- Issue / Notes -->
+                <div class="cimm-modal-section">
+                    <div class="cimm-modal-section-title"><i class="fas fa-align-left"></i> Issue / Notes</div>
+                    <div class="cimm-description-text" id="cimm-issue">—</div>
+                </div>
+                <!-- Attachments -->
+                <div class="cimm-modal-section">
+                    <div class="cimm-modal-section-title"><i class="fas fa-paperclip"></i> Attachments</div>
+                    <div id="cimm-attachments"></div>
+                </div>
+                <!-- Timeline / Updates -->
+                <div class="cimm-modal-section">
+                    <div class="cimm-modal-section-title"><i class="fas fa-clock"></i> Timeline &amp; Updates</div>
+                    <div class="cimm-info-grid" id="cimm-timeline-grid"></div>
+                </div>
+            </div>
+            <div class="cimm-modal-footer">
+                <button type="button" class="cimm-modal-btn-close" onclick="closeCimmModal()">
                     <i class="fas fa-times"></i> Close
                 </button>
             </div>
