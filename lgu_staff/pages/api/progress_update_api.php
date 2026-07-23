@@ -24,6 +24,9 @@ if ($method === 'GET') {
                 $report = fetch_one("SELECT id FROM road_maintenance_reports WHERE id = ?", [$report_id], "i");
             }
             if (!$report) {
+                $report = fetch_one("SELECT id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
+            }
+            if (!$report) {
                 json_response(['success' => false, 'message' => 'Report not found']);
             }
             $updates = [];
@@ -89,6 +92,9 @@ if ($method === 'GET') {
         if (!$report) {
             $report = fetch_one("SELECT id, report_id FROM road_maintenance_reports WHERE id = ?", [$report_id], "i");
         }
+        if (!$report) {
+            $report = fetch_one("SELECT id, reference_code AS report_id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
+        }
         if (!$report) json_response(['success' => false, 'message' => 'Report not found']);
 
         // Insert update
@@ -116,10 +122,13 @@ if ($method === 'GET') {
         if ($update_id <= 0) json_response(['success' => false, 'message' => 'Invalid update ID']);
         if (empty($description)) json_response(['success' => false, 'message' => 'Description is required']);
 
-        // Verify ownership/permission — check both report tables
+        // Verify ownership/permission — check report tables
         $update = fetch_one("SELECT u.*, r.report_id FROM report_updates u JOIN road_transportation_reports r ON u.report_id = r.id WHERE u.id = ?", [$update_id], "i");
         if (!$update) {
             $update = fetch_one("SELECT u.*, r.report_id FROM report_updates u JOIN road_maintenance_reports r ON u.report_id = r.id WHERE u.id = ?", [$update_id], "i");
+        }
+        if (!$update) {
+            $update = fetch_one("SELECT u.*, cr.reference_code AS report_id FROM report_updates u JOIN cimm_verification_reports cr ON u.report_id = cr.id WHERE u.id = ?", [$update_id], "i");
         }
         if (!$update) json_response(['success' => false, 'message' => 'Update not found']);
 

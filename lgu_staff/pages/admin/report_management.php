@@ -2628,6 +2628,9 @@ if ($include_cimm) {
                                     <button class="rm-delete-btn" onclick="deleteCimmReport(<?php echo $cimmIdx; ?>)">
                                         <i class="fas fa-trash"></i>
                                     </button>
+                                    <button class="rm-action-btn" style="background:rgba(16,185,129,0.1);color:#10b981;" onclick="viewReportUpdates(<?php echo (int)$row['id']; ?>, '<?php echo htmlspecialchars($row['report_type'], ENT_QUOTES); ?>')">
+                                        <i class="fas fa-clock"></i>
+                                    </button>
                                 </div>
                             </td>
                             <td><?php echo htmlspecialchars($row['report_id'] ?? '—'); ?></td>
