@@ -2073,7 +2073,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             const desc = document.getElementById('crDescription').value.trim();
             if (!desc) errors.push('Please describe the issue.');
 
-            if (photoFiles.length === 0) errors.push('Please upload at least one photo.');
+            if (photoFiles.length < 2) errors.push('Please upload at least 2 photos.');
 
             if (!otpVerified) errors.push('Please verify your email first.');
 
