@@ -46,6 +46,11 @@ if ($check2 && $check2->num_rows === 0) {
     $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN report_source ENUM('local','external') DEFAULT 'local' AFTER report_category");
 }
 
+// Ensure the archive table exists — normally created lazily by archive.php,
+// but this page also queries it below (delete/archive action) and reads its
+// columns, so it must exist before landing here first.
+$conn->query("CREATE TABLE IF NOT EXISTS road_transportation_reports_archive LIKE road_transportation_reports");
+
 // Ensure the archive table has the same columns
 $check_arch = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE 'report_category'");
 if ($check_arch && $check_arch->num_rows === 0) {
@@ -271,6 +276,18 @@ function rgmap_map_cimm_row_for_display(array $row): array {
         'approval_status'      => $row['approval_status'] ?? null,
         'verification_status'  => $verification,
         'cimm_req_id'          => $row['cimm_req_id'] ?? null,
+        'contact_number'       => $row['contact_number'] ?? null,
+        'email'                => $row['email'] ?? null,
+        'district'             => $row['district'] ?? null,
+        'resolution_status'    => $row['resolution_status'] ?? null,
+        'resolution_note'      => $row['resolution_note'] ?? null,
+        'submitted_at'         => $row['submitted_at'] ?? null,
+        'portal_url'           => $row['portal_url'] ?? null,
+        // Evidence photos CIMM's sync pushed for this report — see
+        // cimm_rgmap_fetch_report() in the CIMM repo (evidence_images table)
+        // and the evidence_json column populated by cimm-reports-webhook.php.
+        'evidence_urls'        => is_array($row['evidence_urls'] ?? null) ? $row['evidence_urls'] : [],
+        'ai'                   => is_array($row['ai'] ?? null) ? $row['ai'] : [],
     ];
 }
 
@@ -4975,6 +4992,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
             // Attachments
             document.getElementById('cimm-attachments').innerHTML = '<div style="padding:8px 0;color:#9ca3af;font-size:14px;">No attachments.</div>';
+            
+            // Attachments — evidence photos CIMM synced for this report
+            // (r.evidence_urls, populated by rgmap_map_cimm_row_for_display()
+            // from cimm_verification_reports.evidence_json).
+            var evidenceUrls = Array.isArray(r.evidence_urls) ? r.evidence_urls : [];
+            var attachHtml;
+            if (evidenceUrls.length > 0) {
+                attachHtml = '<div class="citizen-photo-gallery">';
+                evidenceUrls.forEach(function(url) {
+                    attachHtml += '<div class="citizen-photo-item"><img src="' + url + '" alt="Evidence photo" onclick="openLightbox(this.src)" loading="lazy" onerror="this.closest(\'.citizen-photo-item\').style.display=\'none\'"></div>';
+                });
+                attachHtml += '</div>';
+            } else {
+                attachHtml = '<div style="padding:8px 0;color:#9ca3af;font-size:14px;">No attachments.</div>';
+            }
+            document.getElementById('cimm-attachments').innerHTML = attachHtml;
 
             // Timeline & Updates
             var timelineGrid = '';
