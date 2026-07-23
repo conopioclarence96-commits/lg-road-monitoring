@@ -663,7 +663,6 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
         $params[] = $status_filter;
     }
     
-    $include_cimm = ($source_filter === 'all' || $source_filter === 'cimm');
     $include_transport = ($source_filter === 'all' || $source_filter === 'transport' || $source_filter === 'lgu_reports');
     $include_maintenance = ($source_filter === 'all' || $source_filter === 'maintenance');
     
@@ -726,14 +725,11 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
         $maintenance_reports = [];
     }
     
-    // Get CIMM reports if needed
-    $cimm_reports = [];
-    if ($include_cimm) {
-        $cimm_reports = getCimmReportsForManagement($status_filter);
-    }
+    // Note: CIMM reports are fetched independently in the caller (see below)
+    // to avoid being crowded out by the 20-row combined limit.
     
     // Combine and sort
-    $all_reports = array_merge($transport_reports ?: [], $maintenance_reports ?: [], $cimm_reports ?: []);
+    $all_reports = array_merge($transport_reports ?: [], $maintenance_reports ?: []);
     usort($all_reports, function($a, $b) {
         return strtotime($b['created_at']) - strtotime($a['created_at']);
     });
@@ -834,9 +830,7 @@ $cimm_reports_list = [];
 $infra_reports_list = [];
 foreach ($reports as $report) {
     $src = $report['source_system'] ?? 'transport';
-    if ($src === 'cimm') {
-        $cimm_reports_list[] = $report;
-    } elseif ($src === 'maintenance') {
+    if ($src === 'maintenance') {
         $infra_reports_list[] = $report;
     } elseif ($src === 'lgu_reports') {
         $lgu_reports_list[] = $report;
@@ -844,6 +838,18 @@ foreach ($reports as $report) {
         // Skip unapproved LGU reports
     } else {
         $citizen_reports[] = $report;
+    }
+}
+
+// Fetch CIMM reports independently (not through the combined get_reports pipeline
+// which limits all sources to 20 total, crowding out CIMM reports)
+$include_cimm = ($source_filter === 'all' || $source_filter === 'cimm');
+if ($include_cimm) {
+    try {
+        $cimm_reports_list = getCimmReportsForManagement($status_filter);
+    } catch (Exception $e) {
+        error_log("CIMM panel fetch failed: " . $e->getMessage());
+        $cimm_reports_list = [];
     }
 }
 ?>
