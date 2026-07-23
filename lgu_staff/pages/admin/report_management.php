@@ -1620,7 +1620,7 @@ foreach ($reports as $report) {
         }
 
         .rm-panel-icon.cimm {
-            background: linear-gradient(135deg, #f97316, #ea580c);
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
         }
 
         .rm-panel-icon.infra {
@@ -1656,7 +1656,7 @@ foreach ($reports as $report) {
         }
 
         .rm-panel-badge.citizen { background: #16a34a; }
-        .rm-panel-badge.cimm { background: #f97316; }
+        .rm-panel-badge.cimm { background: #3762c8; }
         .rm-panel-badge.infra { background: #f97316; }
 
         #citizenReportsPanel.rm-panel {
@@ -2384,44 +2384,44 @@ foreach ($reports as $report) {
 
         <!-- CIMM Reports Panel -->
         <div class="rm-panel" id="cimmReportsPanel">
-            <div class="rm-panel-header" style="border-bottom-color: rgba(249, 115, 22, 0.15);">
+            <div class="rm-panel-header">
                 <div class="rm-panel-header-left">
                     <div class="rm-panel-icon cimm">
                         <i class="fas fa-building"></i>
                     </div>
                     <div>
                         <div class="rm-panel-title-group">
-                            <h2 class="rm-panel-title" style="color: #c2410c;">CIMM Reports</h2>
+                            <h2 class="rm-panel-title">CIMM Reports</h2>
                             <span class="rm-panel-badge cimm"><?php echo count($cimm_reports_list); ?> Reports</span>
                         </div>
-                        <p class="rm-panel-subtitle" style="color: #92400e;">External reports from the CIMM system — managed via Verification Monitoring</p>
+                        <p class="rm-panel-subtitle">External reports from the CIMM system — managed via Verification Monitoring</p>
                     </div>
                 </div>
             </div>
 
-            <div class="rm-panel-search" style="border-bottom-color: rgba(249, 115, 22, 0.08);">
+            <div class="rm-panel-search">
                 <div class="rm-search-wrapper">
                     <i class="fas fa-search"></i>
                     <input type="text" class="rm-search-input" id="cimmSearchInput" placeholder="Search by Rep #, Infrastructure, Location, Engineer, Priority...">
                 </div>
-                <button class="rm-sort-btn" style="background: linear-gradient(135deg, #f97316, #ea580c);" onclick="toggleCimmSort()">
+                <button class="rm-sort-btn" onclick="toggleCimmSort()">
                     <i class="fas fa-sort"></i> Sort
                 </button>
             </div>
 
             <div class="rm-table-wrapper">
-                <table class="rm-table" id="cimmTable" style="--thead-bg: linear-gradient(135deg, #f97316, #ea580c);">
+                <table class="rm-table" id="cimmTable">
                     <thead>
                         <tr>
-                            <th style="background: linear-gradient(135deg, #f97316, #ea580c);">Action</th>
-                            <th style="background: linear-gradient(135deg, #f97316, #ea580c);">Rep #</th>
-                            <th style="background: linear-gradient(135deg, #f97316, #ea580c);">Infrastructure</th>
-                            <th style="background: linear-gradient(135deg, #f97316, #ea580c);">Location</th>
-                            <th style="background: linear-gradient(135deg, #f97316, #ea580c);">Issue / Notes</th>
-                            <th style="background: linear-gradient(135deg, #f97316, #ea580c);">Engineer</th>
-                            <th style="background: linear-gradient(135deg, #f97316, #ea580c);">Priority</th>
-                            <th style="background: linear-gradient(135deg, #f97316, #ea580c);">Budget</th>
-                            <th style="background: linear-gradient(135deg, #f97316, #ea580c);">Status</th>
+                            <th>Action</th>
+                            <th>Rep #</th>
+                            <th>Infrastructure</th>
+                            <th>Location</th>
+                            <th>Issue / Notes</th>
+                            <th>Engineer</th>
+                            <th>Priority</th>
+                            <th>Budget</th>
+                            <th>Status</th>
                         </tr>
                     </thead>
                     <tbody>
