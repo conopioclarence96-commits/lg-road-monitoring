@@ -3001,6 +3001,84 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             margin-top: 10px;
             cursor: pointer;
         }
+
+        .citizen-photo-gallery {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 4px;
+        }
+
+        .citizen-photo-item {
+            width: 120px;
+            height: 120px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid rgba(55, 98, 200, 0.2);
+            cursor: pointer;
+            transition: border-color 0.2s, transform 0.2s;
+            flex-shrink: 0;
+        }
+
+        .citizen-photo-item:hover {
+            border-color: #3762c8;
+            transform: scale(1.05);
+        }
+
+        .citizen-photo-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .lightbox-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 11000;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+            box-sizing: border-box;
+            cursor: pointer;
+        }
+
+        .lightbox-overlay.active {
+            display: flex;
+        }
+
+        .lightbox-overlay img {
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 8px;
+            object-fit: contain;
+            cursor: default;
+        }
+
+        .lightbox-close {
+            position: fixed;
+            top: 20px;
+            right: 30px;
+            color: white;
+            font-size: 36px;
+            font-weight: 300;
+            cursor: pointer;
+            z-index: 11001;
+            line-height: 1;
+            opacity: 0.8;
+            transition: opacity 0.2s;
+            background: none;
+            border: none;
+        }
+
+        .lightbox-close:hover {
+            opacity: 1;
+        }
         
         .modal-footer {
             display: flex;
@@ -3996,6 +4074,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             document.body.style.overflow = '';
         }
 
+        // Photo lightbox
+        function openLightbox(src) {
+            var lb = document.getElementById('photoLightbox');
+            var img = document.getElementById('lightboxImage');
+            img.src = src;
+            lb.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeLightbox(e) {
+            if (e) e.stopPropagation();
+            var lb = document.getElementById('photoLightbox');
+            lb.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
         function statusBadgeHtml(status, label) {
             var colors = {
                 'pending':        'background:rgba(251,191,36,0.15);color:#f59e0b;',
@@ -4270,7 +4364,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     reporter_name: <?php echo json_encode($cr['reporter_name'] ?? '—'); ?>,
                     reporter_email: <?php echo json_encode($cr['reporter_email'] ?? '—'); ?>,
                     reporter_phone: <?php echo json_encode($cr['reporter_phone'] ?? '—'); ?>,
-                    image_path: <?php echo json_encode($cr['image_path'] ?? null); ?>
+                    image_path: <?php echo json_encode($cr['image_path'] ?? null); ?>,
+                    attachments: <?php echo json_encode($cr['attachments'] ?? null); ?>
                 };
             } catch(e) {
                 console.error('Error adding citizen report to map:', e);
@@ -4348,8 +4443,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if (r.rejected_at) {
                 extra += '<div class="detail-row"><div class="detail-label">Rejected At</div><div class="detail-value">' + formatDate(r.rejected_at) + '</div></div>';
             }
-            if (r.image_path) {
-                extra += '<div class="detail-row"><div class="detail-label">Attachment</div><div class="detail-value"><a href="' + r.image_path + '" target="_blank" class="btn btn-sm btn-outline-primary">View Image</a></div></div>';
+            var images = [];
+            if (r.attachments && typeof r.attachments === 'string') {
+                try {
+                    var parsed = JSON.parse(r.attachments);
+                    if (Array.isArray(parsed)) {
+                        parsed.forEach(function(a) {
+                            if (a.type === 'image' && a.file_path) {
+                                images.push(a.file_path);
+                            }
+                        });
+                    }
+                } catch(e) {}
+            }
+            if (images.length === 0 && r.image_path) {
+                images.push(r.image_path);
+            }
+            if (images.length > 0) {
+                var galleryHtml = '<div class="detail-row"><div class="detail-label">Photos</div><div class="detail-value"><div class="citizen-photo-gallery">';
+                images.forEach(function(path) {
+                    galleryHtml += '<div class="citizen-photo-item"><img src="../../' + path + '" alt="Report Photo" onclick="openLightbox(this.src)" loading="lazy"></div>';
+                });
+                galleryHtml += '</div></div></div>';
+                extra += galleryHtml;
             }
             document.getElementById('dm-budget').closest('.detail-row')?.style.setProperty('display', 'none');
             document.getElementById('dm-extra-fields').innerHTML = extra;
@@ -4438,6 +4554,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 </button>
             </div>
         </div>
+    </div>
+
+    <!-- Photo Lightbox -->
+    <div id="photoLightbox" class="lightbox-overlay" onclick="closeLightbox(event)">
+        <button class="lightbox-close" onclick="closeLightbox(event)">&times;</button>
+        <img id="lightboxImage" src="" alt="Full size photo">
     </div>
 
     <!-- Session Timeout Modal -->
