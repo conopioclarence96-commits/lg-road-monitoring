@@ -1616,7 +1616,7 @@ foreach ($reports as $report) {
         }
 
         .rm-panel-icon.citizen {
-            background: linear-gradient(135deg, #3762c8, #1e3c72);
+            background: linear-gradient(135deg, #16a34a, #15803d);
         }
 
         .rm-panel-icon.cimm {
@@ -1655,9 +1655,58 @@ foreach ($reports as $report) {
             color: white;
         }
 
-        .rm-panel-badge.citizen { background: #3762c8; }
+        .rm-panel-badge.citizen { background: #16a34a; }
         .rm-panel-badge.cimm { background: #f97316; }
         .rm-panel-badge.infra { background: #17a2b8; }
+
+        #citizenReportsPanel.rm-panel {
+            background: #f0f8f4;
+            border-color: #cce0d4;
+        }
+        body.dark-mode #citizenReportsPanel.rm-panel {
+            background: #1e2229;
+            border-color: #1a3d2a;
+        }
+        #citizenReportsPanel .rm-panel-header {
+            border-bottom-color: rgba(22, 163, 74, 0.15);
+        }
+        #citizenReportsPanel .rm-panel-title {
+            color: #15803d;
+        }
+        body.dark-mode #citizenReportsPanel .rm-panel-title {
+            color: #86efac;
+        }
+        #citizenReportsPanel .rm-panel-subtitle {
+            color: #166534;
+        }
+        body.dark-mode #citizenReportsPanel .rm-panel-subtitle {
+            color: #6ee7b7;
+        }
+        #citizenReportsPanel .rm-panel-search {
+            border-bottom-color: rgba(22, 163, 74, 0.08);
+        }
+        #citizenReportsPanel .rm-search-input:focus {
+            border-color: #16a34a;
+            box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1);
+        }
+        #citizenReportsPanel .rm-sort-btn {
+            background: linear-gradient(135deg, #16a34a, #15803d);
+        }
+        #citizenReportsPanel .rm-sort-btn:hover {
+            box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+        }
+        #citizenReportsPanel .rm-table thead th {
+            background: linear-gradient(135deg, #16a34a, #15803d);
+        }
+        #citizenReportsPanel .rm-table tbody tr {
+            border-bottom-color: rgba(22, 163, 74, 0.08);
+        }
+        #citizenReportsPanel .rm-table tbody tr:hover {
+            background: rgba(22, 163, 74, 0.05);
+        }
+        body.dark-mode #citizenReportsPanel .rm-table tbody tr:hover {
+            background: rgba(22, 163, 74, 0.08);
+        }
 
         .rm-panel-subtitle {
             font-size: 13px;
