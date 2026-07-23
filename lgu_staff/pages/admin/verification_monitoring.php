@@ -3079,6 +3079,263 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         .lightbox-close:hover {
             opacity: 1;
         }
+
+        /* Citizen Report Detail Modal */
+        .citizen-modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+
+        .citizen-modal-overlay.active {
+            display: flex;
+        }
+
+        .citizen-modal-content {
+            background: #f0f8f4;
+            border-radius: 16px;
+            max-width: 860px;
+            width: 100%;
+            max-height: calc(100vh - 40px);
+            position: relative;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            margin: auto;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            border: 1px solid #cce0d4;
+        }
+
+        .citizen-modal-header {
+            background: white;
+            border-radius: 16px 16px 0 0;
+            padding: 24px 28px 18px;
+            border-bottom: 2px solid rgba(22, 163, 74, 0.15);
+            flex-shrink: 0;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        .citizen-modal-header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .citizen-modal-title-area {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .citizen-modal-report-id {
+            font-size: 13px;
+            color: #16a34a;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            margin-bottom: 4px;
+        }
+
+        .citizen-modal-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #15803d;
+            margin: 0 0 10px 0;
+            line-height: 1.3;
+        }
+
+        .citizen-modal-badges {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .citizen-modal-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            color: #666;
+            cursor: pointer;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.3s;
+            flex-shrink: 0;
+            margin-left: 15px;
+        }
+
+        .citizen-modal-close:hover {
+            background: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+        }
+
+        .citizen-modal-body {
+            overflow-y: auto;
+            flex: 1;
+            min-height: 0;
+            padding: 24px 28px;
+        }
+
+        .citizen-modal-body::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .citizen-modal-body::-webkit-scrollbar-track {
+            background: rgba(22, 163, 74, 0.08);
+            border-radius: 4px;
+        }
+
+        .citizen-modal-body::-webkit-scrollbar-thumb {
+            background: rgba(22, 163, 74, 0.2);
+            border-radius: 4px;
+        }
+
+        .citizen-modal-body::-webkit-scrollbar-thumb:hover {
+            background: rgba(22, 163, 74, 0.35);
+        }
+
+        .citizen-modal-section {
+            background: white;
+            border-radius: 12px;
+            padding: 18px 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            border: 1px solid rgba(22, 163, 74, 0.1);
+        }
+
+        .citizen-modal-section-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #15803d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 14px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(22, 163, 74, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .citizen-modal-section-title i {
+            color: #16a34a;
+            font-size: 15px;
+        }
+
+        .citizen-info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .citizen-info-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 6px 0;
+        }
+
+        .citizen-info-icon {
+            width: 28px;
+            height: 28px;
+            background: rgba(22, 163, 74, 0.1);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #16a34a;
+            font-size: 13px;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .citizen-info-label {
+            font-size: 11px;
+            color: #6b7280;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-bottom: 2px;
+        }
+
+        .citizen-info-value {
+            font-size: 14px;
+            color: #1f2937;
+            font-weight: 500;
+            line-height: 1.4;
+            word-break: break-word;
+        }
+
+        .citizen-info-value-full {
+            grid-column: 1 / -1;
+        }
+
+        .citizen-description-text {
+            font-size: 14px;
+            color: #374151;
+            line-height: 1.7;
+            padding: 8px 0;
+            white-space: pre-wrap;
+        }
+
+        .citizen-modal-footer {
+            background: white;
+            border-radius: 0 0 16px 16px;
+            padding: 16px 28px;
+            border-top: 1px solid rgba(22, 163, 74, 0.1);
+            flex-shrink: 0;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .citizen-modal-btn-close {
+            padding: 10px 24px;
+            background: rgba(22, 163, 74, 0.1);
+            color: #16a34a;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .citizen-modal-btn-close:hover {
+            background: rgba(22, 163, 74, 0.2);
+        }
+
+        @media (max-width: 640px) {
+            .citizen-info-grid {
+                grid-template-columns: 1fr;
+            }
+            .citizen-modal-header {
+                padding: 18px 16px;
+            }
+            .citizen-modal-body {
+                padding: 16px;
+            }
+            .citizen-modal-content {
+                max-width: 100%;
+                border-radius: 0;
+            }
+            .citizen-modal-overlay {
+                padding: 0;
+            }
+        }
         
         .modal-footer {
             display: flex;
@@ -4356,6 +4613,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     priority: <?php echo json_encode($cr['priority']); ?>,
                     status: <?php echo json_encode($cr['status']); ?>,
                     location: <?php echo json_encode($cr['location']); ?>,
+                    latitude: <?php echo json_encode($cr['latitude'] ?? null); ?>,
+                    longitude: <?php echo json_encode($cr['longitude'] ?? null); ?>,
                     description: <?php echo json_encode($cr['description']); ?>,
                     created_at: <?php echo json_encode($cr['created_at']); ?>,
                     updated_at: <?php echo json_encode($cr['updated_at']); ?>,
@@ -4405,6 +4664,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             rows.forEach(row => tbody.appendChild(row));
         }
 
+        // Helper: build a citizen info item with icon
+        function cmInfoItem(icon, label, value) {
+            var displayVal = (value && value !== '—') ? value : '—';
+            return '<div class="citizen-info-item"><div class="citizen-info-icon"><i class="fas fa-' + icon + '"></i></div><div><div class="citizen-info-label">' + label + '</div><div class="citizen-info-value">' + displayVal + '</div></div></div>';
+        }
+
+        // Helper: badge HTML
+        function cmBadge(text, bg, color) {
+            return '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:' + bg + ';color:' + color + ';">' + text + '</span>';
+        }
+
         // View Citizen report details
         function viewCitizenReport(id) {
             var r = citizenDataMap[id];
@@ -4420,29 +4690,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 'other': 'Other'
             };
 
-            document.getElementById('cimmModalTitle').textContent = 'Citizen Report — ' + (r.report_id || 'Details');
-            setModalField('dm-rep-number', r.report_id);
-            setModalField('dm-infrastructure', typeLabels[r.report_type] || r.report_type);
-            setModalField('dm-location', r.location);
-            setModalField('dm-issue', r.description || '—');
-            setModalField('dm-engineer', '—');
-            setModalField('dm-reported-by', r.reporter_name || '—');
-            setModalField('dm-start-date', formatDate(r.created_at));
-            setModalField('dm-end-date', '—');
-            document.getElementById('dm-priority').innerHTML = priorityBadgeHtml(r.priority);
+            var statusStyles = {
+                'pending':    {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
+                'approved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
+                'completed':  {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
+                'cancelled':  {bg:'rgba(220,53,69,0.15)',  color:'#ef4444'},
+                'in-progress':{bg:'rgba(59,130,246,0.15)', color:'#3b82f6'}
+            };
+            var pStyles = {
+                'high':   {bg:'rgba(220,53,69,0.15)', color:'#ef4444'},
+                'medium': {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
+                'low':    {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'}
+            };
 
-            var extra = '';
-            extra += '<div class="detail-row"><div class="detail-label">Report Category</div><div class="detail-value">' + (r.report_category || '—') + '</div></div>';
-            extra += '<div class="detail-row"><div class="detail-label">Department</div><div class="detail-value">' + (r.department || '—') + '</div></div>';
-            extra += '<div class="detail-row"><div class="detail-label">Updated At</div><div class="detail-value">' + formatDate(r.updated_at) + '</div></div>';
-            extra += '<div class="detail-row"><div class="detail-label">Reporter Email</div><div class="detail-value">' + (r.reporter_email || '—') + '</div></div>';
-            extra += '<div class="detail-row"><div class="detail-label">Reporter Phone</div><div class="detail-value">' + (r.reporter_phone || '—') + '</div></div>';
-            if (r.approved_at) {
-                extra += '<div class="detail-row"><div class="detail-label">Approved At</div><div class="detail-value">' + formatDate(r.approved_at) + '</div></div>';
+            // Header
+            document.getElementById('cm-report-id').textContent = 'Report #' + (r.report_id || '—');
+            document.getElementById('cm-title').textContent = r.title || '—';
+
+            var st = (r.status || 'pending').toLowerCase();
+            var ss = statusStyles[st] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
+            var pp = (r.priority || 'medium').toLowerCase();
+            var ps = pStyles[pp] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
+
+            var badgesHtml = cmBadge(r.status || '—', ss.bg, ss.color);
+            badgesHtml += cmBadge(r.priority || '—', ps.bg, ps.color);
+            var reportType = typeLabels[r.report_type] || r.report_type || '—';
+            if (reportType !== '—') {
+                badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(22,163,74,0.12);color:#16a34a;">' + reportType + '</span>';
             }
-            if (r.rejected_at) {
-                extra += '<div class="detail-row"><div class="detail-label">Rejected At</div><div class="detail-value">' + formatDate(r.rejected_at) + '</div></div>';
+            document.getElementById('cm-badges').innerHTML = badgesHtml;
+
+            // Report Information
+            var reportGrid = '';
+            reportGrid += cmInfoItem('folder', 'Report Category', r.report_category);
+            reportGrid += cmInfoItem('building', 'Department', r.department);
+            reportGrid += cmInfoItem('calendar-alt', 'Created Date', formatDate(r.created_at));
+            reportGrid += cmInfoItem('sync-alt', 'Last Updated', formatDate(r.updated_at));
+            document.getElementById('cm-report-grid').innerHTML = reportGrid;
+
+            // Reporter Information
+            var reporterGrid = '';
+            reporterGrid += cmInfoItem('user', 'Name', r.reporter_name);
+            reporterGrid += cmInfoItem('envelope', 'Email', r.reporter_email);
+            reporterGrid += cmInfoItem('phone', 'Phone', r.reporter_phone);
+            document.getElementById('cm-reporter-grid').innerHTML = reporterGrid;
+
+            // Location
+            var locationGrid = '';
+            var locVal = r.location || '—';
+            if (r.latitude && r.longitude) {
+                locVal += '<br><a href="https://www.google.com/maps?q=' + r.latitude + ',' + r.longitude + '" target="_blank" style="color:#16a34a;font-size:12px;text-decoration:none;"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map</a>';
             }
+            locationGrid += '<div class="citizen-info-item citizen-info-value-full"><div class="citizen-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="citizen-info-label">Location</div><div class="citizen-info-value">' + locVal + '</div></div></div>';
+            document.getElementById('cm-location-grid').innerHTML = locationGrid;
+
+            // Description
+            document.getElementById('cm-description').textContent = r.description || 'No description provided.';
+
+            // Attachments
             var images = [];
             if (r.attachments && typeof r.attachments === 'string') {
                 try {
@@ -4459,18 +4764,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if (images.length === 0 && r.image_path) {
                 images.push(r.image_path);
             }
+            var attachHtml = '';
             if (images.length > 0) {
-                var galleryHtml = '<div class="detail-row"><div class="detail-label">Photos</div><div class="detail-value"><div class="citizen-photo-gallery">';
+                attachHtml = '<div class="citizen-photo-gallery">';
                 images.forEach(function(path) {
-                    galleryHtml += '<div class="citizen-photo-item"><img src="../../' + path + '" alt="Report Photo" onclick="openLightbox(this.src)" loading="lazy"></div>';
+                    attachHtml += '<div class="citizen-photo-item"><img src="../../' + path + '" alt="Report Photo" onclick="openLightbox(this.src)" loading="lazy"></div>';
                 });
-                galleryHtml += '</div></div></div>';
-                extra += galleryHtml;
+                attachHtml += '</div>';
+            } else {
+                attachHtml = '<div style="padding:8px 0;color:#9ca3af;font-size:14px;">No attachments.</div>';
             }
-            document.getElementById('dm-budget').closest('.detail-row')?.style.setProperty('display', 'none');
-            document.getElementById('dm-extra-fields').innerHTML = extra;
+            document.getElementById('cm-attachments').innerHTML = attachHtml;
 
-            openCimmDetailModal();
+            // Timeline
+            var timelineGrid = '';
+            timelineGrid += cmInfoItem('calendar-check', 'Created', formatDate(r.created_at));
+            if (r.approved_at) {
+                timelineGrid += cmInfoItem('thumbs-up', 'Approved', formatDate(r.approved_at));
+            }
+            if (r.rejected_at) {
+                timelineGrid += cmInfoItem('thumbs-down', 'Rejected', formatDate(r.rejected_at));
+            }
+            if (r.updated_at) {
+                timelineGrid += cmInfoItem('edit', 'Last Updated', formatDate(r.updated_at));
+            }
+            document.getElementById('cm-timeline-grid').innerHTML = timelineGrid;
+
+            openCitizenModal();
+        }
+
+        function openCitizenModal() {
+            var modal = document.getElementById('citizenDetailModal');
+            if (modal) {
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        function closeCitizenModal() {
+            var modal = document.getElementById('citizenDetailModal');
+            if (modal) {
+                modal.classList.remove('active');
+                document.body.style.overflow = '';
+            }
         }
 
         // Close modal after form submission in modal (if element exists)
@@ -4560,6 +4896,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     <div id="photoLightbox" class="lightbox-overlay" onclick="closeLightbox(event)">
         <button class="lightbox-close" onclick="closeLightbox(event)">&times;</button>
         <img id="lightboxImage" src="" alt="Full size photo">
+    </div>
+
+    <!-- Citizen Report Detail Modal -->
+    <div id="citizenDetailModal" class="citizen-modal-overlay" onclick="if(event.target===this)closeCitizenModal()">
+        <div class="citizen-modal-content">
+            <div class="citizen-modal-header">
+                <div class="citizen-modal-header-top">
+                    <div class="citizen-modal-title-area">
+                        <div class="citizen-modal-report-id" id="cm-report-id">—</div>
+                        <h3 class="citizen-modal-title" id="cm-title">—</h3>
+                        <div class="citizen-modal-badges" id="cm-badges"></div>
+                    </div>
+                    <button class="citizen-modal-close" onclick="closeCitizenModal()">&times;</button>
+                </div>
+            </div>
+            <div class="citizen-modal-body" id="cm-body">
+                <!-- Report Information -->
+                <div class="citizen-modal-section" id="cm-section-report">
+                    <div class="citizen-modal-section-title"><i class="fas fa-info-circle"></i> Report Information</div>
+                    <div class="citizen-info-grid" id="cm-report-grid"></div>
+                </div>
+                <!-- Reporter Information -->
+                <div class="citizen-modal-section" id="cm-section-reporter">
+                    <div class="citizen-modal-section-title"><i class="fas fa-user"></i> Reporter Information</div>
+                    <div class="citizen-info-grid" id="cm-reporter-grid"></div>
+                </div>
+                <!-- Location -->
+                <div class="citizen-modal-section" id="cm-section-location">
+                    <div class="citizen-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location</div>
+                    <div class="citizen-info-grid" id="cm-location-grid"></div>
+                </div>
+                <!-- Description -->
+                <div class="citizen-modal-section" id="cm-section-description">
+                    <div class="citizen-modal-section-title"><i class="fas fa-align-left"></i> Report Description</div>
+                    <div class="citizen-description-text" id="cm-description">—</div>
+                </div>
+                <!-- Attachments -->
+                <div class="citizen-modal-section" id="cm-section-attachments">
+                    <div class="citizen-modal-section-title"><i class="fas fa-paperclip"></i> Attachments</div>
+                    <div id="cm-attachments"></div>
+                </div>
+                <!-- Timeline -->
+                <div class="citizen-modal-section" id="cm-section-timeline">
+                    <div class="citizen-modal-section-title"><i class="fas fa-clock"></i> Timeline</div>
+                    <div class="citizen-info-grid" id="cm-timeline-grid"></div>
+                </div>
+            </div>
+            <div class="citizen-modal-footer">
+                <button type="button" class="citizen-modal-btn-close" onclick="closeCitizenModal()">
+                    <i class="fas fa-times"></i> Close
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- Session Timeout Modal -->
