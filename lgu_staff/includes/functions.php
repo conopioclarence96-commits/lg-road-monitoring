@@ -275,6 +275,9 @@ function generate_unique_id($prefix = '') {
 
 // API response functions
 function json_response($data, $status_code = 200) {
+    while (ob_get_level()) {
+        ob_end_clean();
+    }
     header('Content-Type: application/json');
     http_response_code($status_code);
     echo json_encode($data);

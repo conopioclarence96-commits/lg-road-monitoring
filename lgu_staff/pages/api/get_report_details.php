@@ -1,4 +1,5 @@
 <?php
+ob_start();
 require_once '../../includes/session_config.php';
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';

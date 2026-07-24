@@ -3207,7 +3207,7 @@ if ($include_cimm) {
         }
 
         function viewReport(id, type) {
-            fetch(`../api/get_report_details.php?id=${id}&type=${type}`)
+            fetch(`../api/get_report_details.php?id=${id}&type=${encodeURIComponent(type)}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -3301,7 +3301,7 @@ if ($include_cimm) {
         }
 
         function editReport(id, type) {
-            fetch(`../api/get_report_details.php?id=${id}&type=${type}`)
+            fetch(`../api/get_report_details.php?id=${id}&type=${encodeURIComponent(type)}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
