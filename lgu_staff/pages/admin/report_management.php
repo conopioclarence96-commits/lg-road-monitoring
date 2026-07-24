@@ -904,6 +904,9 @@ if ($include_cimm) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Report Management - LGU Road Monitoring</title>
     <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -3301,7 +3304,7 @@ if ($include_cimm) {
         }
 
         function editReport(id, type) {
-            fetch(`../api/get_report_details.php?id=${id}&type=${encodeURIComponent(type)}`)
+            fetch(`../api/get_report_details.php?id=${id}&type=${encodeURIComponent(type)}&_=${Date.now()}`)
                 .then(response => {
                     if (!response.ok) {
                         return response.text().then(text => {
