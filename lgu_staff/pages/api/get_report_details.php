@@ -1,8 +1,16 @@
 <?php
 ob_start();
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
 require_once '../../includes/session_config.php';
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
+
+// Re-suppress display_errors after config.php (which re-enables it on localhost)
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
 
 // Check if user is logged in
 if (!is_logged_in()) {

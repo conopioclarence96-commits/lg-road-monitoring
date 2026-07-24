@@ -280,7 +280,11 @@ function json_response($data, $status_code = 200) {
     }
     header('Content-Type: application/json');
     http_response_code($status_code);
-    echo json_encode($data);
+    $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+    if ($json === false) {
+        $json = json_encode(['success' => false, 'error' => 'JSON encoding failed: ' . json_last_error_msg()]);
+    }
+    echo $json;
     exit();
 }
 

@@ -3302,7 +3302,20 @@ if ($include_cimm) {
 
         function editReport(id, type) {
             fetch(`../api/get_report_details.php?id=${id}&type=${encodeURIComponent(type)}`)
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        return response.text().then(text => {
+                            throw new Error(`HTTP ${response.status}: ${text.substring(0, 200)}`);
+                        });
+                    }
+                    return response.text().then(text => {
+                        try {
+                            return JSON.parse(text);
+                        } catch(e) {
+                            throw new Error(`Invalid JSON (${text.substring(0, 200)})`);
+                        }
+                    });
+                })
                 .then(data => {
                     if (data.success) {
                         document.getElementById('editReportId').value = data.report.id;
@@ -3375,7 +3388,7 @@ if ($include_cimm) {
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    showNotification('Error loading report details', 'error');
+                    showNotification('Error loading report details: ' + (error.message || 'Unknown error'), 'error');
                 });
         }
 
