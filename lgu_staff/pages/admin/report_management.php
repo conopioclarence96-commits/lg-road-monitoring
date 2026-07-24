@@ -3303,6 +3303,8 @@ if ($include_cimm) {
             loadUpdates(id, type);
         }
 
+        var editSelectedFiles = [];
+
         function editReport(id, type) {
             fetch(`../api/get_report_details.php?id=${id}&type=${encodeURIComponent(type)}&_=${Date.now()}`)
                 .then(response => {
@@ -3723,7 +3725,7 @@ if ($include_cimm) {
         const editPhotosInput = document.getElementById('editPhotos');
         const photoPreview = document.getElementById('photoPreview');
         const addEditPhotosBtn = document.getElementById('add-edit-photos-btn');
-        let editSelectedFiles = [];
+        editSelectedFiles = [];
         
         addEditPhotosBtn.addEventListener('click', function() {
             editPhotosInput.click();
