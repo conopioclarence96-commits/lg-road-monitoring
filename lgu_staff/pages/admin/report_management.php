@@ -281,12 +281,56 @@ function handle_update_report() {
         
         log_audit_action($user_id, "Updated {$report_type_from_db} report", $change_log);
 
+        // Duration tracking & analytics recording on completion
+        $analytics_data = null;
+        if ($status === 'completed') {
+            try {
+                $report_row = fetch_one("SELECT created_at, approved_at, priority, department FROM {$table} WHERE id = ?", [$report_id], "i");
+                $start_time = !empty($report_row['approved_at']) ? $report_row['approved_at'] : ($report_row['created_at'] ?? null);
+                $completed_at = date('Y-m-d H:i:s');
+                
+                if (!empty($start_time)) {
+                    $start_ts = strtotime($start_time);
+                    $end_ts = strtotime($completed_at);
+                    if ($end_ts > $start_ts) {
+                        $duration_seconds = $end_ts - $start_ts;
+                        $duration_days = round($duration_seconds / 86400, 2);
+                        
+                        $upd_comp_stmt = $conn->prepare("UPDATE {$table} SET completed_at = ? WHERE id = ?");
+                        $upd_comp_stmt->bind_param("si", $completed_at, $report_id);
+                        $upd_comp_stmt->execute();
+                        
+                        $ins = $conn->prepare("INSERT INTO project_analytics (report_id, report_table, user_id, started_at, completed_at, duration_seconds, duration_days, priority, department) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                        $ins->bind_param("isissidss",
+                            $report_id, $table, $user_id, $start_time, $completed_at,
+                            $duration_seconds, $duration_days, $report_row['priority'], $report_row['department']
+                        );
+                        $ins->execute();
+                        
+                        $hours = floor($duration_seconds / 3600);
+                        $mins = floor(($duration_seconds % 3600) / 60);
+                        $analytics_data = [
+                            'duration_days' => $duration_days,
+                            'duration_hours' => $hours,
+                            'duration_minutes' => $mins,
+                            'completed_at' => $completed_at
+                        ];
+                    }
+                }
+            } catch (Exception $e) {
+                error_log("Duration tracking failed for report {$report_id}: " . $e->getMessage());
+            }
+        }
+
         // Create a progress update entry so photos and changes appear in the Updates timeline
         $update_title = 'Report Updated';
         $update_desc_parts = [];
         if (!empty($notes)) $update_desc_parts[] = $notes;
         $update_desc_parts[] = "Status: " . ucfirst(str_replace('-', ' ', $status));
         $update_desc_parts[] = "Priority: " . ucfirst($priority);
+        if (!empty($analytics_data)) {
+            $update_desc_parts[] = "Completed in {$analytics_data['duration_days']} days ({$analytics_data['duration_hours']}h {$analytics_data['duration_minutes']}m)";
+        }
         $update_desc = implode('. ', $update_desc_parts);
 
         try {
@@ -314,7 +358,8 @@ function handle_update_report() {
             echo json_encode([
                 'success' => true,
                 'message' => 'Report updated successfully',
-                'photos_added' => count($uploaded_photos)
+                'photos_added' => count($uploaded_photos),
+                'analytics' => $analytics_data
             ]);
             exit;
         }
@@ -3774,6 +3819,10 @@ if ($include_cimm) {
                     let msg = 'Report updated successfully';
                     if (data.photos_added > 0) {
                         msg += ` (${data.photos_added} photo${data.photos_added > 1 ? 's' : ''} added)`;
+                    }
+                    if (data.analytics) {
+                        const a = data.analytics;
+                        msg += `. Completed in ${a.duration_days} days (${a.duration_hours}h ${a.duration_minutes}m). Analytics recorded.`;
                     }
                     showNotification(msg, 'success');
                     closeModal('editReportModal');

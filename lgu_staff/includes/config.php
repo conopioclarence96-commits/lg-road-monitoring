@@ -110,6 +110,36 @@ try {
         $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS reporter_phone VARCHAR(20) AFTER reporter_name");
     } catch (Exception $e) {}
     
+    // Ensure completed_at columns exist for duration tracking
+    try {
+        $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP NULL AFTER updated_at");
+    } catch (Exception $e) {}
+    try {
+        $conn->query("ALTER TABLE road_maintenance_reports ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP NULL AFTER updated_at");
+    } catch (Exception $e) {}
+    
+    // Create project_analytics table for recording completion metrics
+    try {
+        $conn->query("CREATE TABLE IF NOT EXISTS project_analytics (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            report_id INT NOT NULL,
+            report_table VARCHAR(50) NOT NULL DEFAULT 'road_transportation_reports',
+            user_id INT DEFAULT NULL,
+            started_at TIMESTAMP NULL,
+            completed_at TIMESTAMP NULL,
+            duration_seconds BIGINT DEFAULT 0,
+            duration_days DECIMAL(10,2) DEFAULT 0.00,
+            priority VARCHAR(20) DEFAULT 'medium',
+            department VARCHAR(50) DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_report_id (report_id),
+            INDEX idx_completed_at (completed_at),
+            INDEX idx_user_id (user_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Exception $e) {
+        error_log("project_analytics table creation: " . $e->getMessage());
+    }
+    
     // Ensure account_status supports 'deactivated' value
     try {
         $row = $conn->query("SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'users' AND COLUMN_NAME = 'account_status' AND TABLE_SCHEMA = '" . DB_NAME . "'")->fetch_assoc();

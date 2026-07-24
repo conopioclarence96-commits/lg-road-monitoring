@@ -39,7 +39,8 @@ foreach ($all_reports as $r) {
     $r_id_display = $r['report_id'] ?? "ID:{$report_id}";
     
     if ($status === 'completed' || $status === 'cancelled') {
-        $resolved_at = strtotime($r['updated_at'] ?? $r['resolved_date'] ?? 'now');
+        $resolved_at_source = $r['completed_at'] ?? $r['updated_at'] ?? $r['resolved_date'] ?? 'now';
+        $resolved_at = strtotime($resolved_at_source);
         $resolution_days = max(0, round(($resolved_at - $created) / 86400, 1));
         $sla_status = $resolution_days <= $sla_threshold_days ? 'on-track' : ($resolution_days <= $warning_threshold_days ? 'at-risk' : 'overdue');
         $resolved_count++;

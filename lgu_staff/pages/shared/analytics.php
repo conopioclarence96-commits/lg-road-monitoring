@@ -51,19 +51,31 @@ $monthly_labels = array_reverse($monthly_labels);
 $monthly_data = array_reverse($monthly_data);
 
 $completion_times = [];
+$recent_completions = [];
 foreach ($all_reports as $r) {
-    if (($r['status'] ?? '') === 'completed' && !empty($r['updated_at'])) {
+    if (($r['status'] ?? '') === 'completed') {
+        $end_time = $r['completed_at'] ?? $r['updated_at'] ?? null;
         $monitoring_start = !empty($r['approved_at']) ? $r['approved_at'] : $r['created_at'];
-        if (!empty($monitoring_start)) {
+        if (!empty($monitoring_start) && !empty($end_time)) {
             $start = strtotime($monitoring_start);
-            $updated = strtotime($r['updated_at']);
-            if ($updated > $start) {
-                $completion_times[] = round(($updated - $start) / 86400, 1);
+            $end = strtotime($end_time);
+            if ($end > $start) {
+                $days = round(($end - $start) / 86400, 1);
+                $completion_times[] = $days;
+                $recent_completions[] = [
+                    'id' => $r['id'],
+                    'title' => $r['title'] ?? 'Untitled',
+                    'days' => $days,
+                    'completed_at' => $end_time,
+                    'department' => $r['department'] ?? 'Unknown'
+                ];
             }
         }
     }
 }
 $avg_completion_days = !empty($completion_times) ? round(array_sum($completion_times) / count($completion_times), 1) : 0;
+
+$analytics_rows = fetch_all("SELECT * FROM project_analytics ORDER BY completed_at DESC LIMIT 10") ?: [];
 
 $estimation_total = 0;
 $estimation_count = 0;
@@ -259,6 +271,52 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
                         <?php endforeach; ?>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <div class="panel" style="margin-top: 28px;">
+            <div class="panel-header">
+                <h3 class="panel-title"><i class="fas fa-stopwatch"></i> Recent Project Completions (Stored Analytics)</h3>
+            </div>
+            <div class="panel-body">
+                <?php if (!empty($analytics_rows)): ?>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Report ID</th>
+                            <th>Table Source</th>
+                            <th>Started</th>
+                            <th>Completed</th>
+                            <th>Duration</th>
+                            <th>Priority</th>
+                            <th>Recorded By</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($analytics_rows as $ar): ?>
+                        <tr>
+                            <td><strong>#<?php echo $ar['report_id']; ?></strong></td>
+                            <td><?php echo htmlspecialchars($ar['report_table']); ?></td>
+                            <td><?php echo $ar['started_at'] ? date('M d, Y H:i', strtotime($ar['started_at'])) : 'N/A'; ?></td>
+                            <td><?php echo $ar['completed_at'] ? date('M d, Y H:i', strtotime($ar['completed_at'])) : 'N/A'; ?></td>
+                            <td>
+                                <strong><?php echo $ar['duration_days']; ?> days</strong>
+                                <?php if ($ar['duration_seconds'] > 0): ?>
+                                    <span style="color:#6b7280;font-size:11px;">(<?php echo floor($ar['duration_seconds'] / 3600); ?>h <?php echo floor(($ar['duration_seconds'] % 3600) / 60); ?>m)</span>
+                                <?php endif; ?>
+                            </td>
+                            <td><span class="badge badge-<?php echo $ar['priority']; ?>"><?php echo ucfirst($ar['priority']); ?></span></td>
+                            <td>User #<?php echo $ar['user_id']; ?></td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+                <?php else: ?>
+                <div style="text-align:center;padding:24px;color:#6b7280;">
+                    <i class="fas fa-chart-bar" style="font-size:24px;margin-bottom:8px;display:block;"></i>
+                    No analytics data recorded yet. Complete a project to see stored metrics.
+                </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>

@@ -42,6 +42,12 @@ try {
     if ($approved_at_exists) $extra_cols .= ', approved_at';
     if ($rejected_at_exists) $extra_cols .= ', rejected_at';
     
+    try {
+        $conn->query("SELECT 1 FROM road_transportation_reports LIMIT 0");
+        $completed_at_exists = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'completed_at'")->num_rows > 0;
+    } catch (Exception $e) { $completed_at_exists = false; }
+    if ($completed_at_exists) $extra_cols .= ', completed_at';
+    
     if ($table === 'road_transportation_reports') {
         $query = "SELECT id, report_id, report_type, title, department, priority, status, created_date, due_date, description,
                     location, latitude, longitude, reporter_name, reporter_email, severity, reported_date, resolved_date, assigned_to,
@@ -83,6 +89,7 @@ try {
         $report['updated_at'] = $report['updated_at'] ? format_datetime($report['updated_at']) : null;
         $report['approved_at'] = isset($report['approved_at']) && $report['approved_at'] ? format_datetime($report['approved_at']) : null;
         $report['rejected_at'] = isset($report['rejected_at']) && $report['rejected_at'] ? format_datetime($report['rejected_at']) : null;
+        $report['completed_at'] = isset($report['completed_at']) && $report['completed_at'] ? format_datetime($report['completed_at']) : null;
 
         // Gather photos from report_update_media (progress updates)
         try {
