@@ -752,75 +752,6 @@ try {
         .modal-form-grid .form-group {
             margin-bottom: 0;
         }
-
-        /* ── Real-time connection status indicator ───────────────── */
-        .rt-status {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            padding: 3px 10px;
-            border-radius: 20px;
-            background: var(--bg-secondary, #f3f4f6);
-            color: var(--text-secondary, #6b7280);
-            margin-bottom: 4px;
-            transition: background 0.3s, color 0.3s;
-        }
-        .rt-status__dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #9ca3af;
-            transition: background 0.3s;
-        }
-        .rt-status--online {
-            background: #ecfdf5;
-            color: #065f46;
-        }
-        .rt-status--online .rt-status__dot {
-            background: #10b981;
-            animation: rt-pulse 2s infinite;
-        }
-        .rt-status--reconnecting {
-            background: #fef9c3;
-            color: #854d0e;
-        }
-        .rt-status--reconnecting .rt-status__dot {
-            background: #f59e0b;
-            animation: rt-blink 0.8s infinite;
-        }
-        .rt-status--offline {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-        .rt-status--offline .rt-status__dot {
-            background: #ef4444;
-        }
-        @keyframes rt-pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
-        }
-        @keyframes rt-blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.2; }
-        }
-        body.dark-mode .rt-status {
-            background: var(--bg-tertiary, #1f2937);
-            color: var(--text-secondary, #9ca3af);
-        }
-        body.dark-mode .rt-status--online {
-            background: rgba(16, 185, 129, 0.15);
-            color: #6ee7b7;
-        }
-        body.dark-mode .rt-status--reconnecting {
-            background: rgba(245, 158, 11, 0.15);
-            color: #fcd34d;
-        }
-        body.dark-mode .rt-status--offline {
-            background: rgba(239, 68, 68, 0.15);
-            color: #fca5a5;
-        }
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
@@ -836,10 +767,6 @@ try {
                     <p>Review and approve pending LGU Staff account registrations</p>
                 </div>
                 <div class="date-time">
-                    <div id="rt-status" class="rt-status rt-status--offline">
-                        <span class="rt-status__dot"></span>
-                        <span class="rt-status__label">Connecting…</span>
-                    </div>
                     <div id="currentDate"></div>
                     <div id="currentTime"></div>
                 </div>
@@ -852,21 +779,21 @@ try {
                 <div class="stat-icon">
                     <i class="fas fa-user-clock"></i>
                 </div>
-                <div class="stat-number" id="stat-pending"><?php echo $stats['pending_users']; ?></div>
+                <div class="stat-number"><?php echo $stats['pending_users']; ?></div>
                 <div class="stat-label">Pending Users</div>
             </div>
             <div class="stat-card">
                 <div class="stat-icon">
                     <i class="fas fa-user-check"></i>
                 </div>
-                <div class="stat-number" id="stat-approved"><?php echo $stats['approved_users']; ?></div>
+                <div class="stat-number"><?php echo $stats['approved_users']; ?></div>
                 <div class="stat-label">Approved Users</div>
             </div>
             <div class="stat-card">
                 <div class="stat-icon">
                     <i class="fas fa-user-slash"></i>
                 </div>
-                <div class="stat-number" id="stat-inactive"><?php echo $stats['inactive_2weeks']; ?></div>
+                <div class="stat-number"><?php echo $stats['inactive_2weeks']; ?></div>
                 <div class="stat-label">Inactive (2+ Weeks)</div>
             </div>
         </div>
@@ -880,13 +807,13 @@ try {
                         <i class="fas fa-chart-pie"></i>
                         <span>User Accounts Overview</span>
                     </h3>
-                    <span class="workflow-badge" id="total-users-badge"><?php echo $stats['pending_users'] + $stats['approved_users'] + $stats['inactive_2weeks'] + $stats['deactivated_users']; ?> Total</span>
+                    <span class="workflow-badge"><?php echo $stats['pending_users'] + $stats['approved_users'] + $stats['inactive_2weeks'] + $stats['deactivated_users']; ?> Total</span>
                 </div>
                 <div class="chart-body">
                     <div class="chart-container">
                         <canvas id="userAccountsChart"></canvas>
                     </div>
-                    <div class="chart-summary" id="user-accounts-summary">
+                    <div class="chart-summary">
                         <?php
                         $total_users = $stats['pending_users'] + $stats['approved_users'] + $stats['inactive_2weeks'] + $stats['deactivated_users'];
                         $summary_items = [
@@ -945,7 +872,7 @@ try {
                     <h3 class="workflow-title">
                         <i class="fas fa-user-slash"></i>
                         <span>Inactive Users (2+ Weeks)</span>
-                        <span class="workflow-badge" id="inactive-count-badge"><?php echo count($inactive_2weeks_users); ?></span>
+                        <span class="workflow-badge"><?php echo count($inactive_2weeks_users); ?></span>
                     </h3>
                 </div>
                 
@@ -962,7 +889,7 @@ try {
                                     <th>Registered</th>
                                 </tr>
                             </thead>
-                            <tbody id="inactive-users-tbody">
+                            <tbody>
                                 <?php if (empty($inactive_2weeks_users)): ?>
                                     <tr>
                                         <td colspan="6" style="text-align: center;" class="t-text-secondary">No inactive users found</td>
@@ -987,8 +914,8 @@ try {
         </div>
     </div>
 
-    <script src="../../js/admin-realtime.js"></script>
     <script>
+        // Update date and time
         function updateDateTime() {
             const now = new Date();
             const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
@@ -1025,7 +952,7 @@ try {
 
         // User Accounts Doughnut Chart
         const userAccountsCtx = document.getElementById('userAccountsChart').getContext('2d');
-        const userAccountsChart = new Chart(userAccountsCtx, {
+        new Chart(userAccountsCtx, {
             type: 'doughnut',
             data: {
                 labels: ['Pending', 'Approved', 'Inactive (2+ Weeks)', 'Deactivated'],
@@ -1057,7 +984,7 @@ try {
         const reportsByStatusCtx = document.getElementById('reportsByStatusChart').getContext('2d');
         const statusLabels = reportsByStatus.map(r => r.status.charAt(0).toUpperCase() + r.status.slice(1));
         const statusData = reportsByStatus.map(r => r.count);
-        const reportsByStatusChart = new Chart(reportsByStatusCtx, {
+        new Chart(reportsByStatusCtx, {
             type: 'bar',
             data: {
                 labels: statusLabels,
@@ -1093,7 +1020,7 @@ try {
         const reportsTrendCtx = document.getElementById('reportsTrendChart').getContext('2d');
         const monthLabels = reportsByMonth.map(r => r.month_name);
         const monthData = reportsByMonth.map(r => r.count);
-        const reportsTrendChart = new Chart(reportsTrendCtx, {
+        new Chart(reportsTrendCtx, {
             type: 'line',
             data: {
                 labels: monthLabels.length > 0 ? monthLabels : ['No Data'],
@@ -1142,146 +1069,6 @@ try {
                 alert.style.display = 'none';
             });
         }, 5000);
-
-        // ── Real-Time Dashboard Updates (SSE) ────────────────────────
-        (function () {
-            'use strict';
-
-            // Skip if user navigated away
-            if (document.hidden) return;
-
-            var rt = new AdminRealtimeService({
-                endpoint: '../api/admin_realtime.php'
-            });
-
-            // ── Stat card updaters ──────────────────────────────────
-            function animateNumber(el, target) {
-                var current = parseInt(el.textContent, 10) || 0;
-                if (current === target) return;
-                el.textContent = target;
-                el.style.transition = 'transform 0.3s ease, color 0.3s ease';
-                el.style.transform = 'scale(1.15)';
-                setTimeout(function () { el.style.transform = 'scale(1)'; }, 300);
-            }
-
-            function onStats(data) {
-                var statPending    = document.getElementById('stat-pending');
-                var statApproved   = document.getElementById('stat-approved');
-                var statInactive   = document.getElementById('stat-inactive');
-                var totalBadge     = document.getElementById('total-users-badge');
-                var inactiveBadge  = document.getElementById('inactive-count-badge');
-
-                if (statPending)  animateNumber(statPending,  data.pending_users);
-                if (statApproved) animateNumber(statApproved, data.approved_users);
-                if (statInactive) animateNumber(statInactive, data.inactive_2weeks);
-
-                var total = data.pending_users + data.approved_users + data.inactive_2weeks + data.deactivated_users;
-                if (totalBadge) totalBadge.textContent = total + ' Total';
-                if (inactiveBadge) inactiveBadge.textContent = data.inactive_2weeks;
-
-                // Update doughnut chart data
-                userAccountsChart.data.datasets[0].data = [
-                    data.pending_users, data.approved_users,
-                    data.inactive_2weeks, data.deactivated_users
-                ];
-                userAccountsChart.update('none');
-
-                // Update chart summary panel
-                var summaryEl = document.getElementById('user-accounts-summary');
-                if (summaryEl) {
-                    var items = [
-                        { label: 'Pending',            count: data.pending_users,     color: chartColors.pending },
-                        { label: 'Approved',           count: data.approved_users,    color: chartColors.approved },
-                        { label: 'Inactive (2+ Weeks)', count: data.inactive_2weeks,  color: chartColors.inactive },
-                        { label: 'Deactivated',        count: data.deactivated_users, color: chartColors.deactivated }
-                    ];
-                    summaryEl.innerHTML = items.map(function (it) {
-                        var pct = total > 0 ? Math.round((it.count / total) * 100) : 0;
-                        return '<div class="chart-summary-item">'
-                            + '<span class="summary-dot" style="background:' + it.color + ';"></span>'
-                            + '<div class="summary-info"><div class="summary-label">' + it.label + '</div></div>'
-                            + '<div class="summary-count">' + it.count + '</div>'
-                            + '<div class="summary-percent">' + pct + '%</div>'
-                            + '</div>';
-                    }).join('');
-                }
-            }
-
-            // ── Chart updaters ──────────────────────────────────────
-            function onCharts(data) {
-                // Reports by Status bar chart
-                if (data.by_status) {
-                    var labels = data.by_status.map(function (r) {
-                        return r.status.charAt(0).toUpperCase() + r.status.slice(1);
-                    });
-                    var values = data.by_status.map(function (r) { return parseInt(r.count, 10); });
-
-                    reportsByStatusChart.data.labels = labels;
-                    reportsByStatusChart.data.datasets[0].data = values;
-                    reportsByStatusChart.data.datasets[0].backgroundColor = chartColors.statusColors.slice(0, labels.length);
-                    reportsByStatusChart.update('none');
-                }
-
-                // Reports Trend line chart
-                if (data.by_month) {
-                    var mLabels = data.by_month.map(function (r) { return r.month_name; });
-                    var mData   = data.by_month.map(function (r) { return parseInt(r.count, 10); });
-
-                    reportsTrendChart.data.labels = mLabels.length > 0 ? mLabels : ['No Data'];
-                    reportsTrendChart.data.datasets[0].data = mData.length > 0 ? mData : [0];
-                    reportsTrendChart.update('none');
-                }
-            }
-
-            // ── Table updater ───────────────────────────────────────
-            function onTable(data) {
-                var tbody = document.getElementById('inactive-users-tbody');
-                if (!tbody) return;
-
-                if (!data || data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;" class="t-text-secondary">No inactive users found</td></tr>';
-                    return;
-                }
-
-                tbody.innerHTML = data.map(function (u) {
-                    var lastLogin = u.last_login
-                        ? new Date(u.last_login).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                        : 'Never';
-                    var regDate = new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                    return '<tr>'
-                        + '<td>' + escHtml(u.full_name) + '</td>'
-                        + '<td>' + escHtml(u.email) + '</td>'
-                        + '<td>' + escHtml(u.role) + '</td>'
-                        + '<td>' + escHtml(u.department || 'N/A') + '</td>'
-                        + '<td>' + lastLogin + '</td>'
-                        + '<td>' + regDate + '</td>'
-                        + '</tr>';
-                }).join('');
-            }
-
-            function escHtml(str) {
-                var d = document.createElement('div');
-                d.appendChild(document.createTextNode(str));
-                return d.innerHTML;
-            }
-
-            // ── Register handlers & connect ─────────────────────────
-            rt.on('stats',  onStats);
-            rt.on('charts', onCharts);
-            rt.on('table',  onTable);
-
-            rt.on('connected', function () {
-                console.log('[RT] SSE connected');
-            });
-            rt.on('disconnected', function () {
-                console.warn('[RT] SSE disconnected');
-            });
-            rt.on('reconnecting', function (e) {
-                console.log('[RT] Reconnecting (attempt ' + e.attempt + ')');
-            });
-
-            rt.start();
-        })();
     </script>
     
 
