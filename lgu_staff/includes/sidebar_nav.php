@@ -150,32 +150,33 @@ foreach ($nav_items as $section => $items) {
 }
 ?>
 
-<aside class="sidebar" id="sidebar">
-    <div class="sidebar-header">
+<aside class="sidebar" id="sidebar" role="complementary">
+    <header class="sidebar-header">
         <h2><i class="fas fa-road"></i> <?php echo defined('SITE_NAME') ? SITE_NAME : 'LGU Portal'; ?></h2>
         <p>Admin Portal</p>
         <div class="user-info">
             <div class="user-name"><?php echo htmlspecialchars($user_info['full_name']); ?></div>
             <div class="user-role"><?php echo htmlspecialchars(ucfirst($user_info['role'])); ?></div>
         </div>
-    </div>
+    </header>
 
-    <nav class="sidebar-menu">
+    <nav class="sidebar-menu" aria-label="Main navigation">
         <?php foreach ($filtered_items as $section => $items): ?>
             <?php if (!empty($items)): ?>
-                <div class="menu-label"><?php echo ucfirst($section); ?></div>
-                <ul>
+                <div class="menu-label" id="menu-label-<?php echo $section; ?>"><?php echo ucfirst($section); ?></div>
+                <ul role="list" aria-labelledby="menu-label-<?php echo $section; ?>">
                     <?php foreach ($items as $item): ?>
                         <?php
                         $href_file = basename($item['href']);
                         $is_active = ($current_page === $href_file) ? ' active' : '';
+                        $aria_current = ($current_page === $href_file) ? ' aria-current="page"' : '';
                         ?>
-                        <li>
-                            <a href="<?php echo $item['href']; ?>" class="nav-link<?php echo $is_active; ?>">
-                                <i class="fas fa-<?php echo $item['icon']; ?>"></i>
+                        <li role="listitem">
+                            <a href="<?php echo $item['href']; ?>" class="nav-link<?php echo $is_active; ?>"<?php echo $aria_current; ?>>
+                                <i class="fas fa-<?php echo $item['icon']; ?>" aria-hidden="true"></i>
                                 <?php echo htmlspecialchars($item['title']); ?>
                                 <?php if ($notification_count > 0 && $item['icon'] === 'bell'): ?>
-                                    <span class="notification-badge"><?php echo $notification_count; ?></span>
+                                    <span class="notification-badge" role="status" aria-label="<?php echo $notification_count; ?> unread notifications"><?php echo $notification_count; ?></span>
                                 <?php endif; ?>
                             </a>
                         </li>
@@ -185,10 +186,10 @@ foreach ($nav_items as $section => $items) {
         <?php endforeach; ?>
 
         <div class="menu-label">Account</div>
-        <ul>
-            <li>
-                <a href="<?php echo $nav_base; ?>logout.php" class="nav-link nav-link-logout" id="logoutBtn">
-                    <i class="fas fa-sign-out-alt"></i> Logout
+        <ul role="list">
+            <li role="listitem">
+                <a href="<?php echo $nav_base; ?>logout.php" class="nav-link nav-link-logout" id="logoutBtn" role="button">
+                    <i class="fas fa-sign-out-alt" aria-hidden="true"></i> Logout
                 </a>
             </li>
         </ul>
