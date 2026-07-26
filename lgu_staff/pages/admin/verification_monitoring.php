@@ -656,6 +656,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../../css/theme-tokens.css">
+    <link rel="stylesheet" href="../../css/theme-utilities.css">
     <link rel="stylesheet" href="../../css/sidebar.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
@@ -4105,7 +4107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                             <i class="fas fa-eye" id="icon-<?php echo $report['id']; ?>"></i>
                                         </button>
                                         <?php if ($pending_ext_verify): ?>
-                                            <span class="lgu-status-badge" style="background:#fef3c7;color:#92400e;font-size:10px;padding:3px 8px;">Ext. Verify</span>
+                                            <span class="lgu-status-badge t-badge t-badge-pending" style="font-size:10px;padding:3px 8px;">Ext. Verify</span>
                                         <?php elseif ($report['status'] === 'pending'): ?>
                                             <form method="POST" class="lgu-action-form">
                                                 <input type="hidden" name="report_id" value="<?php echo $report['id']; ?>">
@@ -4125,7 +4127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                         <form method="POST" class="lgu-action-form" onsubmit="return confirm('Are you sure you want to remove this report? It will be moved to the archive.');" title="Remove report">
                                             <input type="hidden" name="report_id" value="<?php echo $report['id']; ?>">
                                             <input type="hidden" name="source" value="<?php echo htmlspecialchars($report['source']); ?>">
-                                            <button type="submit" name="action" value="delete" class="lgu-action-btn" style="background:rgba(220,53,69,0.1);color:#dc3545;">
+                                            <button type="submit" name="action" value="delete" class="lgu-action-btn t-text-danger" style="background:rgba(220,53,69,0.1);">
                                                 <i class="fas fa-trash-alt"></i>
                                             </button>
                                         </form>
@@ -4149,14 +4151,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                             <div class="detail-item">
                                                 <strong>Status:</strong> 
                                                 <?php if ($pending_ext_verify): ?>
-                                                <span class="lgu-status-badge" style="background:#fef3c7;color:#92400e;">Awaiting External Verification</span>
+                                                <span class="lgu-status-badge t-badge t-badge-pending">Awaiting External Verification</span>
                                                 <?php else: ?>
                                                 <span class="lgu-status-badge <?php echo $lgu_status_class; ?>"><?php echo htmlspecialchars($report['status'] ?? 'N/A'); ?></span>
                                                 <?php endif; ?>
                                             </div>
                                             <div class="detail-item full-width">
                                                 <strong>Full Description:</strong>
-                                                <div style="margin-top:8px;padding:12px;background:rgba(55,98,200,0.05);border-radius:8px;">
+                                                <div class="t-bg-primary" style="margin-top:8px;padding:12px;border-radius:8px;">
                                                     <?php echo nl2br(htmlspecialchars($report['description'] ?? 'No description provided')); ?>
                                                 </div>
                                             </div>
@@ -4166,7 +4168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                 <div style="margin-top:8px;">
                                                     Latitude: <?php echo htmlspecialchars($report['latitude']); ?>, 
                                                     Longitude: <?php echo htmlspecialchars($report['longitude']); ?>
-                                                    <a href="https://www.google.com/maps?q=<?php echo htmlspecialchars($report['latitude']); ?>,<?php echo htmlspecialchars($report['longitude']); ?>" target="_blank" style="color:#3762c8;margin-left:10px;">
+                                                    <a href="https://www.google.com/maps?q=<?php echo htmlspecialchars($report['latitude']); ?>,<?php echo htmlspecialchars($report['longitude']); ?>" target="_blank" class="t-text-link" style="margin-left:10px;">
                                                         <i class="fas fa-map-marker-alt"></i> View on Map
                                                     </a>
                                                 </div>
@@ -4217,7 +4219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 <td><span class="lgu-status-badge <?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'] ?? 'medium')); ?></span></td>
                                 <td>
                                     <?php if ($pending_ext_verify): ?>
-                                    <span class="lgu-status-badge" style="background:#fef3c7;color:#92400e;">Awaiting Ext.</span>
+                                    <span class="lgu-status-badge t-badge t-badge-pending">Awaiting Ext.</span>
                                     <?php else: ?>
                                     <span class="lgu-status-badge <?php echo $lgu_status_class; ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span>
                                     <?php endif; ?>
@@ -5794,18 +5796,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     </div>
 
     <!-- Session Timeout Modal -->
-    <div id="sessionTimeoutOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); z-index:10000;"></div>
+    <div id="sessionTimeoutOverlay" class="t-modal-overlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; z-index:10000;"></div>
     <div id="sessionTimeoutModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; border-radius:12px; padding:32px; z-index:10001; width:400px; max-width:90vw; box-shadow:0 16px 48px rgba(0,0,0,0.3); text-align:center;">
-        <div style="font-size:48px; color:#e74c3c; margin-bottom:16px;">
+        <div class="t-text-danger" style="font-size:48px; margin-bottom:16px;">
             <i class="fas fa-clock"></i>
         </div>
         <h3 style="margin:0 0 8px; font-size:20px; color:#1a1a2e;">Session Expiring</h3>
-        <p style="margin:0 0 20px; color:#666; font-size:14px;">
+        <p class="t-text-secondary" style="margin:0 0 20px; font-size:14px;">
             Your session will expire in <strong><span id="sessionCountdown">60</span></strong> seconds due to inactivity.
         </p>
         <div style="display:flex; gap:12px; justify-content:center;">
-            <button id="extendSessionBtn" style="padding:10px 24px; background:#3762c8; color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Extend Session</button>
-            <button id="logoutSessionBtn" style="padding:10px 24px; background:#e74c3c; color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Log Out</button>
+            <button id="extendSessionBtn" class="t-gradient-primary" style="padding:10px 24px; color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Extend Session</button>
+            <button id="logoutSessionBtn" class="t-gradient-danger" style="padding:10px 24px; color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Log Out</button>
         </div>
     </div>
 

@@ -125,6 +125,8 @@ $stmt->close();
     <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../../css/theme-tokens.css">
+    <link rel="stylesheet" href="../../css/theme-utilities.css">
     <link rel="stylesheet" href="../../css/sidebar.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
@@ -273,9 +275,9 @@ $stmt->close();
         <div class="info-card">
             <h3><i class="fas fa-id-card"></i> Account Info</h3>
             <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 10px;">
-                <div><small style="color:#666;">Username</small><div class="form-control-plaintext"><?php echo htmlspecialchars($user['username'] ?? ''); ?></div></div>
-                <div><small style="color:#666;">Full Name</small><div class="form-control-plaintext"><?php echo htmlspecialchars($user['full_name'] ?? ''); ?></div></div>
-                <div><small style="color:#666;">Department</small><div class="form-control-plaintext">LGU Staff</div></div>
+                <div><small class="t-text-secondary">Username</small><div class="form-control-plaintext"><?php echo htmlspecialchars($user['username'] ?? ''); ?></div></div>
+                <div><small class="t-text-secondary">Full Name</small><div class="form-control-plaintext"><?php echo htmlspecialchars($user['full_name'] ?? ''); ?></div></div>
+                <div><small class="t-text-secondary">Department</small><div class="form-control-plaintext">LGU Staff</div></div>
             </div>
         </div>
 
@@ -314,7 +316,7 @@ $stmt->close();
                                accept=".jpg,.jpeg,.png,.gif,.pdf">
                     </div>
                     <div class="form-group">
-                        <label for="new_password">New Password <small style="color:#999;">(leave blank to keep current)</small></label>
+                        <label for="new_password">New Password <small class="t-text-muted">(leave blank to keep current)</small></label>
                         <input type="password" id="new_password" name="new_password" class="form-control"
                                placeholder="Enter new password" autocomplete="new-password">
                     </div>

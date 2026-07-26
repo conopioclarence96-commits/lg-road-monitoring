@@ -273,6 +273,8 @@ $pending_changes_count = count($change_requests);
     <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../../css/theme-tokens.css">
+    <link rel="stylesheet" href="../../css/theme-utilities.css">
     <link rel="stylesheet" href="../../css/sidebar.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
@@ -485,7 +487,7 @@ $pending_changes_count = count($change_requests);
                             </thead>
                             <tbody id="pendingUsersBody">
                                 <?php if (empty($users)): ?>
-                                    <tr><td colspan="6" style="text-align:center; color:#64748b;">No pending users</td></tr>
+                                    <tr><td colspan="6" style="text-align:center;" class="t-text-secondary">No pending users</td></tr>
                                 <?php else: ?>
                                     <?php foreach ($users as $user): ?>
                                         <tr>
@@ -531,7 +533,7 @@ $pending_changes_count = count($change_requests);
                             </thead>
                             <tbody id="changeRequestsBody">
                                 <?php if (empty($change_requests)): ?>
-                                    <tr><td colspan="6" style="text-align:center; color:#64748b;">No pending change requests</td></tr>
+                                    <tr><td colspan="6" style="text-align:center;" class="t-text-secondary">No pending change requests</td></tr>
                                 <?php else: ?>
                                     <?php foreach ($change_requests as $cr):
                                         $req_data = json_decode($cr['requested_data'], true);
@@ -554,7 +556,7 @@ $pending_changes_count = count($change_requests);
                                         <tr>
                                             <td><?php echo htmlspecialchars($cr['user_name']); ?></td>
                                             <td>
-                                                <small style="color:#666;">
+                                                <small class="t-text-secondary">
                                                 <?php if (empty($changed_fields) && empty($req_data['new_password']) && empty($req_data['new_password_hash']) && empty($req_data['profile_picture']) && empty($req_data['id_file_path'])): ?>
                                                     No changes
                                                 <?php else: ?>
@@ -563,19 +565,19 @@ $pending_changes_count = count($change_requests);
                                                         <strong><?php echo $label; ?>:</strong> <?php echo htmlspecialchars($current_map[$f] ?? 'N/A'); ?><br>
                                                     <?php endforeach; ?>
                                                     <?php if (!empty($req_data['new_password']) || !empty($req_data['new_password_hash'])): ?>
-                                                        <span style="color:#d97706;"><i class="fas fa-key"></i> Current password</span><br>
+                                                        <span class="t-text-warning"><i class="fas fa-key"></i> Current password</span><br>
                                                     <?php endif; ?>
                                                     <?php if (!empty($req_data['profile_picture'])): ?>
-                                                        <span style="color:#7c3aed;"><i class="fas fa-user-circle"></i> Current profile picture</span><br>
+                                                        <span class="t-text-purple"><i class="fas fa-user-circle"></i> Current profile picture</span><br>
                                                     <?php endif; ?>
                                                     <?php if (!empty($req_data['id_file_path'])): ?>
-                                                        <span style="color:#059669;"><i class="fas fa-id-card"></i> Current ID photo</span><br>
+                                                        <span class="t-text-success"><i class="fas fa-id-card"></i> Current ID photo</span><br>
                                                     <?php endif; ?>
                                                 <?php endif; ?>
                                                 </small>
                                             </td>
                                             <td>
-                                                <small style="color:#1e3c72;">
+                                                <small class="t-text-primary">
                                                 <?php if (empty($changed_fields) && empty($req_data['new_password']) && empty($req_data['new_password_hash']) && empty($req_data['profile_picture']) && empty($req_data['id_file_path'])): ?>
                                                     No changes
                                                 <?php else: ?>
@@ -584,13 +586,13 @@ $pending_changes_count = count($change_requests);
                                                         <strong><?php echo $label; ?>:</strong> <?php echo htmlspecialchars($req_data[$f]); ?><br>
                                                     <?php endforeach; ?>
                                                     <?php if (!empty($req_data['new_password']) || !empty($req_data['new_password_hash'])): ?>
-                                                        <span style="color:#f59e0b; font-weight:600;"><i class="fas fa-key"></i> New password requested</span><br>
+                                                        <span class="t-text-warning" style="font-weight:600;"><i class="fas fa-key"></i> New password requested</span><br>
                                                     <?php endif; ?>
                                                     <?php if (!empty($req_data['profile_picture'])): ?>
-                                                        <span style="color:#8b5cf6; font-weight:600;"><i class="fas fa-user-circle"></i> New profile picture</span><br>
+                                                        <span class="t-text-purple" style="font-weight:600;"><i class="fas fa-user-circle"></i> New profile picture</span><br>
                                                     <?php endif; ?>
                                                     <?php if (!empty($req_data['id_file_path'])): ?>
-                                                        <span style="color:#10b981; font-weight:600;"><i class="fas fa-id-card"></i> New ID photo</span><br>
+                                                        <span class="t-text-success" style="font-weight:600;"><i class="fas fa-id-card"></i> New ID photo</span><br>
                                                     <?php endif; ?>
                                                 <?php endif; ?>
                                                 </small>
@@ -636,7 +638,7 @@ $pending_changes_count = count($change_requests);
                     <label>ID File:</label>
                     <div id="modalIdFileContainer">
                         <img id="modalIdFile" src="" alt="ID File" style="max-width:200px; max-height:150px; border-radius:8px; border:1px solid #ddd; display:none;">
-                        <p id="modalIdFileNone" style="color:#666; font-style:italic;">No ID file uploaded</p>
+                        <p id="modalIdFileNone" style="font-style:italic;" class="t-text-secondary">No ID file uploaded</p>
                     </div>
                 </div>
             </div>
@@ -652,7 +654,7 @@ $pending_changes_count = count($change_requests);
     <div id="changeRequestModal" class="modal">
         <div class="modal-content" style="max-width: 680px;">
             <div class="modal-header" style="border-bottom:none; padding-bottom:0;">
-                <h2 class="modal-title"><i class="fas fa-clipboard-check" style="color:#3762c8; margin-right:8px;"></i>Review Change Request</h2>
+                <h2 class="modal-title"><i class="fas fa-clipboard-check t-text-link" style="margin-right:8px;"></i>Review Change Request</h2>
                 <span class="close" onclick="closeChangeRequestModal()">&times;</span>
             </div>
 

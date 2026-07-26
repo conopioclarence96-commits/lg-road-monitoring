@@ -450,6 +450,8 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
     <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../../css/theme-tokens.css">
+    <link rel="stylesheet" href="../../css/theme-utilities.css">
     <link rel="stylesheet" href="../../css/sidebar.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -1259,8 +1261,8 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                             <button class="filter-btn" data-filter="high" onclick="filterMapMarkers('high')"><i class="fas fa-exclamation"></i> Critical</button>
                         </div>
                         <div class="map-legend">
-                            <span class="map-legend-item"><span class="map-legend-dot" style="background:#dc3545;"></span> High</span>
-                            <span class="map-legend-item"><span class="map-legend-dot" style="background:#ffc107;"></span> Medium</span>
+                            <span class="map-legend-item"><span class="map-legend-dot t-bg-danger"></span> High</span>
+                            <span class="map-legend-item"><span class="map-legend-dot t-bg-warning"></span> Medium</span>
                             <span class="map-legend-item"><span class="map-legend-dot" style="background:#6c757d;"></span> Low</span>
                         </div>
                         <div class="map-search-box" style="display:flex;align-items:center;gap:6px;margin-left:8px;">
@@ -1273,7 +1275,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                             <button class="map-fullscreen-btn" onclick="toggleToolsDropdown()" id="toolsDropdownBtn">
                                 <i class="fas fa-tools"></i> Tools
                             </button>
-                            <div id="toolsDropdownMenu" style="display:none;position:absolute;top:100%;right:0;background:#fff;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.15);z-index:1000;min-width:200px;padding:8px 0;margin-top:4px;">
+                            <div id="toolsDropdownMenu" class="t-card" style="display:none;position:absolute;top:100%;right:0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.15);z-index:1000;min-width:200px;padding:8px 0;margin-top:4px;">
                                 <button class="tools-dropdown-item" onclick="showRoutePlanner()"><i class="fas fa-route"></i> Route Planner</button>
                                 <button class="tools-dropdown-item" onclick="toggleSatelliteLayer()"><i class="fas fa-satellite"></i> Satellite View</button>
                                 <button class="tools-dropdown-item" onclick="toggleTrafficIncidentsLayer()" id="toggleIncidentsBtn"><i class="fas fa-exclamation-triangle"></i> Traffic Incidents</button>
@@ -1339,9 +1341,9 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                         <label>Description</label>
                         <textarea id="description" name="description" rows="3" required placeholder="Describe the issue..."></textarea>
                         <label>Upload Photos (Optional)</label>
-                        <button type="button" id="add-photos-btn" style="padding:8px 16px;background:#3762c8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;"><i class="fas fa-camera"></i> Add Photos</button>
+                        <button type="button" id="add-photos-btn" class="t-gradient-primary" style="padding:8px 16px;border:none;border-radius:6px;cursor:pointer;font-size:13px;"><i class="fas fa-camera"></i> Add Photos</button>
                         <input type="file" id="report-images" name="photos[]" multiple accept="image/jpeg,image/jpg,image/png" style="display:none;" />
-                        <small style="color: #666; font-size: 12px; display: block; margin-top: 4px;">Max size: 5MB each. Formats: JPG, PNG.</small>
+                        <small class="t-text-secondary" style="font-size: 12px; display: block; margin-top: 4px;">Max size: 5MB each. Formats: JPG, PNG.</small>
                         <div id="image-preview" style="margin-top: 10px; display: none;">
                             <div id="image-gallery" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
                         </div>
@@ -1377,7 +1379,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                 <!-- Reachable Range Panel -->
                 <div id="reachableRangePanel" class="tomtom-panel">
                     <h5><i class="fas fa-circle"></i> Reachable Range</h5>
-                    <p style="font-size:12px;color:#666;">Click on the map to set the center point, then calculate.</p>
+                    <p class="t-text-secondary" style="font-size:12px;">Click on the map to set the center point, then calculate.</p>
                     <label>Time Budget (minutes)</label>
                     <input type="number" id="rangeTimeBudget" value="30" min="1" max="120">
                     <div style="display:flex;gap:8px;">
@@ -1390,7 +1392,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                 <!-- Geofencing Panel -->
                 <div id="geofencingPanel" class="tomtom-panel">
                     <h5><i class="fas fa-draw-polygon"></i> Geofence Check</h5>
-                    <p style="font-size:12px;color:#666;">Enter coordinates to check if a location is within any geofence.</p>
+                    <p class="t-text-secondary" style="font-size:12px;">Enter coordinates to check if a location is within any geofence.</p>
                     <label>Latitude</label>
                     <input type="number" id="geofenceLat" step="any" placeholder="e.g., 14.65">
                     <label>Longitude</label>
@@ -1405,7 +1407,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                 <!-- EV Charging Panel -->
                 <div id="evChargingPanel" class="tomtom-panel">
                     <h5><i class="fas fa-charging-station"></i> EV Charging Stations</h5>
-                    <p style="font-size:12px;color:#666;">Search for EV charging stations near the map center.</p>
+                    <p class="t-text-secondary" style="font-size:12px;">Search for EV charging stations near the map center.</p>
                     <div style="display:flex;gap:8px;">
                         <button class="btn-action btn-sm" onclick="findEVStations()"><i class="fas fa-search"></i> Find Nearby</button>
                         <button class="btn-action btn-sm btn-secondary" onclick="closePanel('evChargingPanel')">Close</button>
@@ -1506,7 +1508,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                     </thead>
                     <tbody>
                         <?php if (empty($recent_reports)): ?>
-                        <tr><td colspan="7" style="text-align:center;padding:30px;color:#6b7280;">No reports yet.</td></tr>
+                        <tr><td colspan="7" class="t-text-secondary" style="text-align:center;padding:30px;">No reports yet.</td></tr>
                         <?php else: ?>
                         <?php foreach ($recent_reports as $rr): ?>
                          <tr class="report-table-row" data-id="<?php echo $rr['id']; ?>" data-title="<?php echo htmlspecialchars(strtolower($rr['title'] ?? '')); ?>" data-report-id="<?php echo htmlspecialchars(strtolower($rr['report_id'] ?? '')); ?>" data-status="<?php echo $rr['status'] ?? 'pending'; ?>">
@@ -2614,11 +2616,11 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             </div>
             <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
                 <div class="timeline-container" id="updatesTimeline">
-                    <div class="timeline-empty"><i class="fas fa-spinner fa-spin fa-2x" style="color:#3762c8;"></i></div>
+                    <div class="timeline-empty"><i class="fas fa-spinner fa-spin fa-2x t-text-link"></i></div>
                 </div>
             </div>
             <div class="modal-footer" style="justify-content: space-between;">
-                <span id="updateReportInfo" style="font-size: 13px; color: #6b7280;"></span>
+                <span id="updateReportInfo" class="t-text-secondary" style="font-size: 13px;"></span>
                 <div>
                     <button type="button" class="btn-action" id="addUpdateBtn" onclick="showAddUpdateModal()">+ Add Update</button>
                     <button type="button" class="btn-secondary-custom" onclick="closeModal('updatesModal')">Close</button>
@@ -2651,7 +2653,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                     <div class="form-group">
                         <label class="form-label">Photos / Video</label>
                         <input type="file" name="media[]" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm" multiple>
-                        <small style="color:#666;font-size:11px;">Accepted: JPG, PNG, GIF, WebP, MP4, WebM</small>
+                        <small class="t-text-secondary" style="font-size:11px;">Accepted: JPG, PNG, GIF, WebP, MP4, WebM</small>
                         <div class="file-previews" id="updateFilePreviews"></div>
                     </div>
                     <div id="existingUpdateMediaSection" style="display:none;">
@@ -2662,7 +2664,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                     </div>
                 </div>
                 <div class="modal-footer" style="justify-content: space-between;">
-                    <span style="font-size:12px;color:#666;">Updates are visible to all staff</span>
+                    <span class="t-text-secondary" style="font-size:12px;">Updates are visible to all staff</span>
                     <div style="display:flex;gap:10px;">
                         <button type="button" class="btn-secondary-custom" onclick="cancelUpdateForm()">Cancel</button>
                         <button type="submit" class="btn-action" id="addUpdateSubmitBtn"><i class="fas fa-save"></i> Post Update</button>
@@ -2680,17 +2682,17 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
 
 
     <!-- Session Timeout Modal -->
-    <div id="sessionTimeoutOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); z-index:10000;"></div>
-    <div id="sessionTimeoutModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; border-radius:12px; padding:32px; z-index:10001; width:400px; max-width:90vw; box-shadow:0 16px 48px rgba(0,0,0,0.3); text-align:center;">
+    <div id="sessionTimeoutOverlay" class="t-modal-overlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; z-index:10000;"></div>
+    <div id="sessionTimeoutModal" class="t-card" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); border-radius:12px; padding:32px; z-index:10001; width:400px; max-width:90vw; box-shadow:0 16px 48px rgba(0,0,0,0.3); text-align:center;">
         <div style="font-size:48px; color:#e74c3c; margin-bottom:16px;">
             <i class="fas fa-clock"></i>
         </div>
         <h3 style="margin:0 0 8px; font-size:20px; color:#1a1a2e;">Session Expiring</h3>
-        <p style="margin:0 0 20px; color:#666; font-size:14px;">
+        <p class="t-text-secondary" style="margin:0 0 20px; font-size:14px;">
             Your session will expire in <strong><span id="sessionCountdown">60</span></strong> seconds due to inactivity.
         </p>
         <div style="display:flex; gap:12px; justify-content:center;">
-            <button id="extendSessionBtn" style="padding:10px 24px; background:#3762c8; color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Extend Session</button>
+            <button id="extendSessionBtn" class="t-gradient-primary" style="padding:10px 24px; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Extend Session</button>
             <button id="logoutSessionBtn" style="padding:10px 24px; background:#e74c3c; color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Log Out</button>
         </div>
     </div>

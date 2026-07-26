@@ -102,6 +102,8 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
     <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../../css/theme-tokens.css">
+    <link rel="stylesheet" href="../../css/theme-utilities.css">
     <link rel="stylesheet" href="../../css/sidebar.css">
     <link rel="stylesheet" href="../../css/enhanced-reports.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
@@ -131,7 +133,7 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
 
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #3762c8, #1e3c72);">
+                <div class="stat-icon t-stat-icon-blue">
                     <i class="fas fa-file-alt"></i>
                 </div>
                 <div class="stat-value"><?php echo number_format($total_reports); ?></div>
@@ -141,7 +143,7 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
                 </div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #059669, #047857);">
+                <div class="stat-icon t-stat-icon-green">
                     <i class="fas fa-check-circle"></i>
                 </div>
                 <div class="stat-value"><?php echo number_format($status_counts['completed'] ?? 0); ?></div>
@@ -152,7 +154,7 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
                 </div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #d97706, #b45309);">
+                <div class="stat-icon t-stat-icon-amber">
                     <i class="fas fa-clock"></i>
                 </div>
                 <div class="stat-value"><?php echo number_format($status_counts['pending'] ?? 0); ?></div>
@@ -162,7 +164,7 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
                 </div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #0284c7, #0369a1);">
+                <div class="stat-icon t-stat-icon-info">
                     <i class="fas fa-calendar-check"></i>
                 </div>
                 <div class="stat-value"><?php echo $avg_completion_days; ?>d</div>
@@ -172,7 +174,7 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
                 </div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
+                <div class="stat-icon t-stat-icon-purple">
                     <i class="fas fa-peso-sign"></i>
                 </div>
                 <div class="stat-value"><?php echo $avg_estimation > 0 ? '₱' . number_format($avg_estimation, 0) : 'N/A'; ?></div>
@@ -302,7 +304,7 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
                             <td>
                                 <strong><?php echo $ar['duration_days']; ?> days</strong>
                                 <?php if ($ar['duration_seconds'] > 0): ?>
-                                    <span style="color:#6b7280;font-size:11px;">(<?php echo floor($ar['duration_seconds'] / 3600); ?>h <?php echo floor(($ar['duration_seconds'] % 3600) / 60); ?>m)</span>
+                                    <span class="t-text-secondary" style="font-size:11px;">(<?php echo floor($ar['duration_seconds'] / 3600); ?>h <?php echo floor(($ar['duration_seconds'] % 3600) / 60); ?>m)</span>
                                 <?php endif; ?>
                             </td>
                             <td><span class="badge badge-<?php echo $ar['priority']; ?>"><?php echo ucfirst($ar['priority']); ?></span></td>
@@ -312,7 +314,7 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
                     </tbody>
                 </table>
                 <?php else: ?>
-                <div style="text-align:center;padding:24px;color:#6b7280;">
+                <div class="t-text-secondary" style="text-align:center;padding:24px;">
                     <i class="fas fa-chart-bar" style="font-size:24px;margin-bottom:8px;display:block;"></i>
                     No analytics data recorded yet. Complete a project to see stored metrics.
                 </div>

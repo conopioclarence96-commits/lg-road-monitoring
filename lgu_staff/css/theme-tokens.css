@@ -1,0 +1,231 @@
+/* ============================================================
+   THEME TOKENS — Single source of truth for all colors
+   Include this file FIRST in every page, before other stylesheets.
+   ============================================================ */
+
+:root {
+    /* ── Page & Surface ── */
+    --bg-page: #f3f4f6;
+    --bg-card: #ffffff;
+    --bg-sidebar: #ffffff;
+    --bg-header: linear-gradient(135deg, #2952b3 0%, #1a2f6b 100%);
+    --bg-input: #ffffff;
+    --bg-input-readonly: #f3f4f6;
+    --bg-hover: rgba(41, 82, 179, 0.04);
+    --bg-active: rgba(41, 82, 179, 0.08);
+    --bg-overlay: rgba(0, 0, 0, 0.6);
+    --bg-tooltip: #1e293b;
+
+    /* ── Text ── */
+    --text-primary: #1e293b;
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
+    --text-inverse: #ffffff;
+    --text-link: #3762c8;
+    --text-link-hover: #1e3c72;
+
+    /* ── Borders ── */
+    --border-default: #e5e7eb;
+    --border-light: #f3f4f6;
+    --border-focus: #3762c8;
+    --border-input: #d1d5db;
+
+    /* ── Shadows ── */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
+    --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.1);
+    --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.06);
+
+    /* ── Primary (Brand) ── */
+    --color-primary: #3762c8;
+    --color-primary-dark: #1e3c72;
+    --color-primary-light: #60a5fa;
+    --color-primary-bg: rgba(55, 98, 200, 0.08);
+    --color-primary-bg-hover: rgba(55, 98, 200, 0.12);
+
+    /* ── Status: Success ── */
+    --color-success: #059669;
+    --color-success-light: #10b981;
+    --color-success-dark: #047857;
+    --color-success-bg: rgba(5, 150, 105, 0.1);
+    --color-success-text: #059669;
+
+    /* ── Status: Warning ── */
+    --color-warning: #d97706;
+    --color-warning-light: #f59e0b;
+    --color-warning-dark: #b45309;
+    --color-warning-bg: rgba(217, 119, 6, 0.1);
+    --color-warning-text: #d97706;
+    --color-warning-badge-bg: #fef3c7;
+    --color-warning-badge-text: #92400e;
+
+    /* ── Status: Danger ── */
+    --color-danger: #dc2626;
+    --color-danger-light: #ef4444;
+    --color-danger-dark: #b91c1c;
+    --color-danger-bg: rgba(220, 38, 38, 0.08);
+    --color-danger-text: #dc2626;
+
+    /* ── Status: Info ── */
+    --color-info: #0284c7;
+    --color-info-light: #0ea5e9;
+    --color-info-dark: #0369a1;
+    --color-info-bg: rgba(2, 132, 199, 0.08);
+    --color-info-text: #0284c7;
+
+    /* ── Status: Purple ── */
+    --color-purple: #7c3aed;
+    --color-purple-light: #8b5cf6;
+    --color-purple-bg: rgba(124, 58, 237, 0.1);
+    --color-purple-text: #7c3aed;
+
+    /* ── CIMM Orange (brand accent) ── */
+    --color-cimm: #f97316;
+    --color-cimm-dark: #ea580c;
+    --color-cimm-bg: rgba(249, 115, 22, 0.08);
+    --color-cimm-text: #c2410c;
+
+    /* ── Semantic: Status Badges ── */
+    --badge-pending-bg: rgba(249, 115, 22, 0.1);
+    --badge-pending-text: #c2410c;
+    --badge-approved-bg: rgba(5, 150, 105, 0.1);
+    --badge-approved-text: #047857;
+    --badge-completed-bg: rgba(5, 150, 105, 0.1);
+    --badge-completed-text: #047857;
+    --badge-cancelled-bg: rgba(220, 38, 38, 0.08);
+    --badge-cancelled-text: #dc2626;
+    --badge-rejected-bg: rgba(220, 38, 38, 0.1);
+    --badge-rejected-text: #dc3545;
+    --badge-resolved-bg: rgba(5, 150, 105, 0.1);
+    --badge-resolved-text: #059669;
+    --badge-in-progress-bg: rgba(55, 98, 200, 0.1);
+    --badge-in-progress-text: #3762c8;
+
+    /* ── Semantic: Priority ── */
+    --priority-high-bg: rgba(220, 38, 38, 0.1);
+    --priority-high-text: #dc2626;
+    --priority-medium-bg: rgba(217, 119, 6, 0.1);
+    --priority-medium-text: #d97706;
+    --priority-low-bg: rgba(5, 150, 105, 0.1);
+    --priority-low-text: #059669;
+
+    /* ── Misc ── */
+    --scrollbar-track: transparent;
+    --scrollbar-thumb: #d1d5db;
+    --scrollbar-thumb-hover: #9ca3af;
+}
+
+/* ============================================================
+   DARK MODE — Override all tokens
+   ============================================================ */
+body.dark-mode {
+    /* ── Page & Surface ── */
+    --bg-page: #12141a;
+    --bg-card: #1a1d24;
+    --bg-sidebar: #1a1d24;
+    --bg-header: linear-gradient(135deg, #2563eb 0%, #1e3a5f 100%);
+    --bg-input: #22262e;
+    --bg-input-readonly: #1e2128;
+    --bg-hover: rgba(96, 165, 250, 0.06);
+    --bg-active: rgba(96, 165, 250, 0.1);
+    --bg-overlay: rgba(0, 0, 0, 0.7);
+    --bg-tooltip: #e4e6ea;
+
+    /* ── Text ── */
+    --text-primary: #e4e6ea;
+    --text-secondary: #9ca3af;
+    --text-muted: #6b7280;
+    --text-inverse: #1e293b;
+    --text-link: #60a5fa;
+    --text-link-hover: #93c5fd;
+
+    /* ── Borders ── */
+    --border-default: #2d323b;
+    --border-light: #22262e;
+    --border-focus: #60a5fa;
+    --border-input: #374151;
+
+    /* ── Shadows ── */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.5);
+    --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.3);
+
+    /* ── Primary (Brand) ── */
+    --color-primary: #60a5fa;
+    --color-primary-dark: #93c5fd;
+    --color-primary-light: #3b82f6;
+    --color-primary-bg: rgba(96, 165, 250, 0.1);
+    --color-primary-bg-hover: rgba(96, 165, 250, 0.15);
+
+    /* ── Status: Success ── */
+    --color-success: #34d399;
+    --color-success-light: #6ee7b7;
+    --color-success-dark: #10b981;
+    --color-success-bg: rgba(52, 211, 153, 0.12);
+    --color-success-text: #34d399;
+
+    /* ── Status: Warning ── */
+    --color-warning: #fbbf24;
+    --color-warning-light: #fcd34d;
+    --color-warning-dark: #f59e0b;
+    --color-warning-bg: rgba(251, 191, 36, 0.12);
+    --color-warning-text: #fbbf24;
+    --color-warning-badge-bg: rgba(251, 191, 36, 0.15);
+    --color-warning-badge-text: #fcd34d;
+
+    /* ── Status: Danger ── */
+    --color-danger: #f87171;
+    --color-danger-light: #fca5a5;
+    --color-danger-dark: #ef4444;
+    --color-danger-bg: rgba(248, 113, 113, 0.12);
+    --color-danger-text: #f87171;
+
+    /* ── Status: Info ── */
+    --color-info: #38bdf8;
+    --color-info-light: #7dd3fc;
+    --color-info-dark: #0ea5e9;
+    --color-info-bg: rgba(56, 189, 248, 0.12);
+    --color-info-text: #38bdf8;
+
+    /* ── Status: Purple ── */
+    --color-purple: #a78bfa;
+    --color-purple-light: #c4b5fd;
+    --color-purple-bg: rgba(167, 139, 250, 0.12);
+    --color-purple-text: #a78bfa;
+
+    /* ── CIMM Orange ── */
+    --color-cimm: #fb923c;
+    --color-cimm-dark: #f97316;
+    --color-cimm-bg: rgba(251, 146, 60, 0.12);
+    --color-cimm-text: #fdba74;
+
+    /* ── Semantic: Status Badges ── */
+    --badge-pending-bg: rgba(251, 146, 60, 0.15);
+    --badge-pending-text: #fdba74;
+    --badge-approved-bg: rgba(52, 211, 153, 0.15);
+    --badge-approved-text: #6ee7b7;
+    --badge-completed-bg: rgba(52, 211, 153, 0.15);
+    --badge-completed-text: #6ee7b7;
+    --badge-cancelled-bg: rgba(248, 113, 113, 0.12);
+    --badge-cancelled-text: #fca5a5;
+    --badge-rejected-bg: rgba(248, 113, 113, 0.15);
+    --badge-rejected-text: #fca5a5;
+    --badge-resolved-bg: rgba(52, 211, 153, 0.12);
+    --badge-resolved-text: #34d399;
+    --badge-in-progress-bg: rgba(96, 165, 250, 0.15);
+    --badge-in-progress-text: #93c5fd;
+
+    /* ── Semantic: Priority ── */
+    --priority-high-bg: rgba(248, 113, 113, 0.12);
+    --priority-high-text: #f87171;
+    --priority-medium-bg: rgba(251, 191, 36, 0.12);
+    --priority-medium-text: #fbbf24;
+    --priority-low-bg: rgba(52, 211, 153, 0.12);
+    --priority-low-text: #34d399;
+
+    /* ── Misc ── */
+    --scrollbar-track: transparent;
+    --scrollbar-thumb: #374151;
+    --scrollbar-thumb-hover: #4b5563;
+}

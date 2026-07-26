@@ -1000,7 +1000,7 @@ body.dark-mode .completed-projects-title,
 body.dark-mode .completed-project-card-title,
 body.dark-mode .completed-project-cost,
 body.dark-mode .modal-section-title {
-    color: #e4e6ea;
+    color: var(--text-primary);
 }
 
 body.dark-mode .header-title p,
@@ -1016,17 +1016,17 @@ body.dark-mode .completed-project-card-meta,
 body.dark-mode .completed-project-by,
 body.dark-mode .contact-info,
 body.dark-mode .modal-card-desc {
-    color: #9ca3af;
+    color: var(--text-secondary);
 }
 
 body.dark-mode .stat-number,
 body.dark-mode .info-stat-number,
 body.dark-mode .modal-card-value {
-    color: #93c5fd;
+    color: var(--color-primary-light);
 }
 
 body.dark-mode .publications-feed-section .publication-feed-card {
-    background: #22262e;
+    background: var(--bg-card);
     border-color: rgba(255, 255, 255, 0.08);
 }
 
@@ -1035,20 +1035,20 @@ body.dark-mode .publications-feed-section .publication-feed-card__placeholder {
 }
 
 body.dark-mode .publications-feed-section .publication-feed-card__meta i {
-    color: #93c5fd;
+    color: var(--color-primary-light);
 }
 
 body.dark-mode .publications-feed-section .publication-feed-card__desc {
-    color: #d1d5db;
+    color: var(--text-secondary);
 }
 
 body.dark-mode .publications-feed-section .publication-feed-card__footer {
-    color: #9ca3af;
+    color: var(--text-secondary);
     border-top-color: rgba(255, 255, 255, 0.08);
 }
 
 body.dark-mode .publications-feed-section .publication-feed-card__by {
-    color: #9ca3af;
+    color: var(--text-secondary);
 }
 
 body.dark-mode .publication-card {
@@ -1063,11 +1063,11 @@ body.dark-mode .publication-card:hover {
 body.dark-mode .publication-title,
 body.dark-mode .contact-title,
 body.dark-mode .modal-card-title {
-    color: #d1d5db;
+    color: var(--text-secondary);
 }
 
 body.dark-mode .completed-project-card {
-    background: #22262e;
+    background: var(--bg-card);
     border-color: rgba(147, 197, 253, 0.12);
 }
 
@@ -1076,11 +1076,11 @@ body.dark-mode .completed-project-card:hover {
 }
 
 body.dark-mode .completed-project-card-desc {
-    color: #d1d5db;
+    color: var(--text-secondary);
 }
 
 body.dark-mode .completed-project-card-footer {
-    color: #9ca3af;
+    color: var(--text-secondary);
     border-top-color: rgba(147, 197, 253, 0.08);
 }
 
@@ -1094,11 +1094,11 @@ body.dark-mode .contact-card:hover {
 }
 
 body.dark-mode .contact-icon {
-    color: #93c5fd;
+    color: var(--color-primary-light);
 }
 
 body.dark-mode .modal-content {
-    background: #22262e;
+    background: var(--bg-card);
     border-color: rgba(255, 255, 255, 0.1);
 }
 
@@ -1112,28 +1112,28 @@ body.dark-mode .modal-card:hover {
 }
 
 body.dark-mode .progress-bar {
-    background: #2d323b;
+    background: var(--border-default);
 }
 
 body.dark-mode .chart-container {
-    background: #22262e;
-    border-color: #2d323b;
+    background: var(--bg-card);
+    border-color: var(--border-default);
 }
 
 body.dark-mode .modal-table {
-    background: #22262e;
+    background: var(--bg-card);
 }
 
 body.dark-mode .modal-table th {
-    background: #1a1d23;
-    color: #d1d5db;
-    border-bottom-color: #2d323b;
+    background: var(--bg-page);
+    color: var(--text-secondary);
+    border-bottom-color: var(--border-default);
 }
 
 body.dark-mode .modal-table td {
-    border-bottom-color: #2d323b;
+    border-bottom-color: var(--border-default);
 }
 
 body.dark-mode .modal-table tr:hover {
-    background: #1e2229;
+    background: var(--bg-input-readonly);
 }

@@ -42,7 +42,7 @@ if (!$user_info) {
 
 // Check database connection and required tables
 if (!$conn) {
-    echo '<div style="background: #f8d7da; color: white; padding: 20px; text-align: center; border-radius: 8px; margin: 20px;">
+    echo '<div class="t-alert-error t-text-white" style="padding: 20px; text-align: center; border-radius: 8px; margin: 20px;">
         <h3>⚠️ Database Connection Required</h3>
         <p>Please ensure the database is properly configured and the following tables exist:</p>
         <ul style="text-align: left; margin: 20px 0;">
@@ -79,7 +79,7 @@ if ($result && $result->num_rows > 0) {
 
 // Show warning if estimation columns don't exist
 if (!$estimation_column_exists || !$maintenance_estimation_exists) {
-    echo '<div style="background: #fff3cd; color: #856404; padding: 15px; text-align: center; border-radius: 8px; margin: 20px;">
+    echo '<div class="t-alert-warning" style="padding: 15px; text-align: center; border-radius: 8px; margin: 20px;">
         <h3>⚠️ Database Update Required</h3>
         <p>The <strong>estimation</strong> column is missing from one or both database tables.</p>
         <p><strong>Current Status:</strong></p>
@@ -911,6 +911,8 @@ if ($include_cimm) {
     <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../../css/theme-tokens.css">
+    <link rel="stylesheet" href="../../css/theme-utilities.css">
     <link rel="stylesheet" href="../../css/sidebar.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <link rel="stylesheet" href="../../css/progress-updates.css">
@@ -2449,7 +2451,7 @@ if ($include_cimm) {
                                     <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-trash"></i>
                                     </button>
-                                    <button class="rm-action-btn" style="background:rgba(16,185,129,0.1);color:#10b981;" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-clock"></i>
                                     </button>
                                 </div>
@@ -2474,7 +2476,7 @@ if ($include_cimm) {
                             <td>
                                 <?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?>
                                 <?php if (($report['status'] ?? '') === 'approved' && !empty($report['approved_at'])): ?>
-                                    <br><small style="color:#059669;font-weight:600;">Approved: <?php echo date('M d, Y', strtotime($report['approved_at'])); ?></small>
+                                    <br><small class="t-text-success" style="font-weight:600;">Approved: <?php echo date('M d, Y', strtotime($report['approved_at'])); ?></small>
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -2488,7 +2490,7 @@ if ($include_cimm) {
                             <td colspan="9">
                                 <div class="rm-empty-state">
                                     <div class="rm-empty-icon" style="background: rgba(55, 98, 200, 0.12);">
-                                        <i class="fas fa-clipboard-list" style="color: #3762c8;"></i>
+                                        <i class="fas fa-clipboard-list t-text-link"></i>
                                     </div>
                                     <h4>No LGU Monitoring Reports</h4>
                                     <p>No LGU-created monitoring reports found.</p>
@@ -2562,7 +2564,7 @@ if ($include_cimm) {
                                     <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-trash"></i>
                                     </button>
-                                    <button class="rm-action-btn" style="background:rgba(16,185,129,0.1);color:#10b981;" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-clock"></i>
                                     </button>
                                 </div>
@@ -2587,7 +2589,7 @@ if ($include_cimm) {
                             <td>
                                 <?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?>
                                 <?php if (($report['status'] ?? '') === 'approved' && !empty($report['approved_at'])): ?>
-                                    <br><small style="color:#059669;font-weight:600;">Approved: <?php echo date('M d, Y', strtotime($report['approved_at'])); ?></small>
+                                    <br><small class="t-text-success" style="font-weight:600;">Approved: <?php echo date('M d, Y', strtotime($report['approved_at'])); ?></small>
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -2676,7 +2678,7 @@ if ($include_cimm) {
                                     <button class="rm-delete-btn" onclick="deleteCimmReport(<?php echo $cimmIdx; ?>)">
                                         <i class="fas fa-trash"></i>
                                     </button>
-                                    <button class="rm-action-btn" style="background:rgba(16,185,129,0.1);color:#10b981;" onclick="viewReportUpdates(<?php echo (int)$row['id']; ?>, '<?php echo htmlspecialchars($row['report_type'], ENT_QUOTES); ?>')">
+                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$row['id']; ?>, '<?php echo htmlspecialchars($row['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-clock"></i>
                                     </button>
                                 </div>
@@ -2701,7 +2703,7 @@ if ($include_cimm) {
                             <td colspan="9">
                                 <div class="rm-empty-state">
                                     <div class="rm-empty-icon" style="background: rgba(249, 115, 22, 0.12);">
-                                        <i class="fas fa-building" style="color: #f97316;"></i>
+                                        <i class="fas fa-building t-text-cimm"></i>
                                     </div>
                                     <h4>No CIMM Reports</h4>
                                     <p>No reports from the CIMM system found.</p>
@@ -2775,7 +2777,7 @@ if ($include_cimm) {
                                     <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-trash"></i>
                                     </button>
-                                    <button class="rm-action-btn" style="background:rgba(16,185,129,0.1);color:#10b981;" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-clock"></i>
                                     </button>
                                 </div>
@@ -2800,7 +2802,7 @@ if ($include_cimm) {
                             <td>
                                 <?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?>
                                 <?php if (($report['status'] ?? '') === 'approved' && !empty($report['approved_at'])): ?>
-                                    <br><small style="color:#059669;font-weight:600;">Approved: <?php echo date('M d, Y', strtotime($report['approved_at'])); ?></small>
+                                    <br><small class="t-text-success" style="font-weight:600;">Approved: <?php echo date('M d, Y', strtotime($report['approved_at'])); ?></small>
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -2814,7 +2816,7 @@ if ($include_cimm) {
                             <td colspan="9">
                                 <div class="rm-empty-state">
                                     <div class="rm-empty-icon" style="background: rgba(249, 115, 22, 0.12);">
-                                        <i class="fas fa-hard-hat" style="color: #f97316;"></i>
+                                        <i class="fas fa-hard-hat t-text-cimm"></i>
                                     </div>
                                     <h4>No Infrastructure Projects</h4>
                                     <p>No infrastructure projects found.</p>
@@ -2840,7 +2842,7 @@ if ($include_cimm) {
                 <div class="form-section">
                     <h6>External System Reports</h6>
                     <div id="externalReportsList">
-                        <div style="text-align: center; padding: 20px; color: #666;">
+                        <div class="t-text-secondary" style="text-align: center; padding: 20px;">
                             <i class="fas fa-download" style="font-size: 48px; margin-bottom: 15px; opacity: 0.5;"></i>
                             <p>Loading reports from external systems...</p>
                         </div>
@@ -2850,7 +2852,7 @@ if ($include_cimm) {
                 <div class="form-section">
                     <h6>Department Reports</h6>
                     <div id="departmentReportsList">
-                        <div style="text-align: center; padding: 20px; color: #666;">
+                        <div class="t-text-secondary" style="text-align: center; padding: 20px;">
                             <i class="fas fa-building" style="font-size: 48px; margin-bottom: 15px; opacity: 0.5;"></i>
                             <p>Loading reports from other departments...</p>
                         </div>
@@ -2927,11 +2929,11 @@ if ($include_cimm) {
                         <div id="existingPhotos" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;"></div>
                         <div class="form-group" style="margin-bottom: 0;">
                             <label for="editPhotos" class="form-label">Add New Photos</label>
-                            <button type="button" id="add-edit-photos-btn" style="padding:8px 16px;background:#3762c8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;"><i class="fas fa-camera"></i> Add Photos</button>
+                            <button type="button" id="add-edit-photos-btn" class="t-gradient-primary" style="padding:8px 16px;border:none;border-radius:6px;cursor:pointer;font-size:13px;"><i class="fas fa-camera"></i> Add Photos</button>
                             <input type="file" name="report_photos[]" id="editPhotos" 
                                    accept="image/jpeg,image/png,image/gif,image/webp" multiple
                                    style="display:none;">
-                            <small style="color: #666; font-size: 12px;">Accepted: JPG, PNG, GIF, WebP | Max: 5MB each</small>
+                            <small class="t-text-secondary" style="font-size: 12px;">Accepted: JPG, PNG, GIF, WebP | Max: 5MB each</small>
                             <div id="photoPreview" style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;"></div>
                         </div>
                     </div>
@@ -2942,7 +2944,7 @@ if ($include_cimm) {
                             <label for="editNotes" class="form-label">Update Notes / Resolution Details</label>
                             <textarea class="form-control" name="notes" id="editNotes" rows="4" 
                                       placeholder="Describe the current status, actions taken, or resolution details..."></textarea>
-                            <small style="color: #666; font-size: 12px;">
+                            <small class="t-text-secondary" style="font-size: 12px;">
                                 <i class="fas fa-info-circle"></i> These notes will be visible to other staff members
                             </small>
                         </div>
@@ -2950,7 +2952,7 @@ if ($include_cimm) {
                 </div>
                 <div class="modal-footer" style="justify-content: space-between;">
                     <div>
-                        <span id="updateStatusIndicator" style="font-size: 12px; color: #666;"></span>
+                        <span id="updateStatusIndicator" class="t-text-secondary" style="font-size: 12px;"></span>
                     </div>
                     <div style="display: flex; gap: 10px;">
                         <button type="button" class="btn-secondary-custom" onclick="closeModal('editReportModal')">Cancel</button>
@@ -2966,9 +2968,9 @@ if ($include_cimm) {
     <!-- CIMM Edit Report Modal -->
     <div id="editCimmModal" class="modal">
         <div class="modal-content" style="max-width: 650px;">
-            <div class="modal-header" style="background: linear-gradient(135deg, #f97316, #ea580c); color: white;">
+            <div class="modal-header t-cimm-header">
                 <h5 class="modal-title"><i class="fas fa-edit"></i> Edit CIMM Report</h5>
-                <button class="close" onclick="closeModal('editCimmModal')" style="color: white;">&times;</button>
+                <button class="close t-text-white" onclick="closeModal('editCimmModal')">&times;</button>
             </div>
             <form method="POST" id="editCimmForm">
                 <div class="modal-body">
@@ -2980,15 +2982,15 @@ if ($include_cimm) {
                         <h6><i class="fas fa-info-circle"></i> CIMM Report Details</h6>
                         <div class="form-group">
                             <label class="form-label">Report #</label>
-                            <input type="text" class="form-control" id="editCimmRepNumber" readonly style="background: #f3f4f6;">
+                            <input type="text" class="form-control t-bg-input-readonly" id="editCimmRepNumber" readonly>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Infrastructure</label>
-                            <input type="text" class="form-control" id="editCimmInfrastructure" readonly style="background: #f3f4f6;">
+                            <input type="text" class="form-control t-bg-input-readonly" id="editCimmInfrastructure" readonly>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Location</label>
-                            <input type="text" class="form-control" id="editCimmLocation" readonly style="background: #f3f4f6;">
+                            <input type="text" class="form-control t-bg-input-readonly" id="editCimmLocation" readonly>
                         </div>
                     </div>
 
@@ -3034,7 +3036,7 @@ if ($include_cimm) {
                     </div>
                 </div>
                 <div class="modal-footer" style="justify-content: space-between;">
-                    <span id="cimmEditIndicator" style="font-size: 12px; color: #666;"></span>
+                    <span id="cimmEditIndicator" class="t-text-secondary" style="font-size: 12px;"></span>
                     <div style="display: flex; gap: 10px;">
                         <button type="button" class="btn-secondary-custom" onclick="closeModal('editCimmModal')">Cancel</button>
                         <button type="submit" class="btn-primary-custom" id="cimmEditSubmitBtn">
@@ -3071,11 +3073,11 @@ if ($include_cimm) {
             </div>
             <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
                 <div class="timeline-container" id="updatesTimeline">
-                    <div class="timeline-empty"><i class="fas fa-spinner fa-spin fa-2x" style="color:#3762c8;"></i></div>
+                    <div class="timeline-empty"><i class="fas fa-spinner fa-spin fa-2x t-text-link"></i></div>
                 </div>
             </div>
             <div class="modal-footer" style="justify-content: space-between;">
-                <span id="updateReportInfo" style="font-size: 13px; color: #6b7280;"></span>
+                <span id="updateReportInfo" class="t-text-secondary" style="font-size: 13px;"></span>
                 <div>
                     <button type="button" class="btn-action" id="addUpdateBtn" onclick="showUpdateForm(currentUpdatesReportId, currentUpdatesReportType)">+ Add Update</button>
                     <button type="button" class="btn-secondary-custom" onclick="closeModal('updatesModal')">Close</button>
@@ -4075,11 +4077,11 @@ if ($include_cimm) {
             <i class="fas fa-clock"></i>
         </div>
         <h3 style="margin:0 0 8px; font-size:20px; color:#1a1a2e;">Session Expiring</h3>
-        <p style="margin:0 0 20px; color:#666; font-size:14px;">
+        <p class="t-text-secondary" style="margin:0 0 20px; font-size:14px;">
             Your session will expire in <strong><span id="sessionCountdown">60</span></strong> seconds due to inactivity.
         </p>
         <div style="display:flex; gap:12px; justify-content:center;">
-            <button id="extendSessionBtn" style="padding:10px 24px; background:#3762c8; color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Extend Session</button>
+            <button id="extendSessionBtn" class="t-gradient-primary" style="padding:10px 24px; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Extend Session</button>
             <button id="logoutSessionBtn" style="padding:10px 24px; background:#e74c3c; color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Log Out</button>
         </div>
     </div>

@@ -348,6 +348,8 @@ try {
     <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../../css/theme-tokens.css">
+    <link rel="stylesheet" href="../../css/theme-utilities.css">
     <link rel="stylesheet" href="../../css/sidebar.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <style>
@@ -981,7 +983,7 @@ try {
                                         <label>Upload ID</label>
                                         <input type="file" name="id_file" accept="image/*,.pdf" class="form-control" style="padding:8px;">
                                         <?php if (!empty($user_data['id_file_path'])): ?>
-                                            <div style="font-size:12px;color:#3762c8;margin-top:4px;">
+                                            <div class="t-text-link" style="font-size:12px;margin-top:4px;">
                                                 <i class="fas fa-paperclip"></i> <?php echo htmlspecialchars(basename($user_data['id_file_path'])); ?>
                                             </div>
                                         <?php endif; ?>
