@@ -293,7 +293,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $severity = sanitize_input($_POST['severity'] ?? '');
                 $description = sanitize_input($_POST['description'] ?? '');
                 $district = sanitize_input($_POST['district'] ?? '');
-                $barangay = sanitize_input($_POST['barangay'] ?? '');
 
                 // Combine issue type and specific type for detailed reporting
                 $full_issue_type = $specific_type ? $specific_type : $issue_type;
@@ -401,16 +400,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $image_path = !empty($attachments) ? $attachments[0]['file_path'] : null;
                 
                 $stmt = $conn->prepare("INSERT INTO road_transportation_reports 
-                    (report_id, report_type, report_category, report_source, title, department, priority, status, created_date, description, location, district, barangay, latitude, longitude, severity, attachments, image_path, created_by) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', CURDATE(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    (report_id, report_type, report_category, report_source, title, department, priority, status, created_date, description, location, district, latitude, longitude, severity, attachments, image_path, created_by) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', CURDATE(), ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 
                 if (!$stmt) {
                     echo json_encode(['success' => false, 'message' => 'Database prepare failed: ' . $conn->error]);
                     exit;
                 }
                 
-                // Parameters: report_id, report_type, report_category, report_source, title, department, priority, description, location, district, barangay, lat, lng, severity, attachments, image_path, user_id
-                $stmt->bind_param("ssssssssssssddssis", $report_id, $report_type, $report_category, $report_source, $title, $department, $priority, $description, $location_str, $district, $barangay, $lat, $lng, $severity_db, $attachments_json, $image_path, $user_id);
+                // Parameters: report_id, report_type, report_category, report_source, title, department, priority, description, location, district, lat, lng, severity, attachments, image_path, user_id
+                $stmt->bind_param("ssssssssssddssis", $report_id, $report_type, $report_category, $report_source, $title, $department, $priority, $description, $location_str, $district, $lat, $lng, $severity_db, $attachments_json, $image_path, $user_id);
                 
                 if ($stmt->execute()) {
                     ob_end_clean(); // Clear any output before JSON
@@ -419,7 +418,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     ob_end_clean();
                     $error_details = $stmt->error;
                     error_log("Statement execution failed: " . $error_details);
-                    error_log("Bound parameters: report_id=$report_id, report_type=$report_type, title=$title, department=$department, priority=$priority, description=$description, location=$location_str, district=$district, barangay=$barangay, lat=$lat, lng=$lng, severity=$severity_db, attachments=$attachments_json, image_path=$image_path, user_id=$user_id");
+                    error_log("Bound parameters: report_id=$report_id, report_type=$report_type, title=$title, department=$department, priority=$priority, description=$description, location=$location_str, district=$district, lat=$lat, lng=$lng, severity=$severity_db, attachments=$attachments_json, image_path=$image_path, user_id=$user_id");
                     echo json_encode(['success' => false, 'message' => 'Failed to save report: ' . $error_details]);
                 }
             } catch (Exception $e) {
@@ -651,24 +650,6 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             display: flex;
             gap: 10px;
         }
-
-        .detect-loading {
-            position: relative;
-        }
-        .detect-loading::after {
-            content: '';
-            position: absolute;
-            right: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 14px;
-            height: 14px;
-            border: 2px solid rgba(55,98,200,0.2);
-            border-top-color: #3762c8;
-            border-radius: 50%;
-            animation: detectSpin .6s linear infinite;
-        }
-        @keyframes detectSpin { to { transform: translateY(-50%) rotate(360deg); } }
 
         .sidebar-section {
             display: flex;
@@ -1358,7 +1339,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                             <option value="high">High</option>
                             <option value="severe">Severe</option>
                         </select>
-                        <label>District <small style="color:#6b7280;" id="district-detect-label">(auto-detected)</small></label>
+                        <label>District <small style="color:#6b7280;">(auto-detected)</small></label>
                         <select id="district" name="district">
                             <option value="">— Select District —</option>
                             <option value="District 1">District 1</option>
@@ -1368,8 +1349,6 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                             <option value="District 5">District 5</option>
                             <option value="District 6">District 6</option>
                         </select>
-                        <label>Barangay <small style="color:#6b7280;" id="barangay-detect-label">(auto-detected)</small></label>
-                        <input type="text" id="barangay" name="barangay" placeholder="Auto-detected from location..." readonly style="background:#f9fafb;position:relative;">
                         <label>Description</label>
                         <textarea id="description" name="description" rows="3" required placeholder="Describe the issue..."></textarea>
                         <label>Upload Photos (Optional)</label>
@@ -1823,330 +1802,55 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             }
         }
 
-        // ============================================================
-        // Quezon City District & Barangay Auto-Detection
-        // Uses official 142 QC barangays mapped to Legislative Districts 1-6
-        // Coordinate fallback uses TomTom/Leaflet-compliant polygons
-        // ============================================================
-
-        const QC_BARANGAY_DISTRICT = {
-            'Alicia':'District 1','Bagong Pag-asa':'District 1','Bahay Toro':'District 1',
-            'Balingasa':'District 1','Bungad':'District 1','Damar':'District 1',
-            'Damayan':'District 1','Del Monte':'District 1','Katipunan':'District 1',
-            'Lourdes':'District 1','Maharlika':'District 1','Manresa':'District 1',
-            'Mariblo':'District 1','Masambong':'District 1','N.S. Amoranto':'District 1',
-            'Nayong Kanluran':'District 1','Paang Bundok':'District 1',
-            'Pag-ibig sa Nayon':'District 1','Paltok':'District 1','Paraiso':'District 1',
-            'Phil-Am':'District 1','Project 6':'District 1','Ramon Magsaysay':'District 1',
-            'Saint Peter':'District 1','Salvacion':'District 1','San Antonio':'District 1',
-            'San Isidro Labrador':'District 1','San Jose':'District 1','Santa Cruz':'District 1',
-            'Santa Teresita':'District 1','Santo Cristo':'District 1',
-            'Santo Domingo':'District 1','Siena':'District 1','Talayan':'District 1',
-            'Vasra':'District 1','Veterans Village':'District 1','West Triangle':'District 1',
-            'Gintong Silahis':'District 1',
-            'Bagong Silangan':'District 2','Batasan Hills':'District 2',
-            'Commonwealth':'District 2','Holy Spirit':'District 2','Payatas':'District 2',
-            'Amihan':'District 3','Bagumbayan':'District 3','Bagumbuhay':'District 3',
-            'Bayanihan':'District 3','Blue Ridge A':'District 3','Blue Ridge B':'District 3',
-            'Camp Aguinaldo':'District 3','Claro':'District 3','Dioquino Zobel':'District 3',
-            'Duyan-duyan':'District 3','E. Rodriguez':'District 3','East Kamias':'District 3',
-            'Escopa I':'District 3','Escopa II':'District 3','Escopa III':'District 3',
-            'Escopa IV':'District 3','Libis':'District 3','Loyola Heights':'District 3',
-            'Mangga':'District 3','Marilag':'District 3','Masagana':'District 3',
-            'Matandang Balara':'District 3','Milagrosa':'District 3','Pansol':'District 3',
-            'Quirino 2-A':'District 3','Quirino 2-B':'District 3','Quirino 2-C':'District 3',
-            'Quirino 3-A':'District 3','Saint Ignatius':'District 3','San Roque':'District 3',
-            'Silangan':'District 3','Socorro':'District 3','Tagumpay':'District 3',
-            'Ugong Norte':'District 3','Villa Maria Clara':'District 3',
-            'West Kamias':'District 3','White Plains':'District 3',
-            'Bagong Lipunan ng Crame':'District 4','Botocan':'District 4',
-            'Central':'District 4','Damayang Lagi':'District 4','Don Manuel':'District 4',
-            'Doña Aurora':'District 4','Doña Imelda':'District 4','Doña Josefa':'District 4',
-            'Horseshoe':'District 4','Immaculate Concepcion':'District 4',
-            'Kalusugan':'District 4','Kamuning':'District 4','Kaunlaran':'District 4',
-            'Kristong Hari':'District 4','Krus na Ligas':'District 4',
-            'Laging Handa':'District 4','Malaya':'District 4','Mariana':'District 4',
-            'Obrero':'District 4','Old Capitol Site':'District 4','Paligsahan':'District 4',
-            'Pinagkaisahan':'District 4','Pinyahan':'District 4','Roxas':'District 4',
-            'Sacred Heart':'District 4','San Isidro Galas':'District 4',
-            'San Martin de Porres':'District 4','San Vicente':'District 4',
-            'Santo Niño':'District 4','Santol':'District 4','Sikatuna Village':'District 4',
-            'South Triangle':'District 4','Tatalon':'District 4',
-            'Teacher\'s Village East':'District 4','Teacher\'s Village West':'District 4',
-            'U.P. Campus':'District 4','U.P. Village':'District 4','Valencia':'District 4',
-            'Bagbag':'District 5','Capri':'District 5','Fairview':'District 5',
-            'Greater Lagro':'District 5','Gulod':'District 5','Kaligayahan':'District 5',
-            'Nagkaisang Nayon':'District 5','North Fairview':'District 5',
-            'Novaliches Proper':'District 5','Pasong Putik Proper':'District 5',
-            'San Agustin':'District 5','San Bartolome':'District 5',
-            'Sta. Lucia':'District 5','Sta. Monica':'District 5',
-            'Apolonio Samson':'District 6','Baesa':'District 6','Balon-Bato':'District 6',
-            'Culiat':'District 6','New Era':'District 6','Pasong Tamo':'District 6',
-            'Sangandaan':'District 6','Sauyo':'District 6','Talipapa':'District 6',
-            'Tandang Sora':'District 6','Unang Sigaw':'District 6'
-        };
-
-        const QC_BARANGAY_KEYS = Object.keys(QC_BARANGAY_DISTRICT);
-        const QC_BARANGAY_NORMALIZED = {};
-        QC_BARANGAY_KEYS.forEach(function(k) {
-            QC_BARANGAY_NORMALIZED[normalizeBarangay(k)] = k;
-        });
-
-        function normalizeBarangay(name) {
-            if (!name) return '';
-            return name.toLowerCase()
-                .replace(/['']/g, "'")
-                .replace(/santo\s+ni[ñn]o/g, 'santo nino')
-                .replace(/\bst\.\s*/g, 'san ')
-                .replace(/\bsaint\s*/g, 'san ')
-                .replace(/\bsta\.\s*/g, 'santa ')
-                .replace(/\bsanta\s+/g, 'santa ')
-                .replace(/\bsan\s+/g, 'san ')
-                .replace(/[^a-z0-9\s]/g, '')
-                .replace(/\s+/g, ' ')
-                .trim();
-        }
-
-        function matchBarangayFromAddress(addr) {
-            if (!addr) return { barangay: '', district: '' };
-
-            var fields = [
-                addr.municipality,
-                addr.countrySubdivision,
-                addr.localName,
-                addr.neighbourhood,
-                addr.freeformAddress,
-                addr.street,
-                addr.streetNumber && addr.street ? addr.streetNumber + ' ' + addr.street : null
-            ].filter(Boolean);
-
-            function tryMatch(text) {
-                var n = normalizeBarangay(text);
-                if (!n) return null;
-                for (var i = 0; i < QC_BARANGAY_KEYS.length; i++) {
-                    var brgy = QC_BARANGAY_KEYS[i];
-                    var bn = normalizeBarangay(brgy);
-                    if (n === bn) return { barangay: brgy, district: QC_BARANGAY_DISTRICT[brgy] };
-                }
-                for (var i = 0; i < QC_BARANGAY_KEYS.length; i++) {
-                    var brgy = QC_BARANGAY_KEYS[i];
-                    var bn = normalizeBarangay(brgy);
-                    if (bn.length >= 5 && (n.indexOf(bn) !== -1 || bn.indexOf(n) !== -1)) {
-                        return { barangay: brgy, district: QC_BARANGAY_DISTRICT[brgy] };
+        // Quezon City district auto-detection based on coordinates
+        // Uses simplified polygon boundaries for each legislative district
+        function detectQCDistrict(lat, lng) {
+            // Point-in-polygon test
+            function pointInPoly(lat, lng, poly) {
+                let inside = false;
+                for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+                    const yi = poly[i][0], xi = poly[i][1];
+                    const yj = poly[j][0], xj = poly[j][1];
+                    if (((yi > lng) !== (yj > lng)) && (lat < (xj - xi) * (lng - yi) / (yj - yi) + xi)) {
+                        inside = !inside;
                     }
                 }
-                return null;
+                return inside;
             }
 
-            for (var fi = 0; fi < fields.length; fi++) {
-                var result = tryMatch(fields[fi]);
-                if (result) return result;
-            }
-
-            var combined = normalizeBarangay(fields.join(' '));
-            for (var i = 0; i < QC_BARANGAY_KEYS.length; i++) {
-                var brgy = QC_BARANGAY_KEYS[i];
-                var bn = normalizeBarangay(brgy);
-                if (combined.indexOf(bn) !== -1) return { barangay: brgy, district: QC_BARANGAY_DISTRICT[brgy] };
-            }
-
-            var bestMatch = null;
-            var bestLen = 0;
-            for (var i = 0; i < QC_BARANGAY_KEYS.length; i++) {
-                var brgy = QC_BARANGAY_KEYS[i];
-                var bn = normalizeBarangay(brgy);
-                if (bn.length >= 4) {
-                    var words = bn.split(' ');
-                    for (var w = 0; w < words.length; w++) {
-                        if (words[w].length >= 4 && combined.indexOf(words[w]) !== -1) {
-                            if (words[w].length > bestLen) {
-                                bestLen = words[w].length;
-                                bestMatch = { barangay: brgy, district: QC_BARANGAY_DISTRICT[brgy] };
-                            }
-                        }
-                    }
-                }
-            }
-            if (bestMatch) return bestMatch;
-
-            return { barangay: '', district: '' };
-        }
-
-        function pointInPoly(lat, lng, poly) {
-            var inside = false;
-            for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-                var yi = poly[i][0], xi = poly[i][1];
-                var yj = poly[j][0], xj = poly[j][1];
-                if (((yi > lng) !== (yj > lng)) && (lat < (xj - xi) * (lng - yi) / (yj - yi) + xi)) {
-                    inside = !inside;
-                }
-            }
-            return inside;
-        }
-
-        function detectQCDistrictByCoords(lat, lng) {
-            var districts = {
+            // QC Legislative District boundaries (simplified polygons)
+            const districts = {
                 'District 1': [
-                    [14.773, 120.982], [14.773, 121.040], [14.745, 121.042],
-                    [14.720, 121.038], [14.700, 121.035], [14.685, 121.048],
-                    [14.680, 121.050], [14.675, 121.048], [14.670, 121.044],
-                    [14.660, 121.040], [14.655, 121.035], [14.650, 121.030],
-                    [14.645, 121.022], [14.640, 121.012], [14.638, 121.000],
-                    [14.636, 120.992], [14.635, 120.985], [14.630, 120.982]
+                    [14.6120, 120.9840], [14.6120, 120.9960], [14.6280, 120.9960],
+                    [14.6280, 121.0100], [14.6400, 121.0100], [14.6400, 120.9840]
                 ],
                 'District 2': [
-                    [14.773, 121.040], [14.773, 121.146], [14.755, 121.140],
-                    [14.735, 121.130], [14.718, 121.110], [14.705, 121.095],
-                    [14.695, 121.082], [14.688, 121.070], [14.685, 121.058],
-                    [14.685, 121.048], [14.700, 121.035], [14.720, 121.038],
-                    [14.745, 121.042]
+                    [14.6400, 120.9840], [14.6400, 121.0100], [14.6600, 121.0100],
+                    [14.6600, 121.0300], [14.6800, 121.0300], [14.6800, 120.9840]
                 ],
                 'District 3': [
-                    [14.685, 121.048], [14.685, 121.058], [14.688, 121.070],
-                    [14.695, 121.082], [14.705, 121.095], [14.700, 121.105],
-                    [14.690, 121.115], [14.678, 121.118], [14.668, 121.112],
-                    [14.660, 121.100], [14.655, 121.090], [14.650, 121.080],
-                    [14.648, 121.070], [14.650, 121.060], [14.655, 121.055],
-                    [14.660, 121.050], [14.670, 121.044]
+                    [14.6400, 121.0100], [14.6400, 121.0500], [14.6600, 121.0500],
+                    [14.6600, 121.0300], [14.6800, 121.0300], [14.6800, 121.0100],
+                    [14.6600, 121.0100]
                 ],
                 'District 4': [
-                    [14.670, 121.044], [14.660, 121.050], [14.655, 121.055],
-                    [14.652, 121.060], [14.650, 121.070], [14.650, 121.080],
-                    [14.652, 121.090], [14.655, 121.100], [14.655, 121.110],
-                    [14.645, 121.115], [14.635, 121.110], [14.635, 121.095],
-                    [14.635, 121.080], [14.638, 121.065], [14.640, 121.050],
-                    [14.645, 121.040], [14.650, 121.035], [14.655, 121.032],
-                    [14.660, 121.035], [14.665, 121.038], [14.670, 121.040]
+                    [14.6400, 121.0500], [14.6400, 121.0950], [14.6800, 121.0950],
+                    [14.6800, 121.0500], [14.6600, 121.0500]
                 ],
                 'District 5': [
-                    [14.680, 121.050], [14.685, 121.048], [14.685, 121.058],
-                    [14.688, 121.070], [14.688, 121.070], [14.695, 121.065],
-                    [14.705, 121.055], [14.718, 121.048], [14.730, 121.045],
-                    [14.745, 121.042], [14.745, 121.042], [14.755, 121.040],
-                    [14.762, 121.035], [14.773, 121.030], [14.773, 121.040],
-                    [14.773, 120.982], [14.755, 120.985], [14.735, 120.990],
-                    [14.718, 120.998], [14.700, 121.005], [14.690, 121.015],
-                    [14.685, 121.025], [14.680, 121.035]
+                    [14.6120, 120.9960], [14.6120, 121.0400], [14.6280, 121.0400],
+                    [14.6280, 121.0100], [14.6400, 121.0100], [14.6400, 120.9960]
                 ],
                 'District 6': [
-                    [14.650, 121.035], [14.645, 121.040], [14.640, 121.050],
-                    [14.638, 121.065], [14.635, 121.080], [14.635, 121.095],
-                    [14.635, 121.110], [14.645, 121.115], [14.650, 121.125],
-                    [14.638, 121.118], [14.628, 121.108], [14.622, 121.095],
-                    [14.618, 121.080], [14.615, 121.065], [14.612, 121.050],
-                    [14.610, 121.035], [14.605, 121.020], [14.602, 121.010],
-                    [14.600, 121.000], [14.602, 120.990], [14.607, 120.985],
-                    [14.612, 120.982], [14.620, 120.982], [14.630, 120.982],
-                    [14.635, 120.985], [14.640, 121.000], [14.645, 121.015],
-                    [14.648, 121.025], [14.650, 121.035]
+                    [14.6120, 121.0400], [14.6120, 121.0800], [14.6280, 121.0800],
+                    [14.6280, 121.0400], [14.6400, 121.0500], [14.6400, 121.0400]
                 ]
             };
 
-            for (var name in districts) {
-                if (districts.hasOwnProperty(name) && pointInPoly(lat, lng, districts[name])) return name;
+            for (const [name, poly] of Object.entries(districts)) {
+                if (pointInPoly(lat, lng, poly)) return name;
             }
             return '';
-        }
-
-        function showDetectLoading(loading) {
-            var distSelect = document.getElementById('district');
-            var brgyInput = document.getElementById('barangay');
-            if (loading) {
-                distSelect.classList.add('detect-loading');
-                brgyInput.classList.add('detect-loading');
-                distSelect.disabled = true;
-            } else {
-                distSelect.classList.remove('detect-loading');
-                brgyInput.classList.remove('detect-loading');
-                distSelect.disabled = false;
-            }
-        }
-
-        function detectDistrictAndBarangay(lat, lng) {
-            showDetectLoading(true);
-            return new Promise(function(resolve) {
-                TomTomServices.reverseGeocodeOrbis(lat, lng).then(function(data) {
-                    var addr = data.data && data.data.results && data.data.results[0] ? data.data.results[0].address : null;
-                    var match = matchBarangayFromAddress(addr);
-                    if (match.district && match.barangay) {
-                        showDetectLoading(false);
-                        resolve({ district: match.district, barangay: match.barangay });
-                        return;
-                    }
-                    TomTomServices.reverseGeocode(lat, lng).then(function(sData) {
-                        var addrs = (sData.data && sData.data.addresses) ? sData.data.addresses : [];
-                        var brgyMatch = null;
-                        for (var r = 0; r < addrs.length; r++) {
-                            var rAddr = addrs[r].address;
-                            if (rAddr) {
-                                brgyMatch = matchBarangayFromAddress(rAddr);
-                                if (brgyMatch.barangay) break;
-                            }
-                        }
-                        if (brgyMatch && brgyMatch.barangay) {
-                            showDetectLoading(false);
-                            resolve({ district: match.district || brgyMatch.district, barangay: brgyMatch.barangay });
-                        } else if (match.district) {
-                            showDetectLoading(false);
-                            resolve({ district: match.district, barangay: '' });
-                        } else {
-                            TomTomServices.search('Quezon City barangay', { lat: lat, lon: lng, limit: 5 }).then(function(sData2) {
-                                var results2 = (sData2.data && sData2.data.results) ? sData2.data.results : [];
-                                var best2 = null;
-                                for (var r2 = 0; r2 < results2.length; r2++) {
-                                    var r2Addr = results2[r2].address;
-                                    if (r2Addr) {
-                                        var rm2 = matchBarangayFromAddress(r2Addr);
-                                        if (rm2.barangay) {
-                                            if (!best2 || rm2.barangay.length > best2.barangay.length) best2 = rm2;
-                                        }
-                                    }
-                                }
-                                showDetectLoading(false);
-                                if (best2) {
-                                    resolve({ district: best2.district, barangay: best2.barangay });
-                                } else {
-                                    resolve({ district: detectQCDistrictByCoords(lat, lng), barangay: '' });
-                                }
-                            }).catch(function() {
-                                showDetectLoading(false);
-                                resolve({ district: detectQCDistrictByCoords(lat, lng), barangay: '' });
-                            });
-                        }
-                    }).catch(function() {
-                        if (match.district) {
-                            showDetectLoading(false);
-                            resolve({ district: match.district, barangay: '' });
-                        } else {
-                            showDetectLoading(false);
-                            resolve({ district: detectQCDistrictByCoords(lat, lng), barangay: '' });
-                        }
-                    });
-                }).catch(function() {
-                    TomTomServices.reverseGeocode(lat, lng).then(function(sData) {
-                        var addrs = (sData.data && sData.data.addresses) ? sData.data.addresses : [];
-                        var best = null;
-                        for (var r = 0; r < addrs.length; r++) {
-                            var rAddr = addrs[r].address;
-                            if (rAddr) {
-                                var rm = matchBarangayFromAddress(rAddr);
-                                if (rm.barangay) {
-                                    if (!best || rm.barangay.length > best.barangay.length) best = rm;
-                                }
-                            }
-                        }
-                        showDetectLoading(false);
-                        if (best) {
-                            resolve({ district: best.district, barangay: best.barangay });
-                        } else {
-                            resolve({ district: detectQCDistrictByCoords(lat, lng), barangay: '' });
-                        }
-                    }).catch(function() {
-                        showDetectLoading(false);
-                        resolve({ district: detectQCDistrictByCoords(lat, lng), barangay: '' });
-                    });
-                });
-            });
         }
 
         // Map click: place pin, show form, and fetch address details
@@ -2209,11 +1913,8 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                         pinMarker.setPopupContent('<b>' + parts.join(', ') + '</b>');
                     }
                 });
-                // Update district and barangay on drag
-                detectDistrictAndBarangay(pos.lat, pos.lng).then(function(result) {
-                    if (result.district) document.getElementById('district').value = result.district;
-                    if (result.barangay) document.getElementById('barangay').value = result.barangay;
-                });
+                // Update district on drag
+                document.getElementById('district').value = detectQCDistrict(pos.lat, pos.lng);
             });
             pinLat.value = lat;
             pinLng.value = lng;
@@ -2222,14 +1923,8 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             pinLat.value = lat;
             pinLng.value = lng;
             document.getElementById('severity').value = 'medium';
-            document.getElementById('barangay').value = '';
+            document.getElementById('district').value = detectQCDistrict(lat, lng);
             updateSpecificTypes();
-
-            // Auto-detect district and barangay from coordinates
-            detectDistrictAndBarangay(lat, lng).then(function(result) {
-                if (result.district) document.getElementById('district').value = result.district;
-                if (result.barangay) document.getElementById('barangay').value = result.barangay;
-            });
         });
 
         document.getElementById('cancel-pin-btn').addEventListener('click', function() {

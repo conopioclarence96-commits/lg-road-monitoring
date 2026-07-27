@@ -112,9 +112,6 @@ try {
     try {
         $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS district VARCHAR(80) NULL AFTER location");
     } catch (Exception $e) {}
-    try {
-        $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS barangay VARCHAR(100) NULL AFTER district");
-    } catch (Exception $e) {}
     
     // Ensure completed_at columns exist for duration tracking
     try {
