@@ -68,6 +68,14 @@ if ($conn) {
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <style>
         body { background: #f7f5f0; min-height: 100vh; }
+        body.dark-mode { background: var(--bg-page); }
+        body.dark-mode .form-group input,
+        body.dark-mode .form-group textarea,
+        body.dark-mode .form-group select { background: var(--bg-input) !important; border-color: var(--border-input) !important; color: var(--text-primary) !important; }
+        body.dark-mode .form-group label { color: var(--text-secondary) !important; }
+        body.dark-mode .project-preview .preview-handle::after { color: var(--text-primary) !important; }
+        body.dark-mode .btn-cancel { background: var(--bg-input-readonly) !important; color: var(--text-primary) !important; border: 1px solid var(--border-default) !important; }
+        body.dark-mode .btn-cancel:hover { background: var(--text-muted) !important; color: var(--text-inverse) !important; }
 
         .projects-section {
             background: #f0f4fa;

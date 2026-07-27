@@ -988,8 +988,8 @@ body.dark-mode .info-card,
 body.dark-mode .publications-section,
 body.dark-mode .completed-projects-section,
 body.dark-mode .contact-section {
-    background: rgba(30, 34, 41, 0.96);
-    border-color: rgba(255, 255, 255, 0.08);
+    background: var(--bg-card);
+    border-color: var(--border-default);
 }
 
 body.dark-mode .header-title h1,
@@ -1052,12 +1052,12 @@ body.dark-mode .publications-feed-section .publication-feed-card__by {
 }
 
 body.dark-mode .publication-card {
-    background: rgba(30, 34, 41, 0.8);
+    background: var(--bg-card);
     border-color: rgba(147, 197, 253, 0.15);
 }
 
 body.dark-mode .publication-card:hover {
-    background: rgba(30, 34, 41, 0.95);
+    background: var(--bg-input-readonly);
 }
 
 body.dark-mode .publication-title,
@@ -1085,12 +1085,12 @@ body.dark-mode .completed-project-card-footer {
 }
 
 body.dark-mode .contact-card {
-    background: rgba(30, 34, 41, 0.8);
+    background: var(--bg-card);
     border-color: rgba(147, 197, 253, 0.12);
 }
 
 body.dark-mode .contact-card:hover {
-    background: rgba(30, 34, 41, 0.95);
+    background: var(--bg-input-readonly);
 }
 
 body.dark-mode .contact-icon {
@@ -1103,12 +1103,12 @@ body.dark-mode .modal-content {
 }
 
 body.dark-mode .modal-card {
-    background: rgba(30, 34, 41, 0.8);
+    background: var(--bg-card);
     border-color: rgba(147, 197, 253, 0.1);
 }
 
 body.dark-mode .modal-card:hover {
-    background: rgba(30, 34, 41, 0.95);
+    background: var(--bg-input-readonly);
 }
 
 body.dark-mode .progress-bar {
@@ -1136,4 +1136,118 @@ body.dark-mode .modal-table td {
 
 body.dark-mode .modal-table tr:hover {
     background: var(--bg-input-readonly);
+}
+
+/* ── Inline style overrides for dark mode ── */
+body.dark-mode .project-preview {
+    background: var(--bg-input-readonly) !important;
+}
+
+body.dark-mode .view-only-notice {
+    background: var(--bg-input-readonly) !important;
+    border-left-color: var(--color-primary) !important;
+}
+
+body.dark-mode .view-only-notice h4 {
+    color: var(--text-primary) !important;
+}
+
+body.dark-mode .view-only-notice p {
+    color: var(--text-secondary) !important;
+}
+
+body.dark-mode .photo-upload-area {
+    border-color: var(--border-default) !important;
+    background: var(--bg-input) !important;
+}
+
+body.dark-mode .photo-upload-area:hover {
+    border-color: var(--color-primary) !important;
+    background: var(--color-primary-bg) !important;
+}
+
+body.dark-mode .photo-upload-area .upload-icon {
+    color: var(--text-muted) !important;
+}
+
+body.dark-mode .photo-upload-area .upload-text {
+    color: var(--text-secondary) !important;
+}
+
+body.dark-mode .sync-badge {
+    background: var(--color-success-bg) !important;
+    color: var(--color-success) !important;
+}
+
+body.dark-mode .publish-label {
+    background: var(--bg-input) !important;
+    border-color: var(--border-default) !important;
+}
+
+body.dark-mode .publish-label:hover {
+    border-color: var(--color-primary) !important;
+}
+
+body.dark-mode .publish-checkbox:checked + .publish-label {
+    background: var(--color-success-bg) !important;
+    border-color: var(--color-success) !important;
+}
+
+body.dark-mode .toggle-slider {
+    background: var(--text-muted) !important;
+}
+
+body.dark-mode .toggle-text {
+    color: var(--text-primary) !important;
+}
+
+body.dark-mode .publish-checkbox:checked + .publish-label .toggle-text {
+    color: var(--color-success) !important;
+}
+
+body.dark-mode .publish-hint {
+    color: var(--text-secondary) !important;
+}
+
+body.dark-mode .publish-badge.published {
+    background: var(--color-success-bg) !important;
+    color: var(--color-success) !important;
+}
+
+body.dark-mode .publish-badge.draft {
+    background: var(--color-warning-bg) !important;
+    color: var(--color-warning) !important;
+}
+
+body.dark-mode .empty-state {
+    color: var(--text-muted) !important;
+}
+
+body.dark-mode .empty-state i {
+    color: var(--text-muted) !important;
+}
+
+body.dark-mode .project-details h4 {
+    color: var(--text-primary) !important;
+}
+
+body.dark-mode .project-meta span {
+    color: var(--text-secondary) !important;
+}
+
+body.dark-mode .project-cost {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark)) !important;
+}
+
+body.dark-mode .project-form-card label {
+    color: var(--text-secondary) !important;
+}
+
+body.dark-mode .project-item {
+    background: var(--bg-card) !important;
+    border-color: var(--border-default) !important;
+}
+
+body.dark-mode .project-item:hover {
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4) !important;
 }
