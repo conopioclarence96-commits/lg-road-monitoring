@@ -256,8 +256,8 @@ function getTrafficLevel($status) {
 }
 
 // Quezon City center for map
-define('QC_LAT', 14.6500);
-define('QC_LNG', 121.0500);
+define('QC_LAT', 14.651417);
+define('QC_LNG', 121.04917);
 
 // Server-side point-in-polygon (ray casting) for GeoJSON coordinate rings
 function point_in_polygon_server($lat, $lng, $coords) {
@@ -1625,7 +1625,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
 
     <script>
         // Quezon City center
-        const QC_CENTER = [14.6500, 121.0500];
+        const QC_CENTER = [14.651417, 121.04917];
         const map = L.map('map').setView(QC_CENTER, 13);
 
         L.tileLayer('https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
