@@ -60,6 +60,19 @@ try {
     } catch (Exception $e) {
         error_log("report_updates table creation: " . $e->getMessage());
     }
+
+    // Drop FK on report_updates.report_id so updates can reference reports from any table
+    // (transportation, maintenance, or CIMM)
+    try {
+        $fk_rows = $conn->query("SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE TABLE_NAME = 'report_updates' AND CONSTRAINT_TYPE = 'FOREIGN KEY' AND TABLE_SCHEMA = '" . DB_NAME . "'");
+        if ($fk_rows) {
+            while ($fk = $fk_rows->fetch_assoc()) {
+                $conn->query("ALTER TABLE report_updates DROP FOREIGN KEY `{$fk['CONSTRAINT_NAME']}`");
+            }
+        }
+    } catch (Exception $e) {
+        // FK may already be dropped or not exist
+    }
     
     try {
         $conn->query("CREATE TABLE IF NOT EXISTS report_update_media (
@@ -91,6 +104,18 @@ try {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
     } catch (Exception $e) {
         error_log("report_notifications table creation: " . $e->getMessage());
+    }
+
+    // Drop FK on report_notifications.report_id so notifications can reference reports from any table
+    try {
+        $fk_rows = $conn->query("SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE TABLE_NAME = 'report_notifications' AND CONSTRAINT_TYPE = 'FOREIGN KEY' AND TABLE_SCHEMA = '" . DB_NAME . "'");
+        if ($fk_rows) {
+            while ($fk = $fk_rows->fetch_assoc()) {
+                $conn->query("ALTER TABLE report_notifications DROP FOREIGN KEY `{$fk['CONSTRAINT_NAME']}`");
+            }
+        }
+    } catch (Exception $e) {
+        // FK may already be dropped or not exist
     }
     
     // Ensure citizen report columns exist
