@@ -402,14 +402,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 
                 $stmt = $conn->prepare("INSERT INTO road_transportation_reports 
                     (report_id, report_type, report_category, report_source, title, department, priority, status, created_date, description, location, district, barangay, latitude, longitude, severity, attachments, image_path, created_by) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', CURDATE(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', CURDATE(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 
                 if (!$stmt) {
                     echo json_encode(['success' => false, 'message' => 'Database prepare failed: ' . $conn->error]);
                     exit;
                 }
                 
-                $stmt->bind_param("sssssssssssddssss", $report_id, $report_type, $report_category, $report_source, $title, $department, $priority, $description, $location_str, $district, $barangay, $lat, $lng, $severity_db, $attachments_json, $image_path, $user_id);
+                $stmt->bind_param("ssssssssssssdsss", $report_id, $report_type, $report_category, $report_source, $title, $department, $priority, $description, $location_str, $district, $barangay, $lat, $lng, $severity_db, $attachments_json, $image_path, $user_id);
                 
                 if ($stmt->execute()) {
                     ob_end_clean(); // Clear any output before JSON
