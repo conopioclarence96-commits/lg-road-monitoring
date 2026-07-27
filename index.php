@@ -740,6 +740,188 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             margin-bottom: 30px;
         }
 
+        /* GIS Map Wrapper & Toolbar */
+        .gis-map-wrapper {
+            position: relative;
+            margin-bottom: 30px;
+        }
+        .gis-map-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 10px 16px;
+            background: #fff;
+            border-radius: 16px 16px 0 0;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            z-index: 10;
+            position: relative;
+        }
+        .gis-toolbar-left, .gis-toolbar-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .gis-map-legend {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 12px;
+            color: #555;
+        }
+        .gis-legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+        }
+        .gis-legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            flex-shrink: 0;
+        }
+        .gis-map-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 6px 12px;
+            border: 1px solid rgba(55,98,200,0.25);
+            background: rgba(55,98,200,0.06);
+            color: #3762c8;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+        .gis-map-btn:hover {
+            background: rgba(55,98,200,0.15);
+            border-color: rgba(55,98,200,0.4);
+        }
+        .gis-map-btn.active-toggle {
+            background: rgba(55,98,200,0.15);
+            color: #3762c8;
+        }
+        .gis-map-btn.inactive-toggle {
+            background: #6c757d;
+            color: #fff;
+            border-color: #6c757d;
+        }
+        .gis-map-search-box {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .gis-search-input {
+            padding: 6px 10px;
+            border: 1px solid rgba(55,98,200,0.3);
+            border-radius: 8px;
+            font-size: 12px;
+            width: 170px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .gis-search-input:focus {
+            border-color: #3762c8;
+            box-shadow: 0 0 0 2px rgba(55,98,200,0.1);
+        }
+        .gis-search-btn {
+            padding: 6px 10px;
+        }
+        .gis-search-results {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #fff;
+            border: 1px solid #e0e4f0;
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+            z-index: 1000;
+            max-height: 250px;
+            overflow-y: auto;
+            margin-top: 4px;
+        }
+        .gis-search-result-item {
+            padding: 10px 12px;
+            cursor: pointer;
+            font-size: 13px;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background 0.15s;
+        }
+        .gis-search-result-item:last-child { border-bottom: none; }
+        .gis-search-result-item:hover { background: #f0f4ff; }
+        .gis-search-result-item small { display: block; color: #888; font-size: 11px; margin-top: 2px; }
+        .gis-dropdown-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: #fff;
+            border: 1px solid #e0e4f0;
+            border-radius: 10px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+            z-index: 1000;
+            min-width: 200px;
+            padding: 6px 0;
+            margin-top: 4px;
+        }
+        .gis-dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            padding: 9px 16px;
+            border: none;
+            background: none;
+            font-size: 13px;
+            color: #333;
+            cursor: pointer;
+            text-align: left;
+            transition: background 0.15s;
+        }
+        .gis-dropdown-item:hover { background: #f0f4ff; color: #3762c8; }
+        .gis-dropdown-item i { width: 16px; text-align: center; color: #3762c8; }
+        .gis-district-tooltip {
+            background: rgba(30,60,114,0.92);
+            color: #fff;
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            border: none;
+        }
+        .gis-district-tooltip::before { border-top-color: rgba(30,60,114,0.92); }
+
+        /* Fullscreen mode */
+        body.gis-map-fullscreen-active .gis-map-wrapper {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 9999;
+            border-radius: 0;
+            margin: 0;
+        }
+        body.gis-map-fullscreen-active .gis-map-toolbar {
+            border-radius: 0;
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            z-index: 10000;
+        }
+        body.gis-map-fullscreen-active #roadProjectsMap {
+            position: fixed;
+            top: 52px; left: 0; right: 0; bottom: 0;
+            height: auto;
+            border-radius: 0;
+            z-index: 9999;
+        }
+
         .road-projects-empty {
             text-align: center;
             padding: 60px 20px;
@@ -1393,7 +1575,41 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             <p class="section-subtitle">See which roads are about to be, or currently being, worked on across the city</p>
 
             <?php if (!empty($ipms_road_projects)): ?>
-            <div id="roadProjectsMap"></div>
+            <div class="gis-map-wrapper">
+                <div class="gis-map-toolbar">
+                    <div class="gis-toolbar-left">
+                        <div class="gis-map-legend">
+                            <span class="gis-legend-item"><span class="gis-legend-dot" style="background:#28a745;"></span> Active</span>
+                            <span class="gis-legend-item"><span class="gis-legend-dot" style="background:#dc3545;"></span> Delayed</span>
+                            <span class="gis-legend-item"><span class="gis-legend-dot" style="background:#6c757d;"></span> On Hold</span>
+                            <span class="gis-legend-item"><span class="gis-legend-dot" style="background:#17a2b8;"></span> Final Inspection</span>
+                        </div>
+                        <div class="gis-map-search-box">
+                            <input type="text" id="gisMapSearchInput" placeholder="Search places..." class="gis-search-input">
+                            <button class="gis-map-btn gis-search-btn" onclick="gisMapSearch()" title="Search"><i class="fas fa-search"></i></button>
+                            <div id="gisMapSearchResults" class="gis-search-results"></div>
+                        </div>
+                    </div>
+                    <div class="gis-toolbar-right">
+                        <div class="gis-dropdown" style="position:relative;display:inline-block;">
+                            <button class="gis-map-btn" onclick="toggleGisToolsDropdown()" id="gisToolsDropdownBtn">
+                                <i class="fas fa-tools"></i> Tools
+                            </button>
+                            <div id="gisToolsDropdownMenu" class="gis-dropdown-menu" style="display:none;">
+                                <button class="gis-dropdown-item" onclick="toggleGisSatelliteLayer()"><i class="fas fa-satellite"></i> Satellite View</button>
+                                <button class="gis-dropdown-item" onclick="toggleGisTrafficIncidentsLayer()" id="gisToggleIncidentsBtn"><i class="fas fa-exclamation-triangle"></i> Traffic Incidents</button>
+                            </div>
+                        </div>
+                        <button class="gis-map-btn" id="gisToggleTrafficBtn" onclick="toggleGisTrafficLayer()">
+                            <i class="fas fa-car"></i> Traffic
+                        </button>
+                        <button class="gis-map-btn" onclick="toggleGisMapFullscreen()" id="gisFullscreenMapBtn">
+                            <i class="fas fa-expand"></i> Fullscreen
+                        </button>
+                    </div>
+                </div>
+                <div id="roadProjectsMap"></div>
+            </div>
             <div class="road-projects-grid">
                 <?php foreach ($ipms_road_projects as $proj):
                     $meta = ipms_status_meta($proj['project_status']);
@@ -1620,6 +1836,9 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- TomTom Services (JS client for API proxy) -->
+    <script>window.TOMTOM_API_PROXY = 'lgu_staff/pages/api/tomtom/proxy.php';</script>
+    <script src="lgu_staff/js/tomtom-services.js"></script>
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -1779,43 +1998,109 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         };
         const roadProjectLayers = {};
         let roadProjectsMap = null;
+        let gisTrafficLayer = null;
+        let gisSatelliteLayer = null;
+        let gisIncidentsLayer = null;
+        let gisDistrictsLayer = null;
+        let gisMapFullscreen = false;
+        let gisToolsDropdownOpen = false;
+
+        const GIS_QC_CENTER = [14.6760, 121.0437];
+        const GIS_QC_POLYGON_COORDS = [
+            [14.605, 120.982],[14.620, 120.985],[14.640, 120.988],[14.660, 120.990],
+            [14.680, 120.995],[14.700, 121.005],[14.715, 121.020],[14.730, 121.035],
+            [14.745, 121.050],[14.755, 121.065],[14.765, 121.080],[14.773, 121.095],
+            [14.770, 121.110],[14.762, 121.125],[14.750, 121.135],[14.735, 121.142],
+            [14.718, 121.146],[14.700, 121.148],[14.682, 121.142],[14.665, 121.135],
+            [14.650, 121.125],[14.638, 121.112],[14.628, 121.098],[14.618, 121.080],
+            [14.612, 121.062],[14.607, 121.045],[14.605, 121.028],[14.603, 121.010],
+            [14.602, 121.000],[14.603, 120.990]
+        ];
 
         function initRoadProjectsMap() {
             const mapEl = document.getElementById('roadProjectsMap');
             if (!mapEl || typeof L === 'undefined') return;
 
-            roadProjectsMap = L.map('roadProjectsMap').setView([14.6760, 121.0437], 12);
+            roadProjectsMap = L.map('roadProjectsMap').setView(GIS_QC_CENTER, 12);
 
             L.tileLayer('https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
-                attribution: '&copy; TomTom',
+                attribution: '© TomTom',
                 maxZoom: 18
             }).addTo(roadProjectsMap);
 
-            const allPoints = [];
+            gisTrafficLayer = L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
+                attribution: '© TomTom Traffic',
+                opacity: 0.7
+            }).addTo(roadProjectsMap);
 
+            L.polygon(GIS_QC_POLYGON_COORDS, {
+                color: '#3762c8',
+                weight: 2,
+                opacity: 0.8,
+                fillOpacity: 0.06,
+                fillColor: '#3762c8'
+            }).addTo(roadProjectsMap);
+
+            const qcBounds = L.latLngBounds(GIS_QC_POLYGON_COORDS);
+            roadProjectsMap.setMaxBounds(qcBounds.pad(0.15));
+            roadProjectsMap.setMinZoom(11);
+            roadProjectsMap.setMaxZoom(18);
+            roadProjectsMap.on('moveend', function() {
+                const center = roadProjectsMap.getCenter();
+                if (!qcBounds.contains(center)) {
+                    roadProjectsMap.setView(GIS_QC_CENTER, 12);
+                }
+            });
+
+            fetch('lgu_staff/pages/api/qc_districts.geojson')
+                .then(r => r.json())
+                .then(data => {
+                    const colors = { 1: '#3b82f6', 2: '#8b5cf6', 3: '#10b981', 4: '#f59e0b', 5: '#ef4444', 6: '#06b6d4' };
+                    gisDistrictsLayer = L.geoJSON(data, {
+                        style: function(feature) {
+                            const dNum = parseInt((feature.properties.district_number || feature.properties.district || '').replace(/\D/g, '')) || 1;
+                            return {
+                                color: colors[dNum] || '#3762c8',
+                                weight: 1.5,
+                                opacity: 0.6,
+                                fillOpacity: 0.04,
+                                fillColor: colors[dNum] || '#3762c8',
+                                dashArray: '5,5'
+                            };
+                        },
+                        onEachFeature: function(feature, layer) {
+                            layer.bindTooltip(feature.properties.district_name || feature.properties.district, {
+                                sticky: true,
+                                className: 'gis-district-tooltip'
+                            });
+                        }
+                    }).addTo(roadProjectsMap);
+                })
+                .catch(e => console.warn('Could not load QC districts GeoJSON:', e));
+
+            const allPoints = [];
             IPMS_ROAD_PROJECTS.forEach(proj => {
                 if (!Array.isArray(proj.polyline) || proj.polyline.length < 2) return;
                 const latlngs = proj.polyline.map(pt => [pt[0], pt[1]]);
                 const color = ROAD_PROJECT_COLORS[proj.project_status] || '#2196f3';
-
                 const line = L.polyline(latlngs, {
                     color: color,
                     weight: 5,
                     opacity: 0.85
                 }).addTo(roadProjectsMap);
-
                 line.bindPopup(
                     '<strong>' + escapeRoadProjectHtml(proj.project_name) + '</strong><br>' +
                     escapeRoadProjectHtml(proj.road_type) + ' &middot; ' + escapeRoadProjectHtml(proj.road_status) + '<br>' +
                     proj.progress_percent + '% complete'
                 );
-
                 roadProjectLayers[proj.project_id] = line;
                 allPoints.push(...latlngs);
             });
 
             if (allPoints.length > 0) {
                 roadProjectsMap.fitBounds(L.latLngBounds(allPoints).pad(0.15));
+            } else {
+                roadProjectsMap.fitBounds(qcBounds.pad(0.1));
             }
         }
 
@@ -1832,6 +2117,126 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             roadProjectsMap.fitBounds(line.getBounds().pad(0.3));
             line.openPopup(line.getBounds().getCenter());
         }
+
+        let gisTrafficVisible = true;
+        function toggleGisTrafficLayer() {
+            gisTrafficVisible = !gisTrafficVisible;
+            const btn = document.getElementById('gisToggleTrafficBtn');
+            if (gisTrafficVisible) {
+                gisTrafficLayer.addTo(roadProjectsMap);
+                btn.classList.remove('inactive-toggle');
+                btn.classList.add('active-toggle');
+            } else {
+                roadProjectsMap.removeLayer(gisTrafficLayer);
+                btn.classList.remove('active-toggle');
+                btn.classList.add('inactive-toggle');
+            }
+        }
+
+        function toggleGisSatelliteLayer() {
+            if (gisSatelliteLayer) {
+                roadProjectsMap.removeLayer(gisSatelliteLayer);
+                gisSatelliteLayer = null;
+                return;
+            }
+            gisSatelliteLayer = L.tileLayer('https://api.tomtom.com/map/1/tile/satellite/main/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
+                attribution: '© TomTom',
+                maxZoom: 18
+            }).addTo(roadProjectsMap);
+        }
+
+        function toggleGisTrafficIncidentsLayer() {
+            if (gisIncidentsLayer) {
+                roadProjectsMap.removeLayer(gisIncidentsLayer);
+                gisIncidentsLayer = null;
+                document.getElementById('gisToggleIncidentsBtn').innerHTML = '<i class="fas fa-exclamation-triangle"></i> Traffic Incidents';
+                return;
+            }
+            const center = roadProjectsMap.getCenter();
+            TomTomServices.trafficIncidents(center.lat, center.lng, 15).then(data => {
+                if (data.success && data.data && data.data.incidents && data.data.incidents.length > 0) {
+                    gisIncidentsLayer = L.layerGroup().addTo(roadProjectsMap);
+                    data.data.incidents.forEach(inc => {
+                        const pos = inc.geometry?.point || inc.properties?.geometryCoordinates;
+                        if (pos) {
+                            const icon = L.divIcon({
+                                html: '<div style="background:#ef4444;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);"><i class="fas fa-exclamation"></i></div>',
+                                className: '', iconSize: [22, 22]
+                            });
+                            const ev = inc.properties || inc.event;
+                            L.marker([pos.lat || pos.latitude, pos.lon || pos.longitude], { icon })
+                                .bindPopup('<b>' + (ev?.type || 'Traffic Incident') + '</b><br>' + (ev?.description || ev?.iconCategory || ''))
+                                .addTo(gisIncidentsLayer);
+                        }
+                    });
+                    document.getElementById('gisToggleIncidentsBtn').innerHTML = '<i class="fas fa-exclamation-triangle"></i> Hide Incidents';
+                } else {
+                    gisIncidentsLayer = L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/incidents/absolute/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
+                        attribution: '© TomTom Incidents', opacity: 0.7
+                    }).addTo(roadProjectsMap);
+                    document.getElementById('gisToggleIncidentsBtn').innerHTML = '<i class="fas fa-exclamation-triangle"></i> Hide Incidents';
+                }
+            });
+        }
+
+        function toggleGisToolsDropdown() {
+            const menu = document.getElementById('gisToolsDropdownMenu');
+            gisToolsDropdownOpen = !gisToolsDropdownOpen;
+            menu.style.display = gisToolsDropdownOpen ? 'block' : 'none';
+        }
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.gis-dropdown')) {
+                const menu = document.getElementById('gisToolsDropdownMenu');
+                if (menu) { menu.style.display = 'none'; gisToolsDropdownOpen = false; }
+            }
+        });
+
+        function toggleGisMapFullscreen() {
+            gisMapFullscreen = !gisMapFullscreen;
+            document.body.classList.toggle('gis-map-fullscreen-active', gisMapFullscreen);
+            const btn = document.getElementById('gisFullscreenMapBtn');
+            btn.innerHTML = gisMapFullscreen ? '<i class="fas fa-compress"></i> Exit' : '<i class="fas fa-expand"></i> Fullscreen';
+            setTimeout(() => roadProjectsMap?.invalidateSize(), 300);
+        }
+
+        function gisMapSearch() {
+            const q = document.getElementById('gisMapSearchInput').value.trim();
+            if (!q) return;
+            const resultsDiv = document.getElementById('gisMapSearchResults');
+            TomTomServices.poiSearch(q, { limit: 8 }).then(data => {
+                if (!data.success || !data.data || !data.data.results) {
+                    resultsDiv.style.display = 'none';
+                    return;
+                }
+                const results = data.data.results;
+                if (results.length > 0 && results[0].position) {
+                    roadProjectsMap.setView([results[0].position.lat, results[0].position.lon], 15);
+                }
+                resultsDiv.innerHTML = results.map(r => {
+                    const pos = r.position || {};
+                    return '<div class="gis-search-result-item" onclick="gisMapFlyTo(' + (pos.lat || 0) + ',' + (pos.lon || 0) + ')">' +
+                        '<i class="fas fa-map-pin" style="color:#3762c8;margin-right:6px;"></i>' + (r.poi?.name || r.address?.freeformAddress || 'Unknown') +
+                        '<small>' + (r.address?.freeformAddress || '') + '</small></div>';
+                }).join('');
+                resultsDiv.style.display = 'block';
+            });
+        }
+
+        function gisMapFlyTo(lat, lng) {
+            roadProjectsMap.setView([lat, lng], 15);
+            document.getElementById('gisMapSearchResults').style.display = 'none';
+        }
+
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.gis-map-search-box')) {
+                const results = document.getElementById('gisMapSearchResults');
+                if (results) results.style.display = 'none';
+            }
+        });
+
+        document.getElementById('gisMapSearchInput')?.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') gisMapSearch();
+        });
 
         if (IPMS_ROAD_PROJECTS.length > 0) {
             initRoadProjectsMap();

@@ -3,7 +3,7 @@
  * Communicates with server-side PHP proxy to keep API key secure
  */
 const TomTomServices = (function() {
-    const API_PROXY = '../api/tomtom/proxy.php';
+    const API_PROXY = window.TOMTOM_API_PROXY || '../api/tomtom/proxy.php';
 
     function request(service, params = {}, method = 'GET', body = null) {
         const url = new URL(API_PROXY, window.location.href);
