@@ -1196,7 +1196,16 @@ body.dark-mode .publish-checkbox:checked + .publish-label {
 }
 
 body.dark-mode .toggle-slider {
-    background: var(--text-muted) !important;
+    background: var(--border-default) !important;
+}
+
+body.dark-mode .toggle-slider::before {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+body.dark-mode .publish-checkbox:checked + .publish-label .toggle-slider {
+    background: var(--color-success) !important;
 }
 
 body.dark-mode .toggle-text {
