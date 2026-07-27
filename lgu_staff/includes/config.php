@@ -109,6 +109,16 @@ try {
     try {
         $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS reporter_phone VARCHAR(20) AFTER reporter_name");
     } catch (Exception $e) {}
+    // GIS spatial columns for district/barangay detection
+    try {
+        $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS detected_district VARCHAR(50) NULL AFTER longitude");
+    } catch (Exception $e) {}
+    try {
+        $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS barangay VARCHAR(100) NULL AFTER detected_district");
+    } catch (Exception $e) {}
+    try {
+        $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS street_name VARCHAR(255) NULL AFTER barangay");
+    } catch (Exception $e) {}
     
     // Ensure completed_at columns exist for duration tracking
     try {

@@ -259,12 +259,28 @@ function getTrafficLevel($status) {
 define('QC_LAT', 14.6500);
 define('QC_LNG', 121.0500);
 
+// Server-side point-in-polygon (ray casting) for GeoJSON coordinate rings
+function point_in_polygon_server($lat, $lng, $coords) {
+    $ring = $coords[0] ?? [];
+    $n = count($ring);
+    if ($n < 3) return false;
+    $inside = false;
+    for ($i = 0, $j = $n - 1; $i < $n; $j = $i++) {
+        $xi = $ring[$i][1]; $yi = $ring[$i][0];
+        $xj = $ring[$j][1]; $yj = $ring[$j][0];
+        if ((($yi > $lng) !== ($yj > $lng)) && ($lat < ($xj - $xi) * ($lng - $yi) / ($yj - $yi) + $xi)) {
+            $inside = !$inside;
+        }
+    }
+    return $inside;
+}
+
 // Handle AJAX: get map markers (reports with lat/lng)
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'get_markers') {
     header('Content-Type: application/json');
     $markers = [];
     if ($conn) {
-        $sql = "SELECT id, report_id, title, report_type, description, status, priority, severity, latitude, longitude, created_at 
+        $sql = "SELECT id, report_id, title, report_type, description, status, priority, severity, latitude, longitude, detected_district, barangay, street_name, created_at 
                 FROM road_transportation_reports 
                 WHERE latitude IS NOT NULL AND longitude IS NOT NULL 
                 ORDER BY created_at DESC";
@@ -292,6 +308,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $specific_type = sanitize_input($_POST['specific_type'] ?? '');
                 $severity = sanitize_input($_POST['severity'] ?? '');
                 $description = sanitize_input($_POST['description'] ?? '');
+
+                // GIS-detected location fields (from frontend)
+                $detected_district = sanitize_input($_POST['detected_district'] ?? '');
+                $barangay = sanitize_input($_POST['barangay'] ?? '');
+                $street_name = sanitize_input($_POST['street_name'] ?? '');
 
                 // Combine issue type and specific type for detailed reporting
                 $full_issue_type = $specific_type ? $specific_type : $issue_type;
@@ -326,6 +347,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 if (!$inside_qc) {
                     echo json_encode(['success' => false, 'message' => 'Location must be within Quezon City boundaries.']);
                     exit;
+                }
+                
+                // Server-side district detection (validate frontend detection)
+                $districts_geojson_path = __DIR__ . '/../api/qc_districts.geojson';
+                if (file_exists($districts_geojson_path)) {
+                    $geojson_raw = file_get_contents($districts_geojson_path);
+                    $geojson_data = json_decode($geojson_raw, true);
+                    if ($geojson_data && isset($geojson_data['features'])) {
+                        $server_detected_district = '';
+                        foreach ($geojson_data['features'] as $feature) {
+                            $coords = $feature['geometry']['coordinates'] ?? [];
+                            $geom_type = $feature['geometry']['type'] ?? '';
+                            $matched = false;
+                            if ($geom_type === 'Polygon' && !empty($coords)) {
+                                $matched = point_in_polygon_server($lat, $lng, $coords);
+                            } elseif ($geom_type === 'MultiPolygon' && !empty($coords)) {
+                                foreach ($coords as $poly) {
+                                    if (point_in_polygon_server($lat, $lng, $poly)) {
+                                        $matched = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if ($matched) {
+                                $server_detected_district = sanitize_input($feature['properties']['district_name'] ?? '');
+                                break;
+                            }
+                        }
+                        // Use server-detected district as authoritative, override if frontend mismatches
+                        if (!empty($server_detected_district)) {
+                            $detected_district = $server_detected_district;
+                        } else {
+                            $detected_district = '';
+                        }
+                    }
                 }
                 
                 // Handle multiple image uploads
@@ -399,16 +455,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $image_path = !empty($attachments) ? $attachments[0]['file_path'] : null;
                 
                 $stmt = $conn->prepare("INSERT INTO road_transportation_reports 
-                    (report_id, report_type, report_category, report_source, title, department, priority, status, created_date, description, location, latitude, longitude, severity, attachments, image_path, created_by) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', CURDATE(), ?, ?, ?, ?, ?, ?, ?, ?)");
+                    (report_id, report_type, report_category, report_source, title, department, priority, status, created_date, description, location, latitude, longitude, detected_district, barangay, street_name, severity, attachments, image_path, created_by) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', CURDATE(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 
                 if (!$stmt) {
                     echo json_encode(['success' => false, 'message' => 'Database prepare failed: ' . $conn->error]);
                     exit;
                 }
                 
-                // Parameters: report_id, report_type, report_category, report_source, title, department, priority, description, location, lat, lng, severity, attachments, image_path, user_id
-                $stmt->bind_param("sssssssssddssis", $report_id, $report_type, $report_category, $report_source, $title, $department, $priority, $description, $location_str, $lat, $lng, $severity_db, $attachments_json, $image_path, $user_id);
+                // Parameters: report_id, report_type, report_category, report_source, title, department, priority, description, location, lat, lng, district, barangay, street, severity, attachments, image_path, user_id
+                $stmt->bind_param("sssssssssddssssssi", $report_id, $report_type, $report_category, $report_source, $title, $department, $priority, $description, $location_str, $lat, $lng, $detected_district, $barangay, $street_name, $severity_db, $attachments_json, $image_path, $user_id);
                 
                 if ($stmt->execute()) {
                     ob_end_clean(); // Clear any output before JSON
@@ -417,7 +473,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     ob_end_clean();
                     $error_details = $stmt->error;
                     error_log("Statement execution failed: " . $error_details);
-                    error_log("Bound parameters: report_id=$report_id, report_type=$report_type, title=$title, department=$department, priority=$priority, description=$description, location=$location_str, lat=$lat, lng=$lng, severity=$severity_db, attachments=$attachments_json, image_path=$image_path, user_id=$user_id");
+                    error_log("Bound parameters: report_id=$report_id, report_type=$report_type, title=$title, department=$department, priority=$priority, description=$description, location=$location_str, lat=$lat, lng=$lng, district=$detected_district, barangay=$barangay, street=$street_name, severity=$severity_db, attachments=$attachments_json, image_path=$image_path, user_id=$user_id");
                     echo json_encode(['success' => false, 'message' => 'Failed to save report: ' . $error_details]);
                 }
             } catch (Exception $e) {
@@ -971,6 +1027,22 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         body.dark-mode .tools-dropdown-item { color:#e4e6ea; }
         body.dark-mode .tools-dropdown-item:hover { background:rgba(55,98,200,0.15); }
 
+        #gis-location-info .gis-field-tag {
+            display:inline-block;background:rgba(55,98,200,0.1);color:#1e3c72;
+            padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;
+            margin-right:6px;margin-bottom:3px;
+        }
+        #gis-location-info .gis-field-tag .gis-tag-label {
+            color:#666;font-weight:400;
+        }
+        #gis-location-warning {
+            display:none;background:rgba(220,53,69,0.06);
+            border:1px solid rgba(220,53,69,0.25);border-radius:10px;
+            padding:12px 14px;margin-bottom:14px;
+        }
+        #gis-location-warning i { color:#dc3545;margin-right:8px; }
+        #gis-location-warning span { font-size:12px;color:#721c24; }
+
         .tomtom-panel {
             background:#f0f4fa;border-radius:12px;padding:16px;margin-top:12px;
             border:1px solid rgba(55,98,200,0.2);display:none;
@@ -1294,11 +1366,30 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                 </div>
                 <div id="map"></div>
                 <!-- Report form (shown after pinning) -->
+                <div id="gis-location-warning" style="display:none;background:rgba(220,53,69,0.06);border:1px solid rgba(220,53,69,0.25);border-radius:10px;padding:12px 14px;margin-bottom:0;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <i class="fas fa-exclamation-triangle" style="color:#dc3545;font-size:15px;"></i>
+                        <span style="font-size:12px;color:#721c24;" id="gis-warning-text">Pinned location is outside the covered LGU jurisdiction.</span>
+                    </div>
+                </div>
                 <div id="report-form-panel" class="report-form-panel" style="display: none;">
                     <h4><i class="fas fa-map-pin"></i> Report issue at pinned location</h4>
                     <form id="report-form" enctype="multipart/form-data">
                         <input type="hidden" id="pin-lat" name="latitude">
                         <input type="hidden" id="pin-lng" name="longitude">
+                        <input type="hidden" id="pin-district" name="detected_district">
+                        <input type="hidden" id="pin-barangay" name="barangay">
+                        <input type="hidden" id="pin-street" name="street_name">
+                        
+                        <div id="gis-location-info" style="display:none;background:linear-gradient(135deg,rgba(16,185,129,0.08),rgba(55,98,200,0.08));border:1px solid rgba(16,185,129,0.25);border-radius:10px;padding:12px 14px;margin-bottom:14px;">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                                <i class="fas fa-map-marked-alt" style="color:#10b981;font-size:15px;"></i>
+                                <strong style="font-size:13px;color:#1e3c72;">Detected Location</strong>
+                                <span id="gis-loading-badge" style="display:none;margin-left:auto;font-size:11px;color:#666;"><i class="fas fa-spinner fa-spin"></i> Detecting...</span>
+                            </div>
+                            <div id="gis-location-details" style="font-size:12px;color:#555;line-height:1.7;"></div>
+                        </div>
+                        
                         <label>Issue type</label>
                         <select id="issue-type" name="issue_type" required onchange="updateSpecificTypes()">
                             <option value="">— Select —</option>
@@ -1601,6 +1692,184 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             return inside;
         }
 
+        // ====================================================================
+        // GIS DISTRICT DETECTION ENGINE
+        // ====================================================================
+        let qcDistrictsGeoJSON = null;
+        let districtsLayer = null;
+
+        // Ray-casting point-in-polygon for GeoJSON coordinate rings
+        function pointInPolygonCoords(lat, lng, coords) {
+            let inside = false;
+            const ring = coords[0];
+            for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+                const xi = ring[i][1], yi = ring[i][0];
+                const xj = ring[j][1], yj = ring[j][0];
+                if ((yi > lng) !== (yj > lng) && lat < (xj - xi) * (lng - yi) / (yj - yi) + xi) {
+                    inside = !inside;
+                }
+            }
+            return inside;
+        }
+
+        function detectDistrict(lat, lng) {
+            if (!qcDistrictsGeoJSON) return null;
+            for (const feature of qcDistrictsGeoJSON.features) {
+                if (feature.geometry.type === 'Polygon') {
+                    if (pointInPolygonCoords(lat, lng, feature.geometry.coordinates)) {
+                        return feature.properties;
+                    }
+                } else if (feature.geometry.type === 'MultiPolygon') {
+                    for (const poly of feature.geometry.coordinates) {
+                        if (pointInPolygonCoords(lat, lng, poly)) {
+                            return feature.properties;
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        // Load QC Districts GeoJSON layer
+        fetch('../../pages/api/qc_districts.geojson')
+            .then(r => r.json())
+            .then(data => {
+                qcDistrictsGeoJSON = data;
+                districtsLayer = L.geoJSON(data, {
+                    style: function(feature) {
+                        const colors = {
+                            1: '#3b82f6', 2: '#8b5cf6', 3: '#10b981',
+                            4: '#f59e0b', 5: '#ef4444', 6: '#06b6d4'
+                        };
+                        return {
+                            color: colors[feature.properties.district_number] || '#3762c8',
+                            weight: 1.5,
+                            opacity: 0.6,
+                            fillOpacity: 0.04,
+                            fillColor: colors[feature.properties.district_number] || '#3762c8',
+                            dashArray: '5,5'
+                        };
+                    },
+                    onEachFeature: function(feature, layer) {
+                        layer.bindTooltip(feature.properties.district_name, {
+                            sticky: true, className: 'district-tooltip'
+                        });
+                    }
+                }).addTo(map);
+                console.log('QC Districts layer loaded:', data.features.length, 'districts');
+            })
+            .catch(e => {
+                console.warn('Could not load QC districts GeoJSON:', e);
+            });
+
+        // ====================================================================
+        // REVERSE GEOCODING + FORM AUTOFILL ENGINE
+        // ====================================================================
+        function populateGISLocationInfo(lat, lng, districtProps, addressData) {
+            const infoPanel = document.getElementById('gis-location-info');
+            const detailsEl = document.getElementById('gis-location-details');
+            const loadingBadge = document.getElementById('gis-loading-badge');
+
+            let html = '';
+
+            // District tag
+            if (districtProps) {
+                const dNum = districtProps.district_number;
+                const dName = districtProps.district_name;
+                document.getElementById('pin-district').value = dName;
+                html += '<span class="gis-field-tag"><span class="gis-tag-label">District:</span> ' + dName + '</span>';
+            } else {
+                document.getElementById('pin-district').value = '';
+                html += '<span class="gis-field-tag" style="background:rgba(220,53,69,0.1);color:#721c24;"><span class="gis-tag-label">District:</span> Not detected</span>';
+            }
+
+            // Barangay from reverse geocoding
+            let barangay = '';
+            let street = '';
+            let fullAddress = '';
+            let municipality = '';
+            if (addressData) {
+                const addr = addressData.address || {};
+                barangay = addr.subdivision || addr.municipalitySubdivision || addr.neighbourhood || '';
+                street = addr.street || '';
+                municipality = addr.municipality || '';
+                const houseNum = addr.houseNumber || '';
+                if (houseNum && street) {
+                    fullAddress = houseNum + ' ' + street;
+                } else if (street) {
+                    fullAddress = street;
+                } else if (addr.freeformAddress) {
+                    fullAddress = addr.freeformAddress;
+                }
+            }
+            document.getElementById('pin-barangay').value = barangay;
+            document.getElementById('pin-street').value = street;
+
+            if (barangay) {
+                html += '<span class="gis-field-tag"><span class="gis-tag-label">Barangay:</span> ' + barangay + '</span>';
+            }
+            if (street) {
+                html += '<span class="gis-field-tag"><span class="gis-tag-label">Street:</span> ' + street + '</span>';
+            }
+            if (municipality) {
+                html += '<span class="gis-field-tag"><span class="gis-tag-label">Municipality:</span> ' + municipality + '</span>';
+            }
+            if (!fullAddress && !barangay && !street) {
+                html += '<span style="font-size:11px;color:#999;">Address details unavailable for this pin location.</span>';
+            }
+
+            detailsEl.innerHTML = html;
+            infoPanel.style.display = 'block';
+            loadingBadge.style.display = 'none';
+        }
+
+        // Master function: detect district + geocode + populate
+        function analyzePinnedLocation(lat, lng) {
+            const infoPanel = document.getElementById('gis-location-info');
+            const loadingBadge = document.getElementById('gis-loading-badge');
+            const warningPanel = document.getElementById('gis-location-warning');
+
+            // Check boundary first
+            if (!isInsideQCBounds(lat, lng)) {
+                infoPanel.style.display = 'none';
+                warningPanel.style.display = 'block';
+                document.getElementById('gis-warning-text').textContent = 'Pinned location is outside the covered LGU jurisdiction.';
+                document.getElementById('pin-district').value = '';
+                document.getElementById('pin-barangay').value = '';
+                document.getElementById('pin-street').value = '';
+                return;
+            }
+            warningPanel.style.display = 'none';
+            infoPanel.style.display = 'block';
+            loadingBadge.style.display = 'inline';
+
+            // Step 1: District detection (instant, local data)
+            const districtProps = detectDistrict(lat, lng);
+
+            // Step 2: Reverse geocode via TomTom (async)
+            TomTomServices.reverseGeocodeOrbis(lat, lng).then(data => {
+                const result = data.data?.results?.[0];
+                populateGISLocationInfo(lat, lng, districtProps, result || null);
+
+                // Also update the marker popup with formatted address
+                if (pinMarker && result) {
+                    const addr = result.address || {};
+                    const parts = [
+                        addr.street && addr.houseNumber ? addr.houseNumber + ' ' + addr.street : addr.street || '',
+                        addr.municipality || '',
+                        addr.countrySubdivision || '',
+                        addr.postalCode || ''
+                    ].filter(Boolean);
+                    const popupHtml = '<b>' + (parts.join(', ') || lat.toFixed(5) + ', ' + lng.toFixed(5)) + '</b>'
+                        + (districtProps ? '<br><small style="color:#10b981;">' + districtProps.district_name + '</small>' : '');
+                    pinMarker.bindPopup(popupHtml).openPopup();
+                }
+            }).catch(() => {
+                // Geocode failed, still show district if detected
+                populateGISLocationInfo(lat, lng, districtProps, null);
+            });
+        }
+
         // Restrict map panning with a padded bounding box of QC
         const QC_BBOX = L.latLngBounds(QC_POLYGON_COORDS);
         map.setMaxBounds(QC_BBOX.pad(0.15));
@@ -1651,9 +1920,13 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                             iconSize: [28, 28]
                         });
                         const sevLabel = m.severity || m.priority || 'low';
+                        const locationTags = [];
+                        if (m.detected_district) locationTags.push('<span style="color:#10b981;font-size:11px;"><i class="fas fa-map-pin"></i> ' + escapeHtml(m.detected_district) + '</span>');
+                        if (m.barangay) locationTags.push('<span style="color:#3762c8;font-size:11px;">' + escapeHtml(m.barangay) + '</span>');
+                        if (m.street_name) locationTags.push('<span style="color:#666;font-size:11px;">' + escapeHtml(m.street_name) + '</span>');
                         const marker = L.marker([parseFloat(m.latitude), parseFloat(m.longitude)], { icon })
                             .addTo(reportMarkersLayer)
-                            .bindPopup(`<b>${escapeHtml(m.title)}</b><br><small>${escapeHtml(m.description || '')}</small><br><span style="color:${color}">${sevLabel} • ${m.status}</span>`);
+                            .bindPopup('<b>' + escapeHtml(m.title) + '</b><br><small>' + escapeHtml(m.description || '') + '</small><br>' + locationTags.join(' &middot; ') + '<br><span style="color:' + color + '">' + sevLabel + ' &bull; ' + m.status + '</span>');
                         marker._reportId = m.id;
                         allMarkerObjects.push(marker);
                     });
@@ -1791,7 +2064,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             }
         }
 
-        // Map click: place pin, show form, and fetch address details
+        // Map click: place pin, show form, and run full GIS analysis
         map.on('click', function(e) {
             const { lat, lng } = e.latlng;
             
@@ -1806,25 +2079,20 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                 draggable: true
             }).addTo(map);
             
-            // Fetch address details from reverse geocode
-            TomTomServices.reverseGeocodeOrbis(lat, lng).then(data => {
-                const addr = data.data?.results?.[0]?.address;
-                if (addr) {
-                    const parts = [
-                        addr.street && addr.houseNumber ? addr.houseNumber + ' ' + addr.street : addr.street || '',
-                        addr.municipality || '',
-                        addr.countrySubdivision || '',
-                        addr.postalCode || '',
-                        addr.country || ''
-                    ].filter(Boolean);
-                    pinMarker.bindPopup('<b>' + parts.join(', ') + '</b>').openPopup();
-                } else {
-                    pinMarker.bindPopup(lat.toFixed(5) + ', ' + lng.toFixed(5)).openPopup();
-                }
-            }).catch(() => {
-                pinMarker.bindPopup(lat.toFixed(5) + ', ' + lng.toFixed(5)).openPopup();
-            });
+            pinLat.value = lat;
+            pinLng.value = lng;
+            reportPanel.style.display = 'block';
+            document.getElementById('gis-location-warning').style.display = 'none';
+            form.reset();
+            pinLat.value = lat;
+            pinLng.value = lng;
+            document.getElementById('severity').value = 'medium';
+            updateSpecificTypes();
             
+            // Run full GIS analysis: district detection + reverse geocoding
+            analyzePinnedLocation(lat, lng);
+            
+            // Re-analyze on marker drag
             pinMarker.on('dragend', function() {
                 const pos = pinMarker.getLatLng();
                 
@@ -1837,34 +2105,19 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                 
                 pinLat.value = pos.lat;
                 pinLng.value = pos.lng;
-                // Re-fetch address on drag
-                TomTomServices.reverseGeocodeOrbis(pos.lat, pos.lng).then(data => {
-                    const addr = data.data?.results?.[0]?.address;
-                    if (addr) {
-                        const parts = [
-                            addr.street && addr.houseNumber ? addr.houseNumber + ' ' + addr.street : addr.street || '',
-                            addr.municipality || '',
-                            addr.countrySubdivision || '',
-                            addr.postalCode || '',
-                            addr.country || ''
-                        ].filter(Boolean);
-                        pinMarker.setPopupContent('<b>' + parts.join(', ') + '</b>');
-                    }
-                });
+                // Re-run full GIS analysis for new position
+                analyzePinnedLocation(pos.lat, pos.lng);
             });
-            pinLat.value = lat;
-            pinLng.value = lng;
-            reportPanel.style.display = 'block';
-            form.reset();
-            pinLat.value = lat;
-            pinLng.value = lng;
-            document.getElementById('severity').value = 'medium';
-            updateSpecificTypes();
         });
 
         document.getElementById('cancel-pin-btn').addEventListener('click', function() {
             if (pinMarker) { map.removeLayer(pinMarker); pinMarker = null; }
             reportPanel.style.display = 'none';
+            document.getElementById('gis-location-info').style.display = 'none';
+            document.getElementById('gis-location-warning').style.display = 'none';
+            document.getElementById('pin-district').value = '';
+            document.getElementById('pin-barangay').value = '';
+            document.getElementById('pin-street').value = '';
         });
 
         // Multi-photo upload with add button and per-image delete
@@ -1966,6 +2219,8 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                             showNotification(data.message, 'success');
                             if (pinMarker) { map.removeLayer(pinMarker); pinMarker = null; }
                             reportPanel.style.display = 'none';
+                            document.getElementById('gis-location-info').style.display = 'none';
+                            document.getElementById('gis-location-warning').style.display = 'none';
                             form.reset();
                             selectedFiles = [];
                             imageGallery.innerHTML = '';
@@ -2258,22 +2513,26 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         document.getElementById('mapSearchResults').style.display = 'none';
         if (pinMarker) map.removeLayer(pinMarker);
         pinMarker = L.marker([lat, lng], { draggable: true }).addTo(map);
-        TomTomServices.reverseGeocodeOrbis(lat, lng).then(data => {
-            const addr = data.data?.results?.[0]?.address;
-            if (addr) {
-                const parts = [
-                    addr.street && addr.houseNumber ? addr.houseNumber + ' ' + addr.street : addr.street || '',
-                    addr.municipality || '',
-                    addr.countrySubdivision || '',
-                    addr.postalCode || '',
-                    addr.country || ''
-                ].filter(Boolean);
-                pinMarker.bindPopup('<b>' + parts.join(', ') + '</b>').openPopup();
-            }
-        }).catch(() => {});
         pinLat.value = lat;
         pinLng.value = lng;
         reportPanel.style.display = 'block';
+        document.getElementById('gis-location-warning').style.display = 'none';
+        
+        // Run full GIS analysis
+        analyzePinnedLocation(lat, lng);
+        
+        // Re-analyze on drag
+        pinMarker.on('dragend', function() {
+            const pos = pinMarker.getLatLng();
+            if (!isInsideQCBounds(pos.lat, pos.lng)) {
+                showNotification('Please keep the marker within Quezon City boundaries', 'error');
+                pinMarker.setLatLng([lat, lng]);
+                return;
+            }
+            pinLat.value = pos.lat;
+            pinLng.value = pos.lng;
+            analyzePinnedLocation(pos.lat, pos.lng);
+        });
     }
 
     // ===== ROUTE PLANNER =====
