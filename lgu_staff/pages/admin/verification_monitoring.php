@@ -3943,6 +3943,202 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 grid-template-columns: 1fr;
             }
         }
+
+        /* ===== Modal Dark Mode Overrides ===== */
+        body.dark-mode .modal-content {
+            background: #1a1d24 !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode .modal-header {
+            background: linear-gradient(135deg, #0f1f3d, #0a1628) !important;
+            border-bottom-color: #2d323b !important;
+        }
+        body.dark-mode .modal-header h2 {
+            color: #e4e6ea !important;
+        }
+        body.dark-mode .modal-close {
+            color: #9ca3af !important;
+        }
+        body.dark-mode .modal-body {
+            color: #e4e6ea !important;
+        }
+        body.dark-mode .modal-footer {
+            border-top-color: #2d323b !important;
+        }
+        body.dark-mode .detail-row {
+            border-bottom-color: #2d323b !important;
+        }
+        body.dark-mode .detail-label {
+            color: #e4e6ea !important;
+        }
+        body.dark-mode .detail-value {
+            color: #9ca3af !important;
+        }
+        body.dark-mode .modal-body::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05) !important;
+        }
+        body.dark-mode .modal-body::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.15) !important;
+        }
+
+        /* Citizen Modal Dark Mode */
+        body.dark-mode .citizen-modal-content {
+            background: #1a1d24 !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode .citizen-modal-header {
+            background: #1a1d24 !important;
+            border-bottom-color: #2d323b !important;
+        }
+        body.dark-mode .citizen-modal-title {
+            color: #4ade80 !important;
+        }
+        body.dark-mode .citizen-modal-report-id {
+            color: #4ade80 !important;
+        }
+        body.dark-mode .citizen-modal-close {
+            color: #9ca3af !important;
+        }
+        body.dark-mode .citizen-modal-section {
+            background: #22262e !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode .citizen-modal-section-title {
+            color: #4ade80 !important;
+            border-bottom-color: #2d323b !important;
+        }
+        body.dark-mode .citizen-info-icon {
+            background: rgba(34,197,94,0.15) !important;
+        }
+        body.dark-mode .citizen-info-label {
+            color: #9ca3af !important;
+        }
+        body.dark-mode .citizen-info-value {
+            color: #e4e6ea !important;
+        }
+        body.dark-mode .citizen-description-text {
+            color: #c0c8d8 !important;
+        }
+        body.dark-mode .citizen-modal-footer {
+            background: #1a1d24 !important;
+            border-top-color: #2d323b !important;
+        }
+        body.dark-mode .citizen-modal-btn-close {
+            background: rgba(34,197,94,0.15) !important;
+            color: #4ade80 !important;
+        }
+        body.dark-mode .citizen-modal-body::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05) !important;
+        }
+        body.dark-mode .citizen-modal-body::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.15) !important;
+        }
+
+        /* CIMM Modal Dark Mode */
+        body.dark-mode .cimm-modal-content {
+            background: #1a1d24 !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode .cimm-modal-header {
+            background: #1a1d24 !important;
+            border-bottom-color: #2d323b !important;
+        }
+        body.dark-mode .cimm-modal-title {
+            color: #60a5fa !important;
+        }
+        body.dark-mode .cimm-modal-report-id {
+            color: #60a5fa !important;
+        }
+        body.dark-mode .cimm-modal-close {
+            color: #9ca3af !important;
+        }
+        body.dark-mode .cimm-modal-section {
+            background: #22262e !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode .cimm-modal-section-title {
+            color: #60a5fa !important;
+            border-bottom-color: #2d323b !important;
+        }
+        body.dark-mode .cimm-info-icon {
+            background: rgba(55,98,200,0.15) !important;
+        }
+        body.dark-mode .cimm-info-label {
+            color: #9ca3af !important;
+        }
+        body.dark-mode .cimm-info-value {
+            color: #e4e6ea !important;
+        }
+        body.dark-mode .cimm-description-text {
+            color: #c0c8d8 !important;
+        }
+        body.dark-mode .cimm-modal-footer {
+            background: #1a1d24 !important;
+            border-top-color: #2d323b !important;
+        }
+        body.dark-mode .cimm-modal-btn-close {
+            background: rgba(55,98,200,0.15) !important;
+            color: #60a5fa !important;
+        }
+        body.dark-mode .cimm-modal-body::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05) !important;
+        }
+        body.dark-mode .cimm-modal-body::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.15) !important;
+        }
+
+        /* Infra Modal Dark Mode */
+        body.dark-mode .infra-modal-content {
+            background: #1a1d24 !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode .infra-modal-header {
+            background: #1a1d24 !important;
+            border-bottom-color: #2d323b !important;
+        }
+        body.dark-mode .infra-modal-title {
+            color: #fb923c !important;
+        }
+        body.dark-mode .infra-modal-report-id {
+            color: #fb923c !important;
+        }
+        body.dark-mode .infra-modal-close {
+            color: #9ca3af !important;
+        }
+        body.dark-mode .infra-modal-section {
+            background: #22262e !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode .infra-modal-section-title {
+            color: #fb923c !important;
+            border-bottom-color: #2d323b !important;
+        }
+        body.dark-mode .infra-info-icon {
+            background: rgba(249,115,22,0.15) !important;
+        }
+        body.dark-mode .infra-info-label {
+            color: #9ca3af !important;
+        }
+        body.dark-mode .infra-info-value {
+            color: #e4e6ea !important;
+        }
+        body.dark-mode .infra-description-text {
+            color: #c0c8d8 !important;
+        }
+        body.dark-mode .infra-modal-footer {
+            background: #1a1d24 !important;
+            border-top-color: #2d323b !important;
+        }
+        body.dark-mode .infra-modal-btn-close {
+            background: rgba(249,115,22,0.15) !important;
+            color: #fb923c !important;
+        }
+        body.dark-mode .infra-modal-body::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05) !important;
+        }
+        body.dark-mode .infra-modal-body::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.15) !important;
+        }
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
