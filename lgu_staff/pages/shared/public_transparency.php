@@ -79,7 +79,7 @@ if ($conn) {
         body.dark-mode .projects-section { background: var(--bg-card) !important; border-color: var(--border-default) !important; }
         body.dark-mode .project-form-card { background: var(--bg-card) !important; border-color: var(--border-default) !important; }
         body.dark-mode .project-item { background: var(--bg-card) !important; border-color: var(--border-default) !important; }
-        body.dark-mode .toggle-slider::before { background: transparent !important; box-shadow: none !important; }
+        body.dark-mode .toggle-slider::before { background: #fbbf24 !important; box-shadow: none !important; }
 
         .projects-section {
             background: #f0f4fa;
