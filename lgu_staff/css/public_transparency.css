@@ -985,7 +985,9 @@ a.btn-action:hover {
 body.dark-mode .transparency-header,
 body.dark-mode .transparency-stat,
 body.dark-mode .info-card,
-body.dark-mode .publications-section,
+body.dark-mode .projects-section,
+body.dark-mode .project-form-card,
+body.dark-mode .project-item,
 body.dark-mode .completed-projects-section,
 body.dark-mode .contact-section {
     background: var(--bg-card);
@@ -1241,11 +1243,6 @@ body.dark-mode .project-cost {
 
 body.dark-mode .project-form-card label {
     color: var(--text-secondary) !important;
-}
-
-body.dark-mode .project-item {
-    background: var(--bg-card) !important;
-    border-color: var(--border-default) !important;
 }
 
 body.dark-mode .project-item:hover {

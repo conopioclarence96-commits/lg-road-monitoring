@@ -76,6 +76,9 @@ if ($conn) {
         body.dark-mode .project-preview .preview-handle::after { color: var(--text-primary) !important; }
         body.dark-mode .btn-cancel { background: var(--bg-input-readonly) !important; color: var(--text-primary) !important; border: 1px solid var(--border-default) !important; }
         body.dark-mode .btn-cancel:hover { background: var(--text-muted) !important; color: var(--text-inverse) !important; }
+        body.dark-mode .projects-section { background: var(--bg-card) !important; border-color: var(--border-default) !important; }
+        body.dark-mode .project-form-card { background: var(--bg-card) !important; border-color: var(--border-default) !important; }
+        body.dark-mode .project-item { background: var(--bg-card) !important; border-color: var(--border-default) !important; }
 
         .projects-section {
             background: #f0f4fa;
