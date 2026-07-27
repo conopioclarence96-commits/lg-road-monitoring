@@ -472,6 +472,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                         $loginMessage = 'Your account has been rejected. Please contact administrator.';
                         $messageType = 'error';
                     }
+                    elseif ($user['account_status'] === 'deactivated') {
+                        $loginMessage = 'Your account has been deactivated. Please contact the administrator.';
+                        $messageType = 'error';
+                    }
                     elseif (!$user['is_active']) {
                         $loginMessage = 'Account is not active. Please contact administrator.';
                         $messageType = 'error';
