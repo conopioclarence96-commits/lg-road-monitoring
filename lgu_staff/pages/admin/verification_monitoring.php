@@ -202,14 +202,16 @@ function getAllReports($conn, $status_filter = 'all', $source_filter = 'all') {
     $citizen_exclude = "(report_source IS NULL OR report_source != 'local' OR report_category IS NULL OR report_category != 'transportation' OR created_by IS NULL OR created_by != 0)";
     if ($source_filter === 'transport') {
         $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}" : " WHERE {$infra_exclude} AND {$citizen_exclude}";
-        $q = "(SELECT 'transport' as source, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$where})";
+        $source_case = "CASE WHEN report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
+        $q = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$where})";
         $parts[] = $q;
     } elseif ($source_filter === 'maintenance') {
         $q = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
         $parts[] = $q;
     } else {
         $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}" : " WHERE {$infra_exclude} AND {$citizen_exclude}";
-        $parts[] = "(SELECT 'transport' as source, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$where})";
+        $source_case = "CASE WHEN report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
+        $parts[] = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$where})";
         $parts[] = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
     }
     $query = implode(' UNION ALL ', $parts) . " ORDER BY created_at DESC";
@@ -393,7 +395,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $report_id = (int) $_POST['report_id'];
         $source = $_POST['source'];
         $action = $_POST['action'];
-        $table = ($source === 'transport') ? 'road_transportation_reports' : 'road_maintenance_reports';
+        $table = in_array($source, ['transport', 'lgu', 'external']) ? 'road_transportation_reports' : 'road_maintenance_reports';
         
         // Archive report then remove from active table
         if ($action === 'delete') {
@@ -419,7 +421,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         // Check verification rules: block approve for road+local reports
-        if ($action === 'approve' && $source === 'transport') {
+        if ($action === 'approve' && in_array($source, ['transport', 'lgu', 'external'])) {
             $check = $conn->prepare("SELECT report_category, report_source FROM road_transportation_reports WHERE id = ?");
             $check->bind_param('i', $report_id);
             $check->execute();
@@ -4597,6 +4599,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 ];
 
                                 $lgu_source_labels = [
+                                    'lgu' => 'LGU Staff',
+                                    'external' => 'External (CIMM)',
                                     'transport' => 'Citizen',
                                     'cimm' => 'CIMM',
                                     'maintenance' => 'Infrastructure',
@@ -5504,7 +5508,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
             // Source & Department
             var sourceGrid = '';
-            var sourceLabel = r.source === 'transport' ? 'Transportation' : r.source === 'maintenance' ? 'Maintenance' : r.source;
+            var sourceLabel = r.source === 'lgu' ? 'LGU Staff' : r.source === 'external' ? 'External (CIMM)' : r.source === 'transport' ? 'Transportation' : r.source === 'maintenance' ? 'Maintenance' : r.source;
             sourceGrid += lguInfoItem('server', 'Source', sourceLabel);
             sourceGrid += lguInfoItem('building', 'Department', r.department);
             if (r.approved_at) {
