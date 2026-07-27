@@ -1200,7 +1200,7 @@ body.dark-mode .toggle-slider {
 }
 
 body.dark-mode .toggle-slider::before {
-    background: #fbbf24 !important;
+    background: transparent !important;
     box-shadow: none !important;
 }
 
