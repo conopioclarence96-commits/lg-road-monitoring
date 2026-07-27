@@ -371,7 +371,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                                 }
                             }
                             if ($matched) {
-                                $server_detected_district = sanitize_input($feature['properties']['district_name'] ?? '');
+                                $server_detected_district = sanitize_input($feature['properties']['district'] ?? $feature['properties']['district_name'] ?? '');
                                 break;
                             }
                         }
@@ -1741,17 +1741,18 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                             1: '#3b82f6', 2: '#8b5cf6', 3: '#10b981',
                             4: '#f59e0b', 5: '#ef4444', 6: '#06b6d4'
                         };
+                        const dNum = parseInt((feature.properties.district_number || feature.properties.district || '').replace(/\D/g, '')) || 1;
                         return {
-                            color: colors[feature.properties.district_number] || '#3762c8',
+                            color: colors[dNum] || '#3762c8',
                             weight: 1.5,
                             opacity: 0.6,
                             fillOpacity: 0.04,
-                            fillColor: colors[feature.properties.district_number] || '#3762c8',
+                            fillColor: colors[dNum] || '#3762c8',
                             dashArray: '5,5'
                         };
                     },
                     onEachFeature: function(feature, layer) {
-                        layer.bindTooltip(feature.properties.district_name, {
+                        layer.bindTooltip(feature.properties.district_name || feature.properties.district, {
                             sticky: true, className: 'district-tooltip'
                         });
                     }
@@ -1774,8 +1775,8 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
 
             // District tag
             if (districtProps) {
-                const dNum = districtProps.district_number;
-                const dName = districtProps.district_name;
+                const dNum = districtProps.district_number || parseInt((districtProps.district || '').replace(/\D/g, '')) || '';
+                const dName = districtProps.district_name || districtProps.district || '';
                 document.getElementById('pin-district').value = dName;
                 html += '<span class="gis-field-tag"><span class="gis-tag-label">District:</span> ' + dName + '</span>';
             } else {
@@ -1861,7 +1862,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                         addr.postalCode || ''
                     ].filter(Boolean);
                     const popupHtml = '<b>' + (parts.join(', ') || lat.toFixed(5) + ', ' + lng.toFixed(5)) + '</b>'
-                        + (districtProps ? '<br><small style="color:#10b981;">' + districtProps.district_name + '</small>' : '');
+                        + (districtProps ? '<br><small style="color:#10b981;">' + (districtProps.district_name || districtProps.district || '') + '</small>' : '');
                     pinMarker.bindPopup(popupHtml).openPopup();
                 }
             }).catch(() => {
