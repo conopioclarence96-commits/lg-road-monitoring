@@ -409,7 +409,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     exit;
                 }
                 
-                $stmt->bind_param("ssssssssssssdsss", $report_id, $report_type, $report_category, $report_source, $title, $department, $priority, $description, $location_str, $district, $barangay, $lat, $lng, $severity_db, $attachments_json, $image_path, $user_id);
+                // Parameters: report_id, report_type, report_category, report_source, title, department, priority, description, location, district, barangay, lat, lng, severity, attachments, image_path, user_id
+                $stmt->bind_param("ssssssssssssddssis", $report_id, $report_type, $report_category, $report_source, $title, $department, $priority, $description, $location_str, $district, $barangay, $lat, $lng, $severity_db, $attachments_json, $image_path, $user_id);
                 
                 if ($stmt->execute()) {
                     ob_end_clean(); // Clear any output before JSON
