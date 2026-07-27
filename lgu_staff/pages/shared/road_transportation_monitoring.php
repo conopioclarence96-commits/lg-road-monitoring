@@ -356,6 +356,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $geojson_data = json_decode($geojson_raw, true);
                     if ($geojson_data && isset($geojson_data['features'])) {
                         $server_detected_district = '';
+                        $best_dist = INF;
+                        $best_match = '';
                         foreach ($geojson_data['features'] as $feature) {
                             $coords = $feature['geometry']['coordinates'] ?? [];
                             $geom_type = $feature['geometry']['type'] ?? '';
@@ -374,6 +376,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                                 $server_detected_district = sanitize_input($feature['properties']['district'] ?? $feature['properties']['district_name'] ?? '');
                                 break;
                             }
+                            // Fallback: nearest centroid for gap areas
+                            $ring = $geom_type === 'Polygon' ? ($coords[0] ?? []) : ($coords[0][0] ?? []);
+                            $cnt = count($ring);
+                            if ($cnt > 0) {
+                                $slng = 0; $slat = 0;
+                                foreach ($ring as $c) { $slng += $c[0]; $slat += $c[1]; }
+                                $clng = $slng / $cnt; $clat = $slat / $cnt;
+                                $dx = $lng - $clng; $dy = $lat - $clat;
+                                $dist = $dx * $dx + $dy * $dy;
+                                if ($dist < $best_dist) {
+                                    $best_dist = $dist;
+                                    $best_match = sanitize_input($feature['properties']['district'] ?? $feature['properties']['district_name'] ?? '');
+                                }
+                            }
+                        }
+                        if (empty($server_detected_district)) {
+                            $server_detected_district = $best_match;
                         }
                         // Use server-detected district as authoritative, override if frontend mismatches
                         if (!empty($server_detected_district)) {
@@ -1714,6 +1733,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
 
         function detectDistrict(lat, lng) {
             if (!qcDistrictsGeoJSON) return null;
+            // Primary: try exact polygon containment
             for (const feature of qcDistrictsGeoJSON.features) {
                 if (feature.geometry.type === 'Polygon') {
                     if (pointInPolygonCoords(lat, lng, feature.geometry.coordinates)) {
@@ -1727,7 +1747,24 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                     }
                 }
             }
-            return null;
+            // Fallback: nearest centroid (covers gaps between district boundaries)
+            let bestDist = Infinity, bestMatch = null;
+            for (const feature of qcDistrictsGeoJSON.features) {
+                if (!feature.properties._centroid) {
+                    // Compute centroid from polygon coordinates
+                    const coords = feature.geometry.type === 'Polygon'
+                        ? feature.geometry.coordinates[0]
+                        : feature.geometry.coordinates[0][0];
+                    let slng = 0, slat = 0, cnt = 0;
+                    for (const c of coords) { slng += c[0]; slat += c[1]; cnt++; }
+                    feature.properties._centroid = { lng: slng / cnt, lat: slat / cnt };
+                }
+                const c = feature.properties._centroid;
+                const dx = lng - c.lng, dy = lat - c.lat;
+                const dist = dx * dx + dy * dy;
+                if (dist < bestDist) { bestDist = dist; bestMatch = feature.properties; }
+            }
+            return bestMatch;
         }
 
         // Load QC Districts GeoJSON layer
