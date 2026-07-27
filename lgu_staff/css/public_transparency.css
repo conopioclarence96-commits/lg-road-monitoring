@@ -1209,7 +1209,7 @@ body.dark-mode .publish-checkbox:checked + .publish-label .toggle-slider {
 }
 
 body.dark-mode .toggle-text {
-    color: var(--text-primary) !important;
+    color: #fbbf24 !important;
 }
 
 body.dark-mode .publish-checkbox:checked + .publish-label .toggle-text {
