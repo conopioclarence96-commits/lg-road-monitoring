@@ -292,6 +292,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $specific_type = sanitize_input($_POST['specific_type'] ?? '');
                 $severity = sanitize_input($_POST['severity'] ?? '');
                 $description = sanitize_input($_POST['description'] ?? '');
+                $district = sanitize_input($_POST['district'] ?? '');
 
                 // Combine issue type and specific type for detailed reporting
                 $full_issue_type = $specific_type ? $specific_type : $issue_type;
@@ -399,16 +400,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $image_path = !empty($attachments) ? $attachments[0]['file_path'] : null;
                 
                 $stmt = $conn->prepare("INSERT INTO road_transportation_reports 
-                    (report_id, report_type, report_category, report_source, title, department, priority, status, created_date, description, location, latitude, longitude, severity, attachments, image_path, created_by) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', CURDATE(), ?, ?, ?, ?, ?, ?, ?, ?)");
+                    (report_id, report_type, report_category, report_source, title, department, priority, status, created_date, description, location, district, latitude, longitude, severity, attachments, image_path, created_by) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', CURDATE(), ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 
                 if (!$stmt) {
                     echo json_encode(['success' => false, 'message' => 'Database prepare failed: ' . $conn->error]);
                     exit;
                 }
                 
-                // Parameters: report_id, report_type, report_category, report_source, title, department, priority, description, location, lat, lng, severity, attachments, image_path, user_id
-                $stmt->bind_param("sssssssssddssis", $report_id, $report_type, $report_category, $report_source, $title, $department, $priority, $description, $location_str, $lat, $lng, $severity_db, $attachments_json, $image_path, $user_id);
+                // Parameters: report_id, report_type, report_category, report_source, title, department, priority, description, location, district, lat, lng, severity, attachments, image_path, user_id
+                $stmt->bind_param("ssssssssssddssis", $report_id, $report_type, $report_category, $report_source, $title, $department, $priority, $description, $location_str, $district, $lat, $lng, $severity_db, $attachments_json, $image_path, $user_id);
                 
                 if ($stmt->execute()) {
                     ob_end_clean(); // Clear any output before JSON
@@ -417,7 +418,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     ob_end_clean();
                     $error_details = $stmt->error;
                     error_log("Statement execution failed: " . $error_details);
-                    error_log("Bound parameters: report_id=$report_id, report_type=$report_type, title=$title, department=$department, priority=$priority, description=$description, location=$location_str, lat=$lat, lng=$lng, severity=$severity_db, attachments=$attachments_json, image_path=$image_path, user_id=$user_id");
+                    error_log("Bound parameters: report_id=$report_id, report_type=$report_type, title=$title, department=$department, priority=$priority, description=$description, location=$location_str, district=$district, lat=$lat, lng=$lng, severity=$severity_db, attachments=$attachments_json, image_path=$image_path, user_id=$user_id");
                     echo json_encode(['success' => false, 'message' => 'Failed to save report: ' . $error_details]);
                 }
             } catch (Exception $e) {
@@ -1338,6 +1339,16 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                             <option value="high">High</option>
                             <option value="severe">Severe</option>
                         </select>
+                        <label>District <small style="color:#6b7280;">(auto-detected)</small></label>
+                        <select id="district" name="district">
+                            <option value="">— Select District —</option>
+                            <option value="District 1">District 1</option>
+                            <option value="District 2">District 2</option>
+                            <option value="District 3">District 3</option>
+                            <option value="District 4">District 4</option>
+                            <option value="District 5">District 5</option>
+                            <option value="District 6">District 6</option>
+                        </select>
                         <label>Description</label>
                         <textarea id="description" name="description" rows="3" required placeholder="Describe the issue..."></textarea>
                         <label>Upload Photos (Optional)</label>
@@ -1791,6 +1802,57 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             }
         }
 
+        // Quezon City district auto-detection based on coordinates
+        // Uses simplified polygon boundaries for each legislative district
+        function detectQCDistrict(lat, lng) {
+            // Point-in-polygon test
+            function pointInPoly(lat, lng, poly) {
+                let inside = false;
+                for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+                    const yi = poly[i][0], xi = poly[i][1];
+                    const yj = poly[j][0], xj = poly[j][1];
+                    if (((yi > lng) !== (yj > lng)) && (lat < (xj - xi) * (lng - yi) / (yj - yi) + xi)) {
+                        inside = !inside;
+                    }
+                }
+                return inside;
+            }
+
+            // QC Legislative District boundaries (simplified polygons)
+            const districts = {
+                'District 1': [
+                    [14.6120, 120.9840], [14.6120, 120.9960], [14.6280, 120.9960],
+                    [14.6280, 121.0100], [14.6400, 121.0100], [14.6400, 120.9840]
+                ],
+                'District 2': [
+                    [14.6400, 120.9840], [14.6400, 121.0100], [14.6600, 121.0100],
+                    [14.6600, 121.0300], [14.6800, 121.0300], [14.6800, 120.9840]
+                ],
+                'District 3': [
+                    [14.6400, 121.0100], [14.6400, 121.0500], [14.6600, 121.0500],
+                    [14.6600, 121.0300], [14.6800, 121.0300], [14.6800, 121.0100],
+                    [14.6600, 121.0100]
+                ],
+                'District 4': [
+                    [14.6400, 121.0500], [14.6400, 121.0950], [14.6800, 121.0950],
+                    [14.6800, 121.0500], [14.6600, 121.0500]
+                ],
+                'District 5': [
+                    [14.6120, 120.9960], [14.6120, 121.0400], [14.6280, 121.0400],
+                    [14.6280, 121.0100], [14.6400, 121.0100], [14.6400, 120.9960]
+                ],
+                'District 6': [
+                    [14.6120, 121.0400], [14.6120, 121.0800], [14.6280, 121.0800],
+                    [14.6280, 121.0400], [14.6400, 121.0500], [14.6400, 121.0400]
+                ]
+            };
+
+            for (const [name, poly] of Object.entries(districts)) {
+                if (pointInPoly(lat, lng, poly)) return name;
+            }
+            return '';
+        }
+
         // Map click: place pin, show form, and fetch address details
         map.on('click', function(e) {
             const { lat, lng } = e.latlng;
@@ -1851,6 +1913,8 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                         pinMarker.setPopupContent('<b>' + parts.join(', ') + '</b>');
                     }
                 });
+                // Update district on drag
+                document.getElementById('district').value = detectQCDistrict(pos.lat, pos.lng);
             });
             pinLat.value = lat;
             pinLng.value = lng;
@@ -1859,6 +1923,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             pinLat.value = lat;
             pinLng.value = lng;
             document.getElementById('severity').value = 'medium';
+            document.getElementById('district').value = detectQCDistrict(lat, lng);
             updateSpecificTypes();
         });
 
