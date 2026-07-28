@@ -2164,6 +2164,8 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         const imageGallery = document.getElementById('image-gallery');
         const addPhotosBtn = document.getElementById('add-photos-btn');
         let selectedFiles = [];
+        let updateSelectedFiles = [];
+        let updatePreviewCounter = 0;
         
         addPhotosBtn.addEventListener('click', function() {
             imageInput.click();
@@ -2347,6 +2349,8 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             document.getElementById('existingUpdateMedia').innerHTML = '';
             document.getElementById('addUpdateModalTitle').textContent = 'Add Progress Update';
             document.getElementById('addUpdateSubmitBtn').innerHTML = '<i class="fas fa-save"></i> Post Update';
+            updateSelectedFiles = [];
+            updatePreviewCounter = 0;
             closeModal('updatesModal');
             openModal('addUpdateModal');
         }
@@ -2371,6 +2375,8 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             document.getElementById('updateFilePreviews').innerHTML = '';
             document.getElementById('addUpdateModalTitle').textContent = isEdit ? 'Edit Update' : 'Add Progress Update';
             document.getElementById('addUpdateSubmitBtn').innerHTML = isEdit ? '<i class="fas fa-save"></i> Save Changes' : '<i class="fas fa-save"></i> Post Update';
+            updateSelectedFiles = [];
+            updatePreviewCounter = 0;
 
             var removedMediaIds = [];
 
@@ -2437,6 +2443,11 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                 form.appendChild(h);
             });
 
+            var dt = new DataTransfer();
+            updateSelectedFiles.forEach(function(f) { dt.items.add(f); });
+            var fileInput = form.querySelector('input[type="file"]');
+            if (fileInput) fileInput.files = dt.files;
+
             const fd = new FormData(form);
             fetch('../api/progress_update_api.php', {
                 method: 'POST',
@@ -2477,31 +2488,58 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             }
         });
 
-        // File preview for add update modal (event delegation)
+        // File preview for add update modal — maintains persistent upload queue
         document.addEventListener('change', function(e) {
             if (e.target && e.target.matches && e.target.matches('#addUpdateForm input[type="file"]')) {
-                var preview = document.getElementById('updateFilePreviews');
-                if (!preview) return;
-                preview.innerHTML = '';
-                Array.from(e.target.files).forEach(function(f) {
-                    if (f.type.startsWith('image/')) {
-                        var reader = new FileReader();
-                        reader.onload = function(ev) {
-                            var item = document.createElement('div');
-                            item.className = 'file-preview-item';
-                            item.innerHTML = '<img src="' + ev.target.result + '"><button type="button" class="remove-preview" onclick="this.parentElement.remove()">&times;</button>';
-                            preview.appendChild(item);
-                        };
-                        reader.readAsDataURL(f);
-                    } else {
-                        var item = document.createElement('div');
-                        item.className = 'file-preview-item';
-                        item.innerHTML = '<i class="fas fa-video" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:20px;color:#3762c8;opacity:0.7;"></i><button type="button" class="remove-preview" onclick="this.parentElement.remove()">&times;</button>';
-                        preview.appendChild(item);
+                var newFiles = Array.from(e.target.files);
+                newFiles.forEach(function(f) {
+                    if (updateSelectedFiles.indexOf(f) === -1) {
+                        updateSelectedFiles.push(f);
                     }
                 });
+                e.target.value = '';
+                renderUpdateFilePreviews();
             }
         });
+
+        function renderUpdateFilePreviews() {
+            var preview = document.getElementById('updateFilePreviews');
+            if (!preview) return;
+            updatePreviewCounter++;
+            var currentRender = updatePreviewCounter;
+            preview.innerHTML = '';
+            if (updateSelectedFiles.length === 0) return;
+            updateSelectedFiles.forEach(function(f, index) {
+                var item = document.createElement('div');
+                item.className = 'file-preview-item';
+                var removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'remove-preview';
+                removeBtn.innerHTML = '&times;';
+                removeBtn.addEventListener('click', function(idx) {
+                    return function() {
+                        if (idx >= 0 && idx < updateSelectedFiles.length) {
+                            updateSelectedFiles.splice(idx, 1);
+                        }
+                        renderUpdateFilePreviews();
+                    };
+                }(index));
+                if (f.type.startsWith('image/')) {
+                    var reader = new FileReader();
+                    reader.onload = function(ev) {
+                        if (currentRender !== updatePreviewCounter) return;
+                        item.innerHTML = '<img src="' + ev.target.result + '">';
+                        item.appendChild(removeBtn);
+                    };
+                    reader.readAsDataURL(f);
+                } else {
+                    item.style.cssText = 'display:flex;align-items:center;justify-content:center;background:#f0f4fa;font-size:11px;color:#3762c8;';
+                    item.innerHTML = '<i class="fas fa-video" style="font-size:20px;"></i>';
+                    item.appendChild(removeBtn);
+                }
+                preview.appendChild(item);
+            });
+        }
     </script>
     <script>
     // ===== TOMTOM API FEATURES =====
