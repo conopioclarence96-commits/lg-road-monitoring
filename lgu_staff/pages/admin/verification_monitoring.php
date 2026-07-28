@@ -95,8 +95,8 @@ $conn->query("CREATE TABLE IF NOT EXISTS reports (
     KEY fk_report_reporter (report_by)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-// Check if user is logged in
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'system_admin') {
+// Check if user is logged in and has proper role
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['system_admin', 'lgu_staff'])) {
     header('Location: ../../login.php');
     exit();
 }

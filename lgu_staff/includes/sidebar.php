@@ -91,13 +91,13 @@ function getNavigationItems($user_role) {
                 'href' => '../pages/admin/verification_monitoring.php',
                 'icon' => 'shield-check',
                 'title' => 'Verification Reports',
-                'roles' => ['system_admin']
+                'roles' => ['system_admin', 'lgu_staff']
             ],
             [
                 'href' => '../pages/admin/report_management.php',
                 'icon' => 'clipboard-data',
                 'title' => 'Report Management',
-                'roles' => ['system_admin']
+                'roles' => ['system_admin', 'lgu_staff']
             ]
         ],
         'transparency' => [
