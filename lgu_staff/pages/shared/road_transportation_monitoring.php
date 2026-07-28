@@ -3001,8 +3001,8 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                     <input type="hidden" name="report_id" id="addUpdateReportId" value="">
                     <input type="hidden" name="report_type" id="addUpdateReportType" value="">
                     <div class="form-group">
-                        <label class="form-label">Title (optional)</label>
-                        <input type="text" name="title" id="addUpdateTitle" class="form-control" placeholder="e.g., Inspection completed">
+                        <label class="form-label">Title *</label>
+                        <input type="text" name="title" id="addUpdateTitle" class="form-control" placeholder="e.g., Inspection completed" required>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Description *</label>
