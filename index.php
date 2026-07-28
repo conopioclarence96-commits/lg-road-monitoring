@@ -1375,7 +1375,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 <a href="road-updates.php" class="btn btn-secondary-hero btn-hero">
                     <i class="fas fa-newspaper"></i> Latest Updates
                 </a>
-                <button data-bs-toggle="modal" data-bs-target="#citizenReportModal" class="btn btn-primary-hero btn-hero">
+                <button id="makeReportBtn" class="btn btn-primary-hero btn-hero">
                     <i class="fas fa-pen-alt"></i> Make a Report
                 </button>
             </div>
@@ -2569,6 +2569,150 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             otpVerified = false;
             if (citizenPin) { citizenMap.removeLayer(citizenPin); citizenPin = null; }
         }
+    </script>
+
+    <!-- Terms and Conditions Modal -->
+    <div class="modal fade" id="termsModal" tabindex="-1" aria-labelledby="termsModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="termsModalLabel">
+                        <i class="fas fa-file-contract"></i> Terms and Conditions
+                    </h5>
+                </div>
+                <div class="modal-body">
+                    <h6 style="color:#1e3c72;font-weight:600;margin-bottom:16px;">Terms and Conditions for Citizen Reporting</h6>
+                    <p style="font-weight:500;margin-bottom:12px;">By submitting a report through this system, you agree to the following:</p>
+                    <div class="terms-scroll" style="max-height:340px;overflow-y:auto;border:1px solid #e0e4f0;border-radius:8px;padding:16px;background:#fafbfc;font-size:0.9rem;line-height:1.7;color:#333;">
+                        <ul style="padding-left:20px;margin:0;">
+                            <li style="margin-bottom:10px;">All information you provide should be truthful, accurate, and submitted in good faith.</li>
+                            <li style="margin-bottom:10px;">False, misleading, duplicated, or malicious reports may be rejected and may result in appropriate action by the LGU.</li>
+                            <li style="margin-bottom:10px;">Uploaded photos, videos, and other evidence should relate only to the reported incident and must not violate the privacy or rights of other individuals.</li>
+                            <li style="margin-bottom:10px;">Reports are subject to verification by authorized LGU personnel before any action is taken.</li>
+                            <li style="margin-bottom:10px;">Submission of a report does not guarantee immediate response or resolution, as reports are prioritized based on urgency and available resources.</li>
+                            <li style="margin-bottom:10px;">Personal information collected through the system will be used solely for report verification, communication, and processing in accordance with the Data Privacy Act of 2012 (Republic Act No. 10173).</li>
+                            <li style="margin-bottom:10px;">The LGU reserves the right to reject, archive, or request additional information for incomplete, duplicate, or invalid reports.</li>
+                            <li style="margin-bottom:0;">By proceeding, you confirm that you understand and accept these Terms and Conditions.</li>
+                        </ul>
+                    </div>
+                    <div class="form-check mt-3">
+                        <input class="form-check-input" type="checkbox" id="termsCheckbox">
+                        <label class="form-check-label" for="termsCheckbox" style="font-weight:500;font-size:0.9rem;">
+                            I have read and agree to the Terms and Conditions.
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="cr-btn cr-btn-secondary" id="termsCancelBtn">Cancel</button>
+                    <button type="button" class="cr-btn cr-btn-primary" id="termsContinueBtn" disabled>
+                        <i class="fas fa-arrow-right"></i> Continue
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Terms and Conditions modal logic
+        (function() {
+            var termsModalEl = document.getElementById('termsModal');
+            var termsModal = null;
+            var termsCheckbox = document.getElementById('termsCheckbox');
+            var termsContinueBtn = document.getElementById('termsContinueBtn');
+            var termsCancelBtn = document.getElementById('termsCancelBtn');
+            var makeReportBtn = document.getElementById('makeReportBtn');
+            var citizenModalEl = document.getElementById('citizenReportModal');
+
+            if (typeof bootstrap !== 'undefined' && termsModalEl) {
+                termsModal = new bootstrap.Modal(termsModalEl, {
+                    backdrop: 'static',
+                    keyboard: false
+                });
+            }
+
+            function openTermsModal() {
+                termsCheckbox.checked = false;
+                termsContinueBtn.disabled = true;
+                if (termsModal) termsModal.show();
+            }
+
+            function closeTermsModal() {
+                if (termsModal) termsModal.hide();
+            }
+
+            function acceptTermsAndOpenReport() {
+                sessionStorage.setItem('tc_accepted', 'true');
+                closeTermsModal();
+                var reportModal = bootstrap.Modal.getInstance(citizenModalEl);
+                if (!reportModal) reportModal = new bootstrap.Modal(citizenModalEl);
+                reportModal.show();
+            }
+
+            // Check sessionStorage and either open T&C or go directly to report
+            function handleMakeReport() {
+                if (sessionStorage.getItem('tc_accepted') === 'true') {
+                    var reportModal = bootstrap.Modal.getInstance(citizenModalEl);
+                    if (!reportModal) reportModal = new bootstrap.Modal(citizenModalEl);
+                    reportModal.show();
+                } else {
+                    openTermsModal();
+                }
+            }
+
+            if (makeReportBtn) {
+                makeReportBtn.addEventListener('click', handleMakeReport);
+            }
+
+            if (termsCheckbox) {
+                termsCheckbox.addEventListener('change', function() {
+                    termsContinueBtn.disabled = !this.checked;
+                });
+            }
+
+            if (termsContinueBtn) {
+                termsContinueBtn.addEventListener('click', acceptTermsAndOpenReport);
+            }
+
+            if (termsCancelBtn) {
+                termsCancelBtn.addEventListener('click', closeTermsModal);
+            }
+
+            // Focus trapping within the T&C modal
+            if (termsModalEl) {
+                termsModalEl.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape') {
+                        e.preventDefault();
+                        closeTermsModal();
+                        return;
+                    }
+                    if (e.key === 'Tab') {
+                        var focusable = termsModalEl.querySelectorAll(
+                            'button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
+                        );
+                        var first = focusable[0];
+                        var last = focusable[focusable.length - 1];
+                        if (e.shiftKey) {
+                            if (document.activeElement === first) {
+                                e.preventDefault();
+                                last.focus();
+                            }
+                        } else {
+                            if (document.activeElement === last) {
+                                e.preventDefault();
+                                first.focus();
+                            }
+                        }
+                    }
+                });
+
+                // Focus the first focusable element when the modal opens
+                termsModalEl.addEventListener('shown.bs.modal', function() {
+                    setTimeout(function() {
+                        termsCheckbox.focus();
+                    }, 100);
+                });
+            }
+        })();
     </script>
 </body>
 </html>
