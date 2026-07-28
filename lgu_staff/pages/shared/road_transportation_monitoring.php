@@ -2469,6 +2469,14 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             }
         });
 
+        // Add Photos button triggers hidden file input
+        document.addEventListener('click', function(e) {
+            if (e.target && e.target.id === 'addUpdatePhotosBtn') {
+                var fileInput = document.querySelector('#addUpdateForm input[type="file"]');
+                if (fileInput) fileInput.click();
+            }
+        });
+
         // File preview for add update modal (event delegation)
         document.addEventListener('change', function(e) {
             if (e.target && e.target.matches && e.target.matches('#addUpdateForm input[type="file"]')) {
@@ -2964,8 +2972,11 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                     </div>
                     <div class="form-group">
                         <label class="form-label">Photos / Video</label>
-                        <input type="file" name="media[]" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm" multiple>
-                        <small class="t-text-secondary" style="font-size:11px;">Accepted: JPG, PNG, GIF, WebP, MP4, WebM</small>
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                            <button type="button" id="addUpdatePhotosBtn" style="padding:8px 16px;background:#3762c8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;display:inline-flex;align-items:center;gap:6px;"><i class="fas fa-camera"></i> Add Photos</button>
+                            <small class="t-text-secondary" style="font-size:11px;">Accepted: JPG, PNG, GIF, WebP, MP4, WebM</small>
+                        </div>
+                        <input type="file" name="media[]" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm" multiple style="display:none;">
                         <div class="file-previews" id="updateFilePreviews"></div>
                     </div>
                     <div id="existingUpdateMediaSection" style="display:none;">
