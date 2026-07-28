@@ -190,6 +190,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_login_otp'])) 
             $_SESSION['logged_in'] = true;
             $_SESSION['login_time'] = time();
 
+            // Remember Me — extend session cookie to 30 days
+            if (!empty($user['remember_me'])) {
+                $params = session_get_cookie_params();
+                setcookie(session_name(), session_id(), time() + (30 * 24 * 60 * 60), $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+            }
+
             $login_update = $conn->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
             $login_update->bind_param("i", $user['id']);
             $login_update->execute();
@@ -485,6 +491,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                             // 2FA enabled - send OTP for verification
                             handle_login_otp($user['email']);
 
+                            $user['remember_me'] = !empty($_POST['remember_me']);
                             $_SESSION['login_verify_data'] = $user;
 
                             $loginMessage = 'A verification code has been sent to your email. Please check your inbox.';
@@ -499,6 +506,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                             $_SESSION['darkmode'] = $user['darkmode'] ?? 0;
                             $_SESSION['logged_in'] = true;
                             $_SESSION['login_time'] = time();
+
+                            // Remember Me — extend session cookie to 30 days
+                            if (!empty($_POST['remember_me'])) {
+                                $params = session_get_cookie_params();
+                                setcookie(session_name(), session_id(), time() + (30 * 24 * 60 * 60), $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+                            }
 
                             $login_update = $conn->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
                             $login_update->bind_param("i", $user['id']);
@@ -598,6 +611,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                 <input type="password" name="password" id="loginPassword" placeholder="•••••••" />
                 <button type="button" class="password-toggle" onclick="togglePassword('loginPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
                 <span class="icon">🔒</span>
+              </div>
+
+              <div class="remember-me">
+                <label class="checkbox-label">
+                  <input type="checkbox" name="remember_me" id="rememberMe">
+                  <span class="checkmark"></span>
+                  Remember Me
+                </label>
               </div>
 
               <button class="btn-primary">Sign In</button>
@@ -899,6 +920,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
       
       .resend-form {
         display: inline;
+      }
+
+      .remember-me {
+        text-align: left;
+        margin: 8px 0 0 0;
+      }
+      .checkbox-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: #000;
+        cursor: pointer;
+        user-select: none;
+        position: relative;
+      }
+      .checkbox-label input[type="checkbox"] {
+        display: none;
+      }
+      .checkmark {
+        width: 18px;
+        height: 18px;
+        border: 2px solid #888;
+        border-radius: 4px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        flex-shrink: 0;
+      }
+      .checkbox-label input:checked + .checkmark {
+        background: #285ccd;
+        border-color: #285ccd;
+      }
+      .checkbox-label input:checked + .checkmark::after {
+        content: '✓';
+        color: #fff;
+        font-size: 13px;
+        font-weight: 700;
+        line-height: 1;
       }
     </style>
 

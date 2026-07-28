@@ -1174,6 +1174,22 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             color: #0c5460;
             border: 1px solid #bee5eb;
         }
+        .cr-form-group .field-error {
+            display: none;
+            color: #dc3545;
+            font-size: 0.82rem;
+            margin-top: 4px;
+        }
+        .cr-form-group .field-error.show {
+            display: block;
+        }
+        .cr-form-group input.error {
+            border-color: #dc3545;
+        }
+        .cr-form-group input.error:focus {
+            border-color: #dc3545;
+            box-shadow: 0 0 0 3px rgba(220,53,69,0.15);
+        }
         .photo-preview-grid {
             display: flex;
             flex-wrap: wrap;
@@ -1438,7 +1454,8 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         <div class="cr-form-row">
                             <div class="cr-form-group">
                                 <label><i class="fas fa-phone"></i> Phone Number <span class="text-danger">*</span></label>
-                                <input type="tel" name="phone" id="crPhone" required placeholder="e.g. 09171234567" pattern="[0-9]{11,}" title="Please enter a valid phone number (at least 11 digits)">
+                                <input type="tel" name="phone" id="crPhone" required placeholder="0917 123 4567 or +639 17 123 4567" inputmode="numeric" autocomplete="tel">
+                                <div class="field-error" id="crPhoneError">Please enter a valid Philippine mobile number.</div>
                             </div>
                             <div class="cr-form-group">
                                 <label><i class="fas fa-comment"></i> Description <span class="text-danger">*</span></label>
@@ -2463,6 +2480,94 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 });
         }
 
+        // Philippine mobile number validation
+        function normalizePhone(val) {
+            return val.replace(/\s/g, '');
+        }
+
+        function validatePhone(val) {
+            const clean = normalizePhone(val);
+            const localRe = /^09[0-9]{9}$/;
+            const intlRe = /^\+639[0-9]{9}$/;
+            if (localRe.test(clean)) return { valid: true, normalized: clean, format: 'local' };
+            if (intlRe.test(clean)) return { valid: true, normalized: '09' + clean.slice(3), format: 'intl' };
+            return { valid: false, normalized: clean, format: null };
+        }
+
+        function applyPhoneFormat(raw) {
+            if (raw.startsWith('+')) {
+                if (!raw.startsWith('+63')) return '+63';
+                let after = raw.slice(3).replace(/[^0-9]/g, '').slice(0, 9);
+                let r = '+63';
+                if (after.length > 0) r += ' ' + after.slice(0, 2);
+                if (after.length > 2) r += ' ' + after.slice(2, 5);
+                if (after.length > 5) r += ' ' + after.slice(5);
+                return r;
+            }
+            let d = raw.replace(/[^0-9]/g, '').slice(0, 11);
+            let r = d;
+            if (d.length > 4) r = d.slice(0, 4) + ' ' + d.slice(4, 7) + ' ' + d.slice(7);
+            else if (d.length > 2) r = d.slice(0, 4) + ' ' + d.slice(4);
+            return r;
+        }
+
+        function showPhoneError(input, show) {
+            const errEl = document.getElementById('crPhoneError');
+            if (show) {
+                input.classList.add('error');
+                errEl.classList.add('show');
+            } else {
+                input.classList.remove('error');
+                errEl.classList.remove('show');
+            }
+        }
+
+        const crPhoneInput = document.getElementById('crPhone');
+        crPhoneInput.addEventListener('input', function() {
+            let raw = this.value.replace(/[^0-9+]/g, '');
+            // Enforce exactly one leading +
+            let plusCount = (raw.match(/\+/g) || []).length;
+            if (plusCount > 1) {
+                raw = '+' + raw.replace(/\+/g, '');
+            } else if (plusCount === 1 && !raw.startsWith('+')) {
+                raw = '+' + raw.replace(/\+/g, '');
+            }
+            // Determine raw digit count before reformatting for cursor adjustment
+            const cursorPos = this.selectionStart;
+            const rawBefore = this.value.slice(0, cursorPos).replace(/[^0-9+]/g, '').length;
+
+            const formatted = applyPhoneFormat(raw);
+            this.value = formatted;
+
+            // Restore cursor position
+            const rawAfter = formatted.replace(/[^0-9+]/g, '');
+            let newPos = 0, digitCount = 0;
+            for (let i = 0; i < formatted.length && digitCount < rawBefore; i++) {
+                if (/[0-9+]/.test(formatted[i])) digitCount++;
+                newPos = i + 1;
+            }
+            // If we ran out of digits before reaching rawBefore, put cursor at end
+            if (digitCount < rawBefore) newPos = formatted.length;
+            this.setSelectionRange(newPos, newPos);
+
+            // Real-time validation
+            const result = validatePhone(normalizePhone(formatted));
+            showPhoneError(this, formatted.length > 0 && !result.valid);
+        });
+
+        crPhoneInput.addEventListener('blur', function() {
+            const val = normalizePhone(this.value);
+            if (val.length > 0) {
+                const result = validatePhone(val);
+                showPhoneError(this, !result.valid);
+                if (result.valid) {
+                    this.value = applyPhoneFormat(result.normalized);
+                }
+            } else {
+                showPhoneError(this, false);
+            }
+        });
+
         document.getElementById('citizenReportForm').addEventListener('submit', function(e) {
             e.preventDefault();
 
@@ -2481,9 +2586,20 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             const name = document.getElementById('crName').value.trim();
             if (!name) errors.push('Please enter your full name.');
 
-            const phone = document.getElementById('crPhone').value.trim();
-            if (!phone) errors.push('Please enter your phone number.');
-            else if (!/^[0-9]{11,}$/.test(phone)) errors.push('Please enter a valid phone number (at least 11 digits).');
+            const phoneInput = document.getElementById('crPhone');
+            const phone = normalizePhone(phoneInput.value);
+            if (!phone) {
+                errors.push('Please enter your phone number.');
+                showPhoneError(phoneInput, true);
+            } else {
+                const phoneResult = validatePhone(phone);
+                if (!phoneResult.valid) {
+                    errors.push('Please enter a valid Philippine mobile number.');
+                    showPhoneError(phoneInput, true);
+                } else {
+                    showPhoneError(phoneInput, false);
+                }
+            }
 
             const desc = document.getElementById('crDescription').value.trim();
             if (!desc) errors.push('Please describe the issue.');
@@ -2514,7 +2630,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             fd.append('issue_type', document.getElementById('crIssueType').value);
             fd.append('severity', document.getElementById('crSeverity').value);
             fd.append('reporter_name', document.getElementById('crName').value.trim());
-            fd.append('phone', document.getElementById('crPhone').value.trim());
+            fd.append('phone', normalizePhone(document.getElementById('crPhone').value));
             fd.append('description', document.getElementById('crDescription').value.trim());
 
             photoFiles.forEach(file => {
@@ -2559,6 +2675,8 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             document.getElementById('submitReportBtn').disabled = true;
             document.getElementById('verifyOtpBtn').disabled = true;
             document.getElementById('sendOtpBtn').disabled = false;
+            document.getElementById('crPhone').classList.remove('error');
+            document.getElementById('crPhoneError').classList.remove('show');
             document.getElementById('crEmail').readOnly = false;
             document.getElementById('citizenMap').classList.remove('has-pin');
             document.getElementById('crAddress').value = '';
