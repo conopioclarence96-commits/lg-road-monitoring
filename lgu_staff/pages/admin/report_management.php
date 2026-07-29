@@ -1572,8 +1572,95 @@ if ($include_cimm) {
             color: #fbbf24;
         }
         body.dark-mode .status-in-progress {
-            background: rgba(37, 99, 235, 0.2);
-            color: #60a5fa;
+            background: rgba(59, 130, 246, 0.15);
+            color: #3b82f6;
+        }
+
+        /* Add/Edit Update Modal form styles */
+        #addUpdateModal .form-group { margin-bottom: 16px; }
+        #addUpdateModal .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        #addUpdateModal .form-control {
+            width: 100%;
+            padding: 10px 14px;
+            border: 2px solid rgba(55,98,200,0.15);
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+            background: white;
+            color: #333;
+            box-sizing: border-box;
+        }
+        #addUpdateModal .form-control:focus {
+            border-color: #3762c8;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(55,98,200,0.1);
+        }
+        #addUpdateModal textarea.form-control { resize: vertical; }
+        #addUpdateModal .file-previews {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        #addUpdateModal .file-preview-item {
+            width: 80px;
+            height: 80px;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid #ddd;
+            position: relative;
+            background: #f8f9fa;
+            flex-shrink: 0;
+        }
+        #addUpdateModal .file-preview-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        #addUpdateModal .file-preview-item .remove-preview {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            width: 20px;
+            height: 20px;
+            background: rgba(220,53,69,0.9);
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            font-size: 14px;
+            line-height: 1;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+        #addUpdateModal .file-preview-item .remove-preview:hover { background: #dc3545; }
+        body.dark-mode #addUpdateModal .form-label { color: #e4e6ea; }
+        body.dark-mode #addUpdateModal .form-control {
+            background: #1a1d23;
+            color: #e4e6ea;
+            border-color: #3a3f4a;
+        }
+        body.dark-mode #addUpdateModal .file-preview-item { background: #2a2e36; border-color: #3a3f4a; }
+        #updatesModal .btn-action, #addUpdateModal .btn-action {
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+            color: white;
+            border-radius: 8px;
+        }
+        #updatesModal .btn-action:hover, #addUpdateModal .btn-action:hover {
+            background: linear-gradient(135deg, #1e3c72, #3762c8);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(55,98,200,0.3);
         }
         body.dark-mode .status-completed {
             background: rgba(5, 150, 105, 0.2);
@@ -3079,10 +3166,58 @@ if ($include_cimm) {
             <div class="modal-footer" style="justify-content: space-between;">
                 <span id="updateReportInfo" class="t-text-secondary" style="font-size: 13px;"></span>
                 <div>
-                    <button type="button" class="btn-action" id="addUpdateBtn" onclick="showUpdateForm(currentUpdatesReportId, currentUpdatesReportType)">+ Add Update</button>
+                    <button type="button" class="btn-action" id="addUpdateBtn" onclick="showAddUpdateModal()">+ Add Update</button>
                     <button type="button" class="btn-secondary-custom" onclick="closeModal('updatesModal')">Close</button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Update Modal -->
+    <div id="addUpdateModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-plus-circle"></i> <span id="addUpdateModalTitle">Add Progress Update</span></h5>
+                <button class="close" onclick="cancelUpdateForm()">&times;</button>
+            </div>
+            <form id="addUpdateForm" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <input type="hidden" name="action" id="addUpdateAction" value="create_update">
+                    <input type="hidden" name="update_id" id="addUpdateId" value="">
+                    <input type="hidden" name="report_id" id="addUpdateReportId" value="">
+                    <input type="hidden" name="report_type" id="addUpdateReportType" value="">
+                    <div class="form-group">
+                        <label class="form-label">Title *</label>
+                        <input type="text" name="title" id="addUpdateTitle" class="form-control" placeholder="e.g., Inspection completed" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Description *</label>
+                        <textarea name="description" id="addUpdateDescription" class="form-control" rows="4" placeholder="Describe the progress made..." required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Photos / Video</label>
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                            <button type="button" id="addUpdatePhotosBtn" style="padding:8px 16px;background:#3762c8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;display:inline-flex;align-items:center;gap:6px;"><i class="fas fa-camera"></i> Add Photos</button>
+                            <small class="t-text-secondary" style="font-size:11px;">Accepted: JPG, PNG, GIF, WebP, MP4, WebM</small>
+                        </div>
+                        <input type="file" name="media[]" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm" multiple style="display:none;">
+                        <div class="file-previews" id="updateFilePreviews"></div>
+                    </div>
+                    <div id="existingUpdateMediaSection" style="display:none;">
+                        <div class="form-group">
+                            <label class="form-label">Current media (check to remove)</label>
+                            <div id="existingUpdateMedia" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer" style="justify-content: space-between;">
+                    <span class="t-text-secondary" style="font-size:12px;">Updates are visible to all staff</span>
+                    <div style="display:flex;gap:10px;">
+                        <button type="button" class="btn-secondary-custom" onclick="cancelUpdateForm()">Cancel</button>
+                        <button type="submit" class="btn-action" id="addUpdateSubmitBtn"><i class="fas fa-save"></i> Post Update</button>
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -3121,8 +3256,12 @@ if ($include_cimm) {
         // Close modal when clicking outside
         window.onclick = function(event) {
             if (event.target.classList.contains('modal')) {
-                event.target.style.display = 'none';
-                document.body.style.overflow = 'auto';
+                if (event.target.id === 'addUpdateModal') {
+                    cancelUpdateForm();
+                } else {
+                    event.target.style.display = 'none';
+                    document.body.style.overflow = 'auto';
+                }
             }
         }
 
@@ -3297,12 +3436,215 @@ if ($include_cimm) {
                 });
         }
 
+        let updateSelectedFiles = [];
+        let updatePreviewCounter = 0;
+
         function viewReportUpdates(id, type) {
             currentUpdatesReportId = id;
             currentUpdatesReportType = type;
             document.getElementById('updateReportInfo').textContent = 'Report #' + id;
             openModal('updatesModal');
-            loadUpdates(id, type);
+            if (typeof loadUpdates === 'function') {
+                loadUpdates(id, type);
+            }
+        }
+
+        function showAddUpdateModal() {
+            document.getElementById('addUpdateAction').value = 'create_update';
+            document.getElementById('addUpdateId').value = '';
+            document.getElementById('addUpdateReportId').value = currentUpdatesReportId;
+            document.getElementById('addUpdateReportType').value = currentUpdatesReportType;
+            document.getElementById('addUpdateTitle').value = '';
+            document.getElementById('addUpdateDescription').value = '';
+            document.getElementById('updateFilePreviews').innerHTML = '';
+            document.getElementById('existingUpdateMediaSection').style.display = 'none';
+            document.getElementById('existingUpdateMedia').innerHTML = '';
+            document.getElementById('addUpdateModalTitle').textContent = 'Add Progress Update';
+            document.getElementById('addUpdateSubmitBtn').innerHTML = '<i class="fas fa-save"></i> Post Update';
+            updateSelectedFiles = [];
+            updatePreviewCounter = 0;
+            closeModal('updatesModal');
+            openModal('addUpdateModal');
+        }
+
+        function cancelUpdateForm() {
+            closeModal('addUpdateModal');
+            openModal('updatesModal');
+            if (typeof loadUpdates === 'function') {
+                loadUpdates(currentUpdatesReportId, currentUpdatesReportType);
+            }
+        }
+
+        function showUpdateForm(reportId, reportType, updateData) {
+            const isEdit = updateData && updateData.id;
+            document.getElementById('addUpdateAction').value = isEdit ? 'edit_update' : 'create_update';
+            document.getElementById('addUpdateId').value = isEdit ? updateData.id : '';
+            document.getElementById('addUpdateReportId').value = reportId;
+            document.getElementById('addUpdateReportType').value = reportType;
+            document.getElementById('addUpdateTitle').value = isEdit ? (updateData.title || '') : '';
+            document.getElementById('addUpdateDescription').value = isEdit ? (updateData.description || '') : '';
+            document.getElementById('updateFilePreviews').innerHTML = '';
+            document.getElementById('addUpdateModalTitle').textContent = isEdit ? 'Edit Update' : 'Add Progress Update';
+            document.getElementById('addUpdateSubmitBtn').innerHTML = isEdit ? '<i class="fas fa-save"></i> Save Changes' : '<i class="fas fa-save"></i> Post Update';
+            updateSelectedFiles = [];
+            updatePreviewCounter = 0;
+
+            var removedMediaIds = [];
+
+            if (isEdit && updateData.media) {
+                const mediaContainer = document.getElementById('existingUpdateMedia');
+                mediaContainer.innerHTML = '';
+                document.getElementById('existingUpdateMediaSection').style.display = '';
+                updateData.media.forEach(function(m) {
+                    const div = document.createElement('div');
+                    div.style.cssText = 'position:relative;width:80px;height:60px;border-radius:6px;overflow:hidden;border:1px solid rgba(55,98,200,0.15);flex-shrink:0;';
+                    const isVideo = m.file_type === 'video';
+                    div.innerHTML = isVideo
+                        ? '<i class="fas fa-video" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:20px;color:#3762c8;opacity:0.5;"></i>'
+                        : '<img src="../../' + m.file_path.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') + '" style="width:100%;height:100%;object-fit:cover;">';
+                    var removeBtn = document.createElement('button');
+                    removeBtn.type = 'button';
+                    removeBtn.style.cssText = 'position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;border:none;background:rgba(220,53,69,0.9);color:#fff;font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;z-index:2;';
+                    removeBtn.innerHTML = '&times;';
+                    removeBtn.title = 'Remove this photo';
+                    removeBtn.addEventListener('click', function(mediaId) {
+                        return function() {
+                            if (removedMediaIds.indexOf(mediaId) === -1) {
+                                removedMediaIds.push(mediaId);
+                            }
+                            div.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
+                            div.style.transform = 'scale(0.5)';
+                            div.style.opacity = '0';
+                            setTimeout(function() { div.remove(); }, 200);
+                        };
+                    }(m.id));
+                    div.appendChild(removeBtn);
+                    mediaContainer.appendChild(div);
+                });
+            } else {
+                document.getElementById('existingUpdateMediaSection').style.display = 'none';
+                document.getElementById('existingUpdateMedia').innerHTML = '';
+            }
+
+            var form = document.getElementById('addUpdateForm');
+            form._removedMediaIds = removedMediaIds;
+
+            closeModal('updatesModal');
+            openModal('addUpdateModal');
+        }
+
+        function handleUpdateFormSubmit(e) {
+            e.preventDefault();
+            const btn = document.getElementById('addUpdateSubmitBtn');
+            const orig = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+            var form = document.getElementById('addUpdateForm');
+
+            var removedIds = form._removedMediaIds || [];
+            document.querySelectorAll('#addUpdateForm input[name="remove_media[]"]').forEach(function(el) { el.remove(); });
+            removedIds.forEach(function(id) {
+                var h = document.createElement('input');
+                h.type = 'hidden';
+                h.name = 'remove_media[]';
+                h.value = id;
+                form.appendChild(h);
+            });
+
+            var dt = new DataTransfer();
+            updateSelectedFiles.forEach(function(f) { dt.items.add(f); });
+            var fileInput = form.querySelector('input[type="file"]');
+            if (fileInput) fileInput.files = dt.files;
+
+            const fd = new FormData(form);
+            fetch('../api/progress_update_api.php', {
+                method: 'POST',
+                body: fd
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    closeModal('addUpdateModal');
+                    openModal('updatesModal');
+                    if (typeof loadUpdates === 'function') {
+                        loadUpdates(currentUpdatesReportId, currentUpdatesReportType);
+                    }
+                } else {
+                    showNotification(data.message || 'Failed to save update', 'error');
+                }
+            })
+            .catch(function(e) {
+                showNotification('Network error', 'error');
+                console.error(e);
+            })
+            .finally(function() { btn.disabled = false; btn.innerHTML = orig; });
+        }
+
+        document.addEventListener('submit', function(e) {
+            if (e.target && e.target.id === 'addUpdateForm') {
+                handleUpdateFormSubmit(e);
+            }
+        });
+
+        document.addEventListener('click', function(e) {
+            if (e.target && e.target.id === 'addUpdatePhotosBtn') {
+                var fileInput = document.querySelector('#addUpdateForm input[type="file"]');
+                if (fileInput) fileInput.click();
+            }
+        });
+
+        document.addEventListener('change', function(e) {
+            if (e.target && e.target.matches && e.target.matches('#addUpdateForm input[type="file"]')) {
+                var newFiles = Array.from(e.target.files);
+                newFiles.forEach(function(f) {
+                    if (updateSelectedFiles.indexOf(f) === -1) {
+                        updateSelectedFiles.push(f);
+                    }
+                });
+                e.target.value = '';
+                renderUpdateFilePreviews();
+            }
+        });
+
+        function renderUpdateFilePreviews() {
+            var preview = document.getElementById('updateFilePreviews');
+            if (!preview) return;
+            updatePreviewCounter++;
+            var currentRender = updatePreviewCounter;
+            preview.innerHTML = '';
+            if (updateSelectedFiles.length === 0) return;
+            updateSelectedFiles.forEach(function(f, index) {
+                var item = document.createElement('div');
+                item.className = 'file-preview-item';
+                var removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'remove-preview';
+                removeBtn.innerHTML = '&times;';
+                removeBtn.addEventListener('click', function(idx) {
+                    return function() {
+                        if (idx >= 0 && idx < updateSelectedFiles.length) {
+                            updateSelectedFiles.splice(idx, 1);
+                        }
+                        renderUpdateFilePreviews();
+                    };
+                }(index));
+                if (f.type.startsWith('image/')) {
+                    var reader = new FileReader();
+                    reader.onload = function(ev) {
+                        if (currentRender !== updatePreviewCounter) return;
+                        item.innerHTML = '<img src="' + ev.target.result + '">';
+                        item.appendChild(removeBtn);
+                    };
+                    reader.readAsDataURL(f);
+                } else {
+                    item.style.cssText = 'display:flex;align-items:center;justify-content:center;background:#f0f4fa;font-size:11px;color:#3762c8;';
+                    item.innerHTML = '<i class="fas fa-video" style="font-size:20px;"></i>';
+                    item.appendChild(removeBtn);
+                }
+                preview.appendChild(item);
+            });
         }
 
         var editSelectedFiles = [];
