@@ -371,15 +371,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $inside_qc = false;
                 if (file_exists($qcBoundaryPath)) {
                     $qcGeoJson = json_decode(file_get_contents($qcBoundaryPath), true);
-                    if ($qcGeoJson && isset($qcGeoJson['coordinates'][0][0])) {
-                        $rings = $qcGeoJson['coordinates'][0];
-                        foreach ($rings as $ring) {
-                            $n = count($ring);
-                            for ($i = 0, $j = $n - 1; $i < $n; $j = $i++) {
-                                $xi = $ring[$i][0]; $yi = $ring[$i][1];
-                                $xj = $ring[$j][0]; $yj = $ring[$j][1];
-                                if ((($yi > $lng) !== ($yj > $lng)) && ($lat < ($xj - $xi) * ($lng - $yi) / ($yj - $yi) + $xi)) {
-                                    $inside_qc = !$inside_qc;
+                    if ($qcGeoJson && isset($qcGeoJson['coordinates'])) {
+                        // Get all polygon coordinate arrays (handles MultiPolygon)
+                        $allPolygons = ($qcGeoJson['type'] ?? '') === 'MultiPolygon'
+                            ? $qcGeoJson['coordinates']
+                            : [ $qcGeoJson['coordinates'] ];
+                        foreach ($allPolygons as $polygon) {
+                            $rings = $polygon;
+                            foreach ($rings as $ring) {
+                                $n = count($ring);
+                                $poly_inside = false;
+                                for ($i = 0, $j = $n - 1; $i < $n; $j = $i++) {
+                                    // GeoJSON: [lng, lat] → xi = lat, yi = lng (matches vertical ray casting)
+                                    $xi = $ring[$i][1]; $yi = $ring[$i][0];
+                                    $xj = $ring[$j][1]; $yj = $ring[$j][0];
+                                    if ((($yi > $lng) !== ($yj > $lng)) && ($lat < ($xj - $xi) * ($lng - $yi) / ($yj - $yi) + $xi)) {
+                                        $poly_inside = !$poly_inside;
+                                    }
+                                }
+                                // First ring is outer; subsequent rings are holes
+                                if ($poly_inside && $rings[0] === $ring) {
+                                    $inside_qc = true;
+                                } elseif ($poly_inside) {
+                                    // Point is inside a hole → not inside QC
+                                    $inside_qc = false;
+                                    break 2;
                                 }
                             }
                             if ($inside_qc) break;
@@ -1731,16 +1747,19 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
         }).addTo(map);
 
         // Load Quezon City administrative boundary from GeoJSON
-        const QC_POLYGON_COORDS = (function() {
+        const QC_BOUNDARY_DATA = (function() {
             var geojson = <?php
                 $_qcPath = __DIR__ . '/../api/qc_boundary.json';
                 echo file_exists($_qcPath) ? file_get_contents($_qcPath) : 'null';
             ?>;
-            if (geojson && geojson.coordinates && geojson.coordinates[0] && geojson.coordinates[0][0]) {
-                return geojson.coordinates[0][0].map(function(p) { return [p[1], p[0]]; });
-            }
-            return null;
+            if (!geojson || !geojson.coordinates) return null;
+            // Return array of polygon coordinate arrays (handles MultiPolygon)
+            return (geojson.type === 'MultiPolygon') ? geojson.coordinates : [geojson.coordinates];
         })();
+        // Leaflet display polygon (first polygon outer ring only)
+        const QC_POLYGON_COORDS = QC_BOUNDARY_DATA && QC_BOUNDARY_DATA[0] && QC_BOUNDARY_DATA[0][0]
+            ? QC_BOUNDARY_DATA[0][0].map(function(p) { return [p[1], p[0]]; })
+            : null;
         const QC_POLYGON = QC_POLYGON_COORDS ? L.polygon(QC_POLYGON_COORDS, {
             color: '#3762c8',
             weight: 2,
@@ -1750,19 +1769,31 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
         }).addTo(map) : null;
         if (QC_POLYGON) map.fitBounds(QC_POLYGON.getBounds());
 
-        // Point-in-polygon check using ray casting
+        // Point-in-polygon check using ray casting (handles MultiPolygon and holes)
         function isInsideQCBounds(lat, lng) {
-            if (!QC_POLYGON) return false;
-            const polygon = QC_POLYGON.getLatLngs()[0];
-            let inside = false;
-            for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-                const xi = polygon[i].lat, yi = polygon[i].lng;
-                const xj = polygon[j].lat, yj = polygon[j].lng;
-                if ((yi > lng) !== (yj > lng) && lat < (xj - xi) * (lng - yi) / (yj - yi) + xi) {
-                    inside = !inside;
+            if (!QC_BOUNDARY_DATA) return false;
+            for (const rings of QC_BOUNDARY_DATA) {
+                let polyInside = false;
+                for (let r = 0; r < rings.length; r++) {
+                    const ring = rings[r];
+                    let ringInside = false;
+                    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+                        const xi = ring[i][1], yi = ring[i][0];
+                        const xj = ring[j][1], yj = ring[j][0];
+                        if ((yi > lng) !== (yj > lng) && lat < (xj - xi) * (lng - yi) / (yj - yi) + xi) {
+                            ringInside = !ringInside;
+                        }
+                    }
+                    if (r === 0) {
+                        polyInside = ringInside;
+                    } else if (ringInside) {
+                        polyInside = false;
+                        break;
+                    }
                 }
+                if (polyInside) return true;
             }
-            return inside;
+            return false;
         }
 
         // ====================================================================
