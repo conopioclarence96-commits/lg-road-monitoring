@@ -65,7 +65,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all') {
                CASE WHEN created_by IS NULL OR created_by = 0 THEN 'citizen' ELSE 'lgu' END as source,
                status, priority, severity, created_at, description,
                latitude, longitude, location, reporter_name, attachments, image_path
-               FROM road_transportation_reports WHERE 1=1";
+               FROM road_transportation_reports WHERE status != 'pending'";
         $p1 = []; $t1 = '';
         if ($status_filter !== 'all') { $q1 .= " AND status = ?"; $p1[] = $status_filter; $t1 .= 's'; }
         $q1 .= " ORDER BY created_at DESC LIMIT ?"; $p1[] = $limit; $t1 .= 'i';
@@ -82,7 +82,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all') {
                COALESCE(submitted_at, verified_at, synced_at, NOW()) as created_at,
                issue as description, coord_lat as latitude, coord_lng as longitude,
                location, reporter_name, evidence_json as attachments, NULL as image_path
-               FROM cimm_verification_reports WHERE 1=1";
+               FROM cimm_verification_reports WHERE approval_status != 'Pending'";
         $p2 = []; $t2 = '';
         if ($status_filter !== 'all') {
             $s = $status_filter === 'in-progress' ? 'In Progress' : ucfirst(str_replace('-',' ',$status_filter));
