@@ -3205,7 +3205,7 @@ if ($include_cimm) {
                     </div>
                     <div id="existingUpdateMediaSection" style="display:none;">
                         <div class="form-group">
-                            <label class="form-label">Current media</label>
+                            <label class="form-label">Current media (check to remove)</label>
                             <div id="existingUpdateMedia" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;"></div>
                         </div>
                     </div>
@@ -3473,10 +3473,6 @@ if ($include_cimm) {
             if (typeof loadUpdates === 'function') {
                 loadUpdates(currentUpdatesReportId, currentUpdatesReportType);
             }
-        }
-
-        function closeLightbox() {
-            document.getElementById('lightboxOverlay').classList.remove('show');
         }
 
         function showUpdateForm(reportId, reportType, updateData) {
