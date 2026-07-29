@@ -54,36 +54,78 @@ function getEnhancedStats() {
     return $stats;
 }
 
-// Function to get recent reports for the table
-function getRecentTransportReports($limit = 10, $status_filter = 'all', $type_filter = 'all') {
+// Function to get recent submissions from all report sources
+function getRecentSubmissions($limit = 10, $status_filter = 'all') {
     global $conn;
     $reports = [];
-    if ($conn) {
-        try {
-            $q = "SELECT id, report_id, title, report_type, status, priority, severity, created_at 
-                  FROM road_transportation_reports WHERE 1=1";
-            $params = [];
-            $types = '';
-            if ($status_filter !== 'all') {
-                $q .= " AND status = ?";
-                $params[] = $status_filter;
-                $types .= 's';
-            }
-            if ($type_filter !== 'all') {
-                $q .= " AND report_type = ?";
-                $params[] = $type_filter;
-                $types .= 's';
-            }
-            $q .= " ORDER BY created_at DESC LIMIT ?";
-            $params[] = $limit;
-            $types .= 'i';
-            $stmt = $conn->prepare($q);
-            $stmt->bind_param($types, ...$params);
-            $stmt->execute();
-            $res = $stmt->get_result();
-            while ($row = $res->fetch_assoc()) $reports[] = $row;
-        } catch (Exception $e) { error_log("Recent reports error: ".$e->getMessage()); }
-    }
+    if (!$conn) return $reports;
+    try {
+        // 1. Road transportation reports (citizen + LGU + external/CIMM)
+        $q1 = "SELECT id, report_id, title, report_type,
+               CASE WHEN created_by IS NULL OR created_by = 0 THEN 'citizen' ELSE 'lgu' END as source,
+               status, priority, severity, created_at, description,
+               latitude, longitude, location, reporter_name, attachments, image_path
+               FROM road_transportation_reports WHERE 1=1";
+        $p1 = []; $t1 = '';
+        if ($status_filter !== 'all') { $q1 .= " AND status = ?"; $p1[] = $status_filter; $t1 .= 's'; }
+        $q1 .= " ORDER BY created_at DESC LIMIT ?"; $p1[] = $limit; $t1 .= 'i';
+        $s1 = $conn->prepare($q1);
+        if (!empty($p1)) $s1->bind_param($t1, ...$p1);
+        $s1->execute();
+        $r1 = $s1->get_result();
+        while ($row = $r1->fetch_assoc()) $reports[] = $row;
+        $s1->close();
+
+        // 2. CIMM verification reports
+        $q2 = "SELECT id, reference_code as report_id, infrastructure as title, NULL as report_type,
+               'cimm' as source, approval_status as status, priority, NULL as severity,
+               COALESCE(submitted_at, verified_at, synced_at, NOW()) as created_at,
+               issue as description, coord_lat as latitude, coord_lng as longitude,
+               location, reporter_name, evidence_json as attachments, NULL as image_path
+               FROM cimm_verification_reports WHERE 1=1";
+        $p2 = []; $t2 = '';
+        if ($status_filter !== 'all') {
+            $s = $status_filter === 'in-progress' ? 'In Progress' : ucfirst(str_replace('-',' ',$status_filter));
+            $q2 .= " AND LOWER(approval_status) LIKE ?";
+            $p2[] = '%' . strtolower($s) . '%';
+            $t2 .= 's';
+        }
+        $q2 .= " ORDER BY created_at DESC LIMIT ?"; $p2[] = $limit; $t2 .= 'i';
+        $s2 = $conn->prepare($q2);
+        if (!empty($p2)) $s2->bind_param($t2, ...$p2);
+        $s2->execute();
+        $r2 = $s2->get_result();
+        while ($row = $r2->fetch_assoc()) $reports[] = $row;
+        $s2->close();
+
+        // 3. IPMS road projects (infrastructure)
+        $q3 = "SELECT id, project_id as report_id, project_name as title, road_type as report_type,
+               'infrastructure' as source, project_status as status, NULL as priority, NULL as severity,
+               created_at, NULL as description, start_lat as latitude, start_lng as longitude,
+               road_name as location, NULL as reporter_name, NULL as attachments, NULL as image_path
+               FROM ipms_road_projects WHERE 1=1";
+        $p3 = []; $t3 = '';
+        if ($status_filter !== 'all') {
+            $s = $status_filter === 'in-progress' ? 'In Progress' : ucfirst(str_replace('-',' ',$status_filter));
+            $q3 .= " AND LOWER(project_status) LIKE ?";
+            $p3[] = '%' . strtolower($s) . '%';
+            $t3 .= 's';
+        }
+        $q3 .= " ORDER BY created_at DESC LIMIT ?"; $p3[] = $limit; $t3 .= 'i';
+        $s3 = $conn->prepare($q3);
+        if (!empty($p3)) $s3->bind_param($t3, ...$p3);
+        $s3->execute();
+        $r3 = $s3->get_result();
+        while ($row = $r3->fetch_assoc()) $reports[] = $row;
+        $s3->close();
+
+        // Sort combined by created_at DESC
+        usort($reports, function($a, $b) {
+            return strtotime($b['created_at'] ?? 'now') - strtotime($a['created_at'] ?? 'now');
+        });
+
+        $reports = array_slice($reports, 0, $limit);
+    } catch (Exception $e) { error_log("Recent submissions error: ".$e->getMessage()); }
     return $reports;
 }
 
@@ -514,7 +556,7 @@ $type_filter = $_GET['type'] ?? 'all';
 $alerts = getActiveAlerts();
 $roads = getRoadStatus();
 $enhanced_stats = getEnhancedStats();
-$recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
+$recent_reports = getRecentSubmissions(10, $status_filter);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -964,6 +1006,18 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         .badge-high, .badge-critical { background: #f8d7da; color: #721c24; }
         .badge-medium { background: #fff3cd; color: #856404; }
         .badge-low { background: #e2e3e5; color: #383d41; }
+        .badge-source { font-size: 10px; padding: 1px 8px; text-transform: lowercase; }
+        .badge-citizen { background: #dbeafe; color: #1d4ed8; }
+        .badge-lgu { background: #d1fae5; color: #065f46; }
+        .badge-cimm { background: #fef3c7; color: #92400e; }
+        .badge-infrastructure { background: #ede9fe; color: #5b21b6; }
+        .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .detail-field.full-width { grid-column: 1 / -1; }
+        .detail-label { display:block; font-size: 11px; color: #64748b; font-weight: 600; text-transform:uppercase; letter-spacing:0.3px; margin-bottom:2px; }
+        .detail-value { font-size: 14px; color: #1e3c72; word-break: break-word; }
+        .detail-photos { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+        .detail-photo { width: 100px; height: 80px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 1px solid rgba(55,98,200,0.15); transition: transform 0.2s; }
+        .detail-photo:hover { transform: scale(1.05); }
         .table-action-btn {
             padding: 4px 10px; border-radius: 5px; border: none;
             font-size: 11px; cursor: pointer; transition: all 0.2s;
@@ -1591,11 +1645,12 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                         <option value="completed" <?php echo $status_filter === 'completed' ? 'selected' : ''; ?>>Completed</option>
                         <option value="cancelled" <?php echo $status_filter === 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
                     </select>
-                    <select class="filter-select" id="typeFilter" onchange="filterReports()">
-                        <option value="all" <?php echo $type_filter === 'all' ? 'selected' : ''; ?>>All Types</option>
-                        <option value="citizen_reports" <?php echo $type_filter === 'citizen_reports' ? 'selected' : ''; ?>>Citizen Reports</option>
-                        <option value="cimm_reports" <?php echo $type_filter === 'cimm_reports' ? 'selected' : ''; ?>>CIMM Reports</option>
-                        <option value="infrastructure_projects" <?php echo $type_filter === 'infrastructure_projects' ? 'selected' : ''; ?>>Infrastructure Projects</option>
+                    <select class="filter-select" id="typeFilter" onchange="filterReportsBySource()">
+                        <option value="all">All Types</option>
+                        <option value="citizen">Citizen Reports</option>
+                        <option value="cimm">CIMM Reports</option>
+                        <option value="infrastructure">Infrastructure Projects</option>
+                        <option value="lgu">LGU Monitoring Reports</option>
                     </select>
                     <button class="btn-secondary-custom" onclick="resetFilters()" title="Reset Filters">
                         <i class="fas fa-arrow-clockwise"></i>
@@ -1609,7 +1664,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                         <tr>
                             <th>Report ID</th>
                             <th>Title</th>
-                            <th>Type</th>
+                            <th>Source</th>
                             <th>Status</th>
                             <th>Priority</th>
                             <th>Date</th>
@@ -1621,14 +1676,33 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                         <tr><td colspan="7" class="t-text-secondary" style="text-align:center;padding:30px;">No reports yet.</td></tr>
                         <?php else: ?>
                         <?php foreach ($recent_reports as $rr): ?>
-                         <tr class="report-table-row" data-id="<?php echo $rr['id']; ?>" data-title="<?php echo htmlspecialchars(strtolower($rr['title'] ?? '')); ?>" data-report-id="<?php echo htmlspecialchars(strtolower($rr['report_id'] ?? '')); ?>" data-status="<?php echo $rr['status'] ?? 'pending'; ?>">
+                        <?php $rr_details = htmlspecialchars(json_encode([
+                            'id' => $rr['id'],
+                            'report_id' => $rr['report_id'],
+                            'title' => $rr['title'],
+                            'source' => $rr['source'],
+                            'report_type' => $rr['report_type'],
+                            'status' => $rr['status'],
+                            'priority' => $rr['priority'],
+                            'severity' => $rr['severity'],
+                            'created_at' => $rr['created_at'],
+                            'description' => $rr['description'],
+                            'latitude' => $rr['latitude'],
+                            'longitude' => $rr['longitude'],
+                            'location' => $rr['location'],
+                            'reporter_name' => $rr['reporter_name'],
+                            'attachments' => $rr['attachments'],
+                            'image_path' => $rr['image_path'],
+                        ]), ENT_QUOTES, 'UTF-8'); ?>
+                         <tr class="report-table-row" data-id="<?php echo $rr['id']; ?>" data-title="<?php echo htmlspecialchars(strtolower($rr['title'] ?? '')); ?>" data-report-id="<?php echo htmlspecialchars(strtolower($rr['report_id'] ?? '')); ?>" data-status="<?php echo $rr['status'] ?? 'pending'; ?>" data-source="<?php echo $rr['source'] ?? 'citizen'; ?>" data-details='<?php echo $rr_details; ?>'>
                             <td style="font-family:monospace;font-size:12px;"><?php echo htmlspecialchars($rr['report_id'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars($rr['title'] ?? 'Untitled'); ?></td>
-                            <td><?php echo htmlspecialchars($rr['report_type'] ?? '—'); ?></td>
+                            <td><span class="badge badge-source badge-<?php echo $rr['source'] ?? 'citizen'; ?>"><?php echo ucfirst($rr['source'] ?? 'citizen'); ?></span></td>
                             <td><span class="badge badge-<?php echo $rr['status'] ?? 'pending'; ?>"><?php echo ucfirst(str_replace('-',' ',$rr['status'] ?? 'pending')); ?></span></td>
                             <td><span class="badge badge-<?php echo $rr['priority'] ?? 'low'; ?>"><?php echo ucfirst($rr['priority'] ?? 'low'); ?></span></td>
                             <td><?php echo date('M d, Y H:i', strtotime($rr['created_at'] ?? 'now')); ?></td>
                             <td style="white-space:nowrap;">
+                                <button class="table-action-btn" title="View Details" onclick="viewReportDetails(<?php echo $rr['id']; ?>, '<?php echo $rr['source']; ?>')"><i class="fas fa-eye"></i></button>
                                 <button class="table-action-btn view-map" onclick="focusReportOnMap(<?php echo $rr['id']; ?>)"><i class="fas fa-map-pin"></i> Map</button>
                                 <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(<?php echo $rr['id']; ?>, '<?php echo $rr['report_type']; ?>')"><i class="fas fa-clock"></i> Updates</button>
                             </td>
@@ -2018,30 +2092,114 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                 .catch(() => showNotification('Could not load map data.', 'error'));
         }
 
-        // Search reports table
+        // Search reports table (respects source filter)
         function filterReportsTable(query) {
             const q = query.toLowerCase().trim();
+            const source = document.getElementById('typeFilter').value;
             document.querySelectorAll('#recentReportsTable .report-table-row').forEach(row => {
                 const title = row.dataset.title || '';
                 const rid = row.dataset.reportId || '';
-                row.style.display = (!q || title.includes(q) || rid.includes(q)) ? '' : 'none';
+                const matchesSearch = !q || title.includes(q) || rid.includes(q);
+                const matchesSource = source === 'all' || row.dataset.source === source;
+                row.style.display = (matchesSearch && matchesSource) ? '' : 'none';
             });
         }
 
         function filterReports() {
             const status = document.getElementById('statusFilter').value;
-            const type = document.getElementById('typeFilter').value;
             const url = new URL(window.location);
             url.searchParams.set('status', status);
-            url.searchParams.set('type', type);
             window.location.href = url.toString();
         }
 
+        function filterReportsBySource() {
+            const source = document.getElementById('typeFilter').value;
+            const searchVal = document.getElementById('reportSearchInput').value.trim().toLowerCase();
+            document.querySelectorAll('#recentReportsTable .report-table-row').forEach(row => {
+                const matchesSource = source === 'all' || row.dataset.source === source;
+                const title = row.dataset.title || '';
+                const rid = row.dataset.reportId || '';
+                const matchesSearch = !searchVal || title.includes(searchVal) || rid.includes(searchVal);
+                row.style.display = (matchesSource && matchesSearch) ? '' : 'none';
+            });
+        }
+
         function resetFilters() {
+            document.getElementById('statusFilter').value = 'all';
+            document.getElementById('typeFilter').value = 'all';
+            document.querySelectorAll('#recentReportsTable .report-table-row').forEach(row => {
+                row.style.display = '';
+            });
             const url = new URL(window.location);
             url.searchParams.delete('status');
-            url.searchParams.delete('type');
             window.location.href = url.toString();
+        }
+
+        // View Report Details Modal
+        function viewReportDetails(id, source) {
+            const row = document.querySelector(`#recentReportsTable .report-table-row[data-id="${id}"]`);
+            if (!row || !row.dataset.details) {
+                showNotification('Report details not available.', 'error');
+                return;
+            }
+            let data;
+            try { data = JSON.parse(row.dataset.details); } catch(e) {
+                showNotification('Could not parse report details.', 'error');
+                return;
+            }
+            const modal = document.getElementById('viewDetailsModal');
+            const body = modal.querySelector('.modal-body');
+            let html = '<div class="details-grid">';
+
+            function field(label, value, cls) {
+                const v = (value && value !== 'null' && value !== '') ? value : '—';
+                return '<div class="detail-field ' + (cls || '') + '"><span class="detail-label">' + label + '</span><span class="detail-value">' + escapeHtml(v) + '</span></div>';
+            }
+            html += field('Report ID', data.report_id);
+            html += field('Title', data.title, 'full-width');
+            html += field('Source', data.source);
+            html += field('Type', data.report_type);
+            html += field('Status', data.status);
+            html += field('Priority', data.priority);
+            html += field('Severity', data.severity);
+            html += field('Date', data.created_at ? new Date(data.created_at).toLocaleString() : '—');
+            html += field('Location Address', data.location, 'full-width');
+            html += field('Coordinates', (data.latitude && data.longitude) ? data.latitude + ', ' + data.longitude : '—');
+            html += field('Reporter', data.reporter_name, 'full-width');
+            html += field('Description', data.description, 'full-width');
+
+            // Photos
+            let photoHtml = '';
+            if (data.image_path) {
+                const paths = Array.isArray(data.image_path) ? data.image_path : [data.image_path];
+                paths.forEach(function(p) {
+                    if (p) photoHtml += '<img src="../../' + p + '" class="detail-photo" onclick="openLightbox(\'../../' + p.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') + '\')">';
+                });
+            }
+            if (data.attachments) {
+                try {
+                    const atts = typeof data.attachments === 'string' ? JSON.parse(data.attachments) : data.attachments;
+                    if (Array.isArray(atts)) {
+                        atts.forEach(function(a) {
+                            const path = a.file_path || a.path || a.url || (typeof a === 'string' ? a : '');
+                            if (path) photoHtml += '<img src="../../' + path + '" class="detail-photo" onclick="openLightbox(\'../../' + path.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') + '\')">';
+                        });
+                    }
+                } catch(e) {}
+            }
+            if (photoHtml) {
+                html += '<div class="detail-field full-width"><span class="detail-label">Photos</span><div class="detail-photos">' + photoHtml + '</div></div>';
+            }
+            html += '</div>';
+            body.innerHTML = html;
+            modal.style.display = 'block';
+            document.body.style.overflow = 'hidden';
+        }
+
+        function openLightbox(src) {
+            const lb = document.getElementById('lightboxOverlay');
+            document.getElementById('lightboxImage').src = src;
+            lb.classList.add('show');
         }
 
         // Start auto-refresh
@@ -2945,6 +3103,20 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
 
     </script>
     
+    <!-- View Details Modal -->
+    <div id="viewDetailsModal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-info-circle"></i> Report Details</h5>
+                <button class="close" onclick="closeModal('viewDetailsModal')">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;"></div>
+            <div class="modal-footer" style="justify-content:flex-end;">
+                <button type="button" class="btn-secondary-custom" onclick="closeModal('viewDetailsModal')">Close</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Progress Updates Modal -->
     <div id="updatesModal" class="modal">
         <div class="modal-content" style="max-width: 750px;">
