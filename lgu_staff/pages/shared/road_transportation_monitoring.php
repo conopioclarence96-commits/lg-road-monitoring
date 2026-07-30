@@ -526,7 +526,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 if (empty($department)) {
                     $department = 'Road and Transportation';
                 }
-                $location_str = 'Quezon City (GIS)';
+                $location_address = sanitize_input($_POST['location_address'] ?? '');
+                $location_parts = array_filter([$street_name, $barangay, $detected_district]);
+                $location_str = !empty($location_address) ? $location_address : (!empty($location_parts) ? implode(', ', $location_parts) . ', Quezon City' : $lat . ', ' . $lng . ', Quezon City');
                 $attachments_json = !empty($attachments) ? json_encode($attachments) : null;
                 // Extract image path for the new image_path column
                 $image_path = !empty($attachments) ? $attachments[0]['file_path'] : null;
@@ -1482,6 +1484,7 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
                         <input type="hidden" id="pin-district" name="detected_district">
                         <input type="hidden" id="pin-barangay" name="barangay">
                         <input type="hidden" id="pin-street" name="street_name">
+                        <input type="hidden" id="pin-address" name="location_address">
                         
                         <div id="gis-location-info" style="display:none;background:linear-gradient(135deg,rgba(16,185,129,0.08),rgba(55,98,200,0.08));border:1px solid rgba(16,185,129,0.25);border-radius:10px;padding:12px 14px;margin-bottom:14px;">
                             <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
@@ -1940,6 +1943,8 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
             }
             document.getElementById('pin-barangay').value = barangay;
             document.getElementById('pin-street').value = street;
+            var addressParts = [fullAddress, barangay, municipality, 'Quezon City'].filter(Boolean);
+            document.getElementById('pin-address').value = addressParts.join(', ');
 
             if (barangay) {
                 html += '<span class="gis-field-tag"><span class="gis-tag-label">Barangay:</span> ' + barangay + '</span>';
@@ -1952,6 +1957,7 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
             }
             if (!fullAddress && !barangay && !street) {
                 html += '<span style="font-size:11px;color:#999;">Address details unavailable for this pin location.</span>';
+                document.getElementById('pin-address').value = lat.toFixed(5) + ', ' + lng.toFixed(5) + ', Quezon City';
             }
 
             detailsEl.innerHTML = html;

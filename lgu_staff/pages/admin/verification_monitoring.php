@@ -4672,6 +4672,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                     <?php echo nl2br(htmlspecialchars($report['description'] ?? 'No description provided')); ?>
                                                 </div>
                                             </div>
+                                            <div class="detail-item full-width">
+                                                <strong>Location Address:</strong>
+                                                <div style="margin-top:8px;">
+                                                    <?php echo htmlspecialchars($report['location'] ?? 'N/A'); ?>
+                                                </div>
+                                            </div>
                                             <?php if (!empty($report['latitude']) && !empty($report['longitude'])): ?>
                                             <div class="detail-item full-width">
                                                 <strong>Location Coordinates:</strong>
