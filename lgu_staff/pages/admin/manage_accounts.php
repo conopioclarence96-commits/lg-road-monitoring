@@ -190,6 +190,8 @@ try {
     <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../../css/theme-tokens.css">
+    <link rel="stylesheet" href="../../css/theme-utilities.css">
     <link rel="stylesheet" href="../../css/sidebar.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
@@ -621,7 +623,7 @@ try {
                         <label>ID File:</label>
                         <div id="modalIdFileContainer">
                             <img id="modalIdFile" src="" alt="ID File" style="max-width: 200px; max-height: 150px; border-radius: 8px; border: 1px solid #ddd; display: none;">
-                            <p id="modalIdFileNone" style="color: #666; font-style: italic;">No ID file uploaded</p>
+                            <p id="modalIdFileNone" style="font-style: italic;" class="t-text-secondary">No ID file uploaded</p>
                         </div>
                     </div>
                 </div>
@@ -784,7 +786,7 @@ try {
                         <span class="workflow-badge"><?php echo count($users); ?></span>
                     </h3>
                     <div class="filter-section">
-                        <label for="statusFilter" style="font-size: 14px; color: #64748b;">Filter by:</label>
+                        <label for="statusFilter" style="font-size: 14px;" class="t-text-secondary">Filter by:</label>
                         <select id="statusFilter" class="filter-dropdown">
                             <option value="all">All</option>
                             <option value="active">Active</option>
@@ -812,7 +814,7 @@ try {
                             <tbody>
                                 <?php if (empty($users)): ?>
                                     <tr>
-                                        <td colspan="8" style="text-align: center; color: #64748b;">No verified accounts found</td>
+                                        <td colspan="8" style="text-align: center;" class="t-text-secondary">No verified accounts found</td>
                                     </tr>
                                 <?php else: ?>
                                     <?php foreach ($users as $user): ?>
@@ -853,7 +855,7 @@ try {
                         <span class="workflow-badge"><?php echo count($unverified_users); ?></span>
                     </h3>
                     <div class="filter-section">
-                        <label for="unverifiedStatusFilter" style="font-size: 14px; color: #64748b;">Filter by:</label>
+                        <label for="unverifiedStatusFilter" style="font-size: 14px;" class="t-text-secondary">Filter by:</label>
                         <select id="unverifiedStatusFilter" class="filter-dropdown">
                             <option value="all">All</option>
                             <option value="pending">Pending</option>
@@ -881,7 +883,7 @@ try {
                             <tbody>
                                 <?php if (empty($unverified_users)): ?>
                                     <tr>
-                                        <td colspan="8" style="text-align: center; color: #64748b;">No pending or rejected accounts found</td>
+                                        <td colspan="8" style="text-align: center;" class="t-text-secondary">No pending or rejected accounts found</td>
                                     </tr>
                                 <?php else: ?>
                                     <?php foreach ($unverified_users as $user): ?>
@@ -946,7 +948,7 @@ try {
                             <tbody>
                                 <?php if (empty($deactivated_users)): ?>
                                     <tr>
-                                        <td colspan="7" style="text-align: center; color: #64748b;">No deactivated accounts found</td>
+                                        <td colspan="7" style="text-align: center;" class="t-text-secondary">No deactivated accounts found</td>
                                     </tr>
                                 <?php else: ?>
                                     <?php foreach ($deactivated_users as $user): ?>

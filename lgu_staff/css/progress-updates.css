@@ -262,13 +262,13 @@
     justify-content: center;
 }
 
-body.dark-mode .timeline-card { background: rgba(30,34,41,0.85); border-color: #3b82f6; }
-body.dark-mode .timeline-title { color: #f0f2f5; }
-body.dark-mode .timeline-desc { color: #e8eaed; }
-body.dark-mode .timeline-meta { color: #c4c7cc; }
-body.dark-mode .timeline-empty { color: #6b7280; }
-body.dark-mode .add-update-form { background: rgba(30,34,41,0.6); border-color: #3b82f6; }
-body.dark-mode .add-update-form h5 { color: #f0f2f5; }
-body.dark-mode .add-update-form label { color: #c4c7cc; }
+body.dark-mode .timeline-card { background: rgba(30,34,41,0.85); border-color: var(--color-primary); }
+body.dark-mode .timeline-title { color: var(--text-primary); }
+body.dark-mode .timeline-desc { color: var(--text-primary); }
+body.dark-mode .timeline-meta { color: var(--text-secondary); }
+body.dark-mode .timeline-empty { color: var(--text-muted); }
+body.dark-mode .add-update-form { background: rgba(30,34,41,0.6); border-color: var(--color-primary); }
+body.dark-mode .add-update-form h5 { color: var(--text-primary); }
+body.dark-mode .add-update-form label { color: var(--text-secondary); }
 body.dark-mode .add-update-form input[type="text"],
-body.dark-mode .add-update-form textarea { background: #1a1d23; color: #f0f2f5; border-color: #3b82f6; }
+body.dark-mode .add-update-form textarea { background: var(--bg-input); color: var(--text-primary); border-color: var(--color-primary); }

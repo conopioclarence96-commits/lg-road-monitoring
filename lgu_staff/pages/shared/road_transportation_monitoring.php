@@ -64,8 +64,8 @@ function getEnhancedStats() {
     return $stats;
 }
 
-// Function to get recent reports for the table
-function getRecentTransportReports($limit = 10, $status_filter = 'all', $type_filter = 'all') {
+// Function to get recent submissions from all report sources
+function getRecentSubmissions($limit = 10, $status_filter = 'all') {
     global $conn;
     $reports = [];
     if ($conn) {
@@ -267,15 +267,31 @@ function getTrafficLevel($status) {
 }
 
 // Quezon City center for map
-define('QC_LAT', 14.6500);
-define('QC_LNG', 121.0500);
+define('QC_LAT', 14.651417);
+define('QC_LNG', 121.04917);
+
+// Server-side point-in-polygon (ray casting) for GeoJSON coordinate rings
+function point_in_polygon_server($lat, $lng, $coords) {
+    $ring = $coords[0] ?? [];
+    $n = count($ring);
+    if ($n < 3) return false;
+    $inside = false;
+    for ($i = 0, $j = $n - 1; $i < $n; $j = $i++) {
+        $xi = $ring[$i][1]; $yi = $ring[$i][0];
+        $xj = $ring[$j][1]; $yj = $ring[$j][0];
+        if ((($yi > $lng) !== ($yj > $lng)) && ($lat < ($xj - $xi) * ($lng - $yi) / ($yj - $yi) + $xi)) {
+            $inside = !$inside;
+        }
+    }
+    return $inside;
+}
 
 // Handle AJAX: get map markers (reports with lat/lng)
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'get_markers') {
     header('Content-Type: application/json');
     $markers = [];
     if ($conn) {
-        $sql = "SELECT id, report_id, title, report_type, description, status, priority, severity, latitude, longitude, created_at 
+        $sql = "SELECT id, report_id, title, report_type, description, status, priority, severity, latitude, longitude, detected_district, barangay, street_name, created_at 
                 FROM road_transportation_reports 
                 WHERE latitude IS NOT NULL AND longitude IS NOT NULL 
                 ORDER BY created_at DESC";
@@ -304,6 +320,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $severity = sanitize_input($_POST['severity'] ?? '');
                 $description = sanitize_input($_POST['description'] ?? '');
 
+                // GIS-detected location fields (from frontend)
+                $detected_district = sanitize_input($_POST['detected_district'] ?? '');
+                $barangay = sanitize_input($_POST['barangay'] ?? '');
+                $street_name = sanitize_input($_POST['street_name'] ?? '');
+
                 // Combine issue type and specific type for detailed reporting
                 $full_issue_type = $specific_type ? $specific_type : $issue_type;
                 $report_category = ($issue_type === 'roads') ? 'road' : 'transportation';
@@ -314,29 +335,99 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     exit;
                 }
                 
-                // Server-side validation: ensure pin is within Quezon City
-                $qc_polygon = [
-                    [14.605, 120.982], [14.620, 120.985], [14.640, 120.988], [14.660, 120.990],
-                    [14.680, 120.995], [14.700, 121.005], [14.715, 121.020], [14.730, 121.035],
-                    [14.745, 121.050], [14.755, 121.065], [14.765, 121.080], [14.773, 121.095],
-                    [14.770, 121.110], [14.762, 121.125], [14.750, 121.135], [14.735, 121.142],
-                    [14.718, 121.146], [14.700, 121.148], [14.682, 121.142], [14.665, 121.135],
-                    [14.650, 121.125], [14.638, 121.112], [14.628, 121.098], [14.618, 121.080],
-                    [14.612, 121.062], [14.607, 121.045], [14.605, 121.028], [14.603, 121.010],
-                    [14.602, 121.000], [14.603, 120.990]
-                ];
+                // Server-side validation: ensure pin is within Quezon City using GeoJSON boundary
+                $qcBoundaryPath = __DIR__ . '/../api/qc_boundary.json';
                 $inside_qc = false;
-                $n = count($qc_polygon);
-                for ($i = 0, $j = $n - 1; $i < $n; $j = $i++) {
-                    $yi = $qc_polygon[$i][1]; $xi = $qc_polygon[$i][0];
-                    $yj = $qc_polygon[$j][1]; $xj = $qc_polygon[$j][0];
-                    if ((($yi > $lng) !== ($yj > $lng)) && ($lat < ($xj - $xi) * ($lng - $yi) / ($yj - $yi) + $xi)) {
-                        $inside_qc = !$inside_qc;
+                if (file_exists($qcBoundaryPath)) {
+                    $qcGeoJson = json_decode(file_get_contents($qcBoundaryPath), true);
+                    if ($qcGeoJson && isset($qcGeoJson['coordinates'])) {
+                        // Get all polygon coordinate arrays (handles MultiPolygon)
+                        $allPolygons = ($qcGeoJson['type'] ?? '') === 'MultiPolygon'
+                            ? $qcGeoJson['coordinates']
+                            : [ $qcGeoJson['coordinates'] ];
+                        foreach ($allPolygons as $polygon) {
+                            $rings = $polygon;
+                            foreach ($rings as $ring) {
+                                $n = count($ring);
+                                $poly_inside = false;
+                                for ($i = 0, $j = $n - 1; $i < $n; $j = $i++) {
+                                    // GeoJSON: [lng, lat] → xi = lat, yi = lng (matches vertical ray casting)
+                                    $xi = $ring[$i][1]; $yi = $ring[$i][0];
+                                    $xj = $ring[$j][1]; $yj = $ring[$j][0];
+                                    if ((($yi > $lng) !== ($yj > $lng)) && ($lat < ($xj - $xi) * ($lng - $yi) / ($yj - $yi) + $xi)) {
+                                        $poly_inside = !$poly_inside;
+                                    }
+                                }
+                                // First ring is outer; subsequent rings are holes
+                                if ($poly_inside && $rings[0] === $ring) {
+                                    $inside_qc = true;
+                                } elseif ($poly_inside) {
+                                    // Point is inside a hole → not inside QC
+                                    $inside_qc = false;
+                                    break 2;
+                                }
+                            }
+                            if ($inside_qc) break;
+                        }
                     }
                 }
                 if (!$inside_qc) {
-                    echo json_encode(['success' => false, 'message' => 'Location must be within Quezon City boundaries.']);
+                    echo json_encode(['success' => false, 'message' => 'Location must be within Quezon City only.']);
                     exit;
+                }
+                
+                // Server-side district detection (validate frontend detection)
+                $districts_geojson_path = __DIR__ . '/../api/qc_districts.geojson';
+                if (file_exists($districts_geojson_path)) {
+                    $geojson_raw = file_get_contents($districts_geojson_path);
+                    $geojson_data = json_decode($geojson_raw, true);
+                    if ($geojson_data && isset($geojson_data['features'])) {
+                        $server_detected_district = '';
+                        $best_dist = INF;
+                        $best_match = '';
+                        foreach ($geojson_data['features'] as $feature) {
+                            $coords = $feature['geometry']['coordinates'] ?? [];
+                            $geom_type = $feature['geometry']['type'] ?? '';
+                            $matched = false;
+                            if ($geom_type === 'Polygon' && !empty($coords)) {
+                                $matched = point_in_polygon_server($lat, $lng, $coords);
+                            } elseif ($geom_type === 'MultiPolygon' && !empty($coords)) {
+                                foreach ($coords as $poly) {
+                                    if (point_in_polygon_server($lat, $lng, $poly)) {
+                                        $matched = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if ($matched) {
+                                $server_detected_district = sanitize_input($feature['properties']['district'] ?? $feature['properties']['district_name'] ?? '');
+                                break;
+                            }
+                            // Fallback: nearest centroid for gap areas
+                            $ring = $geom_type === 'Polygon' ? ($coords[0] ?? []) : ($coords[0][0] ?? []);
+                            $cnt = count($ring);
+                            if ($cnt > 0) {
+                                $slng = 0; $slat = 0;
+                                foreach ($ring as $c) { $slng += $c[0]; $slat += $c[1]; }
+                                $clng = $slng / $cnt; $clat = $slat / $cnt;
+                                $dx = $lng - $clng; $dy = $lat - $clat;
+                                $dist = $dx * $dx + $dy * $dy;
+                                if ($dist < $best_dist) {
+                                    $best_dist = $dist;
+                                    $best_match = sanitize_input($feature['properties']['district'] ?? $feature['properties']['district_name'] ?? '');
+                                }
+                            }
+                        }
+                        if (empty($server_detected_district)) {
+                            $server_detected_district = $best_match;
+                        }
+                        // Use server-detected district as authoritative, override if frontend mismatches
+                        if (!empty($server_detected_district)) {
+                            $detected_district = $server_detected_district;
+                        } else {
+                            $detected_district = '';
+                        }
+                    }
                 }
                 
                 // Handle multiple image uploads
@@ -404,22 +495,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 if (empty($department)) {
                     $department = 'Road and Transportation';
                 }
-                $location_str = 'Quezon City (GIS)';
+                $location_address = sanitize_input($_POST['location_address'] ?? '');
+                $location_parts = array_filter([$street_name, $barangay, $detected_district]);
+                $location_str = !empty($location_address) ? $location_address : (!empty($location_parts) ? implode(', ', $location_parts) . ', Quezon City' : $lat . ', ' . $lng . ', Quezon City');
                 $attachments_json = !empty($attachments) ? json_encode($attachments) : null;
                 // Extract image path for the new image_path column
                 $image_path = !empty($attachments) ? $attachments[0]['file_path'] : null;
                 
                 $stmt = $conn->prepare("INSERT INTO road_transportation_reports 
-                    (report_id, report_type, report_category, report_source, title, department, priority, status, created_date, description, location, latitude, longitude, severity, attachments, image_path, created_by) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', CURDATE(), ?, ?, ?, ?, ?, ?, ?, ?)");
+                    (report_id, report_type, report_category, report_source, title, department, priority, status, created_date, description, location, latitude, longitude, detected_district, barangay, street_name, severity, attachments, image_path, created_by) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', CURDATE(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 
                 if (!$stmt) {
                     echo json_encode(['success' => false, 'message' => 'Database prepare failed: ' . $conn->error]);
                     exit;
                 }
                 
-                // Parameters: report_id, report_type, report_category, report_source, title, department, priority, description, location, lat, lng, severity, attachments, image_path, user_id
-                $stmt->bind_param("sssssssssddssis", $report_id, $report_type, $report_category, $report_source, $title, $department, $priority, $description, $location_str, $lat, $lng, $severity_db, $attachments_json, $image_path, $user_id);
+                // Parameters: report_id, report_type, report_category, report_source, title, department, priority, description, location, lat, lng, district, barangay, street, severity, attachments, image_path, user_id
+                $stmt->bind_param("sssssssssddssssssi", $report_id, $report_type, $report_category, $report_source, $title, $department, $priority, $description, $location_str, $lat, $lng, $detected_district, $barangay, $street_name, $severity_db, $attachments_json, $image_path, $user_id);
                 
                 if ($stmt->execute()) {
                     $new_id = $stmt->insert_id;
@@ -441,7 +534,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     ob_end_clean();
                     $error_details = $stmt->error;
                     error_log("Statement execution failed: " . $error_details);
-                    error_log("Bound parameters: report_id=$report_id, report_type=$report_type, title=$title, department=$department, priority=$priority, description=$description, location=$location_str, lat=$lat, lng=$lng, severity=$severity_db, attachments=$attachments_json, image_path=$image_path, user_id=$user_id");
+                    error_log("Bound parameters: report_id=$report_id, report_type=$report_type, title=$title, department=$department, priority=$priority, description=$description, location=$location_str, lat=$lat, lng=$lng, district=$detected_district, barangay=$barangay, street=$street_name, severity=$severity_db, attachments=$attachments_json, image_path=$image_path, user_id=$user_id");
                     echo json_encode(['success' => false, 'message' => 'Failed to save report: ' . $error_details]);
                 }
             } catch (Exception $e) {
@@ -463,7 +556,7 @@ $type_filter = $_GET['type'] ?? 'all';
 $alerts = getActiveAlerts();
 $roads = getRoadStatus();
 $enhanced_stats = getEnhancedStats();
-$recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
+$recent_reports = getRecentSubmissions(10, $status_filter);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -474,6 +567,8 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
     <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../../css/theme-tokens.css">
+    <link rel="stylesheet" href="../../css/theme-utilities.css">
     <link rel="stylesheet" href="../../css/sidebar.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -1001,6 +1096,22 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         body.dark-mode .tools-dropdown-item { color:#e4e6ea; }
         body.dark-mode .tools-dropdown-item:hover { background:rgba(55,98,200,0.15); }
 
+        #gis-location-info .gis-field-tag {
+            display:inline-block;background:rgba(55,98,200,0.1);color:#1e3c72;
+            padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;
+            margin-right:6px;margin-bottom:3px;
+        }
+        #gis-location-info .gis-field-tag .gis-tag-label {
+            color:#666;font-weight:400;
+        }
+        #gis-location-warning {
+            display:none;background:rgba(220,53,69,0.06);
+            border:1px solid rgba(220,53,69,0.25);border-radius:10px;
+            padding:12px 14px;margin-bottom:14px;
+        }
+        #gis-location-warning i { color:#dc3545;margin-right:8px; }
+        #gis-location-warning span { font-size:12px;color:#721c24; }
+
         .tomtom-panel {
             background:#f0f4fa;border-radius:12px;padding:16px;margin-top:12px;
             border:1px solid rgba(55,98,200,0.2);display:none;
@@ -1291,8 +1402,8 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                             <button class="filter-btn" data-filter="high" onclick="filterMapMarkers('high')"><i class="fas fa-exclamation"></i> Critical</button>
                         </div>
                         <div class="map-legend">
-                            <span class="map-legend-item"><span class="map-legend-dot" style="background:#dc3545;"></span> High</span>
-                            <span class="map-legend-item"><span class="map-legend-dot" style="background:#ffc107;"></span> Medium</span>
+                            <span class="map-legend-item"><span class="map-legend-dot t-bg-danger"></span> High</span>
+                            <span class="map-legend-item"><span class="map-legend-dot t-bg-warning"></span> Medium</span>
                             <span class="map-legend-item"><span class="map-legend-dot" style="background:#6c757d;"></span> Low</span>
                         </div>
                         <div class="map-search-box" style="display:flex;align-items:center;gap:6px;margin-left:8px;">
@@ -1305,7 +1416,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                             <button class="map-fullscreen-btn" onclick="toggleToolsDropdown()" id="toolsDropdownBtn">
                                 <i class="fas fa-tools"></i> Tools
                             </button>
-                            <div id="toolsDropdownMenu" style="display:none;position:absolute;top:100%;right:0;background:#fff;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.15);z-index:1000;min-width:200px;padding:8px 0;margin-top:4px;">
+                            <div id="toolsDropdownMenu" class="t-card" style="display:none;position:absolute;top:100%;right:0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.15);z-index:1000;min-width:200px;padding:8px 0;margin-top:4px;">
                                 <button class="tools-dropdown-item" onclick="showRoutePlanner()"><i class="fas fa-route"></i> Route Planner</button>
                                 <button class="tools-dropdown-item" onclick="toggleSatelliteLayer()"><i class="fas fa-satellite"></i> Satellite View</button>
                                 <button class="tools-dropdown-item" onclick="toggleTrafficIncidentsLayer()" id="toggleIncidentsBtn"><i class="fas fa-exclamation-triangle"></i> Traffic Incidents</button>
@@ -1324,11 +1435,31 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                 </div>
                 <div id="map"></div>
                 <!-- Report form (shown after pinning) -->
+                <div id="gis-location-warning" style="display:none;background:rgba(220,53,69,0.06);border:1px solid rgba(220,53,69,0.25);border-radius:10px;padding:12px 14px;margin-bottom:0;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <i class="fas fa-exclamation-triangle" style="color:#dc3545;font-size:15px;"></i>
+                        <span style="font-size:12px;color:#721c24;" id="gis-warning-text">Pinned location is outside the covered LGU jurisdiction.</span>
+                    </div>
+                </div>
                 <div id="report-form-panel" class="report-form-panel" style="display: none;">
                     <h4><i class="fas fa-map-pin"></i> Report issue at pinned location</h4>
                     <form id="report-form" enctype="multipart/form-data">
                         <input type="hidden" id="pin-lat" name="latitude">
                         <input type="hidden" id="pin-lng" name="longitude">
+                        <input type="hidden" id="pin-district" name="detected_district">
+                        <input type="hidden" id="pin-barangay" name="barangay">
+                        <input type="hidden" id="pin-street" name="street_name">
+                        <input type="hidden" id="pin-address" name="location_address">
+                        
+                        <div id="gis-location-info" style="display:none;background:linear-gradient(135deg,rgba(16,185,129,0.08),rgba(55,98,200,0.08));border:1px solid rgba(16,185,129,0.25);border-radius:10px;padding:12px 14px;margin-bottom:14px;">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                                <i class="fas fa-map-marked-alt" style="color:#10b981;font-size:15px;"></i>
+                                <strong style="font-size:13px;color:#1e3c72;">Detected Location</strong>
+                                <span id="gis-loading-badge" style="display:none;margin-left:auto;font-size:11px;color:#666;"><i class="fas fa-spinner fa-spin"></i> Detecting...</span>
+                            </div>
+                            <div id="gis-location-details" style="font-size:12px;color:#555;line-height:1.7;"></div>
+                        </div>
+                        
                         <label>Issue type</label>
                         <select id="issue-type" name="issue_type" required onchange="updateSpecificTypes()">
                             <option value="">— Select —</option>
@@ -1371,9 +1502,9 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                         <label>Description</label>
                         <textarea id="description" name="description" rows="3" required placeholder="Describe the issue..."></textarea>
                         <label>Upload Photos (Optional)</label>
-                        <button type="button" id="add-photos-btn" style="padding:8px 16px;background:#3762c8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;"><i class="fas fa-camera"></i> Add Photos</button>
+                        <button type="button" id="add-photos-btn" class="t-gradient-primary" style="padding:8px 16px;border:none;border-radius:6px;cursor:pointer;font-size:13px;"><i class="fas fa-camera"></i> Add Photos</button>
                         <input type="file" id="report-images" name="photos[]" multiple accept="image/jpeg,image/jpg,image/png" style="display:none;" />
-                        <small style="color: #666; font-size: 12px; display: block; margin-top: 4px;">Max size: 5MB each. Formats: JPG, PNG.</small>
+                        <small class="t-text-secondary" style="font-size: 12px; display: block; margin-top: 4px;">Max size: 5MB each. Formats: JPG, PNG.</small>
                         <div id="image-preview" style="margin-top: 10px; display: none;">
                             <div id="image-gallery" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
                         </div>
@@ -1409,7 +1540,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                 <!-- Reachable Range Panel -->
                 <div id="reachableRangePanel" class="tomtom-panel">
                     <h5><i class="fas fa-circle"></i> Reachable Range</h5>
-                    <p style="font-size:12px;color:#666;">Click on the map to set the center point, then calculate.</p>
+                    <p class="t-text-secondary" style="font-size:12px;">Click on the map to set the center point, then calculate.</p>
                     <label>Time Budget (minutes)</label>
                     <input type="number" id="rangeTimeBudget" value="30" min="1" max="120">
                     <div style="display:flex;gap:8px;">
@@ -1422,7 +1553,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                 <!-- Geofencing Panel -->
                 <div id="geofencingPanel" class="tomtom-panel">
                     <h5><i class="fas fa-draw-polygon"></i> Geofence Check</h5>
-                    <p style="font-size:12px;color:#666;">Enter coordinates to check if a location is within any geofence.</p>
+                    <p class="t-text-secondary" style="font-size:12px;">Enter coordinates to check if a location is within any geofence.</p>
                     <label>Latitude</label>
                     <input type="number" id="geofenceLat" step="any" placeholder="e.g., 14.65">
                     <label>Longitude</label>
@@ -1437,7 +1568,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                 <!-- EV Charging Panel -->
                 <div id="evChargingPanel" class="tomtom-panel">
                     <h5><i class="fas fa-charging-station"></i> EV Charging Stations</h5>
-                    <p style="font-size:12px;color:#666;">Search for EV charging stations near the map center.</p>
+                    <p class="t-text-secondary" style="font-size:12px;">Search for EV charging stations near the map center.</p>
                     <div style="display:flex;gap:8px;">
                         <button class="btn-action btn-sm" onclick="findEVStations()"><i class="fas fa-search"></i> Find Nearby</button>
                         <button class="btn-action btn-sm btn-secondary" onclick="closePanel('evChargingPanel')">Close</button>
@@ -1511,11 +1642,12 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                         <option value="completed" <?php echo $status_filter === 'completed' ? 'selected' : ''; ?>>Completed</option>
                         <option value="cancelled" <?php echo $status_filter === 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
                     </select>
-                    <select class="filter-select" id="typeFilter" onchange="filterReports()">
-                        <option value="all" <?php echo $type_filter === 'all' ? 'selected' : ''; ?>>All Types</option>
-                        <option value="citizen_reports" <?php echo $type_filter === 'citizen_reports' ? 'selected' : ''; ?>>Citizen Reports</option>
-                        <option value="cimm_reports" <?php echo $type_filter === 'cimm_reports' ? 'selected' : ''; ?>>CIMM Reports</option>
-                        <option value="infrastructure_projects" <?php echo $type_filter === 'infrastructure_projects' ? 'selected' : ''; ?>>Infrastructure Projects</option>
+                    <select class="filter-select" id="typeFilter" onchange="filterReportsBySource()">
+                        <option value="all">All Types</option>
+                        <option value="citizen">Citizen Reports</option>
+                        <option value="cimm">CIMM Reports</option>
+                        <option value="infrastructure">Infrastructure Projects</option>
+                        <option value="lgu">LGU Monitoring Reports</option>
                     </select>
                     <button class="btn-secondary-custom" onclick="resetFilters()" title="Reset Filters">
                         <i class="fas fa-arrow-clockwise"></i>
@@ -1529,7 +1661,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                         <tr>
                             <th>Report ID</th>
                             <th>Title</th>
-                            <th>Type</th>
+                            <th>Source</th>
                             <th>Status</th>
                             <th>Priority</th>
                             <th>Date</th>
@@ -1542,10 +1674,28 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                         <tr><td colspan="8" style="text-align:center;padding:30px;color:#6b7280;">No reports yet.</td></tr>
                         <?php else: ?>
                         <?php foreach ($recent_reports as $rr): ?>
-                         <tr class="report-table-row" data-id="<?php echo $rr['id']; ?>" data-title="<?php echo htmlspecialchars(strtolower($rr['title'] ?? '')); ?>" data-report-id="<?php echo htmlspecialchars(strtolower($rr['report_id'] ?? '')); ?>" data-status="<?php echo $rr['status'] ?? 'pending'; ?>">
+                        <?php $rr_details = htmlspecialchars(json_encode([
+                            'id' => $rr['id'],
+                            'report_id' => $rr['report_id'],
+                            'title' => $rr['title'],
+                            'source' => $rr['source'],
+                            'report_type' => $rr['report_type'],
+                            'status' => $rr['status'],
+                            'priority' => $rr['priority'],
+                            'severity' => $rr['severity'],
+                            'created_at' => $rr['created_at'],
+                            'description' => $rr['description'],
+                            'latitude' => $rr['latitude'],
+                            'longitude' => $rr['longitude'],
+                            'location' => $rr['location'],
+                            'reporter_name' => $rr['reporter_name'],
+                            'attachments' => $rr['attachments'],
+                            'image_path' => $rr['image_path'],
+                        ]), ENT_QUOTES, 'UTF-8'); ?>
+                         <tr class="report-table-row" data-id="<?php echo $rr['id']; ?>" data-title="<?php echo htmlspecialchars(strtolower($rr['title'] ?? '')); ?>" data-report-id="<?php echo htmlspecialchars(strtolower($rr['report_id'] ?? '')); ?>" data-status="<?php echo $rr['status'] ?? 'pending'; ?>" data-source="<?php echo $rr['source'] ?? 'citizen'; ?>" data-details='<?php echo $rr_details; ?>'>
                             <td style="font-family:monospace;font-size:12px;"><?php echo htmlspecialchars($rr['report_id'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars($rr['title'] ?? 'Untitled'); ?></td>
-                            <td><?php echo htmlspecialchars($rr['report_type'] ?? '—'); ?></td>
+                            <td><span class="badge badge-source badge-<?php echo $rr['source'] ?? 'citizen'; ?>"><?php echo ucfirst($rr['source'] ?? 'citizen'); ?></span></td>
                             <td><span class="badge badge-<?php echo $rr['status'] ?? 'pending'; ?>"><?php echo ucfirst(str_replace('-',' ',$rr['status'] ?? 'pending')); ?></span></td>
                             <td><span class="badge badge-<?php echo $rr['priority'] ?? 'low'; ?>"><?php echo ucfirst($rr['priority'] ?? 'low'); ?></span></td>
                             <td><?php echo date('M d, Y H:i', strtotime($rr['created_at'] ?? 'now')); ?></td>
@@ -1563,6 +1713,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                                 <?php endif; ?>
                             </td>
                             <td style="white-space:nowrap;">
+                                <button class="table-action-btn" title="View Details" onclick="viewReportDetails(<?php echo $rr['id']; ?>, '<?php echo $rr['source']; ?>')"><i class="fas fa-eye"></i></button>
                                 <button class="table-action-btn view-map" onclick="focusReportOnMap(<?php echo $rr['id']; ?>)"><i class="fas fa-map-pin"></i> Map</button>
                                 <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(<?php echo $rr['id']; ?>, '<?php echo $rr['report_type']; ?>')"><i class="fas fa-clock"></i> Updates</button>
                             </td>
@@ -1578,7 +1729,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
 
     <script>
         // Quezon City center
-        const QC_CENTER = [14.6500, 121.0500];
+        const QC_CENTER = [14.651417, 121.04917];
         const map = L.map('map').setView(QC_CENTER, 13);
 
         L.tileLayer('https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
@@ -1590,54 +1741,69 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             opacity: 0.7
         }).addTo(map);
 
-        // Define Quezon City approximate boundary polygon
-        const QC_POLYGON_COORDS = [
-            [14.605, 120.982],
-            [14.620, 120.985],
-            [14.640, 120.988],
-            [14.660, 120.990],
-            [14.680, 120.995],
-            [14.700, 121.005],
-            [14.715, 121.020],
-            [14.730, 121.035],
-            [14.745, 121.050],
-            [14.755, 121.065],
-            [14.765, 121.080],
-            [14.773, 121.095],
-            [14.770, 121.110],
-            [14.762, 121.125],
-            [14.750, 121.135],
-            [14.735, 121.142],
-            [14.718, 121.146],
-            [14.700, 121.148],
-            [14.682, 121.142],
-            [14.665, 121.135],
-            [14.650, 121.125],
-            [14.638, 121.112],
-            [14.628, 121.098],
-            [14.618, 121.080],
-            [14.612, 121.062],
-            [14.607, 121.045],
-            [14.605, 121.028],
-            [14.603, 121.010],
-            [14.602, 121.000],
-            [14.603, 120.990]
-        ];
-        const QC_POLYGON = L.polygon(QC_POLYGON_COORDS, {
+        // Load Quezon City administrative boundary from GeoJSON
+        const QC_BOUNDARY_DATA = (function() {
+            var geojson = <?php
+                $_qcPath = __DIR__ . '/../api/qc_boundary.json';
+                echo file_exists($_qcPath) ? file_get_contents($_qcPath) : 'null';
+            ?>;
+            if (!geojson || !geojson.coordinates) return null;
+            // Return array of polygon coordinate arrays (handles MultiPolygon)
+            return (geojson.type === 'MultiPolygon') ? geojson.coordinates : [geojson.coordinates];
+        })();
+        // Leaflet display polygon (first polygon outer ring only)
+        const QC_POLYGON_COORDS = QC_BOUNDARY_DATA && QC_BOUNDARY_DATA[0] && QC_BOUNDARY_DATA[0][0]
+            ? QC_BOUNDARY_DATA[0][0].map(function(p) { return [p[1], p[0]]; })
+            : null;
+        const QC_POLYGON = QC_POLYGON_COORDS ? L.polygon(QC_POLYGON_COORDS, {
             color: '#3762c8',
             weight: 2,
             opacity: 0.8,
             fillOpacity: 0.08,
             fillColor: '#3762c8'
-        }).addTo(map);
+        }).addTo(map) : null;
+        if (QC_POLYGON) map.fitBounds(QC_POLYGON.getBounds());
 
-        // Point-in-polygon check using ray casting
+        // Point-in-polygon check using ray casting (handles MultiPolygon and holes)
         function isInsideQCBounds(lat, lng) {
-            const polygon = QC_POLYGON.getLatLngs()[0];
+            if (!QC_BOUNDARY_DATA) return false;
+            for (const rings of QC_BOUNDARY_DATA) {
+                let polyInside = false;
+                for (let r = 0; r < rings.length; r++) {
+                    const ring = rings[r];
+                    let ringInside = false;
+                    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+                        const xi = ring[i][1], yi = ring[i][0];
+                        const xj = ring[j][1], yj = ring[j][0];
+                        if ((yi > lng) !== (yj > lng) && lat < (xj - xi) * (lng - yi) / (yj - yi) + xi) {
+                            ringInside = !ringInside;
+                        }
+                    }
+                    if (r === 0) {
+                        polyInside = ringInside;
+                    } else if (ringInside) {
+                        polyInside = false;
+                        break;
+                    }
+                }
+                if (polyInside) return true;
+            }
+            return false;
+        }
+
+        // ====================================================================
+        // GIS DISTRICT DETECTION ENGINE
+        // ====================================================================
+        let qcDistrictsGeoJSON = null;
+        let districtsLayer = null;
+
+        // Ray-casting point-in-polygon for GeoJSON coordinate rings
+        function pointInPolygonCoords(lat, lng, coords) {
             let inside = false;
-            for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-                const xi = polygon[i].lat, yi = polygon[i].lng;
-                const xj = polygon[j].lat, yj = polygon[j].lng;
+            const ring = coords[0];
+            for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+                const xi = ring[i][1], yi = ring[i][0];
+                const xj = ring[j][1], yj = ring[j][0];
                 if ((yi > lng) !== (yj > lng) && lat < (xj - xi) * (lng - yi) / (yj - yi) + xi) {
                     inside = !inside;
                 }
@@ -1645,9 +1811,189 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             return inside;
         }
 
+        function detectDistrict(lat, lng) {
+            if (!qcDistrictsGeoJSON) return null;
+            // Primary: try exact polygon containment
+            for (const feature of qcDistrictsGeoJSON.features) {
+                if (feature.geometry.type === 'Polygon') {
+                    if (pointInPolygonCoords(lat, lng, feature.geometry.coordinates)) {
+                        return feature.properties;
+                    }
+                } else if (feature.geometry.type === 'MultiPolygon') {
+                    for (const poly of feature.geometry.coordinates) {
+                        if (pointInPolygonCoords(lat, lng, poly)) {
+                            return feature.properties;
+                        }
+                    }
+                }
+            }
+            // Fallback: nearest centroid (covers gaps between district boundaries)
+            let bestDist = Infinity, bestMatch = null;
+            for (const feature of qcDistrictsGeoJSON.features) {
+                if (!feature.properties._centroid) {
+                    // Compute centroid from polygon coordinates
+                    const coords = feature.geometry.type === 'Polygon'
+                        ? feature.geometry.coordinates[0]
+                        : feature.geometry.coordinates[0][0];
+                    let slng = 0, slat = 0, cnt = 0;
+                    for (const c of coords) { slng += c[0]; slat += c[1]; cnt++; }
+                    feature.properties._centroid = { lng: slng / cnt, lat: slat / cnt };
+                }
+                const c = feature.properties._centroid;
+                const dx = lng - c.lng, dy = lat - c.lat;
+                const dist = dx * dx + dy * dy;
+                if (dist < bestDist) { bestDist = dist; bestMatch = feature.properties; }
+            }
+            return bestMatch;
+        }
+
+        // Load QC Districts GeoJSON layer
+        fetch('../../pages/api/qc_districts.geojson')
+            .then(r => r.json())
+            .then(data => {
+                qcDistrictsGeoJSON = data;
+                districtsLayer = L.geoJSON(data, {
+                    style: function(feature) {
+                        const colors = {
+                            1: '#3b82f6', 2: '#8b5cf6', 3: '#10b981',
+                            4: '#f59e0b', 5: '#ef4444', 6: '#06b6d4'
+                        };
+                        const dNum = parseInt((feature.properties.district_number || feature.properties.district || '').replace(/\D/g, '')) || 1;
+                        return {
+                            color: colors[dNum] || '#3762c8',
+                            weight: 1.5,
+                            opacity: 0.6,
+                            fillOpacity: 0.04,
+                            fillColor: colors[dNum] || '#3762c8',
+                            dashArray: '5,5'
+                        };
+                    },
+                    onEachFeature: function(feature, layer) {
+                        layer.bindTooltip(feature.properties.district_name || feature.properties.district, {
+                            sticky: true, className: 'district-tooltip'
+                        });
+                    }
+                }).addTo(map);
+                console.log('QC Districts layer loaded:', data.features.length, 'districts');
+            })
+            .catch(e => {
+                console.warn('Could not load QC districts GeoJSON:', e);
+            });
+
+        // ====================================================================
+        // REVERSE GEOCODING + FORM AUTOFILL ENGINE
+        // ====================================================================
+        function populateGISLocationInfo(lat, lng, districtProps, addressData) {
+            const infoPanel = document.getElementById('gis-location-info');
+            const detailsEl = document.getElementById('gis-location-details');
+            const loadingBadge = document.getElementById('gis-loading-badge');
+
+            let html = '';
+
+            // District tag
+            if (districtProps) {
+                const dNum = districtProps.district_number || parseInt((districtProps.district || '').replace(/\D/g, '')) || '';
+                const dName = districtProps.district_name || districtProps.district || '';
+                document.getElementById('pin-district').value = dName;
+                html += '<span class="gis-field-tag"><span class="gis-tag-label">District:</span> ' + dName + '</span>';
+            } else {
+                document.getElementById('pin-district').value = '';
+                html += '<span class="gis-field-tag" style="background:rgba(220,53,69,0.1);color:#721c24;"><span class="gis-tag-label">District:</span> Not detected</span>';
+            }
+
+            // Barangay from reverse geocoding
+            let barangay = '';
+            let street = '';
+            let fullAddress = '';
+            let municipality = '';
+            if (addressData) {
+                const addr = addressData.address || {};
+                barangay = addr.subdivision || addr.municipalitySubdivision || addr.neighbourhood || '';
+                street = addr.street || '';
+                municipality = addr.municipality || '';
+                const houseNum = addr.houseNumber || '';
+                if (houseNum && street) {
+                    fullAddress = houseNum + ' ' + street;
+                } else if (street) {
+                    fullAddress = street;
+                } else if (addr.freeformAddress) {
+                    fullAddress = addr.freeformAddress;
+                }
+            }
+            document.getElementById('pin-barangay').value = barangay;
+            document.getElementById('pin-street').value = street;
+            var addressParts = [fullAddress, barangay, municipality, 'Quezon City'].filter(Boolean);
+            document.getElementById('pin-address').value = addressParts.join(', ');
+
+            if (barangay) {
+                html += '<span class="gis-field-tag"><span class="gis-tag-label">Barangay:</span> ' + barangay + '</span>';
+            }
+            if (street) {
+                html += '<span class="gis-field-tag"><span class="gis-tag-label">Street:</span> ' + street + '</span>';
+            }
+            if (municipality) {
+                html += '<span class="gis-field-tag"><span class="gis-tag-label">Municipality:</span> ' + municipality + '</span>';
+            }
+            if (!fullAddress && !barangay && !street) {
+                html += '<span style="font-size:11px;color:#999;">Address details unavailable for this pin location.</span>';
+                document.getElementById('pin-address').value = lat.toFixed(5) + ', ' + lng.toFixed(5) + ', Quezon City';
+            }
+
+            detailsEl.innerHTML = html;
+            infoPanel.style.display = 'block';
+            loadingBadge.style.display = 'none';
+        }
+
+        // Master function: detect district + geocode + populate
+        function analyzePinnedLocation(lat, lng) {
+            const infoPanel = document.getElementById('gis-location-info');
+            const loadingBadge = document.getElementById('gis-loading-badge');
+            const warningPanel = document.getElementById('gis-location-warning');
+
+            // Check boundary first
+            if (!isInsideQCBounds(lat, lng)) {
+                infoPanel.style.display = 'none';
+                warningPanel.style.display = 'block';
+                document.getElementById('gis-warning-text').textContent = 'Pinned location is outside the covered LGU jurisdiction.';
+                document.getElementById('pin-district').value = '';
+                document.getElementById('pin-barangay').value = '';
+                document.getElementById('pin-street').value = '';
+                return;
+            }
+            warningPanel.style.display = 'none';
+            infoPanel.style.display = 'block';
+            loadingBadge.style.display = 'inline';
+
+            // Step 1: District detection (instant, local data)
+            const districtProps = detectDistrict(lat, lng);
+
+            // Step 2: Reverse geocode via TomTom (async)
+            TomTomServices.reverseGeocodeOrbis(lat, lng).then(data => {
+                const result = data.data?.results?.[0];
+                populateGISLocationInfo(lat, lng, districtProps, result || null);
+
+                // Also update the marker popup with formatted address
+                if (pinMarker && result) {
+                    const addr = result.address || {};
+                    const parts = [
+                        addr.street && addr.houseNumber ? addr.houseNumber + ' ' + addr.street : addr.street || '',
+                        addr.municipality || '',
+                        addr.countrySubdivision || '',
+                        addr.postalCode || ''
+                    ].filter(Boolean);
+                    const popupHtml = '<b>' + (parts.join(', ') || lat.toFixed(5) + ', ' + lng.toFixed(5)) + '</b>'
+                        + (districtProps ? '<br><small style="color:#10b981;">' + (districtProps.district_name || districtProps.district || '') + '</small>' : '');
+                    pinMarker.bindPopup(popupHtml).openPopup();
+                }
+            }).catch(() => {
+                // Geocode failed, still show district if detected
+                populateGISLocationInfo(lat, lng, districtProps, null);
+            });
+        }
+
         // Restrict map panning with a padded bounding box of QC
-        const QC_BBOX = L.latLngBounds(QC_POLYGON_COORDS);
-        map.setMaxBounds(QC_BBOX.pad(0.15));
+        const QC_BBOX = QC_POLYGON ? QC_POLYGON.getBounds().pad(0.15) : L.latLngBounds([[14.6, 120.97]], [[14.77, 121.16]]);
+        map.setMaxBounds(QC_BBOX);
         map.setMinZoom(11);
         map.setMaxZoom(18);
 
@@ -1695,9 +2041,13 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                             iconSize: [28, 28]
                         });
                         const sevLabel = m.severity || m.priority || 'low';
+                        const locationTags = [];
+                        if (m.detected_district) locationTags.push('<span style="color:#10b981;font-size:11px;"><i class="fas fa-map-pin"></i> ' + escapeHtml(m.detected_district) + '</span>');
+                        if (m.barangay) locationTags.push('<span style="color:#3762c8;font-size:11px;">' + escapeHtml(m.barangay) + '</span>');
+                        if (m.street_name) locationTags.push('<span style="color:#666;font-size:11px;">' + escapeHtml(m.street_name) + '</span>');
                         const marker = L.marker([parseFloat(m.latitude), parseFloat(m.longitude)], { icon })
                             .addTo(reportMarkersLayer)
-                            .bindPopup(`<b>${escapeHtml(m.title)}</b><br><small>${escapeHtml(m.description || '')}</small><br><span style="color:${color}">${sevLabel} • ${m.status}</span>`);
+                            .bindPopup('<b>' + escapeHtml(m.title) + '</b><br><small>' + escapeHtml(m.description || '') + '</small><br>' + locationTags.join(' &middot; ') + '<br><span style="color:' + color + '">' + sevLabel + ' &bull; ' + m.status + '</span>');
                         marker._reportId = m.id;
                         allMarkerObjects.push(marker);
                     });
@@ -1771,30 +2121,114 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                 .catch(() => showNotification('Could not load map data.', 'error'));
         }
 
-        // Search reports table
+        // Search reports table (respects source filter)
         function filterReportsTable(query) {
             const q = query.toLowerCase().trim();
+            const source = document.getElementById('typeFilter').value;
             document.querySelectorAll('#recentReportsTable .report-table-row').forEach(row => {
                 const title = row.dataset.title || '';
                 const rid = row.dataset.reportId || '';
-                row.style.display = (!q || title.includes(q) || rid.includes(q)) ? '' : 'none';
+                const matchesSearch = !q || title.includes(q) || rid.includes(q);
+                const matchesSource = source === 'all' || row.dataset.source === source;
+                row.style.display = (matchesSearch && matchesSource) ? '' : 'none';
             });
         }
 
         function filterReports() {
             const status = document.getElementById('statusFilter').value;
-            const type = document.getElementById('typeFilter').value;
             const url = new URL(window.location);
             url.searchParams.set('status', status);
-            url.searchParams.set('type', type);
             window.location.href = url.toString();
         }
 
+        function filterReportsBySource() {
+            const source = document.getElementById('typeFilter').value;
+            const searchVal = document.getElementById('reportSearchInput').value.trim().toLowerCase();
+            document.querySelectorAll('#recentReportsTable .report-table-row').forEach(row => {
+                const matchesSource = source === 'all' || row.dataset.source === source;
+                const title = row.dataset.title || '';
+                const rid = row.dataset.reportId || '';
+                const matchesSearch = !searchVal || title.includes(searchVal) || rid.includes(searchVal);
+                row.style.display = (matchesSource && matchesSearch) ? '' : 'none';
+            });
+        }
+
         function resetFilters() {
+            document.getElementById('statusFilter').value = 'all';
+            document.getElementById('typeFilter').value = 'all';
+            document.querySelectorAll('#recentReportsTable .report-table-row').forEach(row => {
+                row.style.display = '';
+            });
             const url = new URL(window.location);
             url.searchParams.delete('status');
-            url.searchParams.delete('type');
             window.location.href = url.toString();
+        }
+
+        // View Report Details Modal
+        function viewReportDetails(id, source) {
+            const row = document.querySelector(`#recentReportsTable .report-table-row[data-id="${id}"]`);
+            if (!row || !row.dataset.details) {
+                showNotification('Report details not available.', 'error');
+                return;
+            }
+            let data;
+            try { data = JSON.parse(row.dataset.details); } catch(e) {
+                showNotification('Could not parse report details.', 'error');
+                return;
+            }
+            const modal = document.getElementById('viewDetailsModal');
+            const body = modal.querySelector('.modal-body');
+            let html = '<div class="details-grid">';
+
+            function field(label, value, cls) {
+                const v = (value && value !== 'null' && value !== '') ? value : '—';
+                return '<div class="detail-field ' + (cls || '') + '"><span class="detail-label">' + label + '</span><span class="detail-value">' + escapeHtml(v) + '</span></div>';
+            }
+            html += field('Report ID', data.report_id);
+            html += field('Title', data.title, 'full-width');
+            html += field('Source', data.source);
+            html += field('Type', data.report_type);
+            html += field('Status', data.status);
+            html += field('Priority', data.priority);
+            html += field('Severity', data.severity);
+            html += field('Date', data.created_at ? new Date(data.created_at).toLocaleString() : '—');
+            html += field('Location Address', data.location, 'full-width');
+            html += field('Coordinates', (data.latitude && data.longitude) ? data.latitude + ', ' + data.longitude : '—');
+            html += field('Reporter', data.reporter_name, 'full-width');
+            html += field('Description', data.description, 'full-width');
+
+            // Photos
+            let photoHtml = '';
+            if (data.image_path) {
+                const paths = Array.isArray(data.image_path) ? data.image_path : [data.image_path];
+                paths.forEach(function(p) {
+                    if (p) photoHtml += '<img src="../../' + p + '" class="detail-photo" onclick="openLightbox(\'../../' + p.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') + '\')">';
+                });
+            }
+            if (data.attachments) {
+                try {
+                    const atts = typeof data.attachments === 'string' ? JSON.parse(data.attachments) : data.attachments;
+                    if (Array.isArray(atts)) {
+                        atts.forEach(function(a) {
+                            const path = a.file_path || a.path || a.url || (typeof a === 'string' ? a : '');
+                            if (path) photoHtml += '<img src="../../' + path + '" class="detail-photo" onclick="openLightbox(\'../../' + path.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') + '\')">';
+                        });
+                    }
+                } catch(e) {}
+            }
+            if (photoHtml) {
+                html += '<div class="detail-field full-width"><span class="detail-label">Photos</span><div class="detail-photos">' + photoHtml + '</div></div>';
+            }
+            html += '</div>';
+            body.innerHTML = html;
+            modal.style.display = 'block';
+            document.body.style.overflow = 'hidden';
+        }
+
+        function openLightbox(src) {
+            const lb = document.getElementById('lightboxOverlay');
+            document.getElementById('lightboxImage').src = src;
+            lb.classList.add('show');
         }
 
         // Start auto-refresh
@@ -1835,13 +2269,13 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             }
         }
 
-        // Map click: place pin, show form, and fetch address details
+        // Map click: place pin, show form, and run full GIS analysis
         map.on('click', function(e) {
             const { lat, lng } = e.latlng;
             
             // Check if clicked location is within Quezon City polygon
             if (!isInsideQCBounds(lat, lng)) {
-                showNotification('Please select a location within Quezon City boundaries', 'error');
+                showNotification('Please select a location within Quezon City only.', 'error');
                 return;
             }
             
@@ -1850,65 +2284,45 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                 draggable: true
             }).addTo(map);
             
-            // Fetch address details from reverse geocode
-            TomTomServices.reverseGeocodeOrbis(lat, lng).then(data => {
-                const addr = data.data?.results?.[0]?.address;
-                if (addr) {
-                    const parts = [
-                        addr.street && addr.houseNumber ? addr.houseNumber + ' ' + addr.street : addr.street || '',
-                        addr.municipality || '',
-                        addr.countrySubdivision || '',
-                        addr.postalCode || '',
-                        addr.country || ''
-                    ].filter(Boolean);
-                    pinMarker.bindPopup('<b>' + parts.join(', ') + '</b>').openPopup();
-                } else {
-                    pinMarker.bindPopup(lat.toFixed(5) + ', ' + lng.toFixed(5)).openPopup();
-                }
-            }).catch(() => {
-                pinMarker.bindPopup(lat.toFixed(5) + ', ' + lng.toFixed(5)).openPopup();
-            });
+            pinLat.value = lat;
+            pinLng.value = lng;
+            reportPanel.style.display = 'block';
+            document.getElementById('gis-location-warning').style.display = 'none';
+            form.reset();
+            pinLat.value = lat;
+            pinLng.value = lng;
+            document.getElementById('severity').value = 'medium';
+            updateSpecificTypes();
             
+            // Run full GIS analysis: district detection + reverse geocoding
+            analyzePinnedLocation(lat, lng);
+            
+            // Re-analyze on marker drag
             pinMarker.on('dragend', function() {
                 const pos = pinMarker.getLatLng();
                 
                 // Validate dragged position is still within QC polygon
                 if (!isInsideQCBounds(pos.lat, pos.lng)) {
-                    showNotification('Please keep the marker within Quezon City boundaries', 'error');
+                    showNotification('Please select a location within Quezon City only.', 'error');
                     pinMarker.setLatLng([lat, lng]);
                     return;
                 }
                 
                 pinLat.value = pos.lat;
                 pinLng.value = pos.lng;
-                // Re-fetch address on drag
-                TomTomServices.reverseGeocodeOrbis(pos.lat, pos.lng).then(data => {
-                    const addr = data.data?.results?.[0]?.address;
-                    if (addr) {
-                        const parts = [
-                            addr.street && addr.houseNumber ? addr.houseNumber + ' ' + addr.street : addr.street || '',
-                            addr.municipality || '',
-                            addr.countrySubdivision || '',
-                            addr.postalCode || '',
-                            addr.country || ''
-                        ].filter(Boolean);
-                        pinMarker.setPopupContent('<b>' + parts.join(', ') + '</b>');
-                    }
-                });
+                // Re-run full GIS analysis for new position
+                analyzePinnedLocation(pos.lat, pos.lng);
             });
-            pinLat.value = lat;
-            pinLng.value = lng;
-            reportPanel.style.display = 'block';
-            form.reset();
-            pinLat.value = lat;
-            pinLng.value = lng;
-            document.getElementById('severity').value = 'medium';
-            updateSpecificTypes();
         });
 
         document.getElementById('cancel-pin-btn').addEventListener('click', function() {
             if (pinMarker) { map.removeLayer(pinMarker); pinMarker = null; }
             reportPanel.style.display = 'none';
+            document.getElementById('gis-location-info').style.display = 'none';
+            document.getElementById('gis-location-warning').style.display = 'none';
+            document.getElementById('pin-district').value = '';
+            document.getElementById('pin-barangay').value = '';
+            document.getElementById('pin-street').value = '';
         });
 
         // Multi-photo upload with add button and per-image delete
@@ -1917,6 +2331,8 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         const imageGallery = document.getElementById('image-gallery');
         const addPhotosBtn = document.getElementById('add-photos-btn');
         let selectedFiles = [];
+        let updateSelectedFiles = [];
+        let updatePreviewCounter = 0;
         
         addPhotosBtn.addEventListener('click', function() {
             imageInput.click();
@@ -2010,6 +2426,8 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                             showNotification(data.message, 'success');
                             if (pinMarker) { map.removeLayer(pinMarker); pinMarker = null; }
                             reportPanel.style.display = 'none';
+                            document.getElementById('gis-location-info').style.display = 'none';
+                            document.getElementById('gis-location-warning').style.display = 'none';
                             form.reset();
                             selectedFiles = [];
                             imageGallery.innerHTML = '';
@@ -2098,6 +2516,8 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             document.getElementById('existingUpdateMedia').innerHTML = '';
             document.getElementById('addUpdateModalTitle').textContent = 'Add Progress Update';
             document.getElementById('addUpdateSubmitBtn').innerHTML = '<i class="fas fa-save"></i> Post Update';
+            updateSelectedFiles = [];
+            updatePreviewCounter = 0;
             closeModal('updatesModal');
             openModal('addUpdateModal');
         }
@@ -2122,9 +2542,10 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             document.getElementById('updateFilePreviews').innerHTML = '';
             document.getElementById('addUpdateModalTitle').textContent = isEdit ? 'Edit Update' : 'Add Progress Update';
             document.getElementById('addUpdateSubmitBtn').innerHTML = isEdit ? '<i class="fas fa-save"></i> Save Changes' : '<i class="fas fa-save"></i> Post Update';
+            updateSelectedFiles = [];
+            updatePreviewCounter = 0;
 
-            // Clean up any leftover remove_media hidden inputs from previous edits
-            document.querySelectorAll('#addUpdateForm input[name="remove_media[]"]').forEach(function(el) { el.remove(); });
+            var removedMediaIds = [];
 
             if (isEdit && updateData.media) {
                 const mediaContainer = document.getElementById('existingUpdateMedia');
@@ -2137,29 +2558,33 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                     div.innerHTML = isVideo
                         ? '<i class="fas fa-video" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:20px;color:#3762c8;opacity:0.5;"></i>'
                         : '<img src="../../' + m.file_path.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') + '" style="width:100%;height:100%;object-fit:cover;">';
-                    const xBtn = document.createElement('button');
-                    xBtn.type = 'button';
-                    xBtn.innerHTML = '&times;';
-                    xBtn.title = 'Remove this photo';
-                    xBtn.style.cssText = 'position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;border:none;background:rgba(220,53,69,0.9);color:#fff;font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;z-index:2;';
-                    xBtn.onclick = function() {
-                        var h = document.createElement('input');
-                        h.type = 'hidden';
-                        h.name = 'remove_media[]';
-                        h.value = m.id;
-                        document.getElementById('addUpdateForm').appendChild(h);
-                        div.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
-                        div.style.transform = 'scale(0.5)';
-                        div.style.opacity = '0';
-                        setTimeout(function() { div.remove(); }, 200);
-                    };
-                    div.appendChild(xBtn);
+                    var removeBtn = document.createElement('button');
+                    removeBtn.type = 'button';
+                    removeBtn.style.cssText = 'position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;border:none;background:rgba(220,53,69,0.9);color:#fff;font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;z-index:2;';
+                    removeBtn.innerHTML = '&times;';
+                    removeBtn.title = 'Remove this photo';
+                    removeBtn.addEventListener('click', function(mediaId) {
+                        return function() {
+                            if (removedMediaIds.indexOf(mediaId) === -1) {
+                                removedMediaIds.push(mediaId);
+                            }
+                            div.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
+                            div.style.transform = 'scale(0.5)';
+                            div.style.opacity = '0';
+                            setTimeout(function() { div.remove(); }, 200);
+                        };
+                    }(m.id));
+                    div.appendChild(removeBtn);
                     mediaContainer.appendChild(div);
                 });
             } else {
                 document.getElementById('existingUpdateMediaSection').style.display = 'none';
                 document.getElementById('existingUpdateMedia').innerHTML = '';
             }
+
+            // Store removedMediaIds on the form for later use during submit
+            var form = document.getElementById('addUpdateForm');
+            form._removedMediaIds = removedMediaIds;
 
             closeModal('updatesModal');
             openModal('addUpdateModal');
@@ -2173,7 +2598,24 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
 
-            const fd = new FormData(document.getElementById('addUpdateForm'));
+            var form = document.getElementById('addUpdateForm');
+
+            var removedIds = form._removedMediaIds || [];
+            document.querySelectorAll('#addUpdateForm input[name="remove_media[]"]').forEach(function(el) { el.remove(); });
+            removedIds.forEach(function(id) {
+                var h = document.createElement('input');
+                h.type = 'hidden';
+                h.name = 'remove_media[]';
+                h.value = id;
+                form.appendChild(h);
+            });
+
+            var dt = new DataTransfer();
+            updateSelectedFiles.forEach(function(f) { dt.items.add(f); });
+            var fileInput = form.querySelector('input[type="file"]');
+            if (fileInput) fileInput.files = dt.files;
+
+            const fd = new FormData(form);
             fetch('../api/progress_update_api.php', {
                 method: 'POST',
                 body: fd
@@ -2205,31 +2647,66 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             }
         });
 
-        // File preview for add update modal (event delegation)
-        document.addEventListener('change', function(e) {
-            if (e.target && e.target.matches && e.target.matches('#addUpdateForm input[type="file"]')) {
-                var preview = document.getElementById('updateFilePreviews');
-                if (!preview) return;
-                preview.innerHTML = '';
-                Array.from(e.target.files).forEach(function(f) {
-                    if (f.type.startsWith('image/')) {
-                        var reader = new FileReader();
-                        reader.onload = function(ev) {
-                            var item = document.createElement('div');
-                            item.className = 'file-preview-item';
-                            item.innerHTML = '<img src="' + ev.target.result + '"><button type="button" class="remove-preview" onclick="this.parentElement.remove()">&times;</button>';
-                            preview.appendChild(item);
-                        };
-                        reader.readAsDataURL(f);
-                    } else {
-                        var item = document.createElement('div');
-                        item.className = 'file-preview-item';
-                        item.innerHTML = '<i class="fas fa-video" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:20px;color:#3762c8;opacity:0.7;"></i><button type="button" class="remove-preview" onclick="this.parentElement.remove()">&times;</button>';
-                        preview.appendChild(item);
-                    }
-                });
+        // Add Photos button triggers hidden file input
+        document.addEventListener('click', function(e) {
+            if (e.target && e.target.id === 'addUpdatePhotosBtn') {
+                var fileInput = document.querySelector('#addUpdateForm input[type="file"]');
+                if (fileInput) fileInput.click();
             }
         });
+
+        // File preview for add update modal — maintains persistent upload queue
+        document.addEventListener('change', function(e) {
+            if (e.target && e.target.matches && e.target.matches('#addUpdateForm input[type="file"]')) {
+                var newFiles = Array.from(e.target.files);
+                newFiles.forEach(function(f) {
+                    if (updateSelectedFiles.indexOf(f) === -1) {
+                        updateSelectedFiles.push(f);
+                    }
+                });
+                e.target.value = '';
+                renderUpdateFilePreviews();
+            }
+        });
+
+        function renderUpdateFilePreviews() {
+            var preview = document.getElementById('updateFilePreviews');
+            if (!preview) return;
+            updatePreviewCounter++;
+            var currentRender = updatePreviewCounter;
+            preview.innerHTML = '';
+            if (updateSelectedFiles.length === 0) return;
+            updateSelectedFiles.forEach(function(f, index) {
+                var item = document.createElement('div');
+                item.className = 'file-preview-item';
+                var removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'remove-preview';
+                removeBtn.innerHTML = '&times;';
+                removeBtn.addEventListener('click', function(idx) {
+                    return function() {
+                        if (idx >= 0 && idx < updateSelectedFiles.length) {
+                            updateSelectedFiles.splice(idx, 1);
+                        }
+                        renderUpdateFilePreviews();
+                    };
+                }(index));
+                if (f.type.startsWith('image/')) {
+                    var reader = new FileReader();
+                    reader.onload = function(ev) {
+                        if (currentRender !== updatePreviewCounter) return;
+                        item.innerHTML = '<img src="' + ev.target.result + '">';
+                        item.appendChild(removeBtn);
+                    };
+                    reader.readAsDataURL(f);
+                } else {
+                    item.style.cssText = 'display:flex;align-items:center;justify-content:center;background:#f0f4fa;font-size:11px;color:#3762c8;';
+                    item.innerHTML = '<i class="fas fa-video" style="font-size:20px;"></i>';
+                    item.appendChild(removeBtn);
+                }
+                preview.appendChild(item);
+            });
+        }
     </script>
     <script>
     // ===== TOMTOM API FEATURES =====
@@ -2302,22 +2779,26 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         document.getElementById('mapSearchResults').style.display = 'none';
         if (pinMarker) map.removeLayer(pinMarker);
         pinMarker = L.marker([lat, lng], { draggable: true }).addTo(map);
-        TomTomServices.reverseGeocodeOrbis(lat, lng).then(data => {
-            const addr = data.data?.results?.[0]?.address;
-            if (addr) {
-                const parts = [
-                    addr.street && addr.houseNumber ? addr.houseNumber + ' ' + addr.street : addr.street || '',
-                    addr.municipality || '',
-                    addr.countrySubdivision || '',
-                    addr.postalCode || '',
-                    addr.country || ''
-                ].filter(Boolean);
-                pinMarker.bindPopup('<b>' + parts.join(', ') + '</b>').openPopup();
-            }
-        }).catch(() => {});
         pinLat.value = lat;
         pinLng.value = lng;
         reportPanel.style.display = 'block';
+        document.getElementById('gis-location-warning').style.display = 'none';
+        
+        // Run full GIS analysis
+        analyzePinnedLocation(lat, lng);
+        
+        // Re-analyze on drag
+        pinMarker.on('dragend', function() {
+            const pos = pinMarker.getLatLng();
+            if (!isInsideQCBounds(pos.lat, pos.lng)) {
+                showNotification('Please select a location within Quezon City only.', 'error');
+                pinMarker.setLatLng([lat, lng]);
+                return;
+            }
+            pinLat.value = pos.lat;
+            pinLng.value = pos.lng;
+            analyzePinnedLocation(pos.lat, pos.lng);
+        });
     }
 
     // ===== ROUTE PLANNER =====
@@ -2651,6 +3132,20 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
 
     </script>
     
+    <!-- View Details Modal -->
+    <div id="viewDetailsModal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-info-circle"></i> Report Details</h5>
+                <button class="close" onclick="closeModal('viewDetailsModal')">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;"></div>
+            <div class="modal-footer" style="justify-content:flex-end;">
+                <button type="button" class="btn-secondary-custom" onclick="closeModal('viewDetailsModal')">Close</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Progress Updates Modal -->
     <div id="updatesModal" class="modal">
         <div class="modal-content" style="max-width: 750px;">
@@ -2660,11 +3155,11 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
             </div>
             <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
                 <div class="timeline-container" id="updatesTimeline">
-                    <div class="timeline-empty"><i class="fas fa-spinner fa-spin fa-2x" style="color:#3762c8;"></i></div>
+                    <div class="timeline-empty"><i class="fas fa-spinner fa-spin fa-2x t-text-link"></i></div>
                 </div>
             </div>
             <div class="modal-footer" style="justify-content: space-between;">
-                <span id="updateReportInfo" style="font-size: 13px; color: #6b7280;"></span>
+                <span id="updateReportInfo" class="t-text-secondary" style="font-size: 13px;"></span>
                 <div>
                     <button type="button" class="btn-action" id="addUpdateBtn" onclick="showAddUpdateModal()">+ Add Update</button>
                     <button type="button" class="btn-secondary-custom" onclick="closeModal('updatesModal')">Close</button>
@@ -2687,8 +3182,8 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                     <input type="hidden" name="report_id" id="addUpdateReportId" value="">
                     <input type="hidden" name="report_type" id="addUpdateReportType" value="">
                     <div class="form-group">
-                        <label class="form-label">Title (optional)</label>
-                        <input type="text" name="title" id="addUpdateTitle" class="form-control" placeholder="e.g., Inspection completed">
+                        <label class="form-label">Title *</label>
+                        <input type="text" name="title" id="addUpdateTitle" class="form-control" placeholder="e.g., Inspection completed" required>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Description *</label>
@@ -2696,8 +3191,11 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                     </div>
                     <div class="form-group">
                         <label class="form-label">Photos / Video</label>
-                        <input type="file" name="media[]" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm" multiple>
-                        <small style="color:#666;font-size:11px;">Accepted: JPG, PNG, GIF, WebP, MP4, WebM</small>
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                            <button type="button" id="addUpdatePhotosBtn" style="padding:8px 16px;background:#3762c8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;display:inline-flex;align-items:center;gap:6px;"><i class="fas fa-camera"></i> Add Photos</button>
+                            <small class="t-text-secondary" style="font-size:11px;">Accepted: JPG, PNG, GIF, WebP, MP4, WebM</small>
+                        </div>
+                        <input type="file" name="media[]" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm" multiple style="display:none;">
                         <div class="file-previews" id="updateFilePreviews"></div>
                     </div>
                     <div id="existingUpdateMediaSection" style="display:none;">
@@ -2708,7 +3206,7 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                     </div>
                 </div>
                 <div class="modal-footer" style="justify-content: space-between;">
-                    <span style="font-size:12px;color:#666;">Updates are visible to all staff</span>
+                    <span class="t-text-secondary" style="font-size:12px;">Updates are visible to all staff</span>
                     <div style="display:flex;gap:10px;">
                         <button type="button" class="btn-secondary-custom" onclick="cancelUpdateForm()">Cancel</button>
                         <button type="submit" class="btn-action" id="addUpdateSubmitBtn"><i class="fas fa-save"></i> Post Update</button>
@@ -2726,17 +3224,17 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
 
 
     <!-- Session Timeout Modal -->
-    <div id="sessionTimeoutOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); z-index:10000;"></div>
-    <div id="sessionTimeoutModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; border-radius:12px; padding:32px; z-index:10001; width:400px; max-width:90vw; box-shadow:0 16px 48px rgba(0,0,0,0.3); text-align:center;">
+    <div id="sessionTimeoutOverlay" class="t-modal-overlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; z-index:10000;"></div>
+    <div id="sessionTimeoutModal" class="t-card" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); border-radius:12px; padding:32px; z-index:10001; width:400px; max-width:90vw; box-shadow:0 16px 48px rgba(0,0,0,0.3); text-align:center;">
         <div style="font-size:48px; color:#e74c3c; margin-bottom:16px;">
             <i class="fas fa-clock"></i>
         </div>
         <h3 style="margin:0 0 8px; font-size:20px; color:#1a1a2e;">Session Expiring</h3>
-        <p style="margin:0 0 20px; color:#666; font-size:14px;">
+        <p class="t-text-secondary" style="margin:0 0 20px; font-size:14px;">
             Your session will expire in <strong><span id="sessionCountdown">60</span></strong> seconds due to inactivity.
         </p>
         <div style="display:flex; gap:12px; justify-content:center;">
-            <button id="extendSessionBtn" style="padding:10px 24px; background:#3762c8; color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Extend Session</button>
+            <button id="extendSessionBtn" class="t-gradient-primary" style="padding:10px 24px; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Extend Session</button>
             <button id="logoutSessionBtn" style="padding:10px 24px; background:#e74c3c; color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Log Out</button>
         </div>
     </div>

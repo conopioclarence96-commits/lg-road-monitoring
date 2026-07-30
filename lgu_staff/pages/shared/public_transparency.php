@@ -60,12 +60,26 @@ if ($conn) {
     <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../../css/theme-tokens.css">
+    <link rel="stylesheet" href="../../css/theme-utilities.css">
     <link rel="stylesheet" href="../../css/sidebar.css">
     <link rel="stylesheet" href="../../css/public_transparency.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <style>
         body { background: #f7f5f0; min-height: 100vh; }
+        body.dark-mode { background: var(--bg-page); }
+        body.dark-mode .form-group input,
+        body.dark-mode .form-group textarea,
+        body.dark-mode .form-group select { background: var(--bg-input) !important; border-color: var(--border-input) !important; color: var(--text-primary) !important; }
+        body.dark-mode .form-group label { color: var(--text-secondary) !important; }
+        body.dark-mode .project-preview .preview-handle::after { color: var(--text-primary) !important; }
+        body.dark-mode .btn-cancel { background: var(--bg-input-readonly) !important; color: var(--text-primary) !important; border: 1px solid var(--border-default) !important; }
+        body.dark-mode .btn-cancel:hover { background: var(--text-muted) !important; color: var(--text-inverse) !important; }
+        body.dark-mode .projects-section { background: var(--bg-card) !important; border-color: var(--border-default) !important; }
+        body.dark-mode .project-form-card { background: var(--bg-card) !important; border-color: var(--border-default) !important; }
+        body.dark-mode .project-item { background: var(--bg-card) !important; border-color: var(--border-default) !important; }
+        body.dark-mode .toggle-slider::before { background: transparent !important; box-shadow: none !important; }
 
         .projects-section {
             background: #f0f4fa;

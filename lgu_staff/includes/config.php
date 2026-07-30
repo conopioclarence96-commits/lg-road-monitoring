@@ -60,6 +60,19 @@ try {
     } catch (Exception $e) {
         error_log("report_updates table creation: " . $e->getMessage());
     }
+
+    // Drop FK on report_updates.report_id so updates can reference reports from any table
+    // (transportation, maintenance, or CIMM)
+    try {
+        $fk_rows = $conn->query("SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE TABLE_NAME = 'report_updates' AND CONSTRAINT_TYPE = 'FOREIGN KEY' AND TABLE_SCHEMA = '" . DB_NAME . "'");
+        if ($fk_rows) {
+            while ($fk = $fk_rows->fetch_assoc()) {
+                $conn->query("ALTER TABLE report_updates DROP FOREIGN KEY `{$fk['CONSTRAINT_NAME']}`");
+            }
+        }
+    } catch (Exception $e) {
+        // FK may already be dropped or not exist
+    }
     
     try {
         $conn->query("CREATE TABLE IF NOT EXISTS report_update_media (
@@ -92,6 +105,18 @@ try {
     } catch (Exception $e) {
         error_log("report_notifications table creation: " . $e->getMessage());
     }
+
+    // Drop FK on report_notifications.report_id so notifications can reference reports from any table
+    try {
+        $fk_rows = $conn->query("SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE TABLE_NAME = 'report_notifications' AND CONSTRAINT_TYPE = 'FOREIGN KEY' AND TABLE_SCHEMA = '" . DB_NAME . "'");
+        if ($fk_rows) {
+            while ($fk = $fk_rows->fetch_assoc()) {
+                $conn->query("ALTER TABLE report_notifications DROP FOREIGN KEY `{$fk['CONSTRAINT_NAME']}`");
+            }
+        }
+    } catch (Exception $e) {
+        // FK may already be dropped or not exist
+    }
     
     // Ensure citizen report columns exist
     try {
@@ -109,6 +134,46 @@ try {
     try {
         $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS reporter_phone VARCHAR(20) AFTER reporter_name");
     } catch (Exception $e) {}
+    // GIS spatial columns for district/barangay detection
+    try {
+        $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS detected_district VARCHAR(50) NULL AFTER longitude");
+    } catch (Exception $e) {}
+    try {
+        $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS barangay VARCHAR(100) NULL AFTER detected_district");
+    } catch (Exception $e) {}
+    try {
+        $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS street_name VARCHAR(255) NULL AFTER barangay");
+    } catch (Exception $e) {}
+    
+    // Ensure completed_at columns exist for duration tracking
+    try {
+        $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP NULL AFTER updated_at");
+    } catch (Exception $e) {}
+    try {
+        $conn->query("ALTER TABLE road_maintenance_reports ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP NULL AFTER updated_at");
+    } catch (Exception $e) {}
+    
+    // Create project_analytics table for recording completion metrics
+    try {
+        $conn->query("CREATE TABLE IF NOT EXISTS project_analytics (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            report_id INT NOT NULL,
+            report_table VARCHAR(50) NOT NULL DEFAULT 'road_transportation_reports',
+            user_id INT DEFAULT NULL,
+            started_at TIMESTAMP NULL,
+            completed_at TIMESTAMP NULL,
+            duration_seconds BIGINT DEFAULT 0,
+            duration_days DECIMAL(10,2) DEFAULT 0.00,
+            priority VARCHAR(20) DEFAULT 'medium',
+            department VARCHAR(50) DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_report_id (report_id),
+            INDEX idx_completed_at (completed_at),
+            INDEX idx_user_id (user_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Exception $e) {
+        error_log("project_analytics table creation: " . $e->getMessage());
+    }
     
     // Ensure account_status supports 'deactivated' value
     try {

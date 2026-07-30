@@ -173,6 +173,8 @@ $total_notifications = $is_admin ? (count($pending_reports) + count($pending_cha
     <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../../css/theme-tokens.css">
+    <link rel="stylesheet" href="../../css/theme-utilities.css">
     <link rel="stylesheet" href="../../css/sidebar.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
@@ -554,7 +556,7 @@ $total_notifications = $is_admin ? (count($pending_reports) + count($pending_cha
                 <div class="stat-label">Report Updates</div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon" style="color: #10b981;">
+                <div class="stat-icon t-text-success">
                     <i class="fas fa-user-edit"></i>
                 </div>
                 <div class="stat-number"><?php echo count($staff_updates); ?></div>
@@ -562,7 +564,7 @@ $total_notifications = $is_admin ? (count($pending_reports) + count($pending_cha
             </div>
             <?php endif; ?>
             <div class="stat-card">
-                <div class="stat-icon" style="color: #10b981;">
+                <div class="stat-icon t-text-success">
                     <i class="fas fa-bell"></i>
                 </div>
                 <div class="stat-number"><?php echo $total_notifications; ?></div>
@@ -691,7 +693,7 @@ $total_notifications = $is_admin ? (count($pending_reports) + count($pending_cha
                             <div class="notification-item">
                                 <div class="notification-header">
                                     <div class="notification-title">
-                                        <span style="color:#10b981;"><i class="fas fa-clipboard-list"></i> <?php echo htmlspecialchars($pn['message']); ?></span>
+                                        <span class="t-text-success"><i class="fas fa-clipboard-list"></i> <?php echo htmlspecialchars($pn['message']); ?></span>
                                     </div>
                                     <div class="notification-time"><?php echo date('M d, Y H:i', strtotime($pn['created_at'])); ?></div>
                                 </div>
@@ -737,9 +739,9 @@ $total_notifications = $is_admin ? (count($pending_reports) + count($pending_cha
                                 <div class="notification-header">
                                     <div class="notification-title">
                                         <?php if ($is_approved): ?>
-                                            <span style="color:#16a34a;"><i class="fas fa-check-circle"></i> Approved</span>
+                                            <span class="t-text-success"><i class="fas fa-check-circle"></i> Approved</span>
                                         <?php else: ?>
-                                            <span style="color:#dc2626;"><i class="fas fa-times-circle"></i> Rejected</span>
+                                            <span class="t-text-danger"><i class="fas fa-times-circle"></i> Rejected</span>
                                         <?php endif; ?>
                                     </div>
                                     <div class="notification-time"><?php echo date('M d, Y H:i', strtotime($action_time)); ?></div>
@@ -747,7 +749,7 @@ $total_notifications = $is_admin ? (count($pending_reports) + count($pending_cha
                                 <div class="notification-body">
                                     <strong><?php echo htmlspecialchars($report['title']); ?></strong> was <strong><?php echo $is_approved ? 'approved' : 'rejected'; ?></strong>.
                                     <?php if ($report['location']): ?>
-                                        <br><small style="color:#666;">Location: <?php echo htmlspecialchars($report['location']); ?></small>
+                                        <br><small class="t-text-secondary">Location: <?php echo htmlspecialchars($report['location']); ?></small>
                                     <?php endif; ?>
                                 </div>
                                 <div class="notification-meta">
@@ -782,9 +784,9 @@ $total_notifications = $is_admin ? (count($pending_reports) + count($pending_cha
                                 <div class="notification-header">
                                     <div class="notification-title">
                                         <?php if ($update['status'] === 'approved'): ?>
-                                            <span style="color:#16a34a;"><i class="fas fa-check-circle"></i> Approved</span>
+                                            <span class="t-text-success"><i class="fas fa-check-circle"></i> Approved</span>
                                         <?php else: ?>
-                                            <span style="color:#dc2626;"><i class="fas fa-times-circle"></i> Rejected</span>
+                                            <span class="t-text-danger"><i class="fas fa-times-circle"></i> Rejected</span>
                                         <?php endif; ?>
                                     </div>
                                     <div class="notification-time"><?php echo date('M d, Y H:i', strtotime($update['reviewed_at'] ?? $update['created_at'])); ?></div>
@@ -792,7 +794,7 @@ $total_notifications = $is_admin ? (count($pending_reports) + count($pending_cha
                                 <div class="notification-body">
                                     Your change request was <strong><?php echo $update['status']; ?></strong>.
                                     <?php if (!empty($update['admin_notes'])): ?>
-                                        <br><small style="color:#666;">Admin note: <?php echo htmlspecialchars($update['admin_notes']); ?></small>
+                                        <br><small class="t-text-secondary">Admin note: <?php echo htmlspecialchars($update['admin_notes']); ?></small>
                                     <?php endif; ?>
                                 </div>
                                 <div class="notification-meta">

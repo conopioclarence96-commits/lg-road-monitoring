@@ -95,8 +95,8 @@ $conn->query("CREATE TABLE IF NOT EXISTS reports (
     KEY fk_report_reporter (report_by)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-// Check if user is logged in
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'system_admin') {
+// Check if user is logged in and has proper role
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['system_admin', 'lgu_staff'])) {
     header('Location: ../../login.php');
     exit();
 }
@@ -202,14 +202,16 @@ function getAllReports($conn, $status_filter = 'all', $source_filter = 'all') {
     $citizen_exclude = "(report_source IS NULL OR report_source != 'local' OR report_category IS NULL OR report_category != 'transportation' OR created_by IS NULL OR created_by != 0)";
     if ($source_filter === 'transport') {
         $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}" : " WHERE {$infra_exclude} AND {$citizen_exclude}";
-        $q = "(SELECT 'transport' as source, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$where})";
+        $source_case = "CASE WHEN report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
+        $q = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$where})";
         $parts[] = $q;
     } elseif ($source_filter === 'maintenance') {
         $q = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
         $parts[] = $q;
     } else {
         $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}" : " WHERE {$infra_exclude} AND {$citizen_exclude}";
-        $parts[] = "(SELECT 'transport' as source, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$where})";
+        $source_case = "CASE WHEN report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
+        $parts[] = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$where})";
         $parts[] = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
     }
     $query = implode(' UNION ALL ', $parts) . " ORDER BY created_at DESC";
@@ -393,7 +395,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $report_id = (int) $_POST['report_id'];
         $source = $_POST['source'];
         $action = $_POST['action'];
-        $table = ($source === 'transport') ? 'road_transportation_reports' : 'road_maintenance_reports';
+        $table = in_array($source, ['transport', 'lgu', 'external']) ? 'road_transportation_reports' : 'road_maintenance_reports';
         
         // Archive report then remove from active table
         if ($action === 'delete') {
@@ -419,7 +421,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         // Check verification rules: block approve for road+local reports
-        if ($action === 'approve' && $source === 'transport') {
+        if ($action === 'approve' && in_array($source, ['transport', 'lgu', 'external'])) {
             $check = $conn->prepare("SELECT report_category, report_source FROM road_transportation_reports WHERE id = ?");
             $check->bind_param('i', $report_id);
             $check->execute();
@@ -656,6 +658,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../../css/theme-tokens.css">
+    <link rel="stylesheet" href="../../css/theme-utilities.css">
     <link rel="stylesheet" href="../../css/sidebar.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
@@ -3880,6 +3884,263 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 padding: 0;
             }
         }
+
+        /* LGU Report Detail Modal */
+        .lgu-modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+
+        .lgu-modal-overlay.active {
+            display: flex;
+        }
+
+        .lgu-modal-content {
+            background: #f0f4fa;
+            border-radius: 16px;
+            max-width: 860px;
+            width: 100%;
+            max-height: calc(100vh - 40px);
+            position: relative;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            margin: auto;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            border: 1px solid #c8d0e0;
+        }
+
+        .lgu-modal-header {
+            background: white;
+            border-radius: 16px 16px 0 0;
+            padding: 24px 28px 18px;
+            border-bottom: 2px solid rgba(55, 98, 200, 0.15);
+            flex-shrink: 0;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        .lgu-modal-header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .lgu-modal-title-area {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .lgu-modal-report-id {
+            font-size: 13px;
+            color: #3762c8;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            margin-bottom: 4px;
+        }
+
+        .lgu-modal-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1e3c72;
+            margin: 0 0 10px 0;
+            line-height: 1.3;
+        }
+
+        .lgu-modal-badges {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .lgu-modal-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            color: #666;
+            cursor: pointer;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.3s;
+            flex-shrink: 0;
+            margin-left: 15px;
+        }
+
+        .lgu-modal-close:hover {
+            background: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+        }
+
+        .lgu-modal-body {
+            overflow-y: auto;
+            flex: 1;
+            min-height: 0;
+            padding: 24px 28px;
+        }
+
+        .lgu-modal-body::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .lgu-modal-body::-webkit-scrollbar-track {
+            background: rgba(55, 98, 200, 0.08);
+            border-radius: 4px;
+        }
+
+        .lgu-modal-body::-webkit-scrollbar-thumb {
+            background: rgba(55, 98, 200, 0.2);
+            border-radius: 4px;
+        }
+
+        .lgu-modal-body::-webkit-scrollbar-thumb:hover {
+            background: rgba(55, 98, 200, 0.35);
+        }
+
+        .lgu-modal-section {
+            background: white;
+            border-radius: 12px;
+            padding: 18px 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            border: 1px solid rgba(55, 98, 200, 0.1);
+        }
+
+        .lgu-modal-section-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #1e3c72;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 14px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(55, 98, 200, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .lgu-modal-section-title i {
+            color: #3762c8;
+            font-size: 15px;
+        }
+
+        .lgu-info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .lgu-info-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 6px 0;
+        }
+
+        .lgu-info-icon {
+            width: 28px;
+            height: 28px;
+            background: rgba(55, 98, 200, 0.1);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #3762c8;
+            font-size: 13px;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .lgu-info-label {
+            font-size: 11px;
+            color: #6b7280;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-bottom: 2px;
+        }
+
+        .lgu-info-value {
+            font-size: 14px;
+            color: #1f2937;
+            font-weight: 500;
+            line-height: 1.4;
+            word-break: break-word;
+        }
+
+        .lgu-info-value-full {
+            grid-column: 1 / -1;
+        }
+
+        .lgu-description-text {
+            font-size: 14px;
+            color: #374151;
+            line-height: 1.7;
+            padding: 8px 0;
+            white-space: pre-wrap;
+        }
+
+        .lgu-modal-footer {
+            background: white;
+            border-radius: 0 0 16px 16px;
+            padding: 16px 28px;
+            border-top: 1px solid rgba(55, 98, 200, 0.1);
+            flex-shrink: 0;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .lgu-modal-btn-close {
+            padding: 10px 24px;
+            background: rgba(55, 98, 200, 0.1);
+            color: #3762c8;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .lgu-modal-btn-close:hover {
+            background: rgba(55, 98, 200, 0.2);
+        }
+
+        @media (max-width: 640px) {
+            .lgu-info-grid {
+                grid-template-columns: 1fr;
+            }
+            .lgu-modal-header {
+                padding: 18px 16px;
+            }
+            .lgu-modal-body {
+                padding: 16px;
+            }
+            .lgu-modal-content {
+                max-width: 100%;
+                border-radius: 0;
+            }
+            .lgu-modal-overlay {
+                padding: 0;
+            }
+        }
         
         .modal-footer {
             display: flex;
@@ -3940,6 +4201,255 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             .detail-grid {
                 grid-template-columns: 1fr;
             }
+        }
+
+        /* ===== Modal Dark Mode Overrides ===== */
+        body.dark-mode .modal-content {
+            background: #1a1d24 !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode .modal-header {
+            background: linear-gradient(135deg, #0f1f3d, #0a1628) !important;
+            border-bottom-color: #2d323b !important;
+        }
+        body.dark-mode .modal-header h2 {
+            color: #e4e6ea !important;
+        }
+        body.dark-mode .modal-close {
+            color: #9ca3af !important;
+        }
+        body.dark-mode .modal-body {
+            color: #e4e6ea !important;
+        }
+        body.dark-mode .modal-footer {
+            border-top-color: #2d323b !important;
+        }
+        body.dark-mode .detail-row {
+            border-bottom-color: #2d323b !important;
+        }
+        body.dark-mode .detail-label {
+            color: #e4e6ea !important;
+        }
+        body.dark-mode .detail-value {
+            color: #9ca3af !important;
+        }
+        body.dark-mode .modal-body::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05) !important;
+        }
+        body.dark-mode .modal-body::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.15) !important;
+        }
+
+        /* Citizen Modal Dark Mode */
+        body.dark-mode .citizen-modal-content {
+            background: #1a1d24 !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode .citizen-modal-header {
+            background: #1a1d24 !important;
+            border-bottom-color: #2d323b !important;
+        }
+        body.dark-mode .citizen-modal-title {
+            color: #4ade80 !important;
+        }
+        body.dark-mode .citizen-modal-report-id {
+            color: #4ade80 !important;
+        }
+        body.dark-mode .citizen-modal-close {
+            color: #9ca3af !important;
+        }
+        body.dark-mode .citizen-modal-section {
+            background: #22262e !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode .citizen-modal-section-title {
+            color: #4ade80 !important;
+            border-bottom-color: #2d323b !important;
+        }
+        body.dark-mode .citizen-info-icon {
+            background: rgba(34,197,94,0.15) !important;
+        }
+        body.dark-mode .citizen-info-label {
+            color: #9ca3af !important;
+        }
+        body.dark-mode .citizen-info-value {
+            color: #e4e6ea !important;
+        }
+        body.dark-mode .citizen-description-text {
+            color: #c0c8d8 !important;
+        }
+        body.dark-mode .citizen-modal-footer {
+            background: #1a1d24 !important;
+            border-top-color: #2d323b !important;
+        }
+        body.dark-mode .citizen-modal-btn-close {
+            background: rgba(34,197,94,0.15) !important;
+            color: #4ade80 !important;
+        }
+        body.dark-mode .citizen-modal-body::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05) !important;
+        }
+        body.dark-mode .citizen-modal-body::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.15) !important;
+        }
+
+        /* CIMM Modal Dark Mode */
+        body.dark-mode .cimm-modal-content {
+            background: #1a1d24 !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode .cimm-modal-header {
+            background: #1a1d24 !important;
+            border-bottom-color: #2d323b !important;
+        }
+        body.dark-mode .cimm-modal-title {
+            color: #60a5fa !important;
+        }
+        body.dark-mode .cimm-modal-report-id {
+            color: #60a5fa !important;
+        }
+        body.dark-mode .cimm-modal-close {
+            color: #9ca3af !important;
+        }
+        body.dark-mode .cimm-modal-section {
+            background: #22262e !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode .cimm-modal-section-title {
+            color: #60a5fa !important;
+            border-bottom-color: #2d323b !important;
+        }
+        body.dark-mode .cimm-info-icon {
+            background: rgba(55,98,200,0.15) !important;
+        }
+        body.dark-mode .cimm-info-label {
+            color: #9ca3af !important;
+        }
+        body.dark-mode .cimm-info-value {
+            color: #e4e6ea !important;
+        }
+        body.dark-mode .cimm-description-text {
+            color: #c0c8d8 !important;
+        }
+        body.dark-mode .cimm-modal-footer {
+            background: #1a1d24 !important;
+            border-top-color: #2d323b !important;
+        }
+        body.dark-mode .cimm-modal-btn-close {
+            background: rgba(55,98,200,0.15) !important;
+            color: #60a5fa !important;
+        }
+        body.dark-mode .cimm-modal-body::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05) !important;
+        }
+        body.dark-mode .cimm-modal-body::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.15) !important;
+        }
+
+        /* Infra Modal Dark Mode */
+        body.dark-mode .infra-modal-content {
+            background: #1a1d24 !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode .infra-modal-header {
+            background: #1a1d24 !important;
+            border-bottom-color: #2d323b !important;
+        }
+        body.dark-mode .infra-modal-title {
+            color: #fb923c !important;
+        }
+        body.dark-mode .infra-modal-report-id {
+            color: #fb923c !important;
+        }
+        body.dark-mode .infra-modal-close {
+            color: #9ca3af !important;
+        }
+        body.dark-mode .infra-modal-section {
+            background: #22262e !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode .infra-modal-section-title {
+            color: #fb923c !important;
+            border-bottom-color: #2d323b !important;
+        }
+        body.dark-mode .infra-info-icon {
+            background: rgba(249,115,22,0.15) !important;
+        }
+        body.dark-mode .infra-info-label {
+            color: #9ca3af !important;
+        }
+        body.dark-mode .infra-info-value {
+            color: #e4e6ea !important;
+        }
+        body.dark-mode .infra-description-text {
+            color: #c0c8d8 !important;
+        }
+        body.dark-mode .infra-modal-footer {
+            background: #1a1d24 !important;
+            border-top-color: #2d323b !important;
+        }
+        body.dark-mode .infra-modal-btn-close {
+            background: rgba(249,115,22,0.15) !important;
+            color: #fb923c !important;
+        }
+        body.dark-mode .infra-modal-body::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05) !important;
+        }
+        body.dark-mode .infra-modal-body::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.15) !important;
+        }
+
+        /* LGU Modal Dark Mode */
+        body.dark-mode .lgu-modal-content {
+            background: #1a1d24 !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode .lgu-modal-header {
+            background: #1a1d24 !important;
+            border-bottom-color: #2d323b !important;
+        }
+        body.dark-mode .lgu-modal-title {
+            color: #60a5fa !important;
+        }
+        body.dark-mode .lgu-modal-report-id {
+            color: #60a5fa !important;
+        }
+        body.dark-mode .lgu-modal-close {
+            color: #9ca3af !important;
+        }
+        body.dark-mode .lgu-modal-section {
+            background: #22262e !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode .lgu-modal-section-title {
+            color: #60a5fa !important;
+            border-bottom-color: #2d323b !important;
+        }
+        body.dark-mode .lgu-info-icon {
+            background: rgba(55,98,200,0.15) !important;
+        }
+        body.dark-mode .lgu-info-label {
+            color: #9ca3af !important;
+        }
+        body.dark-mode .lgu-info-value {
+            color: #e4e6ea !important;
+        }
+        body.dark-mode .lgu-description-text {
+            color: #c0c8d8 !important;
+        }
+        body.dark-mode .lgu-modal-footer {
+            background: #1a1d24 !important;
+            border-top-color: #2d323b !important;
+        }
+        body.dark-mode .lgu-modal-btn-close {
+            background: rgba(55,98,200,0.15) !important;
+            color: #60a5fa !important;
+        }
+        body.dark-mode .lgu-modal-body::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05) !important;
+        }
+        body.dark-mode .lgu-modal-body::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.15) !important;
         }
     </style>
 </head>
@@ -4089,6 +4599,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 ];
 
                                 $lgu_source_labels = [
+                                    'lgu' => 'LGU Staff',
+                                    'external' => 'External (CIMM)',
                                     'transport' => 'Citizen',
                                     'cimm' => 'CIMM',
                                     'maintenance' => 'Infrastructure',
@@ -4101,11 +4613,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <tr data-status="<?php echo $lgu_filter_status; ?>" data-source="<?php echo htmlspecialchars($report['source']); ?>">
                                 <td>
                                     <div class="lgu-action-group">
-                                        <button class="lgu-action-btn" onclick="toggleDetails(<?php echo $report['id']; ?>)">
+                                        <button class="lgu-action-btn" onclick="viewLguReport(<?php echo $report['id']; ?>)">
                                             <i class="fas fa-eye" id="icon-<?php echo $report['id']; ?>"></i>
                                         </button>
                                         <?php if ($pending_ext_verify): ?>
-                                            <span class="lgu-status-badge" style="background:#fef3c7;color:#92400e;font-size:10px;padding:3px 8px;">Ext. Verify</span>
+                                            <span class="lgu-status-badge t-badge t-badge-pending" style="font-size:10px;padding:3px 8px;">Ext. Verify</span>
                                         <?php elseif ($report['status'] === 'pending'): ?>
                                             <form method="POST" class="lgu-action-form">
                                                 <input type="hidden" name="report_id" value="<?php echo $report['id']; ?>">
@@ -4125,7 +4637,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                         <form method="POST" class="lgu-action-form" onsubmit="return confirm('Are you sure you want to remove this report? It will be moved to the archive.');" title="Remove report">
                                             <input type="hidden" name="report_id" value="<?php echo $report['id']; ?>">
                                             <input type="hidden" name="source" value="<?php echo htmlspecialchars($report['source']); ?>">
-                                            <button type="submit" name="action" value="delete" class="lgu-action-btn" style="background:rgba(220,53,69,0.1);color:#dc3545;">
+                                            <button type="submit" name="action" value="delete" class="lgu-action-btn t-text-danger" style="background:rgba(220,53,69,0.1);">
                                                 <i class="fas fa-trash-alt"></i>
                                             </button>
                                         </form>
@@ -4149,15 +4661,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                             <div class="detail-item">
                                                 <strong>Status:</strong> 
                                                 <?php if ($pending_ext_verify): ?>
-                                                <span class="lgu-status-badge" style="background:#fef3c7;color:#92400e;">Awaiting External Verification</span>
+                                                <span class="lgu-status-badge t-badge t-badge-pending">Awaiting External Verification</span>
                                                 <?php else: ?>
                                                 <span class="lgu-status-badge <?php echo $lgu_status_class; ?>"><?php echo htmlspecialchars($report['status'] ?? 'N/A'); ?></span>
                                                 <?php endif; ?>
                                             </div>
                                             <div class="detail-item full-width">
                                                 <strong>Full Description:</strong>
-                                                <div style="margin-top:8px;padding:12px;background:rgba(55,98,200,0.05);border-radius:8px;">
+                                                <div class="t-bg-primary" style="margin-top:8px;padding:12px;border-radius:8px;">
                                                     <?php echo nl2br(htmlspecialchars($report['description'] ?? 'No description provided')); ?>
+                                                </div>
+                                            </div>
+                                            <div class="detail-item full-width">
+                                                <strong>Location Address:</strong>
+                                                <div style="margin-top:8px;">
+                                                    <?php echo htmlspecialchars($report['location'] ?? 'N/A'); ?>
                                                 </div>
                                             </div>
                                             <?php if (!empty($report['latitude']) && !empty($report['longitude'])): ?>
@@ -4166,7 +4684,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                 <div style="margin-top:8px;">
                                                     Latitude: <?php echo htmlspecialchars($report['latitude']); ?>, 
                                                     Longitude: <?php echo htmlspecialchars($report['longitude']); ?>
-                                                    <a href="https://www.google.com/maps?q=<?php echo htmlspecialchars($report['latitude']); ?>,<?php echo htmlspecialchars($report['longitude']); ?>" target="_blank" style="color:#3762c8;margin-left:10px;">
+                                                    <a href="https://www.google.com/maps?q=<?php echo htmlspecialchars($report['latitude']); ?>,<?php echo htmlspecialchars($report['longitude']); ?>" target="_blank" class="t-text-link" style="margin-left:10px;">
                                                         <i class="fas fa-map-marker-alt"></i> View on Map
                                                     </a>
                                                 </div>
@@ -4217,7 +4735,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 <td><span class="lgu-status-badge <?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'] ?? 'medium')); ?></span></td>
                                 <td>
                                     <?php if ($pending_ext_verify): ?>
-                                    <span class="lgu-status-badge" style="background:#fef3c7;color:#92400e;">Awaiting Ext.</span>
+                                    <span class="lgu-status-badge t-badge t-badge-pending">Awaiting Ext.</span>
                                     <?php else: ?>
                                     <span class="lgu-status-badge <?php echo $lgu_status_class; ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span>
                                     <?php endif; ?>
@@ -4928,6 +5446,156 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             return '₱' + parseFloat(val).toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2});
         }
 
+        // Helper: build a LGU info item with icon
+        function lguInfoItem(icon, label, value) {
+            var displayVal = (value && value !== '—' && value !== null) ? value : '—';
+            return '<div class="lgu-info-item"><div class="lgu-info-icon"><i class="fas fa-' + icon + '"></i></div><div><div class="lgu-info-label">' + label + '</div><div class="lgu-info-value">' + displayVal + '</div></div></div>';
+        }
+
+        // Helper: LGU badge HTML
+        function lguBadge(text, bg, color) {
+            return '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:' + bg + ';color:' + color + ';">' + text + '</span>';
+        }
+
+        // View LGU report details
+        function viewLguReport(id) {
+            var r = lguDataMap[id];
+            if (!r) { alert('Report data not found.'); return; }
+
+            var typeLabels = {
+                'traffic_jam': 'Traffic Jam',
+                'accident': 'Accident',
+                'road_damage': 'Road Damage',
+                'flooding': 'Flooding',
+                'potholes': 'Potholes',
+                'road_closure': 'Road Closure',
+                'infrastructure_issue': 'Infrastructure Issue',
+                'street_light': 'Street Light',
+                'other': 'Other'
+            };
+
+            var statusStyles = {
+                'pending':    {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
+                'approved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
+                'completed':  {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
+                'cancelled':  {bg:'rgba(220,53,69,0.15)',  color:'#ef4444'},
+                'in-progress':{bg:'rgba(59,130,246,0.15)', color:'#3b82f6'}
+            };
+            var pStyles = {
+                'high':   {bg:'rgba(220,53,69,0.15)', color:'#ef4444'},
+                'medium': {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
+                'low':    {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'}
+            };
+
+            // Header
+            document.getElementById('lgu-report-id').textContent = 'Report #' + (r.report_id || '—');
+            document.getElementById('lgu-title').textContent = r.title || '—';
+
+            var st = (r.status || 'pending').toLowerCase();
+            var ss = statusStyles[st] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
+            var pp = (r.priority || 'medium').toLowerCase();
+            var ps = pStyles[pp] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
+
+            var badgesHtml = lguBadge(r.status || '—', ss.bg, ss.color);
+            badgesHtml += lguBadge(r.priority || '—', ps.bg, ps.color);
+            var reportType = typeLabels[r.report_type] || r.report_type || '—';
+            if (reportType !== '—') {
+                badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(55,98,200,0.12);color:#3762c8;">' + reportType + '</span>';
+            }
+            document.getElementById('lgu-badges').innerHTML = badgesHtml;
+
+            // Report Information
+            var reportGrid = '';
+            reportGrid += lguInfoItem('folder', 'Report Type', reportType);
+            reportGrid += lguInfoItem('tag', 'Category', r.report_category);
+            reportGrid += lguInfoItem('calendar-alt', 'Created Date', formatDate(r.created_at));
+            reportGrid += lguInfoItem('sync-alt', 'Last Updated', formatDate(r.updated_at));
+            document.getElementById('lgu-report-grid').innerHTML = reportGrid;
+
+            // Source & Department
+            var sourceGrid = '';
+            var sourceLabel = r.source === 'lgu' ? 'LGU Staff' : r.source === 'external' ? 'External (CIMM)' : r.source === 'transport' ? 'Transportation' : r.source === 'maintenance' ? 'Maintenance' : r.source;
+            sourceGrid += lguInfoItem('server', 'Source', sourceLabel);
+            sourceGrid += lguInfoItem('building', 'Department', r.department);
+            if (r.approved_at) {
+                sourceGrid += lguInfoItem('thumbs-up', 'Approved At', formatDate(r.approved_at));
+            }
+            if (r.rejected_at) {
+                sourceGrid += lguInfoItem('thumbs-down', 'Rejected At', formatDate(r.rejected_at));
+            }
+            document.getElementById('lgu-source-grid').innerHTML = sourceGrid;
+
+            // Location
+            var locationGrid = '';
+            var locVal = r.location || '—';
+            if (r.latitude && r.longitude) {
+                locVal += '<br><a href="https://www.google.com/maps?q=' + r.latitude + ',' + r.longitude + '" target="_blank" style="color:#3762c8;font-size:12px;text-decoration:none;"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map</a>';
+            }
+            locationGrid += '<div class="lgu-info-item lgu-info-value-full"><div class="lgu-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="lgu-info-label">Location</div><div class="lgu-info-value">' + locVal + '</div></div></div>';
+            document.getElementById('lgu-location-grid').innerHTML = locationGrid;
+
+            // Description
+            document.getElementById('lgu-description').textContent = r.description || 'No description provided.';
+
+            // Attachments
+            var images = [];
+            if (r.attachments && typeof r.attachments === 'string') {
+                try {
+                    var parsed = JSON.parse(r.attachments);
+                    if (Array.isArray(parsed)) {
+                        parsed.forEach(function(a) {
+                            if (a.type === 'image' && a.file_path) {
+                                images.push(a.file_path);
+                            }
+                        });
+                    }
+                } catch(e) {}
+            }
+            var attachHtml = '';
+            if (images.length > 0) {
+                attachHtml = '<div style="display:flex;gap:12px;flex-wrap:wrap;">';
+                images.forEach(function(path) {
+                    attachHtml += '<div style="border-radius:8px;overflow:hidden;max-width:200px;"><img src="../../' + path + '" alt="Report Photo" style="width:100%;height:auto;cursor:pointer;" onclick="openLightbox(this.src)" loading="lazy"></div>';
+                });
+                attachHtml += '</div>';
+            } else {
+                attachHtml = '<div style="padding:8px 0;color:#9ca3af;font-size:14px;">No attachments.</div>';
+            }
+            document.getElementById('lgu-attachments').innerHTML = attachHtml;
+
+            // Timeline
+            var timelineGrid = '';
+            timelineGrid += lguInfoItem('calendar-check', 'Created', formatDate(r.created_at));
+            if (r.approved_at) {
+                timelineGrid += lguInfoItem('thumbs-up', 'Approved', formatDate(r.approved_at));
+            }
+            if (r.rejected_at) {
+                timelineGrid += lguInfoItem('thumbs-down', 'Rejected', formatDate(r.rejected_at));
+            }
+            if (r.updated_at) {
+                timelineGrid += lguInfoItem('edit', 'Last Updated', formatDate(r.updated_at));
+            }
+            document.getElementById('lgu-timeline-grid').innerHTML = timelineGrid;
+
+            openLguModal();
+        }
+
+        function openLguModal() {
+            var modal = document.getElementById('lguDetailModal');
+            if (modal) {
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        function closeLguModal() {
+            var modal = document.getElementById('lguDetailModal');
+            if (modal) {
+                modal.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        }
+
         // Helper: build a CIMM info item with icon
         function cimmInfoItem(icon, label, value) {
             var displayVal = (value && value !== '—' && value !== null) ? value : '—';
@@ -5372,6 +6040,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         endif;
         ?>
 
+        // LGU Reports data map
+        var lguDataMap = {};
+        <?php
+        if ($all_reports && method_exists($all_reports, 'data_seek') && $all_reports->num_rows > 0):
+            $all_reports->data_seek(0);
+            while ($lr = $all_reports->fetch_assoc()):
+        ?>
+        (function() {
+            try {
+                lguDataMap[<?php echo (int)$lr['id']; ?>] = {
+                    id: <?php echo (int)$lr['id']; ?>,
+                    report_id: <?php echo json_encode($lr['report_id']); ?>,
+                    title: <?php echo json_encode($lr['title']); ?>,
+                    report_type: <?php echo json_encode($lr['report_type']); ?>,
+                    report_category: <?php echo json_encode($lr['report_category'] ?? null); ?>,
+                    source: <?php echo json_encode($lr['source']); ?>,
+                    department: <?php echo json_encode($lr['department']); ?>,
+                    priority: <?php echo json_encode($lr['priority']); ?>,
+                    status: <?php echo json_encode($lr['status']); ?>,
+                    location: <?php echo json_encode($lr['location']); ?>,
+                    latitude: <?php echo json_encode($lr['latitude'] ?? null); ?>,
+                    longitude: <?php echo json_encode($lr['longitude'] ?? null); ?>,
+                    description: <?php echo json_encode($lr['description']); ?>,
+                    attachments: <?php echo json_encode($lr['attachments'] ?? null); ?>,
+                    created_at: <?php echo json_encode($lr['created_at']); ?>,
+                    updated_at: <?php echo json_encode($lr['updated_at']); ?>,
+                    approved_at: <?php echo json_encode($lr['approved_at']); ?>,
+                    rejected_at: <?php echo json_encode($lr['rejected_at']); ?>
+                };
+            } catch(e) {
+                console.error('Error adding LGU report to map:', e);
+            }
+        })();
+        <?php
+            endwhile;
+            $all_reports->data_seek(0);
+        endif;
+        ?>
+
         // Citizen Reports search functionality
         document.getElementById('citizenSearchInput')?.addEventListener('input', function() {
             const searchTerm = this.value.toLowerCase();
@@ -5793,19 +6500,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         </div>
     </div>
 
+    <!-- LGU Report Detail Modal -->
+    <div id="lguDetailModal" class="lgu-modal-overlay" onclick="if(event.target===this)closeLguModal()">
+        <div class="lgu-modal-content">
+            <div class="lgu-modal-header">
+                <div class="lgu-modal-header-top">
+                    <div class="lgu-modal-title-area">
+                        <div class="lgu-modal-report-id" id="lgu-report-id">—</div>
+                        <h3 class="lgu-modal-title" id="lgu-title">—</h3>
+                        <div class="lgu-modal-badges" id="lgu-badges"></div>
+                    </div>
+                    <button class="lgu-modal-close" onclick="closeLguModal()">&times;</button>
+                </div>
+            </div>
+            <div class="lgu-modal-body">
+                <!-- Report Information -->
+                <div class="lgu-modal-section">
+                    <div class="lgu-modal-section-title"><i class="fas fa-info-circle"></i> Report Information</div>
+                    <div class="lgu-info-grid" id="lgu-report-grid"></div>
+                </div>
+                <!-- Source & Department -->
+                <div class="lgu-modal-section">
+                    <div class="lgu-modal-section-title"><i class="fas fa-building"></i> Source &amp; Department</div>
+                    <div class="lgu-info-grid" id="lgu-source-grid"></div>
+                </div>
+                <!-- Location -->
+                <div class="lgu-modal-section">
+                    <div class="lgu-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location</div>
+                    <div class="lgu-info-grid" id="lgu-location-grid"></div>
+                </div>
+                <!-- Description -->
+                <div class="lgu-modal-section">
+                    <div class="lgu-modal-section-title"><i class="fas fa-align-left"></i> Description</div>
+                    <div class="lgu-description-text" id="lgu-description">—</div>
+                </div>
+                <!-- Attachments -->
+                <div class="lgu-modal-section">
+                    <div class="lgu-modal-section-title"><i class="fas fa-paperclip"></i> Attachments</div>
+                    <div id="lgu-attachments"></div>
+                </div>
+                <!-- Timeline -->
+                <div class="lgu-modal-section">
+                    <div class="lgu-modal-section-title"><i class="fas fa-clock"></i> Timeline &amp; Updates</div>
+                    <div class="lgu-info-grid" id="lgu-timeline-grid"></div>
+                </div>
+            </div>
+            <div class="lgu-modal-footer">
+                <button type="button" class="lgu-modal-btn-close" onclick="closeLguModal()">
+                    <i class="fas fa-times"></i> Close
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Session Timeout Modal -->
-    <div id="sessionTimeoutOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); z-index:10000;"></div>
+    <div id="sessionTimeoutOverlay" class="t-modal-overlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; z-index:10000;"></div>
     <div id="sessionTimeoutModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; border-radius:12px; padding:32px; z-index:10001; width:400px; max-width:90vw; box-shadow:0 16px 48px rgba(0,0,0,0.3); text-align:center;">
-        <div style="font-size:48px; color:#e74c3c; margin-bottom:16px;">
+        <div class="t-text-danger" style="font-size:48px; margin-bottom:16px;">
             <i class="fas fa-clock"></i>
         </div>
         <h3 style="margin:0 0 8px; font-size:20px; color:#1a1a2e;">Session Expiring</h3>
-        <p style="margin:0 0 20px; color:#666; font-size:14px;">
+        <p class="t-text-secondary" style="margin:0 0 20px; font-size:14px;">
             Your session will expire in <strong><span id="sessionCountdown">60</span></strong> seconds due to inactivity.
         </p>
         <div style="display:flex; gap:12px; justify-content:center;">
-            <button id="extendSessionBtn" style="padding:10px 24px; background:#3762c8; color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Extend Session</button>
-            <button id="logoutSessionBtn" style="padding:10px 24px; background:#e74c3c; color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Log Out</button>
+            <button id="extendSessionBtn" class="t-gradient-primary" style="padding:10px 24px; color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Extend Session</button>
+            <button id="logoutSessionBtn" class="t-gradient-danger" style="padding:10px 24px; color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Log Out</button>
         </div>
     </div>
 

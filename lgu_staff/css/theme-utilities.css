@@ -1,0 +1,199 @@
+/* ============================================================
+   THEME UTILITIES — Semantic classes using design tokens
+   Replace inline style="color:..." / style="background:..."
+   Include AFTER theme-tokens.css
+   ============================================================ */
+
+/* ── Text Colors ── */
+.t-text-primary { color: var(--text-primary) !important; }
+.t-text-secondary { color: var(--text-secondary) !important; }
+.t-text-muted { color: var(--text-muted) !important; }
+.t-text-link { color: var(--text-link) !important; }
+.t-text-success { color: var(--color-success-text) !important; }
+.t-text-warning { color: var(--color-warning-text) !important; }
+.t-text-danger { color: var(--color-danger-text) !important; }
+.t-text-info { color: var(--color-info-text) !important; }
+.t-text-purple { color: var(--color-purple-text) !important; }
+.t-text-cimm { color: var(--color-cimm-text) !important; }
+.t-text-white { color: var(--text-inverse) !important; }
+
+/* ── Backgrounds ── */
+.t-bg-page { background: var(--bg-page) !important; }
+.t-bg-card { background: var(--bg-card) !important; }
+.t-bg-input { background: var(--bg-input) !important; }
+.t-bg-input-readonly { background: var(--bg-input-readonly) !important; }
+.t-bg-overlay { background: var(--bg-overlay) !important; }
+.t-bg-primary { background: var(--color-primary-bg) !important; }
+.t-bg-success { background: var(--color-success-bg) !important; }
+.t-bg-warning { background: var(--color-warning-bg) !important; }
+.t-bg-danger { background: var(--color-danger-bg) !important; }
+.t-bg-info { background: var(--color-info-bg) !important; }
+.t-bg-purple { background: var(--color-purple-bg) !important; }
+.t-bg-cimm { background: var(--color-cimm-bg) !important; }
+
+/* ── Status Badges ── */
+.t-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 9999px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+.t-badge-pending { background: var(--badge-pending-bg); color: var(--badge-pending-text); }
+.t-badge-approved { background: var(--badge-approved-bg); color: var(--badge-approved-text); }
+.t-badge-completed { background: var(--badge-completed-bg); color: var(--badge-completed-text); }
+.t-badge-cancelled { background: var(--badge-cancelled-bg); color: var(--badge-cancelled-text); }
+.t-badge-rejected { background: var(--badge-rejected-bg); color: var(--badge-rejected-text); }
+.t-badge-resolved { background: var(--badge-resolved-bg); color: var(--badge-resolved-text); }
+.t-badge-in-progress { background: var(--badge-in-progress-bg); color: var(--badge-in-progress-text); }
+
+/* ── Priority Badges ── */
+.t-priority-high { background: var(--priority-high-bg); color: var(--priority-high-text); }
+.t-priority-medium { background: var(--priority-medium-bg); color: var(--priority-medium-text); }
+.t-priority-low { background: var(--priority-low-bg); color: var(--priority-low-text); }
+
+/* ── Stat Card Icon Gradients ── */
+.t-stat-icon-blue {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+    color: var(--text-inverse);
+}
+.t-stat-icon-green {
+    background: linear-gradient(135deg, var(--color-success-light), var(--color-success-dark));
+    color: var(--text-inverse);
+}
+.t-stat-icon-red {
+    background: linear-gradient(135deg, var(--color-danger), var(--color-danger-dark));
+    color: var(--text-inverse);
+}
+.t-stat-icon-amber {
+    background: linear-gradient(135deg, var(--color-warning-light), var(--color-warning-dark));
+    color: var(--text-inverse);
+}
+.t-stat-icon-purple {
+    background: linear-gradient(135deg, var(--color-purple-light), var(--color-purple));
+    color: var(--text-inverse);
+}
+.t-stat-icon-cimm {
+    background: linear-gradient(135deg, var(--color-cimm), var(--color-cimm-dark));
+    color: var(--text-inverse);
+}
+.t-stat-icon-info {
+    background: linear-gradient(135deg, var(--color-info), var(--color-info-dark));
+    color: var(--text-inverse);
+}
+
+/* ── Gradient Buttons ── */
+.t-gradient-primary {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+    color: var(--text-inverse);
+}
+.t-gradient-success {
+    background: linear-gradient(135deg, var(--color-success-light), var(--color-success));
+    color: var(--text-inverse);
+}
+.t-gradient-cimm {
+    background: linear-gradient(135deg, var(--color-cimm), var(--color-cimm-dark));
+    color: var(--text-inverse);
+}
+
+/* ── Alert Banners ── */
+.t-alert-error {
+    background: var(--color-danger-bg);
+    color: var(--color-danger-text);
+    border: 1px solid var(--color-danger);
+}
+.t-alert-warning {
+    background: var(--color-warning-bg);
+    color: var(--color-warning-text);
+    border: 1px solid var(--color-warning);
+}
+.t-alert-success {
+    background: var(--color-success-bg);
+    color: var(--color-success-text);
+    border: 1px solid var(--color-success);
+}
+.t-alert-info {
+    background: var(--color-info-bg);
+    color: var(--color-info-text);
+    border: 1px solid var(--color-info);
+}
+
+/* ── Borders ── */
+.t-border { border: 1px solid var(--border-default) !important; }
+.t-border-light { border: 1px solid var(--border-light) !important; }
+.t-border-top { border-top: 1px solid var(--border-default) !important; }
+.t-border-bottom { border-bottom: 1px solid var(--border-default) !important; }
+
+/* ── Shadows ── */
+.t-shadow-sm { box-shadow: var(--shadow-sm) !important; }
+.t-shadow-md { box-shadow: var(--shadow-md) !important; }
+.t-shadow-lg { box-shadow: var(--shadow-lg) !important; }
+.t-shadow-card { box-shadow: var(--shadow-card) !important; }
+
+/* ── Scrollbar ── */
+.t-scrollbar::-webkit-scrollbar { width: 6px; }
+.t-scrollbar::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+.t-scrollbar::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+.t-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
+
+/* ── Form Inputs ── */
+.t-input {
+    background: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--border-input);
+}
+.t-input:focus {
+    border-color: var(--border-focus);
+    outline: none;
+    box-shadow: 0 0 0 2px var(--color-primary-bg);
+}
+.t-input-readonly {
+    background: var(--bg-input-readonly);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-light);
+}
+
+/* ── Cards ── */
+.t-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-default);
+    box-shadow: var(--shadow-card);
+}
+
+/* ── Modal ── */
+.t-modal-overlay {
+    background: var(--bg-overlay);
+}
+.t-modal-content {
+    background: var(--bg-card);
+    color: var(--text-primary);
+    border: 1px solid var(--border-default);
+}
+
+/* ── Table ── */
+.t-table {
+    color: var(--text-primary);
+}
+.t-table th {
+    background: var(--bg-input-readonly);
+    color: var(--text-secondary);
+    border-bottom: 2px solid var(--border-default);
+}
+.t-table td {
+    border-bottom: 1px solid var(--border-light);
+}
+.t-table tr:hover td {
+    background: var(--bg-hover);
+}
+
+/* ── CIMM-specific (preserves data- attributes) ── */
+.t-cimm-badge {
+    background: var(--color-cimm-bg);
+    color: var(--color-cimm-text);
+}
+.t-cimm-header {
+    background: linear-gradient(135deg, var(--color-cimm), var(--color-cimm-dark));
+    color: var(--text-inverse);
+}

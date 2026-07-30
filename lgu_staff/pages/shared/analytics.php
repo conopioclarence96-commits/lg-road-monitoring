@@ -51,16 +51,31 @@ $monthly_labels = array_reverse($monthly_labels);
 $monthly_data = array_reverse($monthly_data);
 
 $completion_times = [];
+$recent_completions = [];
 foreach ($all_reports as $r) {
-    if (($r['status'] ?? '') === 'completed' && !empty($r['created_at']) && !empty($r['updated_at'])) {
-        $created = strtotime($r['created_at']);
-        $updated = strtotime($r['updated_at']);
-        if ($updated > $created) {
-            $completion_times[] = round(($updated - $created) / 86400, 1);
+    if (($r['status'] ?? '') === 'completed') {
+        $end_time = $r['completed_at'] ?? $r['updated_at'] ?? null;
+        $monitoring_start = !empty($r['approved_at']) ? $r['approved_at'] : $r['created_at'];
+        if (!empty($monitoring_start) && !empty($end_time)) {
+            $start = strtotime($monitoring_start);
+            $end = strtotime($end_time);
+            if ($end > $start) {
+                $days = round(($end - $start) / 86400, 1);
+                $completion_times[] = $days;
+                $recent_completions[] = [
+                    'id' => $r['id'],
+                    'title' => $r['title'] ?? 'Untitled',
+                    'days' => $days,
+                    'completed_at' => $end_time,
+                    'department' => $r['department'] ?? 'Unknown'
+                ];
+            }
         }
     }
 }
 $avg_completion_days = !empty($completion_times) ? round(array_sum($completion_times) / count($completion_times), 1) : 0;
+
+$analytics_rows = fetch_all("SELECT * FROM project_analytics ORDER BY completed_at DESC LIMIT 10") ?: [];
 
 $estimation_total = 0;
 $estimation_count = 0;
@@ -87,6 +102,8 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
     <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../../css/theme-tokens.css">
+    <link rel="stylesheet" href="../../css/theme-utilities.css">
     <link rel="stylesheet" href="../../css/sidebar.css">
     <link rel="stylesheet" href="../../css/enhanced-reports.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
@@ -116,7 +133,7 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
 
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #3762c8, #1e3c72);">
+                <div class="stat-icon t-stat-icon-blue">
                     <i class="fas fa-file-alt"></i>
                 </div>
                 <div class="stat-value"><?php echo number_format($total_reports); ?></div>
@@ -126,7 +143,7 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
                 </div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #059669, #047857);">
+                <div class="stat-icon t-stat-icon-green">
                     <i class="fas fa-check-circle"></i>
                 </div>
                 <div class="stat-value"><?php echo number_format($status_counts['completed'] ?? 0); ?></div>
@@ -137,7 +154,7 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
                 </div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #d97706, #b45309);">
+                <div class="stat-icon t-stat-icon-amber">
                     <i class="fas fa-clock"></i>
                 </div>
                 <div class="stat-value"><?php echo number_format($status_counts['pending'] ?? 0); ?></div>
@@ -147,17 +164,17 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
                 </div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #0284c7, #0369a1);">
+                <div class="stat-icon t-stat-icon-info">
                     <i class="fas fa-calendar-check"></i>
                 </div>
                 <div class="stat-value"><?php echo $avg_completion_days; ?>d</div>
                 <div class="stat-label">Avg. Completion Time</div>
                 <div class="stat-trend neutral">
-                    <i class="fas fa-chart-line"></i> Across <?php echo count($completion_times); ?> completed reports
+                    <i class="fas fa-chart-line"></i> Post-monitoring completion (<?php echo count($completion_times); ?> reports)
                 </div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
+                <div class="stat-icon t-stat-icon-purple">
                     <i class="fas fa-peso-sign"></i>
                 </div>
                 <div class="stat-value"><?php echo $avg_estimation > 0 ? '₱' . number_format($avg_estimation, 0) : 'N/A'; ?></div>
@@ -256,6 +273,52 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
                         <?php endforeach; ?>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <div class="panel" style="margin-top: 28px;">
+            <div class="panel-header">
+                <h3 class="panel-title"><i class="fas fa-stopwatch"></i> Recent Project Completions (Stored Analytics)</h3>
+            </div>
+            <div class="panel-body">
+                <?php if (!empty($analytics_rows)): ?>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Report ID</th>
+                            <th>Table Source</th>
+                            <th>Started</th>
+                            <th>Completed</th>
+                            <th>Duration</th>
+                            <th>Priority</th>
+                            <th>Recorded By</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($analytics_rows as $ar): ?>
+                        <tr>
+                            <td><strong>#<?php echo $ar['report_id']; ?></strong></td>
+                            <td><?php echo htmlspecialchars($ar['report_table']); ?></td>
+                            <td><?php echo $ar['started_at'] ? date('M d, Y H:i', strtotime($ar['started_at'])) : 'N/A'; ?></td>
+                            <td><?php echo $ar['completed_at'] ? date('M d, Y H:i', strtotime($ar['completed_at'])) : 'N/A'; ?></td>
+                            <td>
+                                <strong><?php echo $ar['duration_days']; ?> days</strong>
+                                <?php if ($ar['duration_seconds'] > 0): ?>
+                                    <span class="t-text-secondary" style="font-size:11px;">(<?php echo floor($ar['duration_seconds'] / 3600); ?>h <?php echo floor(($ar['duration_seconds'] % 3600) / 60); ?>m)</span>
+                                <?php endif; ?>
+                            </td>
+                            <td><span class="badge badge-<?php echo $ar['priority']; ?>"><?php echo ucfirst($ar['priority']); ?></span></td>
+                            <td>User #<?php echo $ar['user_id']; ?></td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+                <?php else: ?>
+                <div class="t-text-secondary" style="text-align:center;padding:24px;">
+                    <i class="fas fa-chart-bar" style="font-size:24px;margin-bottom:8px;display:block;"></i>
+                    No analytics data recorded yet. Complete a project to see stored metrics.
+                </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>

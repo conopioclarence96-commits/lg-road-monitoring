@@ -121,8 +121,13 @@ function handleSubmitReport() {
         echo json_encode(['success' => false, 'message' => 'Please enter your full name.']);
         return;
     }
-    if (empty($reporterPhone) || !preg_match('/^[0-9]{11,}$/', $reporterPhone)) {
-        echo json_encode(['success' => false, 'message' => 'Please enter a valid phone number (at least 11 digits).']);
+    // Normalize phone: convert +639... to 09...
+    $reporterPhone = trim(preg_replace('/\s+/', '', $reporterPhone));
+    if (preg_match('/^\+639([0-9]{9})$/', $reporterPhone, $m)) {
+        $reporterPhone = '09' . $m[1];
+    }
+    if (empty($reporterPhone) || !preg_match('/^09[0-9]{9}$/', $reporterPhone)) {
+        echo json_encode(['success' => false, 'message' => 'Please enter a valid Philippine mobile number.']);
         return;
     }
     if (empty($description)) {

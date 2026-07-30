@@ -39,7 +39,8 @@ foreach ($all_reports as $r) {
     $r_id_display = $r['report_id'] ?? "ID:{$report_id}";
     
     if ($status === 'completed' || $status === 'cancelled') {
-        $resolved_at = strtotime($r['updated_at'] ?? $r['resolved_date'] ?? 'now');
+        $resolved_at_source = $r['completed_at'] ?? $r['updated_at'] ?? $r['resolved_date'] ?? 'now';
+        $resolved_at = strtotime($resolved_at_source);
         $resolution_days = max(0, round(($resolved_at - $created) / 86400, 1));
         $sla_status = $resolution_days <= $sla_threshold_days ? 'on-track' : ($resolution_days <= $warning_threshold_days ? 'at-risk' : 'overdue');
         $resolved_count++;
@@ -108,6 +109,8 @@ log_audit_action($user_id, "Viewed SLA dashboard", "Tracked reports: " . count($
     <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../../css/theme-tokens.css">
+    <link rel="stylesheet" href="../../css/theme-utilities.css">
     <link rel="stylesheet" href="../../css/sidebar.css">
     <link rel="stylesheet" href="../../css/enhanced-reports.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
@@ -132,7 +135,7 @@ log_audit_action($user_id, "Viewed SLA dashboard", "Tracked reports: " . count($
 
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #059669, #047857);">
+                <div class="stat-icon t-stat-icon-green">
                     <i class="fas fa-check-shield"></i>
                 </div>
                 <div class="stat-value"><?php echo $compliance_rate; ?>%</div>
@@ -143,7 +146,7 @@ log_audit_action($user_id, "Viewed SLA dashboard", "Tracked reports: " . count($
                 </div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #dc2626, #b91c1c);">
+                <div class="stat-icon t-stat-icon-red">
                     <i class="fas fa-exclamation-triangle"></i>
                 </div>
                 <div class="stat-value"><?php echo $overdue_count; ?></div>
@@ -153,7 +156,7 @@ log_audit_action($user_id, "Viewed SLA dashboard", "Tracked reports: " . count($
                 </div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #d97706, #b45309);">
+                <div class="stat-icon t-stat-icon-amber">
                     <i class="fas fa-hourglass-half"></i>
                 </div>
                 <div class="stat-value"><?php echo $at_risk_count; ?></div>
@@ -163,7 +166,7 @@ log_audit_action($user_id, "Viewed SLA dashboard", "Tracked reports: " . count($
                 </div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #0284c7, #0369a1);">
+                <div class="stat-icon t-stat-icon-info">
                     <i class="fas fa-check-circle"></i>
                 </div>
                 <div class="stat-value"><?php echo $on_track_count; ?></div>

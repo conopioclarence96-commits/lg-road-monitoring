@@ -1,7 +1,16 @@
 <?php
+ob_start();
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
 require_once '../../includes/session_config.php';
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
+
+// Re-suppress display_errors after config.php (which re-enables it on localhost)
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
 
 // Check if user is logged in
 if (!is_logged_in()) {
@@ -41,6 +50,12 @@ try {
     $extra_cols = '';
     if ($approved_at_exists) $extra_cols .= ', approved_at';
     if ($rejected_at_exists) $extra_cols .= ', rejected_at';
+    
+    try {
+        $conn->query("SELECT 1 FROM road_transportation_reports LIMIT 0");
+        $completed_at_exists = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'completed_at'")->num_rows > 0;
+    } catch (Exception $e) { $completed_at_exists = false; }
+    if ($completed_at_exists) $extra_cols .= ', completed_at';
     
     if ($table === 'road_transportation_reports') {
         $query = "SELECT id, report_id, report_type, title, department, priority, status, created_date, due_date, description,
@@ -83,6 +98,7 @@ try {
         $report['updated_at'] = $report['updated_at'] ? format_datetime($report['updated_at']) : null;
         $report['approved_at'] = isset($report['approved_at']) && $report['approved_at'] ? format_datetime($report['approved_at']) : null;
         $report['rejected_at'] = isset($report['rejected_at']) && $report['rejected_at'] ? format_datetime($report['rejected_at']) : null;
+        $report['completed_at'] = isset($report['completed_at']) && $report['completed_at'] ? format_datetime($report['completed_at']) : null;
 
         // Gather photos from report_update_media (progress updates)
         try {

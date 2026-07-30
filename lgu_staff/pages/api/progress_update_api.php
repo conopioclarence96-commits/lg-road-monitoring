@@ -24,6 +24,9 @@ if ($method === 'GET') {
                 $report = fetch_one("SELECT id FROM road_maintenance_reports WHERE id = ?", [$report_id], "i");
             }
             if (!$report) {
+                $report = fetch_one("SELECT id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
+            }
+            if (!$report) {
                 json_response(['success' => false, 'message' => 'Report not found']);
             }
             $updates = [];
@@ -79,8 +82,6 @@ if ($method === 'GET') {
         $report_type = sanitize_input($_POST['report_type'] ?? 'transportation');
         $title = sanitize_input($_POST['title'] ?? '');
         $description = sanitize_input($_POST['description'] ?? '');
-        $transport_types = ['transportation', 'infrastructure_issue', 'traffic_jam', 'accident', 'road_closure', 'potholes', 'road_damage'];
-        $table = in_array($report_type, $transport_types) ? 'road_transportation_reports' : 'road_maintenance_reports';
 
         if ($report_id <= 0) json_response(['success' => false, 'message' => 'Invalid report ID']);
         if (empty($description)) json_response(['success' => false, 'message' => 'Description is required']);
@@ -89,25 +90,33 @@ if ($method === 'GET') {
         if (!$report) {
             $report = fetch_one("SELECT id, report_id FROM road_maintenance_reports WHERE id = ?", [$report_id], "i");
         }
+        if (!$report) {
+            $report = fetch_one("SELECT id, reference_code AS report_id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
+        }
         if (!$report) json_response(['success' => false, 'message' => 'Report not found']);
 
-        // Insert update
-        $stmt = $conn->prepare("INSERT INTO report_updates (report_id, user_id, title, description) VALUES (?, ?, ?, ?)");
-        $stmt->bind_param("iiss", $report_id, $user_id, $title, $description);
-        $stmt->execute();
-        $update_id = $conn->insert_id;
+        try {
+            // Insert update
+            $stmt = $conn->prepare("INSERT INTO report_updates (report_id, user_id, title, description) VALUES (?, ?, ?, ?)");
+            $stmt->bind_param("iiss", $report_id, $user_id, $title, $description);
+            $stmt->execute();
+            $update_id = $conn->insert_id;
 
-        // Handle media uploads
-        $upload_dir = __DIR__ . '/../../uploads/progress_updates';
-        $uploaded = handleProgressMediaUpload($_FILES['media'] ?? [], $upload_dir, $update_id);
+            // Handle media uploads
+            $upload_dir = __DIR__ . '/../../uploads/progress_updates';
+            $uploaded = handleProgressMediaUpload($_FILES['media'] ?? [], $upload_dir, $update_id);
 
-        // Create notification
-        createReportNotification($report_id, $update_id, $title ?: 'Progress Update', $report);
+            // Create notification
+            createReportNotification($report_id, $update_id, $title ?: 'Progress Update', $report);
 
-        // Audit log
-        log_audit_action($user_id, "Created progress update", "Report ID: {$report['report_id']}, Update ID: {$update_id}");
+            // Audit log
+            log_audit_action($user_id, "Created progress update", "Report ID: {$report['report_id']}, Update ID: {$update_id}");
 
-        json_response(['success' => true, 'message' => 'Progress update posted successfully', 'update_id' => $update_id, 'photos' => $uploaded]);
+            json_response(['success' => true, 'message' => 'Progress update posted successfully', 'update_id' => $update_id, 'photos' => $uploaded]);
+        } catch (Exception $e) {
+            error_log("Create progress update error: " . $e->getMessage());
+            json_response(['success' => false, 'message' => 'Failed to save update: ' . $e->getMessage()], 500);
+        }
     } elseif ($action === 'edit_update') {
         $update_id = intval($_POST['update_id'] ?? 0);
         $title = sanitize_input($_POST['title'] ?? '');
@@ -116,36 +125,44 @@ if ($method === 'GET') {
         if ($update_id <= 0) json_response(['success' => false, 'message' => 'Invalid update ID']);
         if (empty($description)) json_response(['success' => false, 'message' => 'Description is required']);
 
-        // Verify ownership/permission — check both report tables
+        // Verify ownership/permission — check report tables
         $update = fetch_one("SELECT u.*, r.report_id FROM report_updates u JOIN road_transportation_reports r ON u.report_id = r.id WHERE u.id = ?", [$update_id], "i");
         if (!$update) {
             $update = fetch_one("SELECT u.*, r.report_id FROM report_updates u JOIN road_maintenance_reports r ON u.report_id = r.id WHERE u.id = ?", [$update_id], "i");
         }
+        if (!$update) {
+            $update = fetch_one("SELECT u.*, cr.reference_code AS report_id FROM report_updates u JOIN cimm_verification_reports cr ON u.report_id = cr.id WHERE u.id = ?", [$update_id], "i");
+        }
         if (!$update) json_response(['success' => false, 'message' => 'Update not found']);
 
-        $stmt = $conn->prepare("UPDATE report_updates SET title = ?, description = ?, updated_at = NOW() WHERE id = ?");
-        $stmt->bind_param("ssi", $title, $description, $update_id);
-        $stmt->execute();
+        try {
+            $stmt = $conn->prepare("UPDATE report_updates SET title = ?, description = ?, updated_at = NOW() WHERE id = ?");
+            $stmt->bind_param("ssi", $title, $description, $update_id);
+            $stmt->execute();
 
-        // Handle new media uploads
-        $upload_dir = __DIR__ . '/../../uploads/progress_updates';
-        handleProgressMediaUpload($_FILES['media'] ?? [], $upload_dir, $update_id);
+            // Handle new media uploads
+            $upload_dir = __DIR__ . '/../../uploads/progress_updates';
+            handleProgressMediaUpload($_FILES['media'] ?? [], $upload_dir, $update_id);
 
-        // Handle removed media
-        if (!empty($_POST['remove_media'])) {
-            $remove_ids = array_map('intval', (array)$_POST['remove_media']);
-            foreach ($remove_ids as $rid) {
-                $m = fetch_one("SELECT file_path FROM report_update_media WHERE id = ? AND update_id = ?", [$rid, $update_id], "ii");
-                if ($m) {
-                    $full = $upload_dir . '/' . basename($m['file_path']);
-                    if (file_exists($full)) @unlink($full);
-                    $conn->query("DELETE FROM report_update_media WHERE id = {$rid}");
+            // Handle removed media
+            if (!empty($_POST['remove_media'])) {
+                $remove_ids = array_map('intval', (array)$_POST['remove_media']);
+                foreach ($remove_ids as $rid) {
+                    $m = fetch_one("SELECT file_path FROM report_update_media WHERE id = ? AND update_id = ?", [$rid, $update_id], "ii");
+                    if ($m) {
+                        $full = $upload_dir . '/' . basename($m['file_path']);
+                        if (file_exists($full)) @unlink($full);
+                        $conn->query("DELETE FROM report_update_media WHERE id = {$rid}");
+                    }
                 }
             }
-        }
 
-        log_audit_action($user_id, "Edited progress update", "Update ID: {$update_id}");
-        json_response(['success' => true, 'message' => 'Update edited successfully']);
+            log_audit_action($user_id, "Edited progress update", "Update ID: {$update_id}");
+            json_response(['success' => true, 'message' => 'Update edited successfully']);
+        } catch (Exception $e) {
+            error_log("Edit progress update error: " . $e->getMessage());
+            json_response(['success' => false, 'message' => 'Failed to edit update: ' . $e->getMessage()], 500);
+        }
     } elseif ($action === 'delete_update') {
         $update_id = intval($_POST['update_id'] ?? 0);
         if ($update_id <= 0) json_response(['success' => false, 'message' => 'Invalid update ID']);
@@ -153,22 +170,27 @@ if ($method === 'GET') {
         $update = fetch_one("SELECT * FROM report_updates WHERE id = ?", [$update_id], "i");
         if (!$update) json_response(['success' => false, 'message' => 'Update not found']);
 
-        // Delete media files
-        $upload_dir = __DIR__ . '/../../uploads/progress_updates';
-        $media = $conn->query("SELECT file_path FROM report_update_media WHERE update_id = {$update_id}");
-        while ($m = $media->fetch_assoc()) {
-            $full = $upload_dir . '/' . basename($m['file_path']);
-            if (file_exists($full)) @unlink($full);
+        try {
+            // Delete media files
+            $upload_dir = __DIR__ . '/../../uploads/progress_updates';
+            $media = $conn->query("SELECT file_path FROM report_update_media WHERE update_id = {$update_id}");
+            while ($m = $media->fetch_assoc()) {
+                $full = $upload_dir . '/' . basename($m['file_path']);
+                if (file_exists($full)) @unlink($full);
+            }
+
+            // CASCADE deletes media rows automatically, but also delete notification reference
+            $conn->query("DELETE FROM report_notifications WHERE update_id = {$update_id}");
+            $stmt = $conn->prepare("DELETE FROM report_updates WHERE id = ?");
+            $stmt->bind_param("i", $update_id);
+            $stmt->execute();
+
+            log_audit_action($user_id, "Deleted progress update", "Update ID: {$update_id}");
+            json_response(['success' => true, 'message' => 'Update deleted']);
+        } catch (Exception $e) {
+            error_log("Delete progress update error: " . $e->getMessage());
+            json_response(['success' => false, 'message' => 'Failed to delete update: ' . $e->getMessage()], 500);
         }
-
-        // CASCADE deletes media rows automatically, but also delete notification reference
-        $conn->query("DELETE FROM report_notifications WHERE update_id = {$update_id}");
-        $stmt = $conn->prepare("DELETE FROM report_updates WHERE id = ?");
-        $stmt->bind_param("i", $update_id);
-        $stmt->execute();
-
-        log_audit_action($user_id, "Deleted progress update", "Update ID: {$update_id}");
-        json_response(['success' => true, 'message' => 'Update deleted']);
     } else {
         json_response(['success' => false, 'message' => 'Unknown action']);
     }

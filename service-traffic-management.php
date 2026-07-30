@@ -27,6 +27,7 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <?php include __DIR__ . '/includes/a11y_head.php'; ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Traffic Management - Road and Transportation Department</title>

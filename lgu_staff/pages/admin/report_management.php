@@ -19,7 +19,7 @@ if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > 
 $_SESSION['last_activity'] = time();
 
 // Check if user is logged in and check role (logout if invalid role)
-if (!is_logged_in() || $_SESSION['role'] !== 'system_admin') {
+if (!is_logged_in() || !in_array($_SESSION['role'], ['system_admin', 'lgu_staff'])) {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Content-Type: application/json; charset=utf-8');
         http_response_code(401);
@@ -42,7 +42,7 @@ if (!$user_info) {
 
 // Check database connection and required tables
 if (!$conn) {
-    echo '<div style="background: #f8d7da; color: white; padding: 20px; text-align: center; border-radius: 8px; margin: 20px;">
+    echo '<div class="t-alert-error t-text-white" style="padding: 20px; text-align: center; border-radius: 8px; margin: 20px;">
         <h3>⚠️ Database Connection Required</h3>
         <p>Please ensure the database is properly configured and the following tables exist:</p>
         <ul style="text-align: left; margin: 20px 0;">
@@ -79,7 +79,7 @@ if ($result && $result->num_rows > 0) {
 
 // Show warning if estimation columns don't exist
 if (!$estimation_column_exists || !$maintenance_estimation_exists) {
-    echo '<div style="background: #fff3cd; color: #856404; padding: 15px; text-align: center; border-radius: 8px; margin: 20px;">
+    echo '<div class="t-alert-warning" style="padding: 15px; text-align: center; border-radius: 8px; margin: 20px;">
         <h3>⚠️ Database Update Required</h3>
         <p>The <strong>estimation</strong> column is missing from one or both database tables.</p>
         <p><strong>Current Status:</strong></p>
@@ -281,12 +281,56 @@ function handle_update_report() {
         
         log_audit_action($user_id, "Updated {$report_type_from_db} report", $change_log);
 
+        // Duration tracking & analytics recording on completion
+        $analytics_data = null;
+        if ($status === 'completed') {
+            try {
+                $report_row = fetch_one("SELECT created_at, approved_at, priority, department FROM {$table} WHERE id = ?", [$report_id], "i");
+                $start_time = !empty($report_row['approved_at']) ? $report_row['approved_at'] : ($report_row['created_at'] ?? null);
+                $completed_at = date('Y-m-d H:i:s');
+                
+                if (!empty($start_time)) {
+                    $start_ts = strtotime($start_time);
+                    $end_ts = strtotime($completed_at);
+                    if ($end_ts > $start_ts) {
+                        $duration_seconds = $end_ts - $start_ts;
+                        $duration_days = round($duration_seconds / 86400, 2);
+                        
+                        $upd_comp_stmt = $conn->prepare("UPDATE {$table} SET completed_at = ? WHERE id = ?");
+                        $upd_comp_stmt->bind_param("si", $completed_at, $report_id);
+                        $upd_comp_stmt->execute();
+                        
+                        $ins = $conn->prepare("INSERT INTO project_analytics (report_id, report_table, user_id, started_at, completed_at, duration_seconds, duration_days, priority, department) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                        $ins->bind_param("isissidss",
+                            $report_id, $table, $user_id, $start_time, $completed_at,
+                            $duration_seconds, $duration_days, $report_row['priority'], $report_row['department']
+                        );
+                        $ins->execute();
+                        
+                        $hours = floor($duration_seconds / 3600);
+                        $mins = floor(($duration_seconds % 3600) / 60);
+                        $analytics_data = [
+                            'duration_days' => $duration_days,
+                            'duration_hours' => $hours,
+                            'duration_minutes' => $mins,
+                            'completed_at' => $completed_at
+                        ];
+                    }
+                }
+            } catch (Exception $e) {
+                error_log("Duration tracking failed for report {$report_id}: " . $e->getMessage());
+            }
+        }
+
         // Create a progress update entry so photos and changes appear in the Updates timeline
         $update_title = 'Report Updated';
         $update_desc_parts = [];
         if (!empty($notes)) $update_desc_parts[] = $notes;
         $update_desc_parts[] = "Status: " . ucfirst(str_replace('-', ' ', $status));
         $update_desc_parts[] = "Priority: " . ucfirst($priority);
+        if (!empty($analytics_data)) {
+            $update_desc_parts[] = "Completed in {$analytics_data['duration_days']} days ({$analytics_data['duration_hours']}h {$analytics_data['duration_minutes']}m)";
+        }
         $update_desc = implode('. ', $update_desc_parts);
 
         try {
@@ -314,7 +358,8 @@ function handle_update_report() {
             echo json_encode([
                 'success' => true,
                 'message' => 'Report updated successfully',
-                'photos_added' => count($uploaded_photos)
+                'photos_added' => count($uploaded_photos),
+                'analytics' => $analytics_data
             ]);
             exit;
         }
@@ -859,10 +904,15 @@ if ($include_cimm) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Report Management - LGU Road Monitoring</title>
     <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../../css/theme-tokens.css">
+    <link rel="stylesheet" href="../../css/theme-utilities.css">
     <link rel="stylesheet" href="../../css/sidebar.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <link rel="stylesheet" href="../../css/progress-updates.css">
@@ -1522,8 +1572,95 @@ if ($include_cimm) {
             color: #fbbf24;
         }
         body.dark-mode .status-in-progress {
-            background: rgba(37, 99, 235, 0.2);
-            color: #60a5fa;
+            background: rgba(59, 130, 246, 0.15);
+            color: #3b82f6;
+        }
+
+        /* Add/Edit Update Modal form styles */
+        #addUpdateModal .form-group { margin-bottom: 16px; }
+        #addUpdateModal .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        #addUpdateModal .form-control {
+            width: 100%;
+            padding: 10px 14px;
+            border: 2px solid rgba(55,98,200,0.15);
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+            background: white;
+            color: #333;
+            box-sizing: border-box;
+        }
+        #addUpdateModal .form-control:focus {
+            border-color: #3762c8;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(55,98,200,0.1);
+        }
+        #addUpdateModal textarea.form-control { resize: vertical; }
+        #addUpdateModal .file-previews {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        #addUpdateModal .file-preview-item {
+            width: 80px;
+            height: 80px;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid #ddd;
+            position: relative;
+            background: #f8f9fa;
+            flex-shrink: 0;
+        }
+        #addUpdateModal .file-preview-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        #addUpdateModal .file-preview-item .remove-preview {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            width: 20px;
+            height: 20px;
+            background: rgba(220,53,69,0.9);
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            font-size: 14px;
+            line-height: 1;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+        #addUpdateModal .file-preview-item .remove-preview:hover { background: #dc3545; }
+        body.dark-mode #addUpdateModal .form-label { color: #e4e6ea; }
+        body.dark-mode #addUpdateModal .form-control {
+            background: #1a1d23;
+            color: #e4e6ea;
+            border-color: #3a3f4a;
+        }
+        body.dark-mode #addUpdateModal .file-preview-item { background: #2a2e36; border-color: #3a3f4a; }
+        #updatesModal .btn-action, #addUpdateModal .btn-action {
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+            color: white;
+            border-radius: 8px;
+        }
+        #updatesModal .btn-action:hover, #addUpdateModal .btn-action:hover {
+            background: linear-gradient(135deg, #1e3c72, #3762c8);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(55,98,200,0.3);
         }
         body.dark-mode .status-completed {
             background: rgba(5, 150, 105, 0.2);
@@ -2401,7 +2538,7 @@ if ($include_cimm) {
                                     <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-trash"></i>
                                     </button>
-                                    <button class="rm-action-btn" style="background:rgba(16,185,129,0.1);color:#10b981;" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-clock"></i>
                                     </button>
                                 </div>
@@ -2426,7 +2563,7 @@ if ($include_cimm) {
                             <td>
                                 <?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?>
                                 <?php if (($report['status'] ?? '') === 'approved' && !empty($report['approved_at'])): ?>
-                                    <br><small style="color:#059669;font-weight:600;">Approved: <?php echo date('M d, Y', strtotime($report['approved_at'])); ?></small>
+                                    <br><small class="t-text-success" style="font-weight:600;">Approved: <?php echo date('M d, Y', strtotime($report['approved_at'])); ?></small>
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -2440,7 +2577,7 @@ if ($include_cimm) {
                             <td colspan="9">
                                 <div class="rm-empty-state">
                                     <div class="rm-empty-icon" style="background: rgba(55, 98, 200, 0.12);">
-                                        <i class="fas fa-clipboard-list" style="color: #3762c8;"></i>
+                                        <i class="fas fa-clipboard-list t-text-link"></i>
                                     </div>
                                     <h4>No LGU Monitoring Reports</h4>
                                     <p>No LGU-created monitoring reports found.</p>
@@ -2514,7 +2651,7 @@ if ($include_cimm) {
                                     <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-trash"></i>
                                     </button>
-                                    <button class="rm-action-btn" style="background:rgba(16,185,129,0.1);color:#10b981;" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-clock"></i>
                                     </button>
                                 </div>
@@ -2539,7 +2676,7 @@ if ($include_cimm) {
                             <td>
                                 <?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?>
                                 <?php if (($report['status'] ?? '') === 'approved' && !empty($report['approved_at'])): ?>
-                                    <br><small style="color:#059669;font-weight:600;">Approved: <?php echo date('M d, Y', strtotime($report['approved_at'])); ?></small>
+                                    <br><small class="t-text-success" style="font-weight:600;">Approved: <?php echo date('M d, Y', strtotime($report['approved_at'])); ?></small>
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -2628,6 +2765,9 @@ if ($include_cimm) {
                                     <button class="rm-delete-btn" onclick="deleteCimmReport(<?php echo $cimmIdx; ?>)">
                                         <i class="fas fa-trash"></i>
                                     </button>
+                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$row['id']; ?>, '<?php echo htmlspecialchars($row['report_type'], ENT_QUOTES); ?>')">
+                                        <i class="fas fa-clock"></i>
+                                    </button>
                                 </div>
                             </td>
                             <td><?php echo htmlspecialchars($row['report_id'] ?? '—'); ?></td>
@@ -2650,7 +2790,7 @@ if ($include_cimm) {
                             <td colspan="9">
                                 <div class="rm-empty-state">
                                     <div class="rm-empty-icon" style="background: rgba(249, 115, 22, 0.12);">
-                                        <i class="fas fa-building" style="color: #f97316;"></i>
+                                        <i class="fas fa-building t-text-cimm"></i>
                                     </div>
                                     <h4>No CIMM Reports</h4>
                                     <p>No reports from the CIMM system found.</p>
@@ -2724,7 +2864,7 @@ if ($include_cimm) {
                                     <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-trash"></i>
                                     </button>
-                                    <button class="rm-action-btn" style="background:rgba(16,185,129,0.1);color:#10b981;" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-clock"></i>
                                     </button>
                                 </div>
@@ -2749,7 +2889,7 @@ if ($include_cimm) {
                             <td>
                                 <?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?>
                                 <?php if (($report['status'] ?? '') === 'approved' && !empty($report['approved_at'])): ?>
-                                    <br><small style="color:#059669;font-weight:600;">Approved: <?php echo date('M d, Y', strtotime($report['approved_at'])); ?></small>
+                                    <br><small class="t-text-success" style="font-weight:600;">Approved: <?php echo date('M d, Y', strtotime($report['approved_at'])); ?></small>
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -2763,7 +2903,7 @@ if ($include_cimm) {
                             <td colspan="9">
                                 <div class="rm-empty-state">
                                     <div class="rm-empty-icon" style="background: rgba(249, 115, 22, 0.12);">
-                                        <i class="fas fa-hard-hat" style="color: #f97316;"></i>
+                                        <i class="fas fa-hard-hat t-text-cimm"></i>
                                     </div>
                                     <h4>No Infrastructure Projects</h4>
                                     <p>No infrastructure projects found.</p>
@@ -2789,7 +2929,7 @@ if ($include_cimm) {
                 <div class="form-section">
                     <h6>External System Reports</h6>
                     <div id="externalReportsList">
-                        <div style="text-align: center; padding: 20px; color: #666;">
+                        <div class="t-text-secondary" style="text-align: center; padding: 20px;">
                             <i class="fas fa-download" style="font-size: 48px; margin-bottom: 15px; opacity: 0.5;"></i>
                             <p>Loading reports from external systems...</p>
                         </div>
@@ -2799,7 +2939,7 @@ if ($include_cimm) {
                 <div class="form-section">
                     <h6>Department Reports</h6>
                     <div id="departmentReportsList">
-                        <div style="text-align: center; padding: 20px; color: #666;">
+                        <div class="t-text-secondary" style="text-align: center; padding: 20px;">
                             <i class="fas fa-building" style="font-size: 48px; margin-bottom: 15px; opacity: 0.5;"></i>
                             <p>Loading reports from other departments...</p>
                         </div>
@@ -2876,11 +3016,11 @@ if ($include_cimm) {
                         <div id="existingPhotos" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;"></div>
                         <div class="form-group" style="margin-bottom: 0;">
                             <label for="editPhotos" class="form-label">Add New Photos</label>
-                            <button type="button" id="add-edit-photos-btn" style="padding:8px 16px;background:#3762c8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;"><i class="fas fa-camera"></i> Add Photos</button>
+                            <button type="button" id="add-edit-photos-btn" class="t-gradient-primary" style="padding:8px 16px;border:none;border-radius:6px;cursor:pointer;font-size:13px;"><i class="fas fa-camera"></i> Add Photos</button>
                             <input type="file" name="report_photos[]" id="editPhotos" 
                                    accept="image/jpeg,image/png,image/gif,image/webp" multiple
                                    style="display:none;">
-                            <small style="color: #666; font-size: 12px;">Accepted: JPG, PNG, GIF, WebP | Max: 5MB each</small>
+                            <small class="t-text-secondary" style="font-size: 12px;">Accepted: JPG, PNG, GIF, WebP | Max: 5MB each</small>
                             <div id="photoPreview" style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;"></div>
                         </div>
                     </div>
@@ -2891,7 +3031,7 @@ if ($include_cimm) {
                             <label for="editNotes" class="form-label">Update Notes / Resolution Details</label>
                             <textarea class="form-control" name="notes" id="editNotes" rows="4" 
                                       placeholder="Describe the current status, actions taken, or resolution details..."></textarea>
-                            <small style="color: #666; font-size: 12px;">
+                            <small class="t-text-secondary" style="font-size: 12px;">
                                 <i class="fas fa-info-circle"></i> These notes will be visible to other staff members
                             </small>
                         </div>
@@ -2899,7 +3039,7 @@ if ($include_cimm) {
                 </div>
                 <div class="modal-footer" style="justify-content: space-between;">
                     <div>
-                        <span id="updateStatusIndicator" style="font-size: 12px; color: #666;"></span>
+                        <span id="updateStatusIndicator" class="t-text-secondary" style="font-size: 12px;"></span>
                     </div>
                     <div style="display: flex; gap: 10px;">
                         <button type="button" class="btn-secondary-custom" onclick="closeModal('editReportModal')">Cancel</button>
@@ -2915,9 +3055,9 @@ if ($include_cimm) {
     <!-- CIMM Edit Report Modal -->
     <div id="editCimmModal" class="modal">
         <div class="modal-content" style="max-width: 650px;">
-            <div class="modal-header" style="background: linear-gradient(135deg, #f97316, #ea580c); color: white;">
+            <div class="modal-header t-cimm-header">
                 <h5 class="modal-title"><i class="fas fa-edit"></i> Edit CIMM Report</h5>
-                <button class="close" onclick="closeModal('editCimmModal')" style="color: white;">&times;</button>
+                <button class="close t-text-white" onclick="closeModal('editCimmModal')">&times;</button>
             </div>
             <form method="POST" id="editCimmForm">
                 <div class="modal-body">
@@ -2929,15 +3069,15 @@ if ($include_cimm) {
                         <h6><i class="fas fa-info-circle"></i> CIMM Report Details</h6>
                         <div class="form-group">
                             <label class="form-label">Report #</label>
-                            <input type="text" class="form-control" id="editCimmRepNumber" readonly style="background: #f3f4f6;">
+                            <input type="text" class="form-control t-bg-input-readonly" id="editCimmRepNumber" readonly>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Infrastructure</label>
-                            <input type="text" class="form-control" id="editCimmInfrastructure" readonly style="background: #f3f4f6;">
+                            <input type="text" class="form-control t-bg-input-readonly" id="editCimmInfrastructure" readonly>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Location</label>
-                            <input type="text" class="form-control" id="editCimmLocation" readonly style="background: #f3f4f6;">
+                            <input type="text" class="form-control t-bg-input-readonly" id="editCimmLocation" readonly>
                         </div>
                     </div>
 
@@ -2983,7 +3123,7 @@ if ($include_cimm) {
                     </div>
                 </div>
                 <div class="modal-footer" style="justify-content: space-between;">
-                    <span id="cimmEditIndicator" style="font-size: 12px; color: #666;"></span>
+                    <span id="cimmEditIndicator" class="t-text-secondary" style="font-size: 12px;"></span>
                     <div style="display: flex; gap: 10px;">
                         <button type="button" class="btn-secondary-custom" onclick="closeModal('editCimmModal')">Cancel</button>
                         <button type="submit" class="btn-primary-custom" id="cimmEditSubmitBtn">
@@ -3020,16 +3160,64 @@ if ($include_cimm) {
             </div>
             <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
                 <div class="timeline-container" id="updatesTimeline">
-                    <div class="timeline-empty"><i class="fas fa-spinner fa-spin fa-2x" style="color:#3762c8;"></i></div>
+                    <div class="timeline-empty"><i class="fas fa-spinner fa-spin fa-2x t-text-link"></i></div>
                 </div>
             </div>
             <div class="modal-footer" style="justify-content: space-between;">
-                <span id="updateReportInfo" style="font-size: 13px; color: #6b7280;"></span>
+                <span id="updateReportInfo" class="t-text-secondary" style="font-size: 13px;"></span>
                 <div>
-                    <button type="button" class="btn-action" id="addUpdateBtn" onclick="showUpdateForm(currentUpdatesReportId, currentUpdatesReportType)">+ Add Update</button>
+                    <button type="button" class="btn-action" id="addUpdateBtn" onclick="showAddUpdateModal()">+ Add Update</button>
                     <button type="button" class="btn-secondary-custom" onclick="closeModal('updatesModal')">Close</button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Update Modal -->
+    <div id="addUpdateModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-plus-circle"></i> <span id="addUpdateModalTitle">Add Progress Update</span></h5>
+                <button class="close" onclick="cancelUpdateForm()">&times;</button>
+            </div>
+            <form id="addUpdateForm" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <input type="hidden" name="action" id="addUpdateAction" value="create_update">
+                    <input type="hidden" name="update_id" id="addUpdateId" value="">
+                    <input type="hidden" name="report_id" id="addUpdateReportId" value="">
+                    <input type="hidden" name="report_type" id="addUpdateReportType" value="">
+                    <div class="form-group">
+                        <label class="form-label">Title *</label>
+                        <input type="text" name="title" id="addUpdateTitle" class="form-control" placeholder="e.g., Inspection completed" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Description *</label>
+                        <textarea name="description" id="addUpdateDescription" class="form-control" rows="4" placeholder="Describe the progress made..." required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Photos / Video</label>
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                            <button type="button" id="addUpdatePhotosBtn" style="padding:8px 16px;background:#3762c8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;display:inline-flex;align-items:center;gap:6px;"><i class="fas fa-camera"></i> Add Photos</button>
+                            <small class="t-text-secondary" style="font-size:11px;">Accepted: JPG, PNG, GIF, WebP, MP4, WebM</small>
+                        </div>
+                        <input type="file" name="media[]" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm" multiple style="display:none;">
+                        <div class="file-previews" id="updateFilePreviews"></div>
+                    </div>
+                    <div id="existingUpdateMediaSection" style="display:none;">
+                        <div class="form-group">
+                            <label class="form-label">Current media (check to remove)</label>
+                            <div id="existingUpdateMedia" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer" style="justify-content: space-between;">
+                    <span class="t-text-secondary" style="font-size:12px;">Updates are visible to all staff</span>
+                    <div style="display:flex;gap:10px;">
+                        <button type="button" class="btn-secondary-custom" onclick="cancelUpdateForm()">Cancel</button>
+                        <button type="submit" class="btn-action" id="addUpdateSubmitBtn"><i class="fas fa-save"></i> Post Update</button>
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -3068,8 +3256,12 @@ if ($include_cimm) {
         // Close modal when clicking outside
         window.onclick = function(event) {
             if (event.target.classList.contains('modal')) {
-                event.target.style.display = 'none';
-                document.body.style.overflow = 'auto';
+                if (event.target.id === 'addUpdateModal') {
+                    cancelUpdateForm();
+                } else {
+                    event.target.style.display = 'none';
+                    document.body.style.overflow = 'auto';
+                }
             }
         }
 
@@ -3159,7 +3351,7 @@ if ($include_cimm) {
         }
 
         function viewReport(id, type) {
-            fetch(`../api/get_report_details.php?id=${id}&type=${type}`)
+            fetch(`../api/get_report_details.php?id=${id}&type=${encodeURIComponent(type)}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -3244,17 +3436,235 @@ if ($include_cimm) {
                 });
         }
 
+        let updateSelectedFiles = [];
+        let updatePreviewCounter = 0;
+
         function viewReportUpdates(id, type) {
             currentUpdatesReportId = id;
             currentUpdatesReportType = type;
             document.getElementById('updateReportInfo').textContent = 'Report #' + id;
             openModal('updatesModal');
-            loadUpdates(id, type);
+            if (typeof loadUpdates === 'function') {
+                loadUpdates(id, type);
+            }
         }
 
+        function showAddUpdateModal() {
+            document.getElementById('addUpdateAction').value = 'create_update';
+            document.getElementById('addUpdateId').value = '';
+            document.getElementById('addUpdateReportId').value = currentUpdatesReportId;
+            document.getElementById('addUpdateReportType').value = currentUpdatesReportType;
+            document.getElementById('addUpdateTitle').value = '';
+            document.getElementById('addUpdateDescription').value = '';
+            document.getElementById('updateFilePreviews').innerHTML = '';
+            document.getElementById('existingUpdateMediaSection').style.display = 'none';
+            document.getElementById('existingUpdateMedia').innerHTML = '';
+            document.getElementById('addUpdateModalTitle').textContent = 'Add Progress Update';
+            document.getElementById('addUpdateSubmitBtn').innerHTML = '<i class="fas fa-save"></i> Post Update';
+            updateSelectedFiles = [];
+            updatePreviewCounter = 0;
+            closeModal('updatesModal');
+            openModal('addUpdateModal');
+        }
+
+        function cancelUpdateForm() {
+            closeModal('addUpdateModal');
+            openModal('updatesModal');
+            if (typeof loadUpdates === 'function') {
+                loadUpdates(currentUpdatesReportId, currentUpdatesReportType);
+            }
+        }
+
+        function showUpdateForm(reportId, reportType, updateData) {
+            const isEdit = updateData && updateData.id;
+            document.getElementById('addUpdateAction').value = isEdit ? 'edit_update' : 'create_update';
+            document.getElementById('addUpdateId').value = isEdit ? updateData.id : '';
+            document.getElementById('addUpdateReportId').value = reportId;
+            document.getElementById('addUpdateReportType').value = reportType;
+            document.getElementById('addUpdateTitle').value = isEdit ? (updateData.title || '') : '';
+            document.getElementById('addUpdateDescription').value = isEdit ? (updateData.description || '') : '';
+            document.getElementById('updateFilePreviews').innerHTML = '';
+            document.getElementById('addUpdateModalTitle').textContent = isEdit ? 'Edit Update' : 'Add Progress Update';
+            document.getElementById('addUpdateSubmitBtn').innerHTML = isEdit ? '<i class="fas fa-save"></i> Save Changes' : '<i class="fas fa-save"></i> Post Update';
+            updateSelectedFiles = [];
+            updatePreviewCounter = 0;
+
+            var removedMediaIds = [];
+
+            if (isEdit && updateData.media) {
+                const mediaContainer = document.getElementById('existingUpdateMedia');
+                mediaContainer.innerHTML = '';
+                document.getElementById('existingUpdateMediaSection').style.display = '';
+                updateData.media.forEach(function(m) {
+                    const div = document.createElement('div');
+                    div.style.cssText = 'position:relative;width:80px;height:60px;border-radius:6px;overflow:hidden;border:1px solid rgba(55,98,200,0.15);flex-shrink:0;';
+                    const isVideo = m.file_type === 'video';
+                    div.innerHTML = isVideo
+                        ? '<i class="fas fa-video" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:20px;color:#3762c8;opacity:0.5;"></i>'
+                        : '<img src="../../' + m.file_path.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') + '" style="width:100%;height:100%;object-fit:cover;">';
+                    var removeBtn = document.createElement('button');
+                    removeBtn.type = 'button';
+                    removeBtn.style.cssText = 'position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;border:none;background:rgba(220,53,69,0.9);color:#fff;font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;z-index:2;';
+                    removeBtn.innerHTML = '&times;';
+                    removeBtn.title = 'Remove this photo';
+                    removeBtn.addEventListener('click', function(mediaId) {
+                        return function() {
+                            if (removedMediaIds.indexOf(mediaId) === -1) {
+                                removedMediaIds.push(mediaId);
+                            }
+                            div.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
+                            div.style.transform = 'scale(0.5)';
+                            div.style.opacity = '0';
+                            setTimeout(function() { div.remove(); }, 200);
+                        };
+                    }(m.id));
+                    div.appendChild(removeBtn);
+                    mediaContainer.appendChild(div);
+                });
+            } else {
+                document.getElementById('existingUpdateMediaSection').style.display = 'none';
+                document.getElementById('existingUpdateMedia').innerHTML = '';
+            }
+
+            var form = document.getElementById('addUpdateForm');
+            form._removedMediaIds = removedMediaIds;
+
+            closeModal('updatesModal');
+            openModal('addUpdateModal');
+        }
+
+        function handleUpdateFormSubmit(e) {
+            e.preventDefault();
+            const btn = document.getElementById('addUpdateSubmitBtn');
+            const orig = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+            var form = document.getElementById('addUpdateForm');
+
+            var removedIds = form._removedMediaIds || [];
+            document.querySelectorAll('#addUpdateForm input[name="remove_media[]"]').forEach(function(el) { el.remove(); });
+            removedIds.forEach(function(id) {
+                var h = document.createElement('input');
+                h.type = 'hidden';
+                h.name = 'remove_media[]';
+                h.value = id;
+                form.appendChild(h);
+            });
+
+            var dt = new DataTransfer();
+            updateSelectedFiles.forEach(function(f) { dt.items.add(f); });
+            var fileInput = form.querySelector('input[type="file"]');
+            if (fileInput) fileInput.files = dt.files;
+
+            const fd = new FormData(form);
+            fetch('../api/progress_update_api.php', {
+                method: 'POST',
+                body: fd
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    closeModal('addUpdateModal');
+                    openModal('updatesModal');
+                    if (typeof loadUpdates === 'function') {
+                        loadUpdates(currentUpdatesReportId, currentUpdatesReportType);
+                    }
+                } else {
+                    showNotification(data.message || 'Failed to save update', 'error');
+                }
+            })
+            .catch(function(e) {
+                showNotification('Network error', 'error');
+                console.error(e);
+            })
+            .finally(function() { btn.disabled = false; btn.innerHTML = orig; });
+        }
+
+        document.addEventListener('submit', function(e) {
+            if (e.target && e.target.id === 'addUpdateForm') {
+                handleUpdateFormSubmit(e);
+            }
+        });
+
+        document.addEventListener('click', function(e) {
+            if (e.target && e.target.id === 'addUpdatePhotosBtn') {
+                var fileInput = document.querySelector('#addUpdateForm input[type="file"]');
+                if (fileInput) fileInput.click();
+            }
+        });
+
+        document.addEventListener('change', function(e) {
+            if (e.target && e.target.matches && e.target.matches('#addUpdateForm input[type="file"]')) {
+                var newFiles = Array.from(e.target.files);
+                newFiles.forEach(function(f) {
+                    if (updateSelectedFiles.indexOf(f) === -1) {
+                        updateSelectedFiles.push(f);
+                    }
+                });
+                e.target.value = '';
+                renderUpdateFilePreviews();
+            }
+        });
+
+        function renderUpdateFilePreviews() {
+            var preview = document.getElementById('updateFilePreviews');
+            if (!preview) return;
+            updatePreviewCounter++;
+            var currentRender = updatePreviewCounter;
+            preview.innerHTML = '';
+            if (updateSelectedFiles.length === 0) return;
+            updateSelectedFiles.forEach(function(f, index) {
+                var item = document.createElement('div');
+                item.className = 'file-preview-item';
+                var removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'remove-preview';
+                removeBtn.innerHTML = '&times;';
+                removeBtn.addEventListener('click', function(idx) {
+                    return function() {
+                        if (idx >= 0 && idx < updateSelectedFiles.length) {
+                            updateSelectedFiles.splice(idx, 1);
+                        }
+                        renderUpdateFilePreviews();
+                    };
+                }(index));
+                if (f.type.startsWith('image/')) {
+                    var reader = new FileReader();
+                    reader.onload = function(ev) {
+                        if (currentRender !== updatePreviewCounter) return;
+                        item.innerHTML = '<img src="' + ev.target.result + '">';
+                        item.appendChild(removeBtn);
+                    };
+                    reader.readAsDataURL(f);
+                } else {
+                    item.style.cssText = 'display:flex;align-items:center;justify-content:center;background:#f0f4fa;font-size:11px;color:#3762c8;';
+                    item.innerHTML = '<i class="fas fa-video" style="font-size:20px;"></i>';
+                    item.appendChild(removeBtn);
+                }
+                preview.appendChild(item);
+            });
+        }
+
+        var editSelectedFiles = [];
+
         function editReport(id, type) {
-            fetch(`../api/get_report_details.php?id=${id}&type=${type}`)
-                .then(response => response.json())
+            fetch(`../api/get_report_details.php?id=${id}&type=${encodeURIComponent(type)}&_=${Date.now()}`)
+                .then(response => {
+                    if (!response.ok) {
+                        return response.text().then(text => {
+                            throw new Error(`HTTP ${response.status}: ${text.substring(0, 200)}`);
+                        });
+                    }
+                    return response.text().then(text => {
+                        try {
+                            return JSON.parse(text);
+                        } catch(e) {
+                            throw new Error(`Invalid JSON (${text.substring(0, 200)})`);
+                        }
+                    });
+                })
                 .then(data => {
                     if (data.success) {
                         document.getElementById('editReportId').value = data.report.id;
@@ -3327,7 +3737,7 @@ if ($include_cimm) {
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    showNotification('Error loading report details', 'error');
+                    showNotification('Error loading report details: ' + (error.message || 'Unknown error'), 'error');
                 });
         }
 
@@ -3659,7 +4069,7 @@ if ($include_cimm) {
         const editPhotosInput = document.getElementById('editPhotos');
         const photoPreview = document.getElementById('photoPreview');
         const addEditPhotosBtn = document.getElementById('add-edit-photos-btn');
-        let editSelectedFiles = [];
+        editSelectedFiles = [];
         
         addEditPhotosBtn.addEventListener('click', function() {
             editPhotosInput.click();
@@ -3771,6 +4181,10 @@ if ($include_cimm) {
                     let msg = 'Report updated successfully';
                     if (data.photos_added > 0) {
                         msg += ` (${data.photos_added} photo${data.photos_added > 1 ? 's' : ''} added)`;
+                    }
+                    if (data.analytics) {
+                        const a = data.analytics;
+                        msg += `. Completed in ${a.duration_days} days (${a.duration_hours}h ${a.duration_minutes}m). Analytics recorded.`;
                     }
                     showNotification(msg, 'success');
                     closeModal('editReportModal');
@@ -4005,11 +4419,11 @@ if ($include_cimm) {
             <i class="fas fa-clock"></i>
         </div>
         <h3 style="margin:0 0 8px; font-size:20px; color:#1a1a2e;">Session Expiring</h3>
-        <p style="margin:0 0 20px; color:#666; font-size:14px;">
+        <p class="t-text-secondary" style="margin:0 0 20px; font-size:14px;">
             Your session will expire in <strong><span id="sessionCountdown">60</span></strong> seconds due to inactivity.
         </p>
         <div style="display:flex; gap:12px; justify-content:center;">
-            <button id="extendSessionBtn" style="padding:10px 24px; background:#3762c8; color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Extend Session</button>
+            <button id="extendSessionBtn" class="t-gradient-primary" style="padding:10px 24px; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Extend Session</button>
             <button id="logoutSessionBtn" style="padding:10px 24px; background:#e74c3c; color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600;">Log Out</button>
         </div>
     </div>

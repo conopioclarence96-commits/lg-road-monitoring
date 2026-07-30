@@ -15,15 +15,15 @@
 }
 
 body.dark-mode {
-    --primary: #60a5fa;
-    --primary-light: #93c5fd;
-    --primary-dark: #1e3a5f;
-    --accent: #fbbf24;
-    --bg: #1a1d23;
-    --card-bg: #22262e;
-    --text-primary: #e4e6ea;
-    --text-secondary: #9ca3af;
-    --border: #2d323b;
+    --primary: var(--color-primary);
+    --primary-light: var(--color-primary-light);
+    --primary-dark: var(--color-primary-dark);
+    --accent: var(--color-warning);
+    --bg: var(--bg-page);
+    --card-bg: var(--bg-card);
+    --text-primary: var(--text-primary);
+    --text-secondary: var(--text-secondary);
+    --border: var(--border-default);
     --shadow: 0 4px 24px rgba(0,0,0,0.3);
     --shadow-hover: 0 8px 40px rgba(0,0,0,0.4);
 }
