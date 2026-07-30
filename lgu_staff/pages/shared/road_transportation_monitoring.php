@@ -12,6 +12,16 @@ session_start();
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 
+// Defensive migration for the CIMM sync/verification columns — these are
+// normally added by rgmap_cimm_ensure_schema() the first time a report gets
+// pushed, but getRecentTransportReports() below selects them unconditionally
+// on every load, so a fresh install (or a page load racing the very first
+// async push) needs them to exist up front too.
+$conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_sync_status VARCHAR(20) DEFAULT NULL");
+$conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_pushed_at TIMESTAMP NULL DEFAULT NULL");
+$conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_verified_at TIMESTAMP NULL DEFAULT NULL");
+$conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_verified_by VARCHAR(150) DEFAULT NULL");
+
 // Session timeout configuration
 $session_timeout = 5 * 60; // 5 minutes in seconds
 
@@ -58,74 +68,33 @@ function getEnhancedStats() {
 function getRecentSubmissions($limit = 10, $status_filter = 'all') {
     global $conn;
     $reports = [];
-    if (!$conn) return $reports;
-    try {
-        // 1. Road transportation reports (citizen + LGU + external/CIMM)
-        $q1 = "SELECT id, report_id, title, report_type,
-               CASE WHEN created_by IS NULL OR created_by = 0 THEN 'citizen' ELSE 'lgu' END as source,
-               status, priority, severity, created_at, description,
-               latitude, longitude, location, reporter_name, attachments, image_path
-                FROM road_transportation_reports WHERE status NOT IN ('pending','cancelled')";
-        $p1 = []; $t1 = '';
-        if ($status_filter !== 'all') { $q1 .= " AND status = ?"; $p1[] = $status_filter; $t1 .= 's'; }
-        $q1 .= " ORDER BY created_at DESC LIMIT ?"; $p1[] = $limit; $t1 .= 'i';
-        $s1 = $conn->prepare($q1);
-        if (!empty($p1)) $s1->bind_param($t1, ...$p1);
-        $s1->execute();
-        $r1 = $s1->get_result();
-        while ($row = $r1->fetch_assoc()) $reports[] = $row;
-        $s1->close();
-
-        // 2. CIMM verification reports
-        $q2 = "SELECT id, reference_code as report_id, infrastructure as title, NULL as report_type,
-               'cimm' as source, approval_status as status, priority, NULL as severity,
-               COALESCE(submitted_at, verified_at, synced_at, NOW()) as created_at,
-               issue as description, coord_lat as latitude, coord_lng as longitude,
-               location, reporter_name, evidence_json as attachments, NULL as image_path
-                FROM cimm_verification_reports WHERE approval_status NOT IN ('Pending','Cancelled')";
-        $p2 = []; $t2 = '';
-        if ($status_filter !== 'all') {
-            $s = $status_filter === 'in-progress' ? 'In Progress' : ucfirst(str_replace('-',' ',$status_filter));
-            $q2 .= " AND LOWER(approval_status) LIKE ?";
-            $p2[] = '%' . strtolower($s) . '%';
-            $t2 .= 's';
-        }
-        $q2 .= " ORDER BY created_at DESC LIMIT ?"; $p2[] = $limit; $t2 .= 'i';
-        $s2 = $conn->prepare($q2);
-        if (!empty($p2)) $s2->bind_param($t2, ...$p2);
-        $s2->execute();
-        $r2 = $s2->get_result();
-        while ($row = $r2->fetch_assoc()) $reports[] = $row;
-        $s2->close();
-
-        // 3. IPMS road projects (infrastructure)
-        $q3 = "SELECT id, project_id as report_id, project_name as title, road_type as report_type,
-               'infrastructure' as source, project_status as status, NULL as priority, NULL as severity,
-               created_at, NULL as description, start_lat as latitude, start_lng as longitude,
-               road_name as location, NULL as reporter_name, NULL as attachments, NULL as image_path
-               FROM ipms_road_projects WHERE 1=1";
-        $p3 = []; $t3 = '';
-        if ($status_filter !== 'all') {
-            $s = $status_filter === 'in-progress' ? 'In Progress' : ucfirst(str_replace('-',' ',$status_filter));
-            $q3 .= " AND LOWER(project_status) LIKE ?";
-            $p3[] = '%' . strtolower($s) . '%';
-            $t3 .= 's';
-        }
-        $q3 .= " ORDER BY created_at DESC LIMIT ?"; $p3[] = $limit; $t3 .= 'i';
-        $s3 = $conn->prepare($q3);
-        if (!empty($p3)) $s3->bind_param($t3, ...$p3);
-        $s3->execute();
-        $r3 = $s3->get_result();
-        while ($row = $r3->fetch_assoc()) $reports[] = $row;
-        $s3->close();
-
-        // Sort combined by created_at DESC
-        usort($reports, function($a, $b) {
-            return strtotime($b['created_at'] ?? 'now') - strtotime($a['created_at'] ?? 'now');
-        });
-
-        $reports = array_slice($reports, 0, $limit);
-    } catch (Exception $e) { error_log("Recent submissions error: ".$e->getMessage()); }
+    if ($conn) {
+        try {
+            $q = "SELECT id, report_id, title, report_type, status, priority, severity, created_at,
+                         cimm_sync_status, cimm_verified_at, cimm_verified_by
+                  FROM road_transportation_reports WHERE 1=1";
+            $params = [];
+            $types = '';
+            if ($status_filter !== 'all') {
+                $q .= " AND status = ?";
+                $params[] = $status_filter;
+                $types .= 's';
+            }
+            if ($type_filter !== 'all') {
+                $q .= " AND report_type = ?";
+                $params[] = $type_filter;
+                $types .= 's';
+            }
+            $q .= " ORDER BY created_at DESC LIMIT ?";
+            $params[] = $limit;
+            $types .= 'i';
+            $stmt = $conn->prepare($q);
+            $stmt->bind_param($types, ...$params);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            while ($row = $res->fetch_assoc()) $reports[] = $row;
+        } catch (Exception $e) { error_log("Recent reports error: ".$e->getMessage()); }
+    }
     return $reports;
 }
 
@@ -1037,18 +1006,14 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
         .badge-high, .badge-critical { background: #f8d7da; color: #721c24; }
         .badge-medium { background: #fff3cd; color: #856404; }
         .badge-low { background: #e2e3e5; color: #383d41; }
-        .badge-source { font-size: 10px; padding: 1px 8px; text-transform: lowercase; }
-        .badge-citizen { background: #dbeafe; color: #1d4ed8; }
-        .badge-lgu { background: #d1fae5; color: #065f46; }
-        .badge-cimm { background: #fef3c7; color: #92400e; }
-        .badge-infrastructure { background: #ede9fe; color: #5b21b6; }
-        .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .detail-field.full-width { grid-column: 1 / -1; }
-        .detail-label { display:block; font-size: 11px; color: #64748b; font-weight: 600; text-transform:uppercase; letter-spacing:0.3px; margin-bottom:2px; }
-        .detail-value { font-size: 14px; color: #1e3c72; word-break: break-word; }
-        .detail-photos { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
-        .detail-photo { width: 100px; height: 80px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 1px solid rgba(55,98,200,0.15); transition: transform 0.2s; }
-        .detail-photo:hover { transform: scale(1.05); }
+        .cimm-verify-badge {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 3px 10px; border-radius: 12px;
+            font-size: 11px; font-weight: 600; white-space: nowrap;
+        }
+        .cimm-verify-badge-verified { background: #d4edda; color: #155724; }
+        .cimm-verify-badge-pending  { background: #fff3cd; color: #856404; }
+        .cimm-verify-badge-none     { color: #9ca3af; }
         .table-action-btn {
             padding: 4px 10px; border-radius: 5px; border: none;
             font-size: 11px; cursor: pointer; transition: all 0.2s;
@@ -1700,12 +1665,13 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
                             <th>Status</th>
                             <th>Priority</th>
                             <th>Date</th>
+                            <th>CIMM Verification</th>
                             <th></th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($recent_reports)): ?>
-                        <tr><td colspan="7" class="t-text-secondary" style="text-align:center;padding:30px;">No reports yet.</td></tr>
+                        <tr><td colspan="8" style="text-align:center;padding:30px;color:#6b7280;">No reports yet.</td></tr>
                         <?php else: ?>
                         <?php foreach ($recent_reports as $rr): ?>
                         <?php $rr_details = htmlspecialchars(json_encode([
@@ -1733,6 +1699,19 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
                             <td><span class="badge badge-<?php echo $rr['status'] ?? 'pending'; ?>"><?php echo ucfirst(str_replace('-',' ',$rr['status'] ?? 'pending')); ?></span></td>
                             <td><span class="badge badge-<?php echo $rr['priority'] ?? 'low'; ?>"><?php echo ucfirst($rr['priority'] ?? 'low'); ?></span></td>
                             <td><?php echo date('M d, Y H:i', strtotime($rr['created_at'] ?? 'now')); ?></td>
+                            <td>
+                                <?php if (($rr['cimm_sync_status'] ?? '') === 'verified'): ?>
+                                    <span class="cimm-verify-badge cimm-verify-badge-verified" title="Verified by <?php echo htmlspecialchars($rr['cimm_verified_by'] ?? 'CIMM staff'); ?><?php echo !empty($rr['cimm_verified_at']) ? ' on ' . date('M d, Y', strtotime($rr['cimm_verified_at'])) : ''; ?>">
+                                        <i class="fas fa-check-circle"></i> Verified
+                                    </span>
+                                <?php elseif (($rr['cimm_sync_status'] ?? '') === 'pushed'): ?>
+                                    <span class="cimm-verify-badge cimm-verify-badge-pending" title="Synced to CIMM — awaiting staff verification">
+                                        <i class="fas fa-hourglass-half"></i> Awaiting Verification
+                                    </span>
+                                <?php else: ?>
+                                    <span class="cimm-verify-badge cimm-verify-badge-none">—</span>
+                                <?php endif; ?>
+                            </td>
                             <td style="white-space:nowrap;">
                                 <button class="table-action-btn" title="View Details" onclick="viewReportDetails(<?php echo $rr['id']; ?>, '<?php echo $rr['source']; ?>')"><i class="fas fa-eye"></i></button>
                                 <button class="table-action-btn view-map" onclick="focusReportOnMap(<?php echo $rr['id']; ?>)"><i class="fas fa-map-pin"></i> Map</button>
