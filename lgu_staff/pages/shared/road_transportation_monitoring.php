@@ -411,8 +411,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $stmt->bind_param("sssssssssddssis", $report_id, $report_type, $report_category, $report_source, $title, $department, $priority, $description, $location_str, $lat, $lng, $severity_db, $attachments_json, $image_path, $user_id);
                 
                 if ($stmt->execute()) {
+                    $new_id = $stmt->insert_id;
                     ob_end_clean(); // Clear any output before JSON
                     echo json_encode(['success' => true, 'message' => (!empty($attachments) ? 'Report submitted with image' : 'Report submitted') . '. It will appear in Verification and Monitoring.', 'report_id' => $report_id]);
+                    if (function_exists('fastcgi_finish_request')) {
+                        fastcgi_finish_request();
+                    }
+                    // Push to CIMM after the response is already sent — a slow or
+                    // failed push must never delay or break the staff member's
+                    // own report submission.
+                    try {
+                        require_once __DIR__ . '/../api/rgmap_cimm_sync.php';
+                        rgmap_cimm_sync_report_async($conn, (int)$new_id, 'created');
+                    } catch (\Throwable $e) {
+                        error_log('RGMAO->CIMM push (submit_report) error: ' . $e->getMessage());
+                    }
                 } else {
                     ob_end_clean();
                     $error_details = $stmt->error;
