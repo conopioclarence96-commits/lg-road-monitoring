@@ -504,7 +504,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $severity_db = ($severity === 'severe') ? 'critical' : $severity;
                 $priority = ($severity_db === 'critical' || $severity_db === 'high') ? 'high' : ($severity_db === 'medium' ? 'medium' : 'low');
                 $report_id = 'RPT-' . date('Ymd-His') . '-' . substr(uniqid(), -5);
-                $title = ucfirst($full_issue_type) . ' issue at pinned location';
+                $title = str_replace('_', ' ', ucfirst($full_issue_type));
                 $user_id = $_SESSION['user_id'] ?? null;
                 // Set department explicitly to prevent truncation
                 $department = 'Road and Transportation';
