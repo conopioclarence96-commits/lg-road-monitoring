@@ -12,6 +12,16 @@ session_start();
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 
+// Defensive migration for the CIMM sync/verification columns — these are
+// normally added by rgmap_cimm_ensure_schema() the first time a report gets
+// pushed, but getRecentTransportReports() below selects them unconditionally
+// on every load, so a fresh install (or a page load racing the very first
+// async push) needs them to exist up front too.
+$conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_sync_status VARCHAR(20) DEFAULT NULL");
+$conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_pushed_at TIMESTAMP NULL DEFAULT NULL");
+$conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_verified_at TIMESTAMP NULL DEFAULT NULL");
+$conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_verified_by VARCHAR(150) DEFAULT NULL");
+
 // Session timeout configuration
 $session_timeout = 5 * 60; // 5 minutes in seconds
 
@@ -60,7 +70,8 @@ function getRecentTransportReports($limit = 10, $status_filter = 'all', $type_fi
     $reports = [];
     if ($conn) {
         try {
-            $q = "SELECT id, report_id, title, report_type, status, priority, severity, created_at 
+            $q = "SELECT id, report_id, title, report_type, status, priority, severity, created_at,
+                         cimm_sync_status, cimm_verified_at, cimm_verified_by
                   FROM road_transportation_reports WHERE 1=1";
             $params = [];
             $types = '';
@@ -900,6 +911,14 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
         .badge-high, .badge-critical { background: #f8d7da; color: #721c24; }
         .badge-medium { background: #fff3cd; color: #856404; }
         .badge-low { background: #e2e3e5; color: #383d41; }
+        .cimm-verify-badge {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 3px 10px; border-radius: 12px;
+            font-size: 11px; font-weight: 600; white-space: nowrap;
+        }
+        .cimm-verify-badge-verified { background: #d4edda; color: #155724; }
+        .cimm-verify-badge-pending  { background: #fff3cd; color: #856404; }
+        .cimm-verify-badge-none     { color: #9ca3af; }
         .table-action-btn {
             padding: 4px 10px; border-radius: 5px; border: none;
             font-size: 11px; cursor: pointer; transition: all 0.2s;
@@ -1514,12 +1533,13 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                             <th>Status</th>
                             <th>Priority</th>
                             <th>Date</th>
+                            <th>CIMM Verification</th>
                             <th></th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($recent_reports)): ?>
-                        <tr><td colspan="7" style="text-align:center;padding:30px;color:#6b7280;">No reports yet.</td></tr>
+                        <tr><td colspan="8" style="text-align:center;padding:30px;color:#6b7280;">No reports yet.</td></tr>
                         <?php else: ?>
                         <?php foreach ($recent_reports as $rr): ?>
                          <tr class="report-table-row" data-id="<?php echo $rr['id']; ?>" data-title="<?php echo htmlspecialchars(strtolower($rr['title'] ?? '')); ?>" data-report-id="<?php echo htmlspecialchars(strtolower($rr['report_id'] ?? '')); ?>" data-status="<?php echo $rr['status'] ?? 'pending'; ?>">
@@ -1529,6 +1549,19 @@ $recent_reports = getRecentTransportReports(10, $status_filter, $type_filter);
                             <td><span class="badge badge-<?php echo $rr['status'] ?? 'pending'; ?>"><?php echo ucfirst(str_replace('-',' ',$rr['status'] ?? 'pending')); ?></span></td>
                             <td><span class="badge badge-<?php echo $rr['priority'] ?? 'low'; ?>"><?php echo ucfirst($rr['priority'] ?? 'low'); ?></span></td>
                             <td><?php echo date('M d, Y H:i', strtotime($rr['created_at'] ?? 'now')); ?></td>
+                            <td>
+                                <?php if (($rr['cimm_sync_status'] ?? '') === 'verified'): ?>
+                                    <span class="cimm-verify-badge cimm-verify-badge-verified" title="Verified by <?php echo htmlspecialchars($rr['cimm_verified_by'] ?? 'CIMM staff'); ?><?php echo !empty($rr['cimm_verified_at']) ? ' on ' . date('M d, Y', strtotime($rr['cimm_verified_at'])) : ''; ?>">
+                                        <i class="fas fa-check-circle"></i> Verified
+                                    </span>
+                                <?php elseif (($rr['cimm_sync_status'] ?? '') === 'pushed'): ?>
+                                    <span class="cimm-verify-badge cimm-verify-badge-pending" title="Synced to CIMM — awaiting staff verification">
+                                        <i class="fas fa-hourglass-half"></i> Awaiting Verification
+                                    </span>
+                                <?php else: ?>
+                                    <span class="cimm-verify-badge cimm-verify-badge-none">—</span>
+                                <?php endif; ?>
+                            </td>
                             <td style="white-space:nowrap;">
                                 <button class="table-action-btn view-map" onclick="focusReportOnMap(<?php echo $rr['id']; ?>)"><i class="fas fa-map-pin"></i> Map</button>
                                 <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(<?php echo $rr['id']; ?>, '<?php echo $rr['report_type']; ?>')"><i class="fas fa-clock"></i> Updates</button>
