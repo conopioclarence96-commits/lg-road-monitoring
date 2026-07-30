@@ -14,13 +14,31 @@ require_once '../../includes/functions.php';
 
 // Defensive migration for the CIMM sync/verification columns — these are
 // normally added by rgmap_cimm_ensure_schema() the first time a report gets
-// pushed, but getRecentTransportReports() below selects them unconditionally
+// pushed, but getRecentSubmissions() below selects them unconditionally
 // on every load, so a fresh install (or a page load racing the very first
 // async push) needs them to exist up front too.
 $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_sync_status VARCHAR(20) DEFAULT NULL");
 $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_pushed_at TIMESTAMP NULL DEFAULT NULL");
 $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_verified_at TIMESTAMP NULL DEFAULT NULL");
 $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_verified_by VARCHAR(150) DEFAULT NULL");
+
+// report_type/department were ENUMs whose allowed values never actually
+// matched what the form below submits (report_type: 'road_damage' etc. vs
+// the real dropdown values like 'potholes'/'traffic_jam'/'cracks'/...;
+// department: only 'engineering'/'planning'/'maintenance'/'finance' vs the
+// hardcoded 'Road and Transportation'). Since sql_mode here doesn't include
+// STRICT_TRANS_TABLES, every mismatched value has been silently saved as ''
+// instead of erroring — every report's Type/Department has always been
+// blank. Widen both to VARCHAR once so the real submitted value is kept
+// instead of discarded.
+$rtCol = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'report_type'")->fetch_assoc();
+if ($rtCol && stripos($rtCol['Type'], 'enum') === 0) {
+    $conn->query("ALTER TABLE road_transportation_reports MODIFY COLUMN report_type VARCHAR(50) NOT NULL");
+}
+$deptCol = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'department'")->fetch_assoc();
+if ($deptCol && stripos($deptCol['Type'], 'enum') === 0) {
+    $conn->query("ALTER TABLE road_transportation_reports MODIFY COLUMN department VARCHAR(100) NOT NULL");
+}
 
 // Session timeout configuration
 $session_timeout = 5 * 60; // 5 minutes in seconds
@@ -65,7 +83,7 @@ function getEnhancedStats() {
 }
 
 // Function to get recent submissions from all report sources
-function getRecentSubmissions($limit = 10, $status_filter = 'all') {
+function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter = 'all') {
     global $conn;
     $reports = [];
     if ($conn) {
