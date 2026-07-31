@@ -121,7 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $stmt = $conn->prepare("
     SELECT id, username, email, full_name, role, department, address, birthday, civil_status, is_active, created_at, updated_at, approved_at, rejected_at, id_file_path 
     FROM users 
-    WHERE role IN ('lgu_staff', 'citizen') AND account_status = 'verified'
+    WHERE role IN ('lgu_staff', 'citizen', 'road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer') AND account_status = 'verified'
     ORDER BY created_at DESC
 ");
 $stmt->execute();
@@ -132,7 +132,7 @@ $stmt->close();
 $stmt2 = $conn->prepare("
     SELECT id, username, email, full_name, role, department, address, birthday, civil_status, is_active, account_status, created_at, updated_at, approved_at, rejected_at, id_file_path 
     FROM users 
-    WHERE role IN ('lgu_staff', 'citizen') AND account_status IN ('pending', 'rejected')
+    WHERE role IN ('lgu_staff', 'citizen', 'road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer') AND account_status IN ('pending', 'rejected')
     ORDER BY created_at DESC
 ");
 $stmt2->execute();
@@ -143,7 +143,7 @@ $stmt2->close();
 $stmt3 = $conn->prepare("
     SELECT id, username, email, full_name, role, department, address, birthday, civil_status, is_active, account_status, created_at, updated_at, approved_at, rejected_at, id_file_path 
     FROM users 
-    WHERE role IN ('lgu_staff', 'citizen') AND account_status = 'deactivated'
+    WHERE role IN ('lgu_staff', 'citizen', 'road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer') AND account_status = 'deactivated'
     ORDER BY updated_at DESC
 ");
 $stmt3->execute();

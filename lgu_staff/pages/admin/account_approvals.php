@@ -218,12 +218,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $stmt = $conn->prepare("
     SELECT id, username, email, full_name, role, department, address, birthday, civil_status, is_active, created_at, updated_at, approved_at, rejected_at, id_file_path 
     FROM users 
-    WHERE role IN ('lgu_staff', 'citizen') AND account_status = 'pending'
+    WHERE role IN ('lgu_staff', 'citizen', 'road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer') AND account_status = 'pending'
     ORDER BY created_at DESC
 ");
 $stmt->execute();
 $users = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
+
+$role_labels = [
+    'lgu_staff' => 'LGU Staff',
+    'citizen' => 'Citizen',
+    'road_ops_supervisor' => 'Road Operations Supervisor',
+    'trans_ops_supervisor' => 'Transportation Operations Supervisor',
+    'road_monitoring_officer' => 'Road Monitoring Officer',
+    'trans_monitoring_officer' => 'Transportation Monitoring Officer',
+];
 
 $change_requests = [];
 try {
@@ -493,7 +502,7 @@ $pending_changes_count = count($change_requests);
                                         <tr>
                                             <td><?php echo htmlspecialchars($user['full_name']); ?></td>
                                             <td><?php echo htmlspecialchars($user['email']); ?></td>
-                                            <td><?php echo htmlspecialchars($user['role']); ?></td>
+                                            <td><?php echo htmlspecialchars($role_labels[$user['role']] ?? $user['role']); ?></td>
                                             <td><?php echo htmlspecialchars($user['department'] ?? 'N/A'); ?></td>
                                             <td><?php echo date('M d, Y', strtotime($user['created_at'])); ?></td>
                                             <td>
@@ -960,11 +969,24 @@ $pending_changes_count = count($change_requests);
             return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
         }
 
+        var roleLabels = {
+            'lgu_staff': 'LGU Staff',
+            'citizen': 'Citizen',
+            'road_ops_supervisor': 'Road Operations Supervisor',
+            'trans_ops_supervisor': 'Transportation Operations Supervisor',
+            'road_monitoring_officer': 'Road Monitoring Officer',
+            'trans_monitoring_officer': 'Transportation Monitoring Officer'
+        };
+
+        function roleLabel(role) {
+            return roleLabels[role] || role;
+        }
+
         function renderPendingUsersRow(user) {
             return '<tr>' +
                 '<td>' + escapeHtml(user.full_name) + '</td>' +
                 '<td>' + escapeHtml(user.email) + '</td>' +
-                '<td>' + escapeHtml(user.role) + '</td>' +
+                '<td>' + escapeHtml(roleLabel(user.role)) + '</td>' +
                 '<td>' + escapeHtml(user.department || 'N/A') + '</td>' +
                 '<td>' + new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + '</td>' +
                 '<td><div class="action-buttons"><button class="btn-sm btn-manage" onclick="showUserModal(' + user.id + ')">Manage</button></div></td>' +
