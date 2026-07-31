@@ -185,6 +185,16 @@ try {
         // Ignore
     }
     
+    // Ensure role supports the road/transportation roles
+    try {
+        $row = $conn->query("SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'users' AND COLUMN_NAME = 'role' AND TABLE_SCHEMA = '" . DB_NAME . "'")->fetch_assoc();
+        if ($row && strpos($row['COLUMN_TYPE'], 'road_ops_supervisor') === false) {
+            $conn->query("ALTER TABLE users MODIFY COLUMN role ENUM('system_admin', 'lgu_staff', 'citizen', 'road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer') DEFAULT 'citizen'");
+        }
+    } catch (Exception $e) {
+        // Ignore
+    }
+    
 } catch (mysqli_sql_exception $e) {
     // Log error without exposing credentials
     $error_details = [

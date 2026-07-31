@@ -31,9 +31,20 @@ CREATE TABLE IF NOT EXISTS `users` (
   `email` VARCHAR(100) UNIQUE NOT NULL,
   `password` VARCHAR(255) NOT NULL,
   `full_name` VARCHAR(100) NOT NULL,
-  `role` ENUM('system_admin', 'lgu_staff', 'citizen') DEFAULT 'citizen',
-  `department` VARCHAR(50),
-  `is_active` BOOLEAN DEFAULT TRUE,
+  `role` ENUM('system_admin', 'lgu_staff', 'citizen', 'road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer') DEFAULT 'citizen',
+  `department` VARCHAR(50) DEFAULT NULL,
+  `address` VARCHAR(255) DEFAULT NULL,
+  `birthday` DATE DEFAULT NULL,
+  `civil_status` VARCHAR(20) DEFAULT NULL,
+  `id_file_path` VARCHAR(255) DEFAULT NULL,
+  `account_status` VARCHAR(20) DEFAULT 'pending',
+  `is_active` TINYINT(1) DEFAULT 1,
+  `twofa` TINYINT(1) DEFAULT 0,
+  `darkmode` TINYINT(1) DEFAULT 0,
+  `profile_picture` VARCHAR(255) DEFAULT NULL,
+  `approved_at` TIMESTAMP NULL DEFAULT NULL,
+  `rejected_at` TIMESTAMP NULL DEFAULT NULL,
+  `last_login` TIMESTAMP NULL DEFAULT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX `idx_email` (`email`),
@@ -47,6 +58,23 @@ INSERT IGNORE INTO `users` (`username`, `email`, `password`, `full_name`, `role`
 ('jsantos', 'jsantos@lgu.gov.ph', '$2y$10$LmhglHAY63tmCwfBI7q0AO9DTFQU.6OWcKuSqzlAEtIlcVZRLyqF2', 'Engr. Juan Santos', 'lgu_staff', 'LGU Services', 1),
 ('mreyes', 'mreyes@lgu.gov.ph', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Maria Reyes', 'citizen', 'Citizen Services', 1),
 ('rdela', 'rdela@lgu.gov.ph', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Roberto dela Cruz', 'citizen', 'Citizen Services', 1);
+
+-- =====================================================
+-- TABLE: CHANGE_REQUESTS
+-- =====================================================
+CREATE TABLE IF NOT EXISTS `change_requests` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `requested_data` TEXT NOT NULL,
+  `reason` TEXT,
+  `status` ENUM('pending','approved','rejected') DEFAULT 'pending',
+  `admin_notes` TEXT,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `reviewed_at` TIMESTAMP NULL,
+  `reviewed_by` INT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
 -- TABLE: AUDIT_TRAILS
