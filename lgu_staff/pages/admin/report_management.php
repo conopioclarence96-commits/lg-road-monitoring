@@ -2725,6 +2725,7 @@ if ($include_cimm && !$is_transport_supervisor) {
         </div>
 
         <!-- CIMM Reports Panel -->
+        <?php if (!$is_transport_supervisor): ?>
         <div class="rm-panel" id="cimmReportsPanel">
             <div class="rm-panel-header">
                 <div class="rm-panel-header-left">
@@ -2823,8 +2824,10 @@ if ($include_cimm && !$is_transport_supervisor) {
                 </table>
             </div>
         </div>
+        <?php endif; ?>
 
         <!-- Infrastructure Projects Panel -->
+        <?php if (!$is_transport_supervisor): ?>
         <div class="rm-panel" id="infraReportsPanel">
             <div class="rm-panel-header">
                 <div class="rm-panel-header-left">
@@ -2936,6 +2939,7 @@ if ($include_cimm && !$is_transport_supervisor) {
                 </table>
             </div>
         </div>
+        <?php endif; ?>
 
     </div>
 
@@ -4245,8 +4249,10 @@ if ($include_cimm && !$is_transport_supervisor) {
 
         document.getElementById('citizenSearchInput').addEventListener('input', function() { panelSearch('citizenSearchInput', 'citizenTable'); });
         document.getElementById('lguSearchInput').addEventListener('input', function() { panelSearch('lguSearchInput', 'lguTable'); });
+        <?php if (!$is_transport_supervisor): ?>
         document.getElementById('cimmSearchInput').addEventListener('input', function() { panelSearch('cimmSearchInput', 'cimmTable'); });
         document.getElementById('infraSearchInput').addEventListener('input', function() { panelSearch('infraSearchInput', 'infraTable'); });
+        <?php endif; ?>
 
         // Sort toggle state
         const sortState = { citizen: 'asc', lgu: 'asc', cimm: 'asc', infra: 'asc' };
@@ -4382,12 +4388,16 @@ if ($include_cimm && !$is_transport_supervisor) {
         function filterSource(source) {
             const citizen = document.getElementById('citizenReportsPanel');
             const lgu     = document.getElementById('lguReportsPanel');
+            <?php if (!$is_transport_supervisor): ?>
             const cimm    = document.getElementById('cimmReportsPanel');
             const infra   = document.getElementById('infraReportsPanel');
+            <?php endif; ?>
             citizen.style.display = (source === 'all' || source === 'transport') ? '' : 'none';
             lgu.style.display     = (source === 'all' || source === 'lgu_reports') ? '' : 'none';
+            <?php if (!$is_transport_supervisor): ?>
             cimm.style.display    = (source === 'all' || source === 'cimm')      ? '' : 'none';
             infra.style.display   = (source === 'all' || source === 'maintenance') ? '' : 'none';
+            <?php endif; ?>
         }
 
         // Sync source filter dropdown with panels on page load
