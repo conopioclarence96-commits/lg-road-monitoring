@@ -50,20 +50,6 @@ function getSidebarUserInfo() {
     ];
 }
 
-// Get portal title based on role
-function getPortalTitle($role) {
-    $portal_titles = [
-        'system_admin' => 'Admin Portal',
-        'lgu_staff' => 'Staff Portal',
-        'citizen' => 'Citizen Portal',
-        'road_ops_supervisor' => 'Road Supervisor Portal',
-        'trans_ops_supervisor' => 'Transportation Supervisor Portal',
-        'road_monitoring_officer' => 'Road Monitoring Portal',
-        'trans_monitoring_officer' => 'Transportation Monitoring Portal'
-    ];
-    return $portal_titles[$role] ?? 'Portal';
-}
-
 // Get notification count
 function getSidebarNotificationCount($user_role = '', $user_id = 0) {
     global $conn;
@@ -167,7 +153,7 @@ foreach ($nav_items as $section => $items) {
 <aside class="sidebar" id="sidebar" role="complementary">
     <header class="sidebar-header">
         <h2><i class="fas fa-road"></i> <?php echo defined('SITE_NAME') ? SITE_NAME : 'LGU Portal'; ?></h2>
-        <p><?php echo htmlspecialchars(getPortalTitle($user_role)); ?></p>
+        <p>Admin Portal</p>
         <div class="user-info">
             <div class="user-name"><?php echo htmlspecialchars($user_info['full_name']); ?></div>
             <div class="user-role"><?php echo htmlspecialchars(ucfirst($user_info['role'])); ?></div>
