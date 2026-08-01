@@ -82,36 +82,113 @@ function getEnhancedStats() {
     return $stats;
 }
 
-// Function to get recent submissions from all report sources
+// Function to get recent submissions from all report sources managed by
+// report_management.php. Only finalized reports are included:
+//   - LGU Monitoring / Citizen reports (road_transportation_reports) that are
+//     APPROVED or have been VERIFIED by CIMM
+//   - Infrastructure Projects (road_maintenance_reports) that are APPROVED or
+//     COMPLETED
+//   - CIMM reports whose verification_status is 'Verified'
 function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter = 'all') {
     global $conn;
     $reports = [];
-    if ($conn) {
+    if (!$conn) return $reports;
+
+    // Helper to append shared WHERE/ORDER/LIMIT clauses and run a query
+    $fetch = function ($sql, $status_filter, $type_filter, $limit) use ($conn) {
+        $params = [];
+        $types = '';
+        if ($status_filter !== 'all') {
+            $sql .= " AND status = ?";
+            $params[] = $status_filter;
+            $types .= 's';
+        }
+        if ($type_filter !== 'all') {
+            $sql .= " AND source = ?";
+            $params[] = $type_filter;
+            $types .= 's';
+        }
+        $sql .= " ORDER BY created_at DESC LIMIT ?";
+        $params[] = $limit;
+        $types .= 'i';
+        $stmt = $conn->prepare($sql);
+        if (!empty($params)) $stmt->bind_param($types, ...$params);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $rows = [];
+        while ($row = $res->fetch_assoc()) $rows[] = $row;
+        $stmt->close();
+        return $rows;
+    };
+
+    try {
+        // 1. LGU Monitoring (Road & Transportation Monitoring) + Citizen reports.
+        //    Staff-created rows are LGU monitoring; created_by 0/NULL are Citizen.
+        $reports = array_merge($reports, $fetch(
+            "SELECT id, report_id, title, report_type,
+                    CASE WHEN created_by IS NULL OR created_by = 0 THEN 'citizen' ELSE 'lgu' END AS source,
+                    status, priority, severity, created_at, description,
+                    latitude, longitude, location, reporter_name, attachments, image_path,
+                    cimm_sync_status, cimm_verified_at, cimm_verified_by
+             FROM road_transportation_reports
+             WHERE report_type != 'infrastructure_issue'
+               AND (status = 'approved' OR cimm_sync_status = 'verified')",
+            $status_filter, $type_filter, $limit
+        ));
+
+        // 2. Infrastructure Projects (road_maintenance_reports, finalized).
+        $reports = array_merge($reports, $fetch(
+            "SELECT id, report_id, title, report_type,
+                    'infrastructure' AS source,
+                    status, priority, NULL AS severity, created_at, description,
+                    NULL AS latitude, NULL AS longitude, location, NULL AS reporter_name,
+                    NULL AS attachments, NULL AS image_path,
+                    NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by
+             FROM road_maintenance_reports
+             WHERE status IN ('approved','completed')",
+            $status_filter, $type_filter, $limit
+        ));
+
+        // 2b. Infrastructure issue rows that live inside the transport table
+        //     are also managed as Infrastructure Projects by report_management.
+        $reports = array_merge($reports, $fetch(
+            "SELECT id, report_id, title, report_type,
+                    'infrastructure' AS source,
+                    status, priority, severity, created_at, description,
+                    latitude, longitude, location, reporter_name, attachments, image_path,
+                    cimm_sync_status, cimm_verified_at, cimm_verified_by
+             FROM road_transportation_reports
+             WHERE report_type = 'infrastructure_issue'
+               AND status IN ('approved','completed')",
+            $status_filter, $type_filter, $limit
+        ));
+
+        // 3. CIMM reports (finalized = verification_status 'Verified').
         try {
-            $q = "SELECT id, report_id, title, report_type, status, priority, severity, created_at,
-                         cimm_sync_status, cimm_verified_at, cimm_verified_by
-                  FROM road_transportation_reports WHERE 1=1";
-            $params = [];
-            $types = '';
-            if ($status_filter !== 'all') {
-                $q .= " AND status = ?";
-                $params[] = $status_filter;
-                $types .= 's';
-            }
-            if ($type_filter !== 'all') {
-                $q .= " AND report_type = ?";
-                $params[] = $type_filter;
-                $types .= 's';
-            }
-            $q .= " ORDER BY created_at DESC LIMIT ?";
-            $params[] = $limit;
-            $types .= 'i';
-            $stmt = $conn->prepare($q);
-            $stmt->bind_param($types, ...$params);
-            $stmt->execute();
-            $res = $stmt->get_result();
-            while ($row = $res->fetch_assoc()) $reports[] = $row;
-        } catch (Exception $e) { error_log("Recent reports error: ".$e->getMessage()); }
+            $reports = array_merge($reports, $fetch(
+                "SELECT id, reference_code AS report_id, infrastructure AS title,
+                        'infrastructure_issue' AS report_type, 'cimm' AS source,
+                        'completed' AS status, priority, NULL AS severity,
+                        COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at,
+                        issue AS description, coord_lat AS latitude, coord_lng AS longitude,
+                        location, reporter_name, NULL AS attachments, NULL AS image_path,
+                        'verified' AS cimm_sync_status, verified_at AS cimm_verified_at,
+                        NULL AS cimm_verified_by
+                 FROM cimm_verification_reports
+                 WHERE verification_status = 'Verified'",
+                $status_filter, $type_filter, $limit
+            ));
+        } catch (Exception $e) {
+            error_log("Recent CIMM reports error: ".$e->getMessage());
+        }
+
+        // Sort combined results by created_at DESC and cap at the requested limit
+        usort($reports, function($a, $b) {
+            return strtotime($b['created_at'] ?? 'now') - strtotime($a['created_at'] ?? 'now');
+        });
+        $reports = array_slice($reports, 0, $limit);
+    } catch (Exception $e) {
+        error_log("Recent reports error: ".$e->getMessage());
     }
     return $reports;
 }
@@ -1691,12 +1768,20 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
                         <?php if (empty($recent_reports)): ?>
                         <tr><td colspan="8" style="text-align:center;padding:30px;color:#6b7280;">No reports yet.</td></tr>
                         <?php else: ?>
+                        <?php $source_labels = [
+                            'lgu' => 'LGU Monitoring',
+                            'citizen' => 'Citizen',
+                            'cimm' => 'CIMM',
+                            'infrastructure' => 'Infrastructure Projects',
+                        ]; ?>
                         <?php foreach ($recent_reports as $rr): ?>
+                        <?php $rr_source_key = $rr['source'] ?? 'citizen'; ?>
+                        <?php $rr_source_label = $source_labels[$rr_source_key] ?? ucfirst($rr_source_key); ?>
                         <?php $rr_details = htmlspecialchars(json_encode([
                             'id' => $rr['id'],
                             'report_id' => $rr['report_id'],
                             'title' => $rr['title'],
-                            'source' => $rr['source'],
+                            'source' => $rr_source_label,
                             'report_type' => $rr['report_type'],
                             'status' => $rr['status'],
                             'priority' => $rr['priority'],
@@ -1710,10 +1795,10 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
                             'attachments' => $rr['attachments'],
                             'image_path' => $rr['image_path'],
                         ]), ENT_QUOTES, 'UTF-8'); ?>
-                         <tr class="report-table-row" data-id="<?php echo $rr['id']; ?>" data-title="<?php echo htmlspecialchars(strtolower($rr['title'] ?? '')); ?>" data-report-id="<?php echo htmlspecialchars(strtolower($rr['report_id'] ?? '')); ?>" data-status="<?php echo $rr['status'] ?? 'pending'; ?>" data-source="<?php echo $rr['source'] ?? 'citizen'; ?>" data-details='<?php echo $rr_details; ?>'>
+                         <tr class="report-table-row" data-id="<?php echo $rr['id']; ?>" data-title="<?php echo htmlspecialchars(strtolower($rr['title'] ?? '')); ?>" data-report-id="<?php echo htmlspecialchars(strtolower($rr['report_id'] ?? '')); ?>" data-status="<?php echo $rr['status'] ?? 'pending'; ?>" data-source="<?php echo $rr_source_key; ?>" data-details='<?php echo $rr_details; ?>'>
                             <td style="font-family:monospace;font-size:12px;"><?php echo htmlspecialchars($rr['report_id'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars($rr['title'] ?? 'Untitled'); ?></td>
-                            <td><span class="badge badge-source badge-<?php echo $rr['source'] ?? 'citizen'; ?>"><?php echo ucfirst($rr['source'] ?? 'citizen'); ?></span></td>
+                            <td><span class="badge badge-source badge-<?php echo $rr_source_key; ?>"><?php echo htmlspecialchars($rr_source_label); ?></span></td>
                             <td><span class="badge badge-<?php echo $rr['status'] ?? 'pending'; ?>"><?php echo ucfirst(str_replace('-',' ',$rr['status'] ?? 'pending')); ?></span></td>
                             <td><span class="badge badge-<?php echo $rr['priority'] ?? 'low'; ?>"><?php echo ucfirst($rr['priority'] ?? 'low'); ?></span></td>
                             <td><?php echo date('M d, Y H:i', strtotime($rr['created_at'] ?? 'now')); ?></td>
