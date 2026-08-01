@@ -918,6 +918,51 @@ if ($include_cimm && !$is_transport_supervisor) {
         $cimm_reports_list = [];
     }
 }
+
+// Deep-link focus: when a specific report is requested via ?id= (e.g. from a
+// notification "View" button), ensure it is rendered so the highlight/scroll
+// JS can find it — even when pagination or source classification ('hidden')
+// would otherwise exclude it from the page.
+$focus_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+if ($focus_id > 0) {
+    try {
+        $focus_found = false;
+        foreach ([$citizen_reports, $lgu_reports_list, $infra_reports_list, $cimm_reports_list] as $list) {
+            foreach ($list as $r) {
+                if ((int)$r['id'] === $focus_id) { $focus_found = true; break 2; }
+            }
+        }
+
+        if (!$focus_found) {
+            $est_result = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'estimation'");
+            $transport_est = $est_result && $est_result->num_rows > 0;
+            $est_col = $transport_est ? 'estimation' : '0 as estimation';
+
+            $focus_report = fetch_one("SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, {$est_col}, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' WHEN report_category = 'transportation' AND report_source = 'local' AND created_by != 0 AND status = 'approved' THEN 'lgu_reports' WHEN report_category = 'transportation' AND report_source = 'local' AND created_by != 0 THEN 'hidden' ELSE 'transport' END as source_system FROM road_transportation_reports WHERE id = ?", [$focus_id], 'i');
+
+            if (!$focus_report) {
+                $maint_result = $conn->query("SHOW COLUMNS FROM road_maintenance_reports LIKE 'estimation'");
+                $maint_est = $maint_result && $maint_result->num_rows > 0;
+                $est_col = $maint_est ? 'estimation' : '0 as estimation';
+                $focus_report = fetch_one("SELECT id, report_id, title, description, location, priority, status, maintenance_team as assigned_to, {$est_col}, department, created_date, created_at, updated_at, approved_at, NULL as attachments, NULL as image_path, 'maintenance' as report_type, 'maintenance' as source_system FROM road_maintenance_reports WHERE id = ?", [$focus_id], 'i');
+            }
+
+            if ($focus_report) {
+                $src = $focus_report['source_system'] ?? 'transport';
+                if ($src === 'maintenance') {
+                    $infra_reports_list[] = $focus_report;
+                } elseif ($src === 'lgu_reports' || $src === 'hidden') {
+                    $lgu_reports_list[] = $focus_report;
+                } else {
+                    $citizen_reports[] = $focus_report;
+                }
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Deep-link focus report fetch failed: " . $e->getMessage());
+    }
+}
+
 ?>
 
 <!DOCTYPE html>
