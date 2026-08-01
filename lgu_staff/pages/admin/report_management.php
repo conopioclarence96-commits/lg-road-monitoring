@@ -868,6 +868,11 @@ $stats = get_report_stats();
 $csrf_token = generate_csrf_token();
 $flash_message = get_flash_message();
 
+// Transportation Operations supervisors only see LGU Monitoring
+// Transportation reports and Citizen reports (no CIMM, infrastructure,
+// or LGU Road reports).
+$is_transport_supervisor = ($user_role === 'trans_ops_supervisor');
+
 // Separate reports by source system for panel display
 $citizen_reports = [];
 $lgu_reports_list = [];
@@ -875,6 +880,19 @@ $cimm_reports_list = [];
 $infra_reports_list = [];
 foreach ($reports as $report) {
     $src = $report['source_system'] ?? 'transport';
+
+    if ($is_transport_supervisor) {
+        // 'lgu_reports' is already restricted to approved LGU Monitoring
+        // Transportation reports by get_reports(); LGU Road reports land in
+        // 'transport' with created_by != 0 and are not shown here.
+        if ($src === 'lgu_reports') {
+            $lgu_reports_list[] = $report;
+        } elseif ($src !== 'maintenance' && ($report['created_by'] ?? 0) == 0) {
+            $citizen_reports[] = $report;
+        }
+        continue;
+    }
+
     if ($src === 'maintenance') {
         $infra_reports_list[] = $report;
     } elseif ($src === 'lgu_reports') {
@@ -892,7 +910,7 @@ foreach ($reports as $report) {
 // Fetch CIMM reports independently (not through the combined get_reports pipeline
 // which limits all sources to 20 total, crowding out CIMM reports)
 $include_cimm = ($source_filter === 'all' || $source_filter === 'cimm');
-if ($include_cimm) {
+if ($include_cimm && !$is_transport_supervisor) {
     try {
         $cimm_reports_list = getCimmReportsForManagement($status_filter);
     } catch (Exception $e) {
