@@ -882,7 +882,10 @@ foreach ($reports as $report) {
     } elseif ($src === 'hidden') {
         // Skip unapproved LGU reports
     } else {
-        $citizen_reports[] = $report;
+        // Only include citizen reports where created_by = 0
+        if (($report['created_by'] ?? 0) == 0) {
+            $citizen_reports[] = $report;
+        }
     }
 }
 
