@@ -84,8 +84,12 @@ function getEnhancedStats() {
 
 // Function to get recent submissions from all report sources managed by
 // report_management.php. Only finalized reports are included:
-//   - LGU Monitoring / Citizen reports (road_transportation_reports) that are
-//     APPROVED or have been VERIFIED by CIMM
+//   - LGU Monitoring reports (road_transportation_reports) that are both
+//     APPROVED and CIMM VERIFIED (LGU monitoring road reports require CIMM
+//     verification before they are considered finalized — reports still
+//     awaiting verification must not be shown)
+//   - Citizen reports (road_transportation_reports) that are APPROVED or
+//     VERIFIED by CIMM
 //   - Infrastructure Projects (road_maintenance_reports) that are APPROVED or
 //     COMPLETED
 //   - CIMM reports whose verification_status is 'Verified'
@@ -122,16 +126,35 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
     };
 
     try {
-        // 1. LGU Monitoring (Road & Transportation Monitoring) + Citizen reports.
-        //    Staff-created rows are LGU monitoring; created_by 0/NULL are Citizen.
+        // 1a. LGU Monitoring (Road & Transportation Monitoring) reports.
+        //     Staff-created rows are LGU monitoring. These are only considered
+        //     finalized once they are BOTH approved AND verified by CIMM, so
+        //     reports still awaiting CIMM verification are excluded here.
         $reports = array_merge($reports, $fetch(
             "SELECT id, report_id, title, report_type,
-                    CASE WHEN created_by IS NULL OR created_by = 0 THEN 'citizen' ELSE 'lgu' END AS source,
+                    'lgu' AS source,
                     status, priority, severity, created_at, description,
                     latitude, longitude, location, reporter_name, attachments, image_path,
                     cimm_sync_status, cimm_verified_at, cimm_verified_by
              FROM road_transportation_reports
              WHERE report_type != 'infrastructure_issue'
+               AND created_by IS NOT NULL AND created_by != 0
+               AND status = 'approved'
+               AND cimm_sync_status = 'verified'",
+            $status_filter, $type_filter, $limit
+        ));
+
+        // 1b. Citizen reports (created_by 0/NULL). Finalized when approved, or
+        //     when verified by CIMM (if applicable).
+        $reports = array_merge($reports, $fetch(
+            "SELECT id, report_id, title, report_type,
+                    'citizen' AS source,
+                    status, priority, severity, created_at, description,
+                    latitude, longitude, location, reporter_name, attachments, image_path,
+                    cimm_sync_status, cimm_verified_at, cimm_verified_by
+             FROM road_transportation_reports
+             WHERE report_type != 'infrastructure_issue'
+               AND (created_by IS NULL OR created_by = 0)
                AND (status = 'approved' OR cimm_sync_status = 'verified')",
             $status_filter, $type_filter, $limit
         ));
