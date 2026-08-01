@@ -132,7 +132,8 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                     cimm_sync_status, cimm_verified_at, cimm_verified_by
              FROM road_transportation_reports
              WHERE report_type != 'infrastructure_issue'
-               AND (status = 'approved' OR cimm_sync_status = 'verified')",
+               AND (status = 'approved' OR cimm_sync_status = 'verified')
+               AND NOT (created_by IS NOT NULL AND created_by != 0 AND cimm_sync_status = 'pushed')",
             $status_filter, $type_filter, $limit
         ));
 
