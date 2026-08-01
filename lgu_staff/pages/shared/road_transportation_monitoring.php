@@ -1835,6 +1835,11 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
                     </tbody>
                 </table>
             </div>
+            <div style="text-align:center;padding:15px;">
+                <button id="loadMoreReportsBtn" class="btn-secondary-custom" onclick="loadMoreReports()" style="padding:10px 20px;">
+                    <i class="fas fa-plus"></i> Load More Reports
+                </button>
+            </div>
         </div>
 
     </div>
@@ -2255,14 +2260,55 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
 
         function filterReportsBySource() {
             const source = document.getElementById('typeFilter').value;
-            const searchVal = document.getElementById('reportSearchInput').value.trim().toLowerCase();
-            document.querySelectorAll('#recentReportsTable .report-table-row').forEach(row => {
-                const matchesSource = source === 'all' || row.dataset.source === source;
-                const title = row.dataset.title || '';
-                const rid = row.dataset.reportId || '';
-                const matchesSearch = !searchVal || title.includes(searchVal) || rid.includes(searchVal);
-                row.style.display = (matchesSource && matchesSearch) ? '' : 'none';
-            });
+            const statusFilter = document.getElementById('statusFilter').value;
+            const tableBody = document.querySelector('#recentReportsTable tbody');
+            
+            // Clear existing rows
+            tableBody.innerHTML = '';
+            
+            // Show loading state
+            const loadingRow = document.createElement('tr');
+            loadingRow.innerHTML = '<td colspan="8" style="text-align:center;padding:20px;"><i class="fas fa-spinner fa-spin"></i> Loading reports...</td>';
+            tableBody.appendChild(loadingRow);
+            
+            // Reset pagination state
+            currentOffset = 0;
+            hasMoreReports = true;
+            isLoadingMore = false;
+            
+            // Fetch filtered data from API
+            fetch(`../api/get_recent_submissions_paginated.php?offset=0&limit=10&status=${statusFilter}&type=${source}`)
+                .then(response => response.json())
+                .then(data => {
+                    tableBody.innerHTML = ''; // Clear loading row
+                    
+                    if (data.success && data.reports.length > 0) {
+                        data.reports.forEach(report => {
+                            const row = createReportRow(report);
+                            tableBody.appendChild(row);
+                        });
+                        
+                        currentOffset = data.reports.length;
+                        
+                        // If we got fewer than 10 reports, hide load more button
+                        if (data.reports.length < 10) {
+                            hasMoreReports = false;
+                            hideLoadMoreButton();
+                        } else {
+                            hasMoreReports = true;
+                            showLoadMoreButton();
+                        }
+                    } else {
+                        // No results
+                        tableBody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:#6b7280;">No reports found for this filter.</td></tr>';
+                        hasMoreReports = false;
+                        hideLoadMoreButton();
+                    }
+                })
+                .catch(error => {
+                    tableBody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:#dc3545;">Error loading reports. Please try again.</td></tr>';
+                    showNotification('Error loading filtered reports', 'error');
+                });
         }
 
         function resetFilters() {
@@ -3241,6 +3287,142 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
         });
         if (mapClickHandler) { map.off('click', mapClickHandler); mapClickHandler = null; }
     }
+
+    // ===== LOAD MORE BUTTON FOR RECENT SUBMISSIONS =====
+    let currentOffset = 10;
+    let isLoadingMore = false;
+    let hasMoreReports = true;
+
+    function loadMoreReports() {
+        if (isLoadingMore || !hasMoreReports) return;
+        
+        isLoadingMore = true;
+        const tableBody = document.querySelector('#recentReportsTable tbody');
+        const loadMoreBtn = document.getElementById('loadMoreReportsBtn');
+        
+        if (loadMoreBtn) {
+            loadMoreBtn.disabled = true;
+            loadMoreBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+        }
+        
+        const statusFilter = document.getElementById('statusFilter').value;
+        const typeFilter = document.getElementById('typeFilter').value;
+        
+        fetch(`../api/get_recent_submissions_paginated.php?offset=${currentOffset}&limit=10&status=${statusFilter}&type=${typeFilter}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.reports.length > 0) {
+                    data.reports.forEach(report => {
+                        const row = createReportRow(report);
+                        tableBody.appendChild(row);
+                    });
+                    
+                    currentOffset += data.reports.length;
+                    
+                    // If we got fewer reports than requested, we've reached the end
+                    if (data.reports.length < 10) {
+                        hasMoreReports = false;
+                        hideLoadMoreButton();
+                    } else {
+                        if (loadMoreBtn) {
+                            loadMoreBtn.disabled = false;
+                            loadMoreBtn.innerHTML = '<i class="fas fa-plus"></i> Load More Reports';
+                        }
+                    }
+                } else {
+                    hasMoreReports = false;
+                    hideLoadMoreButton();
+                }
+                
+                isLoadingMore = false;
+            })
+            .catch(error => {
+                showNotification('Error loading more reports', 'error');
+                if (loadMoreBtn) {
+                    loadMoreBtn.disabled = false;
+                    loadMoreBtn.innerHTML = '<i class="fas fa-plus"></i> Load More Reports';
+                }
+                isLoadingMore = false;
+            });
+    }
+
+    function hideLoadMoreButton() {
+        const loadMoreBtn = document.getElementById('loadMoreReportsBtn');
+        if (loadMoreBtn) {
+            loadMoreBtn.style.display = 'none';
+        }
+    }
+
+    function showLoadMoreButton() {
+        const loadMoreBtn = document.getElementById('loadMoreReportsBtn');
+        if (loadMoreBtn) {
+            loadMoreBtn.style.display = 'inline-block';
+        }
+    }
+
+    function createReportRow(report) {
+        const tr = document.createElement('tr');
+        tr.className = 'report-table-row';
+        tr.dataset.id = report.id;
+        tr.dataset.title = (report.title || '').toLowerCase();
+        tr.dataset.reportId = (report.report_id || '').toLowerCase();
+        tr.dataset.status = report.status;
+        tr.dataset.source = report.source;
+        tr.dataset.details = JSON.stringify(report.details);
+        
+        tr.innerHTML = `
+            <td style="font-family:monospace;font-size:12px;">${escapeHtml(report.report_id)}</td>
+            <td>${escapeHtml(report.title)}</td>
+            <td><span class="badge badge-source badge-${report.source}">${escapeHtml(report.source_label)}</span></td>
+            <td><span class="badge badge-${report.status}">${escapeHtml(ucfirst(report.status.replace('-', ' ')))}</span></td>
+            <td><span class="badge badge-${report.priority}">${escapeHtml(ucfirst(report.priority))}</span></td>
+            <td>${formatDate(report.created_at)}</td>
+            <td>
+                ${report.cimm_sync_status === 'verified' ? 
+                    `<span class="cimm-verify-badge cimm-verify-badge-verified" title="Verified by ${escapeHtml(report.cimm_verified_by || 'CIMM staff')}${report.cimm_verified_at ? ' on ' + formatDate(report.cimm_verified_at) : ''}">
+                        <i class="fas fa-check-circle"></i> Verified
+                    </span>` : 
+                    (report.cimm_sync_status === 'pushed' ? 
+                        `<span class="cimm-verify-badge cimm-verify-badge-pending" title="Synced to CIMM — awaiting staff verification">
+                            <i class="fas fa-hourglass-half"></i> Awaiting Verification
+                        </span>` : 
+                        `<span class="cimm-verify-badge cimm-verify-badge-none">—</span>`
+                    )
+                }
+            </td>
+            <td style="white-space:nowrap;">
+                <button class="table-action-btn" title="View Details" onclick="viewReportDetails(${report.id}, '${report.source}')"><i class="fas fa-eye"></i></button>
+                <button class="table-action-btn view-map" onclick="focusReportOnMap(${report.id})"><i class="fas fa-map-pin"></i> Map</button>
+                <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(${report.id}, '${report.report_type}')"><i class="fas fa-clock"></i> Updates</button>
+            </td>
+        `;
+        
+        return tr;
+    }
+
+    function formatDate(dateStr) {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('en-US', { 
+            month: 'short', 
+            day: 'numeric', 
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    function ucfirst(str) {
+        return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+
+    // Initialize load more button on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        // Check if initial load has less than 10 reports, hide button
+        const initialRows = document.querySelectorAll('#recentReportsTable .report-table-row');
+        if (initialRows.length < 10) {
+            hideLoadMoreButton();
+        }
+    });
 
     </script>
     
