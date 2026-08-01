@@ -172,39 +172,21 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
             $status_filter, $type_filter, $limit
         ));
 
-        // 3. CIMM reports — same source and filter as report_management.php's
-        //    CIMM Reports panel (synced reports with verification_status 'Verified').
+        // 3. CIMM reports (finalized = verification_status 'Verified').
         try {
-            require_once __DIR__ . '/../api/cimm_verification_data.php';
-            $include_cimm = ($type_filter === 'all' || $type_filter === 'cimm')
-                && ($status_filter === 'all' || $status_filter === 'completed');
-            if ($include_cimm) {
-                $pdo = rgmap_verification_pdo();
-                $cimm_rows = rgmap_fetch_cimm_verification_reports($pdo, ['limit' => $limit, 'status' => 'Verified']);
-                foreach ($cimm_rows as $crow) {
-                    $reports[] = [
-                        'id' => (int)($crow['id'] ?? 0),
-                        'report_id' => (string)($crow['reference_code'] ?? ''),
-                        'title' => (string)($crow['infrastructure'] ?? ''),
-                        'report_type' => 'infrastructure_issue',
-                        'source' => 'cimm',
-                        'status' => 'completed',
-                        'priority' => strtolower((string)($crow['priority'] ?? 'medium')),
-                        'severity' => null,
-                        'created_at' => $crow['submitted_at'] ?? $crow['verified_at'] ?? $crow['synced_at'] ?? date('Y-m-d H:i:s'),
-                        'description' => (string)($crow['issue'] ?? ''),
-                        'latitude' => $crow['coord_lat'] ?? null,
-                        'longitude' => $crow['coord_lng'] ?? null,
-                        'location' => (string)($crow['location'] ?? ''),
-                        'reporter_name' => $crow['reporter_name'] ?? null,
-                        'attachments' => null,
-                        'image_path' => null,
-                        'cimm_sync_status' => 'verified',
-                        'cimm_verified_at' => $crow['verified_at'] ?? null,
-                        'cimm_verified_by' => null,
-                    ];
-                }
-            }
+            $reports = array_merge($reports, $fetch(
+                "SELECT id, reference_code AS report_id, infrastructure AS title,
+                        'infrastructure_issue' AS report_type, 'cimm' AS source,
+                        'completed' AS status, priority, NULL AS severity,
+                        COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at,
+                        issue AS description, coord_lat AS latitude, coord_lng AS longitude,
+                        location, reporter_name, NULL AS attachments, NULL AS image_path,
+                        'verified' AS cimm_sync_status, verified_at AS cimm_verified_at,
+                        NULL AS cimm_verified_by
+                 FROM cimm_verification_reports
+                 WHERE verification_status = 'Verified'",
+                $status_filter, $type_filter, $limit
+            ));
         } catch (Exception $e) {
             error_log("Recent CIMM reports error: ".$e->getMessage());
         }
