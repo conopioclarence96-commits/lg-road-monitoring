@@ -43,6 +43,23 @@ function has_permission($user_role, $required_role) {
     return ($role_hierarchy[$user_role] ?? 0) >= ($role_hierarchy[$required_role] ?? 0);
 }
 
+// The Road & Transportation unit roles are LGU staff of that unit, so they
+// are granted the same staff-level access as 'lgu_staff'.
+function is_staff_role($role) {
+    return in_array($role, [
+        'lgu_staff',
+        'road_ops_supervisor',
+        'trans_ops_supervisor',
+        'road_monitoring_officer',
+        'trans_monitoring_officer',
+    ], true);
+}
+
+// True for system_admin and every LGU staff-level role.
+function is_admin_or_staff_role($role) {
+    return $role === 'system_admin' || is_staff_role($role);
+}
+
 // Database helper functions
 function execute_query($query, $params = [], $types = '') {
     global $conn;

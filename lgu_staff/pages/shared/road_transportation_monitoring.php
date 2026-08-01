@@ -57,7 +57,7 @@ $_SESSION['last_activity'] = time();
 // Check if user is logged in
 if (
     !isset($_SESSION['user_id']) ||
-    !in_array($_SESSION['role'], ['lgu_staff', 'system_admin'])
+    !is_admin_or_staff_role($_SESSION['role'] ?? '')
 ) {
     header('Location: ../../login.php');
     exit();

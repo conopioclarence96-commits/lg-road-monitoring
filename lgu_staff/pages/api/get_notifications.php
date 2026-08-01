@@ -7,7 +7,9 @@ ini_set('session.cookie_secure', 0);
 
 session_start();
 
-if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', ['system_admin', 'lgu_staff'])) {
+require_once '../../includes/functions.php';
+
+if (!isset($_SESSION['user_id']) || !is_admin_or_staff_role($_SESSION['role'] ?? '')) {
     http_response_code(403);
     echo json_encode(['success' => false, 'message' => 'Unauthorized']);
     exit();
@@ -74,7 +76,7 @@ if ($user_role === 'system_admin') {
         error_log("Progress notifications count error: " . $e->getMessage());
         $notifications['counts']['progress'] = 0;
     }
-} elseif ($user_role === 'lgu_staff' && $user_id > 0) {
+} elseif (is_staff_role($user_role) && $user_id > 0) {
     try {
         $rstmt = $conn->prepare("
             SELECT id, title, department, priority, status, description, location,

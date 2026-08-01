@@ -94,7 +94,7 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
                 $count += $stmt->get_result()->fetch_assoc()['count'];
                 $stmt->close();
             } catch (Exception $e) {}
-        } elseif ($user_role === 'lgu_staff' && $user_id > 0) {
+        } elseif (is_staff_role($user_role) && $user_id > 0) {
             try {
                 $stmt = $conn->prepare("SELECT COUNT(*) as count FROM change_requests WHERE user_id = ? AND status != 'pending'");
                 $stmt->bind_param("i", $user_id);
@@ -155,11 +155,13 @@ $nav_items = [
     ]
 ];
 
-// Filter by role
+// Filter by role. The Road & Transportation staff roles share the same menu
+// as 'lgu_staff'.
 $filtered_items = [];
 foreach ($nav_items as $section => $items) {
     $filtered_items[$section] = array_filter($items, function($item) use ($user_role) {
-        return in_array($user_role, $item['roles']);
+        return in_array($user_role, $item['roles'])
+            || (is_staff_role($user_role) && in_array('lgu_staff', $item['roles']));
     });
 }
 ?>

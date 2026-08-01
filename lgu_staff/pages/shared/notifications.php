@@ -25,7 +25,7 @@ require_once '../../includes/functions.php';
 $user_role = $_SESSION['role'] ?? '';
 $user_id = $_SESSION['user_id'] ?? 0;
 
-if (!isset($_SESSION['user_id']) || !in_array($user_role, ['system_admin', 'lgu_staff'])) {
+if (!isset($_SESSION['user_id']) || !is_admin_or_staff_role($user_role)) {
     header('Location: ../../login.php');
     exit();
 }

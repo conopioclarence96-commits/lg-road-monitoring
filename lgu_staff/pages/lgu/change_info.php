@@ -16,7 +16,7 @@ $_SESSION['last_activity'] = time();
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'lgu_staff') {
+if (!isset($_SESSION['user_id']) || !is_staff_role($_SESSION['role'] ?? '')) {
     header('Location: ../../login.php');
     exit();
 }

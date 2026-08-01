@@ -19,7 +19,7 @@ if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > 
 $_SESSION['last_activity'] = time();
 
 // Check if user is logged in and check role (logout if invalid role)
-if (!is_logged_in() || !in_array($_SESSION['role'], ['system_admin', 'lgu_staff'])) {
+if (!is_logged_in() || !is_admin_or_staff_role($_SESSION['role'] ?? '')) {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Content-Type: application/json; charset=utf-8');
         http_response_code(401);
