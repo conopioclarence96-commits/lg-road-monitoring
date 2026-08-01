@@ -91,7 +91,7 @@ function getEnhancedStats() {
 //     verification and appear once approved
 //   - Infrastructure Projects (road_maintenance_reports) that are APPROVED or
 //     COMPLETED
-//   - CIMM reports whose verification_status is 'Verified'
+//   - CIMM reports synced from the CIMM system (all included)
 function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter = 'all') {
     global $conn;
     $reports = [];
@@ -172,7 +172,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
             $status_filter, $type_filter, $limit
         ));
 
-        // 3. CIMM reports (finalized = verification_status 'Verified').
+        // 3. CIMM reports synced from the CIMM system (all are shown).
         try {
             $reports = array_merge($reports, $fetch(
                 "SELECT id, reference_code AS report_id, infrastructure AS title,
@@ -183,8 +183,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                         location, reporter_name, NULL AS attachments, NULL AS image_path,
                         'verified' AS cimm_sync_status, verified_at AS cimm_verified_at,
                         NULL AS cimm_verified_by
-                 FROM cimm_verification_reports
-                 WHERE verification_status = 'Verified'",
+                 FROM cimm_verification_reports",
                 $status_filter, $type_filter, $limit
             ));
         } catch (Exception $e) {
