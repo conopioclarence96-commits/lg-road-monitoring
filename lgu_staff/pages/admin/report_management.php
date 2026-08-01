@@ -205,7 +205,7 @@ function handle_update_report() {
     }
     
     // Update the report
-    $transport_types = ['transportation', 'infrastructure_issue', 'traffic_jam', 'accident', 'road_closure', 'potholes', 'road_damage'];
+    $transport_types = ['transportation', 'infrastructure_issue', 'traffic_jam', 'accident', 'road_closure', 'traffic_light_outage', 'congestion', 'parking_violation', 'public_transport_issue'];
     $table = in_array($report_type, $transport_types) ? 'road_transportation_reports' : 'road_maintenance_reports';
     
     $update_fields = [];
@@ -386,7 +386,7 @@ function handle_delete_report() {
             return;
         }
         
-        $transport_types = ['transportation', 'infrastructure_issue', 'traffic_jam', 'accident', 'road_closure', 'potholes', 'road_damage'];
+        $transport_types = ['transportation', 'infrastructure_issue', 'traffic_jam', 'accident', 'road_closure', 'traffic_light_outage', 'congestion', 'parking_violation', 'public_transport_issue'];
         $table = in_array($report_type, $transport_types) ? 'road_transportation_reports' : 'road_maintenance_reports';
         $stmt = $conn->prepare("SELECT title, location FROM {$table} WHERE id = ?");
         $stmt->bind_param("i", $report_id);
