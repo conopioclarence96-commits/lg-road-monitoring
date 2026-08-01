@@ -85,7 +85,8 @@ function getEnhancedStats() {
 // Function to get recent submissions from all report sources managed by
 // report_management.php. Only finalized reports are included:
 //   - LGU Monitoring / Citizen reports (road_transportation_reports) that are
-//     APPROVED or have been VERIFIED by CIMM
+//     APPROVED or have been VERIFIED by CIMM; LGU Monitoring reports that are
+//     still Awaiting CIMM Verification are excluded
 //   - Infrastructure Projects (road_maintenance_reports) that are APPROVED or
 //     COMPLETED
 //   - CIMM reports whose verification_status is 'Verified'
@@ -124,6 +125,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
     try {
         // 1. LGU Monitoring (Road & Transportation Monitoring) + Citizen reports.
         //    Staff-created rows are LGU monitoring; created_by 0/NULL are Citizen.
+        //    LGU rows that are still Awaiting CIMM Verification ('pushed') are excluded.
         $reports = array_merge($reports, $fetch(
             "SELECT id, report_id, title, report_type,
                     CASE WHEN created_by IS NULL OR created_by = 0 THEN 'citizen' ELSE 'lgu' END AS source,
@@ -133,7 +135,8 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
              FROM road_transportation_reports
              WHERE report_type != 'infrastructure_issue'
                AND (status = 'approved' OR cimm_sync_status = 'verified')
-               AND NOT (created_by IS NOT NULL AND created_by != 0 AND cimm_sync_status = 'pushed')",
+               AND (created_by IS NULL OR created_by = 0
+                    OR cimm_sync_status IS NULL OR cimm_sync_status <> 'pushed')",
             $status_filter, $type_filter, $limit
         ));
 
