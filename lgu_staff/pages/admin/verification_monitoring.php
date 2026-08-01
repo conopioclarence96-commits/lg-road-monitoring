@@ -217,8 +217,8 @@ function getAllReports($conn, $status_filter = 'all', $source_filter = 'all') {
     } else {
         $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}" : " WHERE {$infra_exclude} AND {$citizen_exclude}";
         $source_case = "CASE WHEN report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
-        $parts[] = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$where})";
-        $parts[] = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
+        $parts[] = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, cimm_sync_status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$where})";
+        $parts[] = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, NULL as cimm_sync_status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
     }
     $query = implode(' UNION ALL ', $parts) . " ORDER BY created_at DESC";
     $result = $conn->query($query);
@@ -4601,8 +4601,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 $report_category = $report['report_category'] ?? null;
                                 $report_source = $report['report_source'] ?? null;
                                 $can_verify = canVerifyReport($report_category, $report_source);
-                                // Road+local reports that are pending show as awaiting external verification
-                                $pending_ext_verify = ($report['status'] === 'pending' && !$can_verify);
+                                // Reports not yet verified by CIMM show as awaiting external verification
+                                // If CIMM verified and status is pending, show check button for final approval
+                                $pending_ext_verify = ($report['cimm_sync_status'] ?? '') !== 'verified' && !$can_verify && $report['status'] === 'pending';
+                                $ready_for_approval = (($report['cimm_sync_status'] ?? '') === 'verified' && $report['status'] === 'pending' && !$can_verify);
 
                                 $lgu_type_labels = [
                                     'traffic_jam' => 'Traffic Jam',
@@ -4642,12 +4644,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                         </button>
                                         <?php if ($pending_ext_verify): ?>
                                             <span class="lgu-status-badge t-badge t-badge-pending" style="font-size:10px;padding:3px 8px;">Ext. Verify</span>
-                                        <?php elseif ($report['status'] === 'pending'): ?>
+                                        <?php elseif ($ready_for_approval): ?>
                                             <form method="POST" class="lgu-action-form">
                                                 <input type="hidden" name="report_id" value="<?php echo $report['id']; ?>">
                                                 <input type="hidden" name="source" value="<?php echo htmlspecialchars($report['source']); ?>">
-                                                <button type="submit" name="action" value="approve" class="lgu-verify-btn" title="Approve report">
-                                                    <i class="fas fa-check"></i>
+                                                <button type="submit" name="action" value="cimm_approve" class="lgu-verify-btn" title="Approve CIMM verified report">
+                                                    <i class="fas fa-check-circle"></i>
                                                 </button>
                                             </form>
                                             <form method="POST" class="lgu-action-form" onsubmit="return confirm('Are you sure you want to reject this report?');">
@@ -4685,7 +4687,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                             <div class="detail-item">
                                                 <strong>Status:</strong> 
                                                 <?php if ($pending_ext_verify): ?>
-                                                <span class="lgu-status-badge t-badge t-badge-pending">Awaiting External Verification</span>
+                                                <span class="lgu-status-badge t-badge t-badge-pending">Awaiting CIMM Verification</span>
+                                                <?php elseif ($ready_for_approval): ?>
+                                                <span class="lgu-status-badge t-badge t-badge-info">Ready for Final Approval</span>
                                                 <?php else: ?>
                                                 <span class="lgu-status-badge <?php echo $lgu_status_class; ?>"><?php echo htmlspecialchars($report['status'] ?? 'N/A'); ?></span>
                                                 <?php endif; ?>
