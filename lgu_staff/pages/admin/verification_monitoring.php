@@ -101,6 +101,12 @@ if (!isset($_SESSION['user_id']) || !is_admin_or_staff_role($_SESSION['role'] ??
     exit();
 }
 
+// Transportation Operations supervisors only see LGU Monitoring
+// Transportation reports and Citizen reports (no CIMM, infrastructure,
+// or LGU Road reports).
+$user_role = $_SESSION['role'] ?? 'citizen';
+$is_transport_supervisor = ($user_role === 'trans_ops_supervisor');
+
 // Function to get verification statistics
 function getVerificationStatistics($conn) {
     $stats = [];
@@ -530,6 +536,23 @@ $rejected_reports = getRejectedReports($conn);
 $all_reports = getAllReports($conn, $status_filter, $source_filter);
 $recent_approvals = getRecentApprovals($conn);
 $activity_timeline = getActivityTimeline($conn);
+
+// For trans_ops_supervisor, the LGU Monitoring panel shows only
+// Transportation reports — road/maintenance reports are not rendered and
+// are excluded from the badge count.
+$lgu_badge_count = $all_reports->num_rows;
+$lgu_has_reports = ($all_reports->num_rows > 0);
+if ($is_transport_supervisor && $all_reports->num_rows > 0) {
+    $all_reports->data_seek(0);
+    $lgu_badge_count = 0;
+    $lgu_has_reports = false;
+    while ($_r = $all_reports->fetch_assoc()) {
+        if (($_r['source'] ?? '') === 'maintenance') continue;
+        $lgu_badge_count++;
+        $lgu_has_reports = true;
+    }
+    $all_reports->data_seek(0);
+}
 
 // CIMM reports data (live, via RGMAO sync)
 $cimm_filter = $_GET['cimm_filter'] ?? 'all';
@@ -4528,7 +4551,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <div>
                         <div class="lgu-reports-title-group">
                             <h2 class="lgu-reports-title">LGU Monitoring Reports</h2>
-                            <span class="lgu-reports-badge"><?php echo $all_reports->num_rows; ?> Reports</span>
+                            <span class="lgu-reports-badge"><?php echo $lgu_badge_count; ?> Reports</span>
                         </div>
                         <p class="lgu-reports-subtitle">Reports submitted by the LGU Road &amp; Transportation Department.</p>
                     </div>
@@ -4563,9 +4586,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         <?php 
                         // Reset pointer and display all reports
                         $all_reports->data_seek(0);
-                        if ($all_reports->num_rows > 0): 
+                        if ($lgu_has_reports): 
                         ?>
                             <?php while ($report = $all_reports->fetch_assoc()): 
+                                if ($is_transport_supervisor && ($report['source'] ?? '') === 'maintenance') continue;
                                 $lgu_status_class = '';
                                 if ($report['status'] === 'approved') $lgu_status_class = 'approved';
                                 elseif ($report['status'] === 'cancelled') $lgu_status_class = 'cancelled';
@@ -4880,6 +4904,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         </div>
 
         <!-- CIMM Reports Panel -->
+        <?php if (!$is_transport_supervisor): ?>
         <div class="dept-reports-panel" id="cimmReportsPanel">
             <div class="dept-reports-header">
                 <div class="dept-reports-header-left">
@@ -5032,8 +5057,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 </table>
             </div>
         </div>
+        <?php endif; ?>
 
         <!-- Infrastructure Reports Panel -->
+        <?php if (!$is_transport_supervisor): ?>
         <div class="infra-reports-panel" id="infraReportsPanel">
             <div class="infra-reports-header">
                 <div class="infra-reports-header-left">
@@ -5156,6 +5183,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 </table>
             </div>
         </div>
+        <?php endif; ?>
 
         
         </div>
