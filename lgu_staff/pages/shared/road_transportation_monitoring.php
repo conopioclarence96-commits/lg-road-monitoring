@@ -173,7 +173,15 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
         ));
 
         // 3. CIMM reports (finalized = verification_status 'Verified').
+        //    Same source and filter as report_management.php's CIMM Reports
+        //    panel. That panel reads via rgmap_fetch_cimm_verification_reports(),
+        //    which ensures cimm_verification_reports exists with the full schema
+        //    first; this query must do the same, otherwise it fails (unknown
+        //    column) on installs where the table is still the old narrow schema
+        //    or doesn't exist yet, and CIMM reports silently never show up.
         try {
+            require_once __DIR__ . '/../api/cimm_verification_data.php';
+            rgmap_ensure_cimm_verification_table(rgmap_verification_pdo());
             $reports = array_merge($reports, $fetch(
                 "SELECT id, reference_code AS report_id, infrastructure AS title,
                         'infrastructure_issue' AS report_type, 'cimm' AS source,
