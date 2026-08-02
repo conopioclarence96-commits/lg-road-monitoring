@@ -4776,7 +4776,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 // Reports not yet verified by CIMM show as awaiting external verification
                                 // If CIMM verified and status is pending, show check button for final approval
                                 $pending_ext_verify = ($report['cimm_sync_status'] ?? '') !== 'verified' && !$can_verify && $report['status'] === 'pending';
-                                $ready_for_approval = (($report['cimm_sync_status'] ?? '') === 'verified' && $report['status'] === 'pending' && !$can_verify);
+                                // Transportation reports can be approved directly; road reports require CIMM verification
+                                $ready_for_approval = ($report_category === 'transportation') ? true : (($report['cimm_sync_status'] ?? '') === 'verified' && $report['status'] === 'pending');
 
                                 $lgu_type_labels = [
                                     'traffic_jam' => 'Traffic Jam',
@@ -6884,10 +6885,10 @@ function getTimeAgo($datetime) {
 // Road reports created by this LGU (local source) must go to external Engineering Office
 // Transportation reports and external reports can be verified here
 function canVerifyReport($category, $source) {
-    if ($category === 'road' && $source === 'local') {
-        return false;
-    }
-    return true;
+    // Local road reports (category='road', source='local') must be verified
+    // by the external Engineering Office (CIMM) and cannot be directly
+    // approved by local admin staff
+    return !($category === 'road' && $source === 'local');
 }
 
 function getActivityTitle($activity) {
