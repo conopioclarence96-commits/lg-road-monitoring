@@ -2739,7 +2739,7 @@ if ($focus_id > 0) {
                                     <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-eye"></i>
                                     </button>
-                                    <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                    <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'road_transportation_reports')">
                                         <i class="fas fa-pencil"></i>
                                     </button>
                                     <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
@@ -2852,7 +2852,7 @@ if ($focus_id > 0) {
                                     <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-eye"></i>
                                     </button>
-                                    <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                    <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'road_transportation_reports')">
                                         <i class="fas fa-pencil"></i>
                                     </button>
                                     <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
@@ -3068,7 +3068,7 @@ if ($focus_id > 0) {
                                     <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-eye"></i>
                                     </button>
-                                    <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                    <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'road_maintenance_reports')">
                                         <i class="fas fa-pencil"></i>
                                     </button>
                                     <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
@@ -3180,6 +3180,7 @@ if ($focus_id > 0) {
                     <input type="hidden" name="report_id" id="editReportId">
                     <input type="hidden" name="report_type" id="editReportType">
                     <input type="hidden" name="report_type_from_db" id="editReportTypeFromDB">
+                    <input type="hidden" name="report_table" id="editReportTable">
 
                     <div class="form-section">
                         <h6><i class="fas fa-info-circle"></i> Basic Information</h6>
@@ -3218,6 +3219,17 @@ if ($focus_id > 0) {
                                     <option value="high">High</option>
                                     <option value="critical">Critical</option>
                                 </select>
+                            </div>
+                        </div>
+                        <div style="margin-top: 15px;">
+                            <button type="button" class="btn-action" onclick="openAssignUserModal()">
+                                <i class="fas fa-user-plus"></i> Assign Staff to Project
+                            </button>
+                        </div>
+                        <div style="margin-top: 15px;">
+                            <label class="form-label">Assigned Staff</label>
+                            <div id="assignedUsersListRegular" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px;">
+                                <div style="color: #6b7280; font-size: 13px;">Loading assigned staff...</div>
                             </div>
                         </div>
                     </div>
@@ -3275,6 +3287,7 @@ if ($focus_id > 0) {
                     <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
                     <input type="hidden" name="action" value="update_cimm_report">
                     <input type="hidden" name="report_id" id="editCimmReportId">
+                    <input type="hidden" name="report_table" id="editCimmReportTable">
 
                     <div class="form-section">
                         <h6><i class="fas fa-info-circle"></i> CIMM Report Details</h6>
@@ -3315,13 +3328,20 @@ if ($focus_id > 0) {
                                 </select>
                             </div>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Engineer / Facility</label>
-                            <input type="text" class="form-control" name="assigned_to" id="editCimmAssignedTo" placeholder="Assigned engineer or facility">
+                        <div style="margin-top: 15px;">
+                            <button type="button" class="btn-action" onclick="openAssignUserModal()">
+                                <i class="fas fa-user-plus"></i> Assign Staff to Project
+                            </button>
                         </div>
-                        <div class="form-group">
+                        <div style="margin-top: 15px;">
+                            <label class="form-label">Assigned Staff</label>
+                            <div id="assignedUsersListCimm" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px;">
+                                <div style="color: #6b7280; font-size: 13px;">Loading assigned staff...</div>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top: 15px;">
                             <label class="form-label">Budget (₱)</label>
-                            <input type="number" class="form-control" name="estimation" id="editCimmEstimation" step="0.01" min="0" placeholder="0.00">
+                            <input type="number" class="form-control t-bg-input-readonly" name="estimation" id="editCimmEstimation" step="0.01" min="0" placeholder="0.00" readonly>
                         </div>
                     </div>
 
@@ -3438,6 +3458,36 @@ if ($focus_id > 0) {
         <img id="lightboxImage" src="" alt="Enlarged photo">
     </div>
 
+    <!-- Assign User Modal -->
+    <div id="assignUserModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-user-plus"></i> Assign Staff to Project</h5>
+                <button class="close" onclick="closeModal('assignUserModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Available Staff</label>
+                    <div id="availableUsersList" style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; border-radius: 6px; padding: 10px;">
+                        <div style="text-align: center; padding: 20px;">
+                            <i class="fas fa-spinner fa-spin"></i> Loading staff...
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group" style="margin-top: 15px;">
+                    <label class="form-label">Notes (optional)</label>
+                    <textarea class="form-control" id="assignmentNotes" rows="3" placeholder="Add notes about this assignment..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary-custom" onclick="closeModal('assignUserModal')">Cancel</button>
+                <button type="button" class="btn-action" onclick="assignUserToProject()">
+                    <i class="fas fa-check"></i> Assign
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // CIMM data for detail viewing (read-only)
         const cimmData = <?php echo json_encode(array_values($cimm_reports_list), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
@@ -3445,6 +3495,8 @@ if ($focus_id > 0) {
         // Global variables for progress updates
         let updateSelectedFiles = [];
         let updatePreviewCounter = 0;
+        let selectedUserForAssignment = null;
+        let originalModalBeforeAssign = null;
 
         // Modal functions
         function openModal(modalId) {
@@ -3653,6 +3705,347 @@ if ($focus_id > 0) {
 
         function closeLightbox() {
             document.getElementById('lightboxOverlay').classList.remove('show');
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function loadAssignedUsers() {
+            // Try to get values from both modals, use whichever has a valid reportId
+            let reportId = document.getElementById('editCimmReportId')?.value || document.getElementById('editReportId')?.value;
+            let reportType = document.getElementById('editCimmReportTable')?.value || document.getElementById('editReportTable')?.value;
+            
+            // Determine which container to use based on which modal is open
+            const cimmModal = document.getElementById('editCimmModal');
+            const isCimmModal = cimmModal && cimmModal.style.display === 'block';
+            const container = document.getElementById(isCimmModal ? 'assignedUsersListCimm' : 'assignedUsersListRegular');
+            
+            console.log('loadAssignedUsers: reportId=', reportId, 'reportType=', reportType, 'container:', container, 'isCimmModal:', isCimmModal);
+            
+            if (!container) {
+                console.error('assignedUsersList container not found!');
+                return;
+            }
+            
+            if (!reportId || !reportType) {
+                container.innerHTML = '<div style="color: #6b7280; font-size: 13px;">No report selected</div>';
+                return;
+            }
+            
+            container.innerHTML = '<div style="color: #6b7280; font-size: 13px;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+            
+            fetch(`../api/get_assigned_users.php?report_id=${reportId}&report_type=${encodeURIComponent(reportType)}`)
+                .then(r => {
+                    console.log('Response status:', r.status);
+                    return r.json();
+                })
+                .then(data => {
+                    console.log('Assigned users data:', data);
+                    if (data.success) {
+                        console.log('Assignments count:', data.assignments.length);
+                        if (data.assignments.length === 0) {
+                            container.innerHTML = `
+                                <div style="display: flex; align-items: center; gap: 8px; padding: 12px; background: #f9fafb; border-radius: 6px; border: 1px dashed #d1d5db;">
+                                    <i class="fas fa-user-slash" style="color: #9ca3af; font-size: 16px;"></i>
+                                    <span style="color: #6b7280; font-size: 13px;">No staff assigned yet</span>
+                                </div>
+                            `;
+                        } else {
+                            console.log('Rendering', data.assignments.length, 'assignments');
+                            container.innerHTML = '';
+                            console.log('Container cleared, innerHTML:', container.innerHTML);
+                            try {
+                                data.assignments.forEach(assignment => {
+                                    console.log('Rendering assignment:', assignment);
+                                    const userDiv = document.createElement('div');
+                                    userDiv.style.cssText = 'display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: linear-gradient(135deg, #f0f4fa 0%, #e8f0fe 100%); border-radius: 8px; border: 1px solid #dbeafe; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: all 0.2s;';
+                                    userDiv.onmouseover = function() { this.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'; this.style.transform = 'translateY(-1px)'; };
+                                    userDiv.onmouseout = function() { this.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)'; this.style.transform = 'translateY(0)'; };
+                                    
+                                    // Determine role icon and color
+                                    let roleIcon = 'fa-user';
+                                    let roleColor = '#3762c8';
+                                    if (assignment.role === 'road_monitoring_officer') {
+                                        roleIcon = 'fa-road';
+                                        roleColor = '#f59e0b';
+                                    } else if (assignment.role === 'trans_monitoring_officer') {
+                                        roleIcon = 'fa-bus';
+                                        roleColor = '#10b981';
+                                    }
+                                    
+                                    userDiv.innerHTML = `
+                                        <div style="width: 40px; height: 40px; background: ${roleColor}20; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                                            <i class="fas ${roleIcon}" style="color: ${roleColor}; font-size: 18px;"></i>
+                                        </div>
+                                        <div style="flex: 1;">
+                                            <div style="font-weight: 600; font-size: 14px; color: #1f2937;">${escapeHtml(assignment.full_name)}</div>
+                                            <div style="font-size: 12px; color: #6b7280; margin-top: 2px;">
+                                                <i class="fas fa-calendar-alt" style="margin-right: 4px;"></i>
+                                                Assigned: ${new Date(assignment.assigned_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                            </div>
+                                            <div style="font-size: 11px; color: #9ca3af; margin-top: 2px;">
+                                                <i class="fas fa-id-badge" style="margin-right: 4px;"></i>
+                                                ${escapeHtml(assignment.role.replace('_', ' ').toUpperCase())}
+                                            </div>
+                                        </div>
+                                        <button type="button" onclick="removeAssignment(${assignment.id}, '${escapeHtml(assignment.full_name)}')" 
+                                                style="padding: 6px 12px; background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; display: flex; align-items: center; gap: 6px; transition: all 0.2s; box-shadow: 0 2px 4px rgba(220, 53, 69, 0.2);"
+                                                onmouseover="this.style.boxShadow='0 4px 8px rgba(220, 53, 69, 0.3)'; this.style.transform='translateY(-1px)';"
+                                                onmouseout="this.style.boxShadow='0 2px 4px rgba(220, 53, 69, 0.2)'; this.style.transform='translateY(0)';">
+                                            <i class="fas fa-user-minus"></i> Remove
+                                        </button>
+                                    `;
+                                    console.log('User div created, appending to container');
+                                    container.appendChild(userDiv);
+                                    console.log('User div appended, container children count:', container.children.length);
+                                });
+                                console.log('Rendering complete, container children count:', container.children.length);
+                            } catch (e) {
+                                console.error('Error rendering assignments:', e);
+                                container.innerHTML = `<div style="color: #dc3545; font-size: 13px;">Error rendering: ${e.message}</div>`;
+                            }
+                        }
+                    } else {
+                        container.innerHTML = `
+                            <div style="display: flex; align-items: center; gap: 8px; padding: 12px; background: #fef2f2; border-radius: 6px; border: 1px solid #fecaca;">
+                                <i class="fas fa-exclamation-circle" style="color: #dc3545; font-size: 16px;"></i>
+                                <span style="color: #dc3545; font-size: 13px;">${escapeHtml(data.message)}</span>
+                            </div>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading assigned users:', error);
+                    container.innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 8px; padding: 12px; background: #fef2f2; border-radius: 6px; border: 1px solid #fecaca;">
+                            <i class="fas fa-exclamation-circle" style="color: #dc3545; font-size: 16px;"></i>
+                            <span style="color: #dc3545; font-size: 13px;">Failed to load assigned staff</span>
+                        </div>
+                    `;
+                });
+        }
+
+        function removeAssignment(assignmentId, userName) {
+            if (!confirm(`Are you sure you want to unassign ${userName} from this project?`)) {
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('assignment_id', assignmentId);
+            
+            fetch('../api/remove_assignment.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification(`${userName} unassigned successfully`, 'success');
+                    loadAssignedUsers();
+                } else {
+                    showNotification(data.message || 'Failed to unassign user', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error removing assignment:', error);
+                showNotification('Failed to unassign user', 'error');
+            });
+        }
+
+        function openAssignUserModal() {
+            // Store which modal is currently open
+            const cimmModal = document.getElementById('editCimmModal');
+            const regularModal = document.getElementById('editReportModal');
+            
+            if (cimmModal && cimmModal.style.display === 'block') {
+                originalModalBeforeAssign = 'cimm';
+            } else if (regularModal && regularModal.style.display === 'block') {
+                originalModalBeforeAssign = 'regular';
+            } else {
+                originalModalBeforeAssign = null;
+            }
+            
+            let reportId, reportType;
+            
+            if (originalModalBeforeAssign === 'cimm') {
+                // CIMM modal
+                reportId = document.getElementById('editCimmReportId').value;
+                reportType = document.getElementById('editCimmReportTable').value;
+            } else {
+                // Regular edit modal
+                reportId = document.getElementById('editReportId').value;
+                reportType = document.getElementById('editReportTable').value;
+            }
+            
+            console.log('openAssignUserModal called with reportId:', reportId, 'reportType:', reportType, 'originalModal:', originalModalBeforeAssign);
+            
+            if (!reportId || !reportType) {
+                showNotification('Please save the report first before assigning users', 'error');
+                return;
+            }
+            
+            closeModal('editReportModal');
+            openModal('assignUserModal');
+            
+            // Load available users
+            const usersList = document.getElementById('availableUsersList');
+            usersList.innerHTML = '<div style="text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin"></i> Loading staff...</div>';
+            
+            fetch(`../api/get_assignable_users.php?report_id=${reportId}&report_type=${encodeURIComponent(reportType)}`)
+                .then(r => r.json())
+                .then(data => {
+                    console.log('Report category debug:', data.report_category, 'Target role:', data.target_role);
+                    if (data.success) {
+                        if (data.users.length === 0) {
+                            usersList.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">No staff available for this project type</div>';
+                        } else {
+                            usersList.innerHTML = '';
+                            data.users.forEach(user => {
+                                const userDiv = document.createElement('div');
+                                userDiv.style.cssText = 'display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #e5e7eb; cursor: pointer; transition: all 0.2s;';
+                                userDiv.style.backgroundColor = user.already_assigned ? '#f3f4f6' : '#fff';
+                                userDiv.onclick = function() {
+                                    if (!user.already_assigned) {
+                                        selectUserForAssignment(user.id, user.full_name);
+                                    }
+                                };
+                                
+                                // Determine role icon and color
+                                let roleIcon = 'fa-user';
+                                let roleColor = '#3762c8';
+                                if (user.role === 'road_monitoring_officer') {
+                                    roleIcon = 'fa-road';
+                                    roleColor = '#f59e0b';
+                                } else if (user.role === 'trans_monitoring_officer') {
+                                    roleIcon = 'fa-bus';
+                                    roleColor = '#10b981';
+                                }
+                                
+                                userDiv.innerHTML = `
+                                    <div style="width: 44px; height: 44px; background: ${roleColor}15; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid ${roleColor}30;">
+                                        <i class="fas ${roleIcon}" style="color: ${roleColor}; font-size: 20px;"></i>
+                                    </div>
+                                    <div style="flex: 1;">
+                                        <div style="font-weight: 600; font-size: 14px; color: #1f2937;">${escapeHtml(user.full_name)}</div>
+                                        <div style="font-size: 12px; color: #6b7280; margin-top: 2px;">
+                                            <i class="fas fa-envelope" style="margin-right: 4px;"></i>
+                                            ${escapeHtml(user.email)}
+                                        </div>
+                                        <div style="font-size: 11px; color: #9ca3af; margin-top: 2px;">
+                                            <i class="fas fa-id-badge" style="margin-right: 4px;"></i>
+                                            ${escapeHtml(user.role.replace('_', ' ').toUpperCase())}
+                                        </div>
+                                    </div>
+                                    <div style="text-align: right; min-width: 80px;">
+                                        <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">
+                                            <i class="fas fa-tasks" style="margin-right: 4px;"></i>
+                                            Active: <strong>${user.active_assignments}</strong>
+                                        </div>
+                                        ${user.already_assigned 
+                                            ? '<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: #d1fae5; color: #059669; border-radius: 12px; font-size: 11px; font-weight: 500;"><i class="fas fa-check-circle"></i> Assigned</span>' 
+                                            : '<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: #dbeafe; color: #2563eb; border-radius: 12px; font-size: 11px; font-weight: 500;"><i class="fas fa-plus-circle"></i> Assign</span>'}
+                                    </div>
+                                `;
+                                usersList.appendChild(userDiv);
+                            });
+                        }
+                    } else {
+                        usersList.innerHTML = `<div style="text-align: center; padding: 20px; color: #dc3545;">${escapeHtml(data.message)}</div>`;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading users:', error);
+                    usersList.innerHTML = '<div style="text-align: center; padding: 20px; color: #dc3545;">Failed to load staff</div>';
+                });
+        }
+
+        function selectUserForAssignment(userId, userName) {
+            // Check if already selected, if so deselect
+            if (selectedUserForAssignment && selectedUserForAssignment.id === userId) {
+                selectedUserForAssignment = null;
+                // Update UI to remove selection
+                const usersList = document.getElementById('availableUsersList');
+                Array.from(usersList.children).forEach(child => {
+                    child.style.backgroundColor = '#fff';
+                });
+                return;
+            }
+
+            selectedUserForAssignment = { id: userId, name: userName };
+            
+            // Update UI to show selected user
+            const usersList = document.getElementById('availableUsersList');
+            Array.from(usersList.children).forEach(child => {
+                child.style.backgroundColor = '#fff';
+            });
+            event.currentTarget.style.backgroundColor = '#e3f2fd';
+        }
+
+        function assignUserToProject() {
+            if (!selectedUserForAssignment) {
+                showNotification('Please select a staff member to assign', 'error');
+                return;
+            }
+            
+            // Check which modal is currently open
+            const cimmModal = document.getElementById('editCimmModal');
+            const isCimmModal = cimmModal && cimmModal.style.display === 'block';
+            
+            let reportId, reportType;
+            
+            if (isCimmModal) {
+                // CIMM modal
+                reportId = document.getElementById('editCimmReportId').value;
+                reportType = document.getElementById('editCimmReportTable').value;
+            } else {
+                // Regular edit modal
+                reportId = document.getElementById('editReportId').value;
+                reportType = document.getElementById('editReportTable').value;
+            }
+            
+            const notes = document.getElementById('assignmentNotes').value;
+            
+            const formData = new FormData();
+            formData.append('report_id', reportId);
+            formData.append('report_type', reportType);
+            formData.append('user_id', selectedUserForAssignment.id);
+            formData.append('notes', notes);
+            
+            fetch('../api/assign_user_to_project.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification(`${selectedUserForAssignment.name} assigned successfully`, 'success');
+                    closeModal('assignUserModal');
+                    document.getElementById('assignmentNotes').value = '';
+                    selectedUserForAssignment = null;
+                    
+                    // Reopen the original modal
+                    if (originalModalBeforeAssign === 'cimm') {
+                        openModal('editCimmModal');
+                    } else {
+                        openModal('editReportModal');
+                    }
+                    
+                    loadAssignedUsers();
+                } else {
+                    showNotification(data.message || 'Failed to assign user', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error assigning user:', error);
+                showNotification('Failed to assign user', 'error');
+            });
         }
 
         function triggerFileUpload() {
@@ -3907,7 +4300,7 @@ if ($focus_id > 0) {
 
         var editSelectedFiles = [];
 
-        function editReport(id, type) {
+        function editReport(id, type, table) {
             fetch(`../api/get_report_details.php?id=${id}&type=${encodeURIComponent(type)}&_=${Date.now()}`)
                 .then(response => {
                     if (!response.ok) {
@@ -3928,6 +4321,7 @@ if ($focus_id > 0) {
                         document.getElementById('editReportId').value = data.report.id;
                         document.getElementById('editReportType').value = type;
                         document.getElementById('editReportTypeFromDB').value = data.report.report_type;
+                        document.getElementById('editReportTable').value = table || 'road_transportation_reports';
                         document.getElementById('editStatus').value = data.report.status;
                         document.getElementById('editPriority').value = data.report.priority;
                         document.getElementById('editTitle').value = data.report.title || '';
@@ -3989,6 +4383,9 @@ if ($focus_id > 0) {
                             'Last updated: ' + (data.report.updated_at || 'N/A');
                         
                         openModal('editReportModal');
+                        
+                        // Load assigned users
+                        loadAssignedUsers();
                     } else {
                         showNotification('Failed to load report details', 'error');
                     }
@@ -4491,18 +4888,19 @@ if ($focus_id > 0) {
             var r = cimmData[idx];
             if (!r) return;
             document.getElementById('editCimmReportId').value = r.id;
+            document.getElementById('editCimmReportTable').value = 'cimm_verification_reports';
             document.getElementById('editCimmRepNumber').value = r.report_id || '';
             document.getElementById('editCimmInfrastructure').value = r.title || '';
             document.getElementById('editCimmLocation').value = r.location || '';
             document.getElementById('editCimmStatus').value = r.status || 'pending';
             document.getElementById('editCimmPriority').value = r.priority || 'medium';
-            document.getElementById('editCimmAssignedTo').value = r.assigned_to || '';
             document.getElementById('editCimmEstimation').value = r.estimation || '';
             document.getElementById('editCimmNotes').value = r.notes || '';
             document.getElementById('cimmEditIndicator').textContent = '';
             document.getElementById('cimmEditSubmitBtn').disabled = false;
             document.getElementById('cimmEditSubmitBtn').innerHTML = '<i class="fas fa-save"></i> Save Changes';
             openModal('editCimmModal');
+            loadAssignedUsers();
         }
 
         // CIMM delete
