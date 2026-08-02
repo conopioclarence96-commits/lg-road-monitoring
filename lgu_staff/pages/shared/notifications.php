@@ -77,7 +77,8 @@ if ($is_admin) {
     try {
         $rstmt = $conn->prepare("
             SELECT id, report_id, title, department, priority, status, description, location, 
-                   reporter_name, reporter_email, created_at
+                   reporter_name, reporter_email, created_at,
+                   report_type, report_category, report_source, created_by
             FROM road_transportation_reports 
             WHERE status = 'pending'
             ORDER BY 
@@ -110,7 +111,8 @@ if ($is_admin) {
     // Admin: get progress update notifications
     try {
         $nstmt = $conn->prepare("
-            SELECT rn.*, r.report_id as report_code, r.title as report_title
+            SELECT rn.*, r.report_id as report_code, r.title as report_title,
+                   r.report_type, r.report_category, r.report_source, r.created_by
             FROM report_notifications rn
             LEFT JOIN road_transportation_reports r ON rn.report_id = r.id
             WHERE rn.is_read = 0
@@ -146,7 +148,8 @@ if ($is_admin) {
     try {
         $rstmt = $conn->prepare("
             SELECT id, report_id, title, status, location, 
-                   approved_at, rejected_at, updated_at, created_at
+                   approved_at, rejected_at, updated_at, created_at,
+                   report_type, report_category, report_source, created_by
             FROM road_transportation_reports
             WHERE created_by = ? AND status IN ('completed', 'cancelled')
             ORDER BY GREATEST(COALESCE(approved_at, '1970-01-01'), COALESCE(rejected_at, '1970-01-01'), updated_at) DESC
@@ -162,6 +165,34 @@ if ($is_admin) {
 }
 
 $total_notifications = $is_admin ? (count($pending_reports) + count($pending_changes) + count($progress_notifications)) : (count($staff_updates) + count($report_updates));
+
+// --- Notification deep-link helpers ----------------------------------------
+// Every View/Review button must pass the report source together with the id
+// so destination pages can look up the record in the correct table — ids are
+// only unique within their own table. Returns one of:
+//   'citizen'     -> verification_monitoring.php?source=citizen&id=...
+//   'lgu'         -> report_management.php?source=lgu&id=...
+//   'maintenance' -> report_management.php?source=maintenance&id=...
+function notification_report_source(array $r): string {
+    if (($r['report_type'] ?? '') === 'infrastructure_issue') return 'maintenance';
+    if (!empty($r['created_by'])) return 'lgu';
+    return 'citizen';
+}
+
+function notification_report_url_for(int $id, array $r): string {
+    $type = rawurlencode((string)($r['report_type'] ?? ''));
+    $src = notification_report_source($r);
+    if ($src === 'citizen') {
+        return '../admin/verification_monitoring.php?source=citizen&id=' . $id;
+    }
+    $url = '../admin/report_management.php?source=' . $src . '&id=' . $id;
+    if ($type !== '') $url .= '&type=' . $type;
+    return $url;
+}
+
+function notification_report_url(array $r): string {
+    return notification_report_url_for((int)($r['id'] ?? 0), $r);
+}
 ?>
 
 <!DOCTYPE html>
@@ -613,7 +644,7 @@ $total_notifications = $is_admin ? (count($pending_reports) + count($pending_cha
                                 </div>
                                 <div style="margin-top: 10px;">
                                     <div class="action-buttons">
-                                        <a href="../admin/report_management.php?id=<?php echo $report['id']; ?>" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> View</a>
+                                        <a href="<?php echo notification_report_url($report); ?>" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> View</a>
                                     </div>
                                 </div>
                             </div>
@@ -665,7 +696,7 @@ $total_notifications = $is_admin ? (count($pending_reports) + count($pending_cha
                                 </div>
                                 <div style="margin-top: 10px;">
                                     <div class="action-buttons">
-                                        <a href="account_approvals.php" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> Review</a>
+                                        <a href="../admin/account_approvals.php?cr_id=<?php echo (int)$cr['id']; ?>" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> Review</a>
                                     </div>
                                 </div>
                             </div>
@@ -705,7 +736,7 @@ $total_notifications = $is_admin ? (count($pending_reports) + count($pending_cha
                                 </div>
                                 <div style="margin-top: 10px;">
                                     <div class="action-buttons">
-                                        <a href="../admin/report_management.php?id=<?php echo (int)$pn['report_id']; ?>" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> View Report</a>
+                                        <a href="<?php echo notification_report_url_for((int)$pn['report_id'], $pn); ?>" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> View Report</a>
                                     </div>
                                 </div>
                             </div>

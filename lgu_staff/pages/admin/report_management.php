@@ -862,6 +862,24 @@ $offset = ($page - 1) * $per_page;
 $status_filter = $_GET['status'] ?? 'all';
 $source_filter = $_GET['source'] ?? 'all';
 
+// Normalize the source aliases used by notification deep-links so the filter
+// logic, panel classification and get_reports() all agree on one value:
+//   'citizen' -> 'transport'  (Citizen Reports)
+//   'lgu'     -> 'lgu_reports' (LGU Monitoring Reports)
+//   'cimm'    -> 'cimm'
+//   'maintenance' -> 'maintenance'
+$source_aliases = [
+    'all'          => 'all',
+    'citizen'      => 'transport',
+    'transport'    => 'transport',
+    'lgu'          => 'lgu_reports',
+    'lgu_reports'  => 'lgu_reports',
+    'cimm'         => 'cimm',
+    'maintenance'  => 'maintenance',
+];
+$source_filter = $source_aliases[$source_filter] ?? 'all';
+$_GET['source'] = $source_filter;
+
 // Get data
 $reports = get_reports($status_filter, $source_filter, $per_page, $offset);
 $stats = get_report_stats();
@@ -919,44 +937,149 @@ if ($include_cimm && !$is_transport_supervisor) {
     }
 }
 
-// Deep-link focus: when a specific report is requested via ?id= (e.g. from a
-// notification "View" button), ensure it is rendered so the highlight/scroll
-// JS can find it — even when pagination or source classification ('hidden')
-// would otherwise exclude it from the page.
+// Deep-link focus: when a specific report is requested via ?source= and ?id=
+// (e.g. from a notification "View" button), make sure it is rendered so the
+// frontend can scroll to and highlight it — even when pagination, filters or
+// source classification ('hidden') would otherwise exclude it. The backend
+// fetches the record from the correct table before any JS highlight runs, so
+// this is never a JavaScript-only lookup.
 $focus_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+$focus_source = $_GET['source'] ?? '';
+$focus_target = [
+    'found'       => false,
+    'id'          => $focus_id,
+    'source'      => $focus_source,
+    'panel'       => '',
+    'panelSource' => '',
+];
+
 if ($focus_id > 0) {
     try {
-        $focus_found = false;
-        foreach ([$citizen_reports, $lgu_reports_list, $infra_reports_list, $cimm_reports_list] as $list) {
-            foreach ($list as $r) {
-                if ((int)$r['id'] === $focus_id) { $focus_found = true; break 2; }
-            }
+        $focus_report = null;
+        $focus_panel = ''; // one of: citizen | lgu | cimm | maintenance
+
+        $est_result = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'estimation'");
+        $transport_est = $est_result && $est_result->num_rows > 0;
+        $transport_est_col = $transport_est ? 'estimation' : '0 as estimation';
+
+        $transport_focus_query = function ($id) use ($conn, $transport_est_col) {
+            return fetch_one("SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, {$transport_est_col}, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' WHEN report_category = 'transportation' AND report_source = 'local' AND created_by != 0 AND status = 'approved' THEN 'lgu_reports' WHEN report_category = 'transportation' AND report_source = 'local' AND created_by != 0 THEN 'hidden' ELSE 'transport' END as source_system FROM road_transportation_reports WHERE id = ?", [$id], 'i');
+        };
+
+        $src_key = $source_aliases[$focus_source] ?? '';
+
+        switch ($src_key) {
+            case 'cimm':
+                // CIMM reports live in their own table.
+                $focus_panel = 'cimm';
+                foreach ($cimm_reports_list as $r) {
+                    if ((int)$r['id'] === $focus_id) { $focus_report = $r; break; }
+                }
+                if (!$focus_report) {
+                    $pdo = rgmap_verification_pdo();
+                    rgmap_ensure_cimm_verification_table($pdo);
+                    $cimm_stmt = $pdo->prepare("SELECT * FROM cimm_verification_reports WHERE id = ?");
+                    $cimm_stmt->execute([$focus_id]);
+                    $cimm_row = $cimm_stmt->fetch(PDO::FETCH_ASSOC);
+                    if ($cimm_row) {
+                        $focus_report = mapCimmToReportManagement($cimm_row);
+                        $cimm_reports_list[] = $focus_report;
+                    }
+                }
+                break;
+
+            case 'maintenance':
+                // Infrastructure projects come from road_maintenance_reports,
+                // and infrastructure issues from road_transportation_reports.
+                $focus_panel = 'maintenance';
+                foreach ($infra_reports_list as $r) {
+                    if ((int)$r['id'] === $focus_id) { $focus_report = $r; break; }
+                }
+                if (!$focus_report) {
+                    $maint_result = $conn->query("SHOW COLUMNS FROM road_maintenance_reports LIKE 'estimation'");
+                    $maint_est = $maint_result && $maint_result->num_rows > 0;
+                    $maint_est_col = $maint_est ? 'estimation' : '0 as estimation';
+                    $focus_report = fetch_one("SELECT id, report_id, title, description, location, priority, status, maintenance_team as assigned_to, {$maint_est_col}, department, created_date, created_at, updated_at, approved_at, NULL as attachments, NULL as image_path, 'maintenance' as report_type, 'maintenance' as source_system FROM road_maintenance_reports WHERE id = ?", [$focus_id], 'i');
+                    if (!$focus_report) {
+                        $focus_report = fetch_one("SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, {$transport_est_col}, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, 'maintenance' as source_system FROM road_transportation_reports WHERE id = ? AND report_type = 'infrastructure_issue'", [$focus_id], 'i');
+                    }
+                    if ($focus_report) $infra_reports_list[] = $focus_report;
+                }
+                break;
+
+            case 'lgu_reports':
+                // LGU Monitoring Reports are LGU-staff-created reports. Even
+                // unapproved ones ('hidden' classification) must be injected
+                // into the LGU panel so the notification link always lands.
+                $focus_panel = 'lgu';
+                foreach ($lgu_reports_list as $r) {
+                    if ((int)$r['id'] === $focus_id) { $focus_report = $r; break; }
+                }
+                if (!$focus_report) {
+                    $focus_report = $transport_focus_query($focus_id);
+                    if ($focus_report) $lgu_reports_list[] = $focus_report;
+                }
+                break;
+
+            case 'transport':
+                // Citizen Reports.
+                $focus_panel = 'citizen';
+                foreach ($citizen_reports as $r) {
+                    if ((int)$r['id'] === $focus_id) { $focus_report = $r; break; }
+                }
+                if (!$focus_report) {
+                    $focus_report = $transport_focus_query($focus_id);
+                    if ($focus_report) $citizen_reports[] = $focus_report;
+                }
+                break;
+
+            default:
+                // Legacy deep-links (?id= without ?source=): look up whichever
+                // table actually contains the report and place it in the panel
+                // that matches its classification.
+                foreach ([$citizen_reports, $lgu_reports_list, $infra_reports_list, $cimm_reports_list] as $list) {
+                    foreach ($list as $r) {
+                        if ((int)$r['id'] === $focus_id) { $focus_report = $r; break 2; }
+                    }
+                }
+                if ($focus_report) {
+                    $cls = $focus_report['source_system'] ?? 'transport';
+                    if ($cls === 'maintenance') $focus_panel = 'maintenance';
+                    elseif ($cls === 'lgu_reports' || $cls === 'hidden') $focus_panel = 'lgu';
+                    else $focus_panel = 'citizen';
+                } else {
+                    $focus_report = $transport_focus_query($focus_id);
+                    if ($focus_report) {
+                        $cls = $focus_report['source_system'] ?? 'transport';
+                        if ($cls === 'maintenance') $focus_panel = 'maintenance';
+                        elseif ($cls === 'lgu_reports' || $cls === 'hidden') $focus_panel = 'lgu';
+                        else $focus_panel = 'citizen';
+                    } else {
+                        $maint_result = $conn->query("SHOW COLUMNS FROM road_maintenance_reports LIKE 'estimation'");
+                        $maint_est = $maint_result && $maint_result->num_rows > 0;
+                        $maint_est_col = $maint_est ? 'estimation' : '0 as estimation';
+                        $focus_report = fetch_one("SELECT id, report_id, title, description, location, priority, status, maintenance_team as assigned_to, {$maint_est_col}, department, created_date, created_at, updated_at, approved_at, NULL as attachments, NULL as image_path, 'maintenance' as report_type, 'maintenance' as source_system FROM road_maintenance_reports WHERE id = ?", [$focus_id], 'i');
+                        if ($focus_report) $focus_panel = 'maintenance';
+                    }
+                }
+                if ($focus_report) {
+                    if ($focus_panel === 'maintenance') $infra_reports_list[] = $focus_report;
+                    elseif ($focus_panel === 'lgu') $lgu_reports_list[] = $focus_report;
+                    else $citizen_reports[] = $focus_report;
+                }
+                break;
         }
 
-        if (!$focus_found) {
-            $est_result = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'estimation'");
-            $transport_est = $est_result && $est_result->num_rows > 0;
-            $est_col = $transport_est ? 'estimation' : '0 as estimation';
-
-            $focus_report = fetch_one("SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, {$est_col}, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' WHEN report_category = 'transportation' AND report_source = 'local' AND created_by != 0 AND status = 'approved' THEN 'lgu_reports' WHEN report_category = 'transportation' AND report_source = 'local' AND created_by != 0 THEN 'hidden' ELSE 'transport' END as source_system FROM road_transportation_reports WHERE id = ?", [$focus_id], 'i');
-
-            if (!$focus_report) {
-                $maint_result = $conn->query("SHOW COLUMNS FROM road_maintenance_reports LIKE 'estimation'");
-                $maint_est = $maint_result && $maint_result->num_rows > 0;
-                $est_col = $maint_est ? 'estimation' : '0 as estimation';
-                $focus_report = fetch_one("SELECT id, report_id, title, description, location, priority, status, maintenance_team as assigned_to, {$est_col}, department, created_date, created_at, updated_at, approved_at, NULL as attachments, NULL as image_path, 'maintenance' as report_type, 'maintenance' as source_system FROM road_maintenance_reports WHERE id = ?", [$focus_id], 'i');
-            }
-
-            if ($focus_report) {
-                $src = $focus_report['source_system'] ?? 'transport';
-                if ($src === 'maintenance') {
-                    $infra_reports_list[] = $focus_report;
-                } elseif ($src === 'lgu_reports' || $src === 'hidden') {
-                    $lgu_reports_list[] = $focus_report;
-                } else {
-                    $citizen_reports[] = $focus_report;
-                }
-            }
+        if ($focus_report) {
+            $focus_target['found'] = true;
+            $focus_target['panel'] = $focus_panel;
+            $panel_sources = [
+                'citizen'     => 'transport',
+                'lgu'         => 'lgu_reports',
+                'cimm'        => 'cimm',
+                'maintenance' => 'maintenance',
+            ];
+            $focus_target['panelSource'] = $panel_sources[$focus_panel] ?? '';
         }
     } catch (Exception $e) {
         error_log("Deep-link focus report fetch failed: " . $e->getMessage());
@@ -2155,6 +2278,24 @@ if ($focus_id > 0) {
         body.dark-mode .rm-table tbody tr { border-bottom-color: rgba(255,255,255,0.05); }
         body.dark-mode .rm-table tbody tr:hover { background: rgba(55, 98, 200, 0.08); }
 
+        .rm-row-focus {
+            animation: rmFocusPulse 1.2s ease-in-out 4;
+            box-shadow: 0 0 0 3px #3762c8, 0 8px 32px rgba(55, 98, 200, 0.35);
+            border-left: 4px solid #3762c8;
+            background: rgba(55, 98, 200, 0.12);
+        }
+
+        @keyframes rmFocusPulse {
+            0%, 100% { background-color: rgba(55, 98, 200, 0.12); }
+            50% { background-color: rgba(55, 98, 200, 0.28); }
+        }
+
+        body.dark-mode .rm-row-focus {
+            box-shadow: 0 0 0 3px #6a9bff, 0 8px 32px rgba(106, 155, 255, 0.35);
+            border-left: 4px solid #6a9bff;
+            background: rgba(106, 155, 255, 0.14);
+        }
+
         .rm-action-btn {
             padding: 5px 10px;
             background: rgba(55, 98, 200, 0.1);
@@ -2592,7 +2733,7 @@ if ($focus_id > 0) {
                             foreach ($lgu_reports_list as $report):
                                 $hasLgu = true;
                         ?>
-                        <tr data-id="<?php echo (int)$report['id']; ?>">
+                        <tr data-id="<?php echo (int)$report['id']; ?>" data-source="lgu_reports">
                             <td>
                                 <div class="rm-action-group">
                                     <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
@@ -2705,7 +2846,7 @@ if ($focus_id > 0) {
                             foreach ($citizen_reports as $report):
                                 $hasCitizen = true;
                         ?>
-                        <tr data-id="<?php echo (int)$report['id']; ?>">
+                        <tr data-id="<?php echo (int)$report['id']; ?>" data-source="citizen">
                             <td>
                                 <div class="rm-action-group">
                                     <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
@@ -2820,7 +2961,7 @@ if ($focus_id > 0) {
                             foreach ($cimm_reports_list as $row):
                                 $hasCimm = true;
                         ?>
-                        <tr>
+                        <tr data-id="<?php echo (int)$row['id']; ?>" data-source="cimm">
                             <td>
                                 <div class="rm-action-group">
                                     <button class="rm-action-btn" onclick="viewCimmReport(<?php echo $cimmIdx; ?>)">
@@ -2921,7 +3062,7 @@ if ($focus_id > 0) {
                             foreach ($infra_reports_list as $report):
                                 $hasInfra = true;
                         ?>
-                        <tr data-id="<?php echo (int)$report['id']; ?>">
+                        <tr data-id="<?php echo (int)$report['id']; ?>" data-source="maintenance">
                             <td>
                                 <div class="rm-action-group">
                                     <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
@@ -4445,16 +4586,35 @@ if ($focus_id > 0) {
             sourceFilter.addEventListener('change', function() { filterSource(this.value); });
         }
 
-        // Scroll to specific report if id param is in URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const focusId = urlParams.get('id');
-        if (focusId) {
-            setTimeout(() => {
-                const row = document.querySelector(`tr[data-id="${focusId}"]`);
-                if (row) {
+        // Deep-link focus: ?source= + ?id= from a notification "View" button.
+        // The backend already fetched the report and injected it into the
+        // correct panel (see the $focus_target PHP block above), so this only
+        // reveals the panel, scrolls to the row and briefly highlights it.
+        var focusTarget = <?php echo json_encode($focus_target); ?>;
+        if (focusTarget && focusTarget.id) {
+            setTimeout(function() {
+                var row = null;
+                if (focusTarget.panelSource) {
+                    // Source is known — match by source + id so rows with the
+                    // same id in different tables never collide.
+                    row = document.querySelector('tr[data-id="' + focusTarget.id + '"][data-source="' + focusTarget.panelSource + '"]');
+                } else {
+                    // Legacy ?id= deep-link without a source.
+                    row = document.querySelector('tr[data-id="' + focusTarget.id + '"]');
+                }
+                if (row && focusTarget.found) {
+                    var panel = row.closest('.rm-panel');
+                    if (panel) panel.style.display = '';
+                    var sf = document.getElementById('sourceFilter');
+                    if (sf && focusTarget.panelSource) {
+                        sf.value = focusTarget.panelSource;
+                        filterSource(sf.value);
+                    }
                     row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    row.style.boxShadow = '0 0 0 3px #3762c8, 0 8px 32px rgba(55,98,200,0.3)';
-                    setTimeout(() => { row.style.boxShadow = ''; }, 3000);
+                    row.classList.add('rm-row-focus');
+                    setTimeout(function() { row.classList.remove('rm-row-focus'); }, 5000);
+                } else {
+                    showNotification('The report referenced by this notification could not be found.', 'error');
                 }
             }, 500);
         }

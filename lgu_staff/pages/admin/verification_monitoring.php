@@ -580,6 +580,97 @@ $citizen_reports = getCitizenReports($conn);
 // Infrastructure-specific reports
 $infra_reports = getInfraReports($conn);
 
+// Deep-link focus: ?source= + ?id= from a notification "View" button. The
+// backend verifies the record still exists in the correct table before the
+// frontend attempts to scroll to / highlight it. The frontend uses $focus_target
+// to reveal the right panel, reveal the row (filters are client-side here),
+// scroll to it and briefly highlight it — or show a friendly message when the
+// record no longer exists.
+$focus_source = $_GET['source'] ?? '';
+$focus_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+$focus_target = [
+    'found'       => false,
+    'id'          => $focus_id,
+    'source'      => $focus_source,
+    'table'       => '',
+    'filterValue' => '',
+];
+
+if ($focus_id > 0) {
+    try {
+        switch ($focus_source) {
+            case 'citizen':
+            case 'transport':
+                if (fetch_one("SELECT id FROM road_transportation_reports WHERE id = ?", [$focus_id], 'i')) {
+                    $focus_target['found'] = true;
+                    $focus_target['table'] = 'citizenTable';
+                    $focus_target['filterValue'] = 'transport';
+                }
+                break;
+
+            case 'lgu':
+                if (fetch_one("SELECT id FROM road_transportation_reports WHERE id = ?", [$focus_id], 'i')) {
+                    $focus_target['found'] = true;
+                    $focus_target['table'] = 'lguTable';
+                    $focus_target['filterValue'] = 'all';
+                }
+                break;
+
+            case 'cimm':
+                $pdo = rgmap_verification_pdo();
+                rgmap_ensure_cimm_verification_table($pdo);
+                $cstmt = $pdo->prepare("SELECT id FROM cimm_verification_reports WHERE id = ?");
+                $cstmt->execute([$focus_id]);
+                if ($cstmt->fetch()) {
+                    $focus_target['found'] = true;
+                    $focus_target['table'] = 'deptTable';
+                    $focus_target['filterValue'] = 'cimm';
+                }
+                break;
+
+            case 'maintenance':
+                $f = fetch_one("SELECT id FROM road_maintenance_reports WHERE id = ?", [$focus_id], 'i');
+                if (!$f) {
+                    $f = fetch_one("SELECT id FROM road_transportation_reports WHERE id = ? AND report_type = 'infrastructure_issue'", [$focus_id], 'i');
+                }
+                if ($f) {
+                    $focus_target['found'] = true;
+                    $focus_target['table'] = 'infraTable';
+                    $focus_target['filterValue'] = 'maintenance';
+                }
+                break;
+
+            default:
+                // Legacy ?id= deep-link without a source: search the tables that
+                // feed each panel to figure out where the report lives.
+                if (fetch_one("SELECT id FROM road_transportation_reports WHERE id = ?", [$focus_id], 'i')) {
+                    $focus_target['found'] = true;
+                    $focus_target['table'] = 'lguTable';
+                    $focus_target['filterValue'] = 'all';
+                } elseif (fetch_one("SELECT id FROM road_maintenance_reports WHERE id = ?", [$focus_id], 'i')) {
+                    $focus_target['found'] = true;
+                    $focus_target['table'] = 'infraTable';
+                    $focus_target['filterValue'] = 'maintenance';
+                } else {
+                    try {
+                        $pdo = rgmap_verification_pdo();
+                        rgmap_ensure_cimm_verification_table($pdo);
+                        $cstmt = $pdo->prepare("SELECT id FROM cimm_verification_reports WHERE id = ?");
+                        $cstmt->execute([$focus_id]);
+                        if ($cstmt->fetch()) {
+                            $focus_target['found'] = true;
+                            $focus_target['table'] = 'deptTable';
+                            $focus_target['filterValue'] = 'cimm';
+                        }
+                    } catch (Exception $e) {}
+                }
+                break;
+        }
+    } catch (Exception $e) {
+        error_log("Verification monitoring focus lookup failed: " . $e->getMessage());
+    }
+}
+
 // Handle AJAX request for report details
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'get_report_details') {
     header('Content-Type: application/json');
@@ -2180,6 +2271,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         body.dark-mode .infra-table tbody tr:hover {
             background: rgba(249, 115, 22, 0.08);
+        }
+
+        .vm-row-focus {
+            animation: vmFocusPulse 1.2s ease-in-out 4;
+            box-shadow: 0 0 0 3px #3762c8, 0 8px 32px rgba(55, 98, 200, 0.35);
+            border-left: 4px solid #3762c8;
+            background: rgba(55, 98, 200, 0.12);
+        }
+
+        @keyframes vmFocusPulse {
+            0%, 100% { background-color: rgba(55, 98, 200, 0.12); }
+            50% { background-color: rgba(55, 98, 200, 0.28); }
+        }
+
+        body.dark-mode .vm-row-focus {
+            box-shadow: 0 0 0 3px #6a9bff, 0 8px 32px rgba(106, 155, 255, 0.35);
+            border-left: 4px solid #6a9bff;
+            background: rgba(106, 155, 255, 0.14);
         }
 
         .infra-action-btn {
@@ -4648,7 +4757,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 if (in_array($report['status'], ['approved', 'completed'])) $lgu_filter_status = 'approved';
                                 elseif (in_array($report['status'], ['cancelled'])) $lgu_filter_status = 'rejected';
                             ?>
-                            <tr data-status="<?php echo $lgu_filter_status; ?>" data-source="<?php echo htmlspecialchars($report['source']); ?>">
+                            <tr data-id="<?php echo (int)$report['id']; ?>" data-status="<?php echo $lgu_filter_status; ?>" data-source="<?php echo htmlspecialchars($report['source']); ?>">
                                 <td>
                                     <div class="lgu-action-group">
                                         <button class="lgu-action-btn" onclick="viewLguReport(<?php echo $report['id']; ?>)">
@@ -4856,7 +4965,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 if (in_array($crow['status'], ['approved', 'completed'])) $citizen_filter_status = 'approved';
                                 elseif (in_array($crow['status'], ['cancelled'])) $citizen_filter_status = 'rejected';
                         ?>
-                        <tr data-status="<?php echo $citizen_filter_status; ?>">
+                        <tr data-id="<?php echo (int)$crow['id']; ?>" data-status="<?php echo $citizen_filter_status; ?>" data-source="citizen">
                             <td>
                                 <div class="citizen-action-group">
                                     <button class="citizen-action-btn" onclick="viewCitizenReport(<?php echo $crow['id']; ?>)">
@@ -4978,7 +5087,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             if (in_array($row['status'], ['completed'])) $cimm_filter_status = 'approved';
                             elseif (in_array($row['status'], ['resolved'])) $cimm_filter_status = 'rejected';
                         ?>
-                        <tr data-status="<?php echo $cimm_filter_status; ?>">
+                        <tr data-id="<?php echo (int)$row['id']; ?>" data-status="<?php echo $cimm_filter_status; ?>" data-source="cimm">
                             <td>
                                 <div class="dept-action-group">
                                     <button class="dept-action-btn" onclick="viewCimmReport(<?php echo $row['id']; ?>)">
@@ -5034,7 +5143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 if (in_array($status, ['completed'])) $sql_filter_status = 'approved';
                                 elseif (in_array($status, ['cancelled'])) $sql_filter_status = 'rejected';
                         ?>
-                        <tr data-status="<?php echo $sql_filter_status; ?>">
+                        <tr data-id="<?php echo (int)$row['rep_id']; ?>" data-status="<?php echo $sql_filter_status; ?>" data-source="cimm_sql">
                             <td>
                                 <button class="dept-action-btn" onclick="viewSqlReport(<?php echo $row['rep_id']; ?>)">
                                     <i class="fas fa-eye"></i>
@@ -5135,7 +5244,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 if (in_array($irow['status'], ['approved', 'completed'])) $infra_filter_status = 'approved';
                                 elseif (in_array($irow['status'], ['cancelled'])) $infra_filter_status = 'rejected';
                         ?>
-                        <tr data-status="<?php echo $infra_filter_status; ?>">
+                        <tr data-id="<?php echo (int)$irow['id']; ?>" data-status="<?php echo $infra_filter_status; ?>" data-source="maintenance">
                             <td>
                                 <div class="infra-action-group">
                                     <button class="infra-action-btn" onclick="viewInfraReport(<?php echo $irow['id']; ?>, '<?php echo htmlspecialchars($irow['source'], ENT_QUOTES); ?>')">
@@ -5229,9 +5338,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         // Apply source filter to show/hide panels on page load
-        (function() {
-            var urlParams = new URLSearchParams(window.location.search);
-            var source = urlParams.get('source') || 'all';
+        function applySourcePanels(source) {
             var allReportsPanel = document.getElementById('lguMonitoringPanel');
             var cimmPanel = document.getElementById('cimmReportsPanel');
             var infraPanel = document.getElementById('infraReportsPanel');
@@ -5259,6 +5366,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 if (infraPanel) infraPanel.style.display = '';
                 if (citizenPanel) citizenPanel.style.display = '';
             }
+        }
+        (function() {
+            var urlParams = new URLSearchParams(window.location.search);
+            applySourcePanels(urlParams.get('source') || 'all');
         })();
 
         // Apply status filter to hide/show rows in LGU, CIMM and Infra panels on page load
@@ -5277,6 +5388,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 }
             });
         })();
+
+        // Deep-link focus: ?source= + ?id= from a notification "View" button.
+        // The backend already verified the record exists ($focus_target.found)
+        // — see the $focus_target PHP block above — so this only needs to reveal
+        // the correct panel, reveal the row, scroll to it and highlight it.
+        var focusTarget = <?php echo json_encode($focus_target); ?>;
+        if (focusTarget && focusTarget.id) {
+            setTimeout(function() {
+                var row = null;
+                if (focusTarget.table) {
+                    var table = document.getElementById(focusTarget.table);
+                    if (table) {
+                        var rows = table.querySelectorAll('tbody tr[data-id="' + focusTarget.id + '"]');
+                        if (rows.length === 1) {
+                            row = rows[0];
+                        } else if (rows.length > 1) {
+                            // The same id can exist in more than one table —
+                            // disambiguate by data-source when possible.
+                            rows.forEach(function(r) {
+                                if (!row && r.getAttribute('data-source') === focusTarget.source) row = r;
+                            });
+                            if (!row) row = rows[0];
+                        }
+                    }
+                }
+                if (row && focusTarget.found) {
+                    // Switch to the correct report panel.
+                    if (focusTarget.filterValue) applySourcePanels(focusTarget.filterValue);
+                    // Reveal the row in case a status filter had hidden it.
+                    row.style.display = '';
+                    // Sync the filter dropdowns with the focused panel.
+                    var sf = document.getElementById('sourceFilter');
+                    if (sf && focusTarget.filterValue) sf.value = focusTarget.filterValue;
+                    var stf = document.getElementById('statusFilter');
+                    if (stf) stf.value = 'all';
+                    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    row.classList.add('vm-row-focus');
+                    setTimeout(function() { row.classList.remove('vm-row-focus'); }, 5000);
+                } else {
+                    showNotification('The report referenced by this notification could not be found.', 'error');
+                }
+            }, 600);
+        }
 
 
 
