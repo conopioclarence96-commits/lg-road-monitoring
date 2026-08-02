@@ -96,7 +96,8 @@ $conn->query("CREATE TABLE IF NOT EXISTS reports (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
 // Check if user is logged in and has proper role
-if (!isset($_SESSION['user_id']) || !is_admin_or_staff_role($_SESSION['role'] ?? '')) {
+$allowed_roles = ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor'];
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', $allowed_roles)) {
     header('Location: ../../login.php');
     exit();
 }

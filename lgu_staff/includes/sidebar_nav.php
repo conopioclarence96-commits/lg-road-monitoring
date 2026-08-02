@@ -54,8 +54,6 @@ function getSidebarUserInfo() {
 function getPortalTitle($role) {
     $portal_titles = [
         'system_admin' => 'Admin Portal',
-        'lgu_staff' => 'Staff Portal',
-        'citizen' => 'Citizen Portal',
         'road_ops_supervisor' => 'Road Supervisor Portal',
         'trans_ops_supervisor' => 'Transportation Supervisor Portal',
         'road_monitoring_officer' => 'Road Monitoring Portal',
@@ -136,9 +134,9 @@ $nav_items = [
         ['href' => $nav_base . 'pages/admin/create_staff_account.php', 'icon' => 'user-plus', 'title' => 'Create Staff Account', 'roles' => ['system_admin']],
     ],
     'monitoring' => [
-        ['href' => $nav_base . 'pages/shared/road_transportation_monitoring.php', 'icon' => 'map-marked-alt', 'title' => 'Road Monitoring', 'roles' => ['lgu_staff', 'system_admin']],
-        ['href' => $nav_base . 'pages/admin/verification_monitoring.php', 'icon' => 'shield-alt', 'title' => 'Verification Reports', 'roles' => ['system_admin', 'lgu_staff']],
-        ['href' => $nav_base . 'pages/admin/report_management.php', 'icon' => 'clipboard-list', 'title' => 'Report Management', 'roles' => ['system_admin', 'lgu_staff']],
+        ['href' => $nav_base . 'pages/shared/road_transportation_monitoring.php', 'icon' => 'map-marked-alt', 'title' => 'Road Monitoring', 'roles' => ['road_monitoring_officer', 'trans_monitoring_officer']],
+        ['href' => $nav_base . 'pages/admin/verification_monitoring.php', 'icon' => 'shield-alt', 'title' => 'Verification Reports', 'roles' => ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor']],
+        ['href' => $nav_base . 'pages/admin/report_management.php', 'icon' => 'clipboard-list', 'title' => 'Report Management', 'roles' => ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor']],
     ],
     'transparency' => [
         ['href' => $nav_base . 'pages/shared/public_transparency.php', 'icon' => 'eye', 'title' => 'Public Transparency', 'roles' => ['system_admin', 'lgu_staff']],
