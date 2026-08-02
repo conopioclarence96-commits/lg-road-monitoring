@@ -21,6 +21,7 @@ $_SESSION['last_activity'] = time();
 
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
+require_once __DIR__ . '/../api/cimm_verification_data.php';
 
 $user_role = $_SESSION['role'] ?? '';
 $user_id = $_SESSION['user_id'] ?? 0;
@@ -90,6 +91,56 @@ if ($is_admin) {
         $rstmt->close();
     } catch (Exception $e) {
         error_log("Pending reports query error: " . $e->getMessage());
+    }
+
+    // Admin: also include CIMM reports that are still awaiting review/approval.
+    // These live in cimm_verification_reports (synced from the CIMM module via
+    // the webhook/pull sync), so they are fetched from that table and flagged
+    // with _source='cimm' so the source badge below stays accurate. Any row in
+    // that table whose current status maps to "pending" is shown.
+    try {
+        $cimmPdo = rgmap_verification_pdo();
+        $cimmRows = rgmap_fetch_cimm_verification_reports($cimmPdo, ['limit' => 500]);
+        $cimmPendingStatus = ['Pending', 'Pending Review'];
+        foreach ($cimmRows as $crow) {
+            $verification = (string)($crow['verification_status'] ?? 'Pending Review');
+            if (!in_array($verification, $cimmPendingStatus, true) && (string)($crow['approval_status'] ?? 'Pending') !== 'Pending') {
+                continue;
+            }
+            $facility = (string)($crow['cprf_facility_name'] ?? '');
+            $pending_reports[] = [
+                '_source'       => 'cimm',
+                'id'            => (int)($crow['id'] ?? $crow['cimm_req_id'] ?? 0),
+                'report_id'     => $crow['reference_code'] ?? ('REQ-' . ($crow['cimm_req_id'] ?? '')),
+                'title'         => (string)($crow['infrastructure'] ?? 'CIMM Report'),
+                'department'    => $facility !== '' ? $facility : 'CIMM',
+                'priority'      => strtolower((string)($crow['priority'] ?? 'medium')),
+                'status'        => 'pending',
+                'description'   => (string)($crow['issue'] ?? ''),
+                'location'      => (string)($crow['location'] ?? ''),
+                'reporter_name' => $crow['reporter_name'] ?? null,
+                'reporter_email'=> $crow['email'] ?? null,
+                'created_at'    => $crow['submitted_at'] ?? $crow['created_at'] ?? date('Y-m-d H:i:s'),
+                'report_type'   => null,
+                'report_category' => null,
+                'report_source' => null,
+                'created_by'    => null,
+            ];
+        }
+
+        // Keep the same ordering as the transport query: high -> medium -> low,
+        // then newest first.
+        usort($pending_reports, function ($a, $b) {
+            $prio = ['high' => 1, 'medium' => 2, 'low' => 3];
+            $pa = $prio[strtolower((string)($a['priority'] ?? 'medium'))] ?? 2;
+            $pb = $prio[strtolower((string)($b['priority'] ?? 'medium'))] ?? 2;
+            if ($pa !== $pb) return $pa <=> $pb;
+            $ta = strtotime((string)($a['created_at'] ?? '')) ?: 0;
+            $tb = strtotime((string)($b['created_at'] ?? '')) ?: 0;
+            return $tb <=> $ta;
+        });
+    } catch (Exception $e) {
+        error_log("Pending CIMM reports query error: " . $e->getMessage());
     }
 
     // Admin: get all pending change requests
@@ -174,9 +225,29 @@ $total_notifications = $is_admin ? (count($pending_reports) + count($pending_cha
 //   'lgu'         -> report_management.php?source=lgu&id=...
 //   'maintenance' -> report_management.php?source=maintenance&id=...
 function notification_report_source(array $r): string {
+    if (($r['_source'] ?? '') === 'cimm') return 'cimm';
     if (($r['report_type'] ?? '') === 'infrastructure_issue') return 'maintenance';
     if (!empty($r['created_by'])) return 'lgu';
     return 'citizen';
+}
+
+// Resolve the originating module of a report so the Pending Reports panel can
+// show it as a colored badge. Determined server-side from the report's
+// originating table (_source, set when appended from cimm_verification_reports)
+// or its source fields (report_type / created_by) — never guessed or hardcoded
+// per-row. Returns ['key' => .., 'label' => .., 'icon' => .., 'class' => ..].
+function notification_source_badge(array $r): array {
+    switch (notification_report_source($r)) {
+        case 'cimm':
+            return ['key' => 'cimm',        'label' => 'CIMM',                  'icon' => '🟣', 'class' => 'source-cimm'];
+        case 'maintenance':
+            return ['key' => 'maintenance', 'label' => 'Infrastructure Projects', 'icon' => '🟠', 'class' => 'source-maintenance'];
+        case 'lgu':
+            return ['key' => 'lgu',         'label' => 'LGU Monitoring',         'icon' => '🔵', 'class' => 'source-lgu'];
+        case 'citizen':
+        default:
+            return ['key' => 'citizen',     'label' => 'Citizen Reports',        'icon' => '🟢', 'class' => 'source-citizen'];
+    }
 }
 
 function notification_report_url_for(int $id, array $r): string {
@@ -199,6 +270,13 @@ function notification_report_url(array $r): string {
 // enough — verification_monitoring.php locates it across all sections via
 // ?focus_report_id= (backend-verified, then scrolled + highlighted on load).
 function notification_pending_report_focus_url(array $r): string {
+    // CIMM reports live in cimm_verification_reports, not
+    // road_transportation_reports, so they need the explicit source+id deep link
+    // (verification_monitoring.php's ?focus_report_id= path only resolves
+    // transport-table rows).
+    if (($r['_source'] ?? '') === 'cimm') {
+        return '../admin/verification_monitoring.php?source=cimm&id=' . (int)($r['id'] ?? 0);
+    }
     return '../admin/verification_monitoring.php?focus_report_id=' . (int)($r['id'] ?? 0);
 }
 ?>
@@ -416,6 +494,39 @@ function notification_pending_report_focus_url(array $r): string {
             border: 1px solid #bfdbfe;
         }
 
+        .source-badge {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .source-citizen {
+            background: #f0fdf4;
+            color: #16a34a;
+            border: 1px solid #bbf7d0;
+        }
+
+        .source-cimm {
+            background: #faf5ff;
+            color: #9333ea;
+            border: 1px solid #e9d5ff;
+        }
+
+        .source-lgu {
+            background: #f0f9ff;
+            color: #0284c7;
+            border: 1px solid #bae6fd;
+        }
+
+        .source-maintenance {
+            background: #fff7ed;
+            color: #ea580c;
+            border: 1px solid #fed7aa;
+        }
+
         .action-buttons {
             display: flex;
             gap: 8px;
@@ -631,6 +742,7 @@ function notification_pending_report_focus_url(array $r): string {
                         </div>
                     <?php else: ?>
                         <?php foreach ($pending_reports as $report): ?>
+                            <?php $source_badge = notification_source_badge($report); ?>
                             <div class="notification-item" id="report-<?php echo $report['id']; ?>">
                                 <div class="notification-header">
                                     <div class="notification-title"><?php echo htmlspecialchars($report['title']); ?></div>
@@ -643,6 +755,7 @@ function notification_pending_report_focus_url(array $r): string {
                                     <span class="notification-tag"><i class="fas fa-hashtag"></i> <?php echo htmlspecialchars($report['report_id']); ?></span>
                                     <span class="priority-badge priority-<?php echo $report['priority']; ?>"><?php echo ucfirst($report['priority']); ?></span>
                                     <span class="department-badge"><?php echo ucfirst(htmlspecialchars($report['department'])); ?></span>
+                                    <span class="source-badge <?php echo $source_badge['class']; ?>"><?php echo $source_badge['icon']; ?> <?php echo htmlspecialchars($source_badge['label']); ?></span>
                                     <?php if ($report['location']): ?>
                                         <span class="notification-tag"><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($report['location']); ?></span>
                                     <?php endif; ?>
