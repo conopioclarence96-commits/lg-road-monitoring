@@ -203,6 +203,10 @@ function getAllReports($conn, $status_filter = 'all', $source_filter = 'all', $t
             $transport_where = " WHERE status IN ('cancelled')";
             $maintenance_where = " WHERE status IN ('cancelled')";
         }
+    } else {
+        // When status is 'all', exclude approved/completed from the LGU Monitoring panel
+        $transport_where = " WHERE status NOT IN ('approved','completed')";
+        $maintenance_where = " WHERE status NOT IN ('approved','completed')";
     }
     $infra_exclude = "report_type != 'infrastructure_issue'";
     $citizen_exclude = "(report_source IS NULL OR report_source != 'local' OR report_category IS NULL OR report_category != 'transportation' OR created_by IS NULL OR created_by != 0)";
@@ -378,6 +382,7 @@ function getCitizenReports($conn) {
                      reporter_name, reporter_email, reporter_phone, image_path, created_by
               FROM road_transportation_reports 
               WHERE report_source = 'local' AND report_category = 'transportation' AND created_by = 0
+                AND status NOT IN ('approved','completed')
               ORDER BY created_at DESC";
     $result = $conn->query($query);
     if (!$result) {
@@ -392,13 +397,14 @@ function getInfraReports($conn) {
                      department, priority, status, created_date, due_date, description, location, attachments,
                      latitude, longitude, created_at, updated_at, approved_at, rejected_at,
                      reporter_name, reporter_email
-              FROM road_transportation_reports WHERE report_type = 'infrastructure_issue')
+              FROM road_transportation_reports WHERE report_type = 'infrastructure_issue'
+                AND status NOT IN ('approved','completed'))
               UNION ALL
               (SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source,
                      department, priority, status, created_date, due_date, description, location, NULL as attachments,
                      NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at,
                      NULL as reporter_name, NULL as reporter_email
-              FROM road_maintenance_reports)
+              FROM road_maintenance_reports WHERE status NOT IN ('approved','completed'))
               ORDER BY created_at DESC";
     $result = $conn->query($query);
     if (!$result) {
@@ -439,12 +445,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         // Check verification rules: block approve for road+local reports
-        if ($action === 'approve' && in_array($source, ['transport', 'lgu', 'external'])) {
-            $check = $conn->prepare("SELECT report_category, report_source FROM road_transportation_reports WHERE id = ?");
+        // unless they have been verified by CIMM (cimm_sync_status = 'verified')
+        if (in_array($action, ['approve', 'cimm_approve']) && in_array($source, ['transport', 'lgu', 'external'])) {
+            $check = $conn->prepare("SELECT report_category, report_source, cimm_sync_status FROM road_transportation_reports WHERE id = ?");
             $check->bind_param('i', $report_id);
             $check->execute();
             $r = $check->get_result()->fetch_assoc();
-            if ($r && !canVerifyReport($r['report_category'], $r['report_source'])) {
+            // Only block if not verified by CIMM AND cannot be verified locally
+            if ($r && ($r['cimm_sync_status'] ?? '') !== 'verified' && !canVerifyReport($r['report_category'], $r['report_source'])) {
                 $_SESSION['verification_message'] = 'Road reports created by your LGU cannot be approved here. They must be verified by the external Engineering Office.';
                 header('Location: ../admin/verification_monitoring.php');
                 exit();
@@ -456,6 +464,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $audit_status = '';
         switch ($action) {
             case 'approve':
+            case 'cimm_approve':
                 $status = 'approved';
                 $audit_status = 'approved';
                 break;
@@ -470,7 +479,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         if ($status) {
-            if ($action === 'approve') {
+            if (in_array($action, ['approve', 'cimm_approve'])) {
                 $query = "UPDATE $table SET status = ?, approved_at = NOW(), updated_at = NOW() WHERE id = ?";
             } elseif ($action === 'reject') {
                 $query = "UPDATE $table SET status = ?, rejected_at = NOW(), updated_at = NOW() WHERE id = ?";
