@@ -141,7 +141,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
         //    LGU Transportation reports (report_category='transportation') do not
         //    require CIMM verification and appear once they are finalized.
         $reports = array_merge($reports, $fetch(
-            "SELECT id, report_id, title, report_type,
+            "SELECT id, report_id, title, report_type, report_category,
                     CASE WHEN created_by IS NULL OR created_by = 0 THEN 'citizen' ELSE 'lgu' END AS source,
                     status, priority, severity, created_at, description,
                     latitude, longitude, location, reporter_name, attachments, image_path,
@@ -161,6 +161,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
         if (!$transport_only) {
             $reports = array_merge($reports, $fetch(
                 "SELECT id, report_id, title, report_type,
+                        'road' AS report_category,
                         'infrastructure' AS source,
                         status, priority, NULL AS severity, created_at, description,
                         NULL AS latitude, NULL AS longitude, location, NULL AS reporter_name,
@@ -176,7 +177,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
         //     are also managed as Infrastructure Projects by report_management.
         if (!$transport_only) {
             $reports = array_merge($reports, $fetch(
-                "SELECT id, report_id, title, report_type,
+                "SELECT id, report_id, title, report_type, report_category,
                         'infrastructure' AS source,
                         status, priority, severity, created_at, description,
                         latitude, longitude, location, reporter_name, attachments, image_path,
@@ -194,7 +195,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
             try {
             $reports = array_merge($reports, $fetch(
                 "SELECT id, reference_code AS report_id, infrastructure AS title,
-                        'infrastructure_issue' AS report_type, 'cimm' AS source,
+                        'infrastructure_issue' AS report_type, 'road' AS report_category, 'cimm' AS source,
                         'completed' AS status, priority, NULL AS severity,
                         COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at,
                         issue AS description, coord_lat AS latitude, coord_lng AS longitude,
@@ -1947,6 +1948,7 @@ if ($focus_report_id > 0) {
                             'title' => $rr['title'],
                             'source' => $rr_source_label,
                             'report_type' => $rr['report_type'],
+                            'report_category' => $rr['report_category'],
                             'status' => $rr['status'],
                             'priority' => $rr['priority'],
                             'severity' => $rr['severity'],
@@ -1967,7 +1969,9 @@ if ($focus_report_id > 0) {
                             <td><span class="badge badge-<?php echo $rr['priority'] ?? 'low'; ?>"><?php echo ucfirst($rr['priority'] ?? 'low'); ?></span></td>
                             <td><?php echo date('M d, Y H:i', strtotime($rr['created_at'] ?? 'now')); ?></td>
                             <td>
-                                <?php if (($rr['cimm_sync_status'] ?? '') === 'verified'): ?>
+                                <?php if (($rr['report_category'] ?? '') === 'transportation'): ?>
+                                    <span class="cimm-verify-badge cimm-verify-badge-none">—</span>
+                                <?php elseif (($rr['cimm_sync_status'] ?? '') === 'verified'): ?>
                                     <span class="cimm-verify-badge cimm-verify-badge-verified" title="Verified by <?php echo htmlspecialchars($rr['cimm_verified_by'] ?? 'CIMM staff'); ?><?php echo !empty($rr['cimm_verified_at']) ? ' on ' . date('M d, Y', strtotime($rr['cimm_verified_at'])) : ''; ?>">
                                         <i class="fas fa-check-circle"></i> Verified
                                     </span>
