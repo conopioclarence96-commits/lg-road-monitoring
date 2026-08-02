@@ -96,10 +96,17 @@ $conn->query("CREATE TABLE IF NOT EXISTS reports (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
 // Check if user is logged in and has proper role
-if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['system_admin', 'lgu_staff'])) {
+$allowed_roles = ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor'];
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', $allowed_roles)) {
     header('Location: ../../login.php');
     exit();
 }
+
+// Transportation Operations supervisors only see LGU Monitoring
+// Transportation reports and Citizen reports (no CIMM, infrastructure,
+// or LGU Road reports).
+$user_role = $_SESSION['role'] ?? 'citizen';
+$is_transport_supervisor = ($user_role === 'trans_ops_supervisor');
 
 // Function to get verification statistics
 function getVerificationStatistics($conn) {
@@ -182,7 +189,7 @@ function getRejectedReports($conn) {
 }
 
 // Function to get all reports (for filtering)
-function getAllReports($conn, $status_filter = 'all', $source_filter = 'all') {
+function getAllReports($conn, $status_filter = 'all', $source_filter = 'all', $transport_only = false) {
     $parts = [];
     $transport_where = '';
     $maintenance_where = '';
@@ -197,24 +204,40 @@ function getAllReports($conn, $status_filter = 'all', $source_filter = 'all') {
             $transport_where = " WHERE status IN ('cancelled')";
             $maintenance_where = " WHERE status IN ('cancelled')";
         }
+    } else {
+        // When status is 'all', exclude approved/completed from the LGU Monitoring panel
+        $transport_where = " WHERE status NOT IN ('approved','completed')";
+        $maintenance_where = " WHERE status NOT IN ('approved','completed')";
     }
     $infra_exclude = "report_type != 'infrastructure_issue'";
     $citizen_exclude = "(report_source IS NULL OR report_source != 'local' OR report_category IS NULL OR report_category != 'transportation' OR created_by IS NULL OR created_by != 0)";
+    // Transportation Operations Supervisors only see Transportation reports —
+    // Road reports (report_category = 'road') and maintenance/infrastructure
+    // reports are excluded at the query level.
+    $transport_category_filter = $transport_only ? " AND report_category = 'transportation'" : '';
     if ($source_filter === 'transport') {
-        $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}" : " WHERE {$infra_exclude} AND {$citizen_exclude}";
+        $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}" : " WHERE {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}";
         $source_case = "CASE WHEN report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
         $q = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$where})";
         $parts[] = $q;
     } elseif ($source_filter === 'maintenance') {
-        $q = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
-        $parts[] = $q;
+        if (!$transport_only) {
+            $q = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
+            $parts[] = $q;
+        }
     } else {
-        $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}" : " WHERE {$infra_exclude} AND {$citizen_exclude}";
+        $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}" : " WHERE {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}";
         $source_case = "CASE WHEN report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
-        $parts[] = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$where})";
-        $parts[] = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
+        $parts[] = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, cimm_sync_status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$where})";
+        if (!$transport_only) {
+            $parts[] = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, NULL as cimm_sync_status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
+        }
     }
-    $query = implode(' UNION ALL ', $parts) . " ORDER BY created_at DESC";
+    if (empty($parts)) {
+        $query = "(SELECT 'transport' as source, 0 as id, '' as report_id, '' as title, '' as report_type, '' as report_category, '' as report_source, '' as department, '' as priority, '' as status, NULL as created_date, NULL as due_date, '' as description, '' as location, NULL as attachments, NULL as latitude, NULL as longitude, NULL as created_at, NULL as updated_at, NULL as approved_at, NULL as rejected_at, NULL as cimm_sync_status FROM road_transportation_reports WHERE 1 = 0)";
+    } else {
+        $query = implode(' UNION ALL ', $parts) . " ORDER BY created_at DESC";
+    }
     $result = $conn->query($query);
     if (!$result) {
         error_log("Query error in getAllReports: " . $conn->error);
@@ -262,17 +285,41 @@ function getActivityTimeline($conn) {
 //     Update this mapping once CIMM adds a category field to the payload.
 function rgmap_map_cimm_row_for_display(array $row): array {
     $verification = $row['verification_status'] ?? 'Pending Review';
-    $statusMap = [
-        'Pending Review' => 'pending',
-        'Flagged'        => 'in-progress',
-        'Verified'       => 'completed',
-        'Dismissed'      => 'resolved',
-        'Pending'        => 'pending',
-        'Approved'       => 'approved',
-        'In Progress'    => 'in-progress',
-        'Completed'      => 'completed',
-        'Cancelled'      => 'cancelled',
+
+    // verification_status mixes two unrelated things and this used to treat
+    // them as one:
+    //  - RGMAO's own admin-review state: 'Pending Review' / 'Flagged' /
+    //    'Verified' / 'Dismissed'. This only says whether an RGMAO admin has
+    //    reviewed the incoming CIMM report as legitimate — it says nothing
+    //    about whether the actual road work is done. 'Verified' used to map
+    //    straight to 'completed' here, so a report showed as Completed the
+    //    moment it was verified, then never changed again.
+    //  - A manual local override: report_management.php's handle_update_cimm_report()
+    //    lets road-monitoring staff write a CIMM-style progress value
+    //    ('Pending'/'Approved'/'In Progress'/'Completed'/'Cancelled') straight
+    //    into this same column. That IS a deliberate progress override and
+    //    should still be honored as-is.
+    // Fix: only 'Dismissed' (a real RGMAO-side terminal state, badge below)
+    // and the manual-override values are read directly off verification_status.
+    // Everything else ('Pending Review', 'Flagged', 'Verified') falls back to
+    // CIMM's real, continuously-synced resolution_status via
+    // cimm_resolution_status_to_display(), so the status shown here tracks
+    // CIMM's actual progress and keeps updating as CIMM pushes changes.
+    $localOverrideMap = [
+        'Pending'     => 'pending',
+        'Approved'    => 'approved',
+        'In Progress' => 'in-progress',
+        'Completed'   => 'completed',
+        'Cancelled'   => 'cancelled',
     ];
+
+    if ($verification === 'Dismissed') {
+        $status = 'resolved';
+    } elseif (isset($localOverrideMap[$verification])) {
+        $status = $localOverrideMap[$verification];
+    } else {
+        $status = cimm_resolution_status_to_display($row['resolution_status'] ?? null, $row['approval_status'] ?? null);
+    }
 
     return [
         'id'            => $row['id'] ?? $row['cimm_req_id'] ?? 0,
@@ -287,7 +334,7 @@ function rgmap_map_cimm_row_for_display(array $row): array {
         'end_date'      => $row['estimated_end_date'] ?? null,
         'priority'      => strtolower((string)($row['priority'] ?? 'medium')),
         'budget'        => $row['budget'] ?? null,
-        'status'        => $statusMap[$verification] ?? 'pending',
+        'status'        => $status,
         'approval_status'      => $row['approval_status'] ?? null,
         'verification_status'  => $verification,
         'cimm_req_id'          => $row['cimm_req_id'] ?? null,
@@ -360,6 +407,7 @@ function getCitizenReports($conn) {
                      reporter_name, reporter_email, reporter_phone, image_path, created_by
               FROM road_transportation_reports 
               WHERE report_source = 'local' AND report_category = 'transportation' AND created_by = 0
+                AND status NOT IN ('approved','completed')
               ORDER BY created_at DESC";
     $result = $conn->query($query);
     if (!$result) {
@@ -374,13 +422,14 @@ function getInfraReports($conn) {
                      department, priority, status, created_date, due_date, description, location, attachments,
                      latitude, longitude, created_at, updated_at, approved_at, rejected_at,
                      reporter_name, reporter_email
-              FROM road_transportation_reports WHERE report_type = 'infrastructure_issue')
+              FROM road_transportation_reports WHERE report_type = 'infrastructure_issue'
+                AND status NOT IN ('approved','completed'))
               UNION ALL
               (SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source,
                      department, priority, status, created_date, due_date, description, location, NULL as attachments,
                      NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at,
                      NULL as reporter_name, NULL as reporter_email
-              FROM road_maintenance_reports)
+              FROM road_maintenance_reports WHERE status NOT IN ('approved','completed'))
               ORDER BY created_at DESC";
     $result = $conn->query($query);
     if (!$result) {
@@ -421,12 +470,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         // Check verification rules: block approve for road+local reports
-        if ($action === 'approve' && in_array($source, ['transport', 'lgu', 'external'])) {
-            $check = $conn->prepare("SELECT report_category, report_source FROM road_transportation_reports WHERE id = ?");
+        // unless they have been verified by CIMM (cimm_sync_status = 'verified')
+        if (in_array($action, ['approve', 'cimm_approve']) && in_array($source, ['transport', 'lgu', 'external'])) {
+            $check = $conn->prepare("SELECT report_category, report_source, cimm_sync_status FROM road_transportation_reports WHERE id = ?");
             $check->bind_param('i', $report_id);
             $check->execute();
             $r = $check->get_result()->fetch_assoc();
-            if ($r && !canVerifyReport($r['report_category'], $r['report_source'])) {
+            // Only block if not verified by CIMM AND cannot be verified locally
+            if ($r && ($r['cimm_sync_status'] ?? '') !== 'verified' && !canVerifyReport($r['report_category'], $r['report_source'])) {
                 $_SESSION['verification_message'] = 'Road reports created by your LGU cannot be approved here. They must be verified by the external Engineering Office.';
                 header('Location: ../admin/verification_monitoring.php');
                 exit();
@@ -438,6 +489,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $audit_status = '';
         switch ($action) {
             case 'approve':
+            case 'cimm_approve':
                 $status = 'approved';
                 $audit_status = 'approved';
                 break;
@@ -452,7 +504,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         if ($status) {
-            if ($action === 'approve') {
+            if (in_array($action, ['approve', 'cimm_approve'])) {
                 $query = "UPDATE $table SET status = ?, approved_at = NOW(), updated_at = NOW() WHERE id = ?";
             } elseif ($action === 'reject') {
                 $query = "UPDATE $table SET status = ?, rejected_at = NOW(), updated_at = NOW() WHERE id = ?";
@@ -527,9 +579,26 @@ $stats = getVerificationStatistics($conn);
 $pending_verifications = getPendingVerifications($conn);
 $approved_reports = getApprovedReports($conn);
 $rejected_reports = getRejectedReports($conn);
-$all_reports = getAllReports($conn, $status_filter, $source_filter);
+$all_reports = getAllReports($conn, $status_filter, $source_filter, $is_transport_supervisor);
 $recent_approvals = getRecentApprovals($conn);
 $activity_timeline = getActivityTimeline($conn);
+
+// For trans_ops_supervisor, the LGU Monitoring panel shows only
+// Transportation reports — road/maintenance reports are not rendered and
+// are excluded from the badge count.
+$lgu_badge_count = $all_reports->num_rows;
+$lgu_has_reports = ($all_reports->num_rows > 0);
+if ($is_transport_supervisor && $all_reports->num_rows > 0) {
+    $all_reports->data_seek(0);
+    $lgu_badge_count = 0;
+    $lgu_has_reports = false;
+    while ($_r = $all_reports->fetch_assoc()) {
+        if (($_r['source'] ?? '') === 'maintenance') continue;
+        $lgu_badge_count++;
+        $lgu_has_reports = true;
+    }
+    $all_reports->data_seek(0);
+}
 
 // CIMM reports data (live, via RGMAO sync)
 $cimm_filter = $_GET['cimm_filter'] ?? 'all';
@@ -544,6 +613,139 @@ $citizen_reports = getCitizenReports($conn);
 
 // Infrastructure-specific reports
 $infra_reports = getInfraReports($conn);
+
+// Deep-link focus: ?source= + ?id= (or the notifications-specific
+// ?focus_report_id=, see below) from a notification "View" button. The
+// backend verifies the record still exists in the correct table before the
+// frontend attempts to scroll to / highlight it. The frontend uses $focus_target
+// to reveal the right panel, reveal the row (filters are client-side here),
+// scroll to it and briefly highlight it — or show a friendly message when the
+// record no longer exists.
+$focus_source = $_GET['source'] ?? '';
+$focus_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+// The Notifications "Pending Reports from Departments" panel links here with
+// ?focus_report_id=<primary key>. The id is always the
+// road_transportation_reports primary key, so we can classify it into the
+// panel that renders it without a source parameter.
+$focus_report_id = isset($_GET['focus_report_id']) ? (int)$_GET['focus_report_id'] : 0;
+if ($focus_report_id > 0) {
+    $focus_id = $focus_report_id;
+    $focus_source = 'auto';
+}
+$focus_target = [
+    'found'       => false,
+    'id'          => $focus_id,
+    'source'      => $focus_source,
+    'table'       => '',
+    'filterValue' => '',
+];
+
+if ($focus_id > 0) {
+    try {
+        if ($focus_source === 'auto') {
+            // Source-agnostic deep-link. Fetch the report from
+            // road_transportation_reports, then classify it into the section
+            // that renders it so JS only scrolls + highlights (never a
+            // JS-only lookup). All pending reports are already rendered in
+            // their section by the queries above.
+            $auto_report = fetch_one(
+                "SELECT id, report_type, report_category, report_source, created_by
+                 FROM road_transportation_reports WHERE id = ?",
+                [$focus_id], 'i'
+            );
+            if ($auto_report) {
+                $focus_target['found'] = true;
+                if (($auto_report['report_type'] ?? '') === 'infrastructure_issue') {
+                    // Infrastructure Issue -> Infrastructure Projects panel.
+                    $focus_target['table'] = 'infraTable';
+                    $focus_target['filterValue'] = 'maintenance';
+                } elseif (empty($auto_report['created_by'])
+                          && ($auto_report['report_source'] ?? '') === 'local'
+                          && ($auto_report['report_category'] ?? '') === 'transportation') {
+                    // Citizen Report -> Citizen Reports panel.
+                    $focus_target['table'] = 'citizenTable';
+                    $focus_target['filterValue'] = 'transport';
+                } else {
+                    // LGU Monitoring Report (staff-created, incl. road
+                    // categories and external reports) -> LGU Monitoring panel.
+                    $focus_target['table'] = 'lguTable';
+                    $focus_target['filterValue'] = 'all';
+                }
+            }
+        } else {
+        switch ($focus_source) {
+            case 'citizen':
+            case 'transport':
+                if (fetch_one("SELECT id FROM road_transportation_reports WHERE id = ?", [$focus_id], 'i')) {
+                    $focus_target['found'] = true;
+                    $focus_target['table'] = 'citizenTable';
+                    $focus_target['filterValue'] = 'transport';
+                }
+                break;
+
+            case 'lgu':
+                if (fetch_one("SELECT id FROM road_transportation_reports WHERE id = ?", [$focus_id], 'i')) {
+                    $focus_target['found'] = true;
+                    $focus_target['table'] = 'lguTable';
+                    $focus_target['filterValue'] = 'all';
+                }
+                break;
+
+            case 'cimm':
+                $pdo = rgmap_verification_pdo();
+                rgmap_ensure_cimm_verification_table($pdo);
+                $cstmt = $pdo->prepare("SELECT id FROM cimm_verification_reports WHERE id = ?");
+                $cstmt->execute([$focus_id]);
+                if ($cstmt->fetch()) {
+                    $focus_target['found'] = true;
+                    $focus_target['table'] = 'deptTable';
+                    $focus_target['filterValue'] = 'cimm';
+                }
+                break;
+
+            case 'maintenance':
+                $f = fetch_one("SELECT id FROM road_maintenance_reports WHERE id = ?", [$focus_id], 'i');
+                if (!$f) {
+                    $f = fetch_one("SELECT id FROM road_transportation_reports WHERE id = ? AND report_type = 'infrastructure_issue'", [$focus_id], 'i');
+                }
+                if ($f) {
+                    $focus_target['found'] = true;
+                    $focus_target['table'] = 'infraTable';
+                    $focus_target['filterValue'] = 'maintenance';
+                }
+                break;
+
+            default:
+                // Legacy ?id= deep-link without a source: search the tables that
+                // feed each panel to figure out where the report lives.
+                if (fetch_one("SELECT id FROM road_transportation_reports WHERE id = ?", [$focus_id], 'i')) {
+                    $focus_target['found'] = true;
+                    $focus_target['table'] = 'lguTable';
+                    $focus_target['filterValue'] = 'all';
+                } elseif (fetch_one("SELECT id FROM road_maintenance_reports WHERE id = ?", [$focus_id], 'i')) {
+                    $focus_target['found'] = true;
+                    $focus_target['table'] = 'infraTable';
+                    $focus_target['filterValue'] = 'maintenance';
+                } else {
+                    try {
+                        $pdo = rgmap_verification_pdo();
+                        rgmap_ensure_cimm_verification_table($pdo);
+                        $cstmt = $pdo->prepare("SELECT id FROM cimm_verification_reports WHERE id = ?");
+                        $cstmt->execute([$focus_id]);
+                        if ($cstmt->fetch()) {
+                            $focus_target['found'] = true;
+                            $focus_target['table'] = 'deptTable';
+                            $focus_target['filterValue'] = 'cimm';
+                        }
+                    } catch (Exception $e) {}
+                }
+                break;
+        }
+        }
+    } catch (Exception $e) {
+        error_log("Verification monitoring focus lookup failed: " . $e->getMessage());
+    }
+}
 
 // Handle AJAX request for report details
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'get_report_details') {
@@ -2145,6 +2347,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         body.dark-mode .infra-table tbody tr:hover {
             background: rgba(249, 115, 22, 0.08);
+        }
+
+        .vm-row-focus {
+            animation: vmFocusPulse 1.2s ease-in-out 4;
+            box-shadow: 0 0 0 3px #3762c8, 0 8px 32px rgba(55, 98, 200, 0.35);
+            border-left: 4px solid #3762c8;
+            background: rgba(55, 98, 200, 0.12);
+        }
+
+        @keyframes vmFocusPulse {
+            0%, 100% { background-color: rgba(55, 98, 200, 0.12); }
+            50% { background-color: rgba(55, 98, 200, 0.28); }
+        }
+
+        body.dark-mode .vm-row-focus {
+            box-shadow: 0 0 0 3px #6a9bff, 0 8px 32px rgba(106, 155, 255, 0.35);
+            border-left: 4px solid #6a9bff;
+            background: rgba(106, 155, 255, 0.14);
         }
 
         .infra-action-btn {
@@ -4528,7 +4748,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <div>
                         <div class="lgu-reports-title-group">
                             <h2 class="lgu-reports-title">LGU Monitoring Reports</h2>
-                            <span class="lgu-reports-badge"><?php echo $all_reports->num_rows; ?> Reports</span>
+                            <span class="lgu-reports-badge"><?php echo $lgu_badge_count; ?> Reports</span>
                         </div>
                         <p class="lgu-reports-subtitle">Reports submitted by the LGU Road &amp; Transportation Department.</p>
                     </div>
@@ -4563,9 +4783,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         <?php 
                         // Reset pointer and display all reports
                         $all_reports->data_seek(0);
-                        if ($all_reports->num_rows > 0): 
+                        if ($lgu_has_reports): 
                         ?>
                             <?php while ($report = $all_reports->fetch_assoc()): 
+                                if ($is_transport_supervisor && ($report['source'] ?? '') === 'maintenance') continue;
                                 $lgu_status_class = '';
                                 if ($report['status'] === 'approved') $lgu_status_class = 'approved';
                                 elseif ($report['status'] === 'cancelled') $lgu_status_class = 'cancelled';
@@ -4577,8 +4798,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 $report_category = $report['report_category'] ?? null;
                                 $report_source = $report['report_source'] ?? null;
                                 $can_verify = canVerifyReport($report_category, $report_source);
-                                // Road+local reports that are pending show as awaiting external verification
-                                $pending_ext_verify = ($report['status'] === 'pending' && !$can_verify);
+                                // Reports not yet verified by CIMM show as awaiting external verification
+                                // If CIMM verified and status is pending, show check button for final approval
+                                $pending_ext_verify = ($report['cimm_sync_status'] ?? '') !== 'verified' && !$can_verify && $report['status'] === 'pending';
+                                // Transportation reports can be approved directly; road reports require CIMM verification
+                                $ready_for_approval = ($report_category === 'transportation') ? true : (($report['cimm_sync_status'] ?? '') === 'verified' && $report['status'] === 'pending');
 
                                 $lgu_type_labels = [
                                     'traffic_jam' => 'Traffic Jam',
@@ -4610,7 +4834,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 if (in_array($report['status'], ['approved', 'completed'])) $lgu_filter_status = 'approved';
                                 elseif (in_array($report['status'], ['cancelled'])) $lgu_filter_status = 'rejected';
                             ?>
-                            <tr data-status="<?php echo $lgu_filter_status; ?>" data-source="<?php echo htmlspecialchars($report['source']); ?>">
+                            <tr data-id="<?php echo (int)$report['id']; ?>" data-report-id="<?php echo (int)$report['id']; ?>" data-status="<?php echo $lgu_filter_status; ?>" data-source="<?php echo htmlspecialchars($report['source']); ?>">
                                 <td>
                                     <div class="lgu-action-group">
                                         <button class="lgu-action-btn" onclick="viewLguReport(<?php echo $report['id']; ?>)">
@@ -4618,12 +4842,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                         </button>
                                         <?php if ($pending_ext_verify): ?>
                                             <span class="lgu-status-badge t-badge t-badge-pending" style="font-size:10px;padding:3px 8px;">Ext. Verify</span>
-                                        <?php elseif ($report['status'] === 'pending'): ?>
+                                        <?php elseif ($ready_for_approval): ?>
                                             <form method="POST" class="lgu-action-form">
                                                 <input type="hidden" name="report_id" value="<?php echo $report['id']; ?>">
                                                 <input type="hidden" name="source" value="<?php echo htmlspecialchars($report['source']); ?>">
-                                                <button type="submit" name="action" value="approve" class="lgu-verify-btn" title="Approve report">
-                                                    <i class="fas fa-check"></i>
+                                                <button type="submit" name="action" value="cimm_approve" class="lgu-verify-btn" title="Approve CIMM verified report">
+                                                    <i class="fas fa-check-circle"></i>
                                                 </button>
                                             </form>
                                             <form method="POST" class="lgu-action-form" onsubmit="return confirm('Are you sure you want to reject this report?');">
@@ -4661,7 +4885,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                             <div class="detail-item">
                                                 <strong>Status:</strong> 
                                                 <?php if ($pending_ext_verify): ?>
-                                                <span class="lgu-status-badge t-badge t-badge-pending">Awaiting External Verification</span>
+                                                <span class="lgu-status-badge t-badge t-badge-pending">Awaiting CIMM Verification</span>
+                                                <?php elseif ($ready_for_approval): ?>
+                                                <span class="lgu-status-badge t-badge t-badge-info">Ready for Final Approval</span>
                                                 <?php else: ?>
                                                 <span class="lgu-status-badge <?php echo $lgu_status_class; ?>"><?php echo htmlspecialchars($report['status'] ?? 'N/A'); ?></span>
                                                 <?php endif; ?>
@@ -4816,7 +5042,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 if (in_array($crow['status'], ['approved', 'completed'])) $citizen_filter_status = 'approved';
                                 elseif (in_array($crow['status'], ['cancelled'])) $citizen_filter_status = 'rejected';
                         ?>
-                        <tr data-status="<?php echo $citizen_filter_status; ?>">
+                        <tr data-id="<?php echo (int)$crow['id']; ?>" data-report-id="<?php echo (int)$crow['id']; ?>" data-status="<?php echo $citizen_filter_status; ?>" data-source="citizen">
                             <td>
                                 <div class="citizen-action-group">
                                     <button class="citizen-action-btn" onclick="viewCitizenReport(<?php echo $crow['id']; ?>)">
@@ -4880,6 +5106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         </div>
 
         <!-- CIMM Reports Panel -->
+        <?php if (!$is_transport_supervisor): ?>
         <div class="dept-reports-panel" id="cimmReportsPanel">
             <div class="dept-reports-header">
                 <div class="dept-reports-header-left">
@@ -4937,7 +5164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             if (in_array($row['status'], ['completed'])) $cimm_filter_status = 'approved';
                             elseif (in_array($row['status'], ['resolved'])) $cimm_filter_status = 'rejected';
                         ?>
-                        <tr data-status="<?php echo $cimm_filter_status; ?>">
+                        <tr data-id="<?php echo (int)$row['id']; ?>" data-report-id="<?php echo (int)$row['id']; ?>" data-status="<?php echo $cimm_filter_status; ?>" data-source="cimm">
                             <td>
                                 <div class="dept-action-group">
                                     <button class="dept-action-btn" onclick="viewCimmReport(<?php echo $row['id']; ?>)">
@@ -4993,7 +5220,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 if (in_array($status, ['completed'])) $sql_filter_status = 'approved';
                                 elseif (in_array($status, ['cancelled'])) $sql_filter_status = 'rejected';
                         ?>
-                        <tr data-status="<?php echo $sql_filter_status; ?>">
+                        <tr data-id="<?php echo (int)$row['rep_id']; ?>" data-report-id="<?php echo (int)$row['rep_id']; ?>" data-status="<?php echo $sql_filter_status; ?>" data-source="cimm_sql">
                             <td>
                                 <button class="dept-action-btn" onclick="viewSqlReport(<?php echo $row['rep_id']; ?>)">
                                     <i class="fas fa-eye"></i>
@@ -5032,8 +5259,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 </table>
             </div>
         </div>
+        <?php endif; ?>
 
         <!-- Infrastructure Reports Panel -->
+        <?php if (!$is_transport_supervisor): ?>
         <div class="infra-reports-panel" id="infraReportsPanel">
             <div class="infra-reports-header">
                 <div class="infra-reports-header-left">
@@ -5092,7 +5321,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 if (in_array($irow['status'], ['approved', 'completed'])) $infra_filter_status = 'approved';
                                 elseif (in_array($irow['status'], ['cancelled'])) $infra_filter_status = 'rejected';
                         ?>
-                        <tr data-status="<?php echo $infra_filter_status; ?>">
+                        <tr data-id="<?php echo (int)$irow['id']; ?>" data-report-id="<?php echo (int)$irow['id']; ?>" data-status="<?php echo $infra_filter_status; ?>" data-source="maintenance">
                             <td>
                                 <div class="infra-action-group">
                                     <button class="infra-action-btn" onclick="viewInfraReport(<?php echo $irow['id']; ?>, '<?php echo htmlspecialchars($irow['source'], ENT_QUOTES); ?>')">
@@ -5156,6 +5385,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 </table>
             </div>
         </div>
+        <?php endif; ?>
 
         
         </div>
@@ -5185,9 +5415,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         // Apply source filter to show/hide panels on page load
-        (function() {
-            var urlParams = new URLSearchParams(window.location.search);
-            var source = urlParams.get('source') || 'all';
+        function applySourcePanels(source) {
             var allReportsPanel = document.getElementById('lguMonitoringPanel');
             var cimmPanel = document.getElementById('cimmReportsPanel');
             var infraPanel = document.getElementById('infraReportsPanel');
@@ -5215,6 +5443,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 if (infraPanel) infraPanel.style.display = '';
                 if (citizenPanel) citizenPanel.style.display = '';
             }
+        }
+        (function() {
+            var urlParams = new URLSearchParams(window.location.search);
+            applySourcePanels(urlParams.get('source') || 'all');
         })();
 
         // Apply status filter to hide/show rows in LGU, CIMM and Infra panels on page load
@@ -5233,6 +5465,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 }
             });
         })();
+
+        // Deep-link focus: ?focus_report_id= / ?source= + ?id= from a
+        // notification "View" button. The backend already verified the record
+        // exists and classified it ($focus_target.found) — see the $focus_target
+        // PHP block above — so this only needs to reveal the correct panel,
+        // reveal the row, scroll to it and highlight it.
+        var focusTarget = <?php echo json_encode($focus_target); ?>;
+        if (focusTarget && focusTarget.id) {
+            setTimeout(function() {
+                var row = null;
+                if (focusTarget.table) {
+                    var table = document.getElementById(focusTarget.table);
+                    if (table) {
+                        var rows = table.querySelectorAll('tbody tr[data-report-id="' + focusTarget.id + '"]');
+                        if (rows.length === 0) {
+                            rows = table.querySelectorAll('tbody tr[data-id="' + focusTarget.id + '"]');
+                        }
+                        if (rows.length === 1) {
+                            row = rows[0];
+                        } else if (rows.length > 1) {
+                            // The same id can exist in more than one table —
+                            // disambiguate by data-source when possible.
+                            rows.forEach(function(r) {
+                                if (!row && r.getAttribute('data-source') === focusTarget.source) row = r;
+                            });
+                            if (!row) row = rows[0];
+                        }
+                    }
+                }
+                if (row && focusTarget.found) {
+                    // Switch to the correct report panel.
+                    if (focusTarget.filterValue) applySourcePanels(focusTarget.filterValue);
+                    // Reveal the row in case a status filter had hidden it.
+                    row.style.display = '';
+                    // Sync the filter dropdowns with the focused panel.
+                    var sf = document.getElementById('sourceFilter');
+                    if (sf && focusTarget.filterValue) sf.value = focusTarget.filterValue;
+                    var stf = document.getElementById('statusFilter');
+                    if (stf) stf.value = 'all';
+                    // Clear any client-side search filters so the row is visible.
+                    var searchInputs = document.querySelectorAll('.lgu-search-input, .citizen-search-input, .dept-search-input, .infra-search-input');
+                    searchInputs.forEach(function(inp) {
+                        if (inp) {
+                            inp.value = '';
+                            inp.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
+                    });
+                    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    row.classList.add('vm-row-focus');
+                    setTimeout(function() { row.classList.remove('vm-row-focus'); }, 5000);
+                } else {
+                    showNotification('The report referenced by this notification could not be found.', 'error');
+                }
+            }, 600);
+        }
 
 
 
@@ -6623,10 +6910,10 @@ function getTimeAgo($datetime) {
 // Road reports created by this LGU (local source) must go to external Engineering Office
 // Transportation reports and external reports can be verified here
 function canVerifyReport($category, $source) {
-    if ($category === 'road' && $source === 'local') {
-        return false;
-    }
-    return true;
+    // Local road reports (category='road', source='local') must be verified
+    // by the external Engineering Office (CIMM) and cannot be directly
+    // approved by local admin staff
+    return !($category === 'road' && $source === 'local');
 }
 
 function getActivityTitle($activity) {

@@ -183,6 +183,68 @@ function rgmap_fetch_cimm_verification_reports(PDO $pdo, array $opts = []): arra
 }
 
 /**
+ * SQL CASE expression mapping CIMM's request_resolutions.status values
+ * (Approved, Rejected, Scheduled, In Progress, Pending Completion,
+ * Completed, Cancelled — see request_resolutions in the CIMM repo) onto
+ * this system's road_transportation_reports status vocabulary (pending,
+ * in-progress, completed, cancelled, approved, rejected).
+ *
+ * Bug fix: the "Recent Submissions" widgets (getRecentSubmissions() in
+ * road_transportation_monitoring.php, getRecentSubmissionsPaginated() in
+ * get_recent_submissions_paginated.php, and resolve_recent_focus_row())
+ * used to hardcode `'completed' AS status` for every CIMM-sourced row, so
+ * a report showed as Completed the moment CIMM verified/synced it —
+ * regardless of what CIMM's resolution_status actually said (Pending,
+ * Scheduled, In Progress, Pending Completion, ...). This CASE expression
+ * replaces that literal so the real, current status is shown and updates
+ * as CIMM pushes changes.
+ *
+ * Expects resolution_status and approval_status to be selected from
+ * cimm_verification_reports in the same query. Wrap the query that uses
+ * this in a derived table (SELECT * FROM (...) AS alias) if the caller
+ * also filters on `status`, since a SELECT alias can't be referenced in
+ * that same query's WHERE clause.
+ */
+function cimm_status_case_sql(): string {
+    return "CASE
+        WHEN resolution_status = 'Completed' THEN 'completed'
+        WHEN resolution_status IN ('In Progress', 'Pending Completion') THEN 'in-progress'
+        WHEN resolution_status = 'Cancelled' THEN 'cancelled'
+        WHEN resolution_status = 'Rejected' THEN 'cancelled'
+        WHEN resolution_status IN ('Scheduled', 'Approved') THEN 'pending'
+        WHEN approval_status = 'Rejected' THEN 'cancelled'
+        ELSE 'pending'
+    END";
+}
+
+/**
+ * PHP-side twin of cimm_status_case_sql() for pages that fetch a
+ * cimm_verification_reports row and map it to a display status in PHP
+ * (e.g. verification_monitoring.php) rather than in the SQL itself.
+ * Keep this in sync with cimm_status_case_sql() above — same mapping,
+ * same fallback order, just expressed as PHP instead of SQL.
+ */
+function cimm_resolution_status_to_display(?string $resolutionStatus, ?string $approvalStatus = null): string {
+    switch ($resolutionStatus) {
+        case 'Completed':
+            return 'completed';
+        case 'In Progress':
+        case 'Pending Completion':
+            return 'in-progress';
+        case 'Cancelled':
+        case 'Rejected':
+            return 'cancelled';
+        case 'Scheduled':
+        case 'Approved':
+            return 'pending';
+    }
+    if ($approvalStatus === 'Rejected') {
+        return 'cancelled';
+    }
+    return 'pending';
+}
+
+/**
  * Update the RGMAO-side verification decision on a synced CIMM report.
  * Not yet wired to a UI action, but available for a future
  * Verify / Flag / Dismiss control on the CIMM reports panel.
