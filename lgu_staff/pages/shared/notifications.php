@@ -21,6 +21,7 @@ $_SESSION['last_activity'] = time();
 
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
+require_once __DIR__ . '/../api/cimm_verification_data.php';
 
 $user_role = $_SESSION['role'] ?? '';
 $user_id = $_SESSION['user_id'] ?? 0;
@@ -108,13 +109,17 @@ if ($is_admin) {
         error_log("Pending change requests query error: " . $e->getMessage());
     }
 
-    // Admin: get progress update notifications
+    // Admin: get progress update notifications. NOTE: report_notifications
+    // only stores a bare numeric report_id and the FK was dropped on purpose,
+    // so a single notification can reference a road_transportation_reports,
+    // road_maintenance_reports OR cimm_verification_reports row. Never join
+    // it to one table — resolve the report per-notification instead (see
+    // resolve_notification_report() below) so the View button always points
+    // at the table that actually owns the record.
     try {
         $nstmt = $conn->prepare("
-            SELECT rn.*, r.report_id as report_code, r.title as report_title,
-                   r.report_type, r.report_category, r.report_source, r.created_by
+            SELECT rn.*
             FROM report_notifications rn
-            LEFT JOIN road_transportation_reports r ON rn.report_id = r.id
             WHERE rn.is_read = 0
             ORDER BY rn.created_at DESC
             LIMIT 20
@@ -173,6 +178,7 @@ $total_notifications = $is_admin ? (count($pending_reports) + count($pending_cha
 //   'citizen'     -> verification_monitoring.php?source=citizen&id=...
 //   'lgu'         -> report_management.php?source=lgu&id=...
 //   'maintenance' -> report_management.php?source=maintenance&id=...
+//   'cimm'        -> report_management.php?source=cimm&id=...
 function notification_report_source(array $r): string {
     if (($r['report_type'] ?? '') === 'infrastructure_issue') return 'maintenance';
     if (!empty($r['created_by'])) return 'lgu';
@@ -180,8 +186,10 @@ function notification_report_source(array $r): string {
 }
 
 function notification_report_url_for(int $id, array $r): string {
+    // Prefer an explicit resolved source (e.g. from resolve_notification_report())
+    // and only fall back to classifying the row's own columns.
+    $src = $r['source'] ?? notification_report_source($r);
     $type = rawurlencode((string)($r['report_type'] ?? ''));
-    $src = notification_report_source($r);
     if ($src === 'citizen') {
         return '../admin/verification_monitoring.php?source=citizen&id=' . $id;
     }
@@ -192,6 +200,81 @@ function notification_report_url_for(int $id, array $r): string {
 
 function notification_report_url(array $r): string {
     return notification_report_url_for((int)($r['id'] ?? 0), $r);
+}
+
+// Resolve which table actually owns a given report id. Progress-update
+// notifications can point at three different report tables, so look the
+// record up in each one (most common first) and return its source along
+// with a small display payload (report code + title).
+function resolve_notification_report(int $report_id): array {
+    global $conn;
+
+    if ($report_id <= 0) return ['found' => false];
+
+    try {
+        // 1. Road transportation reports — could be a Citizen Report, an LGU
+        //    Monitoring Report, or an Infrastructure Issue.
+        $t = fetch_one(
+            "SELECT id, report_id, title, report_type, report_category, report_source, created_by
+             FROM road_transportation_reports WHERE id = ?",
+            [$report_id], 'i'
+        );
+        if ($t) {
+            return [
+                'found'       => true,
+                'table'       => 'transport',
+                'source'      => notification_report_source($t),
+                'report_code' => $t['report_id'] ?? ('#' . $report_id),
+                'report_title'=> $t['title'] ?? '',
+                'report_type' => $t['report_type'] ?? '',
+            ];
+        }
+
+        // 2. Road maintenance reports — infrastructure projects.
+        $m = fetch_one(
+            "SELECT id, report_id, title FROM road_maintenance_reports WHERE id = ?",
+            [$report_id], 'i'
+        );
+        if ($m) {
+            return [
+                'found'       => true,
+                'table'       => 'maintenance',
+                'source'      => 'maintenance',
+                'report_code' => $m['report_id'] ?? ('#' . $report_id),
+                'report_title'=> $m['title'] ?? '',
+                'report_type' => 'maintenance',
+            ];
+        }
+
+        // 3. CIMM verification reports (live CIMM table via PDO).
+        $pdo = rgmap_verification_pdo();
+        rgmap_ensure_cimm_verification_table($pdo);
+        $stmt = $pdo->prepare("SELECT id, reference_code, infrastructure, location FROM cimm_verification_reports WHERE id = ?");
+        $stmt->execute([$report_id]);
+        $c = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($c) {
+            return [
+                'found'       => true,
+                'table'       => 'cimm',
+                'source'      => 'cimm',
+                'report_code' => $c['reference_code'] ?? ('#' . $report_id),
+                'report_title'=> $c['infrastructure'] ?? '',
+                'report_type' => 'infrastructure_issue',
+            ];
+        }
+    } catch (Exception $e) {
+        error_log("Notification report resolution failed for #{$report_id}: " . $e->getMessage());
+    }
+
+    return ['found' => false];
+}
+
+// Resolve the report each progress notification references and attach the
+// result to the row so the panel below can render the right code/title and
+// build a source-aware View Report deep link.
+foreach ($progress_notifications as $i => $pn) {
+    $meta = resolve_notification_report((int)($pn['report_id'] ?? 0));
+    $progress_notifications[$i]['_meta'] = $meta;
 }
 ?>
 
@@ -720,7 +803,11 @@ function notification_report_url(array $r): string {
                             <p>No progress updates yet</p>
                         </div>
                     <?php else: ?>
-                        <?php foreach ($progress_notifications as $pn): ?>
+                        <?php foreach ($progress_notifications as $pn):
+                            $pmeta = $pn['_meta'] ?? ['found' => false];
+                            $pcode = $pmeta['report_code'] ?? ('#' . $pn['report_id']);
+                            $ptitle = $pmeta['report_title'] ?? '';
+                        ?>
                             <div class="notification-item">
                                 <div class="notification-header">
                                     <div class="notification-title">
@@ -729,14 +816,18 @@ function notification_report_url(array $r): string {
                                     <div class="notification-time"><?php echo date('M d, Y H:i', strtotime($pn['created_at'])); ?></div>
                                 </div>
                                 <div class="notification-body">
-                                    <small>Report: <strong><?php echo htmlspecialchars($pn['report_code'] ?? '#' . $pn['report_id']); ?></strong></small>
-                                    <?php if (!empty($pn['report_title'])): ?>
-                                        &mdash; <?php echo htmlspecialchars($pn['report_title']); ?>
+                                    <small>Report: <strong><?php echo htmlspecialchars($pcode); ?></strong></small>
+                                    <?php if (!empty($ptitle)): ?>
+                                        &mdash; <?php echo htmlspecialchars($ptitle); ?>
                                     <?php endif; ?>
                                 </div>
                                 <div style="margin-top: 10px;">
                                     <div class="action-buttons">
-                                        <a href="<?php echo notification_report_url_for((int)$pn['report_id'], $pn); ?>" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> View Report</a>
+                                        <?php if ($pmeta['found']): ?>
+                                            <a href="<?php echo notification_report_url_for((int)$pn['report_id'], array_merge($pn, $pmeta)); ?>" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> View Report</a>
+                                        <?php else: ?>
+                                            <span class="btn-sm btn-view" style="opacity:0.55;cursor:not-allowed;display:inline-block;" title="This report has been removed."><i class="fas fa-eye-slash"></i> No longer available</span>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
                             </div>

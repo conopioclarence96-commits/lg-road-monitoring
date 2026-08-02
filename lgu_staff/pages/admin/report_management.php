@@ -2846,7 +2846,7 @@ if ($focus_id > 0) {
                             foreach ($citizen_reports as $report):
                                 $hasCitizen = true;
                         ?>
-                        <tr data-id="<?php echo (int)$report['id']; ?>" data-source="citizen">
+                        <tr data-id="<?php echo (int)$report['id']; ?>" data-source="transport">
                             <td>
                                 <div class="rm-action-group">
                                     <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
