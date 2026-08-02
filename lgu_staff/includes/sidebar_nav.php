@@ -160,8 +160,14 @@ $nav_items = [
 $filtered_items = [];
 foreach ($nav_items as $section => $items) {
     $filtered_items[$section] = array_filter($items, function($item) use ($user_role) {
-        return in_array($user_role, $item['roles'])
+        $visible = in_array($user_role, $item['roles'])
             || (is_staff_role($user_role) && in_array('lgu_staff', $item['roles']));
+        // Transportation Operations Supervisors do not get the Change
+        // Information menu item.
+        if ($visible && $user_role === 'trans_ops_supervisor' && basename($item['href']) === 'change_info.php') {
+            $visible = false;
+        }
+        return $visible;
     });
 }
 ?>
