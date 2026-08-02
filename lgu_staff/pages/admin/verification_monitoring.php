@@ -188,7 +188,7 @@ function getRejectedReports($conn) {
 }
 
 // Function to get all reports (for filtering)
-function getAllReports($conn, $status_filter = 'all', $source_filter = 'all') {
+function getAllReports($conn, $status_filter = 'all', $source_filter = 'all', $transport_only = false) {
     $parts = [];
     $transport_where = '';
     $maintenance_where = '';
@@ -206,21 +206,33 @@ function getAllReports($conn, $status_filter = 'all', $source_filter = 'all') {
     }
     $infra_exclude = "report_type != 'infrastructure_issue'";
     $citizen_exclude = "(report_source IS NULL OR report_source != 'local' OR report_category IS NULL OR report_category != 'transportation' OR created_by IS NULL OR created_by != 0)";
+    // Transportation Operations Supervisors only see Transportation reports —
+    // Road reports (report_category = 'road') and maintenance/infrastructure
+    // reports are excluded at the query level.
+    $transport_category_filter = $transport_only ? " AND report_category = 'transportation'" : '';
     if ($source_filter === 'transport') {
-        $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}" : " WHERE {$infra_exclude} AND {$citizen_exclude}";
+        $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}" : " WHERE {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}";
         $source_case = "CASE WHEN report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
         $q = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$where})";
         $parts[] = $q;
     } elseif ($source_filter === 'maintenance') {
-        $q = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
-        $parts[] = $q;
+        if (!$transport_only) {
+            $q = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
+            $parts[] = $q;
+        }
     } else {
-        $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}" : " WHERE {$infra_exclude} AND {$citizen_exclude}";
+        $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}" : " WHERE {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}";
         $source_case = "CASE WHEN report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
         $parts[] = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, cimm_sync_status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$where})";
-        $parts[] = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, NULL as cimm_sync_status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
+        if (!$transport_only) {
+            $parts[] = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, NULL as cimm_sync_status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
+        }
     }
-    $query = implode(' UNION ALL ', $parts) . " ORDER BY created_at DESC";
+    if (empty($parts)) {
+        $query = "(SELECT 'transport' as source, 0 as id, '' as report_id, '' as title, '' as report_type, '' as report_category, '' as report_source, '' as department, '' as priority, '' as status, NULL as created_date, NULL as due_date, '' as description, '' as location, NULL as attachments, NULL as latitude, NULL as longitude, NULL as created_at, NULL as updated_at, NULL as approved_at, NULL as rejected_at, NULL as cimm_sync_status FROM road_transportation_reports WHERE 1 = 0)";
+    } else {
+        $query = implode(' UNION ALL ', $parts) . " ORDER BY created_at DESC";
+    }
     $result = $conn->query($query);
     if (!$result) {
         error_log("Query error in getAllReports: " . $conn->error);
@@ -533,7 +545,7 @@ $stats = getVerificationStatistics($conn);
 $pending_verifications = getPendingVerifications($conn);
 $approved_reports = getApprovedReports($conn);
 $rejected_reports = getRejectedReports($conn);
-$all_reports = getAllReports($conn, $status_filter, $source_filter);
+$all_reports = getAllReports($conn, $status_filter, $source_filter, $is_transport_supervisor);
 $recent_approvals = getRecentApprovals($conn);
 $activity_timeline = getActivityTimeline($conn);
 

@@ -63,6 +63,11 @@ if (
     exit();
 }
 
+// Transportation Operations Supervisors are restricted to Transportation
+// category reports only — the Roads option is hidden and road submissions
+// are rejected server-side.
+$is_transport_supervisor = (($_SESSION['role'] ?? '') === 'trans_ops_supervisor');
+
 // Function to get enhanced dashboard stats
 function getEnhancedStats() {
     global $conn;
@@ -433,6 +438,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $full_issue_type = $specific_type ? $specific_type : $issue_type;
                 $report_category = ($issue_type === 'roads') ? 'road' : 'transportation';
                 $report_source = 'local';
+
+                // Server-side guard: Transportation Operations Supervisors may
+                // only submit Transportation category reports. This prevents
+                // bypassing the UI by crafting a request with category Roads.
+                if ($is_transport_supervisor && $report_category === 'road') {
+                    echo json_encode(['success' => false, 'message' => 'Transportation Operations Supervisors can only submit Transportation reports.']);
+                    exit;
+                }
+
+                // Also reject road-specific issue types that would otherwise
+                // slip through if a crafted request pairs a transportation
+                // category with a road issue type.
+                $road_issue_types = ['potholes', 'road_damage', 'cracks', 'erosion', 'flooding', 'debris', 'shoulder_damage', 'marking_fade'];
+                if ($is_transport_supervisor && in_array($specific_type, $road_issue_types, true)) {
+                    echo json_encode(['success' => false, 'message' => 'Transportation Operations Supervisors can only submit Transportation reports.']);
+                    exit;
+                }
 
                 if ($lat === null || $lng === null || $issue_type === '' || $description === '') {
                     echo json_encode(['success' => false, 'message' => 'Missing required fields.']);
@@ -1565,11 +1587,17 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
                         </div>
                         
                         <label>Issue type</label>
+                        <?php if ($is_transport_supervisor): ?>
+                        <select id="issue-type" name="issue_type" required onchange="updateSpecificTypes()">
+                            <option value="transportation" selected>Transportation</option>
+                        </select>
+                        <?php else: ?>
                         <select id="issue-type" name="issue_type" required onchange="updateSpecificTypes()">
                             <option value="">— Select —</option>
                             <option value="transportation">Transportation</option>
                             <option value="roads">Roads</option>
                         </select>
+                        <?php endif; ?>
                         
                         <label id="specific-type-label" style="display: none; margin-top: 10px;">Specific Issue Type</label>
                         <select id="specific-type" name="specific_type" style="display: none;" required>
@@ -1582,9 +1610,12 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
                                 <option value="congestion">Heavy Congestion</option>
                                 <option value="parking_violation">Illegal Parking</option>
                                 <option value="public_transport_issue">Public Transport Issue</option>
+                                <option value="vehicle_breakdown">Vehicle Breakdown</option>
+                                <option value="traffic_sign_issue">Traffic Sign Issue</option>
                             </optgroup>
                             
                             <!-- Roads specific types -->
+                            <?php if (!$is_transport_supervisor): ?>
                             <optgroup id="roads-options" label="Road Issues" style="display: none;">
                                 <option value="potholes">Potholes</option>
                                 <option value="road_damage">Road Damage</option>
@@ -1595,6 +1626,7 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
                                 <option value="shoulder_damage">Shoulder Damage</option>
                                 <option value="marking_fade">Faded Road Markings</option>
                             </optgroup>
+                            <?php endif; ?>
                         </select>
                         <label>Severity</label>
                         <select id="severity" name="severity" required>
@@ -2406,15 +2438,15 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
             const roadOptions = document.getElementById('roads-options');
             
             // Hide all options first
-            transportOptions.style.display = 'none';
-            roadOptions.style.display = 'none';
+            if (transportOptions) transportOptions.style.display = 'none';
+            if (roadOptions) roadOptions.style.display = 'none';
             
             if (issueType === 'transportation') {
                 specificTypeLabel.style.display = 'block';
                 specificType.style.display = 'block';
-                transportOptions.style.display = 'block';
+                if (transportOptions) transportOptions.style.display = 'block';
                 specificType.required = true;
-            } else if (issueType === 'roads') {
+            } else if (issueType === 'roads' && roadOptions) {
                 specificTypeLabel.style.display = 'block';
                 specificType.style.display = 'block';
                 roadOptions.style.display = 'block';
