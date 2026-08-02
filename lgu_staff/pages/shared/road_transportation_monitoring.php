@@ -70,17 +70,19 @@ $is_transport_supervisor = (($_SESSION['role'] ?? '') === 'trans_ops_supervisor'
 
 // Function to get enhanced dashboard stats
 function getEnhancedStats() {
-    global $conn;
+    global $conn, $is_transport_supervisor;
     $stats = ['total' => 0, 'active' => 0, 'critical' => 0, 'resolved_month' => 0];
     if ($conn) {
         try {
-            $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports");
+            // Transportation Operations Supervisors see only Transportation reports.
+            $cat_filter = $is_transport_supervisor ? " AND report_category = 'transportation'" : '';
+            $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE 1=1{$cat_filter}");
             if ($r) $stats['total'] = (int)$r->fetch_assoc()['c'];
-            $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE status IN ('pending','in-progress')");
+            $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE status IN ('pending','in-progress'){$cat_filter}");
             if ($r) $stats['active'] = (int)$r->fetch_assoc()['c'];
-            $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE priority IN ('high','critical') AND status != 'completed'");
+            $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE priority IN ('high','critical') AND status != 'completed'{$cat_filter}");
             if ($r) $stats['critical'] = (int)$r->fetch_assoc()['c'];
-            $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE status='completed' AND MONTH(updated_at)=MONTH(CURDATE()) AND YEAR(updated_at)=YEAR(CURDATE())");
+            $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE status='completed' AND MONTH(updated_at)=MONTH(CURDATE()) AND YEAR(updated_at)=YEAR(CURDATE()){$cat_filter}");
             if ($r) $stats['resolved_month'] = (int)$r->fetch_assoc()['c'];
         } catch (Exception $e) { error_log("Enhanced stats error: ".$e->getMessage()); }
     }
@@ -97,10 +99,13 @@ function getEnhancedStats() {
 //   - Infrastructure Projects (road_maintenance_reports) that are APPROVED or
 //     COMPLETED
 //   - CIMM reports whose verification_status is 'Verified'
-function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter = 'all') {
+function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter = 'all', $transport_only = false) {
     global $conn;
     $reports = [];
     if (!$conn) return $reports;
+
+    // Transportation Operations Supervisors see only Transportation reports.
+    $transport_category_filter = $transport_only ? " AND report_category = 'transportation'" : '';
 
     // Helper to append shared WHERE/ORDER/LIMIT clauses and run a query
     $fetch = function ($sql, $status_filter, $type_filter, $limit) use ($conn) {
@@ -141,44 +146,52 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                     status, priority, severity, created_at, description,
                     latitude, longitude, location, reporter_name, attachments, image_path,
                     cimm_sync_status, cimm_verified_at, cimm_verified_by
-             FROM road_transportation_reports
+              FROM road_transportation_reports
              WHERE report_type != 'infrastructure_issue'
                AND (status = 'approved' OR cimm_sync_status = 'verified')
                AND (created_by IS NULL OR created_by = 0
                     OR cimm_sync_status IS NULL OR cimm_sync_status <> 'pushed'
-                    OR (report_category = 'transportation' AND report_source = 'local' AND created_by != 0))",
+                    OR (report_category = 'transportation' AND report_source = 'local' AND created_by != 0))
+               $transport_category_filter",
             $status_filter, $type_filter, $limit
         ));
 
         // 2. Infrastructure Projects (road_maintenance_reports, finalized).
-        $reports = array_merge($reports, $fetch(
-            "SELECT id, report_id, title, report_type,
-                    'infrastructure' AS source,
-                    status, priority, NULL AS severity, created_at, description,
-                    NULL AS latitude, NULL AS longitude, location, NULL AS reporter_name,
-                    NULL AS attachments, NULL AS image_path,
-                    NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by
-             FROM road_maintenance_reports
-             WHERE status IN ('approved','completed')",
-            $status_filter, $type_filter, $limit
-        ));
+        //    Excluded for Transportation Operations Supervisors.
+        if (!$transport_only) {
+            $reports = array_merge($reports, $fetch(
+                "SELECT id, report_id, title, report_type,
+                        'infrastructure' AS source,
+                        status, priority, NULL AS severity, created_at, description,
+                        NULL AS latitude, NULL AS longitude, location, NULL AS reporter_name,
+                        NULL AS attachments, NULL AS image_path,
+                        NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by
+                 FROM road_maintenance_reports
+                 WHERE status IN ('approved','completed')",
+                $status_filter, $type_filter, $limit
+            ));
+        }
 
         // 2b. Infrastructure issue rows that live inside the transport table
         //     are also managed as Infrastructure Projects by report_management.
-        $reports = array_merge($reports, $fetch(
-            "SELECT id, report_id, title, report_type,
-                    'infrastructure' AS source,
-                    status, priority, severity, created_at, description,
-                    latitude, longitude, location, reporter_name, attachments, image_path,
-                    cimm_sync_status, cimm_verified_at, cimm_verified_by
-             FROM road_transportation_reports
-             WHERE report_type = 'infrastructure_issue'
-               AND status IN ('approved','completed')",
-            $status_filter, $type_filter, $limit
-        ));
+        if (!$transport_only) {
+            $reports = array_merge($reports, $fetch(
+                "SELECT id, report_id, title, report_type,
+                        'infrastructure' AS source,
+                        status, priority, severity, created_at, description,
+                        latitude, longitude, location, reporter_name, attachments, image_path,
+                        cimm_sync_status, cimm_verified_at, cimm_verified_by
+                 FROM road_transportation_reports
+                 WHERE report_type = 'infrastructure_issue'
+                   AND status IN ('approved','completed')",
+                $status_filter, $type_filter, $limit
+            ));
+        }
 
         // 3. CIMM reports (finalized = verification_status 'Verified').
-        try {
+        //    Excluded for Transportation Operations Supervisors.
+        if (!$transport_only) {
+            try {
             $reports = array_merge($reports, $fetch(
                 "SELECT id, reference_code AS report_id, infrastructure AS title,
                         'infrastructure_issue' AS report_type, 'cimm' AS source,
@@ -194,6 +207,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
             ));
         } catch (Exception $e) {
             error_log("Recent CIMM reports error: ".$e->getMessage());
+        }
         }
 
         // Sort combined results by created_at DESC and cap at the requested limit
@@ -682,7 +696,7 @@ $type_filter = $_GET['type'] ?? 'all';
 $alerts = getActiveAlerts();
 $roads = getRoadStatus();
 $enhanced_stats = getEnhancedStats();
-$recent_reports = getRecentSubmissions(10, $status_filter);
+$recent_reports = getRecentSubmissions(10, $status_filter, 'all', $is_transport_supervisor);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -1781,8 +1795,10 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
                     <select class="filter-select" id="typeFilter" onchange="filterReportsBySource()">
                         <option value="all">All Types</option>
                         <option value="citizen">Citizen Reports</option>
+                        <?php if (!$is_transport_supervisor): ?>
                         <option value="cimm">CIMM Reports</option>
                         <option value="infrastructure">Infrastructure Projects</option>
+                        <?php endif; ?>
                         <option value="lgu">LGU Monitoring Reports</option>
                     </select>
                     <button class="btn-secondary-custom" onclick="resetFilters()" title="Reset Filters">

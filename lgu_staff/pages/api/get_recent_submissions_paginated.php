@@ -18,16 +18,22 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['system_admin'
     exit;
 }
 
+// Transportation Operations Supervisors see only Transportation reports.
+$transport_only = (($_SESSION['role'] ?? '') === 'trans_ops_supervisor');
+
 $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
 $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
 $status_filter = isset($_GET['status']) ? $_GET['status'] : 'all';
 $type_filter = isset($_GET['type']) ? $_GET['type'] : 'all';
 
 // Helper function to get recent submissions with pagination
-function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', $type_filter = 'all') {
+function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', $type_filter = 'all', $transport_only = false) {
     global $conn;
     $reports = [];
     if (!$conn) return $reports;
+
+    // Transportation Operations Supervisors see only Transportation reports.
+    $transport_category_filter = $transport_only ? " AND report_category = 'transportation'" : '';
 
     // Helper to append shared WHERE clauses and run a query (no pagination at query level)
     $fetch = function ($sql, $status_filter) use ($conn) {
@@ -62,12 +68,14 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
                AND (status = 'approved' OR cimm_sync_status = 'verified')
                AND (created_by IS NULL OR created_by = 0
                     OR cimm_sync_status IS NULL OR cimm_sync_status <> 'pushed'
-                    OR (report_category = 'transportation' AND report_source = 'local' AND created_by != 0))",
+                    OR (report_category = 'transportation' AND report_source = 'local' AND created_by != 0)){$transport_category_filter}",
             $status_filter
         ));
 
         // 2. Infrastructure Projects (road_maintenance_reports, finalized)
-        $reports = array_merge($reports, $fetch(
+        //    Excluded for Transportation Operations Supervisors.
+        if (!$transport_only) {
+            $reports = array_merge($reports, $fetch(
             "SELECT id, report_id, title, report_type,
                     'infrastructure' AS source,
                     status, priority, NULL AS severity, created_at, description,
@@ -110,6 +118,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
         } catch (Exception $e) {
             error_log("Recent CIMM reports error: ".$e->getMessage());
         }
+        }
 
         // Filter by type after fetching (since source is a calculated field)
         if ($type_filter !== 'all') {
@@ -131,7 +140,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
 }
 
 try {
-    $reports = getRecentSubmissionsPaginated($offset, $limit, $status_filter, $type_filter);
+    $reports = getRecentSubmissionsPaginated($offset, $limit, $status_filter, $type_filter, $transport_only);
     
     $source_labels = [
         'lgu' => 'LGU Monitoring',
