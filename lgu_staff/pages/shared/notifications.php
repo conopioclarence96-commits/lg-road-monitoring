@@ -173,6 +173,15 @@ if ($is_admin) {
         $nstmt->execute();
         $progress_notifications = $nstmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $nstmt->close();
+
+        // The LEFT JOIN above only fills in report_code/report_title for
+        // notifications that reference road_transportation_reports. Progress
+        // updates can also attach to road_maintenance_reports or CIMM reports
+        // (the FK on report_notifications.report_id was dropped for that), so
+        // resolve each notification's actual originating table server-side.
+        // This guarantees every View Report button passes the correct id and a
+        // source hint so the destination page looks in the right table.
+        $progress_notifications = array_map('resolve_progress_notification_source', $progress_notifications);
     } catch (Exception $e) {
         error_log("Progress notifications query error: " . $e->getMessage());
         $progress_notifications = [];
@@ -278,6 +287,71 @@ function notification_pending_report_focus_url(array $r): string {
         return '../admin/verification_monitoring.php?source=cimm&id=' . (int)($r['id'] ?? 0);
     }
     return '../admin/verification_monitoring.php?focus_report_id=' . (int)($r['id'] ?? 0);
+}
+
+// Resolve which report table a Progress Update notification references.
+// report_notifications.report_id is the numeric PK in the originating table
+// (road_transportation_reports / road_maintenance_reports / cimm_verification_reports),
+// and the FK is intentionally dropped so it can point at any of them. The
+// notifications query only joins the transport table, so when that join yields
+// no code, probe the other tables. Returns the row with '_source' set to
+// 'transport' | 'maintenance' | 'cimm' plus the real report code/title.
+function resolve_progress_notification_source(array $pn): array {
+    global $conn;
+    $id = (int)($pn['report_id'] ?? 0);
+    if ($id <= 0) return $pn;
+
+    // Transport rows already resolved by the LEFT JOIN in the query.
+    if (!empty($pn['report_code'])) {
+        $pn['_source'] = 'transport';
+        return $pn;
+    }
+
+    try {
+        // Maintenance reports.
+        $stmt = $conn->prepare("SELECT id, report_id, title FROM road_maintenance_reports WHERE id = ?");
+        $stmt->bind_param("i", $id);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if ($row) {
+            $pn['_source'] = 'maintenance';
+            $pn['report_code'] = $row['report_id'];
+            $pn['report_title'] = $row['title'];
+            return $pn;
+        }
+
+        // CIMM reports (same database, PDO access via cimm_verification_data.php).
+        $pdo = rgmap_verification_pdo();
+        rgmap_ensure_cimm_verification_table($pdo);
+        $stmt = $pdo->prepare("SELECT id, reference_code AS report_id, infrastructure AS title FROM cimm_verification_reports WHERE id = ?");
+        $stmt->execute([$id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row) {
+            $pn['_source'] = 'cimm';
+            $pn['report_code'] = $row['report_id'];
+            $pn['report_title'] = $row['title'];
+            return $pn;
+        }
+    } catch (Exception $e) {
+        error_log("Progress notification source resolution error: " . $e->getMessage());
+    }
+
+    $pn['_source'] = 'transport';
+    return $pn;
+}
+
+// Deep-link for the "Progress Updates" panel. Every View Report button must
+// redirect to road_transportation_monitoring.php (Recent Submissions), passing
+// the report's numeric PK plus a source hint so the page looks it up in the
+// correct table even when ids collide across tables.
+function notification_progress_focus_url(array $pn): string {
+    $url = 'road_transportation_monitoring.php?focus_report_id=' . (int)($pn['report_id'] ?? 0);
+    $src = (string)($pn['_source'] ?? '');
+    if ($src !== '') {
+        $url .= '&source=' . rawurlencode($src);
+    }
+    return $url;
 }
 ?>
 
@@ -857,7 +931,7 @@ function notification_pending_report_focus_url(array $r): string {
                                 </div>
                                 <div style="margin-top: 10px;">
                                     <div class="action-buttons">
-                                        <a href="<?php echo notification_report_url_for((int)$pn['report_id'], $pn); ?>" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> View Report</a>
+                                        <a href="<?php echo notification_progress_focus_url($pn); ?>" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> View Report</a>
                                     </div>
                                 </div>
                             </div>

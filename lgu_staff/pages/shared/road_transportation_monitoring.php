@@ -688,15 +688,113 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
+// Resolve a report into the flat shape Recent Submissions renders, searching
+// across the three tables that feed it (transport / maintenance / CIMM).
+// Returns null when the id does not exist in any of them.
+function resolve_recent_focus_row(int $id, string $source_hint = ''): ?array {
+    global $conn;
+
+    $candidates = $source_hint !== ''
+        ? [$source_hint]
+        : ['transport', 'maintenance', 'cimm'];
+
+    try {
+        foreach ($candidates as $src) {
+            if ($src === 'transport') {
+                $stmt = $conn->prepare("SELECT id, report_id, title, report_type, status, priority, severity, created_at, description, latitude, longitude, location, reporter_name, attachments, image_path, cimm_sync_status, cimm_verified_at, cimm_verified_by, created_by FROM road_transportation_reports WHERE id = ?");
+                $stmt->bind_param("i", $id);
+                $stmt->execute();
+                $r = $stmt->get_result()->fetch_assoc();
+                $stmt->close();
+                if ($r) {
+                    $r['source'] = (($r['report_type'] ?? '') === 'infrastructure_issue')
+                        ? 'infrastructure'
+                        : ((!empty($r['created_by'])) ? 'lgu' : 'citizen');
+                    return $r;
+                }
+            } elseif ($src === 'maintenance') {
+                $stmt = $conn->prepare("SELECT id, report_id, title, report_type, status, priority, NULL AS severity, created_at, description, NULL AS latitude, NULL AS longitude, location, NULL AS reporter_name, NULL AS attachments, NULL AS image_path, NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by FROM road_maintenance_reports WHERE id = ?");
+                $stmt->bind_param("i", $id);
+                $stmt->execute();
+                $r = $stmt->get_result()->fetch_assoc();
+                $stmt->close();
+                if ($r) {
+                    $r['source'] = 'infrastructure';
+                    return $r;
+                }
+            } elseif ($src === 'cimm') {
+                require_once __DIR__ . '/../api/cimm_verification_data.php';
+                $pdo = rgmap_verification_pdo();
+                rgmap_ensure_cimm_verification_table($pdo);
+                $stmt = $pdo->prepare("SELECT id, reference_code AS report_id, infrastructure AS title, 'infrastructure_issue' AS report_type, 'completed' AS status, priority, NULL AS severity, COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at, issue AS description, coord_lat AS latitude, coord_lng AS longitude, location, reporter_name, NULL AS attachments, NULL AS image_path, 'verified' AS cimm_sync_status, verified_at AS cimm_verified_at, NULL AS cimm_verified_by FROM cimm_verification_reports WHERE id = ?");
+                $stmt->execute([$id]);
+                $r = $stmt->fetch(PDO::FETCH_ASSOC);
+                if ($r) {
+                    $r['source'] = 'cimm';
+                    return $r;
+                }
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Recent focus row resolution error: " . $e->getMessage());
+    }
+    return null;
+}
+
 // Get filter parameters
 $status_filter = $_GET['status'] ?? 'all';
 $type_filter = $_GET['type'] ?? 'all';
+
+// Deep-link focus: ?focus_report_id= (numeric PK) from a Progress Update
+// notification's "View Report" button. The report may live in any of the
+// tables that feed Recent Submissions, so we locate it server-side, force the
+// filters off so nothing hides it, and inject the row if Recent Submissions
+// wouldn't normally show it (e.g. it is not yet in a finalized status).
+$focus_report_id = isset($_GET['focus_report_id']) ? (int)$_GET['focus_report_id'] : 0;
+$focus_source_hint = (string)($_GET['source'] ?? '');
+$focus_target = ['found' => false, 'id' => $focus_report_id, 'source' => '', 'report_id' => ''];
+
+if ($focus_report_id > 0) {
+    $status_filter = 'all';
+    $type_filter = 'all';
+}
 
 // Get data for the page
 $alerts = getActiveAlerts();
 $roads = getRoadStatus();
 $enhanced_stats = getEnhancedStats();
 $recent_reports = getRecentSubmissions(10, $status_filter, 'all', $is_transport_supervisor);
+
+if ($focus_report_id > 0) {
+    $focus_row = resolve_recent_focus_row($focus_report_id, $focus_source_hint);
+    if ($focus_row) {
+        $focus_target['found'] = true;
+        $focus_target['source'] = $focus_row['source'] ?? '';
+        $focus_target['report_id'] = $focus_row['report_id'] ?? '';
+
+        // Respect role-based restrictions: transport supervisors never see
+        // infrastructure or CIMM rows in Recent Submissions.
+        $restricted = $is_transport_supervisor
+            && in_array($focus_row['source'] ?? '', ['infrastructure', 'cimm'], true);
+
+        if (!$restricted) {
+            $already_present = false;
+            foreach ($recent_reports as $existing) {
+                if ((int)($existing['id'] ?? 0) === $focus_report_id
+                    && ($existing['source'] ?? '') === ($focus_row['source'] ?? '')) {
+                    $already_present = true;
+                    break;
+                }
+            }
+            if (!$already_present) {
+                $recent_reports[] = $focus_row;
+                usort($recent_reports, function ($a, $b) {
+                    return strtotime($b['created_at'] ?? 'now') - strtotime($a['created_at'] ?? 'now');
+                });
+            }
+        }
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -1136,6 +1234,15 @@ $recent_reports = getRecentSubmissions(10, $status_filter, 'all', $is_transport_
             color: #333;
         }
         .reports-table-section tr:hover td { background: rgba(55,98,200,0.03); }
+        tr.focus-pulse {
+            border-left: 4px solid #3762c8;
+            background: #eef5ff;
+            animation: recentFocusPulse 1s ease-in-out 4;
+        }
+        @keyframes recentFocusPulse {
+            0%, 100% { border-left: 4px solid #3762c8; background: #eef5ff; }
+            50%      { border-left: 4px solid #3762c8; background: #dbe9ff; }
+        }
         .reports-table-section .badge {
             display: inline-block; padding: 2px 10px; border-radius: 12px;
             font-size: 11px; font-weight: 600; text-transform: uppercase;
@@ -3470,7 +3577,53 @@ $recent_reports = getRecentSubmissions(10, $status_filter, 'all', $is_transport_
         if (initialRows.length < 10) {
             hideLoadMoreButton();
         }
+        focusRecentReport();
     });
+
+    // Deep-link focus from a Progress Update notification's "View Report" button
+    // (?focus_report_id=). The backend already located the report and injected
+    // its row into Recent Submissions if needed, so this only reveals, scrolls
+    // to and pulses the matching row — or shows a friendly message if the
+    // report no longer exists.
+    const FOCUS_TARGET = <?php echo json_encode($focus_target); ?>;
+    function focusRecentReport() {
+        const target = FOCUS_TARGET;
+        if (!target || !target.id) return;
+        setTimeout(function() {
+            if (!target.found) {
+                showNotification('The report referenced by this progress update could not be found.', 'error');
+                return;
+            }
+            let row = null;
+            const rows = document.querySelectorAll('#recentReportsTable .report-table-row[data-id="' + target.id + '"]');
+            if (rows.length === 1) {
+                row = rows[0];
+            } else if (rows.length > 1) {
+                // The same id can exist in more than one source table —
+                // disambiguate by data-source when possible.
+                rows.forEach(function(r) {
+                    if (!row && target.source && r.dataset.source === target.source) row = r;
+                });
+                if (!row) row = rows[0];
+            }
+            if (!row) {
+                showNotification('The report referenced by this progress update could not be found.', 'error');
+                return;
+            }
+            // Clear any client-side search filter so the row is visible.
+            const searchInput = document.getElementById('reportSearchInput');
+            if (searchInput) searchInput.value = '';
+            row.style.display = '';
+            // Bring the Recent Submissions section into view, then the row.
+            const section = document.querySelector('.reports-table-section');
+            if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            setTimeout(function() {
+                row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                row.classList.add('focus-pulse');
+                setTimeout(function() { row.classList.remove('focus-pulse'); }, 5000);
+            }, 350);
+        }, 600);
+    }
 
     </script>
     
