@@ -32,7 +32,7 @@ if (!isset($_SESSION['user_id']) || !is_admin_or_staff_role($user_role)) {
 }
 
 // Handle mark as read
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($is_admin || $is_transport_supervisor)) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_admin) {
     header('Content-Type: application/json');
     $action = $_POST['action'] ?? '';
     
@@ -143,31 +143,6 @@ if ($is_admin) {
         error_log("Pending CIMM reports query error: " . $e->getMessage());
     }
 
-    // Transport Supervisor: filter to show only Transportation reports
-    // Use the same classification logic as road_transportation_monitoring.php
-    if ($is_transport_supervisor) {
-        $pending_reports = array_filter($pending_reports, function($report) {
-            // CIMM reports are road-related infrastructure, exclude them
-            if (($report['_source'] ?? '') === 'cimm') {
-                return false;
-            }
-
-            // Use report_category if available (from the existing logic)
-            if (isset($report['report_category']) && $report['report_category'] === 'transportation') {
-                return true;
-            }
-
-            // Fallback: check report_type for transportation issue types
-            $transport_types = ['traffic_jam', 'traffic_light_outage', 'illegal_parking',
-                               'road_closure', 'public_transport_issue', 'vehicle_breakdown',
-                               'traffic_sign_issue', 'congestion', 'heavy_congestion'];
-            $report_type = strtolower((string)($report['report_type'] ?? ''));
-            return in_array($report_type, $transport_types, true);
-        });
-        // Re-index array after filtering
-        $pending_reports = array_values($pending_reports);
-    }
-
     // Admin: get all pending change requests
     try {
         $cstmt = $conn->prepare("
@@ -207,31 +182,6 @@ if ($is_admin) {
         // This guarantees every View Report button passes the correct id and a
         // source hint so the destination page looks in the right table.
         $progress_notifications = array_map('resolve_progress_notification_source', $progress_notifications);
-
-        // Transport Supervisor: filter to show only Transportation progress updates
-        if ($is_transport_supervisor) {
-            $progress_notifications = array_filter($progress_notifications, function($pn) {
-                // Exclude maintenance and cimm sources (road-related infrastructure)
-                $source = (string)($pn['_source'] ?? '');
-                if ($source !== 'transport') {
-                    return false;
-                }
-
-                // Use report_category if available
-                if (isset($pn['report_category']) && $pn['report_category'] === 'transportation') {
-                    return true;
-                }
-
-                // Fallback: check report_type for transportation issue types
-                $transport_types = ['traffic_jam', 'traffic_light_outage', 'illegal_parking',
-                                   'road_closure', 'public_transport_issue', 'vehicle_breakdown',
-                                   'traffic_sign_issue', 'congestion', 'heavy_congestion'];
-                $report_type = strtolower((string)($pn['report_type'] ?? ''));
-                return in_array($report_type, $transport_types, true);
-            });
-            // Re-index array after filtering
-            $progress_notifications = array_values($progress_notifications);
-        }
     } catch (Exception $e) {
         error_log("Progress notifications query error: " . $e->getMessage());
         $progress_notifications = [];
@@ -274,7 +224,7 @@ if ($is_admin) {
     }
 }
 
-$total_notifications = ($is_admin || $is_transport_supervisor) ? (count($pending_reports) + count($pending_changes) + count($progress_notifications)) : (count($staff_updates) + count($report_updates));
+$total_notifications = $is_admin ? (count($pending_reports) + count($pending_changes) + count($progress_notifications)) : (count($staff_updates) + count($report_updates));
 
 // --- Notification deep-link helpers ----------------------------------------
 // Every View/Review button must pass the report source together with the id
@@ -787,10 +737,10 @@ function notification_progress_focus_url(array $pn): string {
             <div class="welcome-section">
                 <div class="welcome-text">
                     <h1><i class="fas fa-bell"></i> Notifications</h1>
-                    <p><?php echo ($is_admin || $is_transport_supervisor) ? 'Reports from other departments and staff change requests' : 'Updates on your submitted reports and change requests'; ?></p>
+                    <p><?php echo $is_admin ? 'Reports from other departments and staff change requests' : 'Updates on your submitted reports and change requests'; ?></p>
                 </div>
                 <div style="display: flex; gap: 10px; align-items: center;">
-                    <?php if ($is_admin || $is_transport_supervisor): ?>
+                    <?php if ($is_admin): ?>
                     <button class="btn-sm btn-approve" onclick="markAllRead()" <?php echo $total_notifications === 0 ? 'disabled' : ''; ?>>
                         <i class="fas fa-check-double"></i> Mark All as Read
                     </button>
@@ -805,7 +755,7 @@ function notification_progress_focus_url(array $pn): string {
 
         <!-- Statistics -->
         <div class="quick-stats">
-            <?php if ($is_admin || $is_transport_supervisor): ?>
+            <?php if ($is_admin): ?>
             <div class="stat-card">
                 <div class="stat-icon" style="color: #f59e0b;">
                     <i class="fas fa-file-alt"></i>
@@ -814,7 +764,6 @@ function notification_progress_focus_url(array $pn): string {
                 <div class="stat-label">Pending Reports</div>
             </div>
 
-            <?php if (!$is_transport_supervisor): ?>
             <div class="stat-card">
                 <div class="stat-icon" style="color: #8b5cf6;">
                     <i class="fas fa-user-edit"></i>
@@ -822,7 +771,6 @@ function notification_progress_focus_url(array $pn): string {
                 <div class="stat-number"><?php echo count($pending_changes); ?></div>
                 <div class="stat-label">Change Requests</div>
             </div>
-            <?php endif; ?>
             <?php else: ?>
             <div class="stat-card">
                 <div class="stat-icon" style="color: #f59e0b;">
@@ -849,7 +797,7 @@ function notification_progress_focus_url(array $pn): string {
         </div>
 
         <div class="workflow-container">
-            <?php if ($is_admin || $is_transport_supervisor): ?>
+            <?php if ($is_admin): ?>
             <!-- Pending Reports -->
             <div class="workflow-card">
                 <div class="workflow-header">
@@ -900,7 +848,6 @@ function notification_progress_focus_url(array $pn): string {
                 </div>
             </div>
 
-            <?php if (!$is_transport_supervisor): ?>
             <!-- Pending Change Requests -->
             <div class="workflow-card">
                 <div class="workflow-header">
@@ -952,8 +899,7 @@ function notification_progress_focus_url(array $pn): string {
                     <?php endif; ?>
                 </div>
             </div>
-            <?php endif; ?>
-            <!-- Admin & Transport Supervisor: Progress Update Notifications -->
+            <!-- Admin: Progress Update Notifications -->
             <div class="workflow-card">
                 <div class="workflow-header">
                     <h3 class="workflow-title">
@@ -993,7 +939,6 @@ function notification_progress_focus_url(array $pn): string {
                     <?php endif; ?>
                 </div>
             </div>
-            <?php endif; ?>
             <?php else: ?>
             <!-- Staff: My Report Status Updates -->
             <div class="workflow-card">
