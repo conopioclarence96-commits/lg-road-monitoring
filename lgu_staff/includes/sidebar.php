@@ -150,11 +150,13 @@ function getNavigationItems($user_role) {
         ]
     ];
     
-    // Filter items based on user role
+    // Filter items based on user role. The Road & Transportation staff roles
+    // share the same menu as 'lgu_staff'.
     $filtered_items = [];
     foreach ($base_items as $section => $items) {
         $filtered_items[$section] = array_filter($items, function($item) use ($user_role) {
-            return in_array($user_role, $item['roles']);
+            return in_array($user_role, $item['roles'])
+                || (is_staff_role($user_role) && in_array('lgu_staff', $item['roles']));
         });
     }
     
@@ -212,7 +214,7 @@ function getNotificationCount($user_role = '', $user_id = 0) {
             } catch (Exception $e) {
                 // Ignore errors
             }
-        } elseif ($user_role === 'lgu_staff' && $user_id > 0) {
+        } elseif (is_staff_role($user_role) && $user_id > 0) {
             // Count staff's own reviewed change requests
             try {
                 $stmt = $conn->prepare("SELECT COUNT(*) as count FROM change_requests WHERE user_id = ? AND status != 'pending'");

@@ -4,7 +4,7 @@ require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 
 // Check if user is logged in
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'lgu_staff') {
+if (!isset($_SESSION['user_id']) || !is_staff_role($_SESSION['role'] ?? '')) {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Content-Type: application/json; charset=utf-8');
         http_response_code(401);

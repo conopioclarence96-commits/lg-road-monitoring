@@ -218,12 +218,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $stmt = $conn->prepare("
     SELECT id, username, email, full_name, role, department, address, birthday, civil_status, is_active, created_at, updated_at, approved_at, rejected_at, id_file_path 
     FROM users 
-    WHERE role IN ('lgu_staff', 'citizen') AND account_status = 'pending'
+    WHERE role IN ('lgu_staff', 'citizen', 'road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer') AND account_status = 'pending'
     ORDER BY created_at DESC
 ");
 $stmt->execute();
 $users = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
+
+$role_labels = [
+    'lgu_staff' => 'LGU Staff',
+    'citizen' => 'Citizen',
+    'road_ops_supervisor' => 'Road Operations Supervisor',
+    'trans_ops_supervisor' => 'Transportation Operations Supervisor',
+    'road_monitoring_officer' => 'Road Monitoring Officer',
+    'trans_monitoring_officer' => 'Transportation Monitoring Officer',
+];
 
 $change_requests = [];
 try {
@@ -263,6 +272,20 @@ try {
 }
 
 $pending_changes_count = count($change_requests);
+
+// Deep-link focus: ?cr_id= from a notification "Review" button. The backend
+// confirms the request is still listed (pending) so the frontend can scroll to
+// it and highlight it — or show a friendly message when it no longer exists.
+$focus_cr_id = isset($_GET['cr_id']) ? (int)$_GET['cr_id'] : 0;
+$focus_target = ['found' => false, 'id' => $focus_cr_id];
+if ($focus_cr_id > 0) {
+    foreach ($change_requests as $cr) {
+        if ((int)$cr['id'] === $focus_cr_id) {
+            $focus_target['found'] = true;
+            break;
+        }
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -365,6 +388,24 @@ $pending_changes_count = count($change_requests);
         .btn-reject { background: #ef4444; color: white; }
         .btn-manage { background: #3b82f6; color: white; }
         .btn-view { background: #3762c8; color: white; }
+
+        .cr-row-focus {
+            animation: crFocusPulse 1.2s ease-in-out 4;
+            box-shadow: 0 0 0 3px #3762c8, 0 8px 32px rgba(55, 98, 200, 0.35);
+            border-left: 4px solid #3762c8;
+            background: rgba(55, 98, 200, 0.12);
+        }
+
+        @keyframes crFocusPulse {
+            0%, 100% { background-color: rgba(55, 98, 200, 0.12); }
+            50% { background-color: rgba(55, 98, 200, 0.28); }
+        }
+
+        body.dark-mode .cr-row-focus {
+            box-shadow: 0 0 0 3px #6a9bff, 0 8px 32px rgba(106, 155, 255, 0.35);
+            border-left: 4px solid #6a9bff;
+            background: rgba(106, 155, 255, 0.14);
+        }
 
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); overflow-y: auto; }
         .modal-content { background-color: white; margin: 5% auto; padding: 30px; border-radius: 10px; width: 90%; max-width: 650px; position: relative; max-height: 85vh; overflow-y: auto; }
@@ -493,7 +534,7 @@ $pending_changes_count = count($change_requests);
                                         <tr>
                                             <td><?php echo htmlspecialchars($user['full_name']); ?></td>
                                             <td><?php echo htmlspecialchars($user['email']); ?></td>
-                                            <td><?php echo htmlspecialchars($user['role']); ?></td>
+                                            <td><?php echo htmlspecialchars($role_labels[$user['role']] ?? $user['role']); ?></td>
                                             <td><?php echo htmlspecialchars($user['department'] ?? 'N/A'); ?></td>
                                             <td><?php echo date('M d, Y', strtotime($user['created_at'])); ?></td>
                                             <td>
@@ -553,7 +594,7 @@ $pending_changes_count = count($change_requests);
                                                 }
                                             }
                                         ?>
-                                        <tr>
+                                        <tr data-id="<?php echo (int)$cr['id']; ?>">
                                             <td><?php echo htmlspecialchars($cr['user_name']); ?></td>
                                             <td>
                                                 <small class="t-text-secondary">
@@ -960,11 +1001,24 @@ $pending_changes_count = count($change_requests);
             return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
         }
 
+        var roleLabels = {
+            'lgu_staff': 'LGU Staff',
+            'citizen': 'Citizen',
+            'road_ops_supervisor': 'Road Operations Supervisor',
+            'trans_ops_supervisor': 'Transportation Operations Supervisor',
+            'road_monitoring_officer': 'Road Monitoring Officer',
+            'trans_monitoring_officer': 'Transportation Monitoring Officer'
+        };
+
+        function roleLabel(role) {
+            return roleLabels[role] || role;
+        }
+
         function renderPendingUsersRow(user) {
             return '<tr>' +
                 '<td>' + escapeHtml(user.full_name) + '</td>' +
                 '<td>' + escapeHtml(user.email) + '</td>' +
-                '<td>' + escapeHtml(user.role) + '</td>' +
+                '<td>' + escapeHtml(roleLabel(user.role)) + '</td>' +
                 '<td>' + escapeHtml(user.department || 'N/A') + '</td>' +
                 '<td>' + new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + '</td>' +
                 '<td><div class="action-buttons"><button class="btn-sm btn-manage" onclick="showUserModal(' + user.id + ')">Manage</button></div></td>' +
@@ -1013,7 +1067,7 @@ $pending_changes_count = count($change_requests);
                 }
             }
 
-            return '<tr>' +
+            return '<tr data-id="' + (cr.id || '') + '">' +
                 '<td>' + escapeHtml(cr.user_name) + '</td>' +
                 '<td><small style="color:#666;">' + currentHtml + '</small></td>' +
                 '<td><small style="color:#1e3c72;">' + requestedHtml + '</small></td>' +
@@ -1103,6 +1157,32 @@ $pending_changes_count = count($change_requests);
         }
 
         syncInterval = setInterval(refreshApprovalsData, 30000);
+
+        // Deep-link focus: ?cr_id= from a notification "Review" button. The
+        // backend already confirmed the request is still pending and rendered
+        // ($focus_target.found); this scrolls to the row and highlights it, or
+        // shows a friendly message when the request no longer exists.
+        var focusTarget = <?php echo json_encode($focus_target); ?>;
+        if (focusTarget && focusTarget.id) {
+            setTimeout(function() {
+                var crRow = document.querySelector('#changeRequestsBody tr[data-id="' + focusTarget.id + '"]');
+                if (crRow && focusTarget.found) {
+                    crRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    crRow.classList.add('cr-row-focus');
+                    setTimeout(function() { crRow.classList.remove('cr-row-focus'); }, 5000);
+                } else {
+                    showFocusMessage('The change request referenced by this notification could not be found.');
+                }
+            }, 500);
+        }
+
+        function showFocusMessage(message) {
+            var el = document.createElement('div');
+            el.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:10001;background:#ef4444;color:#fff;padding:14px 20px;border-radius:8px;font-size:14px;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,0.2);';
+            el.textContent = message;
+            document.body.appendChild(el);
+            setTimeout(function() { el.remove(); }, 5000);
+        }
     </script>
 
 

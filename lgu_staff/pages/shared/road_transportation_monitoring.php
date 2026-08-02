@@ -57,61 +57,167 @@ $_SESSION['last_activity'] = time();
 // Check if user is logged in
 if (
     !isset($_SESSION['user_id']) ||
-    !in_array($_SESSION['role'], ['lgu_staff', 'system_admin'])
+    !is_admin_or_staff_role($_SESSION['role'] ?? '')
 ) {
     header('Location: ../../login.php');
     exit();
 }
 
+// Transportation Operations Supervisors are restricted to Transportation
+// category reports only — the Roads option is hidden and road submissions
+// are rejected server-side.
+$is_transport_supervisor = (($_SESSION['role'] ?? '') === 'trans_ops_supervisor');
+
 // Function to get enhanced dashboard stats
 function getEnhancedStats() {
-    global $conn;
+    global $conn, $is_transport_supervisor;
     $stats = ['total' => 0, 'active' => 0, 'critical' => 0, 'resolved_month' => 0];
     if ($conn) {
         try {
-            $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports");
+            // Transportation Operations Supervisors see only Transportation reports.
+            $cat_filter = $is_transport_supervisor ? " AND report_category = 'transportation'" : '';
+            $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE 1=1{$cat_filter}");
             if ($r) $stats['total'] = (int)$r->fetch_assoc()['c'];
-            $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE status IN ('pending','in-progress')");
+            $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE status IN ('pending','in-progress'){$cat_filter}");
             if ($r) $stats['active'] = (int)$r->fetch_assoc()['c'];
-            $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE priority IN ('high','critical') AND status != 'completed'");
+            $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE priority IN ('high','critical') AND status != 'completed'{$cat_filter}");
             if ($r) $stats['critical'] = (int)$r->fetch_assoc()['c'];
-            $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE status='completed' AND MONTH(updated_at)=MONTH(CURDATE()) AND YEAR(updated_at)=YEAR(CURDATE())");
+            $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE status='completed' AND MONTH(updated_at)=MONTH(CURDATE()) AND YEAR(updated_at)=YEAR(CURDATE()){$cat_filter}");
             if ($r) $stats['resolved_month'] = (int)$r->fetch_assoc()['c'];
         } catch (Exception $e) { error_log("Enhanced stats error: ".$e->getMessage()); }
     }
     return $stats;
 }
 
-// Function to get recent submissions from all report sources
-function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter = 'all') {
+// Function to get recent submissions from all report sources managed by
+// report_management.php. Only finalized reports are included:
+//   - LGU Monitoring / Citizen reports (road_transportation_reports) that are
+//     APPROVED or have been VERIFIED by CIMM; LGU ROAD reports that are still
+//     Awaiting CIMM Verification are excluded, while LGU Transportation
+//     reports (report_category='transportation') do not require CIMM
+//     verification and appear once approved
+//   - Infrastructure Projects (road_maintenance_reports) that are APPROVED or
+//     COMPLETED
+//   - CIMM reports whose verification_status is 'Verified'
+function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter = 'all', $transport_only = false) {
     global $conn;
     $reports = [];
-    if ($conn) {
-        try {
-            $q = "SELECT id, report_id, title, report_type, status, priority, severity, created_at,
-                         cimm_sync_status, cimm_verified_at, cimm_verified_by
-                  FROM road_transportation_reports WHERE 1=1";
-            $params = [];
-            $types = '';
-            if ($status_filter !== 'all') {
-                $q .= " AND status = ?";
-                $params[] = $status_filter;
-                $types .= 's';
-            }
-            if ($type_filter !== 'all') {
-                $q .= " AND report_type = ?";
-                $params[] = $type_filter;
-                $types .= 's';
-            }
-            $q .= " ORDER BY created_at DESC LIMIT ?";
-            $params[] = $limit;
-            $types .= 'i';
-            $stmt = $conn->prepare($q);
-            $stmt->bind_param($types, ...$params);
-            $stmt->execute();
-            $res = $stmt->get_result();
-            while ($row = $res->fetch_assoc()) $reports[] = $row;
-        } catch (Exception $e) { error_log("Recent reports error: ".$e->getMessage()); }
+    if (!$conn) return $reports;
+
+    // Transportation Operations Supervisors see only Transportation reports.
+    $transport_category_filter = $transport_only ? " AND report_category = 'transportation'" : '';
+
+    // Helper to append shared WHERE/ORDER/LIMIT clauses and run a query
+    $fetch = function ($sql, $status_filter, $type_filter, $limit) use ($conn) {
+        $params = [];
+        $types = '';
+        if ($status_filter !== 'all') {
+            $sql .= " AND status = ?";
+            $params[] = $status_filter;
+            $types .= 's';
+        }
+        if ($type_filter !== 'all') {
+            $sql .= " AND source = ?";
+            $params[] = $type_filter;
+            $types .= 's';
+        }
+        $sql .= " ORDER BY created_at DESC LIMIT ?";
+        $params[] = $limit;
+        $types .= 'i';
+        $stmt = $conn->prepare($sql);
+        if (!empty($params)) $stmt->bind_param($types, ...$params);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $rows = [];
+        while ($row = $res->fetch_assoc()) $rows[] = $row;
+        $stmt->close();
+        return $rows;
+    };
+
+    try {
+        // 1. LGU Monitoring (Road & Transportation Monitoring) + Citizen reports.
+        //    Staff-created rows are LGU monitoring; created_by 0/NULL are Citizen.
+        //    LGU ROAD rows still Awaiting CIMM Verification ('pushed') are excluded;
+        //    LGU Transportation reports (report_category='transportation') do not
+        //    require CIMM verification and appear once they are finalized.
+        $reports = array_merge($reports, $fetch(
+            "SELECT id, report_id, title, report_type, report_category,
+                    CASE WHEN created_by IS NULL OR created_by = 0 THEN 'citizen' ELSE 'lgu' END AS source,
+                    status, priority, severity, created_at, description,
+                    latitude, longitude, location, reporter_name, attachments, image_path,
+                    cimm_sync_status, cimm_verified_at, cimm_verified_by
+              FROM road_transportation_reports
+             WHERE report_type != 'infrastructure_issue'
+               AND (status = 'approved' OR cimm_sync_status = 'verified')
+               AND (created_by IS NULL OR created_by = 0
+                    OR cimm_sync_status IS NULL OR cimm_sync_status <> 'pushed'
+                    OR (report_category = 'transportation' AND report_source = 'local' AND created_by != 0))
+               $transport_category_filter",
+            $status_filter, $type_filter, $limit
+        ));
+
+        // 2. Infrastructure Projects (road_maintenance_reports, finalized).
+        //    Excluded for Transportation Operations Supervisors.
+        if (!$transport_only) {
+            $reports = array_merge($reports, $fetch(
+                "SELECT id, report_id, title, report_type,
+                        'road' AS report_category,
+                        'infrastructure' AS source,
+                        status, priority, NULL AS severity, created_at, description,
+                        NULL AS latitude, NULL AS longitude, location, NULL AS reporter_name,
+                        NULL AS attachments, NULL AS image_path,
+                        NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by
+                 FROM road_maintenance_reports
+                 WHERE status IN ('approved','completed')",
+                $status_filter, $type_filter, $limit
+            ));
+        }
+
+        // 2b. Infrastructure issue rows that live inside the transport table
+        //     are also managed as Infrastructure Projects by report_management.
+        if (!$transport_only) {
+            $reports = array_merge($reports, $fetch(
+                "SELECT id, report_id, title, report_type, report_category,
+                        'infrastructure' AS source,
+                        status, priority, severity, created_at, description,
+                        latitude, longitude, location, reporter_name, attachments, image_path,
+                        cimm_sync_status, cimm_verified_at, cimm_verified_by
+                 FROM road_transportation_reports
+                 WHERE report_type = 'infrastructure_issue'
+                   AND status IN ('approved','completed')",
+                $status_filter, $type_filter, $limit
+            ));
+        }
+
+        // 3. CIMM reports (finalized = verification_status 'Verified').
+        //    Excluded for Transportation Operations Supervisors.
+        if (!$transport_only) {
+            try {
+            $reports = array_merge($reports, $fetch(
+                "SELECT id, reference_code AS report_id, infrastructure AS title,
+                        'infrastructure_issue' AS report_type, 'road' AS report_category, 'cimm' AS source,
+                        'completed' AS status, priority, NULL AS severity,
+                        COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at,
+                        issue AS description, coord_lat AS latitude, coord_lng AS longitude,
+                        location, reporter_name, NULL AS attachments, NULL AS image_path,
+                        'verified' AS cimm_sync_status, verified_at AS cimm_verified_at,
+                        NULL AS cimm_verified_by
+                 FROM cimm_verification_reports
+                 WHERE verification_status = 'Verified'",
+                $status_filter, $type_filter, $limit
+            ));
+        } catch (Exception $e) {
+            error_log("Recent CIMM reports error: ".$e->getMessage());
+        }
+        }
+
+        // Sort combined results by created_at DESC and cap at the requested limit
+        usort($reports, function($a, $b) {
+            return strtotime($b['created_at'] ?? 'now') - strtotime($a['created_at'] ?? 'now');
+        });
+        $reports = array_slice($reports, 0, $limit);
+    } catch (Exception $e) {
+        error_log("Recent reports error: ".$e->getMessage());
     }
     return $reports;
 }
@@ -348,6 +454,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $report_category = ($issue_type === 'roads') ? 'road' : 'transportation';
                 $report_source = 'local';
 
+                // Server-side guard: Transportation Operations Supervisors may
+                // only submit Transportation category reports. This prevents
+                // bypassing the UI by crafting a request with category Roads.
+                if ($is_transport_supervisor && $report_category === 'road') {
+                    echo json_encode(['success' => false, 'message' => 'Transportation Operations Supervisors can only submit Transportation reports.']);
+                    exit;
+                }
+
+                // Also reject road-specific issue types that would otherwise
+                // slip through if a crafted request pairs a transportation
+                // category with a road issue type.
+                $road_issue_types = ['potholes', 'road_damage', 'cracks', 'erosion', 'flooding', 'debris', 'shoulder_damage', 'marking_fade'];
+                if ($is_transport_supervisor && in_array($specific_type, $road_issue_types, true)) {
+                    echo json_encode(['success' => false, 'message' => 'Transportation Operations Supervisors can only submit Transportation reports.']);
+                    exit;
+                }
+
                 if ($lat === null || $lng === null || $issue_type === '' || $description === '') {
                     echo json_encode(['success' => false, 'message' => 'Missing required fields.']);
                     exit;
@@ -566,15 +689,113 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
+// Resolve a report into the flat shape Recent Submissions renders, searching
+// across the three tables that feed it (transport / maintenance / CIMM).
+// Returns null when the id does not exist in any of them.
+function resolve_recent_focus_row(int $id, string $source_hint = ''): ?array {
+    global $conn;
+
+    $candidates = $source_hint !== ''
+        ? [$source_hint]
+        : ['transport', 'maintenance', 'cimm'];
+
+    try {
+        foreach ($candidates as $src) {
+            if ($src === 'transport') {
+                $stmt = $conn->prepare("SELECT id, report_id, title, report_type, status, priority, severity, created_at, description, latitude, longitude, location, reporter_name, attachments, image_path, cimm_sync_status, cimm_verified_at, cimm_verified_by, created_by FROM road_transportation_reports WHERE id = ?");
+                $stmt->bind_param("i", $id);
+                $stmt->execute();
+                $r = $stmt->get_result()->fetch_assoc();
+                $stmt->close();
+                if ($r) {
+                    $r['source'] = (($r['report_type'] ?? '') === 'infrastructure_issue')
+                        ? 'infrastructure'
+                        : ((!empty($r['created_by'])) ? 'lgu' : 'citizen');
+                    return $r;
+                }
+            } elseif ($src === 'maintenance') {
+                $stmt = $conn->prepare("SELECT id, report_id, title, report_type, status, priority, NULL AS severity, created_at, description, NULL AS latitude, NULL AS longitude, location, NULL AS reporter_name, NULL AS attachments, NULL AS image_path, NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by FROM road_maintenance_reports WHERE id = ?");
+                $stmt->bind_param("i", $id);
+                $stmt->execute();
+                $r = $stmt->get_result()->fetch_assoc();
+                $stmt->close();
+                if ($r) {
+                    $r['source'] = 'infrastructure';
+                    return $r;
+                }
+            } elseif ($src === 'cimm') {
+                require_once __DIR__ . '/../api/cimm_verification_data.php';
+                $pdo = rgmap_verification_pdo();
+                rgmap_ensure_cimm_verification_table($pdo);
+                $stmt = $pdo->prepare("SELECT id, reference_code AS report_id, infrastructure AS title, 'infrastructure_issue' AS report_type, 'completed' AS status, priority, NULL AS severity, COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at, issue AS description, coord_lat AS latitude, coord_lng AS longitude, location, reporter_name, NULL AS attachments, NULL AS image_path, 'verified' AS cimm_sync_status, verified_at AS cimm_verified_at, NULL AS cimm_verified_by FROM cimm_verification_reports WHERE id = ?");
+                $stmt->execute([$id]);
+                $r = $stmt->fetch(PDO::FETCH_ASSOC);
+                if ($r) {
+                    $r['source'] = 'cimm';
+                    return $r;
+                }
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Recent focus row resolution error: " . $e->getMessage());
+    }
+    return null;
+}
+
 // Get filter parameters
 $status_filter = $_GET['status'] ?? 'all';
 $type_filter = $_GET['type'] ?? 'all';
+
+// Deep-link focus: ?focus_report_id= (numeric PK) from a Progress Update
+// notification's "View Report" button. The report may live in any of the
+// tables that feed Recent Submissions, so we locate it server-side, force the
+// filters off so nothing hides it, and inject the row if Recent Submissions
+// wouldn't normally show it (e.g. it is not yet in a finalized status).
+$focus_report_id = isset($_GET['focus_report_id']) ? (int)$_GET['focus_report_id'] : 0;
+$focus_source_hint = (string)($_GET['source'] ?? '');
+$focus_target = ['found' => false, 'id' => $focus_report_id, 'source' => '', 'report_id' => ''];
+
+if ($focus_report_id > 0) {
+    $status_filter = 'all';
+    $type_filter = 'all';
+}
 
 // Get data for the page
 $alerts = getActiveAlerts();
 $roads = getRoadStatus();
 $enhanced_stats = getEnhancedStats();
-$recent_reports = getRecentSubmissions(10, $status_filter);
+$recent_reports = getRecentSubmissions(10, $status_filter, 'all', $is_transport_supervisor);
+
+if ($focus_report_id > 0) {
+    $focus_row = resolve_recent_focus_row($focus_report_id, $focus_source_hint);
+    if ($focus_row) {
+        $focus_target['found'] = true;
+        $focus_target['source'] = $focus_row['source'] ?? '';
+        $focus_target['report_id'] = $focus_row['report_id'] ?? '';
+
+        // Respect role-based restrictions: transport supervisors never see
+        // infrastructure or CIMM rows in Recent Submissions.
+        $restricted = $is_transport_supervisor
+            && in_array($focus_row['source'] ?? '', ['infrastructure', 'cimm'], true);
+
+        if (!$restricted) {
+            $already_present = false;
+            foreach ($recent_reports as $existing) {
+                if ((int)($existing['id'] ?? 0) === $focus_report_id
+                    && ($existing['source'] ?? '') === ($focus_row['source'] ?? '')) {
+                    $already_present = true;
+                    break;
+                }
+            }
+            if (!$already_present) {
+                $recent_reports[] = $focus_row;
+                usort($recent_reports, function ($a, $b) {
+                    return strtotime($b['created_at'] ?? 'now') - strtotime($a['created_at'] ?? 'now');
+                });
+            }
+        }
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -1014,6 +1235,15 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
             color: #333;
         }
         .reports-table-section tr:hover td { background: rgba(55,98,200,0.03); }
+        tr.focus-pulse {
+            border-left: 4px solid #3762c8;
+            background: #eef5ff;
+            animation: recentFocusPulse 1s ease-in-out 4;
+        }
+        @keyframes recentFocusPulse {
+            0%, 100% { border-left: 4px solid #3762c8; background: #eef5ff; }
+            50%      { border-left: 4px solid #3762c8; background: #dbe9ff; }
+        }
         .reports-table-section .badge {
             display: inline-block; padding: 2px 10px; border-radius: 12px;
             font-size: 11px; font-weight: 600; text-transform: uppercase;
@@ -1479,11 +1709,17 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
                         </div>
                         
                         <label>Issue type</label>
+                        <?php if ($is_transport_supervisor): ?>
+                        <select id="issue-type" name="issue_type" required onchange="updateSpecificTypes()">
+                            <option value="transportation" selected>Transportation</option>
+                        </select>
+                        <?php else: ?>
                         <select id="issue-type" name="issue_type" required onchange="updateSpecificTypes()">
                             <option value="">— Select —</option>
                             <option value="transportation">Transportation</option>
                             <option value="roads">Roads</option>
                         </select>
+                        <?php endif; ?>
                         
                         <label id="specific-type-label" style="display: none; margin-top: 10px;">Specific Issue Type</label>
                         <select id="specific-type" name="specific_type" style="display: none;" required>
@@ -1496,9 +1732,12 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
                                 <option value="congestion">Heavy Congestion</option>
                                 <option value="parking_violation">Illegal Parking</option>
                                 <option value="public_transport_issue">Public Transport Issue</option>
+                                <option value="vehicle_breakdown">Vehicle Breakdown</option>
+                                <option value="traffic_sign_issue">Traffic Sign Issue</option>
                             </optgroup>
                             
                             <!-- Roads specific types -->
+                            <?php if (!$is_transport_supervisor): ?>
                             <optgroup id="roads-options" label="Road Issues" style="display: none;">
                                 <option value="potholes">Potholes</option>
                                 <option value="road_damage">Road Damage</option>
@@ -1509,6 +1748,7 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
                                 <option value="shoulder_damage">Shoulder Damage</option>
                                 <option value="marking_fade">Faded Road Markings</option>
                             </optgroup>
+                            <?php endif; ?>
                         </select>
                         <label>Severity</label>
                         <select id="severity" name="severity" required>
@@ -1663,8 +1903,10 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
                     <select class="filter-select" id="typeFilter" onchange="filterReportsBySource()">
                         <option value="all">All Types</option>
                         <option value="citizen">Citizen Reports</option>
+                        <?php if (!$is_transport_supervisor): ?>
                         <option value="cimm">CIMM Reports</option>
                         <option value="infrastructure">Infrastructure Projects</option>
+                        <?php endif; ?>
                         <option value="lgu">LGU Monitoring Reports</option>
                     </select>
                     <button class="btn-secondary-custom" onclick="resetFilters()" title="Reset Filters">
@@ -1691,13 +1933,22 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
                         <?php if (empty($recent_reports)): ?>
                         <tr><td colspan="8" style="text-align:center;padding:30px;color:#6b7280;">No reports yet.</td></tr>
                         <?php else: ?>
+                        <?php $source_labels = [
+                            'lgu' => 'LGU Monitoring',
+                            'citizen' => 'Citizen',
+                            'cimm' => 'CIMM',
+                            'infrastructure' => 'Infrastructure Projects',
+                        ]; ?>
                         <?php foreach ($recent_reports as $rr): ?>
+                        <?php $rr_source_key = $rr['source'] ?? 'citizen'; ?>
+                        <?php $rr_source_label = $source_labels[$rr_source_key] ?? ucfirst($rr_source_key); ?>
                         <?php $rr_details = htmlspecialchars(json_encode([
                             'id' => $rr['id'],
                             'report_id' => $rr['report_id'],
                             'title' => $rr['title'],
-                            'source' => $rr['source'],
+                            'source' => $rr_source_label,
                             'report_type' => $rr['report_type'],
+                            'report_category' => $rr['report_category'],
                             'status' => $rr['status'],
                             'priority' => $rr['priority'],
                             'severity' => $rr['severity'],
@@ -1710,15 +1961,17 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
                             'attachments' => $rr['attachments'],
                             'image_path' => $rr['image_path'],
                         ]), ENT_QUOTES, 'UTF-8'); ?>
-                         <tr class="report-table-row" data-id="<?php echo $rr['id']; ?>" data-title="<?php echo htmlspecialchars(strtolower($rr['title'] ?? '')); ?>" data-report-id="<?php echo htmlspecialchars(strtolower($rr['report_id'] ?? '')); ?>" data-status="<?php echo $rr['status'] ?? 'pending'; ?>" data-source="<?php echo $rr['source'] ?? 'citizen'; ?>" data-details='<?php echo $rr_details; ?>'>
+                         <tr class="report-table-row" data-id="<?php echo $rr['id']; ?>" data-title="<?php echo htmlspecialchars(strtolower($rr['title'] ?? '')); ?>" data-report-id="<?php echo htmlspecialchars(strtolower($rr['report_id'] ?? '')); ?>" data-status="<?php echo $rr['status'] ?? 'pending'; ?>" data-source="<?php echo $rr_source_key; ?>" data-details='<?php echo $rr_details; ?>'>
                             <td style="font-family:monospace;font-size:12px;"><?php echo htmlspecialchars($rr['report_id'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars($rr['title'] ?? 'Untitled'); ?></td>
-                            <td><span class="badge badge-source badge-<?php echo $rr['source'] ?? 'citizen'; ?>"><?php echo ucfirst($rr['source'] ?? 'citizen'); ?></span></td>
+                            <td><span class="badge badge-source badge-<?php echo $rr_source_key; ?>"><?php echo htmlspecialchars($rr_source_label); ?></span></td>
                             <td><span class="badge badge-<?php echo $rr['status'] ?? 'pending'; ?>"><?php echo ucfirst(str_replace('-',' ',$rr['status'] ?? 'pending')); ?></span></td>
                             <td><span class="badge badge-<?php echo $rr['priority'] ?? 'low'; ?>"><?php echo ucfirst($rr['priority'] ?? 'low'); ?></span></td>
                             <td><?php echo date('M d, Y H:i', strtotime($rr['created_at'] ?? 'now')); ?></td>
                             <td>
-                                <?php if (($rr['cimm_sync_status'] ?? '') === 'verified'): ?>
+                                <?php if (($rr['report_category'] ?? '') === 'transportation'): ?>
+                                    <span class="cimm-verify-badge cimm-verify-badge-none">—</span>
+                                <?php elseif (($rr['cimm_sync_status'] ?? '') === 'verified'): ?>
                                     <span class="cimm-verify-badge cimm-verify-badge-verified" title="Verified by <?php echo htmlspecialchars($rr['cimm_verified_by'] ?? 'CIMM staff'); ?><?php echo !empty($rr['cimm_verified_at']) ? ' on ' . date('M d, Y', strtotime($rr['cimm_verified_at'])) : ''; ?>">
                                         <i class="fas fa-check-circle"></i> Verified
                                     </span>
@@ -1740,6 +1993,11 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
                         <?php endif; ?>
                     </tbody>
                 </table>
+            </div>
+            <div style="text-align:center;padding:15px;">
+                <button id="loadMoreReportsBtn" class="btn-secondary-custom" onclick="loadMoreReports()" style="padding:10px 20px;">
+                    <i class="fas fa-plus"></i> Load More Reports
+                </button>
             </div>
         </div>
 
@@ -2161,14 +2419,55 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
 
         function filterReportsBySource() {
             const source = document.getElementById('typeFilter').value;
-            const searchVal = document.getElementById('reportSearchInput').value.trim().toLowerCase();
-            document.querySelectorAll('#recentReportsTable .report-table-row').forEach(row => {
-                const matchesSource = source === 'all' || row.dataset.source === source;
-                const title = row.dataset.title || '';
-                const rid = row.dataset.reportId || '';
-                const matchesSearch = !searchVal || title.includes(searchVal) || rid.includes(searchVal);
-                row.style.display = (matchesSource && matchesSearch) ? '' : 'none';
-            });
+            const statusFilter = document.getElementById('statusFilter').value;
+            const tableBody = document.querySelector('#recentReportsTable tbody');
+            
+            // Clear existing rows
+            tableBody.innerHTML = '';
+            
+            // Show loading state
+            const loadingRow = document.createElement('tr');
+            loadingRow.innerHTML = '<td colspan="8" style="text-align:center;padding:20px;"><i class="fas fa-spinner fa-spin"></i> Loading reports...</td>';
+            tableBody.appendChild(loadingRow);
+            
+            // Reset pagination state
+            currentOffset = 0;
+            hasMoreReports = true;
+            isLoadingMore = false;
+            
+            // Fetch filtered data from API
+            fetch(`../api/get_recent_submissions_paginated.php?offset=0&limit=10&status=${statusFilter}&type=${source}`)
+                .then(response => response.json())
+                .then(data => {
+                    tableBody.innerHTML = ''; // Clear loading row
+                    
+                    if (data.success && data.reports.length > 0) {
+                        data.reports.forEach(report => {
+                            const row = createReportRow(report);
+                            tableBody.appendChild(row);
+                        });
+                        
+                        currentOffset = data.reports.length;
+                        
+                        // If we got fewer than 10 reports, hide load more button
+                        if (data.reports.length < 10) {
+                            hasMoreReports = false;
+                            hideLoadMoreButton();
+                        } else {
+                            hasMoreReports = true;
+                            showLoadMoreButton();
+                        }
+                    } else {
+                        // No results
+                        tableBody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:#6b7280;">No reports found for this filter.</td></tr>';
+                        hasMoreReports = false;
+                        hideLoadMoreButton();
+                    }
+                })
+                .catch(error => {
+                    tableBody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:#dc3545;">Error loading reports. Please try again.</td></tr>';
+                    showNotification('Error loading filtered reports', 'error');
+                });
         }
 
         function resetFilters() {
@@ -2266,15 +2565,15 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
             const roadOptions = document.getElementById('roads-options');
             
             // Hide all options first
-            transportOptions.style.display = 'none';
-            roadOptions.style.display = 'none';
+            if (transportOptions) transportOptions.style.display = 'none';
+            if (roadOptions) roadOptions.style.display = 'none';
             
             if (issueType === 'transportation') {
                 specificTypeLabel.style.display = 'block';
                 specificType.style.display = 'block';
-                transportOptions.style.display = 'block';
+                if (transportOptions) transportOptions.style.display = 'block';
                 specificType.required = true;
-            } else if (issueType === 'roads') {
+            } else if (issueType === 'roads' && roadOptions) {
                 specificTypeLabel.style.display = 'block';
                 specificType.style.display = 'block';
                 roadOptions.style.display = 'block';
@@ -3146,6 +3445,188 @@ $recent_reports = getRecentSubmissions(10, $status_filter);
             document.getElementById(id).style.display = 'none';
         });
         if (mapClickHandler) { map.off('click', mapClickHandler); mapClickHandler = null; }
+    }
+
+    // ===== LOAD MORE BUTTON FOR RECENT SUBMISSIONS =====
+    let currentOffset = 10;
+    let isLoadingMore = false;
+    let hasMoreReports = true;
+
+    function loadMoreReports() {
+        if (isLoadingMore || !hasMoreReports) return;
+        
+        isLoadingMore = true;
+        const tableBody = document.querySelector('#recentReportsTable tbody');
+        const loadMoreBtn = document.getElementById('loadMoreReportsBtn');
+        
+        if (loadMoreBtn) {
+            loadMoreBtn.disabled = true;
+            loadMoreBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+        }
+        
+        const statusFilter = document.getElementById('statusFilter').value;
+        const typeFilter = document.getElementById('typeFilter').value;
+        
+        fetch(`../api/get_recent_submissions_paginated.php?offset=${currentOffset}&limit=10&status=${statusFilter}&type=${typeFilter}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.reports.length > 0) {
+                    data.reports.forEach(report => {
+                        const row = createReportRow(report);
+                        tableBody.appendChild(row);
+                    });
+                    
+                    currentOffset += data.reports.length;
+                    
+                    // If we got fewer reports than requested, we've reached the end
+                    if (data.reports.length < 10) {
+                        hasMoreReports = false;
+                        hideLoadMoreButton();
+                    } else {
+                        if (loadMoreBtn) {
+                            loadMoreBtn.disabled = false;
+                            loadMoreBtn.innerHTML = '<i class="fas fa-plus"></i> Load More Reports';
+                        }
+                    }
+                } else {
+                    hasMoreReports = false;
+                    hideLoadMoreButton();
+                }
+                
+                isLoadingMore = false;
+            })
+            .catch(error => {
+                showNotification('Error loading more reports', 'error');
+                if (loadMoreBtn) {
+                    loadMoreBtn.disabled = false;
+                    loadMoreBtn.innerHTML = '<i class="fas fa-plus"></i> Load More Reports';
+                }
+                isLoadingMore = false;
+            });
+    }
+
+    function hideLoadMoreButton() {
+        const loadMoreBtn = document.getElementById('loadMoreReportsBtn');
+        if (loadMoreBtn) {
+            loadMoreBtn.style.display = 'none';
+        }
+    }
+
+    function showLoadMoreButton() {
+        const loadMoreBtn = document.getElementById('loadMoreReportsBtn');
+        if (loadMoreBtn) {
+            loadMoreBtn.style.display = 'inline-block';
+        }
+    }
+
+    function createReportRow(report) {
+        const tr = document.createElement('tr');
+        tr.className = 'report-table-row';
+        tr.dataset.id = report.id;
+        tr.dataset.title = (report.title || '').toLowerCase();
+        tr.dataset.reportId = (report.report_id || '').toLowerCase();
+        tr.dataset.status = report.status;
+        tr.dataset.source = report.source;
+        tr.dataset.details = JSON.stringify(report.details);
+        
+        tr.innerHTML = `
+            <td style="font-family:monospace;font-size:12px;">${escapeHtml(report.report_id)}</td>
+            <td>${escapeHtml(report.title)}</td>
+            <td><span class="badge badge-source badge-${report.source}">${escapeHtml(report.source_label)}</span></td>
+            <td><span class="badge badge-${report.status}">${escapeHtml(ucfirst(report.status.replace('-', ' ')))}</span></td>
+            <td><span class="badge badge-${report.priority}">${escapeHtml(ucfirst(report.priority))}</span></td>
+            <td>${formatDate(report.created_at)}</td>
+            <td>
+                ${report.cimm_sync_status === 'verified' ? 
+                    `<span class="cimm-verify-badge cimm-verify-badge-verified" title="Verified by ${escapeHtml(report.cimm_verified_by || 'CIMM staff')}${report.cimm_verified_at ? ' on ' + formatDate(report.cimm_verified_at) : ''}">
+                        <i class="fas fa-check-circle"></i> Verified
+                    </span>` : 
+                    (report.cimm_sync_status === 'pushed' ? 
+                        `<span class="cimm-verify-badge cimm-verify-badge-pending" title="Synced to CIMM — awaiting staff verification">
+                            <i class="fas fa-hourglass-half"></i> Awaiting Verification
+                        </span>` : 
+                        `<span class="cimm-verify-badge cimm-verify-badge-none">—</span>`
+                    )
+                }
+            </td>
+            <td style="white-space:nowrap;">
+                <button class="table-action-btn" title="View Details" onclick="viewReportDetails(${report.id}, '${report.source}')"><i class="fas fa-eye"></i></button>
+                <button class="table-action-btn view-map" onclick="focusReportOnMap(${report.id})"><i class="fas fa-map-pin"></i> Map</button>
+                <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(${report.id}, '${report.report_type}')"><i class="fas fa-clock"></i> Updates</button>
+            </td>
+        `;
+        
+        return tr;
+    }
+
+    function formatDate(dateStr) {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('en-US', { 
+            month: 'short', 
+            day: 'numeric', 
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    function ucfirst(str) {
+        return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+
+    // Initialize load more button on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        // Check if initial load has less than 10 reports, hide button
+        const initialRows = document.querySelectorAll('#recentReportsTable .report-table-row');
+        if (initialRows.length < 10) {
+            hideLoadMoreButton();
+        }
+        focusRecentReport();
+    });
+
+    // Deep-link focus from a Progress Update notification's "View Report" button
+    // (?focus_report_id=). The backend already located the report and injected
+    // its row into Recent Submissions if needed, so this only reveals, scrolls
+    // to and pulses the matching row — or shows a friendly message if the
+    // report no longer exists.
+    const FOCUS_TARGET = <?php echo json_encode($focus_target); ?>;
+    function focusRecentReport() {
+        const target = FOCUS_TARGET;
+        if (!target || !target.id) return;
+        setTimeout(function() {
+            if (!target.found) {
+                showNotification('The report referenced by this progress update could not be found.', 'error');
+                return;
+            }
+            let row = null;
+            const rows = document.querySelectorAll('#recentReportsTable .report-table-row[data-id="' + target.id + '"]');
+            if (rows.length === 1) {
+                row = rows[0];
+            } else if (rows.length > 1) {
+                // The same id can exist in more than one source table —
+                // disambiguate by data-source when possible.
+                rows.forEach(function(r) {
+                    if (!row && target.source && r.dataset.source === target.source) row = r;
+                });
+                if (!row) row = rows[0];
+            }
+            if (!row) {
+                showNotification('The report referenced by this progress update could not be found.', 'error');
+                return;
+            }
+            // Clear any client-side search filter so the row is visible.
+            const searchInput = document.getElementById('reportSearchInput');
+            if (searchInput) searchInput.value = '';
+            row.style.display = '';
+            // Bring the Recent Submissions section into view, then the row.
+            const section = document.querySelector('.reports-table-section');
+            if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            setTimeout(function() {
+                row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                row.classList.add('focus-pulse');
+                setTimeout(function() { row.classList.remove('focus-pulse'); }, 5000);
+            }, 350);
+        }, 600);
     }
 
     </script>

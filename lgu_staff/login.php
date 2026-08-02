@@ -354,7 +354,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
                 $username = explode('@', $email)[0];
                 
                 // Set department based on role
-                $department = ($role === 'system_admin') ? 'Admin' : (($role === 'lgu_staff') ? 'LGU Services' : 'Citizen Services');
+                if ($role === 'system_admin') {
+                    $department = 'Admin';
+                } elseif ($role === 'lgu_staff') {
+                    $department = 'LGU Services';
+                } elseif (in_array($role, ['road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer'])) {
+                    $department = 'Road and Transportation';
+                } else {
+                    $department = 'Citizen Services';
+                }
                 
                 // Insert new user with all information
                 $idFilePath = null;
@@ -734,6 +742,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                 <select name="role" required>
                   <option value="">Select this role</option>
                   <option value="lgu_staff" <?php echo (isset($_POST['role']) && $_POST['role'] == 'lgu_staff') ? 'selected' : ''; ?>>LGU Staff</option>
+                  <option value="road_ops_supervisor" <?php echo (isset($_POST['role']) && $_POST['role'] == 'road_ops_supervisor') ? 'selected' : ''; ?>>Road Operations Supervisor</option>
+                  <option value="trans_ops_supervisor" <?php echo (isset($_POST['role']) && $_POST['role'] == 'trans_ops_supervisor') ? 'selected' : ''; ?>>Transportation Operations Supervisor</option>
+                  <option value="road_monitoring_officer" <?php echo (isset($_POST['role']) && $_POST['role'] == 'road_monitoring_officer') ? 'selected' : ''; ?>>Road Monitoring Officer</option>
+                  <option value="trans_monitoring_officer" <?php echo (isset($_POST['role']) && $_POST['role'] == 'trans_monitoring_officer') ? 'selected' : ''; ?>>Transportation Monitoring Officer</option>
                 </select>
               </div>
 

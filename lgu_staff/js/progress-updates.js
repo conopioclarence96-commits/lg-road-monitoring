@@ -159,7 +159,10 @@ function showUpdateForm(reportId, reportType, updateData) {
         });
     }
 
-    document.getElementById('addUpdateForm').addEventListener('submit', handleUpdateFormSubmit);
+    const addUpdateForm = document.getElementById('addUpdateForm');
+    if (addUpdateForm) {
+        addUpdateForm.addEventListener('submit', handleUpdateFormSubmit);
+    }
 
     // File preview
     const fileInput = document.querySelector('#addUpdateForm input[type="file"]');

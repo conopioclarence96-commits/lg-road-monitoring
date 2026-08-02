@@ -50,6 +50,18 @@ function getSidebarUserInfo() {
     ];
 }
 
+// Get portal title based on role
+function getPortalTitle($role) {
+    $portal_titles = [
+        'system_admin' => 'Admin Portal',
+        'road_ops_supervisor' => 'Road Supervisor Portal',
+        'trans_ops_supervisor' => 'Transportation Supervisor Portal',
+        'road_monitoring_officer' => 'Road Monitoring Portal',
+        'trans_monitoring_officer' => 'Transportation Monitoring Portal'
+    ];
+    return $portal_titles[$role] ?? 'Portal';
+}
+
 // Get notification count
 function getSidebarNotificationCount($user_role = '', $user_id = 0) {
     global $conn;
@@ -80,7 +92,7 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
                 $count += $stmt->get_result()->fetch_assoc()['count'];
                 $stmt->close();
             } catch (Exception $e) {}
-        } elseif ($user_role === 'lgu_staff' && $user_id > 0) {
+        } elseif (is_staff_role($user_role) && $user_id > 0) {
             try {
                 $stmt = $conn->prepare("SELECT COUNT(*) as count FROM change_requests WHERE user_id = ? AND status != 'pending'");
                 $stmt->bind_param("i", $user_id);
@@ -122,9 +134,9 @@ $nav_items = [
         ['href' => $nav_base . 'pages/admin/create_staff_account.php', 'icon' => 'user-plus', 'title' => 'Create Staff Account', 'roles' => ['system_admin']],
     ],
     'monitoring' => [
-        ['href' => $nav_base . 'pages/shared/road_transportation_monitoring.php', 'icon' => 'map-marked-alt', 'title' => 'Road Monitoring', 'roles' => ['lgu_staff', 'system_admin']],
-        ['href' => $nav_base . 'pages/admin/verification_monitoring.php', 'icon' => 'shield-alt', 'title' => 'Verification Reports', 'roles' => ['system_admin', 'lgu_staff']],
-        ['href' => $nav_base . 'pages/admin/report_management.php', 'icon' => 'clipboard-list', 'title' => 'Report Management', 'roles' => ['system_admin', 'lgu_staff']],
+        ['href' => $nav_base . 'pages/shared/road_transportation_monitoring.php', 'icon' => 'map-marked-alt', 'title' => 'Road Monitoring', 'roles' => ['road_monitoring_officer', 'trans_monitoring_officer']],
+        ['href' => $nav_base . 'pages/admin/verification_monitoring.php', 'icon' => 'shield-alt', 'title' => 'Verification Reports', 'roles' => ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor']],
+        ['href' => $nav_base . 'pages/admin/report_management.php', 'icon' => 'clipboard-list', 'title' => 'Report Management', 'roles' => ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor']],
     ],
     'transparency' => [
         ['href' => $nav_base . 'pages/shared/public_transparency.php', 'icon' => 'eye', 'title' => 'Public Transparency', 'roles' => ['system_admin', 'lgu_staff']],
@@ -141,11 +153,19 @@ $nav_items = [
     ]
 ];
 
-// Filter by role
+// Filter by role. The Road & Transportation staff roles share the same menu
+// as 'lgu_staff'.
 $filtered_items = [];
 foreach ($nav_items as $section => $items) {
     $filtered_items[$section] = array_filter($items, function($item) use ($user_role) {
-        return in_array($user_role, $item['roles']);
+        $visible = in_array($user_role, $item['roles'])
+            || (is_staff_role($user_role) && in_array('lgu_staff', $item['roles']));
+        // Transportation Operations Supervisors do not get the Change
+        // Information menu item.
+        if ($visible && $user_role === 'trans_ops_supervisor' && basename($item['href']) === 'change_info.php') {
+            $visible = false;
+        }
+        return $visible;
     });
 }
 ?>
@@ -153,7 +173,7 @@ foreach ($nav_items as $section => $items) {
 <aside class="sidebar" id="sidebar" role="complementary">
     <header class="sidebar-header">
         <h2><i class="fas fa-road"></i> <?php echo defined('SITE_NAME') ? SITE_NAME : 'LGU Portal'; ?></h2>
-        <p>Admin Portal</p>
+        <p><?php echo htmlspecialchars(getPortalTitle($user_role)); ?></p>
         <div class="user-info">
             <div class="user-name"><?php echo htmlspecialchars($user_info['full_name']); ?></div>
             <div class="user-role"><?php echo htmlspecialchars(ucfirst($user_info['role'])); ?></div>

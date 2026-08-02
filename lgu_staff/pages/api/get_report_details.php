@@ -24,7 +24,7 @@ if ($report_id <= 0 || empty($report_type)) {
     json_response(['success' => false, 'error' => 'Invalid report parameters']);
 }
 
-$transport_types = ['transportation', 'infrastructure_issue', 'traffic_jam', 'accident', 'road_closure', 'potholes', 'road_damage'];
+$transport_types = ['potholes', 'road_damage', 'shoulder_damage', 'traffic_jam', 'accident', 'congestion', 'traffic_light_outage', 'vehicle_breakdown', 'traffic_sign_issue', 'transportation', 'infrastructure_issue', 'road_closure', 'parking_violation', 'public_transport_issue'];
 $table = in_array($report_type, $transport_types) ? 'road_transportation_reports' : 'road_maintenance_reports';
 
 try {

@@ -33,7 +33,7 @@ require_once __DIR__ . '/../../includes/config.php';
 require_once __DIR__ . '/../../includes/functions.php';
 
 // Auth check
-if (!isset($_SESSION['user_id']) || ($_SESSION['role'] !== 'system_admin' && $_SESSION['role'] !== 'lgu_staff')) {
+if (!isset($_SESSION['user_id']) || !is_admin_or_staff_role($_SESSION['role'] ?? '')) {
     http_response_code(401);
     echo json_encode(['success' => false, 'message' => 'Unauthorized']);
     exit;

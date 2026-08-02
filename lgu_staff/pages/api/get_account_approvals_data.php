@@ -21,7 +21,7 @@ try {
     $stmt = $conn->prepare("
         SELECT id, username, email, full_name, role, department, address, birthday, civil_status, is_active, created_at, updated_at, approved_at, rejected_at, id_file_path
         FROM users
-        WHERE role IN ('lgu_staff', 'citizen') AND account_status = 'pending'
+        WHERE role IN ('lgu_staff', 'citizen', 'road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer') AND account_status = 'pending'
         ORDER BY created_at DESC
     ");
     $stmt->execute();
