@@ -3250,7 +3250,7 @@ if ($focus_id > 0) {
                 <h5 class="modal-title"><i class="fas fa-plus-circle"></i> <span id="addUpdateModalTitle">Add Progress Update</span></h5>
                 <button class="close" onclick="cancelUpdateForm()">&times;</button>
             </div>
-            <form id="addUpdateForm" enctype="multipart/form-data">
+            <form id="addUpdateForm" enctype="multipart/form-data" onsubmit="return false;">
                 <div class="modal-body">
                     <input type="hidden" name="action" id="addUpdateAction" value="create_update">
                     <input type="hidden" name="update_id" id="addUpdateId" value="">
@@ -3267,7 +3267,7 @@ if ($focus_id > 0) {
                     <div class="form-group">
                         <label class="form-label">Photos / Video</label>
                         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-                            <button type="button" id="addUpdatePhotosBtn" style="padding:8px 16px;background:#3762c8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;display:inline-flex;align-items:center;gap:6px;"><i class="fas fa-camera"></i> Add Photos</button>
+                            <button type="button" id="addUpdatePhotosBtn" onclick="triggerFileUpload()" style="padding:8px 16px;background:#3762c8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;display:inline-flex;align-items:center;gap:6px;"><i class="fas fa-camera"></i> Add Photos</button>
                             <small class="t-text-secondary" style="font-size:11px;">Accepted: JPG, PNG, GIF, WebP, MP4, WebM</small>
                         </div>
                         <input type="file" name="media[]" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm" multiple style="display:none;">
@@ -3284,7 +3284,7 @@ if ($focus_id > 0) {
                     <span class="t-text-secondary" style="font-size:12px;">Updates are visible to all staff</span>
                     <div style="display:flex;gap:10px;">
                         <button type="button" class="btn-secondary-custom" onclick="cancelUpdateForm()">Cancel</button>
-                        <button type="submit" class="btn-action" id="addUpdateSubmitBtn"><i class="fas fa-save"></i> Post Update</button>
+                        <button type="button" class="btn-action" id="addUpdateSubmitBtn" onclick="handleUpdateFormSubmit({ preventDefault: function(){}, stopPropagation: function(){}})"><i class="fas fa-save"></i> Post Update</button>
                     </div>
                 </div>
             </form>
@@ -3300,6 +3300,10 @@ if ($focus_id > 0) {
     <script>
         // CIMM data for detail viewing (read-only)
         const cimmData = <?php echo json_encode(array_values($cimm_reports_list), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+
+        // Global variables for progress updates
+        let updateSelectedFiles = [];
+        let updatePreviewCounter = 0;
 
         // Modal functions
         function openModal(modalId) {
@@ -3506,8 +3510,28 @@ if ($focus_id > 0) {
                 });
         }
 
-        let updateSelectedFiles = [];
-        let updatePreviewCounter = 0;
+        function closeLightbox() {
+            document.getElementById('lightboxOverlay').classList.remove('show');
+        }
+
+        function triggerFileUpload() {
+            var fileInput = document.querySelector('#addUpdateForm input[type="file"]');
+            if (fileInput) {
+                var newInput = fileInput.cloneNode(true);
+                fileInput.parentNode.replaceChild(newInput, fileInput);
+                newInput.addEventListener('change', function(e) {
+                    var newFiles = Array.from(e.target.files);
+                    newFiles.forEach(function(f) {
+                        if (updateSelectedFiles.indexOf(f) === -1) {
+                            updateSelectedFiles.push(f);
+                        }
+                    });
+                    e.target.value = '';
+                    renderUpdateFilePreviews();
+                });
+                newInput.click();
+            }
+        }
 
         function viewReportUpdates(id, type) {
             currentUpdatesReportId = id;
@@ -3545,6 +3569,7 @@ if ($focus_id > 0) {
             }
         }
 
+        // Override showUpdateForm from progress-updates.js to use modal
         function showUpdateForm(reportId, reportType, updateData) {
             const isEdit = updateData && updateData.id;
             document.getElementById('addUpdateAction').value = isEdit ? 'edit_update' : 'create_update';
@@ -3596,6 +3621,7 @@ if ($focus_id > 0) {
                 document.getElementById('existingUpdateMedia').innerHTML = '';
             }
 
+            // Store removedMediaIds on the form for later use during submit
             var form = document.getElementById('addUpdateForm');
             form._removedMediaIds = removedMediaIds;
 
@@ -3603,8 +3629,10 @@ if ($focus_id > 0) {
             openModal('addUpdateModal');
         }
 
+        // Override handleUpdateFormSubmit from progress-updates.js for modal flow
         function handleUpdateFormSubmit(e) {
             e.preventDefault();
+            e.stopPropagation();
             const btn = document.getElementById('addUpdateSubmitBtn');
             const orig = btn.innerHTML;
             btn.disabled = true;
@@ -3652,12 +3680,18 @@ if ($focus_id > 0) {
             .finally(function() { btn.disabled = false; btn.innerHTML = orig; });
         }
 
-        document.addEventListener('submit', function(e) {
-            if (e.target && e.target.id === 'addUpdateForm') {
-                handleUpdateFormSubmit(e);
+        // Attach submit handler to add update form directly
+        window.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('addUpdateForm');
+            if (form) {
+                form.addEventListener('submit', handleUpdateFormSubmit);
+                console.log('Submit handler attached to addUpdateForm');
+            } else {
+                console.log('addUpdateForm not found on DOMContentLoaded');
             }
         });
 
+        // Add Photos button triggers hidden file input
         document.addEventListener('click', function(e) {
             if (e.target && e.target.id === 'addUpdatePhotosBtn') {
                 var fileInput = document.querySelector('#addUpdateForm input[type="file"]');
@@ -3665,6 +3699,7 @@ if ($focus_id > 0) {
             }
         });
 
+        // File preview for add update modal — maintains persistent upload queue
         document.addEventListener('change', function(e) {
             if (e.target && e.target.matches && e.target.matches('#addUpdateForm input[type="file"]')) {
                 var newFiles = Array.from(e.target.files);
@@ -3708,13 +3743,25 @@ if ($focus_id > 0) {
                         item.appendChild(removeBtn);
                     };
                     reader.readAsDataURL(f);
-                } else {
-                    item.style.cssText = 'display:flex;align-items:center;justify-content:center;background:#f0f4fa;font-size:11px;color:#3762c8;';
-                    item.innerHTML = '<i class="fas fa-video" style="font-size:20px;"></i>';
+                } else if (f.type.startsWith('video/')) {
+                    item.innerHTML = '<i class="fas fa-video"></i>';
                     item.appendChild(removeBtn);
                 }
                 preview.appendChild(item);
             });
+        }
+
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = 'notification ' + type;
+            notification.innerHTML = '<i class="fas fa-' + (type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle') + '"></i> ' + message;
+            notification.style.cssText = 'position:fixed;top:20px;right:20px;padding:15px 20px;background:' + (type === 'success' ? '#10b981' : type === 'error' ? '#dc3545' : '#3762c8') + ';color:white;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:10000;animation:slideIn 0.3s ease;';
+            document.body.appendChild(notification);
+            setTimeout(function() {
+                notification.style.opacity = '0';
+                notification.style.transition = 'opacity 0.3s ease';
+                setTimeout(function() { notification.remove(); }, 300);
+            }, 3000);
         }
 
         var editSelectedFiles = [];
@@ -4067,60 +4114,6 @@ if ($focus_id > 0) {
         function reviewDepartmentReport(reportId) {
             showNotification('Opening department report details...', 'info');
             // In a real implementation, this would open a detailed view modal
-        }
-
-        function showNotification(message, type = 'info') {
-            // Create notification element
-            const notification = document.createElement('div');
-            notification.className = `alert alert-${type}`;
-            notification.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                z-index: 10001;
-                min-width: 300px;
-                padding: 15px 20px;
-                border-radius: 8px;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                animation: slideIn 0.3s ease;
-            `;
-            
-            // Set styles based on type
-            switch(type) {
-                case 'success':
-                    notification.style.background = 'rgba(40, 167, 69, 0.9)';
-                    notification.style.color = 'white';
-                    notification.style.borderLeft = '4px solid #28a745';
-                    break;
-                case 'error':
-                    notification.style.background = 'rgba(220, 53, 69, 0.9)';
-                    notification.style.color = 'white';
-                    notification.style.borderLeft = '4px solid #dc3545';
-                    break;
-                case 'info':
-                    notification.style.background = 'rgba(23, 162, 184, 0.9)';
-                    notification.style.color = 'white';
-                    notification.style.borderLeft = '4px solid #17a2b8';
-                    break;
-                default:
-                    notification.style.background = 'rgba(108, 117, 125, 0.9)';
-                    notification.style.color = 'white';
-                    notification.style.borderLeft = '4px solid #6c757d';
-            }
-            
-            notification.innerHTML = `
-                ${message}
-                <button type="button" style="background: none; border: none; color: white; float: right; font-size: 16px; cursor: pointer;" onclick="this.parentElement.remove()">&times;</button>
-            `;
-            
-            document.body.appendChild(notification);
-            
-            // Auto-remove after 5 seconds
-            setTimeout(() => {
-                if (notification.parentElement) {
-                    notification.remove();
-                }
-            }, 5000);
         }
 
         // Auto-load reports when modal opens
