@@ -193,6 +193,14 @@ function notification_report_url_for(int $id, array $r): string {
 function notification_report_url(array $r): string {
     return notification_report_url_for((int)($r['id'] ?? 0), $r);
 }
+
+// Deep-link for the "Pending Reports from Departments" panel. Every pending
+// report lives in road_transportation_reports, so the primary key alone is
+// enough — verification_monitoring.php locates it across all sections via
+// ?focus_report_id= (backend-verified, then scrolled + highlighted on load).
+function notification_pending_report_focus_url(array $r): string {
+    return '../admin/verification_monitoring.php?focus_report_id=' . (int)($r['id'] ?? 0);
+}
 ?>
 
 <!DOCTYPE html>
@@ -644,7 +652,7 @@ function notification_report_url(array $r): string {
                                 </div>
                                 <div style="margin-top: 10px;">
                                     <div class="action-buttons">
-                                        <a href="<?php echo notification_report_url($report); ?>" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> View</a>
+                                        <a href="<?php echo notification_pending_report_focus_url($report); ?>" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> View</a>
                                     </div>
                                 </div>
                             </div>
