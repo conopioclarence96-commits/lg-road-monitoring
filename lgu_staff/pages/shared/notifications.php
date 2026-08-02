@@ -665,7 +665,7 @@ $total_notifications = $is_admin ? (count($pending_reports) + count($pending_cha
                                 </div>
                                 <div style="margin-top: 10px;">
                                     <div class="action-buttons">
-                                        <a href="account_approvals.php?cr_id=<?php echo (int)$cr['id']; ?>" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> Review</a>
+                                        <a href="account_approvals.php" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> Review</a>
                                     </div>
                                 </div>
                             </div>

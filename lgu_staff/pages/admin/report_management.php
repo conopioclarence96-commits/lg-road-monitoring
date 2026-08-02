@@ -947,28 +947,10 @@ if ($focus_id > 0) {
                 $focus_report = fetch_one("SELECT id, report_id, title, description, location, priority, status, maintenance_team as assigned_to, {$est_col}, department, created_date, created_at, updated_at, approved_at, NULL as attachments, NULL as image_path, 'maintenance' as report_type, 'maintenance' as source_system FROM road_maintenance_reports WHERE id = ?", [$focus_id], 'i');
             }
 
-            // CIMM reports live in their own table, so look them up there too.
-            if (!$focus_report) {
-                try {
-                    $pdo = rgmap_verification_pdo();
-                    rgmap_ensure_cimm_verification_table($pdo);
-                    $cimm_stmt = $pdo->prepare("SELECT * FROM cimm_verification_reports WHERE id = ?");
-                    $cimm_stmt->execute([$focus_id]);
-                    $cimm_row = $cimm_stmt->fetch(PDO::FETCH_ASSOC);
-                    if ($cimm_row) {
-                        $focus_report = mapCimmToReportManagement($cimm_row);
-                    }
-                } catch (Exception $e) {
-                    error_log("Deep-link focus CIMM fetch failed: " . $e->getMessage());
-                }
-            }
-
             if ($focus_report) {
                 $src = $focus_report['source_system'] ?? 'transport';
                 if ($src === 'maintenance') {
                     $infra_reports_list[] = $focus_report;
-                } elseif ($src === 'cimm') {
-                    $cimm_reports_list[] = $focus_report;
                 } elseif ($src === 'lgu_reports' || $src === 'hidden') {
                     $lgu_reports_list[] = $focus_report;
                 } else {
@@ -2173,24 +2155,6 @@ if ($focus_id > 0) {
         body.dark-mode .rm-table tbody tr { border-bottom-color: rgba(255,255,255,0.05); }
         body.dark-mode .rm-table tbody tr:hover { background: rgba(55, 98, 200, 0.08); }
 
-        .rm-row-focus {
-            animation: rmFocusPulse 1.2s ease-in-out 4;
-            box-shadow: 0 0 0 3px #3762c8, 0 8px 32px rgba(55, 98, 200, 0.35);
-            border-left: 4px solid #3762c8;
-            background: rgba(55, 98, 200, 0.12);
-        }
-
-        @keyframes rmFocusPulse {
-            0%, 100% { background-color: rgba(55, 98, 200, 0.12); }
-            50% { background-color: rgba(55, 98, 200, 0.28); }
-        }
-
-        body.dark-mode .rm-row-focus {
-            box-shadow: 0 0 0 3px #6a9bff, 0 8px 32px rgba(106, 155, 255, 0.35);
-            border-left: 4px solid #6a9bff;
-            background: rgba(106, 155, 255, 0.14);
-        }
-
         .rm-action-btn {
             padding: 5px 10px;
             background: rgba(55, 98, 200, 0.1);
@@ -2856,7 +2820,7 @@ if ($focus_id > 0) {
                             foreach ($cimm_reports_list as $row):
                                 $hasCimm = true;
                         ?>
-                        <tr data-id="<?php echo (int)$row['id']; ?>">
+                        <tr>
                             <td>
                                 <div class="rm-action-group">
                                     <button class="rm-action-btn" onclick="viewCimmReport(<?php echo $cimmIdx; ?>)">
@@ -4481,29 +4445,16 @@ if ($focus_id > 0) {
             sourceFilter.addEventListener('change', function() { filterSource(this.value); });
         }
 
-        // Deep-link focus: scroll to the report referenced by ?id= (from a
-        // notification "View" button). The focus row is injected server-side
-        // so it is always present on this page regardless of pagination.
+        // Scroll to specific report if id param is in URL
         const urlParams = new URLSearchParams(window.location.search);
         const focusId = urlParams.get('id');
         if (focusId) {
             setTimeout(() => {
                 const row = document.querySelector(`tr[data-id="${focusId}"]`);
                 if (row) {
-                    // Reveal the panel containing the focused report in case the
-                    // source filter had hidden it (e.g. deep-link from a
-                    // notification while a filter was applied).
-                    const panel = row.closest('.rm-panel');
-                    if (panel) {
-                        panel.style.display = '';
-                        const sf = document.getElementById('sourceFilter');
-                        if (sf) sf.value = 'all';
-                    }
                     row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    row.classList.add('rm-row-focus');
-                    setTimeout(() => { row.classList.remove('rm-row-focus'); }, 5000);
-                } else {
-                    showNotification('The report referenced by this notification could not be found.', 'error');
+                    row.style.boxShadow = '0 0 0 3px #3762c8, 0 8px 32px rgba(55,98,200,0.3)';
+                    setTimeout(() => { row.style.boxShadow = ''; }, 3000);
                 }
             }, 500);
         }
