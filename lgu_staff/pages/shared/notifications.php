@@ -32,7 +32,7 @@ if (!isset($_SESSION['user_id']) || !is_admin_or_staff_role($user_role)) {
 }
 
 // Handle mark as read
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($is_admin || $is_transport_supervisor)) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_admin) {
     header('Content-Type: application/json');
     $action = $_POST['action'] ?? '';
     
@@ -68,24 +68,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($is_admin || $is_transport_supervi
 }
 
 $is_admin = ($user_role === 'system_admin');
-$is_transport_supervisor = ($user_role === 'trans_ops_supervisor');
 $pending_reports = [];
 $pending_changes = [];
 $report_updates = [];
 $staff_updates = [];
 
-if ($is_admin || $is_transport_supervisor) {
+if ($is_admin) {
     // Admin: get pending reports
-    // Transport Supervisor: get only Transportation pending reports
     try {
-        $category_filter = $is_transport_supervisor ? " AND report_category = 'transportation'" : '';
         $rstmt = $conn->prepare("
-            SELECT id, report_id, title, department, priority, status, description, location,
+            SELECT id, report_id, title, department, priority, status, description, location, 
                    reporter_name, reporter_email, created_at,
                    report_type, report_category, report_source, created_by
-            FROM road_transportation_reports
-            WHERE status = 'pending'{$category_filter}
-            ORDER BY
+            FROM road_transportation_reports 
+            WHERE status = 'pending'
+            ORDER BY 
                 CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END,
                 created_at DESC
         ");
@@ -97,87 +94,79 @@ if ($is_admin || $is_transport_supervisor) {
     }
 
     // Admin: also include CIMM reports that are still awaiting review/approval.
-    // Transport Supervisor: CIMM reports are road-related, so they are excluded.
     // These live in cimm_verification_reports (synced from the CIMM module via
     // the webhook/pull sync), so they are fetched from that table and flagged
     // with _source='cimm' so the source badge below stays accurate. Any row in
     // that table whose current status maps to "pending" is shown.
-    if (!$is_transport_supervisor) {
-        try {
-            $cimmPdo = rgmap_verification_pdo();
-            $cimmRows = rgmap_fetch_cimm_verification_reports($cimmPdo, ['limit' => 500]);
-            $cimmPendingStatus = ['Pending', 'Pending Review'];
-            foreach ($cimmRows as $crow) {
-                $verification = (string)($crow['verification_status'] ?? 'Pending Review');
-                if (!in_array($verification, $cimmPendingStatus, true) && (string)($crow['approval_status'] ?? 'Pending') !== 'Pending') {
-                    continue;
-                }
-                $facility = (string)($crow['cprf_facility_name'] ?? '');
-                $pending_reports[] = [
-                    '_source'       => 'cimm',
-                    'id'            => (int)($crow['id'] ?? $crow['cimm_req_id'] ?? 0),
-                    'report_id'     => $crow['reference_code'] ?? ('REQ-' . ($crow['cimm_req_id'] ?? '')),
-                    'title'         => (string)($crow['infrastructure'] ?? 'CIMM Report'),
-                    'department'    => $facility !== '' ? $facility : 'CIMM',
-                    'priority'      => strtolower((string)($crow['priority'] ?? 'medium')),
-                    'status'        => 'pending',
-                    'description'   => (string)($crow['issue'] ?? ''),
-                    'location'      => (string)($crow['location'] ?? ''),
-                    'reporter_name' => $crow['reporter_name'] ?? null,
-                    'reporter_email'=> $crow['email'] ?? null,
-                    'created_at'    => $crow['submitted_at'] ?? $crow['created_at'] ?? date('Y-m-d H:i:s'),
-                    'report_type'   => null,
-                    'report_category' => null,
-                    'report_source' => null,
-                    'created_by'    => null,
-                ];
+    try {
+        $cimmPdo = rgmap_verification_pdo();
+        $cimmRows = rgmap_fetch_cimm_verification_reports($cimmPdo, ['limit' => 500]);
+        $cimmPendingStatus = ['Pending', 'Pending Review'];
+        foreach ($cimmRows as $crow) {
+            $verification = (string)($crow['verification_status'] ?? 'Pending Review');
+            if (!in_array($verification, $cimmPendingStatus, true) && (string)($crow['approval_status'] ?? 'Pending') !== 'Pending') {
+                continue;
             }
-
-            // Keep the same ordering as the transport query: high -> medium -> low,
-            // then newest first.
-            usort($pending_reports, function ($a, $b) {
-                $prio = ['high' => 1, 'medium' => 2, 'low' => 3];
-                $pa = $prio[strtolower((string)($a['priority'] ?? 'medium'))] ?? 2;
-                $pb = $prio[strtolower((string)($b['priority'] ?? 'medium'))] ?? 2;
-                if ($pa !== $pb) return $pa <=> $pb;
-                $ta = strtotime((string)($a['created_at'] ?? '')) ?: 0;
-                $tb = strtotime((string)($b['created_at'] ?? '')) ?: 0;
-                return $tb <=> $ta;
-            });
-        } catch (Exception $e) {
-            error_log("Pending CIMM reports query error: " . $e->getMessage());
+            $facility = (string)($crow['cprf_facility_name'] ?? '');
+            $pending_reports[] = [
+                '_source'       => 'cimm',
+                'id'            => (int)($crow['id'] ?? $crow['cimm_req_id'] ?? 0),
+                'report_id'     => $crow['reference_code'] ?? ('REQ-' . ($crow['cimm_req_id'] ?? '')),
+                'title'         => (string)($crow['infrastructure'] ?? 'CIMM Report'),
+                'department'    => $facility !== '' ? $facility : 'CIMM',
+                'priority'      => strtolower((string)($crow['priority'] ?? 'medium')),
+                'status'        => 'pending',
+                'description'   => (string)($crow['issue'] ?? ''),
+                'location'      => (string)($crow['location'] ?? ''),
+                'reporter_name' => $crow['reporter_name'] ?? null,
+                'reporter_email'=> $crow['email'] ?? null,
+                'created_at'    => $crow['submitted_at'] ?? $crow['created_at'] ?? date('Y-m-d H:i:s'),
+                'report_type'   => null,
+                'report_category' => null,
+                'report_source' => null,
+                'created_by'    => null,
+            ];
         }
+
+        // Keep the same ordering as the transport query: high -> medium -> low,
+        // then newest first.
+        usort($pending_reports, function ($a, $b) {
+            $prio = ['high' => 1, 'medium' => 2, 'low' => 3];
+            $pa = $prio[strtolower((string)($a['priority'] ?? 'medium'))] ?? 2;
+            $pb = $prio[strtolower((string)($b['priority'] ?? 'medium'))] ?? 2;
+            if ($pa !== $pb) return $pa <=> $pb;
+            $ta = strtotime((string)($a['created_at'] ?? '')) ?: 0;
+            $tb = strtotime((string)($b['created_at'] ?? '')) ?: 0;
+            return $tb <=> $ta;
+        });
+    } catch (Exception $e) {
+        error_log("Pending CIMM reports query error: " . $e->getMessage());
     }
 
     // Admin: get all pending change requests
-    // Transport Supervisor: does not handle change requests
-    if (!$is_transport_supervisor) {
-        try {
-            $cstmt = $conn->prepare("
-                SELECT cr.*, u.full_name as user_name
-                FROM change_requests cr
-                LEFT JOIN users u ON cr.user_id = u.id
-                WHERE cr.status = 'pending'
-                ORDER BY cr.created_at DESC
-            ");
-            $cstmt->execute();
-            $pending_changes = $cstmt->get_result()->fetch_all(MYSQLI_ASSOC);
-            $cstmt->close();
-        } catch (Exception $e) {
-            error_log("Pending change requests query error: " . $e->getMessage());
-        }
+    try {
+        $cstmt = $conn->prepare("
+            SELECT cr.*, u.full_name as user_name
+            FROM change_requests cr
+            LEFT JOIN users u ON cr.user_id = u.id
+            WHERE cr.status = 'pending'
+            ORDER BY cr.created_at DESC
+        ");
+        $cstmt->execute();
+        $pending_changes = $cstmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $cstmt->close();
+    } catch (Exception $e) {
+        error_log("Pending change requests query error: " . $e->getMessage());
     }
 
     // Admin: get progress update notifications
-    // Transport Supervisor: get only Transportation progress notifications
     try {
-        $category_filter = $is_transport_supervisor ? " AND r.report_category = 'transportation'" : '';
         $nstmt = $conn->prepare("
             SELECT rn.*, r.report_id as report_code, r.title as report_title,
                    r.report_type, r.report_category, r.report_source, r.created_by
             FROM report_notifications rn
             LEFT JOIN road_transportation_reports r ON rn.report_id = r.id
-            WHERE rn.is_read = 0{$category_filter}
+            WHERE rn.is_read = 0
             ORDER BY rn.created_at DESC
             LIMIT 20
         ");
@@ -193,15 +182,6 @@ if ($is_admin || $is_transport_supervisor) {
         // This guarantees every View Report button passes the correct id and a
         // source hint so the destination page looks in the right table.
         $progress_notifications = array_map('resolve_progress_notification_source', $progress_notifications);
-
-        // Transport Supervisor: filter out progress notifications from non-transportation sources
-        // (maintenance and cimm are road-related infrastructure projects)
-        if ($is_transport_supervisor) {
-            $progress_notifications = array_filter($progress_notifications, function($pn) {
-                $source = (string)($pn['_source'] ?? '');
-                return $source === 'transport';
-            });
-        }
     } catch (Exception $e) {
         error_log("Progress notifications query error: " . $e->getMessage());
         $progress_notifications = [];
@@ -244,7 +224,7 @@ if ($is_admin || $is_transport_supervisor) {
     }
 }
 
-$total_notifications = ($is_admin || $is_transport_supervisor) ? (count($pending_reports) + count($pending_changes) + count($progress_notifications)) : (count($staff_updates) + count($report_updates));
+$total_notifications = $is_admin ? (count($pending_reports) + count($pending_changes) + count($progress_notifications)) : (count($staff_updates) + count($report_updates));
 
 // --- Notification deep-link helpers ----------------------------------------
 // Every View/Review button must pass the report source together with the id
@@ -757,10 +737,10 @@ function notification_progress_focus_url(array $pn): string {
             <div class="welcome-section">
                 <div class="welcome-text">
                     <h1><i class="fas fa-bell"></i> Notifications</h1>
-                    <p><?php echo ($is_admin || $is_transport_supervisor) ? 'Reports from other departments and staff change requests' : 'Updates on your submitted reports and change requests'; ?></p>
+                    <p><?php echo $is_admin ? 'Reports from other departments and staff change requests' : 'Updates on your submitted reports and change requests'; ?></p>
                 </div>
                 <div style="display: flex; gap: 10px; align-items: center;">
-                    <?php if ($is_admin || $is_transport_supervisor): ?>
+                    <?php if ($is_admin): ?>
                     <button class="btn-sm btn-approve" onclick="markAllRead()" <?php echo $total_notifications === 0 ? 'disabled' : ''; ?>>
                         <i class="fas fa-check-double"></i> Mark All as Read
                     </button>
@@ -775,7 +755,7 @@ function notification_progress_focus_url(array $pn): string {
 
         <!-- Statistics -->
         <div class="quick-stats">
-            <?php if ($is_admin || $is_transport_supervisor): ?>
+            <?php if ($is_admin): ?>
             <div class="stat-card">
                 <div class="stat-icon" style="color: #f59e0b;">
                     <i class="fas fa-file-alt"></i>
@@ -784,7 +764,6 @@ function notification_progress_focus_url(array $pn): string {
                 <div class="stat-label">Pending Reports</div>
             </div>
 
-            <?php if (!$is_transport_supervisor): ?>
             <div class="stat-card">
                 <div class="stat-icon" style="color: #8b5cf6;">
                     <i class="fas fa-user-edit"></i>
@@ -792,7 +771,6 @@ function notification_progress_focus_url(array $pn): string {
                 <div class="stat-number"><?php echo count($pending_changes); ?></div>
                 <div class="stat-label">Change Requests</div>
             </div>
-            <?php endif; ?>
             <?php else: ?>
             <div class="stat-card">
                 <div class="stat-icon" style="color: #f59e0b;">
@@ -819,7 +797,7 @@ function notification_progress_focus_url(array $pn): string {
         </div>
 
         <div class="workflow-container">
-            <?php if ($is_admin || $is_transport_supervisor): ?>
+            <?php if ($is_admin): ?>
             <!-- Pending Reports -->
             <div class="workflow-card">
                 <div class="workflow-header">
@@ -870,7 +848,6 @@ function notification_progress_focus_url(array $pn): string {
                 </div>
             </div>
 
-            <?php if (!$is_transport_supervisor): ?>
             <!-- Pending Change Requests -->
             <div class="workflow-card">
                 <div class="workflow-header">
@@ -922,8 +899,7 @@ function notification_progress_focus_url(array $pn): string {
                     <?php endif; ?>
                 </div>
             </div>
-            <?php endif; ?>
-            <!-- Admin & Transport Supervisor: Progress Update Notifications -->
+            <!-- Admin: Progress Update Notifications -->
             <div class="workflow-card">
                 <div class="workflow-header">
                     <h3 class="workflow-title">
@@ -963,7 +939,6 @@ function notification_progress_focus_url(array $pn): string {
                     <?php endif; ?>
                 </div>
             </div>
-            <?php endif; ?>
             <?php else: ?>
             <!-- Staff: My Report Status Updates -->
             <div class="workflow-card">
