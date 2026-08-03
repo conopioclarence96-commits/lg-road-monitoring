@@ -4227,6 +4227,17 @@ if ($focus_id > 0) {
             if (typeof loadUpdates === 'function') {
                 loadUpdates(id, type);
             }
+            // Check if user can add updates and show/hide the Add Update button accordingly
+            checkUpdatePermission();
+        }
+
+        function checkUpdatePermission() {
+            // This will be set by the loadUpdates function based on server-side permission check
+            if (typeof canAddUpdate !== 'undefined' && !canAddUpdate) {
+                document.getElementById('addUpdateBtn').style.display = 'none';
+            } else {
+                document.getElementById('addUpdateBtn').style.display = 'inline-flex';
+            }
         }
 
         function showAddUpdateModal() {
