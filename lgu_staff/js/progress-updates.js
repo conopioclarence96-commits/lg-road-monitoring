@@ -3,7 +3,6 @@
 let currentUpdatesReportId = null;
 let currentUpdatesReportType = null;
 let currentUpdatesReportSource = null;
-let canAddUpdate = true; // Global flag for update permission
 
 function loadUpdates(reportId, reportType) {
     currentUpdatesReportId = reportId;
@@ -17,10 +16,6 @@ function loadUpdates(reportId, reportType) {
         .then(data => {
             if (data.success) {
                 renderTimeline(data.updates);
-                // Set permission flag from response if available
-                if (typeof data.can_add_update !== 'undefined') {
-                    canAddUpdate = data.can_add_update;
-                }
             } else {
                 container.innerHTML = `<div class="timeline-empty"><i class="fas fa-exclamation-circle"></i><br>${escapeHtml(data.message)}</div>`;
             }
