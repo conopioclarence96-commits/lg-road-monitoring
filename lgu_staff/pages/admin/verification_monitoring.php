@@ -446,6 +446,80 @@ function getInfraReports($conn, $road_only = false) {
     return $result;
 }
 
+// Ensure the archive table exists and carries every column of both live report
+// tables, so copying ANY report row preserves all its data (including reporter,
+// verification, and timestamp columns). Widens report_type so maintenance rows
+// ('routine','emergency', etc.) can be archived without truncation.
+function ensure_archive_for_archive_cancel($conn) {
+    $conn->query("CREATE TABLE IF NOT EXISTS road_transportation_reports_archive LIKE road_transportation_reports");
+    try {
+        foreach (['road_transportation_reports', 'road_maintenance_reports'] as $src_table) {
+            $arch_cols = [];
+            $arch = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive");
+            if ($arch) { while ($row = $arch->fetch_assoc()) { $arch_cols[$row['Field']] = true; } }
+            $src = $conn->query("SHOW COLUMNS FROM $src_table");
+            if ($src) { while ($row = $src->fetch_assoc()) {
+                if (!isset($arch_cols[$row['Field']])) {
+                    $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN `{$row['Field']}` {$row['Type']} NULL");
+                }
+            } }
+        }
+    } catch (Exception $e) { error_log('archive ensure sync: ' . $e->getMessage()); }
+    try {
+        $conn->query("ALTER TABLE road_transportation_reports_archive MODIFY report_type VARCHAR(255) NULL DEFAULT NULL");
+    } catch (Exception $e) { error_log('archive report_type widen: ' . $e->getMessage()); }
+}
+
+// Move a cancelled report into the archive atomically: copy every column, then
+// delete the report from the active table plus its related notification / progress
+// / analytics records so no orphan references remain.
+function archive_cancelled_report($conn, $table, $report_id) {
+    try {
+        // Schema setup is idempotent DDL; run it before BEGIN so it does not
+        // force an implicit COMMIT that would break the transaction below.
+        ensure_archive_for_archive_cancel($conn);
+
+        $conn->begin_transaction();
+
+        $fields = [];
+        $col_res = $conn->query("SHOW COLUMNS FROM $table");
+        if ($col_res) { while ($col_row = $col_res->fetch_assoc()) { $fields[] = "`{$col_row['Field']}`"; } }
+        if (empty($fields)) { throw new Exception("No columns found for table $table"); }
+        $cols = implode(', ', $fields);
+
+        // Copy ALL report information into the archive.
+        $stmt = $conn->prepare("INSERT INTO road_transportation_reports_archive ($cols) SELECT $cols FROM $table WHERE id = ?");
+        $stmt->bind_param('i', $report_id);
+        $stmt->execute();
+
+        // Remove related active records so the cancelled report leaves
+        // pending/progress notifications and has no orphan references.
+        $del = $conn->prepare("DELETE FROM report_notifications WHERE report_id = ?");
+        $del->bind_param('i', $report_id);
+        $del->execute();
+
+        $del = $conn->prepare("DELETE FROM report_updates WHERE report_id = ?");
+        $del->bind_param('i', $report_id);
+        $del->execute();
+
+        $del = $conn->prepare("DELETE FROM project_analytics WHERE report_id = ? AND report_table = ?");
+        $del->bind_param('is', $report_id, $table);
+        $del->execute();
+
+        // Remove the report from the active table.
+        $del = $conn->prepare("DELETE FROM $table WHERE id = ?");
+        $del->bind_param('i', $report_id);
+        $del->execute();
+
+        $conn->commit();
+        return true;
+    } catch (Exception $e) {
+        $conn->rollback();
+        error_log('archive_cancelled_report failed: ' . $e->getMessage());
+        return false;
+    }
+}
+
 // Handle verification actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action']) && isset($_POST['report_id']) && isset($_POST['source'])) {
@@ -536,8 +610,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $audit_stmt->bind_param('ssssss', $audit_id, $title, $audit_type, $audit_status, $auditor, $description);
             $audit_stmt->execute();
             
-            // Return success message
-            $_SESSION['verification_message'] = 'Report ' . $action . 'd successfully!';
+            // When a report is cancelled/rejected, automatically move it to the
+            // archive and remove it from every active report list. The archive
+            // copy preserves all report data (status becomes/remains 'cancelled').
+            if ($action === 'reject') {
+                $archived = archive_cancelled_report($conn, $table, $report_id);
+                if ($archived) {
+                    $_SESSION['verification_message'] = 'Report rejected and moved to archive.';
+                } else {
+                    $_SESSION['verification_message'] = 'Report status updated, but archiving failed.';
+                }
+            } else {
+                // Return success message
+                $_SESSION['verification_message'] = 'Report ' . $action . 'd successfully!';
+            }
         }
         
         header('Location: ../admin/verification_monitoring.php');
