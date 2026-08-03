@@ -209,71 +209,11 @@ if ($method === 'GET') {
                 log_audit_action($user_id, "Updated CIMM report status", "Report ID: {$report_id}, Status: {$status}");
                 json_response(['success' => true, 'message' => 'Status updated successfully']);
             } else {
-                // Check if this is a transportation report before updating
-                $report_check = fetch_one("SELECT id, report_category FROM road_transportation_reports WHERE id = ?", [$report_id], "i");
-                $is_transportation = ($report_check && ($report_check['report_category'] ?? '') === 'transportation');
-                
                 // Update road_transportation_reports table
                 $stmt = $conn->prepare("UPDATE road_transportation_reports SET status = ? WHERE id = ?");
                 $stmt->bind_param("si", $status, $report_id);
                 $stmt->execute();
                 log_audit_action($user_id, "Updated report status", "Report ID: {$report_id}, Status: {$status}");
-                
-                // Archive transportation reports when marked as completed
-                if ($status === 'completed' && $is_transportation) {
-                    // Ensure archive table exists with correct columns
-                    $conn->query("CREATE TABLE IF NOT EXISTS road_transportation_reports_archive LIKE road_transportation_reports");
-                    
-                    // Sync columns from source table to archive table
-                    $arch_cols = [];
-                    $arch = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive");
-                    if ($arch) {
-                        while ($row = $arch->fetch_assoc()) {
-                            $arch_cols[$row['Field']] = true;
-                        }
-                    }
-                    $src = $conn->query("SHOW COLUMNS FROM road_transportation_reports");
-                    if ($src) {
-                        while ($row = $src->fetch_assoc()) {
-                            if (!isset($arch_cols[$row['Field']])) {
-                                $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN `{$row['Field']}` {$row['Type']} NULL");
-                            }
-                        }
-                    }
-                    
-                    // Widen report_type to avoid truncation issues
-                    try {
-                        $conn->query("ALTER TABLE road_transportation_reports_archive MODIFY report_type VARCHAR(255) NULL DEFAULT NULL");
-                    } catch (Exception $e) {
-                        error_log('archive report_type widen warning: ' . $e->getMessage());
-                    }
-                    
-                    // Get all columns from source table
-                    $src_cols = [];
-                    $src_res = $conn->query("SHOW COLUMNS FROM road_transportation_reports");
-                    if ($src_res) {
-                        while ($row = $src_res->fetch_assoc()) {
-                            $src_cols[] = $row['Field'];
-                        }
-                    }
-                    
-                    if (!empty($src_cols)) {
-                        $cols_list = implode(', ', $src_cols);
-                        
-                        // Copy report to archive
-                        $insert_stmt = $conn->prepare("INSERT INTO road_transportation_reports_archive ({$cols_list}) SELECT {$cols_list} FROM road_transportation_reports WHERE id = ?");
-                        $insert_stmt->bind_param("i", $report_id);
-                        $insert_stmt->execute();
-                        
-                        // Delete from active table after successful archive
-                        $delete_stmt = $conn->prepare("DELETE FROM road_transportation_reports WHERE id = ?");
-                        $delete_stmt->bind_param("i", $report_id);
-                        $delete_stmt->execute();
-                        
-                        log_audit_action($user_id, "Archived transportation report", "Report ID: {$report_id}");
-                    }
-                }
-                
                 json_response(['success' => true, 'message' => 'Status updated successfully']);
             }
         } catch (Exception $e) {
