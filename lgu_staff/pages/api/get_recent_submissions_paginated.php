@@ -22,8 +22,9 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['system_admin'
 // Transportation Operations Supervisors see only Transportation reports.
 $transport_only = (($_SESSION['role'] ?? '') === 'trans_ops_supervisor');
 
-// Road Operations Supervisors see only Road reports.
-$road_only = (($_SESSION['role'] ?? '') === 'road_ops_supervisor');
+// Road Operations Supervisors and Road Monitoring Officers see only Road
+// reports.
+$road_only = in_array($_SESSION['role'] ?? '', ['road_ops_supervisor', 'road_monitoring_officer'], true);
 
 $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
 $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;

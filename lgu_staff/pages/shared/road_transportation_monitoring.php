@@ -68,9 +68,10 @@ if (
 // are rejected server-side.
 $is_transport_supervisor = (($_SESSION['role'] ?? '') === 'trans_ops_supervisor');
 
-// Road Operations Supervisors are restricted to Road-category reports only —
-// Transportation reports (LGU or Citizen) are hidden from Recent Submissions.
-$is_road_supervisor = (($_SESSION['role'] ?? '') === 'road_ops_supervisor');
+// Road Operations Supervisors and Road Monitoring Officers are restricted to
+// Road-category reports only — Transportation reports (LGU or Citizen) are
+// hidden from Recent Submissions.
+$is_road_only_role = in_array($_SESSION['role'] ?? '', ['road_ops_supervisor', 'road_monitoring_officer'], true);
 
 // Function to get enhanced dashboard stats
 function getEnhancedStats() {
@@ -771,7 +772,7 @@ if ($focus_report_id > 0) {
 $alerts = getActiveAlerts();
 $roads = getRoadStatus();
 $enhanced_stats = getEnhancedStats();
-$recent_reports = getRecentSubmissions(10, $status_filter, 'all', $is_transport_supervisor, $is_road_supervisor);
+$recent_reports = getRecentSubmissions(10, $status_filter, 'all', $is_transport_supervisor, $is_road_only_role);
 
 if ($focus_report_id > 0) {
     $focus_row = resolve_recent_focus_row($focus_report_id, $focus_source_hint);
@@ -781,11 +782,12 @@ if ($focus_report_id > 0) {
         $focus_target['report_id'] = $focus_row['report_id'] ?? '';
 
         // Respect role-based restrictions: transport supervisors never see
-        // infrastructure or CIMM rows in Recent Submissions; road supervisors
-        // never see non-Road reports.
+        // infrastructure or CIMM rows in Recent Submissions; road-only roles
+        // (Road Operations Supervisor, Road Monitoring Officer) never see
+        // non-Road reports.
         $restricted = ($is_transport_supervisor
                 && in_array($focus_row['source'] ?? '', ['infrastructure', 'cimm'], true))
-            || ($is_road_supervisor && (($focus_row['report_category'] ?? '') !== 'road'));
+            || ($is_road_only_role && (($focus_row['report_category'] ?? '') !== 'road'));
 
         if (!$restricted) {
             $already_present = false;
