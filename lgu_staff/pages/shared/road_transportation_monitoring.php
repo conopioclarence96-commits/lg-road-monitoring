@@ -156,7 +156,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                     cimm_sync_status, cimm_verified_at, cimm_verified_by
               FROM road_transportation_reports
              WHERE report_type != 'infrastructure_issue'
-               AND (status = 'approved' OR cimm_sync_status = 'verified')
+               AND status IN ('approved', 'in-progress')
                AND (created_by IS NULL OR created_by = 0
                     OR cimm_sync_status IS NULL OR cimm_sync_status <> 'pushed'
                     OR (report_category = 'transportation' AND report_source = 'local' AND created_by != 0))
@@ -190,28 +190,28 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                         status, priority, severity, created_at, description,
                         latitude, longitude, location, reporter_name, attachments, image_path,
                         cimm_sync_status, cimm_verified_at, cimm_verified_by
-                 FROM road_transportation_reports
+                 FROM road_transportation_reportsssss
                  WHERE report_type = 'infrastructure_issue'
                    AND status IN ('approved','completed'){$road_category_filter}",
                 $status_filter, $type_filter, $limit
             ));
         }
 
-        // 3. CIMM reports (finalized = verification_status 'Verified').
+        // 3. CIMM reports (finalized = verification_status 'Approved').
         //    Excluded for Transportation Operations Supervisors.
         if (!$transport_only) {
             try {
             $reports = array_merge($reports, $fetch(
                 "SELECT id, reference_code AS report_id, infrastructure AS title,
                         'infrastructure_issue' AS report_type, 'road' AS report_category, 'cimm' AS source,
-                        'completed' AS status, priority, NULL AS severity,
+                        verification_status AS status, priority, NULL AS severity,
                         COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at,
                         issue AS description, coord_lat AS latitude, coord_lng AS longitude,
                         location, reporter_name, NULL AS attachments, NULL AS image_path,
-                        'verified' AS cimm_sync_status, verified_at AS cimm_verified_at,
+                        'approved' AS cimm_sync_status, verified_at AS cimm_verified_at,
                         NULL AS cimm_verified_by
                  FROM cimm_verification_reports
-                 WHERE verification_status = 'Verified'",
+                 WHERE verification_status IN ('Approved', 'In-Progress')",
                 $status_filter, $type_filter, $limit
             ));
         } catch (Exception $e) {
@@ -910,6 +910,26 @@ if ($focus_report_id > 0) {
             box-shadow: 0 6px 20px rgba(55, 98, 200, 0.3);
         }
 
+        .btn-success-custom {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-success-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3);
+        }
+
         .btn-secondary {
             background: linear-gradient(135deg, #6c757d, #495057);
         }
@@ -1261,10 +1281,12 @@ if ($focus_report_id > 0) {
         }
         .badge-pending { background: #fff3cd; color: #856404; }
         .badge-in-progress { background: #cce5ff; color: #004085; }
+        .badge-approved { background: #10b981; color: #fff; }
         .badge-completed { background: #d4edda; color: #155724; }
         .badge-high, .badge-critical { background: #f8d7da; color: #721c24; }
         .badge-medium { background: #fff3cd; color: #856404; }
         .badge-low { background: #e2e3e5; color: #383d41; }
+        .badge-source { background: #f8f9fa; color: #495057; border: 1px solid #dee2e6; }
         .cimm-verify-badge {
             display: inline-flex; align-items: center; gap: 5px;
             padding: 3px 10px; border-radius: 12px;
@@ -1975,20 +1997,20 @@ if ($focus_report_id > 0) {
                          <tr class="report-table-row" data-id="<?php echo $rr['id']; ?>" data-title="<?php echo htmlspecialchars(strtolower($rr['title'] ?? '')); ?>" data-report-id="<?php echo htmlspecialchars(strtolower($rr['report_id'] ?? '')); ?>" data-status="<?php echo $rr['status'] ?? 'pending'; ?>" data-source="<?php echo $rr_source_key; ?>" data-details='<?php echo $rr_details; ?>'>
                             <td style="font-family:monospace;font-size:12px;"><?php echo htmlspecialchars($rr['report_id'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars($rr['title'] ?? 'Untitled'); ?></td>
-                            <td><span class="badge badge-source badge-<?php echo $rr_source_key; ?>"><?php echo htmlspecialchars($rr_source_label); ?></span></td>
-                            <td><span class="badge badge-<?php echo $rr['status'] ?? 'pending'; ?>"><?php echo ucfirst(str_replace('-',' ',$rr['status'] ?? 'pending')); ?></span></td>
-                            <td><span class="badge badge-<?php echo $rr['priority'] ?? 'low'; ?>"><?php echo ucfirst($rr['priority'] ?? 'low'); ?></span></td>
+                            <td><?php echo htmlspecialchars($rr_source_label); ?></td>
+                            <td><span class="badge badge-<?php echo strtolower($rr['status'] ?? 'pending'); ?>"><?php echo ucfirst(str_replace('-',' ',$rr['status'] ?? 'pending')); ?></span></td>
+                            <td><span class="badge badge-<?php echo strtolower($rr['priority'] ?? 'low'); ?>"><?php echo ucfirst($rr['priority'] ?? 'low'); ?></span></td>
                             <td><?php echo date('M d, Y H:i', strtotime($rr['created_at'] ?? 'now')); ?></td>
                             <td>
                                 <?php if (($rr['report_category'] ?? '') === 'transportation'): ?>
                                     <span class="cimm-verify-badge cimm-verify-badge-none">—</span>
-                                <?php elseif (($rr['cimm_sync_status'] ?? '') === 'verified'): ?>
-                                    <span class="cimm-verify-badge cimm-verify-badge-verified" title="Verified by <?php echo htmlspecialchars($rr['cimm_verified_by'] ?? 'CIMM staff'); ?><?php echo !empty($rr['cimm_verified_at']) ? ' on ' . date('M d, Y', strtotime($rr['cimm_verified_at'])) : ''; ?>">
-                                        <i class="fas fa-check-circle"></i> Verified
+                                <?php elseif (strtolower($rr['status'] ?? '') === 'approved'): ?>
+                                    <span class="cimm-verify-badge cimm-verify-badge-verified" title="Approved by <?php echo htmlspecialchars($rr['cimm_verified_by'] ?? 'CIMM staff'); ?><?php echo !empty($rr['cimm_verified_at']) ? ' on ' . date('M d, Y', strtotime($rr['cimm_verified_at'])) : ''; ?>">
+                                        <i class="fas fa-check-circle"></i> Approved
                                     </span>
-                                <?php elseif (($rr['cimm_sync_status'] ?? '') === 'pushed'): ?>
-                                    <span class="cimm-verify-badge cimm-verify-badge-pending" title="Synced to CIMM — awaiting staff verification">
-                                        <i class="fas fa-hourglass-half"></i> Awaiting Verification
+                                <?php elseif (strtolower($rr['status'] ?? '') === 'in-progress'): ?>
+                                    <span class="cimm-verify-badge cimm-verify-badge-pending" title="In Progress">
+                                        <i class="fas fa-hourglass-half"></i> In Progress
                                     </span>
                                 <?php else: ?>
                                     <span class="cimm-verify-badge cimm-verify-badge-none">—</span>
@@ -3543,19 +3565,19 @@ if ($focus_report_id > 0) {
         tr.innerHTML = `
             <td style="font-family:monospace;font-size:12px;">${escapeHtml(report.report_id)}</td>
             <td>${escapeHtml(report.title)}</td>
-            <td><span class="badge badge-source badge-${report.source}">${escapeHtml(report.source_label)}</span></td>
-            <td><span class="badge badge-${report.status}">${escapeHtml(ucfirst(report.status.replace('-', ' ')))}</span></td>
-            <td><span class="badge badge-${report.priority}">${escapeHtml(ucfirst(report.priority))}</span></td>
+            <td>${escapeHtml(report.source_label)}</td>
+            <td><span class="badge badge-${report.status.toLowerCase()}">${escapeHtml(ucfirst(report.status.replace('-', ' ')))}</span></td>
+            <td><span class="badge badge-${report.priority.toLowerCase()}">${escapeHtml(ucfirst(report.priority))}</span></td>
             <td>${formatDate(report.created_at)}</td>
             <td>
-                ${report.cimm_sync_status === 'verified' ? 
-                    `<span class="cimm-verify-badge cimm-verify-badge-verified" title="Verified by ${escapeHtml(report.cimm_verified_by || 'CIMM staff')}${report.cimm_verified_at ? ' on ' + formatDate(report.cimm_verified_at) : ''}">
-                        <i class="fas fa-check-circle"></i> Verified
-                    </span>` : 
-                    (report.cimm_sync_status === 'pushed' ? 
-                        `<span class="cimm-verify-badge cimm-verify-badge-pending" title="Synced to CIMM — awaiting staff verification">
-                            <i class="fas fa-hourglass-half"></i> Awaiting Verification
-                        </span>` : 
+                ${report.status.toLowerCase() === 'approved' ?
+                    `<span class="cimm-verify-badge cimm-verify-badge-verified" title="Approved by ${escapeHtml(report.cimm_verified_by || 'CIMM staff')}${report.cimm_verified_at ? ' on ' + formatDate(report.cimm_verified_at) : ''}">
+                        <i class="fas fa-check-circle"></i> Approved
+                    </span>` :
+                    (report.status.toLowerCase() === 'in-progress' ?
+                        `<span class="cimm-verify-badge cimm-verify-badge-pending" title="In Progress">
+                            <i class="fas fa-hourglass-half"></i> In Progress
+                        </span>` :
                         `<span class="cimm-verify-badge cimm-verify-badge-none">—</span>`
                     )
                 }
@@ -3668,11 +3690,14 @@ if ($focus_report_id > 0) {
                     <div class="timeline-empty"><i class="fas fa-spinner fa-spin fa-2x t-text-link"></i></div>
                 </div>
             </div>
-            <div class="modal-footer" style="justify-content: space-between;">
+            <div class="modal-footer" style="display: flex; flex-direction: column; gap: 16px;">
                 <span id="updateReportInfo" class="t-text-secondary" style="font-size: 13px;"></span>
-                <div>
-                    <button type="button" class="btn-action" id="addUpdateBtn" onclick="showAddUpdateModal()">+ Add Update</button>
-                    <button type="button" class="btn-secondary-custom" onclick="closeModal('updatesModal')">Close</button>
+                <div style="display: flex; justify-content: space-between;">
+                    <button type="button" class="btn-success-custom" id="completeBtn">Complete</button>
+                    <div style="display: flex; gap: 8px;">
+                        <button type="button" class="btn-action" id="addUpdateBtn" onclick="showAddUpdateModal()">+ Add Update</button>
+                        <button type="button" class="btn-secondary-custom" onclick="closeModal('updatesModal')">Close</button>
+                    </div>
                 </div>
             </div>
         </div>

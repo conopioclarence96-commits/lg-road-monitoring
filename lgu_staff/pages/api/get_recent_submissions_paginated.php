@@ -73,7 +73,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
                     cimm_sync_status, cimm_verified_at, cimm_verified_by
              FROM road_transportation_reports
              WHERE report_type != 'infrastructure_issue'
-               AND (status = 'approved' OR cimm_sync_status = 'verified')
+               AND status IN ('approved', 'in-progress')
                AND (created_by IS NULL OR created_by = 0
                     OR cimm_sync_status IS NULL OR cimm_sync_status <> 'pushed'
                     OR (report_category = 'transportation' AND report_source = 'local' AND created_by != 0)){$transport_category_filter}{$road_category_filter}",
@@ -119,14 +119,14 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
                 "SELECT * FROM (
                     SELECT id, reference_code AS report_id, infrastructure AS title,
                             'infrastructure_issue' AS report_type, 'cimm' AS source,
-                            " . cimm_status_case_sql() . " AS status, priority, NULL AS severity,
+                            verification_status AS status, priority, NULL AS severity,
                             COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at,
                             issue AS description, coord_lat AS latitude, coord_lng AS longitude,
                             location, reporter_name, NULL AS attachments, NULL AS image_path,
-                            'verified' AS cimm_sync_status, verified_at AS cimm_verified_at,
+                            'approved' AS cimm_sync_status, verified_at AS cimm_verified_at,
                             NULL AS cimm_verified_by
                      FROM cimm_verification_reports
-                     WHERE verification_status = 'Verified'
+                     WHERE verification_status IN ('Approved', 'In-Progress')
                  ) AS cimm_mapped WHERE 1=1",
                 $status_filter
             ));

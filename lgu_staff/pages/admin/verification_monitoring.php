@@ -546,17 +546,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Handle CIMM report verification/rejection
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && in_array($_POST['action'], ['verify_cimm', 'reject_cimm']) && isset($_POST['cimm_req_id'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && in_array($_POST['action'], ['approve_cimm', 'reject_cimm']) && isset($_POST['cimm_req_id'])) {
     $cimm_req_id = (int) $_POST['cimm_req_id'];
     $action = $_POST['action'];
     $pdo = rgmap_verification_pdo();
 
-    if ($action === 'verify_cimm') {
-        $ok = rgmap_update_verification_status($pdo, $cimm_req_id, 'Verified', null, $_SESSION['user_id'] ?? null);
+    if ($action === 'approve_cimm') {
+        $ok = rgmap_update_verification_status($pdo, $cimm_req_id, 'Approved', null, $_SESSION['user_id'] ?? null);
         if ($ok) {
-            $_SESSION['verification_message'] = 'CIMM report #' . $cimm_req_id . ' verified successfully.';
+            $_SESSION['verification_message'] = 'CIMM report #' . $cimm_req_id . ' approved successfully.';
         } else {
-            $_SESSION['verification_message'] = 'Failed to verify CIMM report #' . $cimm_req_id . '.';
+            $_SESSION['verification_message'] = 'Failed to approve CIMM report #' . $cimm_req_id . '.';
         }
     } else {
         $reason = trim($_POST['rejection_reason'] ?? '');
@@ -5182,8 +5182,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             $hasAnyReports = true;
                             // Map CIMM status to filter categories
                             $cimm_filter_status = 'pending';
-                            if (in_array($row['status'], ['completed'])) $cimm_filter_status = 'approved';
-                            elseif (in_array($row['status'], ['resolved'])) $cimm_filter_status = 'rejected';
+                            if (in_array($row['status'], ['completed', 'approved', 'verified'])) $cimm_filter_status = 'approved';
+                            elseif (in_array($row['status'], ['resolved', 'dismissed'])) $cimm_filter_status = 'rejected';
                         ?>
                         <tr data-id="<?php echo (int)$row['id']; ?>" data-report-id="<?php echo (int)$row['id']; ?>" data-status="<?php echo $cimm_filter_status; ?>" data-source="cimm">
                             <td>
@@ -5191,10 +5191,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     <button class="dept-action-btn" onclick="viewCimmReport(<?php echo $row['id']; ?>)">
                                         <i class="fas fa-eye"></i>
                                     </button>
-                                    <?php if ($row['status'] === 'pending'): ?>
-                                    <form method="POST" class="dept-action-form" onsubmit="return confirm('Are you sure you want to verify this CIMM report?');">
+                                    <?php if ($row['verification_status'] === 'Verified'): ?>
+                                    <form method="POST" class="dept-action-form" onsubmit="return confirm('Are you sure you want to approve this CIMM report?');">
                                         <input type="hidden" name="cimm_req_id" value="<?php echo (int)$row['cimm_req_id']; ?>">
-                                        <button type="submit" name="action" value="verify_cimm" class="dept-verify-btn" title="Verify report">
+                                        <button type="submit" name="action" value="approve_cimm" class="dept-verify-btn" title="Approve report">
                                             <i class="fas fa-check"></i>
                                         </button>
                                     </form>
