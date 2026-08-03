@@ -23,57 +23,24 @@ foreach (['report_category' => "ENUM('road','transportation') DEFAULT NULL AFTER
 $status_filter = $_GET['status'] ?? 'all';
 $source_filter = $_GET['source'] ?? 'all';
 $sort_order = $_GET['sort'] ?? 'latest';
-$search = isset($_GET['search']) ? trim($_GET['search']) : '';
-
-// Source system classification (used by the dropdown, the badge and the modal).
-//   - infrastructure : report_type = infrastructure_issue, maintenance, maintenance_request
-//   - cimm           : report_source = external
-//   - lgu            : report_source = local AND created_by != 0
-//   - citizen        : created_by = 0
-$source_case = "CASE
-        WHEN report_type IN ('infrastructure_issue','maintenance','maintenance_request') THEN 'infrastructure'
-        WHEN report_source = 'external' THEN 'cimm'
-        WHEN report_source = 'local' AND COALESCE(created_by, 0) != 0 THEN 'lgu'
-        ELSE 'citizen'
-    END";
-
-// Per-source WHERE condition (matches the Source System dropdown values)
-switch ($source_filter) {
-    case 'lgu':
-        $source_where = "report_type NOT IN ('infrastructure_issue','maintenance','maintenance_request') AND report_source = 'local' AND COALESCE(created_by, 0) != 0";
-        break;
-    case 'citizen':
-        $source_where = "report_type NOT IN ('infrastructure_issue','maintenance','maintenance_request') AND COALESCE(created_by, 0) = 0";
-        break;
-    case 'cimm':
-        $source_where = "report_source = 'external'";
-        break;
-    case 'infrastructure':
-        $source_where = "report_type IN ('infrastructure_issue','maintenance','maintenance_request')";
-        break;
-    default:
-        $source_where = '';
-        break;
-}
 
 // Build WHERE clause
 $where_clauses = [];
 
-if ($status_filter === 'pending') {
-    $where_clauses[] = "status IN ('pending','in-progress')";
-} elseif ($status_filter === 'approved') {
-    $where_clauses[] = "status IN ('approved','completed')";
-} elseif ($status_filter === 'rejected') {
-    $where_clauses[] = "status IN ('rejected','cancelled')";
+if ($status_filter !== 'all') {
+    if ($status_filter === 'pending') {
+        $where_clauses[] = "status IN ('pending','in-progress')";
+    } elseif ($status_filter === 'approved') {
+        $where_clauses[] = "status IN ('approved','completed')";
+    } elseif ($status_filter === 'rejected') {
+        $where_clauses[] = "status IN ('cancelled','rejected')";
+    }
 }
 
-if ($source_where !== '') {
-    $where_clauses[] = $source_where;
-}
-
-if ($search !== '') {
-    $like = '%' . $conn->real_escape_string($search) . '%';
-    $where_clauses[] = "(report_id LIKE '$like' OR title LIKE '$like')";
+if ($source_filter === 'transport') {
+    $where_clauses[] = "report_category IS NOT NULL";
+} elseif ($source_filter === 'maintenance') {
+    $where_clauses[] = "report_category IS NULL";
 }
 
 $where_sql = '';
@@ -83,28 +50,7 @@ if (!empty($where_clauses)) {
 
 $order_dir = ($sort_order === 'earliest') ? 'ASC' : 'DESC';
 
-// Total filtered count (archive badge and pagination use this, not the full dataset)
-$count_result = $conn->query("SELECT COUNT(*) AS total FROM road_transportation_reports_archive $where_sql");
-$total_archives = $count_result ? (int)$count_result->fetch_assoc()['total'] : 0;
-
-// Pagination uses the filtered result set
-$per_page = 20;
-$current_page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
-$total_pages = max(1, (int)ceil($total_archives / $per_page));
-if ($current_page > $total_pages) {
-    $current_page = $total_pages;
-}
-$offset = ($current_page - 1) * $per_page;
-
-// Label map for the four source systems
-$source_labels = [
-    'lgu'            => 'LGU Monitoring',
-    'citizen'        => 'Citizen',
-    'cimm'           => 'CIMM',
-    'infrastructure' => 'Infrastructure',
-];
-
-$sql = "SELECT *, $source_case AS source_system FROM road_transportation_reports_archive $where_sql ORDER BY created_at $order_dir LIMIT $per_page OFFSET $offset";
+$sql = "SELECT *, CASE WHEN report_category IS NOT NULL THEN 'transport' ELSE 'maintenance' END as source_system FROM road_transportation_reports_archive $where_sql ORDER BY created_at $order_dir";
 $archives = $conn->query($sql);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
@@ -400,36 +346,6 @@ if (isset($_SESSION['archive_message'])) {
             background: rgba(55,98,200,0.15);
             color: #3762c8;
         }
-        .source-lgu {
-            background: rgba(40,167,69,0.15);
-            color: #28a745;
-        }
-        .source-citizen {
-            background: rgba(23,162,184,0.15);
-            color: #17a2b8;
-        }
-        .source-cimm {
-            background: rgba(255,193,7,0.15);
-            color: #d39e00;
-        }
-        .source-infrastructure {
-            background: rgba(55,98,200,0.15);
-            color: #3762c8;
-        }
-        .pagination-wrap {
-            display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px;
-            align-items: center; justify-content: center;
-        }
-        .page-btn {
-            min-width: 38px; padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(55,98,200,0.2);
-            background: white; color: #1e3c72; font-size: 14px; font-weight: 500; cursor: pointer;
-            transition: all 0.3s ease; text-align: center;
-        }
-        .page-btn:hover { background: rgba(55,98,200,0.1); }
-        .page-btn.active { background: linear-gradient(135deg,#3762c8,#1e3c72); color: white; }
-        .page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        body.dark-mode .page-btn { background: #2a2e36; color: #e4e6ea; border-color: #3a3f4a; }
-        body.dark-mode .page-btn.active { background: linear-gradient(135deg,#3762c8,#1e3c72); color: white; }
 
         @media (max-width: 768px) {
             .main-content { margin-left: 0; }
@@ -464,15 +380,11 @@ if (isset($_SESSION['archive_message'])) {
                     <label class="form-label">Source System</label>
                     <select class="filter-select" id="sourceFilter" onchange="filterReports()">
                         <option value="all" <?php echo $source_filter === 'all' ? 'selected' : ''; ?>>All Systems</option>
-                        <option value="lgu" <?php echo $source_filter === 'lgu' ? 'selected' : ''; ?>>Road & Transportation (LGU Monitoring)</option>
-                        <option value="citizen" <?php echo $source_filter === 'citizen' ? 'selected' : ''; ?>>Citizen</option>
-                        <option value="cimm" <?php echo $source_filter === 'cimm' ? 'selected' : ''; ?>>CIMM</option>
-                        <option value="infrastructure" <?php echo $source_filter === 'infrastructure' ? 'selected' : ''; ?>>Infrastructure</option>
+                        <option value="transport" <?php echo $source_filter === 'transport' ? 'selected' : ''; ?>>Road & Transportation (LGU Monitoring)</option>
+                        <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>Citizen </option>
+                        <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>CIMM</option>
+                        <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>Infrastructure</option>
                     </select>
-                </div>
-                <div>
-                    <label class="form-label">Search</label>
-                    <input type="text" class="filter-select" id="searchInput" placeholder="Search by Report ID or Title" value="<?php echo htmlspecialchars($search); ?>" onkeydown="if(event.key==='Enter'){filterReports(1);}">
                 </div>
                 <div>
                     <label class="form-label">Sort Order</label>
@@ -497,7 +409,7 @@ if (isset($_SESSION['archive_message'])) {
                 <h3 class="archive-card-title">
                     <i class="fas fa-folder-open"></i>
                     Archived Reports
-                    <span class="archive-badge"><?php echo (int)$total_archives; ?></span>
+                    <span class="archive-badge"><?php echo $archives->num_rows; ?></span>
                 </h3>
             </div>
 
@@ -515,7 +427,11 @@ if (isset($_SESSION['archive_message'])) {
                                 <span class="meta-item"><i class="fas fa-calendar"></i> <?php echo htmlspecialchars($row['created_at']); ?></span>
                                 <span class="meta-item"><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($row['location'] ?? 'N/A'); ?></span>
                                 <span class="meta-item"><i class="fas fa-sitemap"></i>
-                                    <span class="source-badge source-<?php echo $row['source_system']; ?>"><?php echo htmlspecialchars($source_labels[$row['source_system']] ?? ($row['source_system'] ?? 'Unknown')); ?></span>
+                                    <?php if ($row['source_system'] === 'transport'): ?>
+                                        <span class="source-badge source-transport">LGU / Community</span>
+                                    <?php else: ?>
+                                        <span class="source-badge source-maintenance">Infrastructure</span>
+                                    <?php endif; ?>
                                 </span>
                             </div>
                             <div class="archive-actions">
@@ -538,13 +454,6 @@ if (isset($_SESSION['archive_message'])) {
                         </div>
                     </div>
                 <?php endwhile; ?>
-                <div class="pagination-wrap">
-                    <button class="page-btn" onclick="filterReports(<?php echo $current_page - 1; ?>)" <?php echo $current_page <= 1 ? 'disabled' : ''; ?>>Prev</button>
-                    <?php for ($p = 1; $p <= $total_pages; $p++): ?>
-                        <button class="page-btn <?php echo $p === $current_page ? 'active' : ''; ?>" onclick="filterReports(<?php echo $p; ?>)"><?php echo $p; ?></button>
-                    <?php endfor; ?>
-                    <button class="page-btn" onclick="filterReports(<?php echo $current_page + 1; ?>)" <?php echo $current_page >= $total_pages ? 'disabled' : ''; ?>>Next</button>
-                </div>
             <?php else: ?>
                 <div class="empty-state">
                     <i class="fas fa-archive"></i>
@@ -613,11 +522,8 @@ if (isset($_SESSION['archive_message'])) {
                 { label: 'Rejected At', value: row.rejected_at }
             ];
 
-            var sourceLabels = { 'lgu': 'LGU Monitoring', 'citizen': 'Citizen', 'cimm': 'CIMM', 'infrastructure': 'Infrastructure' };
-            var sourceIcons = { 'lgu': 'fa-users', 'citizen': 'fa-user', 'cimm': 'fa-handshake', 'infrastructure': 'fa-hard-hat' };
-            var src = row.source_system || 'citizen';
-            var sourceLabel = sourceLabels[src] || src;
-            var sourceIcon = sourceIcons[src] || 'fa-file-archive';
+            var sourceLabel = row.source_system === 'transport' ? 'LGU / Community' : 'Infrastructure';
+            var sourceIcon = row.source_system === 'transport' ? 'fa-users' : 'fa-hard-hat';
 
             html += '<div class="detail-row"><span class="detail-label">Source System</span><span class="detail-value"><i class="fas ' + sourceIcon + '"></i> ' + sourceLabel + '</span></div>';
             html += '<div class="detail-row"><span class="detail-label">Report ID</span><span class="detail-value">' + (row.report_id || 'N/A') + '</span></div>';
@@ -670,31 +576,22 @@ if (isset($_SESSION['archive_message'])) {
         });
 
         // Filter functionality
-        function filterReports(page) {
+        function filterReports() {
             const status = document.getElementById('statusFilter').value;
             const source = document.getElementById('sourceFilter').value;
             const sort = document.getElementById('sortFilter').value;
-            const search = (document.getElementById('searchInput').value || '').trim();
             const url = new URL(window.location);
             url.searchParams.set('status', status);
             url.searchParams.set('source', source);
             url.searchParams.set('sort', sort);
-            url.searchParams.set('search', search);
-            url.searchParams.set('page', page && page > 0 ? page : 1);
             window.location.href = url.toString();
         }
 
         function resetFilters() {
-            document.getElementById('statusFilter').value = 'all';
-            document.getElementById('sourceFilter').value = 'all';
-            document.getElementById('sortFilter').value = 'latest';
-            document.getElementById('searchInput').value = '';
             const url = new URL(window.location);
             url.searchParams.delete('status');
             url.searchParams.delete('source');
             url.searchParams.delete('sort');
-            url.searchParams.delete('search');
-            url.searchParams.delete('page');
             window.location.href = url.toString();
         }
     </script>
