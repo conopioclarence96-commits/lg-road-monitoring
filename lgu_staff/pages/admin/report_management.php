@@ -989,6 +989,10 @@ $citizen_reports = [];
 $lgu_reports_list = [];
 $cimm_reports_list = [];
 $infra_reports_list = [];
+// Citizen reports only appear in the Citizen Reports panel after they have
+// been verified and approved in verification_monitoring.php. Any pre-verification
+// status keeps them out of this panel (they remain in verification_monitoring.php).
+$citizen_unverified_statuses = ['pending', 'awaiting verification', 'for verification', 'under review', 'submitted', 'new'];
 foreach ($reports as $report) {
     $src = $report['source_system'] ?? 'transport';
 
@@ -998,7 +1002,7 @@ foreach ($reports as $report) {
         // 'transport' with created_by != 0 and are not shown here.
         if ($src === 'lgu_reports') {
             $lgu_reports_list[] = $report;
-        } elseif ($src !== 'maintenance' && ($report['created_by'] ?? 0) == 0) {
+        } elseif ($src !== 'maintenance' && ($report['created_by'] ?? 0) == 0 && !in_array(strtolower($report['status'] ?? ''), $citizen_unverified_statuses)) {
             $citizen_reports[] = $report;
         }
         continue;
@@ -1011,8 +1015,8 @@ foreach ($reports as $report) {
     } elseif ($src === 'hidden') {
         // Skip unapproved LGU reports
     } else {
-        // Only include citizen reports where created_by = 0
-        if (($report['created_by'] ?? 0) == 0) {
+        // Only include verified citizen reports where created_by = 0
+        if (($report['created_by'] ?? 0) == 0 && !in_array(strtolower($report['status'] ?? ''), $citizen_unverified_statuses)) {
             $citizen_reports[] = $report;
         }
     }
