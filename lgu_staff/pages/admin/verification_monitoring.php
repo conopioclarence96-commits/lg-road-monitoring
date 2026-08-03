@@ -530,7 +530,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         // Archive report then remove from active table
         if ($action === 'delete') {
-            $insert = "INSERT INTO road_transportation_reports_archive (id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at) SELECT id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM $table WHERE id = ?";
+            $insert = "INSERT INTO road_transportation_reports_archive (id, report_id, title, report_type, report_category, report_source, created_by, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at) SELECT id, report_id, title, report_type, report_category, report_source, created_by, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM $table WHERE id = ?";
             $stmt = $conn->prepare($insert);
             $stmt->bind_param('i', $report_id);
             if (!$stmt->execute()) {

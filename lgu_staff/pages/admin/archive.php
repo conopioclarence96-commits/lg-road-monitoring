@@ -37,17 +37,16 @@ $source_case = "CASE
         ELSE 'citizen'
     END";
 
-// Per-source WHERE condition (matches the Source System dropdown values and
-// mirrors the $source_case buckets so no report can appear in two sources)
+// Per-source WHERE condition (matches the Source System dropdown values)
 switch ($source_filter) {
     case 'lgu':
         $source_where = "report_type NOT IN ('infrastructure_issue','maintenance','maintenance_request') AND report_source = 'local' AND COALESCE(created_by, 0) != 0";
         break;
     case 'citizen':
-        $source_where = "report_type NOT IN ('infrastructure_issue','maintenance','maintenance_request') AND COALESCE(report_source, 'local') != 'external' AND COALESCE(created_by, 0) = 0";
+        $source_where = "report_type NOT IN ('infrastructure_issue','maintenance','maintenance_request') AND COALESCE(created_by, 0) = 0";
         break;
     case 'cimm':
-        $source_where = "report_type NOT IN ('infrastructure_issue','maintenance','maintenance_request') AND report_source = 'external'";
+        $source_where = "report_source = 'external'";
         break;
     case 'infrastructure':
         $source_where = "report_type IN ('infrastructure_issue','maintenance','maintenance_request')";
@@ -61,12 +60,12 @@ switch ($source_filter) {
 $where_clauses = [];
 
 if ($status_filter !== 'all') {
-    if ($status_filter === 'pending') {
-        $where_clauses[] = "status IN ('pending','in-progress')";
-    } elseif ($status_filter === 'approved') {
-        $where_clauses[] = "status IN ('approved','completed')";
+    if ($status_filter === 'completed') {
+        $where_clauses[] = "status IN ('completed')";
     } elseif ($status_filter === 'rejected') {
-        $where_clauses[] = "status IN ('cancelled','rejected')";
+        $where_clauses[] = "status IN ('rejected')";
+    } elseif ($status_filter === 'cancelled') {
+        $where_clauses[] = "status IN ('cancelled')";
     }
 }
 
