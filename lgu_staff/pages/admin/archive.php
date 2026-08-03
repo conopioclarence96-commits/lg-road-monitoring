@@ -380,8 +380,10 @@ if (isset($_SESSION['archive_message'])) {
                     <label class="form-label">Source System</label>
                     <select class="filter-select" id="sourceFilter" onchange="filterReports()">
                         <option value="all" <?php echo $source_filter === 'all' ? 'selected' : ''; ?>>All Systems</option>
-                        <option value="transport" <?php echo $source_filter === 'transport' ? 'selected' : ''; ?>>Road & Transportation (LGU / Community)</option>
-                        <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>External Systems (Infrastructure)</option>
+                        <option value="transport" <?php echo $source_filter === 'transport' ? 'selected' : ''; ?>>Road & Transportation (LGU Monitoring)</option>
+                        <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>Citizen </option>
+                        <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>CIMM</option>
+                        <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>Infrastructure</option>
                     </select>
                 </div>
                 <div>
