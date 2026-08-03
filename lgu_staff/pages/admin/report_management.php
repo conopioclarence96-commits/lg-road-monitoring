@@ -675,7 +675,7 @@ function getCimmReportsForManagement($status_filter = 'all') {
 }
 
 // Get reports for display
-function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50, $offset = 0) {
+function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50, $offset = 0, $road_only = false) {
     global $conn;
     
     $reports = [];
@@ -726,12 +726,20 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
     $include_maintenance = ($source_filter === 'all' || $source_filter === 'maintenance');
     
     $is_lgu_filter = ($source_filter === 'lgu_reports');
-    
+
+    // Road Operations Supervisors see only Road reports — Transportation
+    // reports are excluded at the query level using the existing
+    // report_category classification.
+    $road_cond = $road_only ? 'report_category = \'road\'' : '';
+
     if (!$include_transport && !$include_maintenance) {
         $transport_query = "SELECT NULL FROM road_transportation_reports WHERE 1=0";
     } elseif (!$include_transport && $include_maintenance) {
         // When only maintenance is selected, include infrastructure issues from transport table
         $transport_query .= " WHERE report_type = 'infrastructure_issue'";
+        if ($road_cond !== '') {
+            $transport_query .= " AND {$road_cond}";
+        }
         if (!empty($where_conditions)) {
             $transport_query .= " AND " . implode(' AND ', $where_conditions);
         }
@@ -739,6 +747,9 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
     } elseif ($include_transport && !$include_maintenance) {
         // When only transport is selected, exclude infrastructure issues (they belong in infra panel)
         $transport_query .= " WHERE report_type != 'infrastructure_issue'";
+        if ($road_cond !== '') {
+            $transport_query .= " AND {$road_cond}";
+        }
         if ($is_lgu_filter) {
             $transport_query .= " AND report_source = 'local' AND created_by != 0 AND status = 'approved'";
         }
@@ -746,9 +757,16 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
             $transport_query .= " AND " . implode(' AND ', $where_conditions);
         }
         $transport_params = $params ?? [];
-    } elseif (!empty($where_conditions)) {
-        $transport_query .= " WHERE " . implode(' AND ', $where_conditions);
-        $transport_params = $params;
+    } else {
+        // Both transport and maintenance included.
+        $where_parts = $where_conditions;
+        if ($road_cond !== '') {
+            $where_parts[] = $road_cond;
+        }
+        if (!empty($where_parts)) {
+            $transport_query .= " WHERE " . implode(' AND ', $where_parts);
+            $transport_params = $params ?? [];
+        }
     }
     
     if (!$include_maintenance) {
@@ -894,8 +912,12 @@ $source_aliases = [
 $source_filter = $source_aliases[$source_filter] ?? 'all';
 $_GET['source'] = $source_filter;
 
+// Road Operations Supervisors see only Road-relevant reports: Road reports in
+// the LGU Monitoring panel, all CIMM reports, and no Transportation reports.
+$is_road_supervisor = ($user_role === 'road_ops_supervisor');
+
 // Get data
-$reports = get_reports($status_filter, $source_filter, $per_page, $offset);
+$reports = get_reports($status_filter, $source_filter, $per_page, $offset, $is_road_supervisor);
 $stats = get_report_stats();
 $csrf_token = generate_csrf_token();
 $flash_message = get_flash_message();
@@ -976,8 +998,14 @@ if ($focus_id > 0) {
         $transport_est = $est_result && $est_result->num_rows > 0;
         $transport_est_col = $transport_est ? 'estimation' : '0 as estimation';
 
-        $transport_focus_query = function ($id) use ($conn, $transport_est_col) {
-            return fetch_one("SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, {$transport_est_col}, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' WHEN report_category = 'transportation' AND report_source = 'local' AND created_by != 0 AND status = 'approved' THEN 'lgu_reports' WHEN report_category = 'transportation' AND report_source = 'local' AND created_by != 0 THEN 'hidden' ELSE 'transport' END as source_system FROM road_transportation_reports WHERE id = ?", [$id], 'i');
+        $transport_focus_query = function ($id) use ($conn, $transport_est_col, $is_road_supervisor) {
+            $row = fetch_one("SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, {$transport_est_col}, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' WHEN report_category = 'transportation' AND report_source = 'local' AND created_by != 0 AND status = 'approved' THEN 'lgu_reports' WHEN report_category = 'transportation' AND report_source = 'local' AND created_by != 0 THEN 'hidden' ELSE 'transport' END as source_system FROM road_transportation_reports WHERE id = ?", [$id], 'i');
+            // Road Operations Supervisors never see Transportation reports —
+            // do not reveal them even via a deep-link.
+            if ($is_road_supervisor && ($row['report_category'] ?? '') === 'transportation') {
+                return null;
+            }
+            return $row;
         };
 
         $src_key = $source_aliases[$focus_source] ?? '';
@@ -1015,7 +1043,8 @@ if ($focus_id > 0) {
                     $maint_est_col = $maint_est ? 'estimation' : '0 as estimation';
                     $focus_report = fetch_one("SELECT id, report_id, title, description, location, priority, status, maintenance_team as assigned_to, {$maint_est_col}, department, created_date, created_at, updated_at, approved_at, NULL as attachments, NULL as image_path, 'maintenance' as report_type, 'maintenance' as source_system FROM road_maintenance_reports WHERE id = ?", [$focus_id], 'i');
                     if (!$focus_report) {
-                        $focus_report = fetch_one("SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, {$transport_est_col}, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, 'maintenance' as source_system FROM road_transportation_reports WHERE id = ? AND report_type = 'infrastructure_issue'", [$focus_id], 'i');
+                        $infra_road = $is_road_supervisor ? " AND report_category = 'road'" : '';
+                        $focus_report = fetch_one("SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, {$transport_est_col}, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, 'maintenance' as source_system FROM road_transportation_reports WHERE id = ? AND report_type = 'infrastructure_issue'{$infra_road}", [$focus_id], 'i');
                     }
                     if ($focus_report) $infra_reports_list[] = $focus_report;
                 }
