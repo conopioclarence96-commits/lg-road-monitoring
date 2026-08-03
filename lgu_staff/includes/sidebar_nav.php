@@ -142,7 +142,6 @@ $nav_items = [
     ],
     'reports' => [
         ['href' => $nav_base . 'pages/shared/analytics.php', 'icon' => 'chart-line', 'title' => 'Analytics', 'roles' => ['system_admin', 'lgu_staff']],
-        ['href' => $nav_base . 'pages/shared/sla_dashboard.php', 'icon' => 'gavel', 'title' => 'SLA Compliance', 'roles' => ['system_admin', 'lgu_staff']],
         ['href' => $nav_base . 'pages/admin/audit_trail.php', 'icon' => 'history', 'title' => 'Audit Trail', 'roles' => ['system_admin']],
     ],
     'system' => [
