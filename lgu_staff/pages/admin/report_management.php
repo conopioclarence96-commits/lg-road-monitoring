@@ -1212,6 +1212,7 @@ if ($focus_id > 0) {
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="../../js/progress-updates.js"></script>
+    <script src="../../js/progress-updates-common.js"></script>
     <style>
         body {
             background: #f7f5f0;
@@ -3205,7 +3206,7 @@ if ($focus_id > 0) {
                                     <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-trash"></i>
                                     </button>
-                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'infrastructure')">
                                         <i class="fas fa-clock"></i>
                                     </button>
                                 </div>
@@ -3527,7 +3528,7 @@ if ($focus_id > 0) {
             </div>
             <div class="modal-footer" style="display: flex; flex-direction: column; gap: 16px;">
                 <span id="updateReportInfo" class="t-text-secondary" style="font-size: 13px;"></span>
-                <div style="display: flex; justify-content: space-between;">
+                <div id="actionButtons" style="display: flex; justify-content: space-between;">
                     <div style="display: flex; gap: 8px;">
                         <button class="btn-success-custom" onclick="completeReport()">Complete</button>
                         <button class="btn-danger-custom" onclick="cancelReport()">Cancel</button>
@@ -3536,6 +3537,12 @@ if ($focus_id > 0) {
                         <button class="btn-action" id="addUpdateBtn" onclick="showAddUpdateModal()">+ Add Update</button>
                         <button class="btn-secondary-custom" onclick="closeModal('updatesModal')">Close</button>
                     </div>
+                </div>
+                <div id="exportButtons" style="display: none; justify-content: flex-end; gap: 8px;">
+                    <button class="btn-action" onclick="exportUpdatesToExcel()">
+                        <i class="fas fa-file-excel"></i> Export
+                    </button>
+                    <button class="btn-secondary-custom" onclick="closeModalAndRefresh('updatesModal')">Close</button>
                 </div>
             </div>
         </div>
@@ -4371,31 +4378,101 @@ if ($focus_id > 0) {
             }
         });
 
-        // Complete button handler
-        document.addEventListener('click', function(e) {
-            if (e.target && e.target.id === 'completeBtn') {
-                console.log('Complete button clicked');
-                completeReport();
-            }
-        });
-
-        // Cancel button handler
-        document.addEventListener('click', function(e) {
-            if (e.target && e.target.id === 'cancelBtn') {
-                console.log('Cancel button clicked');
-                cancelReport();
-            }
-        });
+        var isCompleting = false; // Flag to prevent multiple clicks
 
         function completeReport() {
-            console.log('completeReport called', currentUpdatesReportId, currentUpdatesReportSource);
-            if (!currentUpdatesReportId) {
-                console.log('No report ID');
+            if (!currentUpdatesReportId) return;
+            if (isCompleting) return; // Prevent multiple clicks
+            isCompleting = true;
+            
+            var today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+            
+            // Check if there's already a "Completed" update to prevent duplicates
+            const timelineEntries = document.querySelectorAll('.timeline-entry');
+            var alreadyCompleted = false;
+            timelineEntries.forEach(function(entry) {
+                const title = entry.querySelector('.timeline-title')?.textContent.trim() || '';
+                if (title.toLowerCase() === 'completed') {
+                    alreadyCompleted = true;
+                }
+            });
+
+            if (alreadyCompleted) {
+                showNotification('Report is already marked as completed', 'info');
+                // Just update the status and hide buttons
+                updateStatusOnly();
+                isCompleting = false;
                 return;
             }
             
+            // First add the completion update
+            var updateFormData = new FormData();
+            updateFormData.append('action', 'create_update');
+            updateFormData.append('report_id', currentUpdatesReportId);
+            updateFormData.append('report_type', currentUpdatesReportType);
+            updateFormData.append('title', 'Completed');
+            updateFormData.append('description', 'completed on ' + today);
+
+            fetch('../api/progress_update_api.php', {
+                method: 'POST',
+                body: updateFormData
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    // Now update the status
+                    updateStatusOnly();
+                } else {
+                    throw new Error(data.message || 'Failed to add completion update');
+                }
+            })
+            .catch(function(e) {
+                showNotification('Network error', 'error');
+                console.error(e);
+                isCompleting = false;
+            });
+        }
+
+        function updateStatusOnly() {
             var newStatus = (currentUpdatesReportSource === 'cimm') ? 'Completed' : 'completed';
-            console.log('Setting status to:', newStatus);
+            var statusFormData = new FormData();
+            statusFormData.append('action', 'update_status');
+            statusFormData.append('report_id', currentUpdatesReportId);
+            statusFormData.append('report_type', currentUpdatesReportType);
+            statusFormData.append('status', newStatus);
+            statusFormData.append('source', currentUpdatesReportSource);
+
+            fetch('../api/progress_update_api.php', {
+                method: 'POST',
+                body: statusFormData
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showNotification('Report completed successfully', 'success');
+                    // Hide action buttons, show export button
+                    document.getElementById('actionButtons').style.display = 'none';
+                    document.getElementById('exportButtons').style.display = 'flex';
+                    // Reload updates timeline
+                    if (typeof loadUpdates === 'function') {
+                        loadUpdates(currentUpdatesReportId, currentUpdatesReportType);
+                    }
+                } else {
+                    showNotification(data.message || 'Failed to update status', 'error');
+                }
+                isCompleting = false; // Reset flag
+            })
+            .catch(function(e) {
+                showNotification('Network error', 'error');
+                console.error(e);
+                isCompleting = false; // Reset flag
+            });
+        }
+
+        function cancelReport() {
+            if (!currentUpdatesReportId) return;
+            
+            var newStatus = (currentUpdatesReportSource === 'cimm') ? 'Cancelled' : 'cancelled';
             var formData = new FormData();
             formData.append('action', 'update_status');
             formData.append('report_id', currentUpdatesReportId);
@@ -4409,7 +4486,6 @@ if ($focus_id > 0) {
             })
             .then(function(r) { return r.json(); })
             .then(function(data) {
-                console.log('Response:', data);
                 if (data.success) {
                     showNotification(data.message, 'success');
                     closeModal('updatesModal');
@@ -4424,41 +4500,9 @@ if ($focus_id > 0) {
             });
         }
 
-        function cancelReport() {
-            console.log('cancelReport called', currentUpdatesReportId, currentUpdatesReportSource);
-            if (!currentUpdatesReportId) {
-                console.log('No report ID');
-                return;
-            }
-            
-            var newStatus = (currentUpdatesReportSource === 'cimm') ? 'Cancelled' : 'cancelled';
-            console.log('Setting status to:', newStatus);
-            var formData = new FormData();
-            formData.append('action', 'update_status');
-            formData.append('report_id', currentUpdatesReportId);
-            formData.append('report_type', currentUpdatesReportType);
-            formData.append('status', newStatus);
-            formData.append('source', currentUpdatesReportSource);
-
-            fetch('../api/progress_update_api.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                console.log('Response:', data);
-                if (data.success) {
-                    showNotification(data.message, 'success');
-                    closeModal('updatesModal');
-                    location.reload();
-                } else {
-                    showNotification(data.message || 'Failed to update status', 'error');
-                }
-            })
-            .catch(function(e) {
-                showNotification('Network error', 'error');
-                console.error(e);
-            });
+        function closeModalAndRefresh(modalId) {
+            closeModal(modalId);
+            location.reload();
         }
 
         // File preview for add update modal — maintains persistent upload queue
