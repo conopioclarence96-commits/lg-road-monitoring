@@ -68,6 +68,10 @@ if (
 // are rejected server-side.
 $is_transport_supervisor = (($_SESSION['role'] ?? '') === 'trans_ops_supervisor');
 
+// Road Operations Supervisors are restricted to Road-category reports only —
+// Transportation reports (LGU or Citizen) are hidden from Recent Submissions.
+$is_road_supervisor = (($_SESSION['role'] ?? '') === 'road_ops_supervisor');
+
 // Function to get enhanced dashboard stats
 function getEnhancedStats() {
     global $conn, $is_transport_supervisor;
@@ -99,13 +103,16 @@ function getEnhancedStats() {
 //   - Infrastructure Projects (road_maintenance_reports) that are APPROVED or
 //     COMPLETED
 //   - CIMM reports whose verification_status is 'Verified'
-function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter = 'all', $transport_only = false) {
+function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter = 'all', $transport_only = false, $road_only = false) {
     global $conn;
     $reports = [];
     if (!$conn) return $reports;
 
     // Transportation Operations Supervisors see only Transportation reports.
     $transport_category_filter = $transport_only ? " AND report_category = 'transportation'" : '';
+
+    // Road Operations Supervisors see only Road reports.
+    $road_category_filter = $road_only ? " AND report_category = 'road'" : '';
 
     // Helper to append shared WHERE/ORDER/LIMIT clauses and run a query
     $fetch = function ($sql, $status_filter, $type_filter, $limit) use ($conn) {
@@ -152,7 +159,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                AND (created_by IS NULL OR created_by = 0
                     OR cimm_sync_status IS NULL OR cimm_sync_status <> 'pushed'
                     OR (report_category = 'transportation' AND report_source = 'local' AND created_by != 0))
-               $transport_category_filter",
+                   $transport_category_filter{$road_category_filter}",
             $status_filter, $type_filter, $limit
         ));
 
@@ -184,7 +191,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                         cimm_sync_status, cimm_verified_at, cimm_verified_by
                  FROM road_transportation_reports
                  WHERE report_type = 'infrastructure_issue'
-                   AND status IN ('approved','completed')",
+                   AND status IN ('approved','completed'){$road_category_filter}",
                 $status_filter, $type_filter, $limit
             ));
         }
@@ -702,7 +709,7 @@ function resolve_recent_focus_row(int $id, string $source_hint = ''): ?array {
     try {
         foreach ($candidates as $src) {
             if ($src === 'transport') {
-                $stmt = $conn->prepare("SELECT id, report_id, title, report_type, status, priority, severity, created_at, description, latitude, longitude, location, reporter_name, attachments, image_path, cimm_sync_status, cimm_verified_at, cimm_verified_by, created_by FROM road_transportation_reports WHERE id = ?");
+                $stmt = $conn->prepare("SELECT id, report_id, title, report_type, report_category, status, priority, severity, created_at, description, latitude, longitude, location, reporter_name, attachments, image_path, cimm_sync_status, cimm_verified_at, cimm_verified_by, created_by FROM road_transportation_reports WHERE id = ?");
                 $stmt->bind_param("i", $id);
                 $stmt->execute();
                 $r = $stmt->get_result()->fetch_assoc();
@@ -714,7 +721,7 @@ function resolve_recent_focus_row(int $id, string $source_hint = ''): ?array {
                     return $r;
                 }
             } elseif ($src === 'maintenance') {
-                $stmt = $conn->prepare("SELECT id, report_id, title, report_type, status, priority, NULL AS severity, created_at, description, NULL AS latitude, NULL AS longitude, location, NULL AS reporter_name, NULL AS attachments, NULL AS image_path, NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by FROM road_maintenance_reports WHERE id = ?");
+                $stmt = $conn->prepare("SELECT id, report_id, title, report_type, 'road' AS report_category, status, priority, NULL AS severity, created_at, description, NULL AS latitude, NULL AS longitude, location, NULL AS reporter_name, NULL AS attachments, NULL AS image_path, NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by FROM road_maintenance_reports WHERE id = ?");
                 $stmt->bind_param("i", $id);
                 $stmt->execute();
                 $r = $stmt->get_result()->fetch_assoc();
@@ -727,7 +734,7 @@ function resolve_recent_focus_row(int $id, string $source_hint = ''): ?array {
                 require_once __DIR__ . '/../api/cimm_verification_data.php';
                 $pdo = rgmap_verification_pdo();
                 rgmap_ensure_cimm_verification_table($pdo);
-                $stmt = $pdo->prepare("SELECT id, reference_code AS report_id, infrastructure AS title, 'infrastructure_issue' AS report_type, 'completed' AS status, priority, NULL AS severity, COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at, issue AS description, coord_lat AS latitude, coord_lng AS longitude, location, reporter_name, NULL AS attachments, NULL AS image_path, 'verified' AS cimm_sync_status, verified_at AS cimm_verified_at, NULL AS cimm_verified_by FROM cimm_verification_reports WHERE id = ?");
+                $stmt = $pdo->prepare("SELECT id, reference_code AS report_id, infrastructure AS title, 'infrastructure_issue' AS report_type, 'road' AS report_category, 'completed' AS status, priority, NULL AS severity, COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at, issue AS description, coord_lat AS latitude, coord_lng AS longitude, location, reporter_name, NULL AS attachments, NULL AS image_path, 'verified' AS cimm_sync_status, verified_at AS cimm_verified_at, NULL AS cimm_verified_by FROM cimm_verification_reports WHERE id = ?");
                 $stmt->execute([$id]);
                 $r = $stmt->fetch(PDO::FETCH_ASSOC);
                 if ($r) {
@@ -764,7 +771,7 @@ if ($focus_report_id > 0) {
 $alerts = getActiveAlerts();
 $roads = getRoadStatus();
 $enhanced_stats = getEnhancedStats();
-$recent_reports = getRecentSubmissions(10, $status_filter, 'all', $is_transport_supervisor);
+$recent_reports = getRecentSubmissions(10, $status_filter, 'all', $is_transport_supervisor, $is_road_supervisor);
 
 if ($focus_report_id > 0) {
     $focus_row = resolve_recent_focus_row($focus_report_id, $focus_source_hint);
@@ -774,9 +781,11 @@ if ($focus_report_id > 0) {
         $focus_target['report_id'] = $focus_row['report_id'] ?? '';
 
         // Respect role-based restrictions: transport supervisors never see
-        // infrastructure or CIMM rows in Recent Submissions.
-        $restricted = $is_transport_supervisor
-            && in_array($focus_row['source'] ?? '', ['infrastructure', 'cimm'], true);
+        // infrastructure or CIMM rows in Recent Submissions; road supervisors
+        // never see non-Road reports.
+        $restricted = ($is_transport_supervisor
+                && in_array($focus_row['source'] ?? '', ['infrastructure', 'cimm'], true))
+            || ($is_road_supervisor && (($focus_row['report_category'] ?? '') !== 'road'));
 
         if (!$restricted) {
             $already_present = false;
