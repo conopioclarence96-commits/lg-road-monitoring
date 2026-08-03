@@ -59,14 +59,18 @@ switch ($source_filter) {
 // Build WHERE clause
 $where_clauses = [];
 
-if ($status_filter !== 'all') {
-    if ($status_filter === 'completed') {
-        $where_clauses[] = "status IN ('completed')";
-    } elseif ($status_filter === 'rejected') {
-        $where_clauses[] = "status IN ('rejected')";
-    } elseif ($status_filter === 'cancelled') {
-        $where_clauses[] = "status IN ('cancelled')";
-    }
+// Status filter. The archive only ever contains completed / rejected / cancelled
+// reports, so every selection (including "All Status") is restricted to those
+// three statuses — any other status can never appear here.
+if ($status_filter === 'completed') {
+    $where_clauses[] = "status = 'completed'";
+} elseif ($status_filter === 'rejected') {
+    $where_clauses[] = "status = 'rejected'";
+} elseif ($status_filter === 'cancelled') {
+    $where_clauses[] = "status = 'cancelled'";
+} else {
+    // All Status
+    $where_clauses[] = "status IN ('completed','rejected','cancelled')";
 }
 
 if ($source_where !== '') {
@@ -429,9 +433,9 @@ if (isset($_SESSION['archive_message'])) {
                     <label class="form-label">Status Filter</label>
                     <select class="filter-select" id="statusFilter" onchange="filterReports()">
                         <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
-                        <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending / In Progress</option>
-                        <option value="approved" <?php echo $status_filter === 'approved' ? 'selected' : ''; ?>>Approved / Completed</option>
-                        <option value="rejected" <?php echo $status_filter === 'rejected' ? 'selected' : ''; ?>>Rejected / Cancelled</option>
+                        <option value="completed" <?php echo $status_filter === 'completed' ? 'selected' : ''; ?>>Completed</option>
+                        <option value="rejected" <?php echo $status_filter === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
+                        <option value="cancelled" <?php echo $status_filter === 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
                     </select>
                 </div>
                 <div>
