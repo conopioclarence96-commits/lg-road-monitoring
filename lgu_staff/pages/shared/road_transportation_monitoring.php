@@ -3132,14 +3132,12 @@ if ($focus_report_id > 0) {
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.success) {
-                    showNotification('Report completed successfully', 'success');
-                    // Hide action buttons, show export button
-                    document.getElementById('actionButtons').style.display = 'none';
-                    document.getElementById('exportButtons').style.display = 'flex';
-                    // Reload updates timeline
-                    if (typeof loadUpdates === 'function') {
-                        loadUpdates(currentUpdatesReportId, currentUpdatesReportType);
-                    }
+                    showNotification('Report completed and archived successfully', 'success');
+                    // Close the modal and refresh the page since the report is now archived
+                    closeModal('updatesModal');
+                    setTimeout(function() {
+                        location.reload();
+                    }, 1000);
                 } else {
                     showNotification(data.message || 'Failed to update status', 'error');
                 }
