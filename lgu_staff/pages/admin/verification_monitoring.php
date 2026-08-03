@@ -108,6 +108,10 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', $allowed_
 $user_role = $_SESSION['role'] ?? 'citizen';
 $is_transport_supervisor = ($user_role === 'trans_ops_supervisor');
 
+// Road Operations Supervisors see only Road-relevant reports: Road reports in
+// the LGU Monitoring panel, all CIMM reports, and no Transportation reports.
+$is_road_supervisor = ($user_role === 'road_ops_supervisor');
+
 // Function to get verification statistics
 function getVerificationStatistics($conn) {
     $stats = [];
@@ -189,7 +193,7 @@ function getRejectedReports($conn) {
 }
 
 // Function to get all reports (for filtering)
-function getAllReports($conn, $status_filter = 'all', $source_filter = 'all', $transport_only = false) {
+function getAllReports($conn, $status_filter = 'all', $source_filter = 'all', $transport_only = false, $road_only = false) {
     $parts = [];
     $transport_where = '';
     $maintenance_where = '';
@@ -215,8 +219,11 @@ function getAllReports($conn, $status_filter = 'all', $source_filter = 'all', $t
     // Road reports (report_category = 'road') and maintenance/infrastructure
     // reports are excluded at the query level.
     $transport_category_filter = $transport_only ? " AND report_category = 'transportation'" : '';
+    // Road Operations Supervisors only see Road reports — Transportation
+    // reports are excluded at the query level.
+    $road_category_filter = $road_only ? " AND report_category = 'road'" : '';
     if ($source_filter === 'transport') {
-        $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}" : " WHERE {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}";
+        $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}" : " WHERE {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}";
         $source_case = "CASE WHEN report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
         $q = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$where})";
         $parts[] = $q;
@@ -226,7 +233,7 @@ function getAllReports($conn, $status_filter = 'all', $source_filter = 'all', $t
             $parts[] = $q;
         }
     } else {
-        $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}" : " WHERE {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}";
+        $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}" : " WHERE {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}";
         $source_case = "CASE WHEN report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
         $parts[] = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, cimm_sync_status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$where})";
         if (!$transport_only) {
@@ -417,13 +424,14 @@ function getCitizenReports($conn) {
 }
 
 // Function to get infrastructure-only reports (road_transportation_reports where report_type = 'infrastructure_issue' + road_maintenance_reports)
-function getInfraReports($conn) {
+function getInfraReports($conn, $road_only = false) {
+    $road_category_filter = $road_only ? " AND report_category = 'road'" : '';
     $query = "(SELECT 'transport' as source, id, report_id, title, report_type, report_category, report_source,
                      department, priority, status, created_date, due_date, description, location, attachments,
                      latitude, longitude, created_at, updated_at, approved_at, rejected_at,
                      reporter_name, reporter_email
               FROM road_transportation_reports WHERE report_type = 'infrastructure_issue'
-                AND status NOT IN ('approved','completed'))
+                AND status NOT IN ('approved','completed'){$road_category_filter})
               UNION ALL
               (SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source,
                      department, priority, status, created_date, due_date, description, location, NULL as attachments,
@@ -579,7 +587,7 @@ $stats = getVerificationStatistics($conn);
 $pending_verifications = getPendingVerifications($conn);
 $approved_reports = getApprovedReports($conn);
 $rejected_reports = getRejectedReports($conn);
-$all_reports = getAllReports($conn, $status_filter, $source_filter, $is_transport_supervisor);
+$all_reports = getAllReports($conn, $status_filter, $source_filter, $is_transport_supervisor, $is_road_supervisor);
 $recent_approvals = getRecentApprovals($conn);
 $activity_timeline = getActivityTimeline($conn);
 
@@ -612,7 +620,7 @@ $sql_reports = getSqlReports($conn);
 $citizen_reports = getCitizenReports($conn);
 
 // Infrastructure-specific reports
-$infra_reports = getInfraReports($conn);
+$infra_reports = getInfraReports($conn, $is_road_supervisor);
 
 // Deep-link focus: ?source= + ?id= (or the notifications-specific
 // ?focus_report_id=, see below) from a notification "View" button. The
@@ -654,6 +662,10 @@ if ($focus_id > 0) {
                 [$focus_id], 'i'
             );
             if ($auto_report) {
+                if ($is_road_supervisor && ($auto_report['report_category'] ?? '') === 'transportation') {
+                    // Road supervisors never see Transportation reports —
+                    // do not reveal them even via a deep-link.
+                } else {
                 $focus_target['found'] = true;
                 if (($auto_report['report_type'] ?? '') === 'infrastructure_issue') {
                     // Infrastructure Issue -> Infrastructure Projects panel.
@@ -671,12 +683,16 @@ if ($focus_id > 0) {
                     $focus_target['table'] = 'lguTable';
                     $focus_target['filterValue'] = 'all';
                 }
+                }
             }
         } else {
         switch ($focus_source) {
             case 'citizen':
             case 'transport':
-                if (fetch_one("SELECT id FROM road_transportation_reports WHERE id = ?", [$focus_id], 'i')) {
+                // The Citizen Reports panel is Transportation-only and is
+                // hidden for Road Operations Supervisors.
+                if (!$is_road_supervisor
+                    && fetch_one("SELECT id FROM road_transportation_reports WHERE id = ?", [$focus_id], 'i')) {
                     $focus_target['found'] = true;
                     $focus_target['table'] = 'citizenTable';
                     $focus_target['filterValue'] = 'transport';
@@ -684,7 +700,8 @@ if ($focus_id > 0) {
                 break;
 
             case 'lgu':
-                if (fetch_one("SELECT id FROM road_transportation_reports WHERE id = ?", [$focus_id], 'i')) {
+                $lgu_road = $is_road_supervisor ? " AND report_category = 'road'" : '';
+                if (fetch_one("SELECT id FROM road_transportation_reports WHERE id = ?{$lgu_road}", [$focus_id], 'i')) {
                     $focus_target['found'] = true;
                     $focus_target['table'] = 'lguTable';
                     $focus_target['filterValue'] = 'all';
@@ -706,7 +723,8 @@ if ($focus_id > 0) {
             case 'maintenance':
                 $f = fetch_one("SELECT id FROM road_maintenance_reports WHERE id = ?", [$focus_id], 'i');
                 if (!$f) {
-                    $f = fetch_one("SELECT id FROM road_transportation_reports WHERE id = ? AND report_type = 'infrastructure_issue'", [$focus_id], 'i');
+                    $infra_road = $is_road_supervisor ? " AND report_category = 'road'" : '';
+                    $f = fetch_one("SELECT id FROM road_transportation_reports WHERE id = ? AND report_type = 'infrastructure_issue'{$infra_road}", [$focus_id], 'i');
                 }
                 if ($f) {
                     $focus_target['found'] = true;
@@ -718,7 +736,8 @@ if ($focus_id > 0) {
             default:
                 // Legacy ?id= deep-link without a source: search the tables that
                 // feed each panel to figure out where the report lives.
-                if (fetch_one("SELECT id FROM road_transportation_reports WHERE id = ?", [$focus_id], 'i')) {
+                $legacy_road = $is_road_supervisor ? " AND report_category = 'road'" : '';
+                if (fetch_one("SELECT id FROM road_transportation_reports WHERE id = ?{$legacy_road}", [$focus_id], 'i')) {
                     $focus_target['found'] = true;
                     $focus_target['table'] = 'lguTable';
                     $focus_target['filterValue'] = 'all';
@@ -4984,7 +5003,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             </div>
         </div>
 
-        <!-- Citizen Reports Panel -->
+        <!-- Citizen Reports Panel (Transportation-only — hidden for Road Operations Supervisors) -->
+        <?php if (!$is_road_supervisor): ?>
         <div class="citizen-reports-panel" id="citizenPanel">
             <div class="citizen-reports-header">
                 <div class="citizen-reports-header-left">
@@ -5104,6 +5124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 </table>
             </div>
         </div>
+        <?php endif; ?>
 
         <!-- CIMM Reports Panel -->
         <?php if (!$is_transport_supervisor): ?>
