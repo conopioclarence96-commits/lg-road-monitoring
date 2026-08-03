@@ -24,6 +24,39 @@ $status_filter = $_GET['status'] ?? 'all';
 $source_filter = $_GET['source'] ?? 'all';
 $sort_order = $_GET['sort'] ?? 'latest';
 
+// Source system classification. Every archived report is assigned to exactly
+// one source bucket using the existing archive columns.
+//   - infrastructure : report_type in (infrastructure_issue, maintenance, maintenance_request)
+//   - cimm           : report_source = external
+//   - lgu            : report_source = local AND created_by != 0  (LGU Monitoring)
+//   - citizen        : everything else (created_by = 0 / public submissions)
+$source_case = "CASE
+        WHEN report_type IN ('infrastructure_issue','maintenance','maintenance_request') THEN 'infrastructure'
+        WHEN report_source = 'external' THEN 'cimm'
+        WHEN report_source = 'local' AND COALESCE(created_by, 0) != 0 THEN 'lgu'
+        ELSE 'citizen'
+    END";
+
+// Per-source WHERE condition (matches the Source System dropdown values and
+// mirrors the $source_case buckets so no report can appear in two sources)
+switch ($source_filter) {
+    case 'lgu':
+        $source_where = "report_type NOT IN ('infrastructure_issue','maintenance','maintenance_request') AND report_source = 'local' AND COALESCE(created_by, 0) != 0";
+        break;
+    case 'citizen':
+        $source_where = "report_type NOT IN ('infrastructure_issue','maintenance','maintenance_request') AND COALESCE(report_source, 'local') != 'external' AND COALESCE(created_by, 0) = 0";
+        break;
+    case 'cimm':
+        $source_where = "report_type NOT IN ('infrastructure_issue','maintenance','maintenance_request') AND report_source = 'external'";
+        break;
+    case 'infrastructure':
+        $source_where = "report_type IN ('infrastructure_issue','maintenance','maintenance_request')";
+        break;
+    default:
+        $source_where = '';
+        break;
+}
+
 // Build WHERE clause
 $where_clauses = [];
 
@@ -37,10 +70,8 @@ if ($status_filter !== 'all') {
     }
 }
 
-if ($source_filter === 'transport') {
-    $where_clauses[] = "report_category IS NOT NULL";
-} elseif ($source_filter === 'maintenance') {
-    $where_clauses[] = "report_category IS NULL";
+if ($source_where !== '') {
+    $where_clauses[] = $source_where;
 }
 
 $where_sql = '';
@@ -50,7 +81,19 @@ if (!empty($where_clauses)) {
 
 $order_dir = ($sort_order === 'earliest') ? 'ASC' : 'DESC';
 
-$sql = "SELECT *, CASE WHEN report_category IS NOT NULL THEN 'transport' ELSE 'maintenance' END as source_system FROM road_transportation_reports_archive $where_sql ORDER BY created_at $order_dir";
+// Total count of the *filtered* result set (used for the badge)
+$count_result = $conn->query("SELECT COUNT(*) AS total FROM road_transportation_reports_archive $where_sql");
+$total_archives = $count_result ? (int)$count_result->fetch_assoc()['total'] : 0;
+
+// Display labels for the four source systems
+$source_labels = [
+    'lgu'            => 'LGU Monitoring',
+    'citizen'        => 'Citizen',
+    'cimm'           => 'CIMM',
+    'infrastructure' => 'Infrastructure',
+];
+
+$sql = "SELECT *, $source_case AS source_system FROM road_transportation_reports_archive $where_sql ORDER BY created_at $order_dir";
 $archives = $conn->query($sql);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
@@ -346,6 +389,22 @@ if (isset($_SESSION['archive_message'])) {
             background: rgba(55,98,200,0.15);
             color: #3762c8;
         }
+        .source-lgu {
+            background: rgba(40,167,69,0.15);
+            color: #28a745;
+        }
+        .source-citizen {
+            background: rgba(23,162,184,0.15);
+            color: #17a2b8;
+        }
+        .source-cimm {
+            background: rgba(255,193,7,0.15);
+            color: #d39e00;
+        }
+        .source-infrastructure {
+            background: rgba(55,98,200,0.15);
+            color: #3762c8;
+        }
 
         @media (max-width: 768px) {
             .main-content { margin-left: 0; }
@@ -380,10 +439,10 @@ if (isset($_SESSION['archive_message'])) {
                     <label class="form-label">Source System</label>
                     <select class="filter-select" id="sourceFilter" onchange="filterReports()">
                         <option value="all" <?php echo $source_filter === 'all' ? 'selected' : ''; ?>>All Systems</option>
-                        <option value="transport" <?php echo $source_filter === 'transport' ? 'selected' : ''; ?>>Road & Transportation (LGU Monitoring)</option>
-                        <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>Citizen </option>
-                        <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>CIMM</option>
-                        <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>Infrastructure</option>
+                        <option value="lgu" <?php echo $source_filter === 'lgu' ? 'selected' : ''; ?>>Road & Transportation (LGU Monitoring)</option>
+                        <option value="citizen" <?php echo $source_filter === 'citizen' ? 'selected' : ''; ?>>Citizen</option>
+                        <option value="cimm" <?php echo $source_filter === 'cimm' ? 'selected' : ''; ?>>CIMM</option>
+                        <option value="infrastructure" <?php echo $source_filter === 'infrastructure' ? 'selected' : ''; ?>>Infrastructure</option>
                     </select>
                 </div>
                 <div>
@@ -409,7 +468,7 @@ if (isset($_SESSION['archive_message'])) {
                 <h3 class="archive-card-title">
                     <i class="fas fa-folder-open"></i>
                     Archived Reports
-                    <span class="archive-badge"><?php echo $archives->num_rows; ?></span>
+                    <span class="archive-badge"><?php echo (int)$total_archives; ?></span>
                 </h3>
             </div>
 
@@ -427,11 +486,7 @@ if (isset($_SESSION['archive_message'])) {
                                 <span class="meta-item"><i class="fas fa-calendar"></i> <?php echo htmlspecialchars($row['created_at']); ?></span>
                                 <span class="meta-item"><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($row['location'] ?? 'N/A'); ?></span>
                                 <span class="meta-item"><i class="fas fa-sitemap"></i>
-                                    <?php if ($row['source_system'] === 'transport'): ?>
-                                        <span class="source-badge source-transport">LGU / Community</span>
-                                    <?php else: ?>
-                                        <span class="source-badge source-maintenance">Infrastructure</span>
-                                    <?php endif; ?>
+                                    <span class="source-badge source-<?php echo $row['source_system']; ?>"><?php echo htmlspecialchars($source_labels[$row['source_system']] ?? ($row['source_system'] ?? 'Unknown')); ?></span>
                                 </span>
                             </div>
                             <div class="archive-actions">
@@ -522,8 +577,11 @@ if (isset($_SESSION['archive_message'])) {
                 { label: 'Rejected At', value: row.rejected_at }
             ];
 
-            var sourceLabel = row.source_system === 'transport' ? 'LGU / Community' : 'Infrastructure';
-            var sourceIcon = row.source_system === 'transport' ? 'fa-users' : 'fa-hard-hat';
+            var sourceLabels = { 'lgu': 'LGU Monitoring', 'citizen': 'Citizen', 'cimm': 'CIMM', 'infrastructure': 'Infrastructure' };
+            var sourceIcons = { 'lgu': 'fa-users', 'citizen': 'fa-user', 'cimm': 'fa-handshake', 'infrastructure': 'fa-hard-hat' };
+            var src = row.source_system || 'citizen';
+            var sourceLabel = sourceLabels[src] || src;
+            var sourceIcon = sourceIcons[src] || 'fa-file-archive';
 
             html += '<div class="detail-row"><span class="detail-label">Source System</span><span class="detail-value"><i class="fas ' + sourceIcon + '"></i> ' + sourceLabel + '</span></div>';
             html += '<div class="detail-row"><span class="detail-label">Report ID</span><span class="detail-value">' + (row.report_id || 'N/A') + '</span></div>';
