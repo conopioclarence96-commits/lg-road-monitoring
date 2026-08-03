@@ -443,6 +443,13 @@ function handle_delete_report() {
         $archived = false;
         try {
             ensure_archive_table();
+            // The Delete/Trash action soft-deletes: set the report to cancelled
+            // first so the archived copy below carries status 'cancelled' (all
+            // other columns — including category/source — are preserved).
+            $stmt = $conn->prepare("UPDATE {$table} SET status = 'cancelled', updated_at = NOW() WHERE id = ?");
+            $stmt->bind_param("i", $report_id);
+            $stmt->execute();
+
             // Build an explicit column list from the source table so the archive
             // copy works regardless of schema drift (a plain "SELECT *" breaks
             // as soon as the archive gains columns the source lacks).
