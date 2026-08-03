@@ -375,6 +375,52 @@ function handle_update_report() {
     }
 }
 
+// Ensure the archive table exists and carries every column of BOTH live report
+// tables (so a missing table or a schema mismatch never silently skips the
+// archive step on delete). Mirroring maintenance columns (e.g. maintenance_team,
+// estimation) means rows from either source table can be archived as-is.
+function ensure_archive_table() {
+    global $conn;
+
+    $conn->query("CREATE TABLE IF NOT EXISTS road_transportation_reports_archive LIKE road_transportation_reports");
+
+    try {
+        foreach (['road_transportation_reports', 'road_maintenance_reports'] as $src_table) {
+            $arch_cols = [];
+            $arch = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive");
+            if ($arch) {
+                while ($row = $arch->fetch_assoc()) {
+                    $arch_cols[$row['Field']] = true;
+                }
+            }
+
+            $src = $conn->query("SHOW COLUMNS FROM $src_table");
+            if ($src) {
+                while ($row = $src->fetch_assoc()) {
+                    $field = $row['Field'];
+                    if (!isset($arch_cols[$field])) {
+                        // Add missing columns as nullable so an explicit
+                        // column-list insert from either source table works.
+                        $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN `$field` {$row['Type']} NULL");
+                    }
+                }
+            }
+        }
+    } catch (Exception $e) {
+        error_log('ensure_archive_table sync warning: ' . $e->getMessage());
+    }
+
+    // The archive is cloned from the transport table, whose report_type ENUM
+    // does not include the maintenance table's values ('routine', 'emergency',
+    // 'preventive', 'corrective', 'scheduled'). Widen it so maintenance rows
+    // can be archived without "Data truncated for column 'report_type'".
+    try {
+        $conn->query("ALTER TABLE road_transportation_reports_archive MODIFY report_type VARCHAR(255) NULL DEFAULT NULL");
+    } catch (Exception $e) {
+        error_log('ensure_archive_table report_type widen warning: ' . $e->getMessage());
+    }
+}
+
 function handle_delete_report() {
     global $conn, $user_id;
     
@@ -396,11 +442,22 @@ function handle_delete_report() {
         
         $archived = false;
         try {
-            if ($table === 'road_transportation_reports') {
-                $insert = "INSERT INTO road_transportation_reports_archive SELECT * FROM {$table} WHERE id = ?";
-            } else {
-                $insert = "INSERT INTO road_transportation_reports_archive (id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at) SELECT id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL, NULL, NULL, created_at, updated_at, approved_at, rejected_at FROM {$table} WHERE id = ?";
+            ensure_archive_table();
+            // Build an explicit column list from the source table so the archive
+            // copy works regardless of schema drift (a plain "SELECT *" breaks
+            // as soon as the archive gains columns the source lacks).
+            $fields = [];
+            $col_res = $conn->query("SHOW COLUMNS FROM {$table}");
+            if ($col_res) {
+                while ($col_row = $col_res->fetch_assoc()) {
+                    $fields[] = "`{$col_row['Field']}`";
+                }
             }
+            if (empty($fields)) {
+                throw new Exception("No columns found for table {$table}");
+            }
+            $cols = implode(', ', $fields);
+            $insert = "INSERT INTO road_transportation_reports_archive ({$cols}) SELECT {$cols} FROM {$table} WHERE id = ?";
             $stmt = $conn->prepare($insert);
             $stmt->bind_param("i", $report_id);
             $stmt->execute();
