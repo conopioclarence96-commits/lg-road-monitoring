@@ -2840,7 +2840,8 @@ if ($focus_id > 0) {
             </div>
         </div>
 
-        <!-- Citizen Reports Panel -->
+        <!-- Citizen Reports Panel (hidden for Road Operations Supervisors) -->
+        <?php if (!$is_road_supervisor): ?>
         <div class="rm-panel" id="citizenReportsPanel">
             <div class="rm-panel-header">
                 <div class="rm-panel-header-left">
@@ -2952,6 +2953,7 @@ if ($focus_id > 0) {
                 </table>
             </div>
         </div>
+        <?php endif; ?>
 
         <!-- CIMM Reports Panel -->
         <?php if (!$is_transport_supervisor): ?>
