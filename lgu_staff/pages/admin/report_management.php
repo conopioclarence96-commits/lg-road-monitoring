@@ -1577,18 +1577,43 @@ if ($focus_id > 0) {
         }
 
         .btn-success-custom {
-            background: rgba(40, 167, 69, 0.1);
-            color: #28a745;
-            border: 1px solid #28a745;
-            padding: 8px 16px;
-            border-radius: 6px;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .btn-success-custom:hover {
-            background: #28a745;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-danger-custom {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #ef4444, #dc2626);
             color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-danger-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.3);
         }
 
         .modal {
@@ -2429,7 +2454,7 @@ if ($focus_id > 0) {
         .rm-status-badge.pending { background: rgba(251, 191, 36, 0.15); color: #f59e0b; }
         .rm-status-badge.in-progress { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
         .rm-status-badge.completed, .rm-status-badge.approved, .rm-status-badge.resolved { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
-        .rm-status-badge.cancelled { background: rgba(220, 53, 69, 0.15); color: #ef4444; }
+        .rm-status-badge.cancelled, .rm-status-badge.cancelled { background: rgba(220, 53, 69, 0.15); color: #ef4444; }
 
         .rm-priority-badge {
             display: inline-block;
@@ -2845,7 +2870,7 @@ if ($focus_id > 0) {
                                     <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-trash"></i>
                                     </button>
-                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'lgu')">
                                         <i class="fas fa-clock"></i>
                                     </button>
                                 </div>
@@ -2866,7 +2891,7 @@ if ($focus_id > 0) {
                             <td><?php echo htmlspecialchars($report['location'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars(ucfirst($report['department'] ?? '')); ?></td>
                             <td><span class="rm-priority-badge <?php echo htmlspecialchars($report['priority']); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'])); ?></span></td>
-                            <td><span class="rm-status-badge <?php echo htmlspecialchars($report['status']); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span></td>
+                            <td><span class="rm-status-badge <?php echo htmlspecialchars(strtolower($report['status'])); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span></td>
                             <td>
                                 <?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?>
                                 <?php if (($report['status'] ?? '') === 'approved' && !empty($report['approved_at'])): ?>
@@ -2959,7 +2984,7 @@ if ($focus_id > 0) {
                                     <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-trash"></i>
                                     </button>
-                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'citizen')">
                                         <i class="fas fa-clock"></i>
                                     </button>
                                 </div>
@@ -2980,7 +3005,7 @@ if ($focus_id > 0) {
                             <td><?php echo htmlspecialchars($report['location'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars(ucfirst($report['department'] ?? '')); ?></td>
                             <td><span class="rm-priority-badge <?php echo htmlspecialchars($report['priority']); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'])); ?></span></td>
-                            <td><span class="rm-status-badge <?php echo htmlspecialchars($report['status']); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span></td>
+                            <td><span class="rm-status-badge <?php echo htmlspecialchars(strtolower($report['status'])); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span></td>
                             <td>
                                 <?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?>
                                 <?php if (($report['status'] ?? '') === 'approved' && !empty($report['approved_at'])): ?>
@@ -3075,7 +3100,7 @@ if ($focus_id > 0) {
                                     <button class="rm-delete-btn" onclick="deleteCimmReport(<?php echo $cimmIdx; ?>)">
                                         <i class="fas fa-trash"></i>
                                     </button>
-                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$row['id']; ?>, '<?php echo htmlspecialchars($row['report_type'], ENT_QUOTES); ?>')">
+                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$row['id']; ?>, '<?php echo htmlspecialchars($row['report_type'], ENT_QUOTES); ?>', 'cimm')">
                                         <i class="fas fa-clock"></i>
                                     </button>
                                 </div>
@@ -3087,7 +3112,7 @@ if ($focus_id > 0) {
                             <td><?php echo htmlspecialchars($row['assigned_to'] ?? '—'); ?></td>
                             <td><span class="rm-priority-badge <?php echo htmlspecialchars($row['priority']); ?>"><?php echo ucfirst(htmlspecialchars($row['priority'])); ?></span></td>
                             <td><?php echo !empty($row['estimation']) ? '₱' . number_format($row['estimation'], 2) : '—'; ?></td>
-                            <td><span class="rm-status-badge <?php echo htmlspecialchars($row['status']); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $row['status']))); ?></span></td>
+                            <td><span class="rm-status-badge <?php echo htmlspecialchars(strtolower($row['status'])); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $row['status']))); ?></span></td>
                         </tr>
                         <?php
                             $cimmIdx++;
@@ -3197,7 +3222,7 @@ if ($focus_id > 0) {
                             <td><?php echo htmlspecialchars($report['location'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars(ucfirst($report['department'] ?? '')); ?></td>
                             <td><span class="rm-priority-badge <?php echo htmlspecialchars($report['priority']); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'])); ?></span></td>
-                            <td><span class="rm-status-badge <?php echo htmlspecialchars($report['status']); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span></td>
+                            <td><span class="rm-status-badge <?php echo htmlspecialchars(strtolower($report['status'])); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span></td>
                             <td>
                                 <?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?>
                                 <?php if (($report['status'] ?? '') === 'approved' && !empty($report['approved_at'])): ?>
@@ -3496,11 +3521,17 @@ if ($focus_id > 0) {
                     <div class="timeline-empty"><i class="fas fa-spinner fa-spin fa-2x t-text-link"></i></div>
                 </div>
             </div>
-            <div class="modal-footer" style="justify-content: space-between;">
+            <div class="modal-footer" style="display: flex; flex-direction: column; gap: 16px;">
                 <span id="updateReportInfo" class="t-text-secondary" style="font-size: 13px;"></span>
-                <div>
-                    <button type="button" class="btn-action" id="addUpdateBtn" onclick="showAddUpdateModal()">+ Add Update</button>
-                    <button type="button" class="btn-secondary-custom" onclick="closeModal('updatesModal')">Close</button>
+                <div style="display: flex; justify-content: space-between;">
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn-success-custom" onclick="completeReport()">Complete</button>
+                        <button class="btn-danger-custom" onclick="cancelReport()">Cancel</button>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn-action" id="addUpdateBtn" onclick="showAddUpdateModal()">+ Add Update</button>
+                        <button class="btn-secondary-custom" onclick="closeModal('updatesModal')">Close</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -4169,9 +4200,10 @@ if ($focus_id > 0) {
             }
         }
 
-        function viewReportUpdates(id, type) {
+        function viewReportUpdates(id, type, source) {
             currentUpdatesReportId = id;
             currentUpdatesReportType = type;
+            currentUpdatesReportSource = source;
             document.getElementById('updateReportInfo').textContent = 'Report #' + id;
             openModal('updatesModal');
             if (typeof loadUpdates === 'function') {
@@ -4334,6 +4366,96 @@ if ($focus_id > 0) {
                 if (fileInput) fileInput.click();
             }
         });
+
+        // Complete button handler
+        document.addEventListener('click', function(e) {
+            if (e.target && e.target.id === 'completeBtn') {
+                console.log('Complete button clicked');
+                completeReport();
+            }
+        });
+
+        // Cancel button handler
+        document.addEventListener('click', function(e) {
+            if (e.target && e.target.id === 'cancelBtn') {
+                console.log('Cancel button clicked');
+                cancelReport();
+            }
+        });
+
+        function completeReport() {
+            console.log('completeReport called', currentUpdatesReportId, currentUpdatesReportSource);
+            if (!currentUpdatesReportId) {
+                console.log('No report ID');
+                return;
+            }
+            
+            var newStatus = (currentUpdatesReportSource === 'cimm') ? 'Completed' : 'completed';
+            console.log('Setting status to:', newStatus);
+            var formData = new FormData();
+            formData.append('action', 'update_status');
+            formData.append('report_id', currentUpdatesReportId);
+            formData.append('report_type', currentUpdatesReportType);
+            formData.append('status', newStatus);
+            formData.append('source', currentUpdatesReportSource);
+
+            fetch('../api/progress_update_api.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                console.log('Response:', data);
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    closeModal('updatesModal');
+                    location.reload();
+                } else {
+                    showNotification(data.message || 'Failed to update status', 'error');
+                }
+            })
+            .catch(function(e) {
+                showNotification('Network error', 'error');
+                console.error(e);
+            });
+        }
+
+        function cancelReport() {
+            console.log('cancelReport called', currentUpdatesReportId, currentUpdatesReportSource);
+            if (!currentUpdatesReportId) {
+                console.log('No report ID');
+                return;
+            }
+            
+            var newStatus = (currentUpdatesReportSource === 'cimm') ? 'Cancelled' : 'cancelled';
+            console.log('Setting status to:', newStatus);
+            var formData = new FormData();
+            formData.append('action', 'update_status');
+            formData.append('report_id', currentUpdatesReportId);
+            formData.append('report_type', currentUpdatesReportType);
+            formData.append('status', newStatus);
+            formData.append('source', currentUpdatesReportSource);
+
+            fetch('../api/progress_update_api.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                console.log('Response:', data);
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    closeModal('updatesModal');
+                    location.reload();
+                } else {
+                    showNotification(data.message || 'Failed to update status', 'error');
+                }
+            })
+            .catch(function(e) {
+                showNotification('Network error', 'error');
+                console.error(e);
+            });
+        }
 
         // File preview for add update modal — maintains persistent upload queue
         document.addEventListener('change', function(e) {

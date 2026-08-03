@@ -930,6 +930,26 @@ if ($focus_report_id > 0) {
             box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3);
         }
 
+        .btn-danger-custom {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-danger-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.3);
+        }
+
         .btn-secondary {
             background: linear-gradient(135deg, #6c757d, #495057);
         }
@@ -1283,6 +1303,7 @@ if ($focus_report_id > 0) {
         .badge-in-progress { background: #cce5ff; color: #004085; }
         .badge-approved { background: #10b981; color: #fff; }
         .badge-completed { background: #d4edda; color: #155724; }
+        .badge-cancelled { background: #f8d7da; color: #721c24; }
         .badge-high, .badge-critical { background: #f8d7da; color: #721c24; }
         .badge-medium { background: #fff3cd; color: #856404; }
         .badge-low { background: #e2e3e5; color: #383d41; }
@@ -2019,7 +2040,7 @@ if ($focus_report_id > 0) {
                             <td style="white-space:nowrap;">
                                 <button class="table-action-btn" title="View Details" onclick="viewReportDetails(<?php echo $rr['id']; ?>, '<?php echo $rr['source']; ?>')"><i class="fas fa-eye"></i></button>
                                 <button class="table-action-btn view-map" onclick="focusReportOnMap(<?php echo $rr['id']; ?>)"><i class="fas fa-map-pin"></i> Map</button>
-                                <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(<?php echo $rr['id']; ?>, '<?php echo $rr['report_type']; ?>')"><i class="fas fa-clock"></i> Updates</button>
+                                <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(<?php echo $rr['id']; ?>, '<?php echo $rr['report_type']; ?>', '<?php echo $rr['source']; ?>')"><i class="fas fa-clock"></i> Updates</button>
                             </td>
                         </tr>
                         <?php endforeach; ?>
@@ -2844,9 +2865,10 @@ if ($focus_report_id > 0) {
             document.getElementById('lightboxOverlay').classList.remove('show');
         }
 
-        function viewReportUpdates(id, type) {
+        function viewReportUpdates(id, type, source) {
             currentUpdatesReportId = id;
             currentUpdatesReportType = type;
+            currentUpdatesReportSource = source;
             document.getElementById('updateReportInfo').textContent = 'Report #' + id;
             openModal('updatesModal');
             if (typeof loadUpdates === 'function') {
@@ -3016,6 +3038,96 @@ if ($focus_report_id > 0) {
                 });
                 e.target.value = '';
                 renderUpdateFilePreviews();
+            }
+        });
+
+        // Complete button handler
+        document.addEventListener('click', function(e) {
+            if (e.target && e.target.id === 'completeBtn') {
+                completeReport();
+            }
+        });
+
+        // Cancel button handler
+        document.addEventListener('click', function(e) {
+            if (e.target && e.target.id === 'cancelBtn') {
+                cancelReport();
+            }
+        });
+
+        function completeReport() {
+            if (!currentUpdatesReportId) return;
+            
+            var newStatus = (currentUpdatesReportSource === 'cimm') ? 'Completed' : 'completed';
+            var formData = new FormData();
+            formData.append('action', 'update_status');
+            formData.append('report_id', currentUpdatesReportId);
+            formData.append('report_type', currentUpdatesReportType);
+            formData.append('status', newStatus);
+            formData.append('source', currentUpdatesReportSource);
+
+            fetch('../api/progress_update_api.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    closeModal('updatesModal');
+                    location.reload();
+                } else {
+                    showNotification(data.message || 'Failed to update status', 'error');
+                }
+            })
+            .catch(function(e) {
+                showNotification('Network error', 'error');
+                console.error(e);
+            });
+        }
+
+        function cancelReport() {
+            if (!currentUpdatesReportId) return;
+            
+            var newStatus = (currentUpdatesReportSource === 'cimm') ? 'Cancelled' : 'cancelled';
+            var formData = new FormData();
+            formData.append('action', 'update_status');
+            formData.append('report_id', currentUpdatesReportId);
+            formData.append('report_type', currentUpdatesReportType);
+            formData.append('status', newStatus);
+            formData.append('source', currentUpdatesReportSource);
+
+            fetch('../api/progress_update_api.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    closeModal('updatesModal');
+                    location.reload();
+                } else {
+                    showNotification(data.message || 'Failed to update status', 'error');
+                }
+            })
+            .catch(function(e) {
+                showNotification('Network error', 'error');
+                console.error(e);
+            });
+        }
+
+        // Complete button handler
+        document.addEventListener('click', function(e) {
+            if (e.target && e.target.id === 'completeBtn') {
+                completeReport();
+            }
+        });
+
+        // Cancel button handler
+        document.addEventListener('click', function(e) {
+            if (e.target && e.target.id === 'cancelBtn') {
+                cancelReport();
             }
         });
 
@@ -3585,7 +3697,7 @@ if ($focus_report_id > 0) {
             <td style="white-space:nowrap;">
                 <button class="table-action-btn" title="View Details" onclick="viewReportDetails(${report.id}, '${report.source}')"><i class="fas fa-eye"></i></button>
                 <button class="table-action-btn view-map" onclick="focusReportOnMap(${report.id})"><i class="fas fa-map-pin"></i> Map</button>
-                <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(${report.id}, '${report.report_type}')"><i class="fas fa-clock"></i> Updates</button>
+                <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(${report.id}, '${report.report_type}', '${report.source}')"><i class="fas fa-clock"></i> Updates</button>
             </td>
         `;
         
@@ -3693,7 +3805,10 @@ if ($focus_report_id > 0) {
             <div class="modal-footer" style="display: flex; flex-direction: column; gap: 16px;">
                 <span id="updateReportInfo" class="t-text-secondary" style="font-size: 13px;"></span>
                 <div style="display: flex; justify-content: space-between;">
-                    <button type="button" class="btn-success-custom" id="completeBtn">Complete</button>
+                    <div style="display: flex; gap: 8px;">
+                        <button type="button" class="btn-success-custom" id="completeBtn">Complete</button>
+                        <button type="button" class="btn-danger-custom" id="cancelBtn">Cancel</button>
+                    </div>
                     <div style="display: flex; gap: 8px;">
                         <button type="button" class="btn-action" id="addUpdateBtn" onclick="showAddUpdateModal()">+ Add Update</button>
                         <button type="button" class="btn-secondary-custom" onclick="closeModal('updatesModal')">Close</button>

@@ -191,6 +191,35 @@ if ($method === 'GET') {
             error_log("Delete progress update error: " . $e->getMessage());
             json_response(['success' => false, 'message' => 'Failed to delete update: ' . $e->getMessage()], 500);
         }
+    } elseif ($action === 'update_status') {
+        $report_id = intval($_POST['report_id'] ?? 0);
+        $report_type = sanitize_input($_POST['report_type'] ?? '');
+        $status = sanitize_input($_POST['status'] ?? '');
+        $source = sanitize_input($_POST['source'] ?? '');
+
+        if ($report_id <= 0) json_response(['success' => false, 'message' => 'Invalid report ID']);
+        if (empty($status)) json_response(['success' => false, 'message' => 'Status is required']);
+
+        try {
+            if ($source === 'cimm') {
+                // Update cimm_verification_reports table
+                $stmt = $conn->prepare("UPDATE cimm_verification_reports SET verification_status = ? WHERE id = ?");
+                $stmt->bind_param("si", $status, $report_id);
+                $stmt->execute();
+                log_audit_action($user_id, "Updated CIMM report status", "Report ID: {$report_id}, Status: {$status}");
+                json_response(['success' => true, 'message' => 'Status updated successfully']);
+            } else {
+                // Update road_transportation_reports table
+                $stmt = $conn->prepare("UPDATE road_transportation_reports SET status = ? WHERE id = ?");
+                $stmt->bind_param("si", $status, $report_id);
+                $stmt->execute();
+                log_audit_action($user_id, "Updated report status", "Report ID: {$report_id}, Status: {$status}");
+                json_response(['success' => true, 'message' => 'Status updated successfully']);
+            }
+        } catch (Exception $e) {
+            error_log("Update status error: " . $e->getMessage());
+            json_response(['success' => false, 'message' => 'Failed to update status: ' . $e->getMessage()], 500);
+        }
     } else {
         json_response(['success' => false, 'message' => 'Unknown action']);
     }
