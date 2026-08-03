@@ -4963,13 +4963,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                 </button>
                                             </form>
                                         <?php endif; ?>
-                                        <form method="POST" class="lgu-action-form" onsubmit="return confirm('Are you sure you want to remove this report? It will be moved to the archive.');" title="Remove report">
-                                            <input type="hidden" name="report_id" value="<?php echo $report['id']; ?>">
-                                            <input type="hidden" name="source" value="<?php echo htmlspecialchars($report['source']); ?>">
-                                            <button type="submit" name="action" value="delete" class="lgu-action-btn t-text-danger" style="background:rgba(220,53,69,0.1);">
-                                                <i class="fas fa-trash-alt"></i>
-                                            </button>
-                                        </form>
                                     </div>
                                     <!-- Expandable Details Section -->
                                     <div class="expanded-details" id="details-<?php echo $report['id']; ?>" style="display:none;margin-top:12px;padding-top:12px;border-top:2px solid rgba(30,60,114,0.1);">
