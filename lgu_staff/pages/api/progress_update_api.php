@@ -19,16 +19,32 @@ if ($method === 'GET') {
             if ($report_id <= 0) {
                 json_response(['success' => false, 'message' => 'Invalid report ID']);
             }
-            $report = fetch_one("SELECT id FROM road_transportation_reports WHERE id = ?", [$report_id], "i");
+            $report = fetch_one("SELECT id, assigned_to FROM road_transportation_reports WHERE id = ?", [$report_id], "i");
             if (!$report) {
-                $report = fetch_one("SELECT id FROM road_maintenance_reports WHERE id = ?", [$report_id], "i");
+                $report = fetch_one("SELECT id, maintenance_team as assigned_to FROM road_maintenance_reports WHERE id = ?", [$report_id], "i");
             }
             if (!$report) {
-                $report = fetch_one("SELECT id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
+                $report = fetch_one("SELECT id, cprf_facility_name as assigned_to FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
             }
             if (!$report) {
                 json_response(['success' => false, 'message' => 'Report not found']);
             }
+            
+            // Check permission for adding updates
+            $user_role = $_SESSION['role'] ?? '';
+            $privileged_roles = ['system_admin', 'road_ops_supervisor', 'transpo_ops_supervisor'];
+            $is_privileged = in_array($user_role, $privileged_roles);
+            
+            $assigned_user_id = null;
+            if (!empty($report['assigned_to'])) {
+                $assigned_user = fetch_one("SELECT id FROM users WHERE username = ? OR id = ?", [$report['assigned_to'], $report['assigned_to']], "ss");
+                if ($assigned_user) {
+                    $assigned_user_id = $assigned_user['id'];
+                }
+            }
+            
+            $can_add_update = $is_privileged || !$assigned_user_id || $assigned_user_id == $user_id;
+            
             $updates = [];
             $q = "SELECT u.*, COALESCE(us.full_name, 'LGU Staff') as admin_name 
                   FROM report_updates u 
@@ -50,7 +66,7 @@ if ($method === 'GET') {
                 $row['media'] = $media;
                 $updates[] = $row;
             }
-            json_response(['success' => true, 'updates' => $updates]);
+            json_response(['success' => true, 'updates' => $updates, 'can_add_update' => $can_add_update]);
         } elseif ($action === 'get_update') {
             if (!is_logged_in()) json_response(['success' => false, 'message' => 'Unauthorized'], 401);
             $id = intval($_GET['id'] ?? 0);
@@ -86,14 +102,34 @@ if ($method === 'GET') {
         if ($report_id <= 0) json_response(['success' => false, 'message' => 'Invalid report ID']);
         if (empty($description)) json_response(['success' => false, 'message' => 'Description is required']);
 
-        $report = fetch_one("SELECT id, report_id FROM road_transportation_reports WHERE id = ?", [$report_id], "i");
+        $report = fetch_one("SELECT id, report_id, assigned_to FROM road_transportation_reports WHERE id = ?", [$report_id], "i");
         if (!$report) {
-            $report = fetch_one("SELECT id, report_id FROM road_maintenance_reports WHERE id = ?", [$report_id], "i");
+            $report = fetch_one("SELECT id, report_id, maintenance_team as assigned_to FROM road_maintenance_reports WHERE id = ?", [$report_id], "i");
         }
         if (!$report) {
-            $report = fetch_one("SELECT id, reference_code AS report_id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
+            $report = fetch_one("SELECT id, reference_code AS report_id, cprf_facility_name as assigned_to FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
         }
         if (!$report) json_response(['success' => false, 'message' => 'Report not found']);
+
+        // Check permission: only assigned user or privileged roles can add updates
+        $user_role = $_SESSION['role'] ?? '';
+        $privileged_roles = ['system_admin', 'road_ops_supervisor', 'transpo_ops_supervisor'];
+        $is_privileged = in_array($user_role, $privileged_roles);
+        
+        // Get assigned user ID from the assigned_to field (which may be a username or user ID)
+        $assigned_user_id = null;
+        if (!empty($report['assigned_to'])) {
+            // Try to get user ID from username or check if it's already an ID
+            $assigned_user = fetch_one("SELECT id FROM users WHERE username = ? OR id = ?", [$report['assigned_to'], $report['assigned_to']], "ss");
+            if ($assigned_user) {
+                $assigned_user_id = $assigned_user['id'];
+            }
+        }
+        
+        // Allow if: privileged role OR user is the assigned user OR no one is assigned yet
+        if (!$is_privileged && $assigned_user_id && $assigned_user_id != $user_id) {
+            json_response(['success' => false, 'message' => 'You do not have permission to add updates to this report. Only the assigned user can add progress updates.'], 403);
+        }
 
         try {
             // Insert update
@@ -126,14 +162,33 @@ if ($method === 'GET') {
         if (empty($description)) json_response(['success' => false, 'message' => 'Description is required']);
 
         // Verify ownership/permission — check report tables
-        $update = fetch_one("SELECT u.*, r.report_id FROM report_updates u JOIN road_transportation_reports r ON u.report_id = r.id WHERE u.id = ?", [$update_id], "i");
+        $update = fetch_one("SELECT u.*, r.report_id, r.assigned_to FROM report_updates u JOIN road_transportation_reports r ON u.report_id = r.id WHERE u.id = ?", [$update_id], "i");
         if (!$update) {
-            $update = fetch_one("SELECT u.*, r.report_id FROM report_updates u JOIN road_maintenance_reports r ON u.report_id = r.id WHERE u.id = ?", [$update_id], "i");
+            $update = fetch_one("SELECT u.*, r.report_id, r.maintenance_team as assigned_to FROM report_updates u JOIN road_maintenance_reports r ON u.report_id = r.id WHERE u.id = ?", [$update_id], "i");
         }
         if (!$update) {
-            $update = fetch_one("SELECT u.*, cr.reference_code AS report_id FROM report_updates u JOIN cimm_verification_reports cr ON u.report_id = cr.id WHERE u.id = ?", [$update_id], "i");
+            $update = fetch_one("SELECT u.*, cr.reference_code AS report_id, cr.cprf_facility_name as assigned_to FROM report_updates u JOIN cimm_verification_reports cr ON u.report_id = cr.id WHERE u.id = ?", [$update_id], "i");
         }
         if (!$update) json_response(['success' => false, 'message' => 'Update not found']);
+
+        // Check permission: only assigned user or privileged roles can edit updates
+        $user_role = $_SESSION['role'] ?? '';
+        $privileged_roles = ['system_admin', 'road_ops_supervisor', 'transpo_ops_supervisor'];
+        $is_privileged = in_array($user_role, $privileged_roles);
+        
+        // Get assigned user ID from the assigned_to field
+        $assigned_user_id = null;
+        if (!empty($update['assigned_to'])) {
+            $assigned_user = fetch_one("SELECT id FROM users WHERE username = ? OR id = ?", [$update['assigned_to'], $update['assigned_to']], "ss");
+            if ($assigned_user) {
+                $assigned_user_id = $assigned_user['id'];
+            }
+        }
+        
+        // Allow if: privileged role OR user is the assigned user OR no one is assigned yet
+        if (!$is_privileged && $assigned_user_id && $assigned_user_id != $user_id) {
+            json_response(['success' => false, 'message' => 'You do not have permission to edit updates on this report. Only the assigned user can edit progress updates.'], 403);
+        }
 
         try {
             $stmt = $conn->prepare("UPDATE report_updates SET title = ?, description = ?, updated_at = NOW() WHERE id = ?");
@@ -214,6 +269,12 @@ if ($method === 'GET') {
                 $stmt->bind_param("si", $status, $report_id);
                 $stmt->execute();
                 log_audit_action($user_id, "Updated report status", "Report ID: {$report_id}, Status: {$status}");
+                
+                // If status is 'completed' or 'cancelled', archive the report
+                if ($status === 'completed' || $status === 'cancelled') {
+                    archive_completed_report($conn, 'road_transportation_reports', $report_id);
+                }
+                
                 json_response(['success' => true, 'message' => 'Status updated successfully']);
             }
         } catch (Exception $e) {
@@ -283,5 +344,68 @@ function createReportNotification($report_id, $update_id, $title, $report) {
         $stmt->execute();
     } catch (Exception $e) {
         error_log("Create notification error: " . $e->getMessage());
+    }
+}
+
+// Archive a completed report by copying it to the archive table and removing from the active table
+function archive_completed_report($conn, $table, $report_id) {
+    try {
+        // Ensure archive table exists
+        $conn->query("CREATE TABLE IF NOT EXISTS road_transportation_reports_archive LIKE road_transportation_reports");
+        
+        // Sync columns
+        foreach (['road_transportation_reports', 'road_maintenance_reports'] as $src_table) {
+            $arch_cols = [];
+            $arch = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive");
+            if ($arch) { while ($row = $arch->fetch_assoc()) { $arch_cols[$row['Field']] = true; } }
+            $src = $conn->query("SHOW COLUMNS FROM $src_table");
+            if ($src) { while ($row = $src->fetch_assoc()) {
+                if (!isset($arch_cols[$row['Field']])) {
+                    $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN `{$row['Field']}` {$row['Type']} NULL");
+                }
+            } }
+        }
+        
+        $conn->begin_transaction();
+        
+        // Get all columns from the source table
+        $fields = [];
+        $col_res = $conn->query("SHOW COLUMNS FROM $table");
+        if ($col_res) { while ($col_row = $col_res->fetch_assoc()) { $fields[] = "`{$col_row['Field']}`"; } }
+        if (empty($fields)) { throw new Exception("No columns found for table $table"); }
+        $cols = implode(', ', $fields);
+        
+        // Copy the report to archive with status 'completed'
+        $stmt = $conn->prepare("INSERT INTO road_transportation_reports_archive ($cols) SELECT $cols FROM $table WHERE id = ?");
+        $stmt->bind_param('i', $report_id);
+        $stmt->execute();
+        
+        // Set the status to 'completed' in the archive
+        $conn->query("UPDATE road_transportation_reports_archive SET status = 'completed' WHERE id = $report_id");
+        
+        // Remove related active records
+        $del = $conn->prepare("DELETE FROM report_notifications WHERE report_id = ?");
+        $del->bind_param('i', $report_id);
+        $del->execute();
+        
+        $del = $conn->prepare("DELETE FROM report_updates WHERE report_id = ?");
+        $del->bind_param('i', $report_id);
+        $del->execute();
+        
+        $del = $conn->prepare("DELETE FROM project_analytics WHERE report_id = ? AND report_table = ?");
+        $del->bind_param('is', $report_id, $table);
+        $del->execute();
+        
+        // Remove the report from the active table
+        $del = $conn->prepare("DELETE FROM $table WHERE id = ?");
+        $del->bind_param('i', $report_id);
+        $del->execute();
+        
+        $conn->commit();
+        return true;
+    } catch (Exception $e) {
+        $conn->rollback();
+        error_log('archive_completed_report failed: ' . $e->getMessage());
+        return false;
     }
 }

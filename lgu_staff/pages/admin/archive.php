@@ -23,6 +23,7 @@ foreach (['report_category' => "ENUM('road','transportation') DEFAULT NULL AFTER
 $status_filter = $_GET['status'] ?? 'all';
 $source_filter = $_GET['source'] ?? 'all';
 $sort_order = $_GET['sort'] ?? 'latest';
+$id_search = trim($_GET['id'] ?? '');
 
 // Source system classification. Every archived report is assigned to exactly
 // one source bucket using the existing archive columns.
@@ -75,6 +76,11 @@ if ($status_filter === 'completed') {
 
 if ($source_where !== '') {
     $where_clauses[] = $source_where;
+}
+
+// ID search filter
+if (!empty($id_search)) {
+    $where_clauses[] = "(id = " . (int)$id_search . " OR report_id LIKE '%" . $conn->real_escape_string($id_search) . "%' OR id LIKE '%" . $conn->real_escape_string($id_search) . "%')";
 }
 
 $where_sql = '';
@@ -456,6 +462,10 @@ if (isset($_SESSION['archive_message'])) {
                     </select>
                 </div>
                 <div>
+                    <label class="form-label">Search ID</label>
+                    <input type="text" class="filter-select" id="idSearch" placeholder="Enter report ID..." value="<?php echo htmlspecialchars($id_search); ?>" onkeyup="if(event.key === 'Enter') filterReports()">
+                </div>
+                <div>
                     <label class="form-label">&nbsp;</label>
                     <div>
                         <button class="btn-secondary-custom" onclick="resetFilters()">
@@ -641,10 +651,16 @@ if (isset($_SESSION['archive_message'])) {
             const status = document.getElementById('statusFilter').value;
             const source = document.getElementById('sourceFilter').value;
             const sort = document.getElementById('sortFilter').value;
+            const id = document.getElementById('idSearch').value.trim();
             const url = new URL(window.location);
             url.searchParams.set('status', status);
             url.searchParams.set('source', source);
             url.searchParams.set('sort', sort);
+            if (id) {
+                url.searchParams.set('id', id);
+            } else {
+                url.searchParams.delete('id');
+            }
             window.location.href = url.toString();
         }
 
@@ -653,7 +669,13 @@ if (isset($_SESSION['archive_message'])) {
             url.searchParams.delete('status');
             url.searchParams.delete('source');
             url.searchParams.delete('sort');
+            url.searchParams.delete('id');
             window.location.href = url.toString();
+        }
+
+        function closeModalAndRefresh() {
+            closeModal('viewModal');
+            location.reload();
         }
     </script>
 

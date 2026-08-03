@@ -2041,7 +2041,9 @@ if ($focus_report_id > 0) {
                             <td style="white-space:nowrap;">
                                 <button class="table-action-btn" title="View Details" onclick="viewReportDetails(<?php echo $rr['id']; ?>, '<?php echo $rr['source']; ?>')"><i class="fas fa-eye"></i></button>
                                 <button class="table-action-btn view-map" onclick="focusReportOnMap(<?php echo $rr['id']; ?>)"><i class="fas fa-map-pin"></i> Map</button>
+                                <?php if (strtolower($rr['status'] ?? '') !== 'completed' && strtolower($rr['status'] ?? '') !== 'cancelled'): ?>
                                 <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(<?php echo $rr['id']; ?>, '<?php echo $rr['report_type']; ?>', '<?php echo $rr['source']; ?>')"><i class="fas fa-clock"></i> Updates</button>
+                                <?php endif; ?>
                             </td>
                         </tr>
                         <?php endforeach; ?>
@@ -3973,7 +3975,10 @@ if ($focus_report_id > 0) {
             <td style="white-space:nowrap;">
                 <button class="table-action-btn" title="View Details" onclick="viewReportDetails(${report.id}, '${report.source}')"><i class="fas fa-eye"></i></button>
                 <button class="table-action-btn view-map" onclick="focusReportOnMap(${report.id})"><i class="fas fa-map-pin"></i> Map</button>
-                <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(${report.id}, '${report.report_type}', '${report.source}')"><i class="fas fa-clock"></i> Updates</button>
+                ${report.status.toLowerCase() !== 'completed' && report.status.toLowerCase() !== 'cancelled' ?
+                    `<button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(${report.id}, '${report.report_type}', '${report.source}')"><i class="fas fa-clock"></i> Updates</button>` :
+                    ''
+                }
             </td>
         `;
         
