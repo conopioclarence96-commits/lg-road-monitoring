@@ -3157,7 +3157,7 @@ if ($focus_report_id > 0) {
             
             var newStatus = (currentUpdatesReportSource === 'cimm') ? 'Cancelled' : 'cancelled';
             var formData = new FormData();
-            formData.append('action', 'update_status');
+            formData.append('action', 'cancel_archive');
             formData.append('report_id', currentUpdatesReportId);
             formData.append('report_type', currentUpdatesReportType);
             formData.append('status', newStatus);

@@ -220,6 +220,32 @@ if ($method === 'GET') {
             error_log("Update status error: " . $e->getMessage());
             json_response(['success' => false, 'message' => 'Failed to update status: ' . $e->getMessage()], 500);
         }
+    } elseif ($action === 'cancel_archive') {
+        // Cancel a report AND move it to the archive (road_transportation_monitoring.php).
+        // Dedicated action so it never affects the plain update_status behavior
+        // used by other pages. The row is copied into the archive table with
+        // status 'cancelled', then removed from the live table.
+        $report_id = intval($_POST['report_id'] ?? 0);
+        $source = sanitize_input($_POST['source'] ?? '');
+
+        if ($report_id <= 0) json_response(['success' => false, 'message' => 'Invalid report ID']);
+
+        try {
+            if ($source === 'cimm') {
+                $archived = rgmap_archive_cimm_report($conn, $report_id, 'cancelled');
+            } else {
+                $table = rgmap_resolve_report_table($conn, $report_id);
+                $archived = $table ? rgmap_archive_report($conn, $table, $report_id, 'cancelled') : false;
+            }
+            if (!$archived) {
+                json_response(['success' => false, 'message' => 'Failed to cancel and archive the report'], 500);
+            }
+            log_audit_action($user_id, "Cancelled and archived report", "Report ID: {$report_id}, Status: cancelled");
+            json_response(['success' => true, 'message' => 'Report cancelled and moved to archive']);
+        } catch (Exception $e) {
+            error_log("Cancel archive error: " . $e->getMessage());
+            json_response(['success' => false, 'message' => 'Failed to cancel and archive the report: ' . $e->getMessage()], 500);
+        }
     } else {
         json_response(['success' => false, 'message' => 'Unknown action']);
     }
@@ -228,6 +254,142 @@ if ($method === 'GET') {
 }
 
 // --- Helper functions ---
+
+// Make sure the archive table exists and carries every column of both live
+// report tables, so copying ANY report row preserves all its data. Widens
+// report_type so maintenance rows ('routine','emergency', etc.) can be archived
+// without "Data truncated" errors. Mirrors ensure_archive_table() used by
+// report_management.php.
+function rgmap_archive_ensure_table() {
+    global $conn;
+    $conn->query("CREATE TABLE IF NOT EXISTS road_transportation_reports_archive LIKE road_transportation_reports");
+    try {
+        foreach (['road_transportation_reports', 'road_maintenance_reports'] as $src_table) {
+            $arch_cols = [];
+            $arch = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive");
+            if ($arch) { while ($row = $arch->fetch_assoc()) { $arch_cols[$row['Field']] = true; } }
+            $src = $conn->query("SHOW COLUMNS FROM $src_table");
+            if ($src) { while ($row = $src->fetch_assoc()) {
+                if (!isset($arch_cols[$row['Field']])) {
+                    $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN `{$row['Field']}` {$row['Type']} NULL");
+                }
+            } }
+        }
+    } catch (Exception $e) { error_log('rgmap_archive_ensure_table sync: ' . $e->getMessage()); }
+    try {
+        $conn->query("ALTER TABLE road_transportation_reports_archive MODIFY report_type VARCHAR(255) NULL DEFAULT NULL");
+    } catch (Exception $e) { error_log('rgmap_archive_ensure_table report_type widen: ' . $e->getMessage()); }
+}
+
+// Return the live report table that actually contains the given id, or null.
+function rgmap_resolve_report_table($conn, $report_id) {
+    foreach (['road_transportation_reports', 'road_maintenance_reports'] as $table) {
+        $stmt = $conn->prepare("SELECT id FROM $table WHERE id = ?");
+        $stmt->bind_param("i", $report_id);
+        $stmt->execute();
+        $r = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if ($r) return $table;
+    }
+    return null;
+}
+
+// Move a report into the archive — copy every column into
+// road_transportation_reports_archive, then remove it from the live table —
+// carrying the given terminal status. Works for rows in either
+// road_transportation_reports or road_maintenance_reports.
+function rgmap_archive_report($conn, $table, $report_id, $status) {
+    try {
+        rgmap_archive_ensure_table();
+        $conn->begin_transaction();
+
+        // Mark the live row with the terminal status first so the archived copy
+        // below carries that status while preserving all other columns.
+        $stmt = $conn->prepare("UPDATE $table SET status = ?, updated_at = NOW() WHERE id = ?");
+        $stmt->bind_param("si", $status, $report_id);
+        $stmt->execute();
+
+        $fields = [];
+        $col_res = $conn->query("SHOW COLUMNS FROM $table");
+        if ($col_res) { while ($col_row = $col_res->fetch_assoc()) { $fields[] = "`{$col_row['Field']}`"; } }
+        if (empty($fields)) { throw new Exception("No columns found for table $table"); }
+        $cols = implode(', ', $fields);
+
+        $stmt = $conn->prepare("INSERT INTO road_transportation_reports_archive ($cols) SELECT $cols FROM $table WHERE id = ?");
+        $stmt->bind_param("i", $report_id);
+        $stmt->execute();
+
+        $stmt = $conn->prepare("DELETE FROM $table WHERE id = ?");
+        $stmt->bind_param("i", $report_id);
+        $stmt->execute();
+
+        $conn->commit();
+        return true;
+    } catch (Exception $e) {
+        if ($conn->inTransaction()) $conn->rollback();
+        error_log("rgmap_archive_report failed: " . $e->getMessage());
+        return false;
+    }
+}
+
+// Archive a CIMM report (stored in cimm_verification_reports). The row is
+// mapped into the archive table with report_source 'external' (so archive.php
+// labels it CIMM) and the given terminal status, then removed from the CIMM
+// table — mirroring archive_cimm_rejected_report().
+function rgmap_archive_cimm_report($conn, $cimm_req_id, $status) {
+    try {
+        rgmap_archive_ensure_table();
+
+        $stmt = $conn->prepare("SELECT * FROM cimm_verification_reports WHERE id = ?");
+        $stmt->bind_param("i", $cimm_req_id);
+        $stmt->execute();
+        $cimm_report = $stmt->get_result()->fetch_assoc();
+        if (!$cimm_report) return false;
+
+        $now = date('Y-m-d H:i:s');
+        $conn->begin_transaction();
+
+        $timestamp_key = ($status === 'cancelled') ? 'rejected_at' : 'completed_at';
+        $insert_fields = [
+            'report_id' => $cimm_report['reference_code'] ?? ('CIMM-' . $cimm_req_id),
+            'title' => $cimm_report['infrastructure'] ?? 'CIMM Report',
+            'report_type' => 'infrastructure_issue',
+            'report_category' => 'road',
+            'report_source' => 'external',
+            'department' => 'engineering',
+            'priority' => $cimm_report['priority'] ?? 'medium',
+            'status' => $status,
+            'created_date' => (!empty($cimm_report['submitted_at'])) ? date('Y-m-d', strtotime($cimm_report['submitted_at'])) : date('Y-m-d'),
+            'description' => $cimm_report['issue'] ?? '',
+            'location' => $cimm_report['location'] ?? '',
+            'latitude' => $cimm_report['coord_lat'] ?? null,
+            'longitude' => $cimm_report['coord_lng'] ?? null,
+            'created_at' => $cimm_report['submitted_at'] ?? $now,
+            'updated_at' => $now,
+            $timestamp_key => $now,
+            'approved_at' => null,
+        ];
+
+        $fields = array_keys($insert_fields);
+        $placeholders = array_fill(0, count($fields), '?');
+        $field_list = '`' . implode('`, `', $fields) . '`';
+        $placeholder_list = implode(', ', $placeholders);
+
+        $insert = "INSERT INTO road_transportation_reports_archive ($field_list) VALUES ($placeholder_list)";
+        $stmt = $conn->prepare($insert);
+        $stmt->execute(array_values($insert_fields));
+
+        $delete = $conn->prepare("DELETE FROM cimm_verification_reports WHERE id = ?");
+        $delete->execute([$cimm_req_id]);
+
+        $conn->commit();
+        return true;
+    } catch (Exception $e) {
+        if ($conn->inTransaction()) $conn->rollback();
+        error_log("rgmap_archive_cimm_report failed: " . $e->getMessage());
+        return false;
+    }
+}
 
 function handleProgressMediaUpload($files, $upload_dir, $update_id) {
     global $conn;
