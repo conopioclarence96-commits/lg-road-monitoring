@@ -4467,11 +4467,14 @@ if ($focus_id > 0) {
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.success) {
-                    showNotification(data.message || 'Report completed successfully', 'success');
-                    // The report has been moved to the archive, so close the
-                    // modal and reload to refresh the reports list.
-                    closeModal('updatesModal');
-                    location.reload();
+                    showNotification('Report completed successfully', 'success');
+                    // Hide action buttons, show export button
+                    document.getElementById('actionButtons').style.display = 'none';
+                    document.getElementById('exportButtons').style.display = 'flex';
+                    // Reload updates timeline
+                    if (typeof loadUpdates === 'function') {
+                        loadUpdates(currentUpdatesReportId, currentUpdatesReportType);
+                    }
                 } else {
                     showNotification(data.message || 'Failed to update status', 'error');
                 }
