@@ -3140,6 +3140,18 @@ if ($focus_report_id > 0) {
                     if (typeof loadUpdates === 'function') {
                         loadUpdates(currentUpdatesReportId, currentUpdatesReportType);
                     }
+                    // ADD: file a completed copy of the report into the archive.
+                    // This is purely additive — the live report is not moved or
+                    // deleted, it stays completed exactly where it is.
+                    var archiveFormData = new FormData();
+                    archiveFormData.append('action', 'complete_archive');
+                    archiveFormData.append('report_id', currentUpdatesReportId);
+                    archiveFormData.append('report_type', currentUpdatesReportType);
+                    archiveFormData.append('source', currentUpdatesReportSource);
+                    fetch('../api/progress_update_api.php', {
+                        method: 'POST',
+                        body: archiveFormData
+                    }).catch(function(e) { console.error('Archive copy failed', e); });
                 } else {
                     showNotification(data.message || 'Failed to update status', 'error');
                 }

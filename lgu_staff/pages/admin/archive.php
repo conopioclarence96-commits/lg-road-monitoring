@@ -108,15 +108,59 @@ $archives = $conn->query($sql);
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'restore' && isset($_POST['archive_id'])) {
         $archive_id = (int) $_POST['archive_id'];
-        $insert = "INSERT IGNORE INTO road_transportation_reports SELECT * FROM road_transportation_reports_archive WHERE id = ?";
+        $arch = $conn->prepare("SELECT * FROM road_transportation_reports_archive WHERE id = ?");
+        $arch->bind_param('i', $archive_id);
+        $arch->execute();
+        $row = $arch->get_result()->fetch_assoc();
+        if (!$row) {
+            $_SESSION['archive_message'] = 'Restore failed – record not found in archive.';
+            header('Location: archive.php');
+            exit();
+        }
+
+        // Route the report back to the live table where its last action happened:
+        // maintenance report types live in road_maintenance_reports, everything
+        // else (transportation, infrastructure, CIMM) goes back to
+        // road_transportation_reports.
+        $maintenance_types = ['routine', 'emergency', 'preventive', 'corrective', 'scheduled'];
+        $target_table = in_array($row['report_type'], $maintenance_types, true)
+            ? 'road_maintenance_reports'
+            : 'road_transportation_reports';
+
+        // Build the column list from only the columns the target table actually
+        // has, and drop the auto-increment id so a restored row always gets a
+        // fresh id (avoids collisions with rows already present).
+        $dest_cols = [];
+        $col_res = $conn->query("SHOW COLUMNS FROM $target_table");
+        if ($col_res) { while ($c = $col_res->fetch_assoc()) { $dest_cols[$c['Field']] = true; } }
+        $fields = [];
+        foreach ($row as $field => $value) {
+            if ($field === 'id') continue;
+            if (isset($dest_cols[$field])) $fields[] = $field;
+        }
+        if (empty($fields)) {
+            $_SESSION['archive_message'] = 'Restore failed – could not map the archived record.';
+            header('Location: archive.php');
+            exit();
+        }
+
+        $cols = implode(', ', array_map(function ($f) { return "`$f`"; }, $fields));
+        $place = implode(', ', array_fill(0, count($fields), '?'));
+        $values = array_map(function ($f) use ($row) { return $row[$f]; }, $fields);
+
+        $insert = "INSERT INTO $target_table ($cols) VALUES ($place)";
         $stmt = $conn->prepare($insert);
-        $stmt->bind_param('i', $archive_id);
-        $stmt->execute();
+        try {
+            $stmt->execute($values);
+        } catch (Exception $e) {
+            $_SESSION['archive_message'] = 'Restore failed – the report may already exist (duplicate report_id).';
+            header('Location: archive.php');
+            exit();
+        }
         if ($stmt->affected_rows > 0) {
-            $delete = "DELETE FROM road_transportation_reports_archive WHERE id = ?";
-            $stmt = $conn->prepare($delete);
-            $stmt->bind_param('i', $archive_id);
-            $stmt->execute();
+            $delete = $conn->prepare("DELETE FROM road_transportation_reports_archive WHERE id = ?");
+            $delete->bind_param('i', $archive_id);
+            $delete->execute();
             $_SESSION['archive_message'] = 'Report restored successfully.';
         } else {
             $_SESSION['archive_message'] = 'Restore failed – the record may already exist.';
