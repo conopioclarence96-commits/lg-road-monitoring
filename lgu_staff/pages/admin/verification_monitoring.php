@@ -195,24 +195,10 @@ function getRejectedReports($conn) {
 // Function to get all reports (for filtering)
 function getAllReports($conn, $status_filter = 'all', $source_filter = 'all', $transport_only = false, $road_only = false) {
     $parts = [];
-    $transport_where = '';
-    $maintenance_where = '';
-    if ($status_filter !== 'all') {
-        if ($status_filter === 'pending') {
-            $transport_where = " WHERE status IN ('pending','in-progress')";
-            $maintenance_where = " WHERE status IN ('pending','in-progress')";
-        } elseif ($status_filter === 'approved') {
-            $transport_where = " WHERE status IN ('approved','completed')";
-            $maintenance_where = " WHERE status IN ('approved','completed')";
-        } elseif ($status_filter === 'rejected') {
-            $transport_where = " WHERE status IN ('cancelled')";
-            $maintenance_where = " WHERE status IN ('cancelled')";
-        }
-    } else {
-        // When status is 'all', exclude approved/completed from the LGU Monitoring panel
-        $transport_where = " WHERE status NOT IN ('approved','completed')";
-        $maintenance_where = " WHERE status NOT IN ('approved','completed')";
-    }
+    // This page only displays reports that are still pending verification —
+    // anything already approved, rejected, or completed is no longer shown here.
+    $transport_where = " WHERE status = 'pending'";
+    $maintenance_where = " WHERE status = 'pending'";
     $infra_exclude = "report_type != 'infrastructure_issue'";
     $citizen_exclude = "(report_source IS NULL OR report_source != 'local' OR report_category IS NULL OR report_category != 'transportation' OR created_by IS NULL OR created_by != 0)";
     // Transportation Operations Supervisors only see Transportation reports —
@@ -373,6 +359,12 @@ function getCimmReports($filter = 'all') {
         }));
     }
 
+    // This page only lists reports still pending — anything approved,
+    // completed, resolved, or dismissed is no longer shown here.
+    $mapped = array_values(array_filter($mapped, function ($r) {
+        return ($r['status'] ?? '') === 'pending';
+    }));
+
     return $mapped;
 }
 
@@ -398,6 +390,9 @@ function getSqlReports($conn) {
                      u.full_name as reporter_name
               FROM reports r
               LEFT JOIN users u ON r.report_by = u.id
+              WHERE r.engineer_accepted = 0
+                AND (r.decline_reason IS NULL OR r.decline_reason = '')
+                AND (r.decline_reviewed IS NULL OR r.decline_reviewed = 0)
               ORDER BY r.created_at DESC";
     $result = $conn->query($query);
     if (!$result) {
@@ -414,7 +409,7 @@ function getCitizenReports($conn) {
                      reporter_name, reporter_email, reporter_phone, image_path, created_by
               FROM road_transportation_reports 
               WHERE report_source = 'local' AND report_category = 'transportation' AND created_by = 0
-                AND status NOT IN ('approved','completed')
+                AND status = 'pending'
               ORDER BY created_at DESC";
     $result = $conn->query($query);
     if (!$result) {
@@ -431,13 +426,13 @@ function getInfraReports($conn, $road_only = false) {
                      latitude, longitude, created_at, updated_at, approved_at, rejected_at,
                      reporter_name, reporter_email
               FROM road_transportation_reports WHERE report_type = 'infrastructure_issue'
-                AND status NOT IN ('approved','completed'){$road_category_filter})
+                AND status = 'pending'{$road_category_filter})
               UNION ALL
               (SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source,
                      department, priority, status, created_date, due_date, description, location, NULL as attachments,
                      NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at,
                      NULL as reporter_name, NULL as reporter_email
-              FROM road_maintenance_reports WHERE status NOT IN ('approved','completed'))
+              FROM road_maintenance_reports WHERE status = 'pending')
               ORDER BY created_at DESC";
     $result = $conn->query($query);
     if (!$result) {
@@ -4887,10 +4882,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <div>
                         <label class="form-label">Status Filter</label>
                         <select class="filter-select" id="statusFilter" onchange="filterReports()">
-                            <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
-                            <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending / In Progress</option>
-                            <option value="approved" <?php echo $status_filter === 'approved' ? 'selected' : ''; ?>>Approved / Completed</option>
-                            <option value="rejected" <?php echo $status_filter === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
+                            <option value="pending" selected>Pending</option>
                         </select>
                     </div>
                     <div>
@@ -5624,6 +5616,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         (function() {
             var urlParams = new URLSearchParams(window.location.search);
             var statusFilter = urlParams.get('status') || 'all';
+            // This page only lists pending reports now, so any stale
+            // non-pending status value (e.g. from an old URL) must not hide
+            // every row.
+            if (statusFilter !== 'pending') statusFilter = 'all';
             if (statusFilter === 'all') return;
 
             var tableIds = ['lguTable', 'deptTable', 'infraTable'];
