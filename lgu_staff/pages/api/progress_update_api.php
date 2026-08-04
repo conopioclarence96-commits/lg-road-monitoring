@@ -366,6 +366,79 @@ if ($method === 'GET') {
             error_log("Complete archive error: " . $e->getMessage());
             json_response(['success' => false, 'message' => 'Failed to file archive copy: ' . $e->getMessage()], 500);
         }
+    } elseif ($action === 'submit_review_request') {
+        // Road/Transportation Monitoring Officers request a completion or
+        // cancellation of a project. This ONLY creates a role-targeted
+        // notification for the appropriate supervisor (road requests go to
+        // Road Operations Supervisors, transportation requests go to
+        // Transportation Operations Supervisors). It does NOT change the report
+        // status and does NOT archive the report — that happens only after the
+        // supervisor reviews the request.
+        $report_id = intval($_POST['report_id'] ?? 0);
+        $request_type = sanitize_input($_POST['request_type'] ?? '');
+
+        if ($report_id <= 0) json_response(['success' => false, 'message' => 'Invalid report ID']);
+        if (!in_array($request_type, ['completion', 'cancellation'], true)) {
+            json_response(['success' => false, 'message' => 'Invalid request type']);
+        }
+
+        // Only Road/Transportation Monitoring Officers may submit these requests.
+        $requestor_role = $_SESSION['role'] ?? '';
+        if (!in_array($requestor_role, ['road_monitoring_officer', 'trans_monitoring_officer'], true)) {
+            json_response(['success' => false, 'message' => 'You are not authorized to submit completion/cancellation requests.'], 403);
+        }
+
+        $report = fetch_one(
+            "SELECT id, report_id, title, description, location, report_category FROM road_transportation_reports WHERE id = ?",
+            [$report_id], "i"
+        );
+        if (!$report) {
+            json_response(['success' => false, 'message' => 'Report not found']);
+        }
+
+        $category = strtolower((string)($report['report_category'] ?? ''));
+        if (!in_array($category, ['road', 'transportation'], true)) {
+            json_response(['success' => false, 'message' => 'This report does not support completion/cancellation requests.']);
+        }
+
+        // Backend validation: an officer may only request for their own module.
+        if (($requestor_role === 'road_monitoring_officer' && $category !== 'road') ||
+            ($requestor_role === 'trans_monitoring_officer' && $category !== 'transportation')) {
+            json_response(['success' => false, 'message' => 'You are not authorized to submit a request for this project.'], 403);
+        }
+
+        // Route to the supervisor responsible for this module.
+        $recipient_role = ($category === 'road') ? 'road_ops_supervisor' : 'trans_ops_supervisor';
+        $request_label = ($request_type === 'completion') ? 'Request Completion' : 'Request Cancellation';
+
+        try {
+            // Ensure the role-targeting column exists (idempotent).
+            $conn->query("ALTER TABLE report_notifications ADD COLUMN IF NOT EXISTS recipient_role VARCHAR(50) DEFAULT NULL AFTER recipient_email");
+
+            $requestor = fetch_one("SELECT full_name FROM users WHERE id = ?", [$user_id], "i");
+            $requestor_name = $requestor['full_name'] ?? 'Monitoring Officer';
+            $report_code = $report['report_id'] ?? ('#' . $report_id);
+            $details = [
+                'Report: ' . $report_code,
+                'Title: ' . ($report['title'] ?? 'Untitled'),
+                'Location: ' . ($report['location'] ?? 'N/A'),
+                'Requested by: ' . $requestor_name,
+            ];
+            $message = "{$request_label} — " . implode(' | ', $details);
+
+            // Role-targeted notification (visible only to the matching supervisor
+            // role and to administrators).
+            $stmt = $conn->prepare("INSERT INTO report_notifications (report_id, type, message, recipient_role) VALUES (?, ?, ?, ?)");
+            $stmt->bind_param("isss", $report_id, $request_type, $message, $recipient_role);
+            $stmt->execute();
+
+            log_audit_action($user_id, "Submitted {$request_label}", "Report ID: {$report_id}, Category: {$category}, Recipient role: {$recipient_role}");
+
+            json_response(['success' => true, 'message' => "{$request_label} submitted for review. The report status is unchanged."]);
+        } catch (Exception $e) {
+            error_log("Submit review request error: " . $e->getMessage());
+            json_response(['success' => false, 'message' => 'Failed to submit request: ' . $e->getMessage()], 500);
+        }
     } else {
         json_response(['success' => false, 'message' => 'Unknown action']);
     }

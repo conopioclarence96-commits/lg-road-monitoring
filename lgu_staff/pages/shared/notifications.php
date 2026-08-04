@@ -78,11 +78,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $is_admin = ($user_role === 'system_admin');
+$is_supervisor = in_array($user_role, ['road_ops_supervisor', 'trans_ops_supervisor'], true);
 $pending_reports = [];
 $pending_changes = [];
 $report_updates = [];
 $staff_updates = [];
 $assigned_projects = [];
+$review_requests = [];
 
 if ($is_admin) {
     // Admin: get pending reports
@@ -356,6 +358,30 @@ if ($is_admin) {
     } catch (Exception $e) {
         error_log("Staff assigned projects query error: " . $e->getMessage());
         $assigned_projects = [];
+    }
+
+    // Supervisors: get completion/cancellation requests routed to their module.
+    // Road Operations Supervisors only see road requests, Transportation
+    // Operations Supervisors only see transportation requests (the request
+    // notification's recipient_role matches the requesting officer's module).
+    if ($is_supervisor) {
+        try {
+            $rrstmt = $conn->prepare("
+                SELECT rn.*, r.report_id as report_code, r.title as report_title, r.report_category, r.location
+                FROM report_notifications rn
+                LEFT JOIN road_transportation_reports r ON rn.report_id = r.id
+                WHERE rn.is_read = 0 AND rn.recipient_role = ? AND rn.type IN ('completion', 'cancellation')
+                ORDER BY rn.created_at DESC
+                LIMIT 20
+            ");
+            $rrstmt->bind_param("s", $user_role);
+            $rrstmt->execute();
+            $review_requests = $rrstmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $rrstmt->close();
+        } catch (Exception $e) {
+            error_log("Review requests query error: " . $e->getMessage());
+            $review_requests = [];
+        }
     }
 }
 
@@ -1137,6 +1163,55 @@ function notification_assignment_url(array $ap): string {
                 </div>
             </div>
             <?php else: ?>
+            <?php if ($is_supervisor): ?>
+            <!-- Supervisor: Completion/Cancellation Request Reviews -->
+            <div class="workflow-card">
+                <div class="workflow-header">
+                    <h3 class="workflow-title">
+                        <i class="fas fa-clipboard-check" style="color: #0ea5e9;"></i>
+                        <span>Review Requests</span>
+                        <span class="workflow-badge"><?php echo count($review_requests); ?></span>
+                    </h3>
+                </div>
+
+                <div class="workflow-content">
+                    <?php if (empty($review_requests)): ?>
+                        <div class="empty-state">
+                            <i class="fas fa-check-circle"></i>
+                            <p>No completion or cancellation requests pending for your module.</p>
+                        </div>
+                    <?php else: ?>
+                        <?php foreach ($review_requests as $rr): ?>
+                            <div class="notification-item">
+                                <div class="notification-header">
+                                    <div class="notification-title">
+                                        <span class="t-text-info"><i class="fas fa-clipboard-list"></i> <?php echo htmlspecialchars($rr['message']); ?></span>
+                                    </div>
+                                    <div class="notification-time"><?php echo date('M d, Y H:i', strtotime($rr['created_at'])); ?></div>
+                                </div>
+                                <div class="notification-body">
+                                    <small>Report: <strong><?php echo htmlspecialchars($rr['report_code'] ?? '#' . $rr['report_id']); ?></strong></small>
+                                    <?php if (!empty($rr['report_title'])): ?>
+                                        &mdash; <?php echo htmlspecialchars($rr['report_title']); ?>
+                                    <?php endif; ?>
+                                    <?php if (!empty($rr['report_category'])): ?>
+                                        <br><small class="t-text-secondary">Module: <?php echo htmlspecialchars(ucfirst($rr['report_category'])); ?></small>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="notification-meta">
+                                    <span class="notification-tag"><i class="fas fa-flag"></i> <?php echo htmlspecialchars(ucfirst($rr['type'] ?? 'request')); ?></span>
+                                </div>
+                                <div style="margin-top: 10px;">
+                                    <div class="action-buttons">
+                                        <a href="<?php echo notification_progress_focus_url($rr); ?>" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> View Report</a>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php endif; ?>
             <!-- Staff: My Report Status Updates -->
             <div class="workflow-card">
                 <div class="workflow-header">

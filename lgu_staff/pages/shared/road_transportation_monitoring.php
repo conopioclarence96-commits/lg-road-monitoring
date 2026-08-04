@@ -74,6 +74,12 @@ $is_transport_supervisor = (($_SESSION['role'] ?? '') === 'trans_ops_supervisor'
 // hidden from Recent Submissions.
 $is_road_only_role = in_array($_SESSION['role'] ?? '', ['road_ops_supervisor', 'road_monitoring_officer'], true);
 
+// Road/Transportation Monitoring Officers may not directly complete or cancel
+// a project. For these roles the Complete/Cancel buttons are replaced with
+// Request Completion / Request Cancellation, which do not change the status or
+// archive the report (the request review workflow will be added later).
+$is_officer_role = in_array($_SESSION['role'] ?? '', ['road_monitoring_officer', 'trans_monitoring_officer'], true);
+
 // Function to get enhanced dashboard stats
 function getEnhancedStats() {
     global $conn, $is_transport_supervisor;
@@ -3114,8 +3120,22 @@ if ($focus_report_id > 0) {
 
         let isCompleting = false; // Flag to prevent multiple clicks
 
+        function isOfficerRole() {
+            var tag = document.getElementById('sessionTimeoutData');
+            if (!tag) return false;
+            var role = tag.getAttribute('data-role') || '';
+            return (role === 'road_monitoring_officer' || role === 'trans_monitoring_officer');
+        }
+
         function completeReport() {
             if (!currentUpdatesReportId) return;
+            // Road/Transportation Monitoring Officers cannot directly complete a
+            // project. Instead they submit a completion request that is routed to
+            // the appropriate supervisor for review; the status is left unchanged.
+            if (isOfficerRole()) {
+                submitReviewRequest('completion');
+                return;
+            }
             if (isCompleting) return; // Prevent multiple clicks
             isCompleting = true;
             
@@ -3217,6 +3237,13 @@ if ($focus_report_id > 0) {
 
         function cancelReport() {
             if (!currentUpdatesReportId) return;
+            // Road/Transportation Monitoring Officers cannot directly cancel a
+            // project. Instead they submit a cancellation request that is routed
+            // to the appropriate supervisor for review; the status is left unchanged.
+            if (isOfficerRole()) {
+                submitReviewRequest('cancellation');
+                return;
+            }
             
             var newStatus = (currentUpdatesReportSource === 'cimm') ? 'Cancelled' : 'cancelled';
             var formData = new FormData();
@@ -3243,6 +3270,52 @@ if ($focus_report_id > 0) {
             .catch(function(e) {
                 showNotification('Network error', 'error');
                 console.error(e);
+            });
+        }
+
+        // Submit a completion/cancellation request (officers only). The backend
+        // validates role + project category, notifies the matching supervisor,
+        // and leaves the report status and archive untouched.
+        function submitReviewRequest(requestType) {
+            if (!currentUpdatesReportId) return;
+            var btn = (requestType === 'completion') ? document.getElementById('completeBtn') : document.getElementById('cancelBtn');
+            if (btn) btn.disabled = true;
+            var orig = btn ? btn.innerHTML : '';
+            if (btn) btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+
+            var fd = new FormData();
+            fd.append('action', 'submit_review_request');
+            fd.append('report_id', currentUpdatesReportId);
+            fd.append('report_type', currentUpdatesReportType);
+            fd.append('request_type', requestType);
+
+            fetch('../api/progress_update_api.php', {
+                method: 'POST',
+                body: fd
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    if (btn) {
+                        btn.disabled = true;
+                        btn.innerHTML = (requestType === 'completion') ? 'Request Submitted' : 'Request Submitted';
+                    }
+                } else {
+                    showNotification(data.message || 'Failed to submit request', 'error');
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = orig;
+                    }
+                }
+            })
+            .catch(function(e) {
+                showNotification('Network error', 'error');
+                console.error(e);
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = orig;
+                }
             });
         }
 
@@ -4146,8 +4219,13 @@ if ($focus_report_id > 0) {
                 <span id="updateReportInfo" class="t-text-secondary" style="font-size: 13px;"></span>
                 <div id="actionButtons" style="display: flex; justify-content: space-between;">
                     <div style="display: flex; gap: 8px;">
+                        <?php if ($is_officer_role): ?>
+                        <button type="button" class="btn-success-custom" id="completeBtn">Request Completion</button>
+                        <button type="button" class="btn-danger-custom" id="cancelBtn">Request Cancellation</button>
+                        <?php else: ?>
                         <button type="button" class="btn-success-custom" id="completeBtn">Complete</button>
                         <button type="button" class="btn-danger-custom" id="cancelBtn">Cancel</button>
+                        <?php endif; ?>
                     </div>
                     <div style="display: flex; gap: 8px;">
                         <button type="button" class="btn-action" id="addUpdateBtn" onclick="showAddUpdateModal()">+ Add Update</button>

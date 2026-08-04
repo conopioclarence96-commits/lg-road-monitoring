@@ -117,6 +117,15 @@ try {
     } catch (Exception $e) {
         // FK may already be dropped or not exist
     }
+
+    // Role-targeted notifications: NULL means a broadcast (seen by everyone with
+    // access); a specific value (e.g. 'road_ops_supervisor') restricts visibility
+    // to users holding that role. Used for completion/cancellation request reviews.
+    try {
+        $conn->query("ALTER TABLE report_notifications ADD COLUMN IF NOT EXISTS recipient_role VARCHAR(50) DEFAULT NULL AFTER recipient_email");
+    } catch (Exception $e) {
+        error_log("report_notifications.recipient_role migration: " . $e->getMessage());
+    }
     
     // Ensure citizen report columns exist
     try {

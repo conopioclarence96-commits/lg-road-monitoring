@@ -3,7 +3,8 @@ require_once '../../includes/session_config.php';
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'system_admin') {
+$archive_allowed_roles = ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor'];
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', $archive_allowed_roles, true)) {
     header('Location: ../../login.php');
     exit();
 }

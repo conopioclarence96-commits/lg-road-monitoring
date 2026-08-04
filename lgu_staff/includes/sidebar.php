@@ -139,7 +139,7 @@ function getNavigationItems($user_role) {
                 'href' => '../pages/admin/archive.php',
                 'icon' => 'archive',
                 'title' => 'Archive',
-                'roles' => ['system_admin']
+                'roles' => ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor']
             ],
             [
                 'href' => '../pages/shared/settings.php',
@@ -227,6 +227,19 @@ function getNotificationCount($user_role = '', $user_id = 0) {
                 // Ignore errors
             }
         } elseif (is_staff_role($user_role) && $user_id > 0) {
+            // Supervisors: count completion/cancellation requests for their module.
+            if (in_array($user_role, ['road_ops_supervisor', 'trans_ops_supervisor'], true)) {
+                try {
+                    $stmt = $conn->prepare("SELECT COUNT(*) as count FROM report_notifications WHERE is_read = 0 AND recipient_role = ? AND type IN ('completion', 'cancellation')");
+                    $stmt->bind_param("s", $user_role);
+                    $stmt->execute();
+                    $count += $stmt->get_result()->fetch_assoc()['count'];
+                    $stmt->close();
+                } catch (Exception $e) {
+                    // Ignore errors
+                }
+            }
+
             // Count staff's own reviewed change requests
             try {
                 $stmt = $conn->prepare("SELECT COUNT(*) as count FROM change_requests WHERE user_id = ? AND status != 'pending'");
