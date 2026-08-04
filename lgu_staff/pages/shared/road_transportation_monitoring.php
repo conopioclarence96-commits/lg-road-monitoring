@@ -154,7 +154,8 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                     CASE WHEN created_by IS NULL OR created_by = 0 THEN 'citizen' ELSE 'lgu' END AS source,
                     status, priority, severity, created_at, description,
                     latitude, longitude, location, reporter_name, attachments, image_path,
-                    cimm_sync_status, cimm_verified_at, cimm_verified_by
+                    cimm_sync_status, cimm_verified_at, cimm_verified_by,
+                    NULL AS approval_status, NULL AS verification_status
               FROM road_transportation_reports
              WHERE report_type != 'infrastructure_issue'
                AND status IN ('approved', 'in-progress')
@@ -191,7 +192,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                         status, priority, severity, created_at, description,
                         latitude, longitude, location, reporter_name, attachments, image_path,
                         cimm_sync_status, cimm_verified_at, cimm_verified_by
-                 FROM road_transportation_reportsssss
+                 FROM road_transportation_reports
                  WHERE report_type = 'infrastructure_issue'
                    AND status IN ('approved','completed'){$road_category_filter}",
                 $status_filter, $type_filter, $limit
@@ -206,14 +207,15 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                 "SELECT * FROM (
                     SELECT id, reference_code AS report_id, infrastructure AS title,
                             'infrastructure_issue' AS report_type, 'road' AS report_category, 'cimm' AS source,
-                            " . cimm_status_case_sql() . " AS status, priority, NULL AS severity,
+                            verification_status AS status, priority, NULL AS severity,
                             COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at,
                             issue AS description, coord_lat AS latitude, coord_lng AS longitude,
                             location, reporter_name, NULL AS attachments, NULL AS image_path,
                             'verified' AS cimm_sync_status, verified_at AS cimm_verified_at,
-                            NULL AS cimm_verified_by
+                            NULL AS cimm_verified_by, approval_status
                      FROM cimm_verification_reports
-                     WHERE verification_status = 'Verified'
+                     WHERE verification_status IN ('Approved', 'In Progress')
+                       AND infrastructure = 'Roads'
                  ) AS cimm_mapped WHERE 1=1",
                 $status_filter, $type_filter, $limit
             ));
@@ -2018,27 +2020,36 @@ if ($focus_report_id > 0) {
                             'reporter_name' => $rr['reporter_name'],
                             'attachments' => $rr['attachments'],
                             'image_path' => $rr['image_path'],
+                            'cimm_sync_status' => $rr['cimm_sync_status'] ?? '',
+                            'cimm_verified_at' => $rr['cimm_verified_at'] ?? '',
+                            'cimm_verified_by' => $rr['cimm_verified_by'] ?? '',
+                            'approval_status' => $rr['approval_status'] ?? '',
+                            'verification_status' => $rr['verification_status'] ?? '',
                         ]), ENT_QUOTES, 'UTF-8'); ?>
                          <tr class="report-table-row" data-id="<?php echo $rr['id']; ?>" data-title="<?php echo htmlspecialchars(strtolower($rr['title'] ?? '')); ?>" data-report-id="<?php echo htmlspecialchars(strtolower($rr['report_id'] ?? '')); ?>" data-status="<?php echo $rr['status'] ?? 'pending'; ?>" data-source="<?php echo $rr_source_key; ?>" data-details='<?php echo $rr_details; ?>'>
                             <td style="font-family:monospace;font-size:12px;"><?php echo htmlspecialchars($rr['report_id'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars($rr['title'] ?? 'Untitled'); ?></td>
                             <td><?php echo htmlspecialchars($rr_source_label); ?></td>
-                            <td><span class="badge badge-<?php echo strtolower($rr['status'] ?? 'pending'); ?>"><?php echo ucfirst(str_replace('-',' ',$rr['status'] ?? 'pending')); ?></span></td>
+                            <td><span class="badge badge-<?php echo strtolower(str_replace(' ', '-', $rr['status'] ?? 'pending')); ?>"><?php echo ucfirst(str_replace('-',' ',$rr['status'] ?? 'pending')); ?></span></td>
                             <td><span class="badge badge-<?php echo strtolower($rr['priority'] ?? 'low'); ?>"><?php echo ucfirst($rr['priority'] ?? 'low'); ?></span></td>
                             <td><?php echo date('M d, Y H:i', strtotime($rr['created_at'] ?? 'now')); ?></td>
                             <td>
-                                <?php if (($rr['report_category'] ?? '') === 'transportation'): ?>
-                                    <span class="cimm-verify-badge cimm-verify-badge-none">—</span>
-                                <?php elseif (strtolower($rr['status'] ?? '') === 'approved'): ?>
-                                    <span class="cimm-verify-badge cimm-verify-badge-verified" title="Approved by <?php echo htmlspecialchars($rr['cimm_verified_by'] ?? 'CIMM staff'); ?><?php echo !empty($rr['cimm_verified_at']) ? ' on ' . date('M d, Y', strtotime($rr['cimm_verified_at'])) : ''; ?>">
-                                        <i class="fas fa-check-circle"></i> Approved
-                                    </span>
-                                <?php elseif (strtolower($rr['status'] ?? '') === 'in-progress'): ?>
-                                    <span class="cimm-verify-badge cimm-verify-badge-pending" title="In Progress">
-                                        <i class="fas fa-hourglass-half"></i> In Progress
-                                    </span>
+                                <?php if (($rr['source'] ?? '') === 'cimm'): ?>
+                                    <?php if (strtolower($rr['approval_status'] ?? '') === 'approved'): ?>
+                                        <span class="cimm-verify-badge cimm-verify-badge-verified" title="Approved by CIMM">
+                                            <i class="fas fa-check-circle"></i> Approved
+                                        </span>
+                                    <?php else: ?>
+                                        <span class="cimm-verify-badge cimm-verify-badge-none">—</span>
+                                    <?php endif; ?>
                                 <?php else: ?>
-                                    <span class="cimm-verify-badge cimm-verify-badge-none">—</span>
+                                    <?php if (strtolower($rr['cimm_sync_status'] ?? '') === 'verified'): ?>
+                                        <span class="cimm-verify-badge cimm-verify-badge-verified" title="Approved by CIMM">
+                                            <i class="fas fa-check-circle"></i> Approved
+                                        </span>
+                                    <?php else: ?>
+                                        <span class="cimm-verify-badge cimm-verify-badge-none">—</span>
+                                    <?php endif; ?>
                                 <?php endif; ?>
                             </td>
                             <td style="white-space:nowrap;">
@@ -4006,20 +4017,21 @@ if ($focus_report_id > 0) {
             <td style="font-family:monospace;font-size:12px;">${escapeHtml(report.report_id)}</td>
             <td>${escapeHtml(report.title)}</td>
             <td>${escapeHtml(report.source_label)}</td>
-            <td><span class="badge badge-${report.status.toLowerCase()}">${escapeHtml(ucfirst(report.status.replace('-', ' ')))}</span></td>
+            <td><span class="badge badge-${report.status.toLowerCase().replace(' ', '-')}">${escapeHtml(ucfirst(report.status.replace('-', ' ')))}</span></td>
             <td><span class="badge badge-${report.priority.toLowerCase()}">${escapeHtml(ucfirst(report.priority))}</span></td>
             <td>${formatDate(report.created_at)}</td>
             <td>
-                ${report.status.toLowerCase() === 'approved' ?
-                    `<span class="cimm-verify-badge cimm-verify-badge-verified" title="Approved by ${escapeHtml(report.cimm_verified_by || 'CIMM staff')}${report.cimm_verified_at ? ' on ' + formatDate(report.cimm_verified_at) : ''}">
-                        <i class="fas fa-check-circle"></i> Approved
-                    </span>` :
-                    (report.status.toLowerCase() === 'in-progress' ?
-                        `<span class="cimm-verify-badge cimm-verify-badge-pending" title="In Progress">
-                            <i class="fas fa-hourglass-half"></i> In Progress
+                ${report.source === 'cimm' ? 
+                    (report.approval_status && report.approval_status.toLowerCase() === 'approved' ?
+                        `<span class="cimm-verify-badge cimm-verify-badge-verified" title="Approved by CIMM">
+                            <i class="fas fa-check-circle"></i> Approved
                         </span>` :
-                        `<span class="cimm-verify-badge cimm-verify-badge-none">—</span>`
-                    )
+                        `<span class="cimm-verify-badge cimm-verify-badge-none">—</span>`) :
+                    (report.cimm_sync_status && report.cimm_sync_status.toLowerCase() === 'verified' ?
+                        `<span class="cimm-verify-badge cimm-verify-badge-verified" title="Approved by CIMM">
+                            <i class="fas fa-check-circle"></i> Approved
+                        </span>` :
+                        `<span class="cimm-verify-badge cimm-verify-badge-none">—</span>`)
                 }
             </td>
             <td style="white-space:nowrap;">

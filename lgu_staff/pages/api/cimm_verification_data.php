@@ -156,16 +156,31 @@ function rgmap_fetch_cimm_verification_reports(PDO $pdo, array $opts = []): arra
     $sql = "SELECT * FROM cimm_verification_reports WHERE 1=1";
     $params = [];
 
-    // Filter for specific CIMM conditions
-    $sql .= " AND infrastructure = ?";
-    $params[] = 'Roads';
+    // Apply specific filters based on opts
+    if (!empty($opts['infrastructure'])) {
+        $sql .= " AND infrastructure = ?";
+        $params[] = $opts['infrastructure'];
+    }
 
-    $sql .= " AND verification_status = ?";
-    $params[] = 'Pending Review';
+    if (!empty($opts['verification_status'])) {
+        if (is_array($opts['verification_status'])) {
+            $placeholders = implode(',', array_fill(0, count($opts['verification_status']), '?'));
+            $sql .= " AND verification_status IN ($placeholders)";
+            foreach ($opts['verification_status'] as $value) {
+                $params[] = $value;
+            }
+        } else {
+            $sql .= " AND verification_status = ?";
+            $params[] = $opts['verification_status'];
+        }
+    }
 
-    $sql .= " AND approval_status = ?";
-    $params[] = 'Approved';
+    if (!empty($opts['approval_status'])) {
+        $sql .= " AND approval_status = ?";
+        $params[] = $opts['approval_status'];
+    }
 
+    // Legacy support for old 'status' and 'approval' parameters
     if (!empty($opts['status'])) {
         $sql .= " AND verification_status = ?";
         $params[] = $opts['status'];

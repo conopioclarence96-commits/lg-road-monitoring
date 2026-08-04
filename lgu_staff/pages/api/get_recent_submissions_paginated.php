@@ -66,7 +66,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
     try {
         // 1. LGU Monitoring (Road & Transportation Monitoring) + Citizen reports
         $reports = array_merge($reports, $fetch(
-            "SELECT id, report_id, title, report_type,
+            "SELECT id, report_id, title, report_type, report_category,
                     CASE WHEN created_by IS NULL OR created_by = 0 THEN 'citizen' ELSE 'lgu' END AS source,
                     status, priority, severity, created_at, description,
                     latitude, longitude, location, reporter_name, attachments, image_path,
@@ -124,9 +124,10 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
                             issue AS description, coord_lat AS latitude, coord_lng AS longitude,
                             location, reporter_name, NULL AS attachments, NULL AS image_path,
                             'approved' AS cimm_sync_status, verified_at AS cimm_verified_at,
-                            NULL AS cimm_verified_by
+                            NULL AS cimm_verified_by, approval_status
                      FROM cimm_verification_reports
-                     WHERE verification_status IN ('Approved', 'In-Progress')
+                     WHERE verification_status IN ('Approved', 'In Progress')
+                       AND infrastructure = 'Roads'
                  ) AS cimm_mapped WHERE 1=1",
                 $status_filter
             ));
@@ -181,6 +182,9 @@ try {
             'cimm_sync_status' => $rr['cimm_sync_status'] ?? '',
             'cimm_verified_at' => $rr['cimm_verified_at'] ?? '',
             'cimm_verified_by' => $rr['cimm_verified_by'] ?? '',
+            'approval_status' => $rr['approval_status'] ?? '',
+            'verification_status' => $rr['verification_status'] ?? '',
+            'report_category' => $rr['report_category'] ?? '',
             'report_type' => $rr['report_type'] ?? '',
             'details' => [
                 'id' => $rr['id'],

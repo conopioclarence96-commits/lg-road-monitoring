@@ -750,7 +750,10 @@ function mapCimmToReportManagement(array $row): array {
 function getCimmReportsForManagement($status_filter = 'all') {
     $pdo = rgmap_verification_pdo();
 
-    $opts = ['limit' => 500, 'status' => 'Verified'];
+    $opts = [
+        'verification_status' => ['Approved', 'In Progress'],
+        'infrastructure' => 'Roads'
+    ];
     $rows = rgmap_fetch_cimm_verification_reports($pdo, $opts);
 
     $mapped = array_map('mapCimmToReportManagement', $rows);

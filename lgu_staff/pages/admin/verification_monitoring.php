@@ -350,7 +350,12 @@ function rgmap_map_cimm_row_for_display(array $row): array {
 // Function to get CIMM reports by filter (live data from CIMM via RGMAO sync)
 function getCimmReports($filter = 'all') {
     $pdo = rgmap_verification_pdo();
-    $rows = rgmap_fetch_cimm_verification_reports($pdo, ['limit' => 500]);
+    $rows = rgmap_fetch_cimm_verification_reports($pdo, [
+        'limit' => 500,
+        'infrastructure' => 'Roads',
+        'verification_status' => 'Pending Review',
+        'approval_status' => 'Approved'
+    ]);
 
     $mapped = array_map('rgmap_map_cimm_row_for_display', $rows);
 
@@ -5349,7 +5354,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     <button class="dept-action-btn" onclick="viewCimmReport(<?php echo $row['id']; ?>)">
                                         <i class="fas fa-eye"></i>
                                     </button>
-                                    <?php if ($row['verification_status'] === 'Verified'): ?>
                                     <form method="POST" class="dept-action-form" onsubmit="return confirm('Are you sure you want to approve this CIMM report?');">
                                         <input type="hidden" name="cimm_req_id" value="<?php echo (int)$row['cimm_req_id']; ?>">
                                         <button type="submit" name="action" value="approve_cimm" class="dept-verify-btn" title="Approve report">
@@ -5363,7 +5367,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                             <i class="fas fa-times"></i>
                                         </button>
                                     </form>
-                                    <?php endif; ?>
                                 </div>
                             </td>
                             <td><?php echo htmlspecialchars($row['rep_number']); ?></td>
