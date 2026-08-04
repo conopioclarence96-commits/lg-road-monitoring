@@ -179,6 +179,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $restore_status = 'Pending Review';
         }
 
+        // A completed CIMM report is brought back as ACTIVE ('In Progress') so
+        // it reappears in report_management.php, road_transportation_monitoring.php
+        // and the active project list (all of which only list CIMM reports whose
+        // verification_status is 'Approved' or 'In Progress') instead of staying
+        // finished and hidden.
+        if ($module === 'cimm' && strtolower((string)$restore_status) === 'completed') {
+            $restore_status = 'In Progress';
+        }
+
         // CIMM reports: map the archived row back into cimm_verification_reports.
         if ($module === 'cimm') {
             // Reconstruct the CIMM request id (reference_code is formatted
@@ -206,6 +215,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 'approval_status' => 'Approved',
                 'cimm_req_id' => $cimm_req_id,
             ];
+
+            // The Complete/Reject flows (and the Resolve flow) file a COPY into
+            // the archive while the live CIMM row stays in place, so the report
+            // may already exist here. In that case reopen it in place (restore
+            // its status/data, clear the terminal timestamps) instead of
+            // inserting a duplicate, then drop the archive copy.
+            $existing = null;
+            if ($cimm_req_id !== null && $cimm_req_id !== '') {
+                $dup = $conn->prepare("SELECT id FROM cimm_verification_reports WHERE cimm_req_id = ?");
+                $dup->bind_param("s", $cimm_req_id);
+                $dup->execute();
+                $existing = $dup->get_result()->fetch_assoc() ?? null;
+                $dup->close();
+            }
+
+            if ($existing) {
+                $upd = $conn->prepare("UPDATE cimm_verification_reports SET verification_status = ?, approval_status = 'Approved', resolved_at = NULL, updated_at = NOW() WHERE id = ?");
+                $upd->bind_param("si", $restore_status, $existing['id']);
+                $upd->execute();
+                if ($upd->affected_rows >= 0) {
+                    $delete = $conn->prepare("DELETE FROM road_transportation_reports_archive WHERE id = ?");
+                    $delete->bind_param('i', $archive_id);
+                    $delete->execute();
+                    $_SESSION['archive_message'] = 'Report restored successfully.';
+                } else {
+                    $_SESSION['archive_message'] = 'Restore failed – the report may already exist.';
+                }
+                header('Location: archive.php');
+                exit();
+            }
+
             $cols = '`' . implode('`, `', array_keys($cimm_fields)) . '`';
             $place = implode(', ', array_fill(0, count($cimm_fields), '?'));
             $stmt = $conn->prepare("INSERT INTO cimm_verification_reports ($cols) VALUES ($place)");
