@@ -120,11 +120,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
 
         // Route the report back to the module where its last action happened:
-        //   - report_source 'external'  -> CIMM module (cimm_verification_reports)
-        //   - maintenance report types  -> Infrastructure (road_maintenance_reports)
-        //   - everything else           -> Transportation (road_transportation_reports)
+        //   - report_source 'external'/'cimm' -> CIMM module (cimm_verification_reports)
+        //   - maintenance report types        -> Infrastructure (road_maintenance_reports)
+        //   - everything else (incl. rejected) -> the live transport/maintenance
+        //     table, which is what verification_monitoring.php displays
         $maintenance_types = ['routine', 'emergency', 'preventive', 'corrective', 'scheduled'];
-        if (($row['report_source'] ?? '') === 'external') {
+        if (in_array(($row['report_source'] ?? ''), ['external', 'cimm'], true)) {
             $module = 'cimm';
         } elseif (in_array($row['report_type'], $maintenance_types, true)) {
             $module = 'maintenance';
@@ -203,7 +204,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
             // If the report is no longer terminal, clear the terminal timestamps
             // so the restored row looks like the report it was before archiving.
-            if ($restore_status !== 'cancelled' && in_array($field, ['rejected_at', 'cancelled_at'], true)) {
+            // A rejected report keeps its rejected_at; a cancelled one keeps
+            // its rejected_at (used as the cancel timestamp) and cancelled_at.
+            if ($restore_status !== 'rejected' && $restore_status !== 'cancelled' && in_array($field, ['rejected_at', 'cancelled_at'], true)) {
                 $value = null;
             }
             if ($restore_status !== 'completed' && $field === 'completed_at') {

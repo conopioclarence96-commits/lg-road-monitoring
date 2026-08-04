@@ -195,10 +195,11 @@ function getRejectedReports($conn) {
 // Function to get all reports (for filtering)
 function getAllReports($conn, $status_filter = 'all', $source_filter = 'all', $transport_only = false, $road_only = false) {
     $parts = [];
-    // This page only displays reports that are still pending verification —
-    // anything already approved, rejected, or completed is no longer shown here.
-    $transport_where = " WHERE status = 'pending'";
-    $maintenance_where = " WHERE status = 'pending'";
+    // This page shows reports still pending verification, plus reports that
+    // were rejected and then restored from the archive — those come back with
+    // their previous 'rejected' status so they are visible here again.
+    $transport_where = " WHERE status IN ('pending','rejected')";
+    $maintenance_where = " WHERE status IN ('pending','rejected')";
     $infra_exclude = "report_type != 'infrastructure_issue'";
     $citizen_exclude = "(report_source IS NULL OR report_source != 'local' OR report_category IS NULL OR report_category != 'transportation' OR created_by IS NULL OR created_by != 0)";
     // Transportation Operations Supervisors only see Transportation reports —
@@ -409,7 +410,7 @@ function getCitizenReports($conn) {
                      reporter_name, reporter_email, reporter_phone, image_path, created_by
               FROM road_transportation_reports 
               WHERE report_source = 'local' AND report_category = 'transportation' AND created_by = 0
-                AND status = 'pending'
+                AND status IN ('pending','rejected')
               ORDER BY created_at DESC";
     $result = $conn->query($query);
     if (!$result) {
@@ -426,13 +427,13 @@ function getInfraReports($conn, $road_only = false) {
                      latitude, longitude, created_at, updated_at, approved_at, rejected_at,
                      reporter_name, reporter_email
               FROM road_transportation_reports WHERE report_type = 'infrastructure_issue'
-                AND status = 'pending'{$road_category_filter})
+                AND status IN ('pending','rejected'){$road_category_filter})
               UNION ALL
               (SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source,
                      department, priority, status, created_date, due_date, description, location, NULL as attachments,
                      NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at,
                      NULL as reporter_name, NULL as reporter_email
-              FROM road_maintenance_reports WHERE status = 'pending')
+              FROM road_maintenance_reports WHERE status IN ('pending','rejected'))
               ORDER BY created_at DESC";
     $result = $conn->query($query);
     if (!$result) {
