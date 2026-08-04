@@ -2,6 +2,7 @@
 
 let currentUpdatesReportId = null;
 let currentUpdatesReportType = null;
+let currentUpdatesReportSource = null;
 
 function loadUpdates(reportId, reportType) {
     currentUpdatesReportId = reportId;

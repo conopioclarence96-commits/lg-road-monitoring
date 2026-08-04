@@ -12,7 +12,9 @@ $conn->query("CREATE TABLE IF NOT EXISTS road_transportation_reports_archive LIK
 
 // Ensure archive table has the same columns as the source table
 foreach (['report_category' => "ENUM('road','transportation') DEFAULT NULL AFTER report_type",
-           'report_source' => "ENUM('local','external') DEFAULT 'local' AFTER report_category"] as $col => $def) {
+           'report_source' => "ENUM('local','external') DEFAULT 'local' AFTER report_category",
+           'previous_status' => "VARCHAR(50) DEFAULT NULL",
+           'archived_from' => "VARCHAR(100) DEFAULT NULL"] as $col => $def) {
     $chk = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE '$col'");
     if ($chk && $chk->num_rows === 0) {
         $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN $col $def");
@@ -23,24 +25,64 @@ foreach (['report_category' => "ENUM('road','transportation') DEFAULT NULL AFTER
 $status_filter = $_GET['status'] ?? 'all';
 $source_filter = $_GET['source'] ?? 'all';
 $sort_order = $_GET['sort'] ?? 'latest';
+$id_search = trim($_GET['id'] ?? '');
+
+// Source system classification. Every archived report is assigned to exactly
+// one source bucket using the existing archive columns.
+//   - infrastructure : report_type in (infrastructure_issue, maintenance, maintenance_request)
+//   - cimm           : report_source = external
+//   - lgu            : report_source = local AND created_by != 0  (LGU Monitoring)
+//   - citizen        : everything else (created_by = 0 / public submissions)
+$source_case = "CASE
+        WHEN report_type IN ('infrastructure_issue','maintenance','maintenance_request') THEN 'infrastructure'
+        WHEN report_source = 'external' THEN 'cimm'
+        WHEN report_source = 'local' AND COALESCE(created_by, 0) != 0 THEN 'lgu'
+        ELSE 'citizen'
+    END";
+
+// Per-source WHERE condition (matches the Source System dropdown values)
+switch ($source_filter) {
+    case 'lgu':
+        $source_where = "report_type NOT IN ('infrastructure_issue','maintenance','maintenance_request') AND report_source = 'local' AND COALESCE(created_by, 0) != 0";
+        break;
+    case 'citizen':
+        $source_where = "report_type NOT IN ('infrastructure_issue','maintenance','maintenance_request') AND COALESCE(created_by, 0) = 0";
+        break;
+    case 'cimm':
+        $source_where = "report_source = 'external'";
+        break;
+    case 'infrastructure':
+        $source_where = "report_type IN ('infrastructure_issue','maintenance','maintenance_request')";
+        break;
+    default:
+        $source_where = '';
+        break;
+}
 
 // Build WHERE clause
 $where_clauses = [];
 
-if ($status_filter !== 'all') {
-    if ($status_filter === 'pending') {
-        $where_clauses[] = "status IN ('pending','in-progress')";
-    } elseif ($status_filter === 'approved') {
-        $where_clauses[] = "status IN ('approved','completed')";
-    } elseif ($status_filter === 'rejected') {
-        $where_clauses[] = "status IN ('cancelled','rejected')";
-    }
+// Status filter. The archive only ever contains completed / rejected / cancelled
+// reports, so every selection (including "All Status") is restricted to those
+// three statuses — any other status can never appear here.
+if ($status_filter === 'completed') {
+    $where_clauses[] = "status = 'completed'";
+} elseif ($status_filter === 'rejected') {
+    $where_clauses[] = "status = 'rejected'";
+} elseif ($status_filter === 'cancelled') {
+    $where_clauses[] = "status = 'cancelled'";
+} else {
+    // All Status
+    $where_clauses[] = "status IN ('completed','rejected','cancelled')";
 }
 
-if ($source_filter === 'transport') {
-    $where_clauses[] = "report_category IS NOT NULL";
-} elseif ($source_filter === 'maintenance') {
-    $where_clauses[] = "report_category IS NULL";
+if ($source_where !== '') {
+    $where_clauses[] = $source_where;
+}
+
+// ID search filter
+if (!empty($id_search)) {
+    $where_clauses[] = "(id = " . (int)$id_search . " OR report_id LIKE '%" . $conn->real_escape_string($id_search) . "%' OR id LIKE '%" . $conn->real_escape_string($id_search) . "%')";
 }
 
 $where_sql = '';
@@ -50,21 +92,189 @@ if (!empty($where_clauses)) {
 
 $order_dir = ($sort_order === 'earliest') ? 'ASC' : 'DESC';
 
-$sql = "SELECT *, CASE WHEN report_category IS NOT NULL THEN 'transport' ELSE 'maintenance' END as source_system FROM road_transportation_reports_archive $where_sql ORDER BY created_at $order_dir";
+// Total count of the *filtered* result set (used for the badge)
+$count_result = $conn->query("SELECT COUNT(*) AS total FROM road_transportation_reports_archive $where_sql");
+$total_archives = $count_result ? (int)$count_result->fetch_assoc()['total'] : 0;
+
+// Display labels for the four source systems
+$source_labels = [
+    'lgu'            => 'LGU Monitoring',
+    'citizen'        => 'Citizen',
+    'cimm'           => 'CIMM',
+    'infrastructure' => 'Infrastructure',
+];
+
+$sql = "SELECT *, $source_case AS source_system FROM road_transportation_reports_archive $where_sql ORDER BY created_at $order_dir";
 $archives = $conn->query($sql);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'restore' && isset($_POST['archive_id'])) {
         $archive_id = (int) $_POST['archive_id'];
-        $insert = "INSERT IGNORE INTO road_transportation_reports SELECT * FROM road_transportation_reports_archive WHERE id = ?";
+        $arch = $conn->prepare("SELECT * FROM road_transportation_reports_archive WHERE id = ?");
+        $arch->bind_param('i', $archive_id);
+        $arch->execute();
+        $row = $arch->get_result()->fetch_assoc();
+        if (!$row) {
+            $_SESSION['archive_message'] = 'Restore failed – record not found in archive.';
+            header('Location: archive.php');
+            exit();
+        }
+
+        // Route the report back to the module where its last action happened.
+        // archived_from records the exact live table it was moved out of, so a
+        // report always returns to the exact table it came from (fall back to
+        // a report_type/report_source heuristic for rows archived before the
+        // column existed).
+        $maintenance_types = ['routine', 'emergency', 'preventive', 'corrective', 'scheduled'];
+        $archived_from = $row['archived_from'] ?? '';
+        if ($archived_from === 'cimm_verification_reports') {
+            $module = 'cimm';
+        } elseif ($archived_from === 'road_maintenance_reports') {
+            $module = 'maintenance';
+        } elseif ($archived_from === 'road_transportation_reports') {
+            $module = 'transport';
+        } elseif (in_array(($row['report_source'] ?? ''), ['external', 'cimm'], true)) {
+            $module = 'cimm';
+        } elseif (in_array($row['report_type'], $maintenance_types, true)) {
+            $module = 'maintenance';
+        } else {
+            $module = 'transport';
+        }
+
+        // Restore to its previous (pre-archive) status when it was recorded,
+        // so the report reappears in the active list where its last action
+        // happened instead of staying hidden with a terminal status.
+        $restore_status = (!empty($row['previous_status'])) ? $row['previous_status'] : $row['status'];
+
+        // A completed transportation report is brought back as an ACTIVE report
+        // ('in-progress') so it reappears in Recent Submissions on
+        // road_transportation_monitoring.php and report_management.php instead
+        // of staying finished.
+        if ($module === 'transport' && $restore_status === 'completed') {
+            $restore_status = 'in-progress';
+        }
+
+        // CIMM reports: map the archived row back into cimm_verification_reports.
+        if ($module === 'cimm') {
+            $cimm_fields = [
+                'reference_code' => $row['report_id'],
+                'infrastructure' => $row['title'],
+                'issue' => $row['description'],
+                'location' => $row['location'],
+                'coord_lat' => $row['latitude'],
+                'coord_lng' => $row['longitude'],
+                'priority' => $row['priority'],
+                'reporter_name' => $row['reporter_name'],
+                'submitted_at' => $row['created_at'],
+                'verified_at' => ($row['completed_at'] ?? null) ?: ($row['rejected_at'] ?? null),
+                'verification_status' => $restore_status,
+            ];
+            $cols = '`' . implode('`, `', array_keys($cimm_fields)) . '`';
+            $place = implode(', ', array_fill(0, count($cimm_fields), '?'));
+            $stmt = $conn->prepare("INSERT INTO cimm_verification_reports ($cols) VALUES ($place)");
+            try {
+                $stmt->execute(array_values($cimm_fields));
+            } catch (Exception $e) {
+                $_SESSION['archive_message'] = 'Restore failed – the CIMM report may already exist.';
+                header('Location: archive.php');
+                exit();
+            }
+            if ($stmt->affected_rows > 0) {
+                $delete = $conn->prepare("DELETE FROM road_transportation_reports_archive WHERE id = ?");
+                $delete->bind_param('i', $archive_id);
+                $delete->execute();
+                $_SESSION['archive_message'] = 'Report restored successfully.';
+            } else {
+                $_SESSION['archive_message'] = 'Restore failed – the report may already exist.';
+            }
+            header('Location: archive.php');
+            exit();
+        }
+
+        $target_table = ($module === 'maintenance') ? 'road_maintenance_reports' : 'road_transportation_reports';
+
+        // Build the column list from only the columns the target table actually
+        // has, and drop the auto-increment id so a restored row always gets a
+        // fresh id (avoids collisions with rows already present).
+        $dest_cols = [];
+        $col_res = $conn->query("SHOW COLUMNS FROM $target_table");
+        if ($col_res) { while ($c = $col_res->fetch_assoc()) { $dest_cols[$c['Field']] = true; } }
+        $fields = [];
+        foreach ($row as $field => $value) {
+            if ($field === 'id') continue;
+            if (isset($dest_cols[$field])) $fields[] = $field;
+        }
+        if (empty($fields)) {
+            $_SESSION['archive_message'] = 'Restore failed – could not map the archived record.';
+            header('Location: archive.php');
+            exit();
+        }
+
+        $cols = implode(', ', array_map(function ($f) { return "`$f`"; }, $fields));
+        $place = implode(', ', array_fill(0, count($fields), '?'));
+        $values = [];
+        foreach ($fields as $field) {
+            $value = $row[$field];
+            if ($field === 'status') {
+                $value = $restore_status;
+            }
+            // If the report is no longer terminal, clear the terminal timestamps
+            // so the restored row looks like the report it was before archiving.
+            // A rejected report keeps its rejected_at; a cancelled one keeps
+            // its rejected_at (used as the cancel timestamp) and cancelled_at.
+            if ($restore_status !== 'rejected' && $restore_status !== 'cancelled' && in_array($field, ['rejected_at', 'cancelled_at'], true)) {
+                $value = null;
+            }
+            if ($restore_status !== 'completed' && $field === 'completed_at') {
+                $value = null;
+            }
+            $values[] = $value;
+        }
+
+        // The Complete flow files a COPY into the archive while the live report
+        // stays in place, so the live report may already exist here. In that
+        // case reopen it in place (restore its status/data) instead of inserting
+        // a duplicate, then drop the archive copy.
+        $dup_check = $conn->prepare("SELECT id FROM $target_table WHERE report_id = ?");
+        $dup_check->bind_param("s", $row['report_id']);
+        $dup_check->execute();
+        $existing_id = $dup_check->get_result()->fetch_assoc()['id'] ?? null;
+        $dup_check->close();
+
+        if ($existing_id) {
+            $sql = "UPDATE $target_table SET status = ?, updated_at = NOW()";
+            if ($restore_status !== 'completed') {
+                $sql .= ", completed_at = NULL";
+            }
+            $sql .= " WHERE id = ?";
+            $upd = $conn->prepare($sql);
+            $upd->bind_param("si", $restore_status, $existing_id);
+            $upd->execute();
+            if ($upd->affected_rows >= 0) {
+                $delete = $conn->prepare("DELETE FROM road_transportation_reports_archive WHERE id = ?");
+                $delete->bind_param('i', $archive_id);
+                $delete->execute();
+                $_SESSION['archive_message'] = 'Report restored successfully.';
+            } else {
+                $_SESSION['archive_message'] = 'Restore failed – the record may already exist.';
+            }
+            header('Location: archive.php');
+            exit();
+        }
+
+        $insert = "INSERT INTO $target_table ($cols) VALUES ($place)";
         $stmt = $conn->prepare($insert);
-        $stmt->bind_param('i', $archive_id);
-        $stmt->execute();
+        try {
+            $stmt->execute($values);
+        } catch (Exception $e) {
+            $_SESSION['archive_message'] = 'Restore failed – the report may already exist (duplicate report_id).';
+            header('Location: archive.php');
+            exit();
+        }
         if ($stmt->affected_rows > 0) {
-            $delete = "DELETE FROM road_transportation_reports_archive WHERE id = ?";
-            $stmt = $conn->prepare($delete);
-            $stmt->bind_param('i', $archive_id);
-            $stmt->execute();
+            $delete = $conn->prepare("DELETE FROM road_transportation_reports_archive WHERE id = ?");
+            $delete->bind_param('i', $archive_id);
+            $delete->execute();
             $_SESSION['archive_message'] = 'Report restored successfully.';
         } else {
             $_SESSION['archive_message'] = 'Restore failed – the record may already exist.';
@@ -346,6 +556,22 @@ if (isset($_SESSION['archive_message'])) {
             background: rgba(55,98,200,0.15);
             color: #3762c8;
         }
+        .source-lgu {
+            background: rgba(40,167,69,0.15);
+            color: #28a745;
+        }
+        .source-citizen {
+            background: rgba(23,162,184,0.15);
+            color: #17a2b8;
+        }
+        .source-cimm {
+            background: rgba(255,193,7,0.15);
+            color: #d39e00;
+        }
+        .source-infrastructure {
+            background: rgba(55,98,200,0.15);
+            color: #3762c8;
+        }
 
         @media (max-width: 768px) {
             .main-content { margin-left: 0; }
@@ -371,17 +597,19 @@ if (isset($_SESSION['archive_message'])) {
                     <label class="form-label">Status Filter</label>
                     <select class="filter-select" id="statusFilter" onchange="filterReports()">
                         <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
-                        <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending / In Progress</option>
-                        <option value="approved" <?php echo $status_filter === 'approved' ? 'selected' : ''; ?>>Approved / Completed</option>
-                        <option value="rejected" <?php echo $status_filter === 'rejected' ? 'selected' : ''; ?>>Rejected / Cancelled</option>
+                        <option value="completed" <?php echo $status_filter === 'completed' ? 'selected' : ''; ?>>Completed</option>
+                        <option value="rejected" <?php echo $status_filter === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
+                        <option value="cancelled" <?php echo $status_filter === 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
                     </select>
                 </div>
                 <div>
                     <label class="form-label">Source System</label>
                     <select class="filter-select" id="sourceFilter" onchange="filterReports()">
                         <option value="all" <?php echo $source_filter === 'all' ? 'selected' : ''; ?>>All Systems</option>
-                        <option value="transport" <?php echo $source_filter === 'transport' ? 'selected' : ''; ?>>Road & Transportation (LGU / Community)</option>
-                        <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>External Systems (Infrastructure)</option>
+                        <option value="lgu" <?php echo $source_filter === 'lgu' ? 'selected' : ''; ?>>Road & Transportation (LGU Monitoring)</option>
+                        <option value="citizen" <?php echo $source_filter === 'citizen' ? 'selected' : ''; ?>>Citizen</option>
+                        <option value="cimm" <?php echo $source_filter === 'cimm' ? 'selected' : ''; ?>>CIMM</option>
+                        <option value="infrastructure" <?php echo $source_filter === 'infrastructure' ? 'selected' : ''; ?>>Infrastructure</option>
                     </select>
                 </div>
                 <div>
@@ -390,6 +618,10 @@ if (isset($_SESSION['archive_message'])) {
                         <option value="latest" <?php echo $sort_order === 'latest' ? 'selected' : ''; ?>>Newest to Oldest</option>
                         <option value="earliest" <?php echo $sort_order === 'earliest' ? 'selected' : ''; ?>>Oldest to Newest</option>
                     </select>
+                </div>
+                <div>
+                    <label class="form-label">Search ID</label>
+                    <input type="text" class="filter-select" id="idSearch" placeholder="Enter report ID..." value="<?php echo htmlspecialchars($id_search); ?>" onkeyup="if(event.key === 'Enter') filterReports()">
                 </div>
                 <div>
                     <label class="form-label">&nbsp;</label>
@@ -407,7 +639,7 @@ if (isset($_SESSION['archive_message'])) {
                 <h3 class="archive-card-title">
                     <i class="fas fa-folder-open"></i>
                     Archived Reports
-                    <span class="archive-badge"><?php echo $archives->num_rows; ?></span>
+                    <span class="archive-badge"><?php echo (int)$total_archives; ?></span>
                 </h3>
             </div>
 
@@ -425,11 +657,7 @@ if (isset($_SESSION['archive_message'])) {
                                 <span class="meta-item"><i class="fas fa-calendar"></i> <?php echo htmlspecialchars($row['created_at']); ?></span>
                                 <span class="meta-item"><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($row['location'] ?? 'N/A'); ?></span>
                                 <span class="meta-item"><i class="fas fa-sitemap"></i>
-                                    <?php if ($row['source_system'] === 'transport'): ?>
-                                        <span class="source-badge source-transport">LGU / Community</span>
-                                    <?php else: ?>
-                                        <span class="source-badge source-maintenance">Infrastructure</span>
-                                    <?php endif; ?>
+                                    <span class="source-badge source-<?php echo $row['source_system']; ?>"><?php echo htmlspecialchars($source_labels[$row['source_system']] ?? ($row['source_system'] ?? 'Unknown')); ?></span>
                                 </span>
                             </div>
                             <div class="archive-actions">
@@ -520,8 +748,11 @@ if (isset($_SESSION['archive_message'])) {
                 { label: 'Rejected At', value: row.rejected_at }
             ];
 
-            var sourceLabel = row.source_system === 'transport' ? 'LGU / Community' : 'Infrastructure';
-            var sourceIcon = row.source_system === 'transport' ? 'fa-users' : 'fa-hard-hat';
+            var sourceLabels = { 'lgu': 'LGU Monitoring', 'citizen': 'Citizen', 'cimm': 'CIMM', 'infrastructure': 'Infrastructure' };
+            var sourceIcons = { 'lgu': 'fa-users', 'citizen': 'fa-user', 'cimm': 'fa-handshake', 'infrastructure': 'fa-hard-hat' };
+            var src = row.source_system || 'citizen';
+            var sourceLabel = sourceLabels[src] || src;
+            var sourceIcon = sourceIcons[src] || 'fa-file-archive';
 
             html += '<div class="detail-row"><span class="detail-label">Source System</span><span class="detail-value"><i class="fas ' + sourceIcon + '"></i> ' + sourceLabel + '</span></div>';
             html += '<div class="detail-row"><span class="detail-label">Report ID</span><span class="detail-value">' + (row.report_id || 'N/A') + '</span></div>';
@@ -578,10 +809,16 @@ if (isset($_SESSION['archive_message'])) {
             const status = document.getElementById('statusFilter').value;
             const source = document.getElementById('sourceFilter').value;
             const sort = document.getElementById('sortFilter').value;
+            const id = document.getElementById('idSearch').value.trim();
             const url = new URL(window.location);
             url.searchParams.set('status', status);
             url.searchParams.set('source', source);
             url.searchParams.set('sort', sort);
+            if (id) {
+                url.searchParams.set('id', id);
+            } else {
+                url.searchParams.delete('id');
+            }
             window.location.href = url.toString();
         }
 
@@ -590,7 +827,13 @@ if (isset($_SESSION['archive_message'])) {
             url.searchParams.delete('status');
             url.searchParams.delete('source');
             url.searchParams.delete('sort');
+            url.searchParams.delete('id');
             window.location.href = url.toString();
+        }
+
+        function closeModalAndRefresh() {
+            closeModal('viewModal');
+            location.reload();
         }
     </script>
 

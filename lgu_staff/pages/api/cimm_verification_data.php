@@ -156,6 +156,9 @@ function rgmap_fetch_cimm_verification_reports(PDO $pdo, array $opts = []): arra
     $sql = "SELECT * FROM cimm_verification_reports WHERE 1=1";
     $params = [];
 
+    // Exclude reports with certain verification statuses
+    $sql .= " AND verification_status IN ('Verified')";
+
     if (!empty($opts['status'])) {
         $sql .= " AND verification_status = ?";
         $params[] = $opts['status'];

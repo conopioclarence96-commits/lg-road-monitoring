@@ -5,7 +5,7 @@ require_once '../../includes/functions.php';
 require_once __DIR__ . '/../../api/cimm_verification_data.php';
 
 // Session timeout configuration
-$session_timeout = 5 * 60; // 5 minutes in seconds
+$session_timeout = 30 * 60; // 30 minutes in seconds
 
 // Check if session has expired
 if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
@@ -108,6 +108,10 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', $allowed_
 $user_role = $_SESSION['role'] ?? 'citizen';
 $is_transport_supervisor = ($user_role === 'trans_ops_supervisor');
 
+// Road Operations Supervisors see only Road-relevant reports: Road reports in
+// the LGU Monitoring panel, all CIMM reports, and no Transportation reports.
+$is_road_supervisor = ($user_role === 'road_ops_supervisor');
+
 // Function to get verification statistics
 function getVerificationStatistics($conn) {
     $stats = [];
@@ -189,34 +193,24 @@ function getRejectedReports($conn) {
 }
 
 // Function to get all reports (for filtering)
-function getAllReports($conn, $status_filter = 'all', $source_filter = 'all', $transport_only = false) {
+function getAllReports($conn, $status_filter = 'all', $source_filter = 'all', $transport_only = false, $road_only = false) {
     $parts = [];
-    $transport_where = '';
-    $maintenance_where = '';
-    if ($status_filter !== 'all') {
-        if ($status_filter === 'pending') {
-            $transport_where = " WHERE status IN ('pending','in-progress')";
-            $maintenance_where = " WHERE status IN ('pending','in-progress')";
-        } elseif ($status_filter === 'approved') {
-            $transport_where = " WHERE status IN ('approved','completed')";
-            $maintenance_where = " WHERE status IN ('approved','completed')";
-        } elseif ($status_filter === 'rejected') {
-            $transport_where = " WHERE status IN ('cancelled')";
-            $maintenance_where = " WHERE status IN ('cancelled')";
-        }
-    } else {
-        // When status is 'all', exclude approved/completed from the LGU Monitoring panel
-        $transport_where = " WHERE status NOT IN ('approved','completed')";
-        $maintenance_where = " WHERE status NOT IN ('approved','completed')";
-    }
+    // This page shows reports still pending verification, plus reports that
+    // were rejected and then restored from the archive — those come back with
+    // their previous 'rejected' status so they are visible here again.
+    $transport_where = " WHERE status IN ('pending','rejected')";
+    $maintenance_where = " WHERE status IN ('pending','rejected')";
     $infra_exclude = "report_type != 'infrastructure_issue'";
     $citizen_exclude = "(report_source IS NULL OR report_source != 'local' OR report_category IS NULL OR report_category != 'transportation' OR created_by IS NULL OR created_by != 0)";
     // Transportation Operations Supervisors only see Transportation reports —
     // Road reports (report_category = 'road') and maintenance/infrastructure
     // reports are excluded at the query level.
     $transport_category_filter = $transport_only ? " AND report_category = 'transportation'" : '';
+    // Road Operations Supervisors only see Road reports — Transportation
+    // reports are excluded at the query level.
+    $road_category_filter = $road_only ? " AND report_category = 'road'" : '';
     if ($source_filter === 'transport') {
-        $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}" : " WHERE {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}";
+        $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}" : " WHERE {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}";
         $source_case = "CASE WHEN report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
         $q = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$where})";
         $parts[] = $q;
@@ -226,7 +220,7 @@ function getAllReports($conn, $status_filter = 'all', $source_filter = 'all', $t
             $parts[] = $q;
         }
     } else {
-        $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}" : " WHERE {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}";
+        $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}" : " WHERE {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}";
         $source_case = "CASE WHEN report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
         $parts[] = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, cimm_sync_status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$where})";
         if (!$transport_only) {
@@ -366,6 +360,12 @@ function getCimmReports($filter = 'all') {
         }));
     }
 
+    // This page only lists reports still pending — anything approved,
+    // completed, resolved, or dismissed is no longer shown here.
+    $mapped = array_values(array_filter($mapped, function ($r) {
+        return ($r['status'] ?? '') === 'pending';
+    }));
+
     return $mapped;
 }
 
@@ -391,6 +391,9 @@ function getSqlReports($conn) {
                      u.full_name as reporter_name
               FROM reports r
               LEFT JOIN users u ON r.report_by = u.id
+              WHERE r.engineer_accepted = 0
+                AND (r.decline_reason IS NULL OR r.decline_reason = '')
+                AND (r.decline_reviewed IS NULL OR r.decline_reviewed = 0)
               ORDER BY r.created_at DESC";
     $result = $conn->query($query);
     if (!$result) {
@@ -407,7 +410,7 @@ function getCitizenReports($conn) {
                      reporter_name, reporter_email, reporter_phone, image_path, created_by
               FROM road_transportation_reports 
               WHERE report_source = 'local' AND report_category = 'transportation' AND created_by = 0
-                AND status NOT IN ('approved','completed')
+                AND status IN ('pending','rejected')
               ORDER BY created_at DESC";
     $result = $conn->query($query);
     if (!$result) {
@@ -417,25 +420,180 @@ function getCitizenReports($conn) {
 }
 
 // Function to get infrastructure-only reports (road_transportation_reports where report_type = 'infrastructure_issue' + road_maintenance_reports)
-function getInfraReports($conn) {
+function getInfraReports($conn, $road_only = false) {
+    $road_category_filter = $road_only ? " AND report_category = 'road'" : '';
     $query = "(SELECT 'transport' as source, id, report_id, title, report_type, report_category, report_source,
                      department, priority, status, created_date, due_date, description, location, attachments,
                      latitude, longitude, created_at, updated_at, approved_at, rejected_at,
                      reporter_name, reporter_email
               FROM road_transportation_reports WHERE report_type = 'infrastructure_issue'
-                AND status NOT IN ('approved','completed'))
+                AND status IN ('pending','rejected'){$road_category_filter})
               UNION ALL
               (SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source,
                      department, priority, status, created_date, due_date, description, location, NULL as attachments,
                      NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at,
                      NULL as reporter_name, NULL as reporter_email
-              FROM road_maintenance_reports WHERE status NOT IN ('approved','completed'))
+              FROM road_maintenance_reports WHERE status IN ('pending','rejected'))
               ORDER BY created_at DESC";
     $result = $conn->query($query);
     if (!$result) {
         error_log("Query error in getInfraReports: " . $conn->error);
     }
     return $result;
+}
+
+// Ensure the archive table exists and carries every column of both live report
+// tables, so copying ANY report row preserves all its data (including reporter,
+// verification, and timestamp columns). Widens report_type so maintenance rows
+// ('routine','emergency', etc.) can be archived without truncation.
+function ensure_archive_for_archive_cancel($conn) {
+    $conn->query("CREATE TABLE IF NOT EXISTS road_transportation_reports_archive LIKE road_transportation_reports");
+    try {
+        foreach (['road_transportation_reports', 'road_maintenance_reports'] as $src_table) {
+            $arch_cols = [];
+            $arch = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive");
+            if ($arch) { while ($row = $arch->fetch_assoc()) { $arch_cols[$row['Field']] = true; } }
+            $src = $conn->query("SHOW COLUMNS FROM $src_table");
+            if ($src) { while ($row = $src->fetch_assoc()) {
+                if (!isset($arch_cols[$row['Field']])) {
+                    $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN `{$row['Field']}` {$row['Type']} NULL");
+                }
+            } }
+        }
+    } catch (Exception $e) { error_log('archive ensure sync: ' . $e->getMessage()); }
+    try {
+        $conn->query("ALTER TABLE road_transportation_reports_archive MODIFY report_type VARCHAR(255) NULL DEFAULT NULL");
+    } catch (Exception $e) { error_log('archive report_type widen: ' . $e->getMessage()); }
+    foreach (['previous_status' => "VARCHAR(50) DEFAULT NULL",
+              'archived_from' => "VARCHAR(100) DEFAULT NULL"] as $col => $def) {
+        $chk = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE '$col'");
+        if ($chk && $chk->num_rows === 0) {
+            $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN $col $def");
+        }
+    }
+}
+
+// Move a cancelled report into the archive atomically: copy every column, then
+// delete the report from the active table plus its related notification / progress
+// / analytics records so no orphan references remain.
+function archive_cancelled_report($conn, $table, $report_id) {
+    try {
+        // Schema setup is idempotent DDL; run it before BEGIN so it does not
+        // force an implicit COMMIT that would break the transaction below.
+        ensure_archive_for_archive_cancel($conn);
+
+        $conn->begin_transaction();
+
+        $fields = [];
+        $col_res = $conn->query("SHOW COLUMNS FROM $table");
+        if ($col_res) { while ($col_row = $col_res->fetch_assoc()) { $fields[] = "`{$col_row['Field']}`"; } }
+        if (empty($fields)) { throw new Exception("No columns found for table $table"); }
+        $cols = implode(', ', $fields);
+
+        // Copy ALL report information into the archive.
+        $stmt = $conn->prepare("INSERT INTO road_transportation_reports_archive ($cols) SELECT $cols FROM $table WHERE id = ?");
+        $stmt->bind_param('i', $report_id);
+        $stmt->execute();
+
+        // Stamp which live table this came from so Restore returns it to the
+        // exact same module. (previous_status is intentionally NOT recorded —
+        // rejected reports must stay 'rejected' when restored.)
+        $ps = $conn->prepare("UPDATE road_transportation_reports_archive SET archived_from = ? WHERE id = ?");
+        $ps->bind_param('si', $table, $report_id);
+        $ps->execute();
+
+        // Remove related active records so the cancelled report leaves
+        // pending/progress notifications and has no orphan references.
+        $del = $conn->prepare("DELETE FROM report_notifications WHERE report_id = ?");
+        $del->bind_param('i', $report_id);
+        $del->execute();
+
+        $del = $conn->prepare("DELETE FROM report_updates WHERE report_id = ?");
+        $del->bind_param('i', $report_id);
+        $del->execute();
+
+        $del = $conn->prepare("DELETE FROM project_analytics WHERE report_id = ? AND report_table = ?");
+        $del->bind_param('is', $report_id, $table);
+        $del->execute();
+
+        // Remove the report from the active table.
+        $del = $conn->prepare("DELETE FROM $table WHERE id = ?");
+        $del->bind_param('i', $report_id);
+        $del->execute();
+
+        $conn->commit();
+        return true;
+    } catch (Exception $e) {
+        $conn->rollback();
+        error_log('archive_cancelled_report failed: ' . $e->getMessage());
+        return false;
+    }
+}
+
+// Archive a rejected CIMM report by copying it to the archive table and removing from cimm_verification_reports
+function archive_cimm_rejected_report($conn, $cimm_req_id) {
+    try {
+        // Ensure archive table exists and has required columns
+        ensure_archive_for_archive_cancel($conn);
+        
+        // First, get the CIMM report data
+        $pdo = rgmap_verification_pdo();
+        rgmap_ensure_cimm_verification_table($pdo);
+        
+        $stmt = $pdo->prepare("SELECT * FROM cimm_verification_reports WHERE id = ?");
+        $stmt->execute([$cimm_req_id]);
+        $cimm_report = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$cimm_report) {
+            error_log("CIMM report not found for archiving: $cimm_req_id");
+            return false;
+        }
+        
+        $conn->begin_transaction();
+        
+        // Map CIMM columns to road_transportation_reports_archive columns
+        $insert_fields = [
+            'report_id' => $cimm_report['reference_code'] ?? 'CIMM-' . $cimm_req_id,
+            'title' => $cimm_report['infrastructure'] ?? 'CIMM Report',
+            'report_type' => 'infrastructure_issue',
+            'report_category' => 'road',
+            'report_source' => 'cimm',
+            'department' => 'engineering',
+            'priority' => $cimm_report['priority'] ?? 'medium',
+            'status' => 'rejected',
+            'archived_from' => 'cimm_verification_reports',
+            'created_date' => $cimm_report['submitted_at'] ?? date('Y-m-d'),
+            'description' => $cimm_report['issue'] ?? '',
+            'location' => $cimm_report['location'] ?? '',
+            'latitude' => $cimm_report['coord_lat'] ?? null,
+            'longitude' => $cimm_report['coord_lng'] ?? null,
+            'created_at' => $cimm_report['submitted_at'] ?? NOW(),
+            'updated_at' => NOW(),
+            'rejected_at' => NOW(),
+            'approved_at' => null
+        ];
+        
+        // Build INSERT query dynamically
+        $fields = array_keys($insert_fields);
+        $placeholders = array_fill(0, count($fields), '?');
+        $field_list = '`' . implode('`, `', $fields) . '`';
+        $placeholder_list = implode(', ', $placeholders);
+        
+        $insert = "INSERT INTO road_transportation_reports_archive ($field_list) VALUES ($placeholder_list)";
+        $stmt = $conn->prepare($insert);
+        $stmt->execute(array_values($insert_fields));
+        
+        // Delete from cimm_verification_reports
+        $delete = $conn->prepare("DELETE FROM cimm_verification_reports WHERE id = ?");
+        $delete->execute([$cimm_req_id]);
+        
+        $conn->commit();
+        return true;
+    } catch (Exception $e) {
+        $conn->rollback();
+        error_log('archive_cimm_rejected_report failed: ' . $e->getMessage());
+        return false;
+    }
 }
 
 // Handle verification actions
@@ -448,7 +606,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         // Archive report then remove from active table
         if ($action === 'delete') {
-            $insert = "INSERT INTO road_transportation_reports_archive (id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at) SELECT id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM $table WHERE id = ?";
+            $insert = "INSERT INTO road_transportation_reports_archive (id, report_id, title, report_type, report_category, report_source, created_by, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at) SELECT id, report_id, title, report_type, report_category, report_source, created_by, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM $table WHERE id = ?";
             $stmt = $conn->prepare($insert);
             $stmt->bind_param('i', $report_id);
             if (!$stmt->execute()) {
@@ -494,7 +652,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $audit_status = 'approved';
                 break;
             case 'reject':
-                $status = 'cancelled';
+                $status = 'rejected';
                 $audit_status = 'rejected';
                 break;
             case 'review':
@@ -528,8 +686,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $audit_stmt->bind_param('ssssss', $audit_id, $title, $audit_type, $audit_status, $auditor, $description);
             $audit_stmt->execute();
             
-            // Return success message
-            $_SESSION['verification_message'] = 'Report ' . $action . 'd successfully!';
+            // When a report is cancelled/rejected, automatically move it to the
+            // archive and remove it from every active report list. The archive
+            // copy preserves all report data (status becomes/remains 'cancelled').
+            if ($action === 'reject') {
+                $archived = archive_cancelled_report($conn, $table, $report_id);
+                if ($archived) {
+                    $_SESSION['verification_message'] = 'Report rejected and moved to archive.';
+                } else {
+                    $_SESSION['verification_message'] = 'Report status updated, but archiving failed.';
+                }
+            } else {
+                // Return success message
+                $_SESSION['verification_message'] = 'Report ' . $action . 'd successfully!';
+            }
         }
         
         header('Location: ../admin/verification_monitoring.php');
@@ -538,23 +708,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Handle CIMM report verification/rejection
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && in_array($_POST['action'], ['verify_cimm', 'reject_cimm']) && isset($_POST['cimm_req_id'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && in_array($_POST['action'], ['approve_cimm', 'reject_cimm']) && isset($_POST['cimm_req_id'])) {
     $cimm_req_id = (int) $_POST['cimm_req_id'];
     $action = $_POST['action'];
     $pdo = rgmap_verification_pdo();
 
-    if ($action === 'verify_cimm') {
-        $ok = rgmap_update_verification_status($pdo, $cimm_req_id, 'Verified', null, $_SESSION['user_id'] ?? null);
+    if ($action === 'approve_cimm') {
+        $ok = rgmap_update_verification_status($pdo, $cimm_req_id, 'Approved', null, $_SESSION['user_id'] ?? null);
         if ($ok) {
-            $_SESSION['verification_message'] = 'CIMM report #' . $cimm_req_id . ' verified successfully.';
+            $_SESSION['verification_message'] = 'CIMM report #' . $cimm_req_id . ' approved successfully.';
         } else {
-            $_SESSION['verification_message'] = 'Failed to verify CIMM report #' . $cimm_req_id . '.';
+            $_SESSION['verification_message'] = 'Failed to approve CIMM report #' . $cimm_req_id . '.';
         }
     } else {
         $reason = trim($_POST['rejection_reason'] ?? '');
-        $ok = rgmap_update_verification_status($pdo, $cimm_req_id, 'Dismissed', $reason ?: 'Rejected by admin', $_SESSION['user_id'] ?? null);
+        $ok = rgmap_update_verification_status($pdo, $cimm_req_id, 'Rejected', $reason ?: 'Rejected by admin', $_SESSION['user_id'] ?? null);
         if ($ok) {
-            $_SESSION['verification_message'] = 'CIMM report #' . $cimm_req_id . ' rejected successfully.';
+            // Archive the rejected CIMM report
+            $archived = archive_cimm_rejected_report($conn, $cimm_req_id);
+            if ($archived) {
+                $_SESSION['verification_message'] = 'CIMM report #' . $cimm_req_id . ' rejected and moved to archive.';
+            } else {
+                $_SESSION['verification_message'] = 'CIMM report #' . $cimm_req_id . ' rejected, but archiving failed.';
+            }
         } else {
             $_SESSION['verification_message'] = 'Failed to reject CIMM report #' . $cimm_req_id . '.';
         }
@@ -579,7 +755,7 @@ $stats = getVerificationStatistics($conn);
 $pending_verifications = getPendingVerifications($conn);
 $approved_reports = getApprovedReports($conn);
 $rejected_reports = getRejectedReports($conn);
-$all_reports = getAllReports($conn, $status_filter, $source_filter, $is_transport_supervisor);
+$all_reports = getAllReports($conn, $status_filter, $source_filter, $is_transport_supervisor, $is_road_supervisor);
 $recent_approvals = getRecentApprovals($conn);
 $activity_timeline = getActivityTimeline($conn);
 
@@ -612,7 +788,7 @@ $sql_reports = getSqlReports($conn);
 $citizen_reports = getCitizenReports($conn);
 
 // Infrastructure-specific reports
-$infra_reports = getInfraReports($conn);
+$infra_reports = getInfraReports($conn, $is_road_supervisor);
 
 // Deep-link focus: ?source= + ?id= (or the notifications-specific
 // ?focus_report_id=, see below) from a notification "View" button. The
@@ -654,6 +830,10 @@ if ($focus_id > 0) {
                 [$focus_id], 'i'
             );
             if ($auto_report) {
+                if ($is_road_supervisor && ($auto_report['report_category'] ?? '') === 'transportation') {
+                    // Road supervisors never see Transportation reports —
+                    // do not reveal them even via a deep-link.
+                } else {
                 $focus_target['found'] = true;
                 if (($auto_report['report_type'] ?? '') === 'infrastructure_issue') {
                     // Infrastructure Issue -> Infrastructure Projects panel.
@@ -671,12 +851,16 @@ if ($focus_id > 0) {
                     $focus_target['table'] = 'lguTable';
                     $focus_target['filterValue'] = 'all';
                 }
+                }
             }
         } else {
         switch ($focus_source) {
             case 'citizen':
             case 'transport':
-                if (fetch_one("SELECT id FROM road_transportation_reports WHERE id = ?", [$focus_id], 'i')) {
+                // The Citizen Reports panel is Transportation-only and is
+                // hidden for Road Operations Supervisors.
+                if (!$is_road_supervisor
+                    && fetch_one("SELECT id FROM road_transportation_reports WHERE id = ?", [$focus_id], 'i')) {
                     $focus_target['found'] = true;
                     $focus_target['table'] = 'citizenTable';
                     $focus_target['filterValue'] = 'transport';
@@ -684,7 +868,8 @@ if ($focus_id > 0) {
                 break;
 
             case 'lgu':
-                if (fetch_one("SELECT id FROM road_transportation_reports WHERE id = ?", [$focus_id], 'i')) {
+                $lgu_road = $is_road_supervisor ? " AND report_category = 'road'" : '';
+                if (fetch_one("SELECT id FROM road_transportation_reports WHERE id = ?{$lgu_road}", [$focus_id], 'i')) {
                     $focus_target['found'] = true;
                     $focus_target['table'] = 'lguTable';
                     $focus_target['filterValue'] = 'all';
@@ -706,7 +891,8 @@ if ($focus_id > 0) {
             case 'maintenance':
                 $f = fetch_one("SELECT id FROM road_maintenance_reports WHERE id = ?", [$focus_id], 'i');
                 if (!$f) {
-                    $f = fetch_one("SELECT id FROM road_transportation_reports WHERE id = ? AND report_type = 'infrastructure_issue'", [$focus_id], 'i');
+                    $infra_road = $is_road_supervisor ? " AND report_category = 'road'" : '';
+                    $f = fetch_one("SELECT id FROM road_transportation_reports WHERE id = ? AND report_type = 'infrastructure_issue'{$infra_road}", [$focus_id], 'i');
                 }
                 if ($f) {
                     $focus_target['found'] = true;
@@ -718,7 +904,8 @@ if ($focus_id > 0) {
             default:
                 // Legacy ?id= deep-link without a source: search the tables that
                 // feed each panel to figure out where the report lives.
-                if (fetch_one("SELECT id FROM road_transportation_reports WHERE id = ?", [$focus_id], 'i')) {
+                $legacy_road = $is_road_supervisor ? " AND report_category = 'road'" : '';
+                if (fetch_one("SELECT id FROM road_transportation_reports WHERE id = ?{$legacy_road}", [$focus_id], 'i')) {
                     $focus_target['found'] = true;
                     $focus_target['table'] = 'lguTable';
                     $focus_target['filterValue'] = 'all';
@@ -4711,10 +4898,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <div>
                         <label class="form-label">Status Filter</label>
                         <select class="filter-select" id="statusFilter" onchange="filterReports()">
-                            <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
-                            <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending / In Progress</option>
-                            <option value="approved" <?php echo $status_filter === 'approved' ? 'selected' : ''; ?>>Approved / Completed</option>
-                            <option value="rejected" <?php echo $status_filter === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
+                            <option value="pending" selected>Pending</option>
                         </select>
                     </div>
                     <div>
@@ -4858,13 +5042,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                 </button>
                                             </form>
                                         <?php endif; ?>
-                                        <form method="POST" class="lgu-action-form" onsubmit="return confirm('Are you sure you want to remove this report? It will be moved to the archive.');" title="Remove report">
-                                            <input type="hidden" name="report_id" value="<?php echo $report['id']; ?>">
-                                            <input type="hidden" name="source" value="<?php echo htmlspecialchars($report['source']); ?>">
-                                            <button type="submit" name="action" value="delete" class="lgu-action-btn t-text-danger" style="background:rgba(220,53,69,0.1);">
-                                                <i class="fas fa-trash-alt"></i>
-                                            </button>
-                                        </form>
                                     </div>
                                     <!-- Expandable Details Section -->
                                     <div class="expanded-details" id="details-<?php echo $report['id']; ?>" style="display:none;margin-top:12px;padding-top:12px;border-top:2px solid rgba(30,60,114,0.1);">
@@ -4984,7 +5161,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             </div>
         </div>
 
-        <!-- Citizen Reports Panel -->
+        <!-- Citizen Reports Panel (Transportation-only — hidden for Road Operations Supervisors) -->
+        <?php if (!$is_road_supervisor): ?>
         <div class="citizen-reports-panel" id="citizenPanel">
             <div class="citizen-reports-header">
                 <div class="citizen-reports-header-left">
@@ -5104,6 +5282,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 </table>
             </div>
         </div>
+        <?php endif; ?>
 
         <!-- CIMM Reports Panel -->
         <?php if (!$is_transport_supervisor): ?>
@@ -5161,8 +5340,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             $hasAnyReports = true;
                             // Map CIMM status to filter categories
                             $cimm_filter_status = 'pending';
-                            if (in_array($row['status'], ['completed'])) $cimm_filter_status = 'approved';
-                            elseif (in_array($row['status'], ['resolved'])) $cimm_filter_status = 'rejected';
+                            if (in_array($row['status'], ['completed', 'approved', 'verified'])) $cimm_filter_status = 'approved';
+                            elseif (in_array($row['status'], ['resolved', 'dismissed'])) $cimm_filter_status = 'rejected';
                         ?>
                         <tr data-id="<?php echo (int)$row['id']; ?>" data-report-id="<?php echo (int)$row['id']; ?>" data-status="<?php echo $cimm_filter_status; ?>" data-source="cimm">
                             <td>
@@ -5170,10 +5349,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     <button class="dept-action-btn" onclick="viewCimmReport(<?php echo $row['id']; ?>)">
                                         <i class="fas fa-eye"></i>
                                     </button>
-                                    <?php if ($row['status'] === 'pending'): ?>
-                                    <form method="POST" class="dept-action-form" onsubmit="return confirm('Are you sure you want to verify this CIMM report?');">
+                                    <?php if ($row['verification_status'] === 'Verified'): ?>
+                                    <form method="POST" class="dept-action-form" onsubmit="return confirm('Are you sure you want to approve this CIMM report?');">
                                         <input type="hidden" name="cimm_req_id" value="<?php echo (int)$row['cimm_req_id']; ?>">
-                                        <button type="submit" name="action" value="verify_cimm" class="dept-verify-btn" title="Verify report">
+                                        <button type="submit" name="action" value="approve_cimm" class="dept-verify-btn" title="Approve report">
                                             <i class="fas fa-check"></i>
                                         </button>
                                     </form>
@@ -5453,6 +5632,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         (function() {
             var urlParams = new URLSearchParams(window.location.search);
             var statusFilter = urlParams.get('status') || 'all';
+            // This page only lists pending reports now, so any stale
+            // non-pending status value (e.g. from an old URL) must not hide
+            // every row.
+            if (statusFilter !== 'pending') statusFilter = 'all';
             if (statusFilter === 'all') return;
 
             var tableIds = ['lguTable', 'deptTable', 'infraTable'];

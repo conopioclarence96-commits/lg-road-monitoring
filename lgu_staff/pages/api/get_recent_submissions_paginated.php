@@ -22,19 +22,26 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['system_admin'
 // Transportation Operations Supervisors see only Transportation reports.
 $transport_only = (($_SESSION['role'] ?? '') === 'trans_ops_supervisor');
 
+// Road Operations Supervisors and Road Monitoring Officers see only Road
+// reports.
+$road_only = in_array($_SESSION['role'] ?? '', ['road_ops_supervisor', 'road_monitoring_officer'], true);
+
 $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
 $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
 $status_filter = isset($_GET['status']) ? $_GET['status'] : 'all';
 $type_filter = isset($_GET['type']) ? $_GET['type'] : 'all';
 
 // Helper function to get recent submissions with pagination
-function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', $type_filter = 'all', $transport_only = false) {
+function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', $type_filter = 'all', $transport_only = false, $road_only = false) {
     global $conn;
     $reports = [];
     if (!$conn) return $reports;
 
     // Transportation Operations Supervisors see only Transportation reports.
     $transport_category_filter = $transport_only ? " AND report_category = 'transportation'" : '';
+
+    // Road Operations Supervisors see only Road reports.
+    $road_category_filter = $road_only ? " AND report_category = 'road'" : '';
 
     // Helper to append shared WHERE clauses and run a query (no pagination at query level)
     $fetch = function ($sql, $status_filter) use ($conn) {
@@ -66,10 +73,10 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
                     cimm_sync_status, cimm_verified_at, cimm_verified_by
              FROM road_transportation_reports
              WHERE report_type != 'infrastructure_issue'
-               AND (status = 'approved' OR cimm_sync_status = 'verified')
+               AND status IN ('approved', 'in-progress')
                AND (created_by IS NULL OR created_by = 0
                     OR cimm_sync_status IS NULL OR cimm_sync_status <> 'pushed'
-                    OR (report_category = 'transportation' AND report_source = 'local' AND created_by != 0)){$transport_category_filter}",
+                    OR (report_category = 'transportation' AND report_source = 'local' AND created_by != 0)){$transport_category_filter}{$road_category_filter}",
             $status_filter
         ));
 
@@ -97,7 +104,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
                     cimm_sync_status, cimm_verified_at, cimm_verified_by
              FROM road_transportation_reports
              WHERE report_type = 'infrastructure_issue'
-               AND status IN ('approved','completed')",
+               AND status IN ('approved','completed'){$road_category_filter}",
             $status_filter
         ));
 
@@ -112,14 +119,14 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
                 "SELECT * FROM (
                     SELECT id, reference_code AS report_id, infrastructure AS title,
                             'infrastructure_issue' AS report_type, 'cimm' AS source,
-                            " . cimm_status_case_sql() . " AS status, priority, NULL AS severity,
+                            verification_status AS status, priority, NULL AS severity,
                             COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at,
                             issue AS description, coord_lat AS latitude, coord_lng AS longitude,
                             location, reporter_name, NULL AS attachments, NULL AS image_path,
-                            'verified' AS cimm_sync_status, verified_at AS cimm_verified_at,
+                            'approved' AS cimm_sync_status, verified_at AS cimm_verified_at,
                             NULL AS cimm_verified_by
                      FROM cimm_verification_reports
-                     WHERE verification_status = 'Verified'
+                     WHERE verification_status IN ('Approved', 'In-Progress')
                  ) AS cimm_mapped WHERE 1=1",
                 $status_filter
             ));
@@ -148,7 +155,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
 }
 
 try {
-    $reports = getRecentSubmissionsPaginated($offset, $limit, $status_filter, $type_filter, $transport_only);
+    $reports = getRecentSubmissionsPaginated($offset, $limit, $status_filter, $type_filter, $transport_only, $road_only);
     
     $source_labels = [
         'lgu' => 'LGU Monitoring',

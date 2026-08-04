@@ -214,6 +214,18 @@ function getNotificationCount($user_role = '', $user_id = 0) {
             } catch (Exception $e) {
                 // Ignore errors
             }
+
+            // Count assigned projects for admin
+            try {
+                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM report_assignments WHERE user_id = ? AND status = 'active'");
+                $stmt->bind_param("i", $user_id);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                $count += $result->fetch_assoc()['count'];
+                $stmt->close();
+            } catch (Exception $e) {
+                // Ignore errors
+            }
         } elseif (is_staff_role($user_role) && $user_id > 0) {
             // Count staff's own reviewed change requests
             try {
@@ -230,6 +242,18 @@ function getNotificationCount($user_role = '', $user_id = 0) {
             // Count staff's own report status updates
             try {
                 $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE created_by = ? AND status IN ('completed', 'cancelled')");
+                $stmt->bind_param("i", $user_id);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                $count += $result->fetch_assoc()['count'];
+                $stmt->close();
+            } catch (Exception $e) {
+                // Ignore errors
+            }
+
+            // Count assigned projects for staff
+            try {
+                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM report_assignments WHERE user_id = ? AND status = 'active'");
                 $stmt->bind_param("i", $user_id);
                 $stmt->execute();
                 $result = $stmt->get_result();

@@ -5,7 +5,7 @@ require_once '../../includes/functions.php';
 require_once __DIR__ . '/../../pages/api/cimm_verification_data.php';
 
 // Session timeout configuration
-$session_timeout = 5 * 60; // 5 minutes in seconds
+$session_timeout = 30 * 60; // 30 minutes in seconds
 
 // Check if session has expired
 if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
@@ -375,6 +375,63 @@ function handle_update_report() {
     }
 }
 
+// Ensure the archive table exists and carries every column of BOTH live report
+// tables (so a missing table or a schema mismatch never silently skips the
+// archive step on delete). Mirroring maintenance columns (e.g. maintenance_team,
+// estimation) means rows from either source table can be archived as-is.
+function ensure_archive_table() {
+    global $conn;
+
+    $conn->query("CREATE TABLE IF NOT EXISTS road_transportation_reports_archive LIKE road_transportation_reports");
+
+    try {
+        foreach (['road_transportation_reports', 'road_maintenance_reports'] as $src_table) {
+            $arch_cols = [];
+            $arch = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive");
+            if ($arch) {
+                while ($row = $arch->fetch_assoc()) {
+                    $arch_cols[$row['Field']] = true;
+                }
+            }
+
+            $src = $conn->query("SHOW COLUMNS FROM $src_table");
+            if ($src) {
+                while ($row = $src->fetch_assoc()) {
+                    $field = $row['Field'];
+                    if (!isset($arch_cols[$field])) {
+                        // Add missing columns as nullable so an explicit
+                        // column-list insert from either source table works.
+                        $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN `$field` {$row['Type']} NULL");
+                    }
+                }
+            }
+        }
+    } catch (Exception $e) {
+        error_log('ensure_archive_table sync warning: ' . $e->getMessage());
+    }
+
+    // The archive is cloned from the transport table, whose report_type ENUM
+    // does not include the maintenance table's values ('routine', 'emergency',
+    // 'preventive', 'corrective', 'scheduled'). Widen it so maintenance rows
+    // can be archived without "Data truncated for column 'report_type'".
+    try {
+        $conn->query("ALTER TABLE road_transportation_reports_archive MODIFY report_type VARCHAR(255) NULL DEFAULT NULL");
+    } catch (Exception $e) {
+        error_log('ensure_archive_table report_type widen warning: ' . $e->getMessage());
+    }
+
+    // Columns used by Restore: the report's status before it was trashed
+    // (so it can be brought back with its previous status) and the exact live
+    // table it was moved out of (so it lands back in the same module).
+    foreach (['previous_status' => "VARCHAR(50) DEFAULT NULL",
+              'archived_from' => "VARCHAR(100) DEFAULT NULL"] as $col => $def) {
+        $chk = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE '$col'");
+        if ($chk && $chk->num_rows === 0) {
+            $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN $col $def");
+        }
+    }
+}
+
 function handle_delete_report() {
     global $conn, $user_id;
     
@@ -396,15 +453,48 @@ function handle_delete_report() {
         
         $archived = false;
         try {
-            if ($table === 'road_transportation_reports') {
-                $insert = "INSERT INTO road_transportation_reports_archive SELECT * FROM {$table} WHERE id = ?";
-            } else {
-                $insert = "INSERT INTO road_transportation_reports_archive (id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at) SELECT id, report_id, title, report_type, department, priority, status, created_date, due_date, description, location, NULL, NULL, NULL, created_at, updated_at, approved_at, rejected_at FROM {$table} WHERE id = ?";
+            ensure_archive_table();
+
+            // Capture the report's status BEFORE it is soft-deleted so Restore
+            // can bring it back with its previous status.
+            $pstmt = $conn->prepare("SELECT status FROM {$table} WHERE id = ?");
+            $pstmt->bind_param("i", $report_id);
+            $pstmt->execute();
+            $prev_status = $pstmt->get_result()->fetch_assoc()['status'] ?? null;
+            $pstmt->close();
+
+            // The Delete/Trash action soft-deletes: set the report to cancelled
+            // first so the archived copy below carries status 'cancelled' (all
+            // other columns — including category/source — are preserved).
+            $stmt = $conn->prepare("UPDATE {$table} SET status = 'cancelled', updated_at = NOW() WHERE id = ?");
+            $stmt->bind_param("i", $report_id);
+            $stmt->execute();
+
+            // Build an explicit column list from the source table so the archive
+            // copy works regardless of schema drift (a plain "SELECT *" breaks
+            // as soon as the archive gains columns the source lacks).
+            $fields = [];
+            $col_res = $conn->query("SHOW COLUMNS FROM {$table}");
+            if ($col_res) {
+                while ($col_row = $col_res->fetch_assoc()) {
+                    $fields[] = "`{$col_row['Field']}`";
+                }
             }
+            if (empty($fields)) {
+                throw new Exception("No columns found for table {$table}");
+            }
+            $cols = implode(', ', $fields);
+            $insert = "INSERT INTO road_transportation_reports_archive ({$cols}) SELECT {$cols} FROM {$table} WHERE id = ?";
             $stmt = $conn->prepare($insert);
             $stmt->bind_param("i", $report_id);
             $stmt->execute();
             $archived = true;
+
+            // The archive row keeps the live row's id, so stamp it with the
+            // restore metadata right here.
+            $ps = $conn->prepare("UPDATE road_transportation_reports_archive SET previous_status = ?, archived_from = ? WHERE id = ?");
+            $ps->bind_param("ssi", $prev_status, $table, $report_id);
+            $ps->execute();
         } catch (Exception $e) {
             error_log('Archive failed for report ' . $report_id . ': ' . $e->getMessage());
         }
@@ -665,6 +755,15 @@ function getCimmReportsForManagement($status_filter = 'all') {
 
     $mapped = array_map('mapCimmToReportManagement', $rows);
 
+    // CIMM reports that are still pending, cancelled or rejected are not
+    // shown in report management. Rejected CIMM reports map to the 'cancelled'
+    // status here, so excluding both 'pending' and 'cancelled' covers pending,
+    // cancelled and rejected reports; only Approved, In Progress and Completed
+    // CIMM reports appear in this panel.
+    $mapped = array_values(array_filter($mapped, function ($r) {
+        return !in_array(strtolower($r['status'] ?? ''), ['pending', 'cancelled'], true);
+    }));
+
     if ($status_filter !== 'all') {
         $mapped = array_values(array_filter($mapped, function ($r) use ($status_filter) {
             return $r['status'] === $status_filter;
@@ -675,7 +774,7 @@ function getCimmReportsForManagement($status_filter = 'all') {
 }
 
 // Get reports for display
-function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50, $offset = 0) {
+function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50, $offset = 0, $road_only = false) {
     global $conn;
     
     $reports = [];
@@ -696,9 +795,9 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
     
     // Get transportation reports (Citizen Reports + Infrastructure Issues from transport table)
     if ($transport_estimation_exists) {
-        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' WHEN report_source = 'local' AND created_by != 0 AND status = 'approved' THEN 'lgu_reports' WHEN report_source = 'local' AND created_by != 0 THEN 'hidden' ELSE 'transport' END as source_system FROM road_transportation_reports";
+        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' WHEN report_source = 'local' AND created_by != 0 AND status IN ('approved', 'in-progress') THEN 'lgu_reports' WHEN report_source = 'local' AND created_by != 0 THEN 'hidden' ELSE 'transport' END as source_system FROM road_transportation_reports";
     } else {
-        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, 0 as estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' WHEN report_source = 'local' AND created_by != 0 AND status = 'approved' THEN 'lgu_reports' WHEN report_source = 'local' AND created_by != 0 THEN 'hidden' ELSE 'transport' END as source_system FROM road_transportation_reports";
+        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, 0 as estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' WHEN report_source = 'local' AND created_by != 0 AND status IN ('approved', 'in-progress') THEN 'lgu_reports' WHEN report_source = 'local' AND created_by != 0 THEN 'hidden' ELSE 'transport' END as source_system FROM road_transportation_reports";
     }
     $transport_params = [];
     
@@ -726,12 +825,20 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
     $include_maintenance = ($source_filter === 'all' || $source_filter === 'maintenance');
     
     $is_lgu_filter = ($source_filter === 'lgu_reports');
-    
+
+    // Road Operations Supervisors see only Road reports — Transportation
+    // reports are excluded at the query level using the existing
+    // report_category classification.
+    $road_cond = $road_only ? 'report_category = \'road\'' : '';
+
     if (!$include_transport && !$include_maintenance) {
         $transport_query = "SELECT NULL FROM road_transportation_reports WHERE 1=0";
     } elseif (!$include_transport && $include_maintenance) {
         // When only maintenance is selected, include infrastructure issues from transport table
         $transport_query .= " WHERE report_type = 'infrastructure_issue'";
+        if ($road_cond !== '') {
+            $transport_query .= " AND {$road_cond}";
+        }
         if (!empty($where_conditions)) {
             $transport_query .= " AND " . implode(' AND ', $where_conditions);
         }
@@ -739,16 +846,26 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
     } elseif ($include_transport && !$include_maintenance) {
         // When only transport is selected, exclude infrastructure issues (they belong in infra panel)
         $transport_query .= " WHERE report_type != 'infrastructure_issue'";
+        if ($road_cond !== '') {
+            $transport_query .= " AND {$road_cond}";
+        }
         if ($is_lgu_filter) {
-            $transport_query .= " AND report_source = 'local' AND created_by != 0 AND status = 'approved'";
+            $transport_query .= " AND report_source = 'local' AND created_by != 0 AND status IN ('approved', 'in-progress')";
         }
         if (!empty($where_conditions)) {
             $transport_query .= " AND " . implode(' AND ', $where_conditions);
         }
         $transport_params = $params ?? [];
-    } elseif (!empty($where_conditions)) {
-        $transport_query .= " WHERE " . implode(' AND ', $where_conditions);
-        $transport_params = $params;
+    } else {
+        // Both transport and maintenance included.
+        $where_parts = $where_conditions;
+        if ($road_cond !== '') {
+            $where_parts[] = $road_cond;
+        }
+        if (!empty($where_parts)) {
+            $transport_query .= " WHERE " . implode(' AND ', $where_parts);
+            $transport_params = $params ?? [];
+        }
     }
     
     if (!$include_maintenance) {
@@ -789,6 +906,15 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
     
     // Combine and sort
     $all_reports = array_merge($transport_reports ?: [], $maintenance_reports ?: []);
+
+    // Report management only lists active reports: Approved and In Progress.
+    // Pending, Rejected, Cancelled and Completed reports are excluded from
+    // every list; Cancelled/Rejected reports are only reachable via the archive.
+    $active_statuses = ['approved', 'in-progress'];
+    $all_reports = array_values(array_filter($all_reports, function ($r) use ($active_statuses) {
+        return in_array(($r['status'] ?? ''), $active_statuses, true);
+    }));
+
     usort($all_reports, function($a, $b) {
         return strtotime($b['created_at']) - strtotime($a['created_at']);
     });
@@ -894,8 +1020,12 @@ $source_aliases = [
 $source_filter = $source_aliases[$source_filter] ?? 'all';
 $_GET['source'] = $source_filter;
 
+// Road Operations Supervisors see only Road-relevant reports: Road reports in
+// the LGU Monitoring panel, all CIMM reports, and no Transportation reports.
+$is_road_supervisor = ($user_role === 'road_ops_supervisor');
+
 // Get data
-$reports = get_reports($status_filter, $source_filter, $per_page, $offset);
+$reports = get_reports($status_filter, $source_filter, $per_page, $offset, $is_road_supervisor);
 $stats = get_report_stats();
 $csrf_token = generate_csrf_token();
 $flash_message = get_flash_message();
@@ -910,6 +1040,10 @@ $citizen_reports = [];
 $lgu_reports_list = [];
 $cimm_reports_list = [];
 $infra_reports_list = [];
+// Citizen reports only appear in the Citizen Reports panel after they have
+// been verified and approved in verification_monitoring.php. Any pre-verification
+// status keeps them out of this panel (they remain in verification_monitoring.php).
+$citizen_unverified_statuses = ['pending', 'awaiting verification', 'for verification', 'under review', 'submitted', 'new'];
 foreach ($reports as $report) {
     $src = $report['source_system'] ?? 'transport';
 
@@ -919,7 +1053,7 @@ foreach ($reports as $report) {
         // 'transport' with created_by != 0 and are not shown here.
         if ($src === 'lgu_reports') {
             $lgu_reports_list[] = $report;
-        } elseif ($src !== 'maintenance' && ($report['created_by'] ?? 0) == 0) {
+        } elseif ($src !== 'maintenance' && ($report['created_by'] ?? 0) == 0 && !in_array(strtolower($report['status'] ?? ''), $citizen_unverified_statuses)) {
             $citizen_reports[] = $report;
         }
         continue;
@@ -932,8 +1066,8 @@ foreach ($reports as $report) {
     } elseif ($src === 'hidden') {
         // Skip unapproved LGU reports
     } else {
-        // Only include citizen reports where created_by = 0
-        if (($report['created_by'] ?? 0) == 0) {
+        // Only include verified citizen reports where created_by = 0
+        if (($report['created_by'] ?? 0) == 0 && !in_array(strtolower($report['status'] ?? ''), $citizen_unverified_statuses)) {
             $citizen_reports[] = $report;
         }
     }
@@ -976,8 +1110,14 @@ if ($focus_id > 0) {
         $transport_est = $est_result && $est_result->num_rows > 0;
         $transport_est_col = $transport_est ? 'estimation' : '0 as estimation';
 
-        $transport_focus_query = function ($id) use ($conn, $transport_est_col) {
-            return fetch_one("SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, {$transport_est_col}, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' WHEN report_category = 'transportation' AND report_source = 'local' AND created_by != 0 AND status = 'approved' THEN 'lgu_reports' WHEN report_category = 'transportation' AND report_source = 'local' AND created_by != 0 THEN 'hidden' ELSE 'transport' END as source_system FROM road_transportation_reports WHERE id = ?", [$id], 'i');
+        $transport_focus_query = function ($id) use ($conn, $transport_est_col, $is_road_supervisor) {
+            $row = fetch_one("SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, {$transport_est_col}, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' WHEN report_category = 'transportation' AND report_source = 'local' AND created_by != 0 AND status = 'approved' THEN 'lgu_reports' WHEN report_category = 'transportation' AND report_source = 'local' AND created_by != 0 THEN 'hidden' ELSE 'transport' END as source_system FROM road_transportation_reports WHERE id = ?", [$id], 'i');
+            // Road Operations Supervisors never see Transportation reports —
+            // do not reveal them even via a deep-link.
+            if ($is_road_supervisor && ($row['report_category'] ?? '') === 'transportation') {
+                return null;
+            }
+            return $row;
         };
 
         $src_key = $source_aliases[$focus_source] ?? '';
@@ -1015,7 +1155,8 @@ if ($focus_id > 0) {
                     $maint_est_col = $maint_est ? 'estimation' : '0 as estimation';
                     $focus_report = fetch_one("SELECT id, report_id, title, description, location, priority, status, maintenance_team as assigned_to, {$maint_est_col}, department, created_date, created_at, updated_at, approved_at, NULL as attachments, NULL as image_path, 'maintenance' as report_type, 'maintenance' as source_system FROM road_maintenance_reports WHERE id = ?", [$focus_id], 'i');
                     if (!$focus_report) {
-                        $focus_report = fetch_one("SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, {$transport_est_col}, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, 'maintenance' as source_system FROM road_transportation_reports WHERE id = ? AND report_type = 'infrastructure_issue'", [$focus_id], 'i');
+                        $infra_road = $is_road_supervisor ? " AND report_category = 'road'" : '';
+                        $focus_report = fetch_one("SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, {$transport_est_col}, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, 'maintenance' as source_system FROM road_transportation_reports WHERE id = ? AND report_type = 'infrastructure_issue'{$infra_road}", [$focus_id], 'i');
                     }
                     if ($focus_report) $infra_reports_list[] = $focus_report;
                 }
@@ -1122,6 +1263,7 @@ if ($focus_id > 0) {
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="../../js/progress-updates.js"></script>
+    <script src="../../js/progress-updates-common.js"></script>
     <style>
         body {
             background: #f7f5f0;
@@ -1491,18 +1633,43 @@ if ($focus_id > 0) {
         }
 
         .btn-success-custom {
-            background: rgba(40, 167, 69, 0.1);
-            color: #28a745;
-            border: 1px solid #28a745;
-            padding: 8px 16px;
-            border-radius: 6px;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .btn-success-custom:hover {
-            background: #28a745;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-danger-custom {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #ef4444, #dc2626);
             color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-danger-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.3);
         }
 
         .modal {
@@ -2343,7 +2510,7 @@ if ($focus_id > 0) {
         .rm-status-badge.pending { background: rgba(251, 191, 36, 0.15); color: #f59e0b; }
         .rm-status-badge.in-progress { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
         .rm-status-badge.completed, .rm-status-badge.approved, .rm-status-badge.resolved { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
-        .rm-status-badge.cancelled { background: rgba(220, 53, 69, 0.15); color: #ef4444; }
+        .rm-status-badge.cancelled, .rm-status-badge.cancelled { background: rgba(220, 53, 69, 0.15); color: #ef4444; }
 
         .rm-priority-badge {
             display: inline-block;
@@ -2667,11 +2834,8 @@ if ($focus_id > 0) {
                     <label class="form-label">Status Filter</label>
                     <select class="filter-select" id="statusFilter" onchange="filterReports()">
                         <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
-                        <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending</option>
                         <option value="approved" <?php echo $status_filter === 'approved' ? 'selected' : ''; ?>>Approved</option>
                         <option value="in-progress" <?php echo $status_filter === 'in-progress' ? 'selected' : ''; ?>>In Progress</option>
-                        <option value="completed" <?php echo $status_filter === 'completed' ? 'selected' : ''; ?>>Completed</option>
-                        <option value="cancelled" <?php echo $status_filter === 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
                     </select>
                 </div>
                 <div>
@@ -2759,7 +2923,7 @@ if ($focus_id > 0) {
                                     <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-trash"></i>
                                     </button>
-                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'lgu')">
                                         <i class="fas fa-clock"></i>
                                     </button>
                                 </div>
@@ -2780,7 +2944,7 @@ if ($focus_id > 0) {
                             <td><?php echo htmlspecialchars($report['location'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars(ucfirst($report['department'] ?? '')); ?></td>
                             <td><span class="rm-priority-badge <?php echo htmlspecialchars($report['priority']); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'])); ?></span></td>
-                            <td><span class="rm-status-badge <?php echo htmlspecialchars($report['status']); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span></td>
+                            <td><span class="rm-status-badge <?php echo htmlspecialchars(strtolower($report['status'])); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span></td>
                             <td>
                                 <?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?>
                                 <?php if (($report['status'] ?? '') === 'approved' && !empty($report['approved_at'])): ?>
@@ -2811,7 +2975,8 @@ if ($focus_id > 0) {
             </div>
         </div>
 
-        <!-- Citizen Reports Panel -->
+        <!-- Citizen Reports Panel (hidden for Road Operations Supervisors) -->
+        <?php if (!$is_road_supervisor): ?>
         <div class="rm-panel" id="citizenReportsPanel">
             <div class="rm-panel-header">
                 <div class="rm-panel-header-left">
@@ -2872,7 +3037,7 @@ if ($focus_id > 0) {
                                     <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-trash"></i>
                                     </button>
-                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'citizen')">
                                         <i class="fas fa-clock"></i>
                                     </button>
                                 </div>
@@ -2893,7 +3058,7 @@ if ($focus_id > 0) {
                             <td><?php echo htmlspecialchars($report['location'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars(ucfirst($report['department'] ?? '')); ?></td>
                             <td><span class="rm-priority-badge <?php echo htmlspecialchars($report['priority']); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'])); ?></span></td>
-                            <td><span class="rm-status-badge <?php echo htmlspecialchars($report['status']); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span></td>
+                            <td><span class="rm-status-badge <?php echo htmlspecialchars(strtolower($report['status'])); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span></td>
                             <td>
                                 <?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?>
                                 <?php if (($report['status'] ?? '') === 'approved' && !empty($report['approved_at'])): ?>
@@ -2923,6 +3088,7 @@ if ($focus_id > 0) {
                 </table>
             </div>
         </div>
+        <?php endif; ?>
 
         <!-- CIMM Reports Panel -->
         <?php if (!$is_transport_supervisor): ?>
@@ -2987,7 +3153,7 @@ if ($focus_id > 0) {
                                     <button class="rm-delete-btn" onclick="deleteCimmReport(<?php echo $cimmIdx; ?>)">
                                         <i class="fas fa-trash"></i>
                                     </button>
-                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$row['id']; ?>, '<?php echo htmlspecialchars($row['report_type'], ENT_QUOTES); ?>')">
+                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$row['id']; ?>, '<?php echo htmlspecialchars($row['report_type'], ENT_QUOTES); ?>', 'cimm')">
                                         <i class="fas fa-clock"></i>
                                     </button>
                                 </div>
@@ -2999,7 +3165,7 @@ if ($focus_id > 0) {
                             <td><?php echo htmlspecialchars($row['assigned_to'] ?? '—'); ?></td>
                             <td><span class="rm-priority-badge <?php echo htmlspecialchars($row['priority']); ?>"><?php echo ucfirst(htmlspecialchars($row['priority'])); ?></span></td>
                             <td><?php echo !empty($row['estimation']) ? '₱' . number_format($row['estimation'], 2) : '—'; ?></td>
-                            <td><span class="rm-status-badge <?php echo htmlspecialchars($row['status']); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $row['status']))); ?></span></td>
+                            <td><span class="rm-status-badge <?php echo htmlspecialchars(strtolower($row['status'])); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $row['status']))); ?></span></td>
                         </tr>
                         <?php
                             $cimmIdx++;
@@ -3088,7 +3254,7 @@ if ($focus_id > 0) {
                                     <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-trash"></i>
                                     </button>
-                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'infrastructure')">
                                         <i class="fas fa-clock"></i>
                                     </button>
                                 </div>
@@ -3109,7 +3275,7 @@ if ($focus_id > 0) {
                             <td><?php echo htmlspecialchars($report['location'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars(ucfirst($report['department'] ?? '')); ?></td>
                             <td><span class="rm-priority-badge <?php echo htmlspecialchars($report['priority']); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'])); ?></span></td>
-                            <td><span class="rm-status-badge <?php echo htmlspecialchars($report['status']); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span></td>
+                            <td><span class="rm-status-badge <?php echo htmlspecialchars(strtolower($report['status'])); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span></td>
                             <td>
                                 <?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?>
                                 <?php if (($report['status'] ?? '') === 'approved' && !empty($report['approved_at'])): ?>
@@ -3218,11 +3384,8 @@ if ($focus_id > 0) {
                             <div class="form-group" style="flex: 1;">
                                 <label for="editStatus" class="form-label">Status *</label>
                                 <select class="form-control" name="status" id="editStatus" required>
-                                    <option value="pending">Pending</option>
                                     <option value="approved">Approved</option>
                                     <option value="in-progress">In Progress</option>
-                                    <option value="completed">Completed</option>
-                                    <option value="cancelled">Cancelled</option>
                                 </select>
                             </div>
                             <div class="form-group" style="flex: 1;">
@@ -3408,11 +3571,23 @@ if ($focus_id > 0) {
                     <div class="timeline-empty"><i class="fas fa-spinner fa-spin fa-2x t-text-link"></i></div>
                 </div>
             </div>
-            <div class="modal-footer" style="justify-content: space-between;">
+            <div class="modal-footer" style="display: flex; flex-direction: column; gap: 16px;">
                 <span id="updateReportInfo" class="t-text-secondary" style="font-size: 13px;"></span>
-                <div>
-                    <button type="button" class="btn-action" id="addUpdateBtn" onclick="showAddUpdateModal()">+ Add Update</button>
-                    <button type="button" class="btn-secondary-custom" onclick="closeModal('updatesModal')">Close</button>
+                <div id="actionButtons" style="display: flex; justify-content: space-between;">
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn-success-custom" onclick="completeReport()">Complete</button>
+                        <button class="btn-danger-custom" onclick="cancelReport()">Cancel</button>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn-action" id="addUpdateBtn" onclick="showAddUpdateModal()">+ Add Update</button>
+                        <button class="btn-secondary-custom" onclick="closeModal('updatesModal')">Close</button>
+                    </div>
+                </div>
+                <div id="exportButtons" style="display: none; justify-content: flex-end; gap: 8px;">
+                    <button class="btn-action" onclick="exportUpdatesToExcel()">
+                        <i class="fas fa-file-excel"></i> Export
+                    </button>
+                    <button class="btn-secondary-custom" onclick="closeModalAndRefresh('updatesModal')">Close</button>
                 </div>
             </div>
         </div>
@@ -4081,14 +4256,52 @@ if ($focus_id > 0) {
             }
         }
 
-        function viewReportUpdates(id, type) {
+        function viewReportUpdates(id, type, source) {
             currentUpdatesReportId = id;
             currentUpdatesReportType = type;
+            currentUpdatesReportSource = source;
             document.getElementById('updateReportInfo').textContent = 'Report #' + id;
             openModal('updatesModal');
             if (typeof loadUpdates === 'function') {
                 loadUpdates(id, type);
             }
+            // Check if user can add updates and show/hide the Add Update button accordingly
+            checkUpdatePermission();
+        }
+
+        function checkUpdatePermission() {
+            // Server-authoritative check (role + assignment): Road/Transportation
+            // Monitoring Officers can only post updates to reports assigned to
+            // them. The same rule is enforced server-side in progress_update_api.php.
+            // Officers are fail-closed: the button stays hidden until the server
+            // confirms an active assignment for this report.
+            var btn = document.getElementById('addUpdateBtn');
+            if (!btn) return;
+            var role = '';
+            var tag = document.getElementById('sessionTimeoutData');
+            if (tag) role = tag.getAttribute('data-role') || '';
+            var isOfficer = (role === 'road_monitoring_officer' || role === 'trans_monitoring_officer');
+
+            if (!currentUpdatesReportId) {
+                btn.style.display = isOfficer ? 'none' : 'inline-flex';
+                return;
+            }
+            if (isOfficer) {
+                btn.style.display = 'none';
+            } else {
+                btn.style.display = 'inline-flex';
+            }
+
+            fetch('../api/progress_update_api.php?action=can_post_update&report_id=' + currentUpdatesReportId)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data && data.success && data.can_post) {
+                        btn.style.display = 'inline-flex';
+                    } else {
+                        btn.style.display = 'none';
+                    }
+                })
+                .catch(function() {});
         }
 
         function showAddUpdateModal() {
@@ -4246,6 +4459,133 @@ if ($focus_id > 0) {
                 if (fileInput) fileInput.click();
             }
         });
+
+        var isCompleting = false; // Flag to prevent multiple clicks
+
+        function completeReport() {
+            if (!currentUpdatesReportId) return;
+            if (isCompleting) return; // Prevent multiple clicks
+            isCompleting = true;
+            
+            var today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+            
+            // Check if there's already a "Completed" update to prevent duplicates
+            const timelineEntries = document.querySelectorAll('.timeline-entry');
+            var alreadyCompleted = false;
+            timelineEntries.forEach(function(entry) {
+                const title = entry.querySelector('.timeline-title')?.textContent.trim() || '';
+                if (title.toLowerCase() === 'completed') {
+                    alreadyCompleted = true;
+                }
+            });
+
+            if (alreadyCompleted) {
+                showNotification('Report is already marked as completed', 'info');
+                // Just update the status and hide buttons
+                updateStatusOnly();
+                isCompleting = false;
+                return;
+            }
+            
+            // First add the completion update
+            var updateFormData = new FormData();
+            updateFormData.append('action', 'create_update');
+            updateFormData.append('report_id', currentUpdatesReportId);
+            updateFormData.append('report_type', currentUpdatesReportType);
+            updateFormData.append('title', 'Completed');
+            updateFormData.append('description', 'completed on ' + today);
+
+            fetch('../api/progress_update_api.php', {
+                method: 'POST',
+                body: updateFormData
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    // Now update the status
+                    updateStatusOnly();
+                } else {
+                    throw new Error(data.message || 'Failed to add completion update');
+                }
+            })
+            .catch(function(e) {
+                showNotification('Network error', 'error');
+                console.error(e);
+                isCompleting = false;
+            });
+        }
+
+        function updateStatusOnly() {
+            var newStatus = (currentUpdatesReportSource === 'cimm') ? 'Completed' : 'completed';
+            var statusFormData = new FormData();
+            statusFormData.append('action', 'update_status');
+            statusFormData.append('report_id', currentUpdatesReportId);
+            statusFormData.append('report_type', currentUpdatesReportType);
+            statusFormData.append('status', newStatus);
+            statusFormData.append('source', currentUpdatesReportSource);
+
+            fetch('../api/progress_update_api.php', {
+                method: 'POST',
+                body: statusFormData
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showNotification('Report completed successfully', 'success');
+                    // Hide action buttons, show export button
+                    document.getElementById('actionButtons').style.display = 'none';
+                    document.getElementById('exportButtons').style.display = 'flex';
+                    // Reload updates timeline
+                    if (typeof loadUpdates === 'function') {
+                        loadUpdates(currentUpdatesReportId, currentUpdatesReportType);
+                    }
+                } else {
+                    showNotification(data.message || 'Failed to update status', 'error');
+                }
+                isCompleting = false; // Reset flag
+            })
+            .catch(function(e) {
+                showNotification('Network error', 'error');
+                console.error(e);
+                isCompleting = false; // Reset flag
+            });
+        }
+
+        function cancelReport() {
+            if (!currentUpdatesReportId) return;
+            
+            var newStatus = (currentUpdatesReportSource === 'cimm') ? 'Cancelled' : 'cancelled';
+            var formData = new FormData();
+            formData.append('action', 'update_status');
+            formData.append('report_id', currentUpdatesReportId);
+            formData.append('report_type', currentUpdatesReportType);
+            formData.append('status', newStatus);
+            formData.append('source', currentUpdatesReportSource);
+
+            fetch('../api/progress_update_api.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    closeModal('updatesModal');
+                    location.reload();
+                } else {
+                    showNotification(data.message || 'Failed to update status', 'error');
+                }
+            })
+            .catch(function(e) {
+                showNotification('Network error', 'error');
+                console.error(e);
+            });
+        }
+
+        function closeModalAndRefresh(modalId) {
+            closeModal(modalId);
+            location.reload();
+        }
 
         // File preview for add update modal — maintains persistent upload queue
         document.addEventListener('change', function(e) {
@@ -5070,7 +5410,7 @@ if ($focus_id > 0) {
     </div>
 
     <!-- Session timeout data -->
-    <script id="sessionTimeoutData" data-timeout="<?php echo $session_timeout; ?>"></script>
+    <script id="sessionTimeoutData" data-timeout="<?php echo $session_timeout; ?>" data-role="<?php echo htmlspecialchars($_SESSION['role'] ?? ''); ?>"></script>
     <script src="../../js/session-timeout.js"></script>
 </body>
 </html>

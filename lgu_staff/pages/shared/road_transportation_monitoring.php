@@ -42,7 +42,7 @@ if ($deptCol && stripos($deptCol['Type'], 'enum') === 0) {
 }
 
 // Session timeout configuration
-$session_timeout = 5 * 60; // 5 minutes in seconds
+$session_timeout = 30 * 60; // 30 minutes in seconds
 
 // Check if session has expired
 if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
@@ -68,6 +68,11 @@ if (
 // category reports only — the Roads option is hidden and road submissions
 // are rejected server-side.
 $is_transport_supervisor = (($_SESSION['role'] ?? '') === 'trans_ops_supervisor');
+
+// Road Operations Supervisors and Road Monitoring Officers are restricted to
+// Road-category reports only — Transportation reports (LGU or Citizen) are
+// hidden from Recent Submissions.
+$is_road_only_role = in_array($_SESSION['role'] ?? '', ['road_ops_supervisor', 'road_monitoring_officer'], true);
 
 // Function to get enhanced dashboard stats
 function getEnhancedStats() {
@@ -100,13 +105,16 @@ function getEnhancedStats() {
 //   - Infrastructure Projects (road_maintenance_reports) that are APPROVED or
 //     COMPLETED
 //   - CIMM reports whose verification_status is 'Verified'
-function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter = 'all', $transport_only = false) {
+function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter = 'all', $transport_only = false, $road_only = false) {
     global $conn;
     $reports = [];
     if (!$conn) return $reports;
 
     // Transportation Operations Supervisors see only Transportation reports.
     $transport_category_filter = $transport_only ? " AND report_category = 'transportation'" : '';
+
+    // Road Operations Supervisors see only Road reports.
+    $road_category_filter = $road_only ? " AND report_category = 'road'" : '';
 
     // Helper to append shared WHERE/ORDER/LIMIT clauses and run a query
     $fetch = function ($sql, $status_filter, $type_filter, $limit) use ($conn) {
@@ -149,11 +157,11 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                     cimm_sync_status, cimm_verified_at, cimm_verified_by
               FROM road_transportation_reports
              WHERE report_type != 'infrastructure_issue'
-               AND (status = 'approved' OR cimm_sync_status = 'verified')
+               AND status IN ('approved', 'in-progress')
                AND (created_by IS NULL OR created_by = 0
                     OR cimm_sync_status IS NULL OR cimm_sync_status <> 'pushed'
                     OR (report_category = 'transportation' AND report_source = 'local' AND created_by != 0))
-               $transport_category_filter",
+                   $transport_category_filter{$road_category_filter}",
             $status_filter, $type_filter, $limit
         ));
 
@@ -183,14 +191,14 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                         status, priority, severity, created_at, description,
                         latitude, longitude, location, reporter_name, attachments, image_path,
                         cimm_sync_status, cimm_verified_at, cimm_verified_by
-                 FROM road_transportation_reports
+                 FROM road_transportation_reportsssss
                  WHERE report_type = 'infrastructure_issue'
-                   AND status IN ('approved','completed')",
+                   AND status IN ('approved','completed'){$road_category_filter}",
                 $status_filter, $type_filter, $limit
             ));
         }
 
-        // 3. CIMM reports (finalized = verification_status 'Verified').
+        // 3. CIMM reports (finalized = verification_status 'Approved').
         //    Excluded for Transportation Operations Supervisors.
         if (!$transport_only) {
             try {
@@ -705,7 +713,7 @@ function resolve_recent_focus_row(int $id, string $source_hint = ''): ?array {
     try {
         foreach ($candidates as $src) {
             if ($src === 'transport') {
-                $stmt = $conn->prepare("SELECT id, report_id, title, report_type, status, priority, severity, created_at, description, latitude, longitude, location, reporter_name, attachments, image_path, cimm_sync_status, cimm_verified_at, cimm_verified_by, created_by FROM road_transportation_reports WHERE id = ?");
+                $stmt = $conn->prepare("SELECT id, report_id, title, report_type, report_category, status, priority, severity, created_at, description, latitude, longitude, location, reporter_name, attachments, image_path, cimm_sync_status, cimm_verified_at, cimm_verified_by, created_by FROM road_transportation_reports WHERE id = ?");
                 $stmt->bind_param("i", $id);
                 $stmt->execute();
                 $r = $stmt->get_result()->fetch_assoc();
@@ -717,7 +725,7 @@ function resolve_recent_focus_row(int $id, string $source_hint = ''): ?array {
                     return $r;
                 }
             } elseif ($src === 'maintenance') {
-                $stmt = $conn->prepare("SELECT id, report_id, title, report_type, status, priority, NULL AS severity, created_at, description, NULL AS latitude, NULL AS longitude, location, NULL AS reporter_name, NULL AS attachments, NULL AS image_path, NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by FROM road_maintenance_reports WHERE id = ?");
+                $stmt = $conn->prepare("SELECT id, report_id, title, report_type, 'road' AS report_category, status, priority, NULL AS severity, created_at, description, NULL AS latitude, NULL AS longitude, location, NULL AS reporter_name, NULL AS attachments, NULL AS image_path, NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by FROM road_maintenance_reports WHERE id = ?");
                 $stmt->bind_param("i", $id);
                 $stmt->execute();
                 $r = $stmt->get_result()->fetch_assoc();
@@ -767,7 +775,7 @@ if ($focus_report_id > 0) {
 $alerts = getActiveAlerts();
 $roads = getRoadStatus();
 $enhanced_stats = getEnhancedStats();
-$recent_reports = getRecentSubmissions(10, $status_filter, 'all', $is_transport_supervisor);
+$recent_reports = getRecentSubmissions(10, $status_filter, 'all', $is_transport_supervisor, $is_road_only_role);
 
 if ($focus_report_id > 0) {
     $focus_row = resolve_recent_focus_row($focus_report_id, $focus_source_hint);
@@ -777,9 +785,12 @@ if ($focus_report_id > 0) {
         $focus_target['report_id'] = $focus_row['report_id'] ?? '';
 
         // Respect role-based restrictions: transport supervisors never see
-        // infrastructure or CIMM rows in Recent Submissions.
-        $restricted = $is_transport_supervisor
-            && in_array($focus_row['source'] ?? '', ['infrastructure', 'cimm'], true);
+        // infrastructure or CIMM rows in Recent Submissions; road-only roles
+        // (Road Operations Supervisor, Road Monitoring Officer) never see
+        // non-Road reports.
+        $restricted = ($is_transport_supervisor
+                && in_array($focus_row['source'] ?? '', ['infrastructure', 'cimm'], true))
+            || ($is_road_only_role && (($focus_row['report_category'] ?? '') !== 'road'));
 
         if (!$restricted) {
             $already_present = false;
@@ -818,6 +829,7 @@ if ($focus_report_id > 0) {
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="../../js/progress-updates.js"></script>
+    <script src="../../js/progress-updates-common.js"></script>
     <script src="../../js/tomtom-services.js?v=<?php echo filemtime(__DIR__ . '/../../js/tomtom-services.js'); ?>"></script>
     <script>
         const TOMTOM_API_KEY = '<?php echo TOMTOM_API_KEY; ?>';
@@ -900,6 +912,46 @@ if ($focus_report_id > 0) {
         .btn-action:hover {
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(55, 98, 200, 0.3);
+        }
+
+        .btn-success-custom {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-success-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-danger-custom {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-danger-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.3);
         }
 
         .btn-secondary {
@@ -1253,10 +1305,13 @@ if ($focus_report_id > 0) {
         }
         .badge-pending { background: #fff3cd; color: #856404; }
         .badge-in-progress { background: #cce5ff; color: #004085; }
+        .badge-approved { background: #10b981; color: #fff; }
         .badge-completed { background: #d4edda; color: #155724; }
+        .badge-cancelled { background: #f8d7da; color: #721c24; }
         .badge-high, .badge-critical { background: #f8d7da; color: #721c24; }
         .badge-medium { background: #fff3cd; color: #856404; }
         .badge-low { background: #e2e3e5; color: #383d41; }
+        .badge-source { background: #f8f9fa; color: #495057; border: 1px solid #dee2e6; }
         .cimm-verify-badge {
             display: inline-flex; align-items: center; gap: 5px;
             padding: 3px 10px; border-radius: 12px;
@@ -1967,20 +2022,20 @@ if ($focus_report_id > 0) {
                          <tr class="report-table-row" data-id="<?php echo $rr['id']; ?>" data-title="<?php echo htmlspecialchars(strtolower($rr['title'] ?? '')); ?>" data-report-id="<?php echo htmlspecialchars(strtolower($rr['report_id'] ?? '')); ?>" data-status="<?php echo $rr['status'] ?? 'pending'; ?>" data-source="<?php echo $rr_source_key; ?>" data-details='<?php echo $rr_details; ?>'>
                             <td style="font-family:monospace;font-size:12px;"><?php echo htmlspecialchars($rr['report_id'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars($rr['title'] ?? 'Untitled'); ?></td>
-                            <td><span class="badge badge-source badge-<?php echo $rr_source_key; ?>"><?php echo htmlspecialchars($rr_source_label); ?></span></td>
-                            <td><span class="badge badge-<?php echo $rr['status'] ?? 'pending'; ?>"><?php echo ucfirst(str_replace('-',' ',$rr['status'] ?? 'pending')); ?></span></td>
-                            <td><span class="badge badge-<?php echo $rr['priority'] ?? 'low'; ?>"><?php echo ucfirst($rr['priority'] ?? 'low'); ?></span></td>
+                            <td><?php echo htmlspecialchars($rr_source_label); ?></td>
+                            <td><span class="badge badge-<?php echo strtolower($rr['status'] ?? 'pending'); ?>"><?php echo ucfirst(str_replace('-',' ',$rr['status'] ?? 'pending')); ?></span></td>
+                            <td><span class="badge badge-<?php echo strtolower($rr['priority'] ?? 'low'); ?>"><?php echo ucfirst($rr['priority'] ?? 'low'); ?></span></td>
                             <td><?php echo date('M d, Y H:i', strtotime($rr['created_at'] ?? 'now')); ?></td>
                             <td>
                                 <?php if (($rr['report_category'] ?? '') === 'transportation'): ?>
                                     <span class="cimm-verify-badge cimm-verify-badge-none">—</span>
-                                <?php elseif (($rr['cimm_sync_status'] ?? '') === 'verified'): ?>
-                                    <span class="cimm-verify-badge cimm-verify-badge-verified" title="Verified by <?php echo htmlspecialchars($rr['cimm_verified_by'] ?? 'CIMM staff'); ?><?php echo !empty($rr['cimm_verified_at']) ? ' on ' . date('M d, Y', strtotime($rr['cimm_verified_at'])) : ''; ?>">
-                                        <i class="fas fa-check-circle"></i> Verified
+                                <?php elseif (strtolower($rr['status'] ?? '') === 'approved'): ?>
+                                    <span class="cimm-verify-badge cimm-verify-badge-verified" title="Approved by <?php echo htmlspecialchars($rr['cimm_verified_by'] ?? 'CIMM staff'); ?><?php echo !empty($rr['cimm_verified_at']) ? ' on ' . date('M d, Y', strtotime($rr['cimm_verified_at'])) : ''; ?>">
+                                        <i class="fas fa-check-circle"></i> Approved
                                     </span>
-                                <?php elseif (($rr['cimm_sync_status'] ?? '') === 'pushed'): ?>
-                                    <span class="cimm-verify-badge cimm-verify-badge-pending" title="Synced to CIMM — awaiting staff verification">
-                                        <i class="fas fa-hourglass-half"></i> Awaiting Verification
+                                <?php elseif (strtolower($rr['status'] ?? '') === 'in-progress'): ?>
+                                    <span class="cimm-verify-badge cimm-verify-badge-pending" title="In Progress">
+                                        <i class="fas fa-hourglass-half"></i> In Progress
                                     </span>
                                 <?php else: ?>
                                     <span class="cimm-verify-badge cimm-verify-badge-none">—</span>
@@ -1989,7 +2044,7 @@ if ($focus_report_id > 0) {
                             <td style="white-space:nowrap;">
                                 <button class="table-action-btn" title="View Details" onclick="viewReportDetails(<?php echo $rr['id']; ?>, '<?php echo $rr['source']; ?>')"><i class="fas fa-eye"></i></button>
                                 <button class="table-action-btn view-map" onclick="focusReportOnMap(<?php echo $rr['id']; ?>)"><i class="fas fa-map-pin"></i> Map</button>
-                                <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(<?php echo $rr['id']; ?>, '<?php echo $rr['report_type']; ?>')"><i class="fas fa-clock"></i> Updates</button>
+                                <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(<?php echo $rr['id']; ?>, '<?php echo $rr['report_type']; ?>', '<?php echo $rr['source']; ?>')"><i class="fas fa-clock"></i> Updates</button>
                             </td>
                         </tr>
                         <?php endforeach; ?>
@@ -2799,6 +2854,11 @@ if ($focus_report_id > 0) {
             document.body.style.overflow = 'auto';
         }
 
+        function closeModalAndRefresh(modalId) {
+            closeModal(modalId);
+            location.reload();
+        }
+
         window.onclick = function(event) {
             if (event.target.classList.contains('modal')) {
                 if (event.target.id === 'addUpdateModal') {
@@ -2814,14 +2874,52 @@ if ($focus_report_id > 0) {
             document.getElementById('lightboxOverlay').classList.remove('show');
         }
 
-        function viewReportUpdates(id, type) {
+        function viewReportUpdates(id, type, source) {
             currentUpdatesReportId = id;
             currentUpdatesReportType = type;
+            currentUpdatesReportSource = source;
             document.getElementById('updateReportInfo').textContent = 'Report #' + id;
             openModal('updatesModal');
             if (typeof loadUpdates === 'function') {
                 loadUpdates(id, type);
             }
+            // Check if user can add updates and show/hide the Add Update button accordingly
+            checkUpdatePermission();
+        }
+
+        function checkUpdatePermission() {
+            // Server-authoritative check (role + assignment): Road/Transportation
+            // Monitoring Officers can only post updates to reports assigned to
+            // them. The same rule is enforced server-side in progress_update_api.php.
+            // Officers are fail-closed: the button stays hidden until the server
+            // confirms an active assignment for this report.
+            var btn = document.getElementById('addUpdateBtn');
+            if (!btn) return;
+            var role = '';
+            var tag = document.getElementById('sessionTimeoutData');
+            if (tag) role = tag.getAttribute('data-role') || '';
+            var isOfficer = (role === 'road_monitoring_officer' || role === 'trans_monitoring_officer');
+
+            if (!currentUpdatesReportId) {
+                btn.style.display = isOfficer ? 'none' : 'inline-flex';
+                return;
+            }
+            if (isOfficer) {
+                btn.style.display = 'none';
+            } else {
+                btn.style.display = 'inline-flex';
+            }
+
+            fetch('../api/progress_update_api.php?action=can_post_update&report_id=' + currentUpdatesReportId)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data && data.success && data.can_post) {
+                        btn.style.display = 'inline-flex';
+                    } else {
+                        btn.style.display = 'none';
+                    }
+                })
+                .catch(function() {});
         }
 
         function showAddUpdateModal() {
@@ -2986,6 +3084,378 @@ if ($focus_report_id > 0) {
                 });
                 e.target.value = '';
                 renderUpdateFilePreviews();
+            }
+        });
+
+        // Complete button handler
+        document.addEventListener('click', function(e) {
+            if (e.target && e.target.id === 'completeBtn') {
+                completeReport();
+            }
+        });
+
+        // Cancel button handler
+        document.addEventListener('click', function(e) {
+            if (e.target && e.target.id === 'cancelBtn') {
+                cancelReport();
+            }
+        });
+
+        let isCompleting = false; // Flag to prevent multiple clicks
+
+        function completeReport() {
+            if (!currentUpdatesReportId) return;
+            if (isCompleting) return; // Prevent multiple clicks
+            isCompleting = true;
+            
+            var today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+            
+            // Check if there's already a "Completed" update to prevent duplicates
+            const timelineEntries = document.querySelectorAll('.timeline-entry');
+            var alreadyCompleted = false;
+            timelineEntries.forEach(function(entry) {
+                const title = entry.querySelector('.timeline-title')?.textContent.trim() || '';
+                if (title.toLowerCase() === 'completed') {
+                    alreadyCompleted = true;
+                }
+            });
+
+            if (alreadyCompleted) {
+                showNotification('Report is already marked as completed', 'info');
+                // Just update the status and hide buttons
+                updateStatusOnly();
+                isCompleting = false;
+                return;
+            }
+            
+            // First add the completion update
+            var updateFormData = new FormData();
+            updateFormData.append('action', 'create_update');
+            updateFormData.append('report_id', currentUpdatesReportId);
+            updateFormData.append('report_type', currentUpdatesReportType);
+            updateFormData.append('title', 'Completed');
+            updateFormData.append('description', 'completed on ' + today);
+
+            fetch('../api/progress_update_api.php', {
+                method: 'POST',
+                body: updateFormData
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    // Now update the status
+                    updateStatusOnly();
+                } else {
+                    throw new Error(data.message || 'Failed to add completion update');
+                }
+            })
+            .catch(function(e) {
+                showNotification('Network error', 'error');
+                console.error(e);
+                isCompleting = false;
+            });
+        }
+
+        function updateStatusOnly() {
+            var newStatus = (currentUpdatesReportSource === 'cimm') ? 'Completed' : 'completed';
+            var statusFormData = new FormData();
+            statusFormData.append('action', 'update_status');
+            statusFormData.append('report_id', currentUpdatesReportId);
+            statusFormData.append('report_type', currentUpdatesReportType);
+            statusFormData.append('status', newStatus);
+            statusFormData.append('source', currentUpdatesReportSource);
+
+            fetch('../api/progress_update_api.php', {
+                method: 'POST',
+                body: statusFormData
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showNotification('Report completed successfully', 'success');
+                    // Hide action buttons, show export button
+                    document.getElementById('actionButtons').style.display = 'none';
+                    document.getElementById('exportButtons').style.display = 'flex';
+                    // Reload updates timeline
+                    if (typeof loadUpdates === 'function') {
+                        loadUpdates(currentUpdatesReportId, currentUpdatesReportType);
+                    }
+                    // ADD: file a completed copy of the report into the archive.
+                    // This is purely additive — the live report is not moved or
+                    // deleted, it stays completed exactly where it is.
+                    var archiveFormData = new FormData();
+                    archiveFormData.append('action', 'complete_archive');
+                    archiveFormData.append('report_id', currentUpdatesReportId);
+                    archiveFormData.append('report_type', currentUpdatesReportType);
+                    archiveFormData.append('source', currentUpdatesReportSource);
+                    fetch('../api/progress_update_api.php', {
+                        method: 'POST',
+                        body: archiveFormData
+                    }).catch(function(e) { console.error('Archive copy failed', e); });
+                } else {
+                    showNotification(data.message || 'Failed to update status', 'error');
+                }
+                isCompleting = false; // Reset flag
+            })
+            .catch(function(e) {
+                showNotification('Network error', 'error');
+                console.error(e);
+                isCompleting = false; // Reset flag
+            });
+        }
+
+        function cancelReport() {
+            if (!currentUpdatesReportId) return;
+            
+            var newStatus = (currentUpdatesReportSource === 'cimm') ? 'Cancelled' : 'cancelled';
+            var formData = new FormData();
+            formData.append('action', 'cancel_archive');
+            formData.append('report_id', currentUpdatesReportId);
+            formData.append('report_type', currentUpdatesReportType);
+            formData.append('status', newStatus);
+            formData.append('source', currentUpdatesReportSource);
+
+            fetch('../api/progress_update_api.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    closeModal('updatesModal');
+                    location.reload();
+                } else {
+                    showNotification(data.message || 'Failed to update status', 'error');
+                }
+            })
+            .catch(function(e) {
+                showNotification('Network error', 'error');
+                console.error(e);
+            });
+        }
+
+        function exportUpdatesToExcel() {
+            // Get all timeline entries
+            const timelineEntries = document.querySelectorAll('.timeline-entry');
+            if (timelineEntries.length === 0) {
+                showNotification('No updates to export', 'error');
+                return;
+            }
+
+            showNotification('Preparing document...', 'info');
+
+            // Process images first
+            processImagesAndExport(timelineEntries);
+        }
+
+        function processImagesAndExport(timelineEntries) {
+            const updates = [];
+            let firstDate = null;
+            let lastDate = null;
+            let imageLoadPromises = [];
+            
+            timelineEntries.forEach(function(entry) {
+                const dateText = entry.querySelector('.time')?.textContent.trim() || '';
+                const title = entry.querySelector('.timeline-title')?.textContent.trim() || '';
+                const description = entry.querySelector('.timeline-desc')?.textContent.trim() || '';
+                const author = entry.querySelector('.admin-badge')?.textContent.trim() || '';
+                
+                // Extract images
+                const images = [];
+                const mediaItems = entry.querySelectorAll('.timeline-media-item');
+                mediaItems.forEach(function(media) {
+                    const img = media.querySelector('img');
+                    if (img && img.src) {
+                        // Create promise to load and resize image
+                        const imagePromise = resizeImage(img.src, 200);
+                        imageLoadPromises.push(imagePromise);
+                        images.push(imagePromise);
+                    }
+                });
+                
+                updates.push({
+                    date: dateText,
+                    title: title,
+                    description: description,
+                    author: author,
+                    images: images
+                });
+                
+                // Track dates for summary
+                if (!firstDate) firstDate = dateText;
+                lastDate = dateText;
+            });
+
+            // Wait for all images to be resized
+            Promise.all(imageLoadPromises)
+                .then(function(resizedImages) {
+                    // Replace image promises with resized base64 strings
+                    let imageIndex = 0;
+                    updates.forEach(function(update) {
+                        for (let i = 0; i < update.images.length; i++) {
+                            update.images[i] = resizedImages[imageIndex++];
+                        }
+                    });
+                    
+                    // Now generate the document
+                    generateDocument(updates, firstDate, lastDate);
+                })
+                .catch(function(error) {
+                    console.error('Image processing error:', error);
+                    // Fall back to document without images
+                    generateDocument(updates, firstDate, lastDate);
+                });
+        }
+
+        function resizeImage(imageSrc, maxWidth) {
+            return new Promise(function(resolve, reject) {
+                const img = new Image();
+                img.crossOrigin = 'Anonymous';
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Calculate new dimensions
+                    const ratio = maxWidth / img.width;
+                    const newHeight = img.height * ratio;
+                    
+                    canvas.width = maxWidth;
+                    canvas.height = newHeight;
+                    
+                    // Draw resized image
+                    ctx.drawImage(img, 0, 0, maxWidth, newHeight);
+                    
+                    // Convert to base64
+                    resolve(canvas.toDataURL('image/jpeg', 0.8));
+                };
+                img.onerror = function() {
+                    resolve(null); // Return null if image fails to load
+                };
+                img.src = imageSrc;
+            });
+        }
+
+        function generateDocument(updates, firstDate, lastDate) {
+            try {
+                // Calculate summary
+                const totalUpdates = updates.length;
+                const timeTaken = firstDate && lastDate ? calculateDaysBetween(firstDate, lastDate) : 0;
+
+                // Create HTML document content
+                let htmlContent = `
+                <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'>
+                <head>
+                <meta charset="utf-8">
+                <title>Progress Updates Report</title>
+                <style>
+                    body { font-family: 'Calibri', Arial, sans-serif; font-size: 11pt; line-height: 1.5; }
+                    h1 { color: #2E74B5; font-size: 18pt; text-align: center; margin-bottom: 20px; }
+                    h2 { color: #2E74B5; font-size: 14pt; margin-top: 20px; margin-bottom: 10px; border-bottom: 2px solid #2E74B5; padding-bottom: 5px; }
+                    .report-info { text-align: center; color: #666; margin-bottom: 30px; }
+                    .summary-table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+                    .summary-table td { border: 1px solid #ddd; padding: 8px 12px; }
+                    .summary-table td:first-child { background-color: #f8f9fa; font-weight: bold; width: 150px; }
+                    .update-entry { margin-bottom: 25px; padding: 15px; background-color: #f8f9fa; border-left: 4px solid #2E74B5; }
+                    .update-header { color: #2E74B5; font-weight: bold; font-size: 12pt; margin-bottom: 5px; }
+                    .update-author { color: #666; font-style: italic; font-size: 10pt; margin-bottom: 10px; }
+                    .update-description { margin-bottom: 10px; }
+                    .update-images { margin-top: 10px; }
+                    .update-images img { width: 200px; height: auto; margin: 5px; border: 1px solid #ddd; }
+                    .image-count { color: #666; font-style: italic; font-size: 10pt; }
+                </style>
+                </head>
+                <body>
+                    <h1>Progress Updates Report</h1>
+                    <p class="report-info">Report #${currentUpdatesReportId}</p>
+                    
+                    <h2>Project Summary</h2>
+                    <table class="summary-table">
+                        <tr><td>Start Date</td><td>${firstDate || 'N/A'}</td></tr>
+                        <tr><td>End Date</td><td>${lastDate || 'N/A'}</td></tr>
+                        <tr><td>Total Updates</td><td>${totalUpdates}</td></tr>
+                        <tr><td>Duration</td><td>${timeTaken} days</td></tr>
+                    </table>
+                    
+                    <h2>Progress Timeline</h2>
+                `;
+
+                // Add each update
+                updates.forEach(function(update) {
+                    htmlContent += `
+                    <div class="update-entry">
+                        <div class="update-header">${update.date} - ${update.title || 'Update'}</div>
+                        <div class="update-author">By: ${update.author}</div>
+                        <div class="update-description">${update.description || 'No description'}</div>
+                        <div class="update-images">
+                    `;
+                    
+                    if (update.images.length > 0) {
+                        update.images.forEach(function(imgData) {
+                            if (imgData) {
+                                htmlContent += `<img src="${imgData}" alt="Update image" />`;
+                            }
+                        });
+                    } else {
+                        htmlContent += `<div class="image-count">No images attached</div>`;
+                    }
+                    
+                    htmlContent += `
+                        </div>
+                    </div>
+                    `;
+                });
+
+                htmlContent += `
+                </body>
+                </html>
+                `;
+
+                // Create blob and download
+                const blob = new Blob(['\ufeff', htmlContent], {
+                    type: 'application/msword'
+                });
+                
+                const fileName = 'progress_updates_report_' + currentUpdatesReportId + '_' + new Date().toISOString().slice(0,10) + '.doc';
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = fileName;
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                showNotification('Document exported successfully', 'success');
+
+            } catch (error) {
+                console.error('Export error:', error);
+                showNotification('Failed to export document', 'error');
+            }
+        }
+
+        function calculateDaysBetween(dateStr1, dateStr2) {
+            try {
+                const date1 = new Date(dateStr1);
+                const date2 = new Date(dateStr2);
+                const diffTime = Math.abs(date2 - date1);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                return diffDays;
+            } catch (e) {
+                return 0;
+            }
+        }
+
+        // Complete button handler
+        document.addEventListener('click', function(e) {
+            if (e.target && e.target.id === 'completeBtn') {
+                completeReport();
+            }
+        });
+
+        // Cancel button handler
+        document.addEventListener('click', function(e) {
+            if (e.target && e.target.id === 'cancelBtn') {
+                cancelReport();
             }
         });
 
@@ -3535,19 +4005,19 @@ if ($focus_report_id > 0) {
         tr.innerHTML = `
             <td style="font-family:monospace;font-size:12px;">${escapeHtml(report.report_id)}</td>
             <td>${escapeHtml(report.title)}</td>
-            <td><span class="badge badge-source badge-${report.source}">${escapeHtml(report.source_label)}</span></td>
-            <td><span class="badge badge-${report.status}">${escapeHtml(ucfirst(report.status.replace('-', ' ')))}</span></td>
-            <td><span class="badge badge-${report.priority}">${escapeHtml(ucfirst(report.priority))}</span></td>
+            <td>${escapeHtml(report.source_label)}</td>
+            <td><span class="badge badge-${report.status.toLowerCase()}">${escapeHtml(ucfirst(report.status.replace('-', ' ')))}</span></td>
+            <td><span class="badge badge-${report.priority.toLowerCase()}">${escapeHtml(ucfirst(report.priority))}</span></td>
             <td>${formatDate(report.created_at)}</td>
             <td>
-                ${report.cimm_sync_status === 'verified' ? 
-                    `<span class="cimm-verify-badge cimm-verify-badge-verified" title="Verified by ${escapeHtml(report.cimm_verified_by || 'CIMM staff')}${report.cimm_verified_at ? ' on ' + formatDate(report.cimm_verified_at) : ''}">
-                        <i class="fas fa-check-circle"></i> Verified
-                    </span>` : 
-                    (report.cimm_sync_status === 'pushed' ? 
-                        `<span class="cimm-verify-badge cimm-verify-badge-pending" title="Synced to CIMM — awaiting staff verification">
-                            <i class="fas fa-hourglass-half"></i> Awaiting Verification
-                        </span>` : 
+                ${report.status.toLowerCase() === 'approved' ?
+                    `<span class="cimm-verify-badge cimm-verify-badge-verified" title="Approved by ${escapeHtml(report.cimm_verified_by || 'CIMM staff')}${report.cimm_verified_at ? ' on ' + formatDate(report.cimm_verified_at) : ''}">
+                        <i class="fas fa-check-circle"></i> Approved
+                    </span>` :
+                    (report.status.toLowerCase() === 'in-progress' ?
+                        `<span class="cimm-verify-badge cimm-verify-badge-pending" title="In Progress">
+                            <i class="fas fa-hourglass-half"></i> In Progress
+                        </span>` :
                         `<span class="cimm-verify-badge cimm-verify-badge-none">—</span>`
                     )
                 }
@@ -3555,7 +4025,7 @@ if ($focus_report_id > 0) {
             <td style="white-space:nowrap;">
                 <button class="table-action-btn" title="View Details" onclick="viewReportDetails(${report.id}, '${report.source}')"><i class="fas fa-eye"></i></button>
                 <button class="table-action-btn view-map" onclick="focusReportOnMap(${report.id})"><i class="fas fa-map-pin"></i> Map</button>
-                <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(${report.id}, '${report.report_type}')"><i class="fas fa-clock"></i> Updates</button>
+                <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(${report.id}, '${report.report_type}', '${report.source}')"><i class="fas fa-clock"></i> Updates</button>
             </td>
         `;
         
@@ -3660,11 +4130,23 @@ if ($focus_report_id > 0) {
                     <div class="timeline-empty"><i class="fas fa-spinner fa-spin fa-2x t-text-link"></i></div>
                 </div>
             </div>
-            <div class="modal-footer" style="justify-content: space-between;">
+            <div class="modal-footer" style="display: flex; flex-direction: column; gap: 16px;">
                 <span id="updateReportInfo" class="t-text-secondary" style="font-size: 13px;"></span>
-                <div>
-                    <button type="button" class="btn-action" id="addUpdateBtn" onclick="showAddUpdateModal()">+ Add Update</button>
-                    <button type="button" class="btn-secondary-custom" onclick="closeModal('updatesModal')">Close</button>
+                <div id="actionButtons" style="display: flex; justify-content: space-between;">
+                    <div style="display: flex; gap: 8px;">
+                        <button type="button" class="btn-success-custom" id="completeBtn">Complete</button>
+                        <button type="button" class="btn-danger-custom" id="cancelBtn">Cancel</button>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button type="button" class="btn-action" id="addUpdateBtn" onclick="showAddUpdateModal()">+ Add Update</button>
+                        <button type="button" class="btn-secondary-custom" onclick="closeModal('updatesModal')">Close</button>
+                    </div>
+                </div>
+                <div id="exportButtons" style="display: none; justify-content: flex-end; gap: 8px;">
+                    <button type="button" class="btn-action" onclick="exportUpdatesToExcel()">
+                        <i class="fas fa-file-excel"></i> Export
+                    </button>
+                    <button type="button" class="btn-secondary-custom" onclick="closeModalAndRefresh('updatesModal')">Close</button>
                 </div>
             </div>
         </div>
@@ -3742,7 +4224,7 @@ if ($focus_report_id > 0) {
     </div>
 
     <!-- Session timeout data -->
-    <script id="sessionTimeoutData" data-timeout="<?php echo $session_timeout; ?>"></script>
+    <script id="sessionTimeoutData" data-timeout="<?php echo $session_timeout; ?>" data-role="<?php echo htmlspecialchars($_SESSION['role'] ?? ''); ?>"></script>
     <script src="../../js/session-timeout.js"></script>
 </body>
 </html>

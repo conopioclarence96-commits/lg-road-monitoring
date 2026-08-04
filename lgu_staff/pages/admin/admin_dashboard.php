@@ -15,7 +15,7 @@ ini_set('session.cookie_secure', 0);
 session_start();
 
 // Session timeout configuration
-$session_timeout = 5 * 60; // 5 minutes in seconds
+$session_timeout = 30 * 60; // 30 minutes in seconds
 
 // Check if session has expired
 if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {

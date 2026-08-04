@@ -92,6 +92,13 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
                 $count += $stmt->get_result()->fetch_assoc()['count'];
                 $stmt->close();
             } catch (Exception $e) {}
+            try {
+                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM report_assignments WHERE user_id = ? AND status = 'active'");
+                $stmt->bind_param("i", $user_id);
+                $stmt->execute();
+                $count += $stmt->get_result()->fetch_assoc()['count'];
+                $stmt->close();
+            } catch (Exception $e) {}
         } elseif (is_staff_role($user_role) && $user_id > 0) {
             try {
                 $stmt = $conn->prepare("SELECT COUNT(*) as count FROM change_requests WHERE user_id = ? AND status != 'pending'");
@@ -102,6 +109,13 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
             } catch (Exception $e) {}
             try {
                 $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE created_by = ? AND status IN ('completed', 'cancelled')");
+                $stmt->bind_param("i", $user_id);
+                $stmt->execute();
+                $count += $stmt->get_result()->fetch_assoc()['count'];
+                $stmt->close();
+            } catch (Exception $e) {}
+            try {
+                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM report_assignments WHERE user_id = ? AND status = 'active'");
                 $stmt->bind_param("i", $user_id);
                 $stmt->execute();
                 $count += $stmt->get_result()->fetch_assoc()['count'];
@@ -126,15 +140,14 @@ $current_page = basename($_SERVER['SCRIPT_NAME']);
 // Navigation items
 $nav_items = [
     'main' => [
-        ['href' => $nav_base . 'pages/lgu/lgu_staff_dashboard.php', 'icon' => 'tachometer-alt', 'title' => 'Staff Dashboard', 'roles' => ['lgu_staff']],
-        ['href' => $nav_base . 'pages/lgu/change_info.php', 'icon' => 'user-edit', 'title' => 'Change Information', 'roles' => ['lgu_staff']],
+        ['href' => $nav_base . 'pages/lgu/lgu_staff_dashboard.php', 'icon' => 'tachometer-alt', 'title' => 'Staff Dashboard', 'roles' => ['lgu_staff']],   
         ['href' => $nav_base . 'pages/admin/admin_dashboard.php', 'icon' => 'tachometer-alt', 'title' => 'Admin Dashboard', 'roles' => ['system_admin']],
         ['href' => $nav_base . 'pages/admin/manage_accounts.php', 'icon' => 'users', 'title' => 'Manage Accounts', 'roles' => ['system_admin']],
         ['href' => $nav_base . 'pages/admin/account_approvals.php', 'icon' => 'clipboard-check', 'title' => 'Account Approvals', 'roles' => ['system_admin']],
         ['href' => $nav_base . 'pages/admin/create_staff_account.php', 'icon' => 'user-plus', 'title' => 'Create Staff Account', 'roles' => ['system_admin']],
     ],
     'monitoring' => [
-        ['href' => $nav_base . 'pages/shared/road_transportation_monitoring.php', 'icon' => 'map-marked-alt', 'title' => 'Road Monitoring', 'roles' => ['road_monitoring_officer', 'trans_monitoring_officer']],
+        ['href' => $nav_base . 'pages/shared/road_transportation_monitoring.php', 'icon' => 'map-marked-alt', 'title' => 'Road Monitoring', 'roles' => ['system_admin','road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer']],
         ['href' => $nav_base . 'pages/admin/verification_monitoring.php', 'icon' => 'shield-alt', 'title' => 'Verification Reports', 'roles' => ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor']],
         ['href' => $nav_base . 'pages/admin/report_management.php', 'icon' => 'clipboard-list', 'title' => 'Report Management', 'roles' => ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor']],
     ],
@@ -143,7 +156,6 @@ $nav_items = [
     ],
     'reports' => [
         ['href' => $nav_base . 'pages/shared/analytics.php', 'icon' => 'chart-line', 'title' => 'Analytics', 'roles' => ['system_admin', 'lgu_staff']],
-        ['href' => $nav_base . 'pages/shared/sla_dashboard.php', 'icon' => 'gavel', 'title' => 'SLA Compliance', 'roles' => ['system_admin', 'lgu_staff']],
         ['href' => $nav_base . 'pages/admin/audit_trail.php', 'icon' => 'history', 'title' => 'Audit Trail', 'roles' => ['system_admin']],
     ],
     'system' => [
@@ -160,9 +172,11 @@ foreach ($nav_items as $section => $items) {
     $filtered_items[$section] = array_filter($items, function($item) use ($user_role) {
         $visible = in_array($user_role, $item['roles'])
             || (is_staff_role($user_role) && in_array('lgu_staff', $item['roles']));
-        // Transportation Operations Supervisors do not get the Change
-        // Information menu item.
-        if ($visible && $user_role === 'trans_ops_supervisor' && basename($item['href']) === 'change_info.php') {
+        // Road & Transportation Operations Supervisors do not get the
+        // Change Information menu item.
+        if ($visible
+            && in_array($user_role, ['trans_ops_supervisor', 'road_ops_supervisor'], true)
+            && basename($item['href']) === 'change_info.php') {
             $visible = false;
         }
         return $visible;
