@@ -164,7 +164,7 @@ function rgmap_fetch_cimm_verification_reports(PDO $pdo, array $opts = []): arra
     $params[] = 'Pending Review';
 
     $sql .= " AND approval_status = ?";
-    $params[] = 'Pending';
+    $params[] = 'Approved';
 
     if (!empty($opts['status'])) {
         $sql .= " AND verification_status = ?";
