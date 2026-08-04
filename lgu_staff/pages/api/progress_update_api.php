@@ -10,9 +10,71 @@ if (!is_logged_in()) {
 $user_id = $_SESSION['user_id'];
 $method = $_SERVER['REQUEST_METHOD'];
 
+/**
+ * Role-based assignment restriction for posting progress updates.
+ *
+ * When a staff member is assigned to a report via the "Assign Staff" feature,
+ * only that assigned user may post progress updates IF they hold the Road
+ * Monitoring Officer or Transportation Monitoring Officer role. Users holding
+ * either of those roles may ONLY post to reports they are actively assigned
+ * to — an unassigned officer is blocked even if the report has no assignment
+ * at all. For all other roles the existing behavior is kept: any authorized
+ * user may post regardless of assignment.
+ *
+ * Used by both report_management.php and road_transportation_monitoring.php
+ * (they share this endpoint for posting), and by the can_post_update action
+ * that drives the UI button visibility.
+ */
+function rgmap_can_post_progress_update($conn, $report_id, $user_id, $current_role) {
+    // Restriction applies only to Road/Transportation Monitoring Officers.
+    if (!in_array($current_role, ['road_monitoring_officer', 'trans_monitoring_officer'], true)) {
+        return true;
+    }
+
+    $table = null;
+    if (fetch_one("SELECT id FROM road_transportation_reports WHERE id = ?", [$report_id], "i")) {
+        $table = 'road_transportation_reports';
+    } elseif (fetch_one("SELECT id FROM road_maintenance_reports WHERE id = ?", [$report_id], "i")) {
+        $table = 'road_maintenance_reports';
+    } elseif (fetch_one("SELECT id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i")) {
+        $table = 'cimm_verification_reports';
+    }
+    if (!$table) {
+        return false;
+    }
+
+    try {
+        $check = $conn->query("SHOW TABLES LIKE 'report_assignments'");
+        if (!$check || $check->num_rows === 0) {
+            return true;
+        }
+
+        // An officer may post ONLY when they are the actively assigned user.
+        $assigned = fetch_one(
+            "SELECT id FROM report_assignments WHERE report_id = ? AND report_type = ? AND user_id = ? AND status = 'active'",
+            [$report_id, $table, $user_id], "isi"
+        );
+        return (bool)$assigned;
+    } catch (Exception $e) {
+        error_log("can_post_progress_update error: " . $e->getMessage());
+        return true;
+    }
+}
+
 if ($method === 'GET') {
     $action = $_GET['action'] ?? '';
-    if ($action === 'get_updates' || $action === 'get_update') {
+    if ($action === 'get_updates' || $action === 'get_update' || $action === 'can_post_update') {
+        if ($action === 'can_post_update') {
+            $report_id = intval($_GET['report_id'] ?? 0);
+            if ($report_id <= 0) {
+                json_response(['success' => false, 'message' => 'Invalid report ID']);
+            }
+            json_response([
+                'success'  => true,
+                'can_post' => rgmap_can_post_progress_update($conn, $report_id, $user_id, $_SESSION['role'] ?? ''),
+            ]);
+        }
+
         // Allow read-only access without login for public timeline
         if ($action === 'get_updates') {
             $report_id = intval($_GET['report_id'] ?? 0);
@@ -100,6 +162,13 @@ if ($method === 'GET') {
 
         // The report's status column depends on which table it lives in.
         $status_column = ($report_table === 'cimm_verification_reports') ? 'verification_status' : 'status';
+
+        // Role-based assignment restriction — enforced in the backend so it
+        // covers report_management.php and road_transportation_monitoring.php
+        // alike (both post progress updates through this endpoint).
+        if (!rgmap_can_post_progress_update($conn, $report_id, $user_id, $_SESSION['role'] ?? '')) {
+            json_response(['success' => false, 'message' => 'You can only post progress updates to reports assigned to you.'], 403);
+        }
 
         try {
             // Determine whether this will be the report's first progress update

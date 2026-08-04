@@ -4270,12 +4270,38 @@ if ($focus_id > 0) {
         }
 
         function checkUpdatePermission() {
-            // This will be set by the loadUpdates function based on server-side permission check
-            if (typeof canAddUpdate !== 'undefined' && !canAddUpdate) {
-                document.getElementById('addUpdateBtn').style.display = 'none';
-            } else {
-                document.getElementById('addUpdateBtn').style.display = 'inline-flex';
+            // Server-authoritative check (role + assignment): Road/Transportation
+            // Monitoring Officers can only post updates to reports assigned to
+            // them. The same rule is enforced server-side in progress_update_api.php.
+            // Officers are fail-closed: the button stays hidden until the server
+            // confirms an active assignment for this report.
+            var btn = document.getElementById('addUpdateBtn');
+            if (!btn) return;
+            var role = '';
+            var tag = document.getElementById('sessionTimeoutData');
+            if (tag) role = tag.getAttribute('data-role') || '';
+            var isOfficer = (role === 'road_monitoring_officer' || role === 'trans_monitoring_officer');
+
+            if (!currentUpdatesReportId) {
+                btn.style.display = isOfficer ? 'none' : 'inline-flex';
+                return;
             }
+            if (isOfficer) {
+                btn.style.display = 'none';
+            } else {
+                btn.style.display = 'inline-flex';
+            }
+
+            fetch('../api/progress_update_api.php?action=can_post_update&report_id=' + currentUpdatesReportId)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data && data.success && data.can_post) {
+                        btn.style.display = 'inline-flex';
+                    } else {
+                        btn.style.display = 'none';
+                    }
+                })
+                .catch(function() {});
         }
 
         function showAddUpdateModal() {
@@ -5384,7 +5410,7 @@ if ($focus_id > 0) {
     </div>
 
     <!-- Session timeout data -->
-    <script id="sessionTimeoutData" data-timeout="<?php echo $session_timeout; ?>"></script>
+    <script id="sessionTimeoutData" data-timeout="<?php echo $session_timeout; ?>" data-role="<?php echo htmlspecialchars($_SESSION['role'] ?? ''); ?>"></script>
     <script src="../../js/session-timeout.js"></script>
 </body>
 </html>
