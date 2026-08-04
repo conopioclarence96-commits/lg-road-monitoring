@@ -419,6 +419,17 @@ function ensure_archive_table() {
     } catch (Exception $e) {
         error_log('ensure_archive_table report_type widen warning: ' . $e->getMessage());
     }
+
+    // Columns used by Restore: the report's status before it was trashed
+    // (so it can be brought back with its previous status) and the exact live
+    // table it was moved out of (so it lands back in the same module).
+    foreach (['previous_status' => "VARCHAR(50) DEFAULT NULL",
+              'archived_from' => "VARCHAR(100) DEFAULT NULL"] as $col => $def) {
+        $chk = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE '$col'");
+        if ($chk && $chk->num_rows === 0) {
+            $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN $col $def");
+        }
+    }
 }
 
 function handle_delete_report() {
@@ -443,6 +454,15 @@ function handle_delete_report() {
         $archived = false;
         try {
             ensure_archive_table();
+
+            // Capture the report's status BEFORE it is soft-deleted so Restore
+            // can bring it back with its previous status.
+            $pstmt = $conn->prepare("SELECT status FROM {$table} WHERE id = ?");
+            $pstmt->bind_param("i", $report_id);
+            $pstmt->execute();
+            $prev_status = $pstmt->get_result()->fetch_assoc()['status'] ?? null;
+            $pstmt->close();
+
             // The Delete/Trash action soft-deletes: set the report to cancelled
             // first so the archived copy below carries status 'cancelled' (all
             // other columns — including category/source — are preserved).
@@ -469,6 +489,12 @@ function handle_delete_report() {
             $stmt->bind_param("i", $report_id);
             $stmt->execute();
             $archived = true;
+
+            // The archive row keeps the live row's id, so stamp it with the
+            // restore metadata right here.
+            $ps = $conn->prepare("UPDATE road_transportation_reports_archive SET previous_status = ?, archived_from = ? WHERE id = ?");
+            $ps->bind_param("ssi", $prev_status, $table, $report_id);
+            $ps->execute();
         } catch (Exception $e) {
             error_log('Archive failed for report ' . $report_id . ': ' . $e->getMessage());
         }

@@ -13,7 +13,8 @@ $conn->query("CREATE TABLE IF NOT EXISTS road_transportation_reports_archive LIK
 // Ensure archive table has the same columns as the source table
 foreach (['report_category' => "ENUM('road','transportation') DEFAULT NULL AFTER report_type",
            'report_source' => "ENUM('local','external') DEFAULT 'local' AFTER report_category",
-           'previous_status' => "VARCHAR(50) DEFAULT NULL"] as $col => $def) {
+           'previous_status' => "VARCHAR(50) DEFAULT NULL",
+           'archived_from' => "VARCHAR(100) DEFAULT NULL"] as $col => $def) {
     $chk = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE '$col'");
     if ($chk && $chk->num_rows === 0) {
         $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN $col $def");
@@ -119,13 +120,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             exit();
         }
 
-        // Route the report back to the module where its last action happened:
-        //   - report_source 'external'/'cimm' -> CIMM module (cimm_verification_reports)
-        //   - maintenance report types        -> Infrastructure (road_maintenance_reports)
-        //   - everything else (incl. rejected) -> the live transport/maintenance
-        //     table, which is what verification_monitoring.php displays
+        // Route the report back to the module where its last action happened.
+        // archived_from records the exact live table it was moved out of, so a
+        // report always returns to the exact table it came from (fall back to
+        // a report_type/report_source heuristic for rows archived before the
+        // column existed).
         $maintenance_types = ['routine', 'emergency', 'preventive', 'corrective', 'scheduled'];
-        if (in_array(($row['report_source'] ?? ''), ['external', 'cimm'], true)) {
+        $archived_from = $row['archived_from'] ?? '';
+        if ($archived_from === 'cimm_verification_reports') {
+            $module = 'cimm';
+        } elseif ($archived_from === 'road_maintenance_reports') {
+            $module = 'maintenance';
+        } elseif ($archived_from === 'road_transportation_reports') {
+            $module = 'transport';
+        } elseif (in_array(($row['report_source'] ?? ''), ['external', 'cimm'], true)) {
             $module = 'cimm';
         } elseif (in_array($row['report_type'], $maintenance_types, true)) {
             $module = 'maintenance';

@@ -464,6 +464,13 @@ function ensure_archive_for_archive_cancel($conn) {
     try {
         $conn->query("ALTER TABLE road_transportation_reports_archive MODIFY report_type VARCHAR(255) NULL DEFAULT NULL");
     } catch (Exception $e) { error_log('archive report_type widen: ' . $e->getMessage()); }
+    foreach (['previous_status' => "VARCHAR(50) DEFAULT NULL",
+              'archived_from' => "VARCHAR(100) DEFAULT NULL"] as $col => $def) {
+        $chk = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE '$col'");
+        if ($chk && $chk->num_rows === 0) {
+            $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN $col $def");
+        }
+    }
 }
 
 // Move a cancelled report into the archive atomically: copy every column, then
@@ -487,6 +494,13 @@ function archive_cancelled_report($conn, $table, $report_id) {
         $stmt = $conn->prepare("INSERT INTO road_transportation_reports_archive ($cols) SELECT $cols FROM $table WHERE id = ?");
         $stmt->bind_param('i', $report_id);
         $stmt->execute();
+
+        // Stamp which live table this came from so Restore returns it to the
+        // exact same module. (previous_status is intentionally NOT recorded —
+        // rejected reports must stay 'rejected' when restored.)
+        $ps = $conn->prepare("UPDATE road_transportation_reports_archive SET archived_from = ? WHERE id = ?");
+        $ps->bind_param('si', $table, $report_id);
+        $ps->execute();
 
         // Remove related active records so the cancelled report leaves
         // pending/progress notifications and has no orphan references.
@@ -547,6 +561,7 @@ function archive_cimm_rejected_report($conn, $cimm_req_id) {
             'department' => 'engineering',
             'priority' => $cimm_report['priority'] ?? 'medium',
             'status' => 'rejected',
+            'archived_from' => 'cimm_verification_reports',
             'created_date' => $cimm_report['submitted_at'] ?? date('Y-m-d'),
             'description' => $cimm_report['issue'] ?? '',
             'location' => $cimm_report['location'] ?? '',

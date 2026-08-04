@@ -310,6 +310,12 @@ function rgmap_archive_ensure_table() {
             $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN previous_status VARCHAR(50) NULL DEFAULT NULL");
         }
     } catch (Exception $e) { error_log('rgmap_archive_ensure_table previous_status: ' . $e->getMessage()); }
+    try {
+        $chk = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE 'archived_from'");
+        if ($chk && $chk->num_rows === 0) {
+            $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN archived_from VARCHAR(100) NULL DEFAULT NULL");
+        }
+    } catch (Exception $e) { error_log('rgmap_archive_ensure_table archived_from: ' . $e->getMessage()); }
 }
 
 // Return the live report table that actually contains the given id, or null.
@@ -360,8 +366,12 @@ function rgmap_archive_report($conn, $table, $report_id, $status) {
         $stmt->execute();
 
         if ($previous_status !== null) {
-            $ps = $conn->prepare("UPDATE road_transportation_reports_archive SET previous_status = ? WHERE id = ?");
-            $ps->bind_param("si", $previous_status, $report_id);
+            $ps = $conn->prepare("UPDATE road_transportation_reports_archive SET previous_status = ?, archived_from = ? WHERE id = ?");
+            $ps->bind_param("ssi", $previous_status, $table, $report_id);
+            $ps->execute();
+        } else {
+            $ps = $conn->prepare("UPDATE road_transportation_reports_archive SET archived_from = ? WHERE id = ?");
+            $ps->bind_param("si", $table, $report_id);
             $ps->execute();
         }
 
@@ -406,6 +416,7 @@ function rgmap_archive_cimm_report($conn, $cimm_req_id, $status) {
             'priority' => $cimm_report['priority'] ?? 'medium',
             'status' => $status,
             'previous_status' => $cimm_report['verification_status'] ?? null,
+            'archived_from' => 'cimm_verification_reports',
             'created_date' => (!empty($cimm_report['submitted_at'])) ? date('Y-m-d', strtotime($cimm_report['submitted_at'])) : date('Y-m-d'),
             'description' => $cimm_report['issue'] ?? '',
             'location' => $cimm_report['location'] ?? '',
@@ -475,8 +486,12 @@ function rgmap_archive_report_copy($conn, $table, $report_id, $status) {
         $stmt->execute();
 
         if ($previous_status !== null) {
-            $ps = $conn->prepare("UPDATE road_transportation_reports_archive SET previous_status = ? WHERE id = ?");
-            $ps->bind_param("si", $previous_status, $arch_id);
+            $ps = $conn->prepare("UPDATE road_transportation_reports_archive SET previous_status = ?, archived_from = ? WHERE id = ?");
+            $ps->bind_param("ssi", $previous_status, $table, $arch_id);
+            $ps->execute();
+        } else {
+            $ps = $conn->prepare("UPDATE road_transportation_reports_archive SET archived_from = ? WHERE id = ?");
+            $ps->bind_param("si", $table, $arch_id);
             $ps->execute();
         }
 
@@ -513,6 +528,7 @@ function rgmap_archive_copy_cimm_report($conn, $cimm_req_id, $status) {
             'priority' => $cimm_report['priority'] ?? 'medium',
             'status' => $status,
             'previous_status' => $cimm_report['verification_status'] ?? null,
+            'archived_from' => 'cimm_verification_reports',
             'created_date' => (!empty($cimm_report['submitted_at'])) ? date('Y-m-d', strtotime($cimm_report['submitted_at'])) : date('Y-m-d'),
             'description' => $cimm_report['issue'] ?? '',
             'location' => $cimm_report['location'] ?? '',
