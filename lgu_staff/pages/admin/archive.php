@@ -30,13 +30,15 @@ $id_search = trim($_GET['id'] ?? '');
 
 // Source system classification. Every archived report is assigned to exactly
 // one source bucket using the existing archive columns.
+//   - cimm           : report_source = external (CIMM rows also carry a
+//                       report_type of 'infrastructure_issue', so this is the
+//                       distinguishing marker and takes precedence)
 //   - infrastructure : report_type in (infrastructure_issue, maintenance, maintenance_request)
-//   - cimm           : report_source = external
 //   - lgu            : report_source = local AND created_by != 0  (LGU Monitoring)
 //   - citizen        : everything else (created_by = 0 / public submissions)
 $source_case = "CASE
-        WHEN report_type IN ('infrastructure_issue','maintenance','maintenance_request') THEN 'infrastructure'
         WHEN report_source = 'external' THEN 'cimm'
+        WHEN report_type IN ('infrastructure_issue','maintenance','maintenance_request') THEN 'infrastructure'
         WHEN report_source = 'local' AND COALESCE(created_by, 0) != 0 THEN 'lgu'
         ELSE 'citizen'
     END";
@@ -53,7 +55,7 @@ switch ($source_filter) {
         $source_where = "report_source = 'external'";
         break;
     case 'infrastructure':
-        $source_where = "report_type IN ('infrastructure_issue','maintenance','maintenance_request')";
+        $source_where = "report_type IN ('infrastructure_issue','maintenance','maintenance_request') AND (report_source IS NULL OR report_source != 'external')";
         break;
     default:
         $source_where = '';
@@ -155,8 +157,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $restore_status = 'in-progress';
         }
 
+        // A rejected CITIZEN report (transportation + local + created_by = 0) is
+        // restored to 'pending' so it returns to the Pending Citizen Reports
+        // section on verification_monitoring.php with its Approve/Reject buttons
+        // available again — instead of coming back permanently rejected (the
+        // buttons only render for 'pending' reports).
+        if ($module === 'transport'
+            && $restore_status === 'rejected'
+            && (int)($row['created_by'] ?? 0) === 0
+            && ($row['report_source'] ?? '') === 'local'
+            && strtolower((string)($row['report_category'] ?? '')) === 'transportation') {
+            $restore_status = 'pending';
+        }
+
+        // A rejected CIMM report is restored to 'Pending Review' (with
+        // approval_status 'Approved') so it returns to the Pending Dept/CIMM
+        // section on verification_monitoring.php with its Approve/Reject buttons
+        // available again — that panel only lists reports whose
+        // verification_status is 'Pending Review'.
+        if ($module === 'cimm' && strtolower((string)$restore_status) === 'rejected') {
+            $restore_status = 'Pending Review';
+        }
+
         // CIMM reports: map the archived row back into cimm_verification_reports.
         if ($module === 'cimm') {
+            // Reconstruct the CIMM request id (reference_code is formatted
+            // 'REQ-<id>') so the Approve/Reject buttons post a valid
+            // cimm_req_id after restore.
+            $cimm_req_id = null;
+            $ref_code = (string)($row['report_id'] ?? '');
+            if (preg_match('/^REQ-(.+)$/i', $ref_code, $m)) {
+                $cimm_req_id = $m[1];
+            } elseif ($ref_code !== '') {
+                $cimm_req_id = $ref_code;
+            }
             $cimm_fields = [
                 'reference_code' => $row['report_id'],
                 'infrastructure' => $row['title'],
@@ -169,6 +203,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 'submitted_at' => $row['created_at'],
                 'verified_at' => ($row['completed_at'] ?? null) ?: ($row['rejected_at'] ?? null),
                 'verification_status' => $restore_status,
+                'approval_status' => 'Approved',
+                'cimm_req_id' => $cimm_req_id,
             ];
             $cols = '`' . implode('`, `', array_keys($cimm_fields)) . '`';
             $place = implode(', ', array_fill(0, count($cimm_fields), '?'));

@@ -545,7 +545,7 @@ function archive_cimm_rejected_report($conn, $cimm_req_id) {
         $pdo = rgmap_verification_pdo();
         rgmap_ensure_cimm_verification_table($pdo);
         
-        $stmt = $pdo->prepare("SELECT * FROM cimm_verification_reports WHERE id = ?");
+        $stmt = $pdo->prepare("SELECT * FROM cimm_verification_reports WHERE cimm_req_id = ?");
         $stmt->execute([$cimm_req_id]);
         $cimm_report = $stmt->fetch(PDO::FETCH_ASSOC);
         
@@ -562,7 +562,7 @@ function archive_cimm_rejected_report($conn, $cimm_req_id) {
             'title' => $cimm_report['infrastructure'] ?? 'CIMM Report',
             'report_type' => 'infrastructure_issue',
             'report_category' => 'road',
-            'report_source' => 'cimm',
+            'report_source' => 'external',
             'department' => 'engineering',
             'priority' => $cimm_report['priority'] ?? 'medium',
             'status' => 'rejected',
@@ -572,9 +572,9 @@ function archive_cimm_rejected_report($conn, $cimm_req_id) {
             'location' => $cimm_report['location'] ?? '',
             'latitude' => $cimm_report['coord_lat'] ?? null,
             'longitude' => $cimm_report['coord_lng'] ?? null,
-            'created_at' => $cimm_report['submitted_at'] ?? NOW(),
-            'updated_at' => NOW(),
-            'rejected_at' => NOW(),
+            'created_at' => $cimm_report['submitted_at'] ?? date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+            'rejected_at' => date('Y-m-d H:i:s'),
             'approved_at' => null
         ];
         
@@ -588,8 +588,10 @@ function archive_cimm_rejected_report($conn, $cimm_req_id) {
         $stmt = $conn->prepare($insert);
         $stmt->execute(array_values($insert_fields));
         
-        // Delete from cimm_verification_reports
-        $delete = $conn->prepare("DELETE FROM cimm_verification_reports WHERE id = ?");
+        // Delete from cimm_verification_reports (matched by cimm_req_id, the
+        // unique CIMM request identifier — the same key rgmap_update_verification_status
+        // uses, and what the Reject form posts).
+        $delete = $conn->prepare("DELETE FROM cimm_verification_reports WHERE cimm_req_id = ?");
         $delete->execute([$cimm_req_id]);
         
         $conn->commit();
@@ -727,17 +729,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && in_array
         }
     } else {
         $reason = trim($_POST['rejection_reason'] ?? '');
-        $ok = rgmap_update_verification_status($pdo, $cimm_req_id, 'Rejected', $reason ?: 'Rejected by admin', $_SESSION['user_id'] ?? null);
-        if ($ok) {
-            // Archive the rejected CIMM report
-            $archived = archive_cimm_rejected_report($conn, $cimm_req_id);
-            if ($archived) {
-                $_SESSION['verification_message'] = 'CIMM report #' . $cimm_req_id . ' rejected and moved to archive.';
-            } else {
-                $_SESSION['verification_message'] = 'CIMM report #' . $cimm_req_id . ' rejected, but archiving failed.';
-            }
+        // Move the rejected CIMM report to the archive (status 'rejected') and
+        // remove it from this page. The source row is deleted by archiving, so
+        // updating its verification_status first is unnecessary — and 'Rejected'
+        // is not an accepted upstream value, so gating on that update would
+        // prevent the rejection from ever happening. The archived copy carries
+        // status 'rejected'.
+        $archived = archive_cimm_rejected_report($conn, $cimm_req_id);
+        if ($archived) {
+            $_SESSION['verification_message'] = 'CIMM report #' . $cimm_req_id . ' rejected and moved to archive.';
         } else {
-            $_SESSION['verification_message'] = 'Failed to reject CIMM report #' . $cimm_req_id . '.';
+            $_SESSION['verification_message'] = 'CIMM report #' . $cimm_req_id . ' rejected, but archiving failed.';
         }
     }
 

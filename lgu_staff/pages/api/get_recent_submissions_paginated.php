@@ -91,7 +91,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
                     NULL AS attachments, NULL AS image_path,
                     NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by
              FROM road_maintenance_reports
-             WHERE status IN ('approved','completed')",
+             WHERE status IN ('approved','in-progress')",
             $status_filter
         ));
 
@@ -104,7 +104,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
                     cimm_sync_status, cimm_verified_at, cimm_verified_by
              FROM road_transportation_reports
              WHERE report_type = 'infrastructure_issue'
-               AND status IN ('approved','completed'){$road_category_filter}",
+               AND status IN ('approved','in-progress'){$road_category_filter}",
             $status_filter
         ));
 

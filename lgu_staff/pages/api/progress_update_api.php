@@ -188,11 +188,16 @@ if ($method === 'GET') {
 
             // Only when the FIRST progress update is successfully saved, and the
             // report is currently Approved, automatically advance it to In Progress.
+            // CIMM reports store their status as title-case (e.g. 'Approved',
+            // 'In Progress') in verification_status, so compare and write the
+            // correct casing per table.
             if ($is_first_update) {
                 $cur = $conn->query("SELECT `{$status_column}` AS st FROM `{$report_table}` WHERE id = {$report_id}")->fetch_assoc();
-                if ($cur && ($cur['st'] ?? '') === 'approved') {
-                    $s_stmt = $conn->prepare("UPDATE `{$report_table}` SET `{$status_column}` = 'in-progress' WHERE id = ?");
-                    $s_stmt->bind_param("i", $report_id);
+                $current_status = strtolower((string)($cur['st'] ?? ''));
+                if ($current_status === 'approved') {
+                    $target_status = ($report_table === 'cimm_verification_reports') ? 'In Progress' : 'in-progress';
+                    $s_stmt = $conn->prepare("UPDATE `{$report_table}` SET `{$status_column}` = ? WHERE id = ?");
+                    $s_stmt->bind_param("si", $target_status, $report_id);
                     $s_stmt->execute();
                 }
             }

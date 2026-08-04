@@ -602,15 +602,61 @@ function handle_delete_cimm_report() {
             return;
         }
 
-        $info = fetch_one("SELECT reference_code, infrastructure FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
+        // The Delete/Trash action soft-deletes: copy the CIMM report into the
+        // archive as 'cancelled' (preserving all report data so it can be
+        // restored) BEFORE removing it from cimm_verification_reports.
+        $row = fetch_one("SELECT * FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
+
+        $archived = false;
+        if ($row) {
+            try {
+                ensure_archive_table();
+
+                $now = date('Y-m-d H:i:s');
+                $reference_code = $row['reference_code'] ?? ('CIMM-' . $report_id);
+                $insert_fields = [
+                    'report_id'       => $reference_code,
+                    'title'           => $row['infrastructure'] ?? 'CIMM Report',
+                    'report_type'     => 'infrastructure_issue',
+                    'report_category' => 'road',
+                    'report_source'   => 'external',
+                    'department'      => 'engineering',
+                    'priority'        => $row['priority'] ?? 'medium',
+                    'status'          => 'cancelled',
+                    'previous_status' => $row['verification_status'] ?? null,
+                    'archived_from'   => 'cimm_verification_reports',
+                    'created_date'    => (!empty($row['submitted_at'])) ? date('Y-m-d', strtotime($row['submitted_at'])) : date('Y-m-d'),
+                    'description'     => $row['issue'] ?? '',
+                    'location'        => $row['location'] ?? '',
+                    'latitude'        => $row['coord_lat'] ?? null,
+                    'longitude'       => $row['coord_lng'] ?? null,
+                    'created_at'      => $row['submitted_at'] ?? $now,
+                    'updated_at'      => $now,
+                    'rejected_at'     => $now,
+                    'completed_at'    => null,
+                    'approved_at'     => null,
+                ];
+
+                $fields = array_keys($insert_fields);
+                $placeholders = array_fill(0, count($fields), '?');
+                $field_list = '`' . implode('`, `', $fields) . '`';
+                $insert = "INSERT INTO road_transportation_reports_archive ($field_list) VALUES (" . implode(', ', $placeholders) . ")";
+                $stmt = $conn->prepare($insert);
+                $stmt->execute(array_values($insert_fields));
+                $archived = true;
+            } catch (Exception $e) {
+                error_log('Archive failed for CIMM report ' . $report_id . ': ' . $e->getMessage());
+            }
+        }
 
         $stmt = $conn->prepare("DELETE FROM cimm_verification_reports WHERE id = ?");
         $stmt->bind_param("i", $report_id);
 
         if ($stmt->execute()) {
-            $label = $info ? ($info['reference_code'] ?? $info['infrastructure'] ?? 'Unknown') : 'Unknown';
+            $label = $row ? ($row['reference_code'] ?? $row['infrastructure'] ?? 'Unknown') : 'Unknown';
             log_audit_action($user_id, "Deleted CIMM report", "Report ID: {$report_id}, Label: {$label}");
-            set_flash_message('success', 'CIMM report deleted successfully');
+            $msg = $archived ? 'CIMM report moved to archive as cancelled.' : 'CIMM report deleted.';
+            set_flash_message('success', $msg);
         } else {
             set_flash_message('error', 'Failed to delete CIMM report: ' . $conn->error);
         }

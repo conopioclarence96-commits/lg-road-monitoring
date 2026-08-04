@@ -184,7 +184,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                         NULL AS attachments, NULL AS image_path,
                         NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by
                  FROM road_maintenance_reports
-                 WHERE status IN ('approved','completed')",
+                 WHERE status IN ('approved','in-progress')",
                 $status_filter, $type_filter, $limit
             ));
         }
@@ -200,7 +200,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                         cimm_sync_status, cimm_verified_at, cimm_verified_by
                  FROM road_transportation_reports
                  WHERE report_type = 'infrastructure_issue'
-                   AND status IN ('approved','completed'){$road_category_filter}",
+                   AND status IN ('approved','in-progress'){$road_category_filter}",
                 $status_filter, $type_filter, $limit
             ));
         }
@@ -437,6 +437,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
         $sql = "SELECT id, report_id, title, report_type, description, status, priority, severity, latitude, longitude, detected_district, barangay, street_name, created_at 
                 FROM road_transportation_reports 
                 WHERE latitude IS NOT NULL AND longitude IS NOT NULL 
+                  AND status IN ('approved', 'in-progress')
                 ORDER BY created_at DESC";
         $res = $conn->query($sql);
         while ($row = $res->fetch_assoc()) {
@@ -1961,10 +1962,8 @@ if ($focus_report_id > 0) {
                 <div class="table-header-right">
                     <select class="filter-select" id="statusFilter" onchange="filterReports()">
                         <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
-                        <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending</option>
+                        <option value="approved" <?php echo $status_filter === 'approved' ? 'selected' : ''; ?>>Approved</option>
                         <option value="in-progress" <?php echo $status_filter === 'in-progress' ? 'selected' : ''; ?>>In Progress</option>
-                        <option value="completed" <?php echo $status_filter === 'completed' ? 'selected' : ''; ?>>Completed</option>
-                        <option value="cancelled" <?php echo $status_filter === 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
                     </select>
                     <select class="filter-select" id="typeFilter" onchange="filterReportsBySource()">
                         <option value="all">All Types</option>
