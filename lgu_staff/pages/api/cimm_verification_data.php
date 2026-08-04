@@ -156,8 +156,15 @@ function rgmap_fetch_cimm_verification_reports(PDO $pdo, array $opts = []): arra
     $sql = "SELECT * FROM cimm_verification_reports WHERE 1=1";
     $params = [];
 
-    // Exclude reports with certain verification statuses
-    $sql .= " AND verification_status IN ('Verified')";
+    // Filter for specific CIMM conditions
+    $sql .= " AND infrastructure = ?";
+    $params[] = 'Roads';
+
+    $sql .= " AND verification_status = ?";
+    $params[] = 'Pending_Review';
+
+    $sql .= " AND approval_status = ?";
+    $params[] = 'Pending';
 
     if (!empty($opts['status'])) {
         $sql .= " AND verification_status = ?";
