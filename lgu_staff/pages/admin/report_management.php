@@ -897,6 +897,15 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
     
     // Combine and sort
     $all_reports = array_merge($transport_reports ?: [], $maintenance_reports ?: []);
+
+    // Report management only lists active reports: Approved and In Progress.
+    // Pending, Rejected, Cancelled and Completed reports are excluded from
+    // every list; Cancelled/Rejected reports are only reachable via the archive.
+    $active_statuses = ['approved', 'in-progress'];
+    $all_reports = array_values(array_filter($all_reports, function ($r) use ($active_statuses) {
+        return in_array(($r['status'] ?? ''), $active_statuses, true);
+    }));
+
     usort($all_reports, function($a, $b) {
         return strtotime($b['created_at']) - strtotime($a['created_at']);
     });
@@ -2816,11 +2825,8 @@ if ($focus_id > 0) {
                     <label class="form-label">Status Filter</label>
                     <select class="filter-select" id="statusFilter" onchange="filterReports()">
                         <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
-                        <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending</option>
                         <option value="approved" <?php echo $status_filter === 'approved' ? 'selected' : ''; ?>>Approved</option>
                         <option value="in-progress" <?php echo $status_filter === 'in-progress' ? 'selected' : ''; ?>>In Progress</option>
-                        <option value="completed" <?php echo $status_filter === 'completed' ? 'selected' : ''; ?>>Completed</option>
-                        <option value="cancelled" <?php echo $status_filter === 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
                     </select>
                 </div>
                 <div>
@@ -3369,11 +3375,8 @@ if ($focus_id > 0) {
                             <div class="form-group" style="flex: 1;">
                                 <label for="editStatus" class="form-label">Status *</label>
                                 <select class="form-control" name="status" id="editStatus" required>
-                                    <option value="pending">Pending</option>
                                     <option value="approved">Approved</option>
                                     <option value="in-progress">In Progress</option>
-                                    <option value="completed">Completed</option>
-                                    <option value="cancelled">Cancelled</option>
                                 </select>
                             </div>
                             <div class="form-group" style="flex: 1;">
