@@ -2112,8 +2112,10 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                             <i class="fas fa-envelope"></i>
                         </div>
                         <h4>Email</h4>
-                        <p>General: roads@lgu.gov.ph<br>
-                           Emergency: emergency@lgu.gov.ph</p>
+                        <p>General: officer.lgu.rmo@gmail.com<br>
+                           Emergency: officer.lgu.rmo@gmail.com</p>
+                         <p>General: officer.lgu.tmo@gmail.com<br>
+                           Emergency: officer.lgu.tmo@gmail.com</p>
                     </div>
                 </div>
                 <div class="col-md-4">
