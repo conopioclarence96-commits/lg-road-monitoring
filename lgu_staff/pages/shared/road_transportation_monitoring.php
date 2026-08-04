@@ -11,6 +11,7 @@ ini_set('session.cookie_secure', 0); // Set to 1 if using HTTPS
 session_start();
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
+require_once __DIR__ . '/../api/cimm_verification_data.php';
 
 // Defensive migration for the CIMM sync/verification columns — these are
 // normally added by rgmap_cimm_ensure_schema() the first time a report gets
@@ -194,16 +195,18 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
         if (!$transport_only) {
             try {
             $reports = array_merge($reports, $fetch(
-                "SELECT id, reference_code AS report_id, infrastructure AS title,
-                        'infrastructure_issue' AS report_type, 'road' AS report_category, 'cimm' AS source,
-                        'completed' AS status, priority, NULL AS severity,
-                        COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at,
-                        issue AS description, coord_lat AS latitude, coord_lng AS longitude,
-                        location, reporter_name, NULL AS attachments, NULL AS image_path,
-                        'verified' AS cimm_sync_status, verified_at AS cimm_verified_at,
-                        NULL AS cimm_verified_by
-                 FROM cimm_verification_reports
-                 WHERE verification_status = 'Verified'",
+                "SELECT * FROM (
+                    SELECT id, reference_code AS report_id, infrastructure AS title,
+                            'infrastructure_issue' AS report_type, 'road' AS report_category, 'cimm' AS source,
+                            " . cimm_status_case_sql() . " AS status, priority, NULL AS severity,
+                            COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at,
+                            issue AS description, coord_lat AS latitude, coord_lng AS longitude,
+                            location, reporter_name, NULL AS attachments, NULL AS image_path,
+                            'verified' AS cimm_sync_status, verified_at AS cimm_verified_at,
+                            NULL AS cimm_verified_by
+                     FROM cimm_verification_reports
+                     WHERE verification_status = 'Verified'
+                 ) AS cimm_mapped WHERE 1=1",
                 $status_filter, $type_filter, $limit
             ));
         } catch (Exception $e) {
@@ -727,7 +730,7 @@ function resolve_recent_focus_row(int $id, string $source_hint = ''): ?array {
                 require_once __DIR__ . '/../api/cimm_verification_data.php';
                 $pdo = rgmap_verification_pdo();
                 rgmap_ensure_cimm_verification_table($pdo);
-                $stmt = $pdo->prepare("SELECT id, reference_code AS report_id, infrastructure AS title, 'infrastructure_issue' AS report_type, 'completed' AS status, priority, NULL AS severity, COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at, issue AS description, coord_lat AS latitude, coord_lng AS longitude, location, reporter_name, NULL AS attachments, NULL AS image_path, 'verified' AS cimm_sync_status, verified_at AS cimm_verified_at, NULL AS cimm_verified_by FROM cimm_verification_reports WHERE id = ?");
+                $stmt = $pdo->prepare("SELECT id, reference_code AS report_id, infrastructure AS title, 'infrastructure_issue' AS report_type, " . cimm_status_case_sql() . " AS status, priority, NULL AS severity, COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at, issue AS description, coord_lat AS latitude, coord_lng AS longitude, location, reporter_name, NULL AS attachments, NULL AS image_path, 'verified' AS cimm_sync_status, verified_at AS cimm_verified_at, NULL AS cimm_verified_by FROM cimm_verification_reports WHERE id = ?");
                 $stmt->execute([$id]);
                 $r = $stmt->fetch(PDO::FETCH_ASSOC);
                 if ($r) {
