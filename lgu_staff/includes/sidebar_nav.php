@@ -92,6 +92,13 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
                 $count += $stmt->get_result()->fetch_assoc()['count'];
                 $stmt->close();
             } catch (Exception $e) {}
+            try {
+                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM report_assignments WHERE user_id = ? AND status = 'active'");
+                $stmt->bind_param("i", $user_id);
+                $stmt->execute();
+                $count += $stmt->get_result()->fetch_assoc()['count'];
+                $stmt->close();
+            } catch (Exception $e) {}
         } elseif (is_staff_role($user_role) && $user_id > 0) {
             try {
                 $stmt = $conn->prepare("SELECT COUNT(*) as count FROM change_requests WHERE user_id = ? AND status != 'pending'");
@@ -102,6 +109,13 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
             } catch (Exception $e) {}
             try {
                 $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE created_by = ? AND status IN ('completed', 'cancelled')");
+                $stmt->bind_param("i", $user_id);
+                $stmt->execute();
+                $count += $stmt->get_result()->fetch_assoc()['count'];
+                $stmt->close();
+            } catch (Exception $e) {}
+            try {
+                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM report_assignments WHERE user_id = ? AND status = 'active'");
                 $stmt->bind_param("i", $user_id);
                 $stmt->execute();
                 $count += $stmt->get_result()->fetch_assoc()['count'];

@@ -32,36 +32,46 @@ if (!isset($_SESSION['user_id']) || !is_admin_or_staff_role($user_role)) {
 }
 
 // Handle mark as read
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_admin) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
     $action = $_POST['action'] ?? '';
-    
+
     if ($action === 'mark_read') {
         $type = $_POST['type'] ?? '';
         $id = $_POST['id'] ?? 0;
-        
+
         if ($type === 'report') {
             $stmt = $conn->prepare("UPDATE road_transportation_reports SET updated_at = NOW() WHERE id = ? AND status = 'pending'");
             $stmt->bind_param("i", $id);
             $stmt->execute();
             $stmt->close();
         }
-        
+
+        if ($type === 'project_assignment') {
+            $stmt = $conn->prepare("UPDATE report_assignments SET status = 'completed' WHERE id = ?");
+            $stmt->bind_param("i", $id);
+            $stmt->execute();
+            $stmt->close();
+        }
+
         echo json_encode(['success' => true]);
         exit;
     }
-    
+
     if ($action === 'mark_all_read') {
         $conn->query("UPDATE road_transportation_reports SET updated_at = NOW() WHERE status = 'pending'");
         echo json_encode(['success' => true]);
         exit;
     }
-    
-    if ($action === 'mark_read_change' && $id > 0) {
-        $stmt = $conn->prepare("UPDATE change_requests SET admin_notes = CONCAT(COALESCE(admin_notes,''), '[Viewed]') WHERE id = ? AND status = 'pending'");
-        $stmt->bind_param("i", $id);
-        $stmt->execute();
-        $stmt->close();
+
+    if ($action === 'mark_read_change') {
+        $id = $_POST['id'] ?? 0;
+        if ($id > 0) {
+            $stmt = $conn->prepare("UPDATE change_requests SET admin_notes = CONCAT(COALESCE(admin_notes,''), '[Viewed]') WHERE id = ? AND status = 'pending'");
+            $stmt->bind_param("i", $id);
+            $stmt->execute();
+            $stmt->close();
+        }
         echo json_encode(['success' => true]);
         exit;
     }
@@ -72,6 +82,7 @@ $pending_reports = [];
 $pending_changes = [];
 $report_updates = [];
 $staff_updates = [];
+$assigned_projects = [];
 
 if ($is_admin) {
     // Admin: get pending reports
@@ -186,6 +197,68 @@ if ($is_admin) {
         error_log("Progress notifications query error: " . $e->getMessage());
         $progress_notifications = [];
     }
+
+    // Admin: get assigned project notifications (all project assignments)
+    try {
+        $astmt = $conn->prepare("
+            SELECT ra.*, r.report_id as report_code, r.title as report_title,
+                   r.report_type as transport_report_type, r.report_category, r.report_source, r.created_by
+            FROM report_assignments ra
+            LEFT JOIN road_transportation_reports r ON ra.report_id = r.id AND ra.report_type = 'road_transportation_reports'
+            WHERE ra.status = 'active' AND ra.user_id = ?
+            ORDER BY ra.assigned_at DESC
+            LIMIT 20
+        ");
+        $astmt->bind_param("i", $user_id);
+        $astmt->execute();
+        $assigned_projects = $astmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $astmt->close();
+
+        // Enrich assignments with report data from appropriate tables
+        foreach ($assigned_projects as &$assignment) {
+            if ($assignment['report_type'] === 'road_maintenance_reports') {
+                $mstmt = $conn->prepare("SELECT report_id, title, report_type, report_category, report_source, created_by FROM road_maintenance_reports WHERE id = ?");
+                $mstmt->bind_param("i", $assignment['report_id']);
+                $mstmt->execute();
+                $mresult = $mstmt->get_result()->fetch_assoc();
+                if ($mresult) {
+                    $assignment['report_code'] = $mresult['report_id'];
+                    $assignment['report_title'] = $mresult['title'];
+                    $assignment['transport_report_type'] = $mresult['report_type'];
+                    $assignment['report_category'] = $mresult['report_category'];
+                    $assignment['report_source'] = $mresult['report_source'];
+                    $assignment['created_by'] = $mresult['created_by'];
+                    $assignment['_source'] = 'maintenance';
+                }
+                $mstmt->close();
+            } elseif ($assignment['report_type'] === 'cimm_verification_reports') {
+                try {
+                    $cimmPdo = rgmap_verification_pdo();
+                    $cimmRows = rgmap_fetch_cimm_verification_reports($cimmPdo, ['limit' => 500]);
+                    foreach ($cimmRows as $crow) {
+                        if ((int)($crow['id'] ?? 0) === (int)$assignment['report_id']) {
+                            $assignment['report_code'] = $crow['reference_code'] ?? ('REQ-' . ($crow['cimm_req_id'] ?? ''));
+                            $assignment['report_title'] = $crow['infrastructure'] ?? 'CIMM Report';
+                            $assignment['transport_report_type'] = 'infrastructure_issue';
+                            $assignment['report_category'] = null;
+                            $assignment['report_source'] = null;
+                            $assignment['created_by'] = null;
+                            $assignment['_source'] = 'cimm';
+                            break;
+                        }
+                    }
+                } catch (Exception $e) {
+                    error_log("CIMM assignment lookup error: " . $e->getMessage());
+                }
+            } else {
+                // Already got data from road_transportation_reports join
+                $assignment['_source'] = 'transport';
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Admin assigned projects query error: " . $e->getMessage());
+        $assigned_projects = [];
+    }
 } else {
     // LGU Staff: get their own change request status updates
     try {
@@ -207,7 +280,7 @@ if ($is_admin) {
     // LGU Staff: get report status updates (approved = completed, rejected = cancelled)
     try {
         $rstmt = $conn->prepare("
-            SELECT id, report_id, title, status, location, 
+            SELECT id, report_id, title, status, location,
                    approved_at, rejected_at, updated_at, created_at,
                    report_type, report_category, report_source, created_by
             FROM road_transportation_reports
@@ -222,9 +295,71 @@ if ($is_admin) {
     } catch (Exception $e) {
         error_log("Staff report updates query error: " . $e->getMessage());
     }
+
+    // LGU Staff: get assigned projects
+    try {
+        $astmt = $conn->prepare("
+            SELECT ra.*, r.report_id as report_code, r.title as report_title,
+                   r.report_type as transport_report_type, r.report_category, r.report_source, r.created_by
+            FROM report_assignments ra
+            LEFT JOIN road_transportation_reports r ON ra.report_id = r.id AND ra.report_type = 'road_transportation_reports'
+            WHERE ra.user_id = ? AND ra.status = 'active'
+            ORDER BY ra.assigned_at DESC
+            LIMIT 20
+        ");
+        $astmt->bind_param("i", $user_id);
+        $astmt->execute();
+        $assigned_projects = $astmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $astmt->close();
+
+        // Enrich assignments with report data from appropriate tables
+        foreach ($assigned_projects as &$assignment) {
+            if ($assignment['report_type'] === 'road_maintenance_reports') {
+                $mstmt = $conn->prepare("SELECT report_id, title, report_type, report_category, report_source, created_by FROM road_maintenance_reports WHERE id = ?");
+                $mstmt->bind_param("i", $assignment['report_id']);
+                $mstmt->execute();
+                $mresult = $mstmt->get_result()->fetch_assoc();
+                if ($mresult) {
+                    $assignment['report_code'] = $mresult['report_id'];
+                    $assignment['report_title'] = $mresult['title'];
+                    $assignment['transport_report_type'] = $mresult['report_type'];
+                    $assignment['report_category'] = $mresult['report_category'];
+                    $assignment['report_source'] = $mresult['report_source'];
+                    $assignment['created_by'] = $mresult['created_by'];
+                    $assignment['_source'] = 'maintenance';
+                }
+                $mstmt->close();
+            } elseif ($assignment['report_type'] === 'cimm_verification_reports') {
+                try {
+                    $cimmPdo = rgmap_verification_pdo();
+                    $cimmRows = rgmap_fetch_cimm_verification_reports($cimmPdo, ['limit' => 500]);
+                    foreach ($cimmRows as $crow) {
+                        if ((int)($crow['id'] ?? 0) === (int)$assignment['report_id']) {
+                            $assignment['report_code'] = $crow['reference_code'] ?? ('REQ-' . ($crow['cimm_req_id'] ?? ''));
+                            $assignment['report_title'] = $crow['infrastructure'] ?? 'CIMM Report';
+                            $assignment['transport_report_type'] = 'infrastructure_issue';
+                            $assignment['report_category'] = null;
+                            $assignment['report_source'] = null;
+                            $assignment['created_by'] = null;
+                            $assignment['_source'] = 'cimm';
+                            break;
+                        }
+                    }
+                } catch (Exception $e) {
+                    error_log("CIMM assignment lookup error: " . $e->getMessage());
+                }
+            } else {
+                // Already got data from road_transportation_reports join
+                $assignment['_source'] = 'transport';
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Staff assigned projects query error: " . $e->getMessage());
+        $assigned_projects = [];
+    }
 }
 
-$total_notifications = $is_admin ? (count($pending_reports) + count($pending_changes) + count($progress_notifications)) : (count($staff_updates) + count($report_updates));
+$total_notifications = $is_admin ? (count($pending_reports) + count($pending_changes) + count($progress_notifications) + count($assigned_projects)) : (count($staff_updates) + count($report_updates) + count($assigned_projects));
 
 // --- Notification deep-link helpers ----------------------------------------
 // Every View/Review button must pass the report source together with the id
@@ -350,6 +485,19 @@ function notification_progress_focus_url(array $pn): string {
     $src = (string)($pn['_source'] ?? '');
     if ($src !== '') {
         $url .= '&source=' . rawurlencode($src);
+    }
+    return $url;
+}
+
+// URL for assigned projects - always goes to road monitoring page
+function notification_assignment_url(array $ap): string {
+    $source = (string)($ap['_source'] ?? '');
+    $report_id = (int)($ap['report_id'] ?? 0);
+
+    // Always redirect to road monitoring page with focus_report_id
+    $url = 'road_transportation_monitoring.php?focus_report_id=' . $report_id;
+    if ($source !== '') {
+        $url .= '&source=' . rawurlencode($source);
     }
     return $url;
 }
@@ -939,6 +1087,55 @@ function notification_progress_focus_url(array $pn): string {
                     <?php endif; ?>
                 </div>
             </div>
+
+            <!-- Admin: Assigned Projects -->
+            <div class="workflow-card">
+                <div class="workflow-header">
+                    <h3 class="workflow-title">
+                        <i class="fas fa-tasks" style="color: #8b5cf6;"></i>
+                        <span>Assigned Projects</span>
+                        <span class="workflow-badge"><?php echo count($assigned_projects); ?></span>
+                    </h3>
+                </div>
+
+                <div class="workflow-content">
+                    <?php if (empty($assigned_projects)): ?>
+                        <div class="empty-state">
+                            <i class="fas fa-tasks"></i>
+                            <p>No assigned projects yet</p>
+                        </div>
+                    <?php else: ?>
+                        <?php foreach ($assigned_projects as $ap): ?>
+                            <div class="notification-item">
+                                <div class="notification-header">
+                                    <div class="notification-title">
+                                        <span class="t-text-success"><i class="fas fa-clipboard-check"></i> Project Assigned</span>
+                                    </div>
+                                    <div class="notification-time"><?php echo date('M d, Y H:i', strtotime($ap['assigned_at'])); ?></div>
+                                </div>
+                                <div class="notification-body">
+                                    <small>Project: <strong><?php echo htmlspecialchars($ap['report_code'] ?? '#' . $ap['report_id']); ?></strong></small>
+                                    <?php if (!empty($ap['report_title'])): ?>
+                                        &mdash; <?php echo htmlspecialchars($ap['report_title']); ?>
+                                    <?php endif; ?>
+                                    <?php if (!empty($ap['notes'])): ?>
+                                        <br><small class="t-text-secondary">Notes: <?php echo htmlspecialchars($ap['notes']); ?></small>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="notification-meta">
+                                    <span class="notification-tag"><i class="fas fa-user"></i> User ID: <?php echo (int)$ap['user_id']; ?></span>
+                                    <span class="notification-tag"><i class="fas fa-calendar"></i> Assigned <?php echo date('M d, Y', strtotime($ap['assigned_at'])); ?></span>
+                                </div>
+                                <div style="margin-top: 10px;">
+                                    <div class="action-buttons">
+                                        <a href="<?php echo notification_assignment_url($ap); ?>" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> View Project</a>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+            </div>
             <?php else: ?>
             <!-- Staff: My Report Status Updates -->
             <div class="workflow-card">
@@ -981,6 +1178,54 @@ function notification_progress_focus_url(array $pn): string {
                                 <div class="notification-meta">
                                     <span class="notification-tag"><i class="fas fa-hashtag"></i> <?php echo htmlspecialchars($report['report_id']); ?></span>
                                     <span class="notification-tag"><i class="fas fa-calendar"></i> Submitted <?php echo date('M d, Y', strtotime($report['created_at'])); ?></span>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <!-- Staff: My Assigned Projects -->
+            <div class="workflow-card">
+                <div class="workflow-header">
+                    <h3 class="workflow-title">
+                        <i class="fas fa-tasks" style="color: #8b5cf6;"></i>
+                        <span>My Assigned Projects</span>
+                        <span class="workflow-badge"><?php echo count($assigned_projects); ?></span>
+                    </h3>
+                </div>
+
+                <div class="workflow-content">
+                    <?php if (empty($assigned_projects)): ?>
+                        <div class="empty-state">
+                            <i class="fas fa-tasks"></i>
+                            <p>No assigned projects yet</p>
+                        </div>
+                    <?php else: ?>
+                        <?php foreach ($assigned_projects as $ap): ?>
+                            <div class="notification-item">
+                                <div class="notification-header">
+                                    <div class="notification-title">
+                                        <span class="t-text-success"><i class="fas fa-clipboard-check"></i> Project Assigned</span>
+                                    </div>
+                                    <div class="notification-time"><?php echo date('M d, Y H:i', strtotime($ap['assigned_at'])); ?></div>
+                                </div>
+                                <div class="notification-body">
+                                    <small>Project: <strong><?php echo htmlspecialchars($ap['report_code'] ?? '#' . $ap['report_id']); ?></strong></small>
+                                    <?php if (!empty($ap['report_title'])): ?>
+                                        &mdash; <?php echo htmlspecialchars($ap['report_title']); ?>
+                                    <?php endif; ?>
+                                    <?php if (!empty($ap['notes'])): ?>
+                                        <br><small class="t-text-secondary">Notes: <?php echo htmlspecialchars($ap['notes']); ?></small>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="notification-meta">
+                                    <span class="notification-tag"><i class="fas fa-calendar"></i> Assigned <?php echo date('M d, Y', strtotime($ap['assigned_at'])); ?></span>
+                                </div>
+                                <div style="margin-top: 10px;">
+                                    <div class="action-buttons">
+                                        <a href="<?php echo notification_assignment_url($ap); ?>" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> View Project</a>
+                                    </div>
                                 </div>
                             </div>
                         <?php endforeach; ?>
