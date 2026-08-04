@@ -12,7 +12,8 @@ $conn->query("CREATE TABLE IF NOT EXISTS road_transportation_reports_archive LIK
 
 // Ensure archive table has the same columns as the source table
 foreach (['report_category' => "ENUM('road','transportation') DEFAULT NULL AFTER report_type",
-           'report_source' => "ENUM('local','external') DEFAULT 'local' AFTER report_category"] as $col => $def) {
+           'report_source' => "ENUM('local','external') DEFAULT 'local' AFTER report_category",
+           'previous_status' => "VARCHAR(50) DEFAULT NULL"] as $col => $def) {
     $chk = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE '$col'");
     if ($chk && $chk->num_rows === 0) {
         $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN $col $def");
@@ -118,14 +119,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             exit();
         }
 
-        // Route the report back to the live table where its last action happened:
-        // maintenance report types live in road_maintenance_reports, everything
-        // else (transportation, infrastructure, CIMM) goes back to
-        // road_transportation_reports.
+        // Route the report back to the module where its last action happened:
+        //   - report_source 'external'  -> CIMM module (cimm_verification_reports)
+        //   - maintenance report types  -> Infrastructure (road_maintenance_reports)
+        //   - everything else           -> Transportation (road_transportation_reports)
         $maintenance_types = ['routine', 'emergency', 'preventive', 'corrective', 'scheduled'];
-        $target_table = in_array($row['report_type'], $maintenance_types, true)
-            ? 'road_maintenance_reports'
-            : 'road_transportation_reports';
+        if (($row['report_source'] ?? '') === 'external') {
+            $module = 'cimm';
+        } elseif (in_array($row['report_type'], $maintenance_types, true)) {
+            $module = 'maintenance';
+        } else {
+            $module = 'transport';
+        }
+
+        // Restore to its previous (pre-archive) status when it was recorded,
+        // so the report reappears in the active list where its last action
+        // happened instead of staying hidden with a terminal status.
+        $restore_status = (!empty($row['previous_status'])) ? $row['previous_status'] : $row['status'];
+
+        // CIMM reports: map the archived row back into cimm_verification_reports.
+        if ($module === 'cimm') {
+            $cimm_fields = [
+                'reference_code' => $row['report_id'],
+                'infrastructure' => $row['title'],
+                'issue' => $row['description'],
+                'location' => $row['location'],
+                'coord_lat' => $row['latitude'],
+                'coord_lng' => $row['longitude'],
+                'priority' => $row['priority'],
+                'reporter_name' => $row['reporter_name'],
+                'submitted_at' => $row['created_at'],
+                'verified_at' => ($row['completed_at'] ?? null) ?: ($row['rejected_at'] ?? null),
+                'verification_status' => $restore_status,
+            ];
+            $cols = '`' . implode('`, `', array_keys($cimm_fields)) . '`';
+            $place = implode(', ', array_fill(0, count($cimm_fields), '?'));
+            $stmt = $conn->prepare("INSERT INTO cimm_verification_reports ($cols) VALUES ($place)");
+            try {
+                $stmt->execute(array_values($cimm_fields));
+            } catch (Exception $e) {
+                $_SESSION['archive_message'] = 'Restore failed – the CIMM report may already exist.';
+                header('Location: archive.php');
+                exit();
+            }
+            if ($stmt->affected_rows > 0) {
+                $delete = $conn->prepare("DELETE FROM road_transportation_reports_archive WHERE id = ?");
+                $delete->bind_param('i', $archive_id);
+                $delete->execute();
+                $_SESSION['archive_message'] = 'Report restored successfully.';
+            } else {
+                $_SESSION['archive_message'] = 'Restore failed – the report may already exist.';
+            }
+            header('Location: archive.php');
+            exit();
+        }
+
+        $target_table = ($module === 'maintenance') ? 'road_maintenance_reports' : 'road_transportation_reports';
 
         // Build the column list from only the columns the target table actually
         // has, and drop the auto-increment id so a restored row always gets a
@@ -146,7 +195,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         $cols = implode(', ', array_map(function ($f) { return "`$f`"; }, $fields));
         $place = implode(', ', array_fill(0, count($fields), '?'));
-        $values = array_map(function ($f) use ($row) { return $row[$f]; }, $fields);
+        $values = [];
+        foreach ($fields as $field) {
+            $value = $row[$field];
+            if ($field === 'status') {
+                $value = $restore_status;
+            }
+            // If the report is no longer terminal, clear the terminal timestamps
+            // so the restored row looks like the report it was before archiving.
+            if ($restore_status !== 'cancelled' && in_array($field, ['rejected_at', 'cancelled_at'], true)) {
+                $value = null;
+            }
+            if ($restore_status !== 'completed' && $field === 'completed_at') {
+                $value = null;
+            }
+            $values[] = $value;
+        }
 
         $insert = "INSERT INTO $target_table ($cols) VALUES ($place)";
         $stmt = $conn->prepare($insert);

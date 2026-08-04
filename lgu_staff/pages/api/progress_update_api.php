@@ -304,6 +304,12 @@ function rgmap_archive_ensure_table() {
     try {
         $conn->query("ALTER TABLE road_transportation_reports_archive MODIFY report_type VARCHAR(255) NULL DEFAULT NULL");
     } catch (Exception $e) { error_log('rgmap_archive_ensure_table report_type widen: ' . $e->getMessage()); }
+    try {
+        $chk = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE 'previous_status'");
+        if ($chk && $chk->num_rows === 0) {
+            $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN previous_status VARCHAR(50) NULL DEFAULT NULL");
+        }
+    } catch (Exception $e) { error_log('rgmap_archive_ensure_table previous_status: ' . $e->getMessage()); }
 }
 
 // Return the live report table that actually contains the given id, or null.
@@ -328,6 +334,15 @@ function rgmap_archive_report($conn, $table, $report_id, $status) {
         rgmap_archive_ensure_table();
         $conn->begin_transaction();
 
+        // Capture the report's status BEFORE applying the terminal status so it
+        // can be restored exactly where its last action happened.
+        $prev_stmt = $conn->prepare("SELECT status FROM $table WHERE id = ?");
+        $prev_stmt->bind_param("i", $report_id);
+        $prev_stmt->execute();
+        $prev_row = $prev_stmt->get_result()->fetch_assoc();
+        $previous_status = ($prev_row && isset($prev_row['status'])) ? $prev_row['status'] : null;
+        $prev_stmt->close();
+
         // Mark the live row with the terminal status first so the archived copy
         // below carries that status while preserving all other columns.
         $stmt = $conn->prepare("UPDATE $table SET status = ?, updated_at = NOW() WHERE id = ?");
@@ -343,6 +358,12 @@ function rgmap_archive_report($conn, $table, $report_id, $status) {
         $stmt = $conn->prepare("INSERT INTO road_transportation_reports_archive ($cols) SELECT $cols FROM $table WHERE id = ?");
         $stmt->bind_param("i", $report_id);
         $stmt->execute();
+
+        if ($previous_status !== null) {
+            $ps = $conn->prepare("UPDATE road_transportation_reports_archive SET previous_status = ? WHERE id = ?");
+            $ps->bind_param("si", $previous_status, $report_id);
+            $ps->execute();
+        }
 
         $stmt = $conn->prepare("DELETE FROM $table WHERE id = ?");
         $stmt->bind_param("i", $report_id);
@@ -384,6 +405,7 @@ function rgmap_archive_cimm_report($conn, $cimm_req_id, $status) {
             'department' => 'engineering',
             'priority' => $cimm_report['priority'] ?? 'medium',
             'status' => $status,
+            'previous_status' => $cimm_report['verification_status'] ?? null,
             'created_date' => (!empty($cimm_report['submitted_at'])) ? date('Y-m-d', strtotime($cimm_report['submitted_at'])) : date('Y-m-d'),
             'description' => $cimm_report['issue'] ?? '',
             'location' => $cimm_report['location'] ?? '',
@@ -434,6 +456,13 @@ function rgmap_archive_report_copy($conn, $table, $report_id, $status) {
         if (empty($fields)) { throw new Exception("No columns found for table $table"); }
         $cols = implode(', ', $fields);
 
+        $prev_stmt = $conn->prepare("SELECT status FROM $table WHERE id = ?");
+        $prev_stmt->bind_param("i", $report_id);
+        $prev_stmt->execute();
+        $prev_row = $prev_stmt->get_result()->fetch_assoc();
+        $previous_status = ($prev_row && isset($prev_row['status'])) ? $prev_row['status'] : null;
+        $prev_stmt->close();
+
         $conn->begin_transaction();
         $stmt = $conn->prepare("INSERT INTO road_transportation_reports_archive ($cols) SELECT $cols FROM $table WHERE id = ?");
         $stmt->bind_param("i", $report_id);
@@ -444,6 +473,12 @@ function rgmap_archive_report_copy($conn, $table, $report_id, $status) {
         $stmt = $conn->prepare("UPDATE road_transportation_reports_archive SET status = ?, updated_at = NOW() WHERE id = ?");
         $stmt->bind_param("si", $status, $arch_id);
         $stmt->execute();
+
+        if ($previous_status !== null) {
+            $ps = $conn->prepare("UPDATE road_transportation_reports_archive SET previous_status = ? WHERE id = ?");
+            $ps->bind_param("si", $previous_status, $arch_id);
+            $ps->execute();
+        }
 
         $conn->commit();
         return true;
@@ -477,6 +512,7 @@ function rgmap_archive_copy_cimm_report($conn, $cimm_req_id, $status) {
             'department' => 'engineering',
             'priority' => $cimm_report['priority'] ?? 'medium',
             'status' => $status,
+            'previous_status' => $cimm_report['verification_status'] ?? null,
             'created_date' => (!empty($cimm_report['submitted_at'])) ? date('Y-m-d', strtotime($cimm_report['submitted_at'])) : date('Y-m-d'),
             'description' => $cimm_report['issue'] ?? '',
             'location' => $cimm_report['location'] ?? '',
