@@ -1,7 +1,7 @@
 /* Session Timeout Warning */
 
 (function() {
-    var SESSION_TIMEOUT = 300000;       // 5 min default, overridden by PHP
+    var SESSION_TIMEOUT = 1800000;      // 30 min default, overridden by PHP
     var WARNING_BEFORE = 60000;         // warn 1 min before
     var warningTimer = null;
     var countdownInterval = null;

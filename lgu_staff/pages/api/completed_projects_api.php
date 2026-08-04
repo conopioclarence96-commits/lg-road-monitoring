@@ -20,7 +20,7 @@ ini_set('session.cookie_secure', 0);
 session_start();
 
 // Session timeout
-$session_timeout = 5 * 60;
+$session_timeout = 30 * 60;
 if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
     session_destroy();
     http_response_code(401);
