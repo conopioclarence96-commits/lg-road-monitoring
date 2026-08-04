@@ -146,6 +146,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         // happened instead of staying hidden with a terminal status.
         $restore_status = (!empty($row['previous_status'])) ? $row['previous_status'] : $row['status'];
 
+        // A completed transportation report is brought back as an ACTIVE report
+        // ('in-progress') so it reappears in Recent Submissions on
+        // road_transportation_monitoring.php and report_management.php instead
+        // of staying finished.
+        if ($module === 'transport' && $restore_status === 'completed') {
+            $restore_status = 'in-progress';
+        }
+
         // CIMM reports: map the archived row back into cimm_verification_reports.
         if ($module === 'cimm') {
             $cimm_fields = [
@@ -221,6 +229,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $value = null;
             }
             $values[] = $value;
+        }
+
+        // The Complete flow files a COPY into the archive while the live report
+        // stays in place, so the live report may already exist here. In that
+        // case reopen it in place (restore its status/data) instead of inserting
+        // a duplicate, then drop the archive copy.
+        $dup_check = $conn->prepare("SELECT id FROM $target_table WHERE report_id = ?");
+        $dup_check->bind_param("s", $row['report_id']);
+        $dup_check->execute();
+        $existing_id = $dup_check->get_result()->fetch_assoc()['id'] ?? null;
+        $dup_check->close();
+
+        if ($existing_id) {
+            $sql = "UPDATE $target_table SET status = ?, updated_at = NOW()";
+            if ($restore_status !== 'completed') {
+                $sql .= ", completed_at = NULL";
+            }
+            $sql .= " WHERE id = ?";
+            $upd = $conn->prepare($sql);
+            $upd->bind_param("si", $restore_status, $existing_id);
+            $upd->execute();
+            if ($upd->affected_rows >= 0) {
+                $delete = $conn->prepare("DELETE FROM road_transportation_reports_archive WHERE id = ?");
+                $delete->bind_param('i', $archive_id);
+                $delete->execute();
+                $_SESSION['archive_message'] = 'Report restored successfully.';
+            } else {
+                $_SESSION['archive_message'] = 'Restore failed – the record may already exist.';
+            }
+            header('Location: archive.php');
+            exit();
         }
 
         $insert = "INSERT INTO $target_table ($cols) VALUES ($place)";
