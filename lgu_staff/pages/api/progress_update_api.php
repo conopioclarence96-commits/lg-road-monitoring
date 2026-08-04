@@ -87,20 +87,46 @@ if ($method === 'GET') {
         if (empty($description)) json_response(['success' => false, 'message' => 'Description is required']);
 
         $report = fetch_one("SELECT id, report_id FROM road_transportation_reports WHERE id = ?", [$report_id], "i");
+        $report_table = 'road_transportation_reports';
         if (!$report) {
             $report = fetch_one("SELECT id, report_id FROM road_maintenance_reports WHERE id = ?", [$report_id], "i");
+            $report_table = 'road_maintenance_reports';
         }
         if (!$report) {
             $report = fetch_one("SELECT id, reference_code AS report_id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
+            $report_table = 'cimm_verification_reports';
         }
         if (!$report) json_response(['success' => false, 'message' => 'Report not found']);
 
+        // The report's status column depends on which table it lives in.
+        $status_column = ($report_table === 'cimm_verification_reports') ? 'verification_status' : 'status';
+
         try {
+            // Determine whether this will be the report's first progress update
+            // BEFORE inserting, so we can auto-advance its status on the very
+            // first upload only (both report_management.php and
+            // road_transportation_monitoring.php post updates here).
+            $cnt_stmt = $conn->prepare("SELECT COUNT(*) AS cnt FROM report_updates WHERE report_id = ?");
+            $cnt_stmt->bind_param("i", $report_id);
+            $cnt_stmt->execute();
+            $is_first_update = ((int)($cnt_stmt->get_result()->fetch_assoc()['cnt'] ?? 0)) === 0;
+
             // Insert update
             $stmt = $conn->prepare("INSERT INTO report_updates (report_id, user_id, title, description) VALUES (?, ?, ?, ?)");
             $stmt->bind_param("iiss", $report_id, $user_id, $title, $description);
             $stmt->execute();
             $update_id = $conn->insert_id;
+
+            // Only when the FIRST progress update is successfully saved, and the
+            // report is currently Approved, automatically advance it to In Progress.
+            if ($is_first_update) {
+                $cur = $conn->query("SELECT `{$status_column}` AS st FROM `{$report_table}` WHERE id = {$report_id}")->fetch_assoc();
+                if ($cur && ($cur['st'] ?? '') === 'approved') {
+                    $s_stmt = $conn->prepare("UPDATE `{$report_table}` SET `{$status_column}` = 'in-progress' WHERE id = ?");
+                    $s_stmt->bind_param("i", $report_id);
+                    $s_stmt->execute();
+                }
+            }
 
             // Handle media uploads
             $upload_dir = __DIR__ . '/../../uploads/progress_updates';

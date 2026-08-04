@@ -755,6 +755,15 @@ function getCimmReportsForManagement($status_filter = 'all') {
 
     $mapped = array_map('mapCimmToReportManagement', $rows);
 
+    // CIMM reports that are still pending, cancelled or rejected are not
+    // shown in report management. Rejected CIMM reports map to the 'cancelled'
+    // status here, so excluding both 'pending' and 'cancelled' covers pending,
+    // cancelled and rejected reports; only Approved, In Progress and Completed
+    // CIMM reports appear in this panel.
+    $mapped = array_values(array_filter($mapped, function ($r) {
+        return !in_array(strtolower($r['status'] ?? ''), ['pending', 'cancelled'], true);
+    }));
+
     if ($status_filter !== 'all') {
         $mapped = array_values(array_filter($mapped, function ($r) use ($status_filter) {
             return $r['status'] === $status_filter;
