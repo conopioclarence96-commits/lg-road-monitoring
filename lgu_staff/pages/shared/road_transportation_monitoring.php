@@ -593,7 +593,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 
                 // Handle multiple image uploads
                 $attachments = [];
-                $upload_dir = __DIR__ . '/../../../uploads/report_images';
+                $upload_dir = __DIR__ . '/../../uploads/report_images';
                 $upload_dir = str_replace('\\', '/', $upload_dir);
                 
                 if (!empty($_FILES['photos']) && is_array($_FILES['photos']['name'])) {
@@ -2593,7 +2593,7 @@ if ($focus_report_id > 0) {
             if (data.image_path) {
                 const paths = Array.isArray(data.image_path) ? data.image_path : [data.image_path];
                 paths.forEach(function(p) {
-                    if (p) photoHtml += '<img src="../../../' + p + '" class="detail-photo" onclick="openLightbox(\'../../../' + p.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') + '\')">';
+                    if (p) photoHtml += '<img src="../../' + p + '" class="detail-photo" onclick="openLightbox(\'../../' + p.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') + '\')">';
                 });
             }
             if (data.attachments) {
@@ -2602,7 +2602,7 @@ if ($focus_report_id > 0) {
                     if (Array.isArray(atts)) {
                         atts.forEach(function(a) {
                             const path = a.file_path || a.path || a.url || (typeof a === 'string' ? a : '');
-                            if (path) photoHtml += '<img src="../../../' + path + '" class="detail-photo" onclick="openLightbox(\'../../../' + path.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') + '\')">';
+                            if (path) photoHtml += '<img src="../../' + path + '" class="detail-photo" onclick="openLightbox(\'../../' + path.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') + '\')">';
                         });
                     }
                 } catch(e) {}
@@ -2991,7 +2991,7 @@ if ($focus_report_id > 0) {
                     const isVideo = m.file_type === 'video';
                     div.innerHTML = isVideo
                         ? '<i class="fas fa-video" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:20px;color:#3762c8;opacity:0.5;"></i>'
-                        : '<img src="../../../' + m.file_path.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') + '" style="width:100%;height:100%;object-fit:cover;">';
+                        : '<img src="../../' + m.file_path.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') + '" style="width:100%;height:100%;object-fit:cover;">';
                     var removeBtn = document.createElement('button');
                     removeBtn.type = 'button';
                     removeBtn.style.cssText = 'position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;border:none;background:rgba(220,53,69,0.9);color:#fff;font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;z-index:2;';

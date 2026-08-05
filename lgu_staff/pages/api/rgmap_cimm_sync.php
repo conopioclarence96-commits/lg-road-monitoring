@@ -49,13 +49,12 @@ function rgmap_cimm_detect_webhook_url(): string {
 }
 
 /**
- * Absolute base URL for this RGMAO install's app root, used to build
- * absolute image URLs CIMM can actually load. Attachment paths are stored
- * relative to the app root (e.g. "uploads/report_images/x.jpg" — the upload
- * dirs in road_transportation_monitoring.php / upload_report_photo.php /
- * report_management.php / completed_projects_api.php all resolve to the
- * project-level uploads/ folder, which is also how the public landing page
- * (road-updates.php) resolves them) — the base URL must NOT include the
+ * Absolute base URL for this RGMAO install's lgu_staff/ folder, used to
+ * build absolute image URLs CIMM can actually load. Attachment paths are
+ * stored relative to lgu_staff/ (e.g. "uploads/report_images/x.jpg" — see
+ * the upload dir in road_transportation_monitoring.php, and how
+ * verification_monitoring.php itself renders them via "../../" + path from
+ * lgu_staff/pages/admin/), not relative to the app root — this needs the
  * /lgu_staff segment or every pushed image 404s on CIMM's end.
  */
 function rgmap_cimm_detect_own_base_url(): string {
@@ -64,8 +63,8 @@ function rgmap_cimm_detect_own_base_url(): string {
     $isLocal = in_array($hostOnly, ['localhost', '127.0.0.1', '::1'], true);
     $scheme = ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || !$isLocal) ? 'https' : 'http';
     return $isLocal
-        ? $scheme . '://' . $host . '/lg-road-monitoring'
-        : 'https://rgmap.infragovservices.com';
+        ? $scheme . '://' . $host . '/lg-road-monitoring/lgu_staff'
+        : 'https://rgmap.infragovservices.com/lgu_staff';
 }
 
 function rgmap_cimm_ensure_schema(mysqli $conn): void {
@@ -146,7 +145,7 @@ function rgmap_cimm_fetch_report(mysqli $conn, int $id): ?array {
         'attachments'      => $attachments,
         'created_date'     => $row['created_date'] ?? null,
         'submitted_at'     => $row['created_at'] ?? null,
-        'portal_url'       => $baseUrl . '/lgu_staff/pages/shared/road_transportation_monitoring.php',
+        'portal_url'       => $baseUrl . '/pages/shared/road_transportation_monitoring.php',
     ];
 }
 
