@@ -25,6 +25,32 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
     $basePath = '';
 }
 
+/**
+ * Resolve an image path stored in the DB (e.g. uploads/report_images/X.jpg) to a
+ * URL that actually exists on disk. The staff module uploads report images into
+ * lgu_staff/uploads/... while completed-project photos live in uploads/..., so
+ * probe both candidates and return the first file that exists. Returns '' when
+ * no candidate file is found so the caller can skip the broken image.
+ */
+function road_updates_resolve_image_url($path, $basePath) {
+    if (empty($path) || $path === '0' || strtolower((string)$path) === 'null') return '';
+    if (preg_match('#^https?://#i', $path)) return $path;
+    if (strpos($path, 'data:') === 0) return $path;
+
+    $path = str_replace('\\', '/', $path);
+    $path = preg_replace('#^\./+#', '', $path);
+    $path = ltrim($path, '/');
+    if ($path === '' || strpos($path, '../') !== false) return '';
+
+    $candidates = [$path, 'lgu_staff/' . $path];
+    foreach ($candidates as $candidate) {
+        if (file_exists(__DIR__ . '/' . $candidate)) {
+            return $basePath . $candidate;
+        }
+    }
+    return '';
+}
+
 // Try to include database files with error handling
 $database_available = false;
 $conn = null;
@@ -1974,6 +2000,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                     if (empty($display_image) && !empty($update['_first_image'])):
                                         $display_image = $update['_first_image'];
                                     endif;
+                                    $display_image = road_updates_resolve_image_url($display_image, $basePath);
                                     if ($display_image): ?>
                                         <div class="mt-3">
                                             <img src="<?php echo htmlspecialchars($display_image); ?>" 
@@ -1981,8 +2008,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                                  class="img-fluid rounded shadow-sm"
                                                  style="max-height: 200px; object-fit: cover; width: 100%; cursor: pointer;"
                                                  onclick="window.open(this.src, '_blank')"
-                                                 title="Click to view full size"
-                                                 onerror="this.onerror=null;this.src='https://via.placeholder.com/400x200/6c757d/ffffff?text=Image+Not+Available';">
+                                                 title="Click to view full size">
                                         </div>
                                     <?php endif; ?>
                                     
