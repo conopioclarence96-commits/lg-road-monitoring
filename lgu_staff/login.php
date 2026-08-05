@@ -56,6 +56,54 @@ if ($conn) {
     } catch (Exception $e) {}
 }
 
+// Access-token entry (emailed magic link). The login page is ONLY reachable
+// through a valid login token, so any request without one (or with an invalid
+// or disabled token) is sent back to the public homepage. When the login token
+// is valid, the register action is only offered while the register token is
+// still active (not used and not expired).
+$token_email = '';
+$token_valid = false;
+$register_token_disabled = false;
+$loginTokenParam = trim($_GET['login_token'] ?? ($_GET['token'] ?? ''));
+$registerTokenParam = trim($_GET['register_token'] ?? '');
+if ($loginTokenParam === '') {
+    header('Location: ' . $basePath . 'index.php');
+    exit;
+}
+try {
+    $tokStmt = $conn->prepare("SELECT email, login_token_active, register_token, register_token_used_at, register_token_expires_at FROM user_tokens WHERE login_token = ?");
+    $tokStmt->bind_param("s", $loginTokenParam);
+    $tokStmt->execute();
+    $tokRow = $tokStmt->get_result()->fetch_assoc();
+    $tokStmt->close();
+
+    if (!$tokRow || empty($tokRow['login_token_active'])) {
+        header('Location: ' . $basePath . 'index.php');
+        exit;
+    }
+
+    $token_email = $tokRow['email'];
+    $token_valid = true;
+    if ($registerTokenParam !== '') {
+        // A register_token is supplied in the URL: registration is only offered
+        // while it matches the stored register token AND is unused and unexpired.
+        $register_token_disabled = !(
+            hash_equals($registerTokenParam, rtrim((string) $tokRow['register_token']))
+            && empty($tokRow['register_token_used_at'])
+            && !empty($tokRow['register_token_expires_at'])
+            && strtotime($tokRow['register_token_expires_at']) >= time()
+        );
+    } else {
+        // No register_token in the URL: fall back to the stored token's state.
+        $register_token_disabled = !empty($tokRow['register_token_used_at'])
+            || (!empty($tokRow['register_token_expires_at']) && strtotime($tokRow['register_token_expires_at']) < time());
+    }
+} catch (Exception $e) {
+    error_log("Login token validation error: " . $e->getMessage());
+    header('Location: ' . $basePath . 'index.php');
+    exit;
+}
+
 // Create dump LGU staff account (for testing purposes)
 if (isset($_GET['create_dump_account']) && $_GET['create_dump_account'] === 'lgu_staff') {
     try {
@@ -214,9 +262,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_login_otp'])) 
                     $redirectUrl = $basePath . 'lgu_staff/pages/admin/admin_dashboard.php';
                     break;
                 case 'lgu_staff':
-                    $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
-                    break;
                 case 'citizen':
+                case 'road_ops_supervisor':
+                case 'road_monitoring_officer':
+                case 'trans_ops_supervisor':
+                case 'trans_monitoring_officer':
                     $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
                     break;
                 default:
@@ -582,9 +632,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                                     $redirectUrl = $basePath . 'lgu_staff/pages/admin/admin_dashboard.php';
                                     break;
                                 case 'lgu_staff':
-                                    $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
-                                    break;
                                 case 'citizen':
+                                case 'road_ops_supervisor':
+                                case 'road_monitoring_officer':
+                                case 'trans_ops_supervisor':
+                                case 'trans_monitoring_officer':
                                     $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
                                     break;
                                 default:
@@ -695,7 +747,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
             <form method="POST" onsubmit="return confirm('Are you sure you want to sign in?')">
               <div class="input-box">
                 <label>Email Address</label>
-                <input type="email" name="email" placeholder="name@lgu.gov.ph" value="<?php echo isset($_POST['email']) && !isset($_POST['submit_register']) && !isset($_POST['submit_additional']) ? htmlspecialchars($_POST['email']) : ''; ?>" />
+                <input type="email" name="email" placeholder="name@lgu.gov.ph" value="<?php echo isset($_POST['email']) && !isset($_POST['submit_register']) && !isset($_POST['submit_additional']) ? htmlspecialchars($_POST['email']) : ($token_valid ? htmlspecialchars($token_email) : ''); ?>" />
                 <span class="icon">📧</span>
               </div>
 
@@ -720,7 +772,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
 
               <button class="btn-primary">Sign In</button>
 
-              <?php if (!$disable_signup): ?>
+              <?php if (!$disable_signup && !$register_token_disabled): ?>
               <p class="small-text">
                 Don't have an account?
                 <a href="#" class="link" onclick="showPanel('register')"
@@ -752,7 +804,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
               <input type="hidden" name="submit_register" value="1">
               <div class="input-box">
                 <label>Email Address</label>
-                <input type="email" name="email" id="registerEmail" placeholder="name@lgu.gov.ph" value="<?php echo isset($_POST['email']) && isset($_POST['submit_register']) ? htmlspecialchars($_POST['email']) : ''; ?>" required />
+                <input type="email" name="email" id="registerEmail" placeholder="name@lgu.gov.ph" value="<?php echo isset($_POST['email']) && isset($_POST['submit_register']) ? htmlspecialchars($_POST['email']) : ($token_valid ? htmlspecialchars($token_email) : ''); ?>" required />
                 <span class="icon">📧</span>
               </div>
 

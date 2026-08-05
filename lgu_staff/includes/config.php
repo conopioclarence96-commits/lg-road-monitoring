@@ -189,6 +189,24 @@ try {
     try {
         $conn->query("UPDATE users SET must_change_password = 0 WHERE must_change_password = 1 AND temporary_password_created_at IS NULL AND password_changed_at IS NULL");
     } catch (Exception $e) {}
+
+    // Email access tokens for magic-link login / registration (see database/create_user_token.sql).
+    // login_token never expires (toggled via login_token_active); register_token expires after 1 day.
+    try {
+        $conn->query("CREATE TABLE IF NOT EXISTS user_tokens (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            email VARCHAR(255) NOT NULL UNIQUE,
+            login_token CHAR(64) NOT NULL UNIQUE,
+            login_token_active TINYINT(1) NOT NULL DEFAULT 1,
+            register_token CHAR(64) NOT NULL UNIQUE,
+            register_token_expires_at DATETIME NOT NULL,
+            register_token_used_at DATETIME NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Exception $e) {
+        error_log("user_tokens table creation: " . $e->getMessage());
+    }
     
     // Create project_analytics table for recording completion metrics
     try {

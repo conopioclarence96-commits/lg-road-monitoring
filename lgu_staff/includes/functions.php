@@ -563,4 +563,97 @@ function send_staff_account_email($toEmail, $firstName, $temporaryPassword, $log
 
     return json_decode($response, true);
 }
+
+// Create (or rotate) the access tokens for an email. The login token never
+// expires (only deactivated via login_token_active); the register token expires
+// after 1 day and is marked used once consumed.
+function create_user_login_tokens($email) {
+    global $conn;
+
+    $loginToken = bin2hex(random_bytes(32));   // 64 hex chars
+    $registerToken = bin2hex(random_bytes(32)); // 64 hex chars
+
+    $sql = "INSERT INTO user_tokens (email, login_token, login_token_active, register_token, register_token_expires_at, register_token_used_at)
+            VALUES (?, ?, 1, ?, DATE_ADD(NOW(), INTERVAL 1 DAY), NULL)
+            ON DUPLICATE KEY UPDATE
+                login_token = VALUES(login_token),
+                login_token_active = 1,
+                register_token = VALUES(register_token),
+                register_token_expires_at = VALUES(register_token_expires_at),
+                register_token_used_at = NULL";
+
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("sss", $email, $loginToken, $registerToken);
+    if (!$stmt->execute()) {
+        error_log("create_user_login_tokens failed: " . $stmt->error);
+        $stmt->close();
+        return false;
+    }
+    $stmt->close();
+
+    return [
+        'email' => $email,
+        'login_token' => $loginToken,
+        'register_token' => $registerToken,
+    ];
+}
+
+// Send an email containing a magic login URL carrying the login token.
+function send_login_link_email($toEmail, $loginUrl) {
+    $envFile = __DIR__ . '/../../.env';
+    $envVariables = file_exists($envFile) ? parse_ini_file($envFile) : [];
+    $apiKey = $envVariables['BREVO_API_KEY'] ?? getenv('BREVO_API_KEY');
+    $senderName = $envVariables['BREVO_SENDER_NAME'] ?? getenv('BREVO_SENDER_NAME');
+    $senderEmail = $envVariables['BREVO_SENDER_EMAIL'] ?? getenv('BREVO_SENDER_EMAIL');
+
+    $emailSafe = htmlspecialchars($toEmail);
+    $urlSafe = htmlspecialchars($loginUrl);
+
+    $htmlContent = "
+    <html>
+        <body style='font-family: Arial, sans-serif; color: #333;'>
+            <div style='max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;'>
+                <h2 style='color: #0066cc;'>Access Your LGU Account</h2>
+                <p>Use the link below to sign in to your account.</p>
+                <p style='text-align: center; margin: 25px 0;'>
+                    <a href='{$urlSafe}' style='background-color: #0066cc; color: #fff; padding: 12px 28px; text-decoration: none; border-radius: 6px; display: inline-block;'>Sign In</a>
+                </p>
+                <p>Or copy this link into your browser:</p>
+                <p style='font-family: monospace; font-size: 12px; word-break: break-all; background: #f4f4f4; padding: 10px; border-radius: 5px;'>{$urlSafe}</p>
+                <p style='font-size: 12px; color: #999; margin-top: 30px;'>If you did not request this link, you can safely ignore this email.</p>
+                <p style='font-size: 12px; color: #999;'>Regards,<br>LGU Monitoring System</p>
+            </div>
+        </body>
+    </html>";
+
+    $ch = curl_init('https://api.brevo.com/v3/smtp/email');
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'accept: application/json',
+        'api-key: ' . $apiKey,
+        'content-type: application/json'
+    ]);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+        'sender' => [
+            'name' => $senderName,
+            'email' => $senderEmail
+        ],
+        'to' => [
+            [
+                'email' => $toEmail,
+                'name' => $emailSafe
+            ]
+        ],
+        'subject' => 'Your LGU Account Access Link',
+        'htmlContent' => $htmlContent
+    ]));
+
+    $response = curl_exec($ch);
+    curl_close($ch);
+
+    error_log("Login link email response: " . $response);
+
+    return json_decode($response, true);
+}
 ?>
