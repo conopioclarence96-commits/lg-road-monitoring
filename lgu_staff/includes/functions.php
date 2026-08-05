@@ -567,21 +567,36 @@ function send_staff_account_email($toEmail, $firstName, $temporaryPassword, $log
 // Create (or rotate) the access tokens for an email. The login token never
 // expires (only deactivated via login_token_active); the register token expires
 // after 1 day and is marked used once consumed.
-function create_user_login_tokens($email) {
+//
+// When $withRegister is false a login-only token is produced: a register token
+// is still stored (the column is NOT NULL) but is immediately marked as used,
+// so the login page never offers registration for that email. No DB schema
+// changes are required.
+function create_user_login_tokens($email, $withRegister = true) {
     global $conn;
 
     $loginToken = bin2hex(random_bytes(32));   // 64 hex chars
     $registerToken = bin2hex(random_bytes(32)); // 64 hex chars
 
-    $sql = "INSERT INTO user_tokens (email, login_token, login_token_active, register_token, register_token_expires_at, register_token_used_at)
-            VALUES (?, ?, 1, ?, DATE_ADD(NOW(), INTERVAL 1 DAY), NULL)
-            ON DUPLICATE KEY UPDATE
-                login_token = VALUES(login_token),
-                login_token_active = 1,
-                register_token = VALUES(register_token),
-                register_token_expires_at = VALUES(register_token_expires_at),
-                register_token_used_at = NULL";
-
+    if ($withRegister) {
+        $sql = "INSERT INTO user_tokens (email, login_token, login_token_active, register_token, register_token_expires_at, register_token_used_at)
+                VALUES (?, ?, 1, ?, DATE_ADD(NOW(), INTERVAL 1 DAY), NULL)
+                ON DUPLICATE KEY UPDATE
+                    login_token = VALUES(login_token),
+                    login_token_active = 1,
+                    register_token = VALUES(register_token),
+                    register_token_expires_at = VALUES(register_token_expires_at),
+                    register_token_used_at = NULL";
+    } else {
+        $sql = "INSERT INTO user_tokens (email, login_token, login_token_active, register_token, register_token_expires_at, register_token_used_at)
+                VALUES (?, ?, 1, ?, DATE_ADD(NOW(), INTERVAL 1 DAY), NOW())
+                ON DUPLICATE KEY UPDATE
+                    login_token = VALUES(login_token),
+                    login_token_active = 1,
+                    register_token = VALUES(register_token),
+                    register_token_expires_at = VALUES(register_token_expires_at),
+                    register_token_used_at = NOW()";
+    }
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("sss", $email, $loginToken, $registerToken);
     if (!$stmt->execute()) {

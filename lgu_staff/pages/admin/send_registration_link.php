@@ -20,12 +20,95 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'system_admin') {
     exit();
 }
 
+// Build a readable status from a user_tokens row WITHOUT exposing the token values.
+function buildTokenStatus($row) {
+    $parts[] = !empty($row['login_token_active']) ? 'Login active' : 'Login disabled';
+    if (!empty($row['register_token_used_at'])) {
+        $parts[] = 'Register used';
+    } elseif (!empty($row['register_token_expires_at']) && strtotime($row['register_token_expires_at']) < time()) {
+        $parts[] = 'Register expired';
+    } else {
+        $parts[] = 'Register active';
+    }
+    return implode(' · ', $parts);
+}
+
 $success_message = '';
 $error_message = '';
 $login_url = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
+
+    // Row actions: turn off login, turn off register, or delete a token row.
+    $action = trim($_POST['action'] ?? '');
+    if ($action !== '') {
+        $email = trim($_POST['email'] ?? '');
+        if (empty($email)) {
+            echo json_encode(['success' => false, 'message' => 'Email address is required.']);
+            exit;
+        }
+
+        $label = '';
+        if ($action === 'turn_off_login') {
+            $stmt = $conn->prepare("UPDATE user_tokens SET login_token_active = 0 WHERE email = ?");
+            $label = 'login disabled';
+        } elseif ($action === 'turn_off_register') {
+            $stmt = $conn->prepare("UPDATE user_tokens SET register_token_used_at = NOW() WHERE email = ?");
+            $label = 'register disabled';
+        } elseif ($action === 'delete') {
+            $stmt = $conn->prepare("DELETE FROM user_tokens WHERE email = ?");
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Invalid action.']);
+            exit;
+        }
+
+        $stmt->bind_param("s", $email);
+        $stmt->execute();
+        $affected = $stmt->affected_rows;
+        $stmt->close();
+
+        if ($action === 'delete') {
+            if ($affected <= 0) {
+                echo json_encode(['success' => false, 'message' => 'No token found for that email.']);
+                exit;
+            }
+            $newStatus = null;
+        } else {
+            $check = $conn->prepare("SELECT email, login_token_active, register_token_used_at, register_token_expires_at FROM user_tokens WHERE email = ?");
+            $check->bind_param("s", $email);
+            $check->execute();
+            $row = $check->get_result()->fetch_assoc();
+            $check->close();
+            if (!$row) {
+                echo json_encode(['success' => false, 'message' => 'No token found for that email.']);
+                exit;
+            }
+            $newStatus = buildTokenStatus($row);
+        }
+
+        // Audit log
+        try {
+            $log = $conn->prepare("INSERT INTO audit_logs (user_id, action, details, ip_address, user_agent, created_at) VALUES (?, 'Token Action', ?, ?, ?, NOW())");
+            $details = ($action === 'delete' ? "Deleted access token for $email" : "Turned off $label for $email");
+            $ip = $_SERVER['REMOTE_ADDR'] ?? 'Unknown';
+            $ua = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
+            $log->bind_param("isss", $_SESSION['user_id'], $details, $ip, $ua);
+            $log->execute();
+            $log->close();
+        } catch (Exception $e) {
+            error_log("Token action audit log error: " . $e->getMessage());
+        }
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'Action completed.',
+            'action' => $action,
+            'email' => $email,
+            'status' => $newStatus
+        ]);
+        exit;
+    }
 
     $email = trim($_POST['email'] ?? '');
 
@@ -69,9 +152,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'success' => true,
         'message' => 'Token generated successfully. ' . $emailMessage,
         'email' => $email,
-        'login_url' => $loginUrl
+        'login_url' => $loginUrl,
+        'status' => buildTokenStatus(['login_token_active' => 1, 'register_token_used_at' => null, 'register_token_expires_at' => date('Y-m-d H:i:s', strtotime('+1 day'))])
     ]);
     exit;
+}
+
+// List of generated tokens (GET only). Only the email and derived status are
+// fetched - the actual token values are never selected or displayed.
+$tokensList = [];
+try {
+    $res = $conn->query("SELECT email, login_token_active, register_token_used_at, register_token_expires_at, created_at FROM user_tokens ORDER BY id DESC LIMIT 200");
+    while ($r = $res->fetch_assoc()) {
+        $r['status'] = buildTokenStatus($r);
+        $tokensList[] = $r;
+    }
+} catch (Exception $e) {
+    error_log("user_tokens listing error: " . $e->getMessage());
 }
 ?>
 
@@ -308,6 +405,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             font-size: 14px;
         }
 
+        .tokens-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        .tokens-table th {
+            text-align: left;
+            padding: 10px 12px;
+            color: #1e3c72;
+            font-size: 13px;
+            font-weight: 600;
+            background: rgba(55, 98, 200, 0.08);
+            border-bottom: 2px solid rgba(55, 98, 200, 0.2);
+        }
+
+        .tokens-table td {
+            padding: 10px 12px;
+            color: #1e293b;
+            border-bottom: 1px solid rgba(55, 98, 200, 0.08);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-badge.ok {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-badge.danger {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .row-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            margin: 2px 3px 2px 0;
+            padding: 5px 10px;
+            border: 1px solid rgba(55, 98, 200, 0.3);
+            border-radius: 8px;
+            background: #ffffff;
+            color: #3762c8;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .row-btn:hover {
+            background: #3762c8;
+            color: #ffffff;
+        }
+
+        .row-btn-danger {
+            border-color: rgba(220, 38, 38, 0.35);
+            color: #dc2626;
+        }
+
+        .row-btn-danger:hover {
+            background: #dc2626;
+            color: #ffffff;
+        }
+
         @media (max-width: 768px) {
             .main-content {
                 margin-left: 0;
@@ -363,6 +531,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </button>
                 </form>
             </div>
+
+            <!-- Generated Tokens -->
+            <div class="workflow-card">
+                <div class="workflow-header">
+                    <h3 class="workflow-title">
+                        <i class="fas fa-key"></i>
+                        <span>Generated Tokens</span>
+                    </h3>
+                </div>
+
+                <?php if (empty($tokensList)): ?>
+                    <p style="color: #94a3b8; font-size: 14px;">No tokens have been generated yet.</p>
+                <?php else: ?>
+                <div style="overflow-x: auto;">
+                    <table class="tokens-table">
+                        <thead>
+                            <tr>
+                                <th>Email</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tokensTableBody">
+                            <?php foreach ($tokensList as $t): ?>
+                            <tr>
+                                <td><?php echo htmlspecialchars($t['email']); ?></td>
+                                <td><span class="status-badge <?php echo (strpos($t['status'], 'disabled') !== false || strpos($t['status'], 'used') !== false || strpos($t['status'], 'expired') !== false) ? 'danger' : 'ok'; ?>"><?php echo htmlspecialchars($t['status']); ?></span></td>
+                                <td>
+                                    <button type="button" class="row-btn" onclick="rowAction('turn_off_login', '<?php echo htmlspecialchars($t['email'], ENT_QUOTES); ?>')" title="Disable login link for this token"><i class="fas fa-sign-in-alt"></i> Off Login</button>
+                                    <button type="button" class="row-btn" onclick="rowAction('turn_off_register', '<?php echo htmlspecialchars($t['email'], ENT_QUOTES); ?>')" title="Disable registration on the login page"><i class="fas fa-user-plus"></i> Off Register</button>
+                                    <button type="button" class="row-btn row-btn-danger" onclick="rowAction('delete', '<?php echo htmlspecialchars($t['email'], ENT_QUOTES); ?>')" title="Delete this token"><i class="fas fa-trash"></i> Delete</button>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <?php endif; ?>
+            </div>
         </div>
     </div>
 
@@ -400,6 +607,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     `;
                     document.getElementById('sendLinkForm').reset();
+                    addTokenRow(result.email, result.status);
                 } else {
                     container.innerHTML = `
                         <div class="error-box">
@@ -439,6 +647,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 btn.textContent = 'Copied!';
                 setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
             });
+        }
+
+        function addTokenRow(email, status) {
+            const tbody = document.getElementById('tokensTableBody');
+            if (!tbody) return;
+            const danger = /disabled|used|expired/.test(status);
+            const cls = danger ? 'danger' : 'ok';
+            const tr = document.createElement('tr');
+            const emailTd = document.createElement('td');
+            emailTd.textContent = email;
+            const statusTd = document.createElement('td');
+            const badge = document.createElement('span');
+            badge.className = 'status-badge ' + cls;
+            badge.textContent = status;
+            statusTd.appendChild(badge);
+            const actionsTd = document.createElement('td');
+            actionsTd.innerHTML =
+                '<button type="button" class="row-btn" onclick="rowAction(\'turn_off_login\', ' + JSON.stringify(email) + ')" title="Disable login link for this token"><i class="fas fa-sign-in-alt"></i> Off Login</button>' +
+                '<button type="button" class="row-btn" onclick="rowAction(\'turn_off_register\', ' + JSON.stringify(email) + ')" title="Disable registration on the login page"><i class="fas fa-user-plus"></i> Off Register</button>' +
+                '<button type="button" class="row-btn row-btn-danger" onclick="rowAction(\'delete\', ' + JSON.stringify(email) + ')" title="Delete this token"><i class="fas fa-trash"></i> Delete</button>';
+            tr.appendChild(emailTd);
+            tr.appendChild(statusTd);
+            tr.appendChild(actionsTd);
+            tbody.insertBefore(tr, tbody.firstChild);
+        }
+
+        function rowAction(action, email) {
+            if (action === 'delete' && !confirm('Delete this token for ' + email + '?')) {
+                return;
+            }
+            const formData = new FormData();
+            formData.append('action', action);
+            formData.append('email', email);
+            fetch('', { method: 'POST', body: formData })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success) {
+                        window.location.reload();
+                    } else {
+                        alert(res.message || 'Action failed.');
+                    }
+                })
+                .catch(() => alert('An error occurred. Please try again.'));
         }
 
         function updateDateTime() {

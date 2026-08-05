@@ -107,19 +107,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $log->execute();
         $log->close();
 
-        // Send the welcome email with the temporary password and login link
+        // Send the welcome email with the temporary password and login link.
+        // The login link carries a login-only token (no registration offered).
         $emailSent = false;
         $emailMessage = '';
+        $loginUrl = '';
         try {
-            $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-            $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-            $scriptDir = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'])), '/');
-            $loginUrl = $scheme . '://' . $host . dirname(dirname($scriptDir)) . '/login.php';
-            $firstName = trim(explode(' ', $full_name)[0]);
+            $tokens = create_user_login_tokens($email, false);
+            if ($tokens) {
+                $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+                $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+                $scriptDir = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'])), '/');
+                $loginUrl = $scheme . '://' . $host . dirname(dirname($scriptDir)) . '/login.php?login_token=' . $tokens['login_token'];
+                $firstName = trim(explode(' ', $full_name)[0]);
 
-            $response = send_staff_account_email($email, $firstName, $raw_password, $loginUrl);
-            $emailSent = !empty($response) && !isset($response['errors']);
-            $emailMessage = $emailSent ? 'Credentials emailed to the staff member.' : 'Account created, but the notification email could not be sent.';
+                $response = send_staff_account_email($email, $firstName, $raw_password, $loginUrl);
+                $emailSent = !empty($response) && !isset($response['errors']);
+                $emailMessage = $emailSent ? 'Credentials emailed to the staff member.' : 'Account created, but the notification email could not be sent.';
+            } else {
+                $emailMessage = 'Account created, but the access token could not be created.';
+            }
         } catch (Exception $e) {
             error_log("Staff account email error: " . $e->getMessage());
             $emailMessage = 'Account created, but the notification email could not be sent.';
@@ -129,7 +136,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'success' => true,
             'message' => 'Staff account created successfully. ' . $emailMessage,
             'password' => $raw_password,
-            'email' => $email
+            'email' => $email,
+            'login_url' => $loginUrl
         ]);
         exit;
     } else {
@@ -668,6 +676,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <span id="generatedPassword">${result.password}</span>
                                     <button type="button" onclick="copyPassword()">Copy</button>
                                 </div>
+                                ${result.login_url ? `
+                                <p style="margin-top:12px;">Login link (one-time magic link with token):</p>
+                                <div class="password-display">
+                                    <span id="generatedUrl">${result.login_url}</span>
+                                    <button type="button" onclick="copyUrl()">Copy</button>
+                                </div>` : ''}
                             </div>
                         </div>
                     `;
@@ -710,6 +724,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         function copyPassword() {
             const password = document.getElementById('generatedPassword').textContent;
             navigator.clipboard.writeText(password).then(() => {
+                const btn = event.target;
+                btn.textContent = 'Copied!';
+                setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+            });
+        }
+
+        function copyUrl() {
+            const url = document.getElementById('generatedUrl').textContent;
+            navigator.clipboard.writeText(url).then(() => {
                 const btn = event.target;
                 btn.textContent = 'Copied!';
                 setTimeout(() => { btn.textContent = 'Copy'; }, 1500);

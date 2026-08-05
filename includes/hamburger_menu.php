@@ -30,9 +30,4 @@ $__hm_is_index = (basename($_SERVER['PHP_SELF'] ?? '') === 'index.php');
         <li><a href="<?php echo $__hm_base; ?>contact.php"><i class="fas fa-envelope"></i> Contact</a></li>
         <li><a href="<?php echo $__hm_base; ?>public_transparency_view.php"><i class="fas fa-balance-scale"></i> Transparency</a></li>
     </ul>
-    <div class="side-menu-footer">
-        <a href="<?php echo $__hm_base; ?>lgu_staff/login.php" class="btn btn-login">
-            <i class="fas fa-sign-in-alt"></i> Login
-        </a>
-    </div>
 </aside>
