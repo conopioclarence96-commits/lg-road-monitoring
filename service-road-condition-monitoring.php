@@ -202,17 +202,19 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                 <i class="fas fa-road"></i>
             </div>
             <h1>Road Condition Monitoring</h1>
-            <p>Real-time monitoring of road conditions using advanced sensors and citizen reports to ensure safe travel.</p>
+            <p>Our officers monitor road conditions across Quezon City and act on reports from residents to keep travel safe.</p>
         </div>
     </div>
 
     <section class="section">
         <div class="container">
             <div class="content">
-                <h2>Advanced Road Monitoring System</h2>
+                <h2>Officer-Led Road Monitoring</h2>
                 <p>
-                    Our Road Condition Monitoring service utilizes cutting-edge technology to continuously assess and report on the state of our road infrastructure.
-                    Through a network of sensors, automated systems, and citizen engagement, we maintain real-time awareness of road conditions across the entire municipality.
+                    Our Road Condition Monitoring service keeps a constant watch over the state of our road infrastructure.
+                    Road Monitoring Officers inspect streets, verify reports filed by residents, and log road conditions
+                    through the Road &amp; Transportation monitoring system — so issues are seen early, assessed on the ground,
+                    and routed to the right teams without delay.
                 </p>
 
                 <h3 class="mt-5">Key Features</h3>
@@ -221,10 +223,10 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                     <div class="col-md-6">
                         <div class="feature-card">
                             <div class="feature-icon">
-                                <i class="fas fa-satellite"></i>
+                                <i class="fas fa-search"></i>
                             </div>
-                            <h4>Real-time Sensors</h4>
-                            <p>Advanced IoT sensors deployed across major roads monitor traffic flow, surface conditions, and structural integrity 24/7.</p>
+                            <h4>Officer Field Inspections</h4>
+                            <p>Road Monitoring Officers inspect major roads regularly, checking surfaces, signage, and drainage for damage.</p>
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -233,16 +235,16 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                                 <i class="fas fa-users"></i>
                             </div>
                             <h4>Citizen Reports</h4>
-                            <p>Mobile app and web portal allow residents to report road issues instantly with photos and GPS location data.</p>
+                            <p>Residents report potholes, debris, and hazards through the portal, which officers verify on-site.</p>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="feature-card">
                             <div class="feature-icon">
-                                <i class="fas fa-chart-line"></i>
+                                <i class="fas fa-clipboard-check"></i>
                             </div>
-                            <h4>Predictive Analytics</h4>
-                            <p>AI-powered analysis predicts maintenance needs and identifies potential issues before they become critical problems.</p>
+                            <h4>Verified Updates</h4>
+                            <p>Officers confirm conditions and post updates so the public can track the status of reported issues.</p>
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -250,8 +252,8 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                             <div class="feature-icon">
                                 <i class="fas fa-bell"></i>
                             </div>
-                            <h4>Instant Alerts</h4>
-                            <p>Automatic notifications sent to maintenance teams and the public about road conditions and closures.</p>
+                            <h4>Timely Alerts</h4>
+                            <p>Confirmed hazards are flagged to maintenance teams and shared with the public through road updates.</p>
                         </div>
                     </div>
                 </div>
@@ -261,19 +263,19 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                     <div class="col-md-12">
                         <ol>
                             <li class="mb-3">
-                                <strong>Data Collection:</strong> Sensors continuously collect data on traffic volume, speed, road surface temperature, moisture levels, and vibration patterns.
+                                <strong>Field Monitoring:</strong> Officers patrol and inspect roads, noting damage, hazards, and conditions.
                             </li>
                             <li class="mb-3">
-                                <strong>Citizen Input:</strong> Residents report potholes, debris, flooding, and other hazards through our mobile app or website.
+                                <strong>Citizen Input:</strong> Residents report potholes, debris, flooding, and other hazards through the portal.
                             </li>
                             <li class="mb-3">
-                                <strong>AI Analysis:</strong> Machine learning algorithms analyze data patterns to identify anomalies and predict maintenance requirements.
+                                <strong>Officer Verification:</strong> Monitoring officers verify each report on-site and log confirmed details.
                             </li>
                             <li class="mb-3">
-                                <strong>Automated Dispatch:</strong> Issues are automatically categorized and routed to appropriate maintenance teams based on severity and location.
+                                <strong>Coordinated Dispatch:</strong> Verified issues are routed to the appropriate maintenance teams based on severity and location.
                             </li>
                             <li class="mb-3">
-                                <strong>Public Updates:</strong> Real-time information is made available to the public through our website and mobile applications.
+                                <strong>Public Updates:</strong> Real-time road status is made available to the public through road updates.
                             </li>
                         </ol>
                     </div>
@@ -292,7 +294,7 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                     <div class="col-md-6">
                         <ul>
                             <li><i class="fas fa-check text-success"></i> Enhanced public safety and satisfaction</li>
-                            <li><i class="fas fa-check text-success"></i> Data-driven infrastructure investment</li>
+                            <li><i class="fas fa-check text-success"></i> Officer-informed infrastructure investment</li>
                             <li><i class="fas fa-check text-success"></i> Extended road lifespan through preventive maintenance</li>
                             <li><i class="fas fa-check text-success"></i> Transparent communication with citizens</li>
                         </ul>
@@ -301,7 +303,7 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
 
                 <div class="text-center mt-5">
                     <h3>Report a Road Issue</h3>
-                    <p class="lead">Help us maintain safe roads by reporting any issues you encounter.</p>
+                    <p class="lead">Help our officers keep roads safe by reporting any issues you encounter.</p>
                     <a href="<?php echo $basePath; ?>road-updates.php" class="btn btn-primary btn-lg">
                         <i class="fas fa-exclamation-triangle"></i> Report Road Issue
                     </a>
