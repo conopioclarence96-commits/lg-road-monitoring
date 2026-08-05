@@ -465,4 +465,11 @@ function handle_login_otp($email) {
     send_otp_to_email($email, $otpCode);
     return $otpCode;
 }
+
+function handle_password_reset_otp($email) {
+    $otpCode = generate_otp();
+    store_otp($email, $otpCode, 'password_reset');
+    send_otp_to_email($email, $otpCode);
+    return $otpCode;
+}
 ?>

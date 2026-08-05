@@ -161,6 +161,17 @@ try {
     try {
         $conn->query("ALTER TABLE road_maintenance_reports ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP NULL AFTER updated_at");
     } catch (Exception $e) {}
+
+    // Account lockout columns for brute-force protection
+    try {
+        $conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_attempts INT NOT NULL DEFAULT 0 AFTER last_login");
+    } catch (Exception $e) {}
+    try {
+        $conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS lock_until DATETIME NULL DEFAULT NULL AFTER failed_attempts");
+    } catch (Exception $e) {}
+    try {
+        $conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS lock_level TINYINT NOT NULL DEFAULT 0 AFTER lock_until");
+    } catch (Exception $e) {}
     
     // Create project_analytics table for recording completion metrics
     try {
