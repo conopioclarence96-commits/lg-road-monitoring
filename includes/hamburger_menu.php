@@ -23,11 +23,28 @@ $__hm_is_index = (basename($_SERVER['PHP_SELF'] ?? '') === 'index.php');
     </div>
     <ul class="side-menu-nav">
         <li><a href="<?php echo $__hm_is_index ? '#home' : $__hm_base . 'index.php'; ?>"><i class="fas fa-home"></i> Home</a></li>
-        <li><a href="<?php echo $__hm_base; ?>road-updates.php"><i class="fas fa-newspaper"></i> Road Updates</a></li>
-        <li><a href="<?php echo $__hm_is_index ? '#road-projects' : $__hm_base . 'index.php#road-projects'; ?>"><i class="fas fa-road"></i> Road Projects</a></li>
-        <li><a href="<?php echo $__hm_base; ?>public_reports.php"><i class="fas fa-map-marked-alt"></i> Road Status</a></li>
-        <li><a href="<?php echo $__hm_base; ?>about.php"><i class="fas fa-info-circle"></i> About</a></li>
-        <li><a href="<?php echo $__hm_base; ?>contact.php"><i class="fas fa-envelope"></i> Contact</a></li>
-        <li><a href="<?php echo $__hm_base; ?>public_transparency_view.php"><i class="fas fa-balance-scale"></i> Transparency</a></li>
     </ul>
+    <div class="side-menu-group">
+        <h5 class="menu-label"><i class="fas fa-cogs"></i> Services</h5>
+        <ul class="side-menu-nav">
+            <li><a href="<?php echo $__hm_base; ?>service-traffic-management.php"><i class="fas fa-traffic-light"></i> Traffic Management</a></li>
+            <li><a href="<?php echo $__hm_base; ?>service-emergency-road-response.php"><i class="fas fa-truck-medical"></i> Emergency Road Response</a></li>
+            <li><a href="<?php echo $__hm_base; ?>service-infrastructure-maintenance.php"><i class="fas fa-tools"></i> Infrastructure Maintenance</a></li>
+            <li><a href="<?php echo $__hm_base; ?>service-road-condition-monitoring.php"><i class="fas fa-chart-line"></i> Road Condition Monitoring</a></li>
+        </ul>
+    </div>
+    <div class="side-menu-group">
+        <h5 class="menu-label"><i class="fas fa-tasks"></i> Programs</h5>
+        <ul class="side-menu-nav">
+            <li><a href="<?php echo $__hm_is_index ? '#road-projects' : $__hm_base . 'index.php#road-projects'; ?>"><i class="fas fa-road"></i> Road Projects</a></li>
+            <li><a href="<?php echo $__hm_base; ?>road-updates.php"><i class="fas fa-newspaper"></i> Road Updates</a></li>
+            <li><a href="<?php echo $__hm_base; ?>public_reports.php"><i class="fas fa-map-marked-alt"></i> Road Status</a></li>
+            <li><a href="<?php echo $__hm_base; ?>public_transparency_view.php"><i class="fas fa-balance-scale"></i> Transparency</a></li>
+        </ul>
+    </div>
+    <div class="side-menu-footer">
+        <a href="<?php echo $__hm_base; ?>lgu_staff/login.php" class="btn btn-login">
+            <i class="fas fa-sign-in-alt"></i> Login
+        </a>
+    </div>
 </aside>
