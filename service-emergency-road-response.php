@@ -230,18 +230,19 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                 <i class="fas fa-ambulance"></i>
             </div>
             <h1>Emergency Road Response</h1>
-            <p>24/7 emergency response team for road accidents, hazards, and urgent maintenance needs.</p>
+            <p>Our officers respond around the clock to road accidents, hazards, and urgent maintenance needs across Quezon City.</p>
         </div>
     </div>
 
     <section class="section">
         <div class="container">
             <div class="content">
-                <h2>Rapid Emergency Response System</h2>
+                <h2>Officer-Led Emergency Response</h2>
                 <p>
-                    Our Emergency Road Response service provides immediate assistance for road-related emergencies, accidents,
-                    and hazardous conditions. Our dedicated teams are available 24/7 to ensure rapid response and resolution
-                    of critical situations that affect road safety and traffic flow.
+                    Our Emergency Road Response service is carried out by trained officers and field teams who provide
+                    immediate assistance for road-related emergencies, accidents, and hazardous conditions. Available 24/7,
+                    our officers assess situations on the ground, coordinate with supervisors and emergency services, and
+                    work quickly to restore road safety and traffic flow.
                 </p>
 
                 <!-- Emergency Hotline -->
@@ -251,7 +252,7 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                     Available 24/7 for road emergencies
                 </div>
 
-                <h3 class="mt-5">Emergency Response Services</h3>
+                <h3 class="mt-5">What Our Officers Respond To</h3>
 
                 <div class="row g-4 mt-3">
                     <div class="col-md-6">
@@ -260,7 +261,7 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                                 <i class="fas fa-car-crash"></i>
                             </div>
                             <h4 class="text-white">Accident Response</h4>
-                            <p>Immediate deployment to traffic accidents with scene management, debris clearance, and traffic diversion.</p>
+                            <p>Officers are deployed to traffic accidents for scene management, debris clearance, and traffic diversion.</p>
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -269,7 +270,7 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                                 <i class="fas fa-exclamation-triangle"></i>
                             </div>
                             <h4 class="text-white">Hazard Removal</h4>
-                            <p>Rapid response to road hazards including fallen trees, spills, debris, and dangerous road conditions.</p>
+                            <p>Field teams respond to road hazards including fallen trees, spills, debris, and dangerous road conditions.</p>
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -278,7 +279,7 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                                 <i class="fas fa-water"></i>
                             </div>
                             <h4 class="text-white">Flood Response</h4>
-                            <p>Emergency drainage clearing, road closure management, and water pumping during flooding events.</p>
+                            <p>Officers assist with drainage clearing, road closure management, and coordination during flooding events.</p>
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -287,7 +288,7 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                                 <i class="fas fa-tools"></i>
                             </div>
                             <h4 class="text-white">Urgent Repairs</h4>
-                            <p>Emergency road repairs for critical infrastructure failures including bridge issues and road collapses.</p>
+                            <p>Emergency road repairs for critical infrastructure failures, including bridge issues and road collapses.</p>
                         </div>
                     </div>
                 </div>
@@ -336,7 +337,7 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                     </div>
                 </div>
 
-                <h3 class="mt-5">Emergency Equipment &amp; Resources</h3>
+                <h3 class="mt-5">Our Officers &amp; Field Resources</h3>
                 <div class="row mt-4">
                     <div class="col-md-6">
                         <h5><i class="fas fa-truck text-danger"></i> Response Vehicles</h5>
@@ -348,11 +349,11 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                         </ul>
                     </div>
                     <div class="col-md-6">
-                        <h5><i class="fas fa-hard-hat text-danger"></i> Specialized Teams</h5>
+                        <h5><i class="fas fa-hard-hat text-danger"></i> Officers &amp; Specialized Teams</h5>
                         <ul>
-                            <li>Certified emergency response technicians</li>
+                            <li>Trained emergency response officers and technicians</li>
                             <li>Traffic control and management specialists</li>
-                            <li>Heavy equipment operators</li>
+                            <li>Road and transportation monitoring officers</li>
                             <li>Safety and incident commanders</li>
                         </ul>
                     </div>
@@ -372,11 +373,12 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                     <p class="mb-0 mt-3"><strong>Stay safe:</strong> Keep your distance from the emergency scene and follow instructions from emergency personnel.</p>
                 </div>
 
-                <h3 class="mt-5">Coordination with Emergency Services</h3>
+                <h3 class="mt-5">Coordination Between Our Officers</h3>
                 <p>
-                    Our Emergency Road Response team works in close coordination with police, fire departments,
-                    medical services, and other emergency responders to ensure comprehensive emergency management.
-                    We maintain direct communication channels with all emergency services for seamless incident response.
+                    Our field officers work in close coordination with supervisors, dispatchers, and partner agencies —
+                    police, fire departments, and medical services — to ensure comprehensive emergency management.
+                    Incidents reported by officers are logged through the Road &amp; Transportation monitoring system
+                    so response and follow-up are coordinated from start to finish.
                 </p>
 
                 <div class="row mt-4">
@@ -409,7 +411,7 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                 <div class="text-center mt-5">
                     <h3>Report Road Emergency</h3>
                     <p class="lead">For immediate assistance with road-related emergencies.</p>
-                    <a href="QC Helpline / Dispatch: 122" class="btn btn-danger btn-lg me-3">
+                    <a href="tel:122" class="btn btn-danger btn-lg me-3">
                         <i class="fas fa-phone-alt"></i> Call Emergency Hotline
                     </a>
                     <a href="<?php echo $basePath; ?>contact.php" class="btn btn-primary btn-lg">
