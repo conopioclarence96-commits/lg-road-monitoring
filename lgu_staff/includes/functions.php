@@ -237,6 +237,38 @@ function validate_required($fields) {
     return $errors;
 }
 
+// Returns an array of unmet password strength requirements (empty when valid).
+// Rules: min 8 chars, uppercase, lowercase, number, special char, no spaces.
+function validate_password_strength($password) {
+    $errors = [];
+
+    if (strlen($password) < 8) {
+        $errors[] = 'at least 8 characters';
+    }
+
+    if (!preg_match('/[A-Z]/', $password)) {
+        $errors[] = 'at least one uppercase letter';
+    }
+
+    if (!preg_match('/[a-z]/', $password)) {
+        $errors[] = 'at least one lowercase letter';
+    }
+
+    if (!preg_match('/[0-9]/', $password)) {
+        $errors[] = 'at least one number';
+    }
+
+    if (!preg_match('/[^A-Za-z0-9]/', $password)) {
+        $errors[] = 'at least one special character';
+    }
+
+    if (preg_match('/\s/', $password)) {
+        $errors[] = 'no spaces';
+    }
+
+    return $errors;
+}
+
 // Notification functions
 function set_flash_message($type, $message) {
     $_SESSION['flash_message'] = [

@@ -259,47 +259,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['resend_otp'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_register'])) {
     $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL);
     $password = $_POST['password'] ?? '';
+    $confirm_password = $_POST['confirm_password'] ?? '';
     
     // Validate input
-    if (empty($email) || empty($password)) {
+    if (empty($email) || empty($password) || empty($confirm_password)) {
         $registerMessage = 'Please fill in all fields';
         $registerMessageType = 'error';
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $registerMessage = 'Invalid email format';
         $registerMessageType = 'error';
-    } elseif (strlen($password) < 6) {
-        $registerMessage = 'Password must be at least 6 characters';
+    } elseif ($password !== $confirm_password) {
+        $registerMessage = 'Passwords do not match';
         $registerMessageType = 'error';
     } else {
-        try {
-            // Check if email already exists
-            $checkStmt = $conn->prepare("SELECT id FROM users WHERE email = ?");
-            $checkStmt->bind_param("s", $email);
-            $checkStmt->execute();
-            $existingUser = $checkStmt->get_result()->num_rows > 0;
-            $checkStmt->close();
-            
-            if ($existingUser) {
-                $registerMessage = 'Email address already registered';
-                $registerMessageType = 'error';
-            } else {
-                // Store registration data in session for step 2
-                $_SESSION['registration_data'] = [
-                    'email' => $email,
-                    'password' => password_hash($password, PASSWORD_DEFAULT)
-                ];
-                
-                // Generate and send OTP
-                handle_registration_otp($email);
-                
-                $registerMessage = 'A verification code has been sent to your email. Please check your inbox.';
-                $registerMessageType = 'success';
-                $showOTPModal = true;
-            }
-        } catch (Exception $e) {
-            error_log("Registration error: " . $e->getMessage());
-            $registerMessage = 'An error occurred during registration';
+        $passwordErrors = validate_password_strength($password);
+        if (!empty($passwordErrors)) {
+            $registerMessage = 'Password must contain: ' . implode(', ', $passwordErrors);
             $registerMessageType = 'error';
+        } else {
+            try {
+                // Check if email already exists
+                $checkStmt = $conn->prepare("SELECT id FROM users WHERE email = ?");
+                $checkStmt->bind_param("s", $email);
+                $checkStmt->execute();
+                $existingUser = $checkStmt->get_result()->num_rows > 0;
+                $checkStmt->close();
+                
+                if ($existingUser) {
+                    $registerMessage = 'Email address already registered';
+                    $registerMessageType = 'error';
+                } else {
+                    // Store registration data in session for step 2
+                    $_SESSION['registration_data'] = [
+                        'email' => $email,
+                        'password' => password_hash($password, PASSWORD_DEFAULT)
+                    ];
+                    
+                    // Generate and send OTP
+                    handle_registration_otp($email);
+                    
+                    $registerMessage = 'A verification code has been sent to your email. Please check your inbox.';
+                    $registerMessageType = 'success';
+                    $showOTPModal = true;
+                }
+            } catch (Exception $e) {
+                error_log("Registration error: " . $e->getMessage());
+                $registerMessage = 'An error occurred during registration';
+                $registerMessageType = 'error';
+            }
         }
     }
 }
@@ -659,20 +666,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                 </div>
             <?php endif; ?>
 
-            <form method="POST">
+            <form method="POST" id="registerForm">
               <input type="hidden" name="submit_register" value="1">
               <div class="input-box">
                 <label>Email Address</label>
-                <input type="email" name="email" placeholder="name@lgu.gov.ph" value="<?php echo isset($_POST['email']) && isset($_POST['submit_register']) ? htmlspecialchars($_POST['email']) : ''; ?>" required />
+                <input type="email" name="email" id="registerEmail" placeholder="name@lgu.gov.ph" value="<?php echo isset($_POST['email']) && isset($_POST['submit_register']) ? htmlspecialchars($_POST['email']) : ''; ?>" required />
                 <span class="icon">📧</span>
               </div>
 
               <div class="input-box">
                 <label>Password</label>
-                <input type="password" name="password" id="registerPassword" placeholder="•••••••" required />
+                <input type="password" name="password" id="registerPassword" placeholder="•••••••" autocomplete="new-password" required />
                 <button type="button" class="password-toggle" onclick="togglePassword('registerPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
                 <span class="icon">🔒</span>
               </div>
+
+              <div class="input-box">
+                <label>Confirm Password</label>
+                <input type="password" name="confirm_password" id="confirmPassword" placeholder="•••••••" autocomplete="new-password" required />
+                <button type="button" class="password-toggle" onclick="togglePassword('confirmPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
+                <span class="icon">🔒</span>
+              </div>
+
+              <ul class="password-checklist" id="passwordChecklist" aria-live="polite">
+                <li data-check="length"><i class="fas fa-circle"></i> Minimum 8 characters</li>
+                <li data-check="uppercase"><i class="fas fa-circle"></i> Uppercase letter</li>
+                <li data-check="lowercase"><i class="fas fa-circle"></i> Lowercase letter</li>
+                <li data-check="number"><i class="fas fa-circle"></i> Number</li>
+                <li data-check="special"><i class="fas fa-circle"></i> Special character</li>
+                <li data-check="no-space"><i class="fas fa-circle"></i> No spaces</li>
+                <li data-check="match"><i class="fas fa-circle"></i> Passwords match</li>
+              </ul>
 
               <button class="btn-primary" type="submit">Next Step</button>
 
@@ -901,6 +925,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
       .password-toggle:hover {
         color: #333;
       }
+
+      /* Password strength checklist */
+      .password-checklist {
+        list-style: none;
+        margin: 2px 0 10px 0;
+        padding: 10px 12px;
+        text-align: left;
+        background: rgba(255, 255, 255, 0.55);
+        border-radius: 10px;
+        font-size: 12px;
+        display: none;
+      }
+      .password-checklist.show {
+        display: block;
+      }
+      .password-checklist li {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #999;
+        margin-bottom: 4px;
+        transition: color 0.2s;
+      }
+      .password-checklist li:last-child {
+        margin-bottom: 0;
+      }
+      .password-checklist li i {
+        font-size: 13px;
+        color: #ccc;
+      }
+      .password-checklist li.valid {
+        color: #16a34a;
+      }
+      .password-checklist li.valid i {
+        color: #16a34a;
+      }
+      .password-checklist li.invalid {
+        color: #c0392b;
+      }
+      .password-checklist li.invalid i {
+        color: #c0392b;
+      }
       
       .otp-actions {
         margin: 20px 0;
@@ -1016,6 +1082,91 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
           btn.querySelector('i').className = 'fas fa-eye';
         }
       }
+
+      function setCheckState(item, state) {
+        var icon = item.querySelector('i');
+        item.classList.remove('valid', 'invalid');
+        if (state === 'valid') {
+          item.classList.add('valid');
+          icon.className = 'fas fa-check-circle';
+        } else if (state === 'invalid') {
+          item.classList.add('invalid');
+          icon.className = 'fas fa-times-circle';
+        } else {
+          icon.className = 'fas fa-circle';
+        }
+      }
+
+      function validatePasswordStrength() {
+        var password = document.getElementById('registerPassword');
+        var confirm = document.getElementById('confirmPassword');
+        var checklist = document.getElementById('passwordChecklist');
+        if (!password || !checklist) return;
+
+        var value = password.value;
+        var hasValue = value.length > 0;
+        var confirmValue = confirm ? confirm.value : '';
+        var hasConfirm = confirmValue.length > 0;
+
+        var rules = {
+          length: value.length >= 8,
+          uppercase: /[A-Z]/.test(value),
+          lowercase: /[a-z]/.test(value),
+          number: /[0-9]/.test(value),
+          special: /[^A-Za-z0-9]/.test(value),
+          'no-space': !/\s/.test(value)
+        };
+
+        for (var key in rules) {
+          var item = checklist.querySelector('[data-check="' + key + '"]');
+          if (!item) continue;
+          setCheckState(item, !hasValue ? 'neutral' : (rules[key] ? 'valid' : 'invalid'));
+        }
+
+        var matchItem = checklist.querySelector('[data-check="match"]');
+        if (matchItem) {
+          if (!hasValue || !hasConfirm) {
+            setCheckState(matchItem, 'neutral');
+          } else {
+            setCheckState(matchItem, value === confirmValue ? 'valid' : 'invalid');
+          }
+        }
+
+        if (hasValue) {
+          checklist.classList.add('show');
+        } else if (!checklist.matches(':focus-within')) {
+          checklist.classList.remove('show');
+        }
+      }
+
+      document.addEventListener('DOMContentLoaded', function() {
+        var registerPassword = document.getElementById('registerPassword');
+        var confirmPassword = document.getElementById('confirmPassword');
+        var checklist = document.getElementById('passwordChecklist');
+        if (registerPassword) {
+          registerPassword.addEventListener('input', validatePasswordStrength);
+          registerPassword.addEventListener('focus', function() {
+            if (checklist) checklist.classList.add('show');
+          });
+          registerPassword.addEventListener('blur', function() {
+            if (checklist && registerPassword.value.length === 0) {
+              checklist.classList.remove('show');
+            }
+          });
+        }
+        if (confirmPassword) {
+          confirmPassword.addEventListener('input', validatePasswordStrength);
+          confirmPassword.addEventListener('focus', function() {
+            if (checklist) checklist.classList.add('show');
+          });
+          confirmPassword.addEventListener('blur', function() {
+            if (checklist && registerPassword && registerPassword.value.length === 0) {
+              checklist.classList.remove('show');
+            }
+          });
+        }
+        validatePasswordStrength();
+      });
 
       // Auto-focus on email field for login
       document.addEventListener('DOMContentLoaded', function() {
