@@ -247,7 +247,7 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                 <!-- Emergency Hotline -->
                 <div class="emergency-hotline">
                     <i class="fas fa-phone-alt"></i> Emergency Hotline
-                    <span class="phone-number">122</span>
+                    <span class="phone-number">QC Helpline / Dispatch: 122</span>
                     Available 24/7 for road emergencies
                 </div>
 
@@ -409,7 +409,7 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                 <div class="text-center mt-5">
                     <h3>Report Road Emergency</h3>
                     <p class="lead">For immediate assistance with road-related emergencies.</p>
-                    <a href="122" class="btn btn-danger btn-lg me-3">
+                    <a href="QC Helpline / Dispatch: 122" class="btn btn-danger btn-lg me-3">
                         <i class="fas fa-phone-alt"></i> Call Emergency Hotline
                     </a>
                     <a href="<?php echo $basePath; ?>contact.php" class="btn btn-primary btn-lg">
