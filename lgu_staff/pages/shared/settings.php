@@ -889,11 +889,6 @@ try {
                                         <input type="email" name="email" class="form-control" value="<?php echo htmlspecialchars($user_data['email'] ?? ''); ?>" required>
                                     </div>
                                     <div class="form-group">
-                                        <label>Username</label>
-                                        <input type="text" class="form-control" value="<?php echo htmlspecialchars($user_data['username'] ?? ''); ?>" disabled>
-                                        <div class="field-hint">Username cannot be changed</div>
-                                    </div>
-                                    <div class="form-group">
                                         <label>Role</label>
                                         <input type="text" class="form-control" value="<?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $user_data['role'] ?? ''))); ?>" disabled>
                                     </div>
@@ -951,11 +946,6 @@ try {
                                     <div class="form-group">
                                         <label>Email</label>
                                         <input type="email" name="email" class="form-control" value="<?php echo htmlspecialchars($user_data['email'] ?? ''); ?>">
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Username</label>
-                                        <input type="text" class="form-control" value="<?php echo htmlspecialchars($user_data['username'] ?? ''); ?>" disabled>
-                                        <div class="field-hint">Username cannot be changed</div>
                                     </div>
                                     <div class="form-group">
                                         <label>Role</label>

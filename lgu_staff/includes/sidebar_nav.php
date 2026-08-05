@@ -32,6 +32,21 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
+// Force password change before accessing any protected page. Users with
+// must_change_password = 1 may only access change_password.php until they
+// replace their temporary password.
+if ($conn && isset($_SESSION['user_id'])) {
+    $mcp = $conn->prepare("SELECT must_change_password FROM users WHERE id = ?");
+    $mcp->bind_param("i", $_SESSION['user_id']);
+    $mcp->execute();
+    $mcp_row = $mcp->get_result()->fetch_assoc();
+    $mcp->close();
+    if ($mcp_row && !empty($mcp_row['must_change_password'])) {
+        header('Location: /lg-road-monitoring/lgu_staff/change_password.php');
+        exit();
+    }
+}
+
 // Get user info
 function getSidebarUserInfo() {
     global $conn;

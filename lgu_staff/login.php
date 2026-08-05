@@ -75,7 +75,7 @@ if (isset($_GET['create_dump_account']) && $_GET['create_dump_account'] === 'lgu
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'verified', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             ");
             
-            $username = 'lgu_staff';
+            $username = 'staff@lgu.gov.ph';
             $email = 'staff@lgu.gov.ph';
             $full_name = 'LGU Staff Test Account';
             $role = 'lgu_staff';
@@ -202,6 +202,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_login_otp'])) 
             $login_update->close();
 
             unset($_SESSION['login_verify_data']);
+
+            // First login with a temporary password - force password change first
+            if (!empty($user['must_change_password'])) {
+                header('Location: ' . $basePath . 'lgu_staff/change_password.php');
+                exit;
+            }
 
             switch ($user['role']) {
                 case 'system_admin':
@@ -357,8 +363,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
                 $full_name = trim($first_name . ' ' . $middle_name . ' ' . $last_name);
                 $full_name = preg_replace('/\s+/', ' ', $full_name); // Remove extra spaces
                 
-                // Create username from email (before @)
-                $username = explode('@', $email)[0];
+                // The email address is the user's username throughout the system
+                $username = $email;
                 
                 // Set department based on role
                 if ($role === 'system_admin') {
@@ -465,7 +471,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
         try {
             // Prepare statement to prevent SQL injection
             $stmt = $conn->prepare("
-                SELECT id, email, password, full_name, role, is_active, account_status, twofa, darkmode
+                SELECT id, email, password, full_name, role, is_active, account_status, twofa, darkmode, failed_attempts, lock_until, lock_level, must_change_password
                 FROM users 
                 WHERE email = ?
             ");
@@ -481,8 +487,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
             if ($result->num_rows === 1) {
                 $user = $result->fetch_assoc();
                 
+                // Step 3: Check if the account is temporarily locked.
+                // Uses server-side time only; failed_attempts is NOT incremented
+                // while the account is locked.
+                $isLocked = false;
+                $lockRemainingText = '';
+                if (!empty($user['lock_until'])) {
+                    $nowTs = time();
+                    $lockUntilTs = strtotime($user['lock_until']);
+                    if ($nowTs < $lockUntilTs) {
+                        $isLocked = true;
+                        $remainingSecs = $lockUntilTs - $nowTs;
+                        $mm = str_pad(floor($remainingSecs / 60), 2, '0', STR_PAD_LEFT);
+                        $ss = str_pad($remainingSecs % 60, 2, '0', STR_PAD_LEFT);
+                        $lockRemainingText = $mm . ' minutes ' . $ss . ' seconds';
+                    } else {
+                        // Lock expired - clear it automatically
+                        $unlockStmt = $conn->prepare("UPDATE users SET lock_until = NULL, failed_attempts = 0 WHERE id = ?");
+                        $unlockStmt->bind_param("i", $user['id']);
+                        $unlockStmt->execute();
+                        $unlockStmt->close();
+                    }
+                }
+                
+                if ($isLocked) {
+                    $loginMessage = 'Your account is temporarily locked. Try again in ' . $lockRemainingText . '.';
+                    $messageType = 'error';
+                }
                 // Verify password
-                if (password_verify($password, $user['password'])) {
+                elseif (password_verify($password, $user['password'])) {
+                    // Successful password verification resets the security state
+                    $resetLockStmt = $conn->prepare("UPDATE users SET failed_attempts = 0, lock_until = NULL, lock_level = 0 WHERE id = ?");
+                    $resetLockStmt->bind_param("i", $user['id']);
+                    $resetLockStmt->execute();
+                    $resetLockStmt->close();
                     
                     // Check account status
                     if ($user['account_status'] === 'pending') {
@@ -533,6 +571,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                             $login_update->execute();
                             $login_update->close();
 
+                            // First login with a temporary password - force password change first
+                            if (!empty($user['must_change_password'])) {
+                                header('Location: ' . $basePath . 'lgu_staff/change_password.php');
+                                exit;
+                            }
+
                             switch ($user['role']) {
                                 case 'system_admin':
                                     $redirectUrl = $basePath . 'lgu_staff/pages/admin/admin_dashboard.php';
@@ -552,13 +596,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                         }
                     }
                 } else {
-                    // Invalid password
-                    $loginMessage = 'Invalid email or password';
-                    $messageType = 'error';
+                    // Password verification failed - increment consecutive failures
+                    $newAttempts = intval($user['failed_attempts'] ?? 0) + 1;
+                    $lockLevel = intval($user['lock_level'] ?? 0);
+                    
+                    if ($lockLevel == 0 && $newAttempts >= 3) {
+                        // First lock: 15 minutes
+                        $lockStmt = $conn->prepare("UPDATE users SET failed_attempts = 0, lock_until = CURRENT_TIMESTAMP + INTERVAL 15 MINUTE, lock_level = 1 WHERE id = ?");
+                        $lockStmt->bind_param("i", $user['id']);
+                        $lockStmt->execute();
+                        $lockStmt->close();
+                        $loginMessage = 'Your account has been temporarily locked for 15 minutes due to multiple failed login attempts.';
+                        $messageType = 'error';
+                    } elseif ($lockLevel == 1 && $newAttempts >= 3) {
+                        // Second lock: 30 minutes
+                        $lockStmt = $conn->prepare("UPDATE users SET failed_attempts = 0, lock_until = CURRENT_TIMESTAMP + INTERVAL 30 MINUTE, lock_level = 2 WHERE id = ?");
+                        $lockStmt->bind_param("i", $user['id']);
+                        $lockStmt->execute();
+                        $lockStmt->close();
+                        $loginMessage = 'Your account has been temporarily locked for 30 minutes due to repeated failed login attempts.';
+                        $messageType = 'error';
+                    } elseif ($lockLevel >= 2 && $newAttempts >= 3) {
+                        // Subsequent locks stay at 30 minutes (never increase beyond that)
+                        $lockStmt = $conn->prepare("UPDATE users SET failed_attempts = 0, lock_until = CURRENT_TIMESTAMP + INTERVAL 30 MINUTE, lock_level = 2 WHERE id = ?");
+                        $lockStmt->bind_param("i", $user['id']);
+                        $lockStmt->execute();
+                        $lockStmt->close();
+                        $loginMessage = 'Your account has been temporarily locked for 30 minutes due to repeated failed login attempts.';
+                        $messageType = 'error';
+                    } else {
+                        // Not enough consecutive failures yet - record the attempt
+                        $attemptStmt = $conn->prepare("UPDATE users SET failed_attempts = ? WHERE id = ?");
+                        $attemptStmt->bind_param("ii", $newAttempts, $user['id']);
+                        $attemptStmt->execute();
+                        $attemptStmt->close();
+                        $loginMessage = 'Invalid email or password.';
+                        $messageType = 'error';
+                    }
                 }
             } else {
                 // User not found
-                $loginMessage = 'Invalid email or password';
+                $loginMessage = 'Invalid email or password.';
                 $messageType = 'error';
             }
             
@@ -627,6 +705,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                 <button type="button" class="password-toggle" onclick="togglePassword('loginPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
                 <span class="icon">🔒</span>
               </div>
+
+              <p class="forgot-password">
+                <a href="forgot_password.php" class="link">Forgot Password?</a>
+              </p>
 
               <div class="remember-me">
                 <label class="checkbox-label">
@@ -1003,6 +1085,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
       .remember-me {
         text-align: left;
         margin: 8px 0 0 0;
+      }
+      .forgot-password {
+        text-align: right;
+        margin: 6px 0 0 0;
+        font-size: 13px;
       }
       .checkbox-label {
         display: inline-flex;
