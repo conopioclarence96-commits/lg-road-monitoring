@@ -202,18 +202,19 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                 <i class="fas fa-hard-hat"></i>
             </div>
             <h1>Infrastructure Maintenance</h1>
-            <p>Regular maintenance and repair of roads, bridges, and transportation infrastructure to extend their lifespan.</p>
+            <p>Our officers and field teams keep roads, bridges, and transportation infrastructure safe through regular inspections, maintenance, and repairs.</p>
         </div>
     </div>
 
     <section class="section">
         <div class="container">
             <div class="content">
-                <h2>Comprehensive Infrastructure Maintenance</h2>
+                <h2>Officer-Inspected Infrastructure Maintenance</h2>
                 <p>
-                    Our Infrastructure Maintenance service ensures the longevity and safety of all transportation assets through systematic inspection,
-                    preventive maintenance, and timely repairs. We employ modern techniques and materials to maintain high standards of road quality
-                    and infrastructure reliability.
+                    Our Infrastructure Maintenance service keeps the city's roads and transportation assets safe through
+                    systematic inspection by our officers, preventive maintenance, and timely repairs. Officers report
+                    observed damage and project progress through the Road &amp; Transportation monitoring system, guiding
+                    maintenance teams to the areas that need attention most and keeping residents informed along the way.
                 </p>
 
                 <h3 class="mt-5">Maintenance Services</h3>
@@ -225,7 +226,7 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                                 <i class="fas fa-tools"></i>
                             </div>
                             <h4>Road Repairs</h4>
-                            <p>Pothole filling, crack sealing, surface resurfacing, and pavement reconstruction using high-quality materials.</p>
+                            <p>Pothole filling, crack sealing, surface resurfacing, and pavement reconstruction carried out by field maintenance teams.</p>
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -234,7 +235,7 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                                 <i class="fas fa-bridge"></i>
                             </div>
                             <h4>Bridge Maintenance</h4>
-                            <p>Structural inspections, corrosion protection, deck repairs, and load capacity assessments for all bridges.</p>
+                            <p>Structural inspections by trained officers, corrosion protection, deck repairs, and load capacity assessments for all bridges.</p>
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -243,7 +244,7 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                                 <i class="fas fa-traffic-light"></i>
                             </div>
                             <h4>Traffic Systems</h4>
-                            <p>Maintenance of traffic signals, road signs, lane markings, and intelligent transportation systems.</p>
+                            <p>Maintenance of traffic signals, road signs, lane markings, and related systems reported by officers on patrol.</p>
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -257,16 +258,16 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                     </div>
                 </div>
 
-                <h3 class="mt-5">Maintenance Schedule</h3>
+                <h3 class="mt-5">Inspection &amp; Maintenance Schedule</h3>
                 <div class="row mt-4">
                     <div class="col-md-12">
                         <div class="table-responsive">
                             <table class="table table-bordered">
                                 <thead class="table-primary">
                                     <tr>
-                                        <th>Maintenance Type</th>
                                         <th>Frequency</th>
-                                        <th>Activities</th>
+                                        <th>Officer Activities</th>
+                                        <th>Tasks</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -301,43 +302,45 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                     </div>
                 </div>
 
-                <h3 class="mt-5">Advanced Maintenance Technologies</h3>
+                <h3 class="mt-5">How Our Officers Maintain Infrastructure</h3>
                 <div class="row mt-4">
                     <div class="col-md-6">
                         <ul>
-                            <li><i class="fas fa-check text-success"></i> <strong>Thermal Imaging:</strong> Detects subsurface defects and moisture issues</li>
-                            <li><i class="fas fa-check text-success"></i> <strong>Ground Penetrating Radar:</strong> Identifies voids and structural weaknesses</li>
-                            <li><i class="fas fa-check text-success"></i> <strong>Automated Patching:</strong> Quick repair systems for minor damages</li>
-                            <li><i class="fas fa-check text-success"></i> <strong>Polymer Materials:</strong> Long-lasting repair solutions</li>
+                            <li><i class="fas fa-check text-success"></i> <strong>Field Inspections:</strong> Officers inspect roads and bridges and report issues found</li>
+                            <li><i class="fas fa-check text-success"></i> <strong>Monitoring Reports:</strong> Damage and repair needs logged through the monitoring portal</li>
+                            <li><i class="fas fa-check text-success"></i> <strong>Citizen Reports:</strong> Concerns filed by residents are verified and scheduled for repair</li>
+                            <li><i class="fas fa-check text-success"></i> <strong>Coordinated Repairs:</strong> Maintenance teams and officers work together on the ground</li>
                         </ul>
                     </div>
                     <div class="col-md-6">
                         <ul>
-                            <li><i class="fas fa-check text-success"></i> <strong>Predictive Analytics:</strong> Data-driven maintenance scheduling</li>
-                            <li><i class="fas fa-check text-success"></i> <strong>Drone Inspections:</strong> Safe and efficient bridge and overpass assessments</li>
-                            <li><i class="fas fa-check text-success"></i> <strong>Smart Materials:</strong> Self-healing concrete and asphalt</li>
+                            <li><i class="fas fa-check text-success"></i> <strong>Progress Updates:</strong> Officers post updates so the public can track project status</li>
+                            <li><i class="fas fa-check text-success"></i> <strong>Safety First:</strong> Inspections prioritize hazards that affect motorists and pedestrians</li>
+                            <li><i class="fas fa-check text-success"></i> <strong>Long-Lasting Work:</strong> Repairs follow established standards for durability</li>
                             <li><i class="fas fa-check text-success"></i> <strong>GPS Tracking:</strong> Real-time monitoring of maintenance vehicles</li>
                         </ul>
                     </div>
                 </div>
 
-                <h3 class="mt-5">Emergency Response</h3>
+                <h3 class="mt-5">Emergency Response by Our Officers</h3>
                 <p>
-                    Our maintenance teams are available 24/7 for emergency repairs. Critical issues such as road washouts, bridge damage,
-                    or hazardous conditions receive immediate attention with dedicated emergency response protocols.
+                    Our officers and maintenance teams are available 24/7 for emergency repairs. Critical issues such as road washouts,
+                    bridge damage, or hazardous conditions receive immediate attention with dedicated response protocols coordinated
+                    through the Road &amp; Transportation monitoring system.
                 </p>
 
                 <div class="alert alert-info mt-4">
-                    <h5><i class="fas fa-info-circle"></i> Maintenance Request Hotline</h5>
+                    <h5><i class="fas fa-info-circle"></i> Report Infrastructure Issues</h5>
                     <p class="mb-0">
-                        Report maintenance issues immediately: <strong>(123) 456-9999</strong><br>
+                        Report road and infrastructure issues directly through the portal, or call our hotline:
+                        <strong>(02) 8988-1234</strong><br>
                         Available 24/7 for emergency infrastructure problems.
                     </p>
                 </div>
 
                 <div class="text-center mt-5">
                     <h3>Request Maintenance Service</h3>
-                    <p class="lead">Help us maintain our infrastructure by reporting maintenance needs.</p>
+                    <p class="lead">Help our officers maintain our infrastructure by reporting maintenance needs.</p>
                     <a href="<?php echo $basePath; ?>contact.php" class="btn btn-primary btn-lg">
                         <i class="fas fa-phone"></i> Contact Maintenance Team
                     </a>
