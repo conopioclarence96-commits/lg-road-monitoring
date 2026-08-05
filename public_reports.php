@@ -51,19 +51,45 @@ usort($all_reports, function($a, $b) {
 });
 
 function getReportPhoto($report) {
+    $raw = null;
     if (!empty($report['image_path'])) {
-        return $report['image_path'];
-    }
-    if (!empty($report['attachments'])) {
+        $raw = $report['image_path'];
+    } elseif (!empty($report['attachments'])) {
         $atts = json_decode($report['attachments'], true);
         if (is_array($atts)) {
             foreach ($atts as $att) {
                 $path = $att['file_path'] ?? $att['file'] ?? '';
-                if ($path) return $path;
+                if ($path) { $raw = $path; break; }
             }
         }
     }
-    return null;
+    return road_updates_resolve_image_url($raw, '');
+}
+
+/**
+ * Resolve an image path stored in the DB (e.g. uploads/report_images/X.jpg) to a
+ * URL that actually exists on disk. The staff module uploads report images into
+ * lgu_staff/uploads/... while completed-project photos live in uploads/..., so
+ * probe both candidates and return the first file that exists. Returns '' when
+ * no candidate file is found so the caller can skip the broken image.
+ */
+function road_updates_resolve_image_url($path, $basePath) {
+    if (empty($path) || $path === '0' || strtolower((string)$path) === 'null') return '';
+    if (preg_match('#^https?://#i', $path)) return $path;
+    if (strpos($path, 'data:') === 0) return $path;
+
+    $path = str_replace('\\', '/', $path);
+    $path = preg_replace('#^\./+#', '', $path);
+    $path = ltrim($path, '/');
+    if ($path === '' || strpos($path, '../') !== false) return '';
+
+    $candidates = [$path, 'lgu_staff/' . $path];
+    foreach ($candidates as $candidate) {
+        if (file_exists(__DIR__ . '/' . $candidate)) {
+            return $basePath . $candidate;
+        }
+    }
+    return '';
 }
 
 function getStatusBadge($status) {
@@ -656,9 +682,34 @@ function getTimeAgoShort($datetime) {
             const overlay = document.getElementById('lightboxOverlay');
             const img = document.getElementById('lightboxImage');
             if (overlay && img) {
+                img.onerror = function() {
+                    const retried = this.dataset.retried === '1';
+                    this.dataset.retried = '1';
+                    if (retried) { this.style.display = 'none'; return; }
+                    this.src = 'lgu_staff/' + String(src).replace(/\\/g, '/').replace(/^\.?\/+/, '');
+                };
                 img.src = src;
                 overlay.classList.add('show');
             }
+        }
+
+        function mediaRetry(img, origPath) {
+            if (img.dataset.retried === '1') { img.style.display = 'none'; return; }
+            img.dataset.retried = '1';
+            img.src = 'lgu_staff/' + String(origPath).replace(/\\/g, '/').replace(/^\.?\/+/, '');
+        }
+
+        function openMedia(p) {
+            const cleaned = String(p || '').replace(/\\/g, '/').replace(/^\.?\/+/, '');
+            if (/^https?:\/\//i.test(cleaned) || cleaned.indexOf('data:') === 0) { window.open(cleaned, '_blank'); return; }
+            const candidates = [cleaned, 'lgu_staff/' + cleaned];
+            const tryOpen = (i) => {
+                if (i >= candidates.length) return;
+                fetch(candidates[i], { method: 'HEAD' })
+                    .then(r => { if (r.ok) window.open(candidates[i], '_blank'); else tryOpen(i + 1); })
+                    .catch(() => tryOpen(i + 1));
+            };
+            tryOpen(0);
         }
 
         function closeLightbox() {
@@ -677,9 +728,9 @@ function getTimeAgoShort($datetime) {
             updates.forEach(u => {
                 const mediaHtml = (u.media || []).map(m => {
                     if (m.file_type === 'video') {
-                        return `<div class="timeline-media-item video-thumb" onclick="window.open('${escapeHtmlAttr(m.file_path)}','_blank')"><i class="fas fa-play-circle"></i></div>`;
+                        return `<div class="timeline-media-item video-thumb" onclick="openMedia('${escapeHtmlAttr(m.file_path)}')"><i class="fas fa-play-circle"></i></div>`;
                     }
-                    return `<div class="timeline-media-item" onclick="openLightbox('${escapeHtmlAttr(m.file_path)}')"><img src="${escapeHtmlAttr(m.file_path)}" alt="" loading="lazy"></div>`;
+                    return `<div class="timeline-media-item" onclick="openLightbox('${escapeHtmlAttr(m.file_path)}')"><img src="${escapeHtmlAttr(m.file_path)}" alt="" loading="lazy" onerror="mediaRetry(this,'${escapeHtmlAttr(m.file_path)}')"></div>`;
                 }).join('');
 
                 html += `
