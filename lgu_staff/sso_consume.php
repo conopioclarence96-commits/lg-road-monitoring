@@ -71,8 +71,7 @@ $user = $userStmt->get_result()->fetch_assoc();
 $userStmt->close();
 
 if (!$user) {
-    // The email address is the user's username throughout the system
-    $username = $email;
+    $username = 'sso_' . substr(md5($email), 0, 10);
     $randomPassword = password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT);
     $insert = $conn->prepare("INSERT INTO users (username, email, password, full_name, role, department, is_active) VALUES (?, ?, ?, ?, 'system_admin', 'System Administration', 1)");
     $insert->bind_param('ssss', $username, $email, $randomPassword, $fullName);

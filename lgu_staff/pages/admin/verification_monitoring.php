@@ -687,7 +687,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $audit_id = 'VR-' . date('Y-m-d-His');
             $title = ucfirst($action) . ' Report #' . $report_id;
             $audit_type = 'compliance'; // verification actions logged under compliance
-            $auditor = $_SESSION['email'] ?? 'Unknown';
+            $auditor = $_SESSION['username'] ?? 'Unknown';
             $description = "Report #$report_id from $source table has been " . $action . "ed by $auditor";
             
             $audit_stmt->bind_param('ssssss', $audit_id, $title, $audit_type, $audit_status, $auditor, $description);

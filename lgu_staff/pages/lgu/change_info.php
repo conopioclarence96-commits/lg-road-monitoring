@@ -275,7 +275,7 @@ $stmt->close();
         <div class="info-card">
             <h3><i class="fas fa-id-card"></i> Account Info</h3>
             <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 10px;">
-                <div><small class="t-text-secondary">Email Address</small><div class="form-control-plaintext"><?php echo htmlspecialchars($user['email'] ?? ''); ?></div></div>
+                <div><small class="t-text-secondary">Username</small><div class="form-control-plaintext"><?php echo htmlspecialchars($user['username'] ?? ''); ?></div></div>
                 <div><small class="t-text-secondary">Full Name</small><div class="form-control-plaintext"><?php echo htmlspecialchars($user['full_name'] ?? ''); ?></div></div>
                 <div><small class="t-text-secondary">Department</small><div class="form-control-plaintext">LGU Staff</div></div>
             </div>

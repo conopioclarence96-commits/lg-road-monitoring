@@ -172,23 +172,6 @@ try {
     try {
         $conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS lock_level TINYINT NOT NULL DEFAULT 0 AFTER lock_until");
     } catch (Exception $e) {}
-
-    // Forced password change fields for admin-created accounts
-    try {
-        $conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password TINYINT(1) NOT NULL DEFAULT 1 AFTER lock_level");
-    } catch (Exception $e) {}
-    try {
-        $conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS temporary_password_created_at DATETIME NULL DEFAULT NULL AFTER must_change_password");
-    } catch (Exception $e) {}
-    try {
-        $conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at DATETIME NULL DEFAULT NULL AFTER temporary_password_created_at");
-    } catch (Exception $e) {}
-    // Existing accounts created before this feature must NOT be forced to change
-    // passwords. New accounts created through create_staff_account.php always set
-    // temporary_password_created_at so they are intentionally left at must_change_password = 1.
-    try {
-        $conn->query("UPDATE users SET must_change_password = 0 WHERE must_change_password = 1 AND temporary_password_created_at IS NULL AND password_changed_at IS NULL");
-    } catch (Exception $e) {}
     
     // Create project_analytics table for recording completion metrics
     try {
@@ -305,44 +288,4 @@ define('SMTP_USERNAME', '');
 define('SMTP_PASSWORD', '');
 define('FROM_EMAIL', 'noreply@lgu.gov.ph');
 define('FROM_NAME', APP_NAME);
-
-// Forced password change guard. Admin-created accounts start with a temporary
-// password and must_change_password = 1, so they may only reach change_password.php
-// until they set their own password. config.php is required before any output on
-// every page, so this runs early enough for a clean redirect.
-if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['user_id'])) {
-    $mcp_page = basename($_SERVER['PHP_SELF'] ?? '');
-    if ($mcp_page !== 'change_password.php' && $mcp_page !== 'logout.php') {
-        // Derive the app web root (everything before /lgu_staff/ in SCRIPT_NAME),
-        // so the redirect works from any page depth and on the live server.
-        $mcp_root = '';
-        $mcp_script = $_SERVER['SCRIPT_NAME'] ?? '';
-        $mcp_pos = strpos($mcp_script, '/lgu_staff/');
-        if ($mcp_pos !== false) {
-            $mcp_root = substr($mcp_script, 0, $mcp_pos);
-        }
-        try {
-            $mcp_stmt = $conn->prepare("SELECT must_change_password FROM users WHERE id = ?");
-            $mcp_stmt->bind_param("i", $_SESSION['user_id']);
-            $mcp_stmt->execute();
-            $mcp_row = $mcp_stmt->get_result()->fetch_assoc();
-            $mcp_stmt->close();
-            if ($mcp_row && !empty($mcp_row['must_change_password'])) {
-                $is_api_req = (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
-                    || (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
-                    || (isset($_SERVER['CONTENT_TYPE']) && strpos($_SERVER['CONTENT_TYPE'], 'application/json') !== false);
-                if ($is_api_req) {
-                    http_response_code(403);
-                    header('Content-Type: application/json; charset=utf-8');
-                    echo json_encode(['success' => false, 'message' => 'You must change your password before continuing.']);
-                    exit;
-                }
-                header('Location: ' . $mcp_root . '/lgu_staff/change_password.php');
-                exit;
-            }
-        } catch (Exception $e) {
-            error_log("Password change guard: " . $e->getMessage());
-        }
-    }
-}
 ?>
