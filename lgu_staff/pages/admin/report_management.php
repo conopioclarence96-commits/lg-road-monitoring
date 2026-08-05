@@ -2931,7 +2931,7 @@ if ($focus_id > 0) {
             <div class="rm-panel-search">
                 <div class="rm-search-wrapper">
                     <i class="fas fa-search"></i>
-                    <input type="text" class="rm-search-input" id="lguSearchInput" placeholder="Search by Report #, Title, Type, Location, Department...">
+                    <input type="text" class="rm-search-input" id="lguSearchInput" placeholder="Search by Report #..." oninput="panelSearch('lguSearchInput', 'lguTable')">
                 </div>
                 <button class="rm-sort-btn" onclick="toggleLguSort()">
                     <i class="fas fa-sort"></i> Sort
@@ -3045,7 +3045,7 @@ if ($focus_id > 0) {
             <div class="rm-panel-search">
                 <div class="rm-search-wrapper">
                     <i class="fas fa-search"></i>
-                    <input type="text" class="rm-search-input" id="citizenSearchInput" placeholder="Search by Report #, Title, Type, Location, Department...">
+                    <input type="text" class="rm-search-input" id="citizenSearchInput" placeholder="Search by Report #..." oninput="panelSearch('citizenSearchInput', 'citizenTable')">
                 </div>
                 <button class="rm-sort-btn" onclick="toggleCitizenSort()">
                     <i class="fas fa-sort"></i> Sort
@@ -3160,7 +3160,7 @@ if ($focus_id > 0) {
             <div class="rm-panel-search">
                 <div class="rm-search-wrapper">
                     <i class="fas fa-search"></i>
-                    <input type="text" class="rm-search-input" id="cimmSearchInput" placeholder="Search by Rep #, Infrastructure, Location, Engineer, Priority...">
+                    <input type="text" class="rm-search-input" id="cimmSearchInput" placeholder="Search by Rep #..." oninput="panelSearch('cimmSearchInput', 'cimmTable')">
                 </div>
                 <button class="rm-sort-btn" onclick="toggleCimmSort()">
                     <i class="fas fa-sort"></i> Sort
@@ -3262,7 +3262,7 @@ if ($focus_id > 0) {
             <div class="rm-panel-search">
                 <div class="rm-search-wrapper">
                     <i class="fas fa-search"></i>
-                    <input type="text" class="rm-search-input" id="infraSearchInput" placeholder="Search by Report #, Title, Type, Location, Department...">
+                    <input type="text" class="rm-search-input" id="infraSearchInput" placeholder="Search by Report #..." oninput="panelSearch('infraSearchInput', 'infraTable')">
                 </div>
                 <button class="rm-sort-btn" onclick="toggleInfraSort()">
                     <i class="fas fa-sort"></i> Sort
@@ -3729,6 +3729,16 @@ if ($focus_id > 0) {
     <script>
         // CIMM data for detail viewing (read-only)
         const cimmData = <?php echo json_encode(array_values($cimm_reports_list), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+
+        // Sort toggle state. Declared at the very top of this script so it is
+        // initialized before anything below can throw — the sort functions are
+        // hoisted (so onclick still fires even if a later line fails), and a
+        // bare `const sortState` further down would otherwise sit in the
+        // temporal dead zone and throw "Cannot access 'sortState' before
+        // initialization" when the button is clicked. `var` is used (not
+        // `const`) so a throw even before this line leaves sortState as
+        // `undefined` instead of unreachable, which toggleSort lazily fixes.
+        var sortState = { citizen: 'asc', lgu: 'asc', cimm: 'asc', infra: 'asc' };
 
         // Global variables for progress updates
         let updateSelectedFiles = [];
@@ -5231,19 +5241,31 @@ if ($focus_id > 0) {
             });
         });
 
-        // Panel search filtering — client-side within each panel
+        // Panel search — matches only the Report ID / Report # column (index 1;
+        // index 0 is the Action buttons column). It is wired via each input's
+        // inline 'oninput' attribute so it works even if any earlier part of
+        // this script fails before the addEventListener lines below run (the
+        // function is hoisted to global scope, so the inline handler can always
+        // call it).
         function panelSearch(inputId, tableId) {
-            const query = document.getElementById(inputId).value.toLowerCase();
+            const query = document.getElementById(inputId).value.trim().toLowerCase();
             const tbody = document.querySelector('#' + tableId + ' tbody');
             if (!tbody) return;
             const rows = tbody.querySelectorAll('tr');
             rows.forEach(row => {
                 if (row.querySelector('.rm-empty-state')) return;
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(query) ? '' : 'none';
+                const cell = row.cells[1];
+                const id = (cell ? cell.textContent : '').trim().toLowerCase();
+                // Empty box → show all reports; otherwise only the matching ID.
+                row.style.display = (query === '' || id.includes(query)) ? '' : 'none';
             });
         }
 
+        // Search is wired BOTH via each input's inline 'oninput' attribute (guaranteed
+        // to work even if this script throws before reaching here, since
+        // panelSearch is hoisted to global scope) AND via these listeners (in
+        // case a browser ignores the attribute). Filtering is idempotent, so
+        // having both is harmless.
         document.getElementById('citizenSearchInput').addEventListener('input', function() { panelSearch('citizenSearchInput', 'citizenTable'); });
         document.getElementById('lguSearchInput').addEventListener('input', function() { panelSearch('lguSearchInput', 'lguTable'); });
         <?php if (!$is_transport_supervisor): ?>
@@ -5251,21 +5273,59 @@ if ($focus_id > 0) {
         document.getElementById('infraSearchInput').addEventListener('input', function() { panelSearch('infraSearchInput', 'infraTable'); });
         <?php endif; ?>
 
-        // Sort toggle state
-        const sortState = { citizen: 'asc', lgu: 'asc', cimm: 'asc', infra: 'asc' };
+        // Compare two cell values using "natural" ordering — each embedded number
+        // group is compared numerically (so RPT-9 sorts before RPT-100), while text
+        // parts compare as strings (so timestamped IDs like RPT-20260804-222519…
+        // sort by their time portion).
+        function cellCompare(a, b) {
+            const tokensA = a.toLowerCase().match(/\d+|\D+/g) || [];
+            const tokensB = b.toLowerCase().match(/\d+|\D+/g) || [];
+            const count = Math.max(tokensA.length, tokensB.length);
+            for (let i = 0; i < count; i++) {
+                const ta = tokensA[i] === undefined ? '' : tokensA[i];
+                const tb = tokensB[i] === undefined ? '' : tokensB[i];
+                if (ta === tb) continue;
+                const na = /^\d+$/.test(ta);
+                const nb = /^\d+$/.test(tb);
+                if (na && nb) {
+                    const diff = ta.length - tb.length;
+                    if (diff !== 0) return diff;
+                    const cmp = ta.localeCompare(tb);
+                    if (cmp !== 0) return cmp;
+                } else {
+                    const cmp = ta.localeCompare(tb);
+                    if (cmp !== 0) return cmp;
+                }
+            }
+            return 0;
+        }
 
         function toggleSort(tableId, key) {
             const tbody = document.querySelector('#' + tableId + ' tbody');
             if (!tbody) return;
-            const rows = Array.from(tbody.querySelectorAll('tr')).filter(r => !r.querySelector('.rm-empty-state'));
+            // Lazy re-init: if an earlier script error prevented the top-level
+            // `var sortState` line from running, sortState is `undefined` here
+            // (not in a TDZ), so restore it before use.
+            if (!sortState) { sortState = { citizen: 'asc', lgu: 'asc', cimm: 'asc', infra: 'asc' }; }
             sortState[key] = sortState[key] === 'asc' ? 'desc' : 'asc';
             const dir = sortState[key] === 'asc' ? 1 : -1;
-            rows.sort((a, b) => {
-                const aText = a.cells[key === 'cimm' ? 0 : 1].textContent.trim().toLowerCase();
-                const bText = b.cells[key === 'cimm' ? 0 : 1].textContent.trim().toLowerCase();
-                return aText.localeCompare(bText) * dir;
+            const all = Array.from(tbody.querySelectorAll('tr'));
+            const dataRows = all.filter(r => !r.querySelector('.rm-empty-state'));
+            const emptyRow = all.find(r => r && r.querySelector('.rm-empty-state'));
+            // Sort only the currently visible rows (keeps any active search
+            // filter intact), by the Report ID column (index 1 — index 0 is
+            // the Action buttons column).
+            const visible = dataRows.filter(r => r.style.display !== 'none');
+            visible.sort((a, b) => {
+                const cellText = row => (row.cells[1] ? row.cells[1].textContent : '').trim();
+                return cellCompare(cellText(a).toLowerCase(), cellText(b).toLowerCase()) * dir;
             });
-            rows.forEach(row => tbody.appendChild(row));
+            // Rewrite the body in a stable order — visible (sorted) first, then
+            // hidden, then the empty-state row — so search and sort stay applied
+            // together.
+            visible.forEach(r => tbody.appendChild(r));
+            dataRows.filter(r => r.style.display === 'none').forEach(r => tbody.appendChild(r));
+            if (emptyRow) tbody.appendChild(emptyRow);
         }
 
         function toggleCitizenSort() { toggleSort('citizenTable', 'citizen'); }
