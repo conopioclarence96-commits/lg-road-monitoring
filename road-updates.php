@@ -85,73 +85,6 @@ if ($database_available && $conn) {
         $road_updates = [];
     }
 }
-
-/**
- * Resolve a displayable image path for a road update card.
- * Supports attachments as JSON (array of objects or plain strings) and the
- * image_path / report-update-media fallbacks. Returns '' when no file exists.
- */
-function road_updates_resolve_image($update) {
-    global $basePath;
-    $candidates = [];
-
-    if (!empty($update['attachments'])) {
-        $atts = json_decode($update['attachments'], true);
-        if (is_array($atts)) {
-            foreach ($atts as $a) {
-                if (is_string($a)) {
-                    if (trim($a) !== '') $candidates[] = trim($a);
-                    continue;
-                }
-                if (!is_array($a)) continue;
-                foreach (['file_path', 'file', 'path', 'url'] as $key) {
-                    if (isset($a[$key]) && is_string($a[$key]) && trim($a[$key]) !== '') {
-                        $candidates[] = trim($a[$key]);
-                        break;
-                    }
-                }
-            }
-        } elseif (is_string($atts) && trim($atts) !== '') {
-            $candidates[] = trim($atts);
-        } else {
-            $raw = trim((string)$update['attachments']);
-            if ($raw !== '' && $raw[0] !== '[' && $raw[0] !== '{') {
-                $candidates[] = $raw;
-            }
-        }
-    }
-
-    $image_path = trim((string)($update['image_path'] ?? ''));
-    if ($image_path !== '' && $image_path !== '0' && strtolower($image_path) !== 'null') {
-        $candidates[] = $image_path;
-    }
-
-    if (!empty($update['_first_image'])) {
-        $candidates[] = trim($update['_first_image']);
-    }
-
-    foreach ($candidates as $path) {
-        if ($path === '') continue;
-        if (preg_match('#^https?://#i', $path) || strpos($path, 'data:') === 0) return $path;
-        $path = str_replace('\\', '/', $path);
-        $path = preg_replace('#^\./+#', '', $path);
-        if (strpos($path, '../') !== false) continue; // ignore traversal attempts
-        if ($path[0] === '/') return $basePath . ltrim($path, '/');
-        if (file_exists(__DIR__ . '/' . $path)) {
-            return $basePath . $path;
-        }
-    }
-    return '';
-}
-
-// Local (offline-safe) placeholder used when a report has no available photo.
-function road_updates_placeholder() {
-    $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400">'
-        . '<rect width="100%" height="100%" fill="#e8eef3"/>'
-        . '<text x="50%" y="50%" font-family="Arial, sans-serif" font-size="28" fill="#8aa0b0" text-anchor="middle" dominant-baseline="middle">No photo available</text>'
-        . '</svg>';
-    return 'data:image/svg+xml;base64,' . base64_encode($svg);
-}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -362,24 +295,34 @@ function road_updates_placeholder() {
                                     <p class="card-text">
                                         <?php echo htmlspecialchars(substr($update['description'] ?? 'No description available', 0, 100)) . '...'; ?>
                                     </p>
-                                    <?php $display_image = road_updates_resolve_image($update); ?>
-                                    <?php if ($display_image): ?>
+                                    <?php
+                                    $display_image = null;
+                                    if (!empty($update['attachments'])):
+                                        $attachments = json_decode($update['attachments'], true);
+                                        if (is_array($attachments) && !empty($attachments)):
+                                            foreach ($attachments as $attachment):
+                                                if (isset($attachment['type']) && $attachment['type'] === 'image' && isset($attachment['file_path'])):
+                                                    $display_image = $attachment['file_path'];
+                                                    break;
+                                                endif;
+                                            endforeach;
+                                        endif;
+                                    endif;
+                                    if (empty($display_image) && !empty($update['image_path']) && $update['image_path'] !== '0' && $update['image_path'] !== 'null'):
+                                        $display_image = $update['image_path'];
+                                    endif;
+                                    if (empty($display_image) && !empty($update['_first_image'])):
+                                        $display_image = $update['_first_image'];
+                                    endif;
+                                    if ($display_image): ?>
                                         <div class="mt-3">
                                             <img src="<?php echo htmlspecialchars($display_image); ?>"
-                                                 alt="<?php echo htmlspecialchars($update['title'] ?? 'Report Image'); ?>"
+                                                 alt="Report Image"
                                                  class="img-fluid rounded shadow-sm"
                                                  style="max-height: 200px; object-fit: cover; width: 100%; cursor: pointer;"
                                                  onclick="window.open(this.src, '_blank')"
                                                  title="Click to view full size"
-                                                 loading="lazy"
-                                                 onerror="this.onerror=null;this.src='<?php echo road_updates_placeholder(); ?>';">
-                                        </div>
-                                    <?php else: ?>
-                                        <div class="mt-3">
-                                            <img src="<?php echo road_updates_placeholder(); ?>"
-                                                 alt="No photo available"
-                                                 class="img-fluid rounded shadow-sm"
-                                                 style="max-height: 200px; object-fit: cover; width: 100%;">
+                                                 onerror="this.onerror=null;this.src='https://via.placeholder.com/400x200/6c757d/ffffff?text=Image+Not+Available';">
                                         </div>
                                     <?php endif; ?>
                                     <small class="text-muted mt-2 d-block">
