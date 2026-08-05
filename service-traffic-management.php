@@ -202,150 +202,153 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                 <i class="fas fa-traffic-light"></i>
             </div>
             <h1>Traffic Management</h1>
-            <p>Intelligent traffic control systems and management strategies to optimize traffic flow and reduce congestion.</p>
+            <p>Our officers keep Quezon City moving — trained traffic and transportation monitoring officers deployed across the city to manage, monitor, and respond to conditions on the road.</p>
         </div>
     </div>
 
     <section class="section">
         <div class="container">
             <div class="content">
-                <h2>Smart Traffic Management System</h2>
+                <h2>Officer-Led Traffic Management</h2>
                 <p>
-                    Our Traffic Management service employs intelligent transportation systems and advanced analytics to optimize traffic flow,
-                    reduce congestion, and enhance road safety. We use real-time data and adaptive control systems to create efficient
-                    traffic patterns throughout the municipality.
+                    Our Traffic Management service is powered by our field officers. Traffic enforcers, Transportation
+                    Monitoring Officers, and Transportation Operations Supervisors work together to observe road conditions,
+                    respond to congestion and incidents, and keep transportation flowing smoothly throughout Quezon City.
+                    Every report our officers submit feeds directly into the Road &amp; Transportation monitoring system,
+                    giving residents a clear picture of what is happening on their streets.
                 </p>
 
-                <h3 class="mt-5">Traffic Control Technologies</h3>
+                <h3 class="mt-5">Our Traffic &amp; Transportation Officers</h3>
 
                 <div class="row g-4 mt-3">
                     <div class="col-md-6">
                         <div class="feature-card">
                             <div class="feature-icon">
-                                <i class="fas fa-robot"></i>
+                                <i class="fas fa-traffic-light"></i>
                             </div>
-                            <h4>Adaptive Signal Control</h4>
-                            <p>AI-powered traffic signals that adjust timing based on real-time traffic conditions and demand patterns.</p>
+                            <h4>Traffic Enforcers on the Ground</h4>
+                            <p>Officers stationed at busy intersections direct traffic, manage peak-hour flow, and respond to congestion as it develops.</p>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="feature-card">
                             <div class="feature-icon">
-                                <i class="fas fa-video"></i>
+                                <i class="fas fa-eye"></i>
                             </div>
-                            <h4>Video Analytics</h4>
-                            <p>Computer vision systems that monitor traffic flow, detect incidents, and analyze vehicle movements.</p>
+                            <h4>Transportation Monitoring Officers</h4>
+                            <p>Monitoring officers are assigned to specific roads and routes, observing conditions and submitting real-time reports through the monitoring portal.</p>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="feature-card">
                             <div class="feature-icon">
-                                <i class="fas fa-satellite-dish"></i>
+                                <i class="fas fa-users-cog"></i>
                             </div>
-                            <h4>Vehicle Detection</h4>
-                            <p>Advanced sensors and loop detectors that count vehicles, measure speeds, and classify traffic types.</p>
+                            <h4>Operations Supervisors</h4>
+                            <p>Supervisors coordinate officer deployments, review incoming reports, and direct response teams to the areas that need them most.</p>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="feature-card">
                             <div class="feature-icon">
-                                <i class="fas fa-mobile-alt"></i>
+                                <i class="fas fa-car"></i>
                             </div>
-                            <h4>Connected Vehicle Systems</h4>
-                            <p>V2I (Vehicle-to-Infrastructure) communication for real-time traffic information and alerts.</p>
+                            <h4>Mobile Patrols &amp; Field Teams</h4>
+                            <p>Patrol teams on the road cover barangays and major arterials, spotting issues early and keeping traffic moving during special events and emergencies.</p>
                         </div>
                     </div>
                 </div>
 
-                <h3 class="mt-5">Traffic Management Strategies</h3>
+                <h3 class="mt-5">How Our Officers Manage Traffic</h3>
                 <div class="row mt-4">
                     <div class="col-md-6">
-                        <h5><i class="fas fa-route text-primary"></i> Route Optimization</h5>
-                        <p>Dynamic routing systems that guide drivers through the most efficient paths based on current traffic conditions.</p>
+                        <h5><i class="fas fa-route text-primary"></i> Route Patrols &amp; Spot Checks</h5>
+                        <p>Officers patrol assigned routes, checking road and traffic conditions and taking action on reported problem areas.</p>
 
-                        <h5 class="mt-4"><i class="fas fa-parking text-primary"></i> Parking Management</h5>
-                        <p>Smart parking systems that guide drivers to available spaces and reduce circling traffic.</p>
+                        <h5 class="mt-4"><i class="fas fa-flag-checkered text-primary"></i> Peak-Hour Traffic Direction</h5>
+                        <p>Enforcers are positioned at major intersections during rush hours to guide vehicles, manage turns, and ease congestion.</p>
                     </div>
                     <div class="col-md-6">
-                        <h5><i class="fas fa-bus text-primary"></i> Public Transit Priority</h5>
-                        <p>Signal preemption systems that give priority to public transportation to improve transit efficiency.</p>
+                        <h5><i class="fas fa-radio text-primary"></i> Coordination with Operations</h5>
+                        <p>Officers stay in constant contact with supervisors and dispatch so that help is routed quickly where traffic is heaviest.</p>
 
-                        <h5 class="mt-4"><i class="fas fa-bicycle text-primary"></i> Sustainable Mobility</h5>
-                        <p>Bike lanes, pedestrian-friendly crossings, and multimodal transportation integration.</p>
+                        <h5 class="mt-4"><i class="fas fa-comments text-primary"></i> Citizen Engagement</h5>
+                        <p>Officers act on reports filed by residents, verifying concerns on-site and following up until they are resolved.</p>
                     </div>
                 </div>
 
-                <h3 class="mt-5">Real-Time Traffic Monitoring</h3>
+                <h3 class="mt-5">What Our Officers Monitor</h3>
                 <div class="row mt-4">
                     <div class="col-md-12">
                         <div class="alert alert-success">
-                            <h5><i class="fas fa-chart-line"></i> Live Traffic Dashboard</h5>
+                            <h5><i class="fas fa-chart-line"></i> Field Monitoring &amp; Reporting</h5>
                             <p class="mb-0">
-                                Our 24/7 Traffic Control Center monitors traffic conditions across the municipality using:
+                                Our officers monitor transportation conditions across the municipality and document what they find:
                             </p>
                             <ul class="mt-2 mb-0">
-                                <li>Real-time traffic cameras at major intersections</li>
-                                <li>Speed and volume sensors on arterial roads</li>
-                                <li>GPS data from connected vehicles and public transit</li>
-                                <li>Weather and environmental condition sensors</li>
-                                <li>Mobile app reports from citizens</li>
+                                <li>Traffic congestion and slow-moving areas on major roads</li>
+                                <li>Accidents, breakdowns, and other incidents blocking the way</li>
+                                <li>Traffic light outages and damaged road signs or markings</li>
+                                <li>Obstructions, debris, and road work affecting travel</li>
+                                <li>Public transport concerns reported by commuters and residents</li>
+                                <li>Live submissions filed through the Road &amp; Transportation monitoring portal</li>
                             </ul>
                         </div>
                     </div>
                 </div>
 
-                <h3 class="mt-5">Incident Management</h3>
+                <h3 class="mt-5">Incident Response by Our Officers</h3>
                 <p>
-                    We provide rapid response to traffic incidents through automated detection and coordinated response protocols:
+                    When an incident occurs, our officers act fast — assessing the situation on the ground and coordinating a response:
                 </p>
                 <div class="row mt-3">
                     <div class="col-md-4">
                         <div class="text-center">
                             <div class="feature-icon">
-                                <i class="fas fa-exclamation-triangle text-danger"></i>
+                                <i class="fas fa-clipboard-check text-danger"></i>
                             </div>
-                            <h6>Automatic Detection</h6>
-                            <p>AI systems detect accidents, breakdowns, and unusual traffic patterns automatically.</p>
+                            <h6>On-Site Assessment</h6>
+                            <p>Officers reach the scene, assess the situation, and verify what is causing the disruption.</p>
                         </div>
                     </div>
                     <div class="col-md-4">
                         <div class="text-center">
                             <div class="feature-icon">
-                                <i class="fas fa-bell text-warning"></i>
+                                <i class="fas fa-hand-paper text-warning"></i>
                             </div>
-                            <h6>Instant Alerts</h6>
-                            <p>Immediate notifications to emergency services and traffic management teams.</p>
+                            <h6>Immediate Traffic Direction</h6>
+                            <p>Enforcers guide vehicles around the area to keep traffic moving and prevent gridlock.</p>
                         </div>
                     </div>
                     <div class="col-md-4">
                         <div class="text-center">
                             <div class="feature-icon">
-                                <i class="fas fa-route text-info"></i>
+                                <i class="fas fa-bullhorn text-info"></i>
                             </div>
-                            <h6>Traffic Diversion</h6>
-                            <p>Automatic rerouting of traffic and dynamic message sign updates.</p>
+                            <h6>Reporting &amp; Coordination</h6>
+                            <p>Officers file reports and coordinate with supervisors, emergency services, and road maintenance teams.</p>
                         </div>
                     </div>
                 </div>
 
-                <h3 class="mt-5">Traffic Analytics &amp; Planning</h3>
+                <h3 class="mt-5">Officer Reports &amp; Planning</h3>
                 <div class="row mt-4">
                     <div class="col-md-6">
-                        <h6>Data Collection</h6>
+                        <h6>Field Observations</h6>
                         <ul>
-                            <li>Traffic volume and speed measurements</li>
-                            <li>Peak hour analysis and pattern recognition</li>
-                            <li>Origin-destination studies</li>
-                            <li>Travel time reliability metrics</li>
+                            <li>Reported congestion and traffic flow concerns</li>
+                            <li>Documented incidents and their causes</li>
+                            <li>Peak-hour patterns observed by officers</li>
+                            <li>Transportation issues raised by the public</li>
                         </ul>
                     </div>
                     <div class="col-md-6">
                         <h6>Planning Applications</h6>
                         <ul>
-                            <li>Infrastructure investment decisions</li>
-                            <li>Traffic signal timing optimization</li>
-                            <li>Future traffic demand forecasting</li>
-                            <li>Policy development and evaluation</li>
+                            <li>Officer deployment and staffing decisions</li>
+                            <li>Road improvement and maintenance priorities</li>
+                            <li>Public transport route adjustments</li>
+                            <li>Policies to reduce congestion and improve safety</li>
                         </ul>
                     </div>
                 </div>
