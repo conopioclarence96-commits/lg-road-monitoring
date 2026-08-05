@@ -383,14 +383,6 @@ if ($database_available && $conn) {
         <div class="container">
             <div class="footer-top-row">
                 <div>
-                    <div class="footer-follow-label">FOLLOW US</div>
-                    <div class="footer-social-row">
-                        <a href="#" aria-label="Facebook" class="footer-social-circle"><i class="fab fa-facebook-f"></i></a>
-                        <a href="#" aria-label="X" class="footer-social-circle"><i class="fab fa-twitter"></i></a>
-                        <a href="#" aria-label="YouTube" class="footer-social-circle"><i class="fab fa-youtube"></i></a>
-                        <a href="#" aria-label="Instagram" class="footer-social-circle"><i class="fab fa-instagram"></i></a>
-                    </div>
-                </div>
                 <div class="footer-contact-row">
                     <a href="tel:+63289881234" class="footer-contact-item"><i class="fas fa-phone-alt"></i> (02) 8988-1234</a>
                     <span class="contact-separator"></span>
