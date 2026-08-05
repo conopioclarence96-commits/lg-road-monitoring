@@ -354,7 +354,7 @@ $assigned_to = $report['assigned_to'] ?? $report['maintenance_team'] ?? 'Unassig
         <?php if ($image_path): ?>
         <div class="section-title">Attached Image</div>
         <div style="text-align: center; margin-bottom: 24px; padding: 16px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px;">
-            <img src="<?php echo htmlspecialchars($image_path); ?>" alt="Report Image" style="max-width: 100%; max-height: 400px; border-radius: 6px;">
+            <img src="../../../<?php echo htmlspecialchars($image_path); ?>" alt="Report Image" style="max-width: 100%; max-height: 400px; border-radius: 6px;">
         </div>
         <?php endif; ?>
 

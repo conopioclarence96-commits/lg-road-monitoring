@@ -156,7 +156,7 @@ function handleSubmitReport() {
         return;
     }
 
-    $uploadDir = __DIR__ . '/../../uploads/report_images';
+    $uploadDir = __DIR__ . '/../../../uploads/report_images';
     $allowed = ['jpg', 'jpeg', 'png'];
 
     $totalFiles = count($_FILES['photos']['name']);

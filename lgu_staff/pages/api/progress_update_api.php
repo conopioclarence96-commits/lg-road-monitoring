@@ -195,7 +195,7 @@ if ($method === 'GET') {
             }
 
             // Handle media uploads
-            $upload_dir = __DIR__ . '/../../uploads/progress_updates';
+            $upload_dir = __DIR__ . '/../../../uploads/progress_updates';
             $uploaded = handleProgressMediaUpload($_FILES['media'] ?? [], $upload_dir, $update_id);
 
             // Create notification
@@ -233,7 +233,7 @@ if ($method === 'GET') {
             $stmt->execute();
 
             // Handle new media uploads
-            $upload_dir = __DIR__ . '/../../uploads/progress_updates';
+            $upload_dir = __DIR__ . '/../../../uploads/progress_updates';
             handleProgressMediaUpload($_FILES['media'] ?? [], $upload_dir, $update_id);
 
             // Handle removed media
@@ -264,7 +264,7 @@ if ($method === 'GET') {
 
         try {
             // Delete media files
-            $upload_dir = __DIR__ . '/../../uploads/progress_updates';
+            $upload_dir = __DIR__ . '/../../../uploads/progress_updates';
             $media = $conn->query("SELECT file_path FROM report_update_media WHERE update_id = {$update_id}");
             while ($m = $media->fetch_assoc()) {
                 $full = $upload_dir . '/' . basename($m['file_path']);

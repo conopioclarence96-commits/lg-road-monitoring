@@ -233,7 +233,7 @@ function handle_update_report() {
     // Handle photo uploads
     $uploaded_photos = [];
     if (!empty($_FILES['report_photos']) && is_array($_FILES['report_photos']['name'])) {
-        $upload_dir = __DIR__ . '/../../uploads/report_images';
+        $upload_dir = __DIR__ . '/../../../uploads/report_images';
         foreach ($_FILES['report_photos']['name'] as $i => $name) {
             if ($_FILES['report_photos']['error'][$i] !== UPLOAD_ERR_OK) continue;
             $file = [
@@ -3892,7 +3892,7 @@ if ($focus_id > 0) {
                                     const pics = [];
                                     const seenPaths = new Set();
                                     if (data.report.image_path && data.report.image_path !== '0' && data.report.image_path !== 'null') {
-                                        const p = '../../' + data.report.image_path;
+                                        const p = '../../../' + data.report.image_path;
                                         pics.push(p);
                                         seenPaths.add(data.report.image_path);
                                     }
@@ -3903,7 +3903,7 @@ if ($focus_id > 0) {
                                             atts.forEach(a => {
                                                 const p = a.file_path || a.file || '';
                                                 if (p && !seenPaths.has(p)) {
-                                                    pics.push('../../' + p);
+                                                    pics.push('../../../' + p);
                                                     seenPaths.add(p);
                                                 }
                                             });
@@ -3913,7 +3913,7 @@ if ($focus_id > 0) {
                                         data.report.update_media.forEach(m => {
                                             const p = m.file_path || '';
                                             if (p && !seenPaths.has(p) && m.file_type !== 'video') {
-                                                pics.push('../../' + p);
+                                                pics.push('../../../' + p);
                                                 seenPaths.add(p);
                                             }
                                         });
@@ -4416,7 +4416,7 @@ if ($focus_id > 0) {
                     const isVideo = m.file_type === 'video';
                     div.innerHTML = isVideo
                         ? '<i class="fas fa-video" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:20px;color:#3762c8;opacity:0.5;"></i>'
-                        : '<img src="../../' + m.file_path.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') + '" style="width:100%;height:100%;object-fit:cover;">';
+                        : '<img src="../../../' + m.file_path.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') + '" style="width:100%;height:100%;object-fit:cover;">';
                     var removeBtn = document.createElement('button');
                     removeBtn.type = 'button';
                     removeBtn.style.cssText = 'position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;border:none;background:rgba(220,53,69,0.9);color:#fff;font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;z-index:2;';
@@ -4767,7 +4767,7 @@ if ($focus_id > 0) {
                         let hasPhotos = false;
                         
                         if (data.report.image_path && data.report.image_path !== '0' && data.report.image_path !== 'null') {
-                            const imgUrl = '../../' + data.report.image_path;
+                            const imgUrl = '../../../' + data.report.image_path;
                             container.innerHTML += `
                                 <div style="position:relative;width:100px;height:100px;border-radius:8px;overflow:hidden;border:2px solid #e2e8f0;">
                                     <img src="${imgUrl}" alt="Report photo" style="width:100%;height:100%;object-fit:cover;cursor:pointer;" 
@@ -4786,7 +4786,7 @@ if ($focus_id > 0) {
                             if (Array.isArray(attachments)) {
                                 attachments.forEach((att, idx) => {
                                     const raw = att.file_path || att.file || '';
-                                    const path = raw ? '../../' + raw : '';
+                                    const path = raw ? '../../../' + raw : '';
                                     if (path) {
                                         container.innerHTML += `
                                             <div style="position:relative;width:100px;height:100px;border-radius:8px;overflow:hidden;border:2px solid #e2e8f0;">

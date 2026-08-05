@@ -897,7 +897,7 @@ if (isset($_SESSION['archive_message'])) {
                         html += '<div class="detail-row"><span class="detail-label">Attachments</span><span class="detail-value">';
                         attachments.forEach(function(a) {
                             if (a.type === 'image' && a.file_path) {
-                                html += '<img src="../../' + a.file_path + '" class="modal-image" onclick="window.open(this.src,\'_blank\')" title="Click to view full size" style="max-width:100%;max-height:300px;border-radius:8px;margin-top:8px;cursor:pointer;" />';
+                                html += '<img src="../../../' + a.file_path + '" class="modal-image" onclick="window.open(this.src,\'_blank\')" title="Click to view full size" style="max-width:100%;max-height:300px;border-radius:8px;margin-top:8px;cursor:pointer;" />';
                             }
                         });
                         html += '</span></div>';

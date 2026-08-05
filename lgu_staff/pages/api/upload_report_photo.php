@@ -27,7 +27,7 @@ if (!isset($_FILES['photo']) || $_FILES['photo']['error'] !== UPLOAD_ERR_OK) {
     json_error('No photo uploaded or upload error');
 }
 
-$upload_dir = __DIR__ . '/../../uploads/report_images';
+$upload_dir = __DIR__ . '/../../../uploads/report_images';
 $result = handle_file_upload($_FILES['photo'], $upload_dir, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
 
 if (!$result['success']) {

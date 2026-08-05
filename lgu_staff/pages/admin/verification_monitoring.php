@@ -5108,7 +5108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                 <div style="margin-top:12px;display:flex;gap:15px;flex-wrap:wrap;">
                                                     <?php foreach ($attachments as $attachment): 
                                                         if (isset($attachment['type']) && $attachment['type'] === 'image' && isset($attachment['file_path'])): ?>
-                                                        <img src="../../<?php echo htmlspecialchars($attachment['file_path']); ?>" 
+                                                        <img src="../../../<?php echo htmlspecialchars($attachment['file_path']); ?>" 
                                                              alt="Report Image" 
                                                              style="max-width:300px;max-height:300px;border-radius:8px;border:1px solid rgba(55,98,200,0.3);cursor:pointer;" 
                                                              onclick="window.open(this.src, '_blank')" 
@@ -6030,7 +6030,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if (images.length > 0) {
                 attachHtml = '<div style="display:flex;gap:12px;flex-wrap:wrap;">';
                 images.forEach(function(path) {
-                    attachHtml += '<div style="border-radius:8px;overflow:hidden;max-width:200px;"><img src="../../' + path + '" alt="Report Photo" style="width:100%;height:auto;cursor:pointer;" onclick="openLightbox(this.src)" loading="lazy"></div>';
+                    attachHtml += '<div style="border-radius:8px;overflow:hidden;max-width:200px;"><img src="../../../' + path + '" alt="Report Photo" style="width:100%;height:auto;cursor:pointer;" onclick="openLightbox(this.src)" loading="lazy"></div>';
                 });
                 attachHtml += '</div>';
             } else {
@@ -6430,7 +6430,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if (images.length > 0) {
                 attachHtml = '<div class="citizen-photo-gallery">';
                 images.forEach(function(path) {
-                    attachHtml += '<div class="citizen-photo-item"><img src="../../' + path + '" alt="Report Photo" onclick="openLightbox(this.src)" loading="lazy"></div>';
+                    attachHtml += '<div class="citizen-photo-item"><img src="../../../' + path + '" alt="Report Photo" onclick="openLightbox(this.src)" loading="lazy"></div>';
                 });
                 attachHtml += '</div>';
             } else {
@@ -6686,7 +6686,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if (images.length > 0) {
                 attachHtml = '<div class="citizen-photo-gallery">';
                 images.forEach(function(path) {
-                    attachHtml += '<div class="citizen-photo-item"><img src="../../' + path + '" alt="Report Photo" onclick="openLightbox(this.src)" loading="lazy"></div>';
+                    attachHtml += '<div class="citizen-photo-item"><img src="../../../' + path + '" alt="Report Photo" onclick="openLightbox(this.src)" loading="lazy"></div>';
                 });
                 attachHtml += '</div>';
             } else {
