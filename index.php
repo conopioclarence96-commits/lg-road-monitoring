@@ -235,7 +235,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Transition CSS -->
     <link rel="stylesheet" href="styles/transition.css">
     <!-- Leaflet CSS -->
@@ -245,11 +245,42 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     
     <style>
         :root {
-            --primary-color: #1e3c72;
-            --secondary-color: #2a5298;
-            --accent-color: #4CAF50;
-            --light-bg: #f8f9fa;
-            --dark-text: #2c3e50;
+            /* QC E-Services palette mapped to existing variable names
+               (shared components such as the side menu / a11y read these) */
+            --primary-color: #115272;
+            --secondary-color: #1d698b;
+            --accent-color: #d93939;
+            --light-bg: #f4f6f7;
+            --dark-text: #3e454c;
+
+            /* Full QC E-Services color palette */
+            --qc-primary-50: #f1f9fe;
+            --qc-primary-100: #e3f1fb;
+            --qc-primary-200: #c0e5f7;
+            --qc-primary-300: #88d1f1;
+            --qc-primary-400: #49b9e7;
+            --qc-primary-500: #21a1d6;
+            --qc-primary-600: #1381b6;
+            --qc-primary-700: #116893;
+            --qc-primary-800: #115272;
+            --qc-primary-900: #154a65;
+            --qc-primary-950: #0e2f43;
+
+            --qc-shades-50: #f4f6f7;
+            --qc-shades-100: #e3e7ea;
+            --qc-shades-200: #cbd3d6;
+            --qc-shades-300: #a6b4ba;
+            --qc-shades-400: #7a8c96;
+            --qc-shades-500: #5f717b;
+            --qc-shades-600: #515f69;
+            --qc-shades-700: #465058;
+            --qc-shades-800: #3e454c;
+            --qc-shades-900: #373d42;
+            --qc-shades-950: #212529;
+
+            --qc-icon-bg: #d6e9f8;
+            --qc-card-border: #dbe7f0;
+            --qc-red: #d93939;
         }
 
         * {
@@ -259,258 +290,508 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         }
 
         body {
-            font-family: 'Poppins', sans-serif;
+            font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
             color: var(--dark-text);
             line-height: 1.6;
+            background-color: #ffffff;
         }
 
-        /* Navigation */
-        .navbar {
-            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            padding: 1rem 0;
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
         }
 
-        .navbar-brand {
-            font-weight: 600;
-            font-size: 1.5rem;
-            color: white !important;
-            display: flex;
+        .container {
+            max-width: 1320px;
+        }
+
+        section[id] {
+            scroll-margin-top: 86px;
+        }
+
+        /* QC E-Services style buttons */
+        .btn-qc {
+            display: inline-flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
+            border-radius: 8px;
+            font-weight: 700;
+            transition: all 0.2s ease;
         }
-
-        .navbar-nav .nav-link {
-            color: white !important;
-            font-weight: 500;
-            margin: 0 10px;
-            transition: color 0.3s ease;
+        .btn-qc-primary {
+            background: var(--qc-primary-950);
+            border: 1px solid var(--qc-primary-950);
+            color: #fff;
         }
-
-        .navbar-nav .nav-link:hover {
-            color: var(--accent-color) !important;
+        .btn-qc-primary:hover {
+            background: var(--qc-primary-500);
+            border-color: var(--qc-primary-500);
+            color: #fff;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 14px rgba(17, 82, 114, 0.3);
         }
-
-        .btn-login {
-            background: var(--accent-color);
-            color: white;
-            border: none;
-            padding: 8px 20px;
-            border-radius: 25px;
-            font-weight: 600;
-            transition: all 0.3s ease;
+        .btn-qc-outline {
+            background: transparent;
+            border: 2px solid #fff;
+            color: #fff;
         }
-
-        .btn-login:hover {
-            background: #45a049;
+        .btn-qc-outline:hover {
+            background: #fff;
+            color: var(--qc-primary-800);
             transform: translateY(-2px);
         }
 
-        /* Hero Section */
+        /* Navigation — QC E-Services white header */
+        .qc-navbar {
+            background: #ffffff !important;
+            border-bottom: 1px solid var(--qc-shades-100);
+            box-shadow: 0 1px 3px rgba(17, 82, 114, 0.06);
+            padding: 0.55rem 0;
+        }
+
+        .qc-navbar.scrolled {
+            box-shadow: 0 4px 16px rgba(17, 82, 114, 0.12);
+        }
+
+        /* Hamburger button override for the white navbar */
+        .qc-navbar .container-fluid { padding-right: 76px; }
+        .hamburger-btn {
+            top: 16px !important;
+            right: 18px !important;
+            width: 42px !important;
+            height: 42px !important;
+            border: 2px solid rgba(17, 82, 114, 0.25) !important;
+            background: rgba(17, 82, 114, 0.06) !important;
+            box-shadow: 0 4px 12px rgba(17, 82, 114, 0.12) !important;
+        }
+
+        .hamburger-btn:hover {
+            background: rgba(17, 82, 114, 0.14) !important;
+        }
+
+        .hamburger-btn .bar {
+            background: var(--qc-primary-800) !important;
+        }
+
+        .qc-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            padding: 0;
+        }
+
+        .qc-brand img {
+            height: 46px;
+            width: auto;
+            border-radius: 6px;
+        }
+
+        .qc-brand-text {
+            line-height: 1.15;
+            text-align: left;
+        }
+
+        .qc-brand-text strong {
+            display: block;
+            font-size: 1.02rem;
+            font-weight: 800;
+            color: var(--qc-primary-800);
+        }
+
+        .qc-brand-text small {
+            display: block;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            color: var(--qc-primary-600);
+        }
+
+        .qc-nav-links {
+            gap: 4px;
+        }
+
+        .qc-nav-links .nav-link {
+            color: #38414a;
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            padding: 0.5rem 0.7rem;
+            border-radius: 6px;
+            transition: color 0.2s ease, background-color 0.2s ease;
+        }
+
+        .qc-nav-links .nav-link:hover,
+        .qc-nav-links .nav-link.active {
+            color: var(--qc-primary-800);
+            background-color: var(--qc-primary-50);
+        }
+
+        .qc-login-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--qc-primary-800);
+            color: #fff !important;
+            font-weight: 700;
+            font-size: 14px;
+            text-transform: none;
+            letter-spacing: normal;
+            border-radius: 8px;
+            padding: 10px 22px !important;
+            margin-left: 8px;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 10px rgba(17, 82, 114, 0.22);
+        }
+
+        .qc-login-btn:hover {
+            background: var(--qc-primary-600);
+            color: #fff !important;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 14px rgba(17, 82, 114, 0.3);
+        }
+
+        .btn-login {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--qc-primary-800);
+            color: #fff;
+            border: none;
+            padding: 10px 22px;
+            border-radius: 8px;
+            font-weight: 700;
+            transition: all 0.2s ease;
+        }
+
+        .btn-login:hover {
+            background: var(--qc-primary-600);
+            color: #fff;
+            transform: translateY(-2px);
+        }
+
+        /* Hero Section — QC E-Services style */
         .hero {
-            background: linear-gradient(rgba(30, 60, 114, 0.8), rgba(42, 82, 152, 0.8)),
-                        url('assets/img/cityhall.jpeg') center/cover no-repeat;
-            color: white;
-            padding: 120px 0 80px;
-            text-align: center;
+            position: relative;
+            background:
+                linear-gradient(115deg, rgba(11, 42, 62, 0.96) 0%, rgba(17, 82, 114, 0.9) 55%, rgba(19, 129, 182, 0.78) 100%),
+                url('assets/img/cityhall.jpeg') center/cover no-repeat;
+            color: #fff;
+            padding: 170px 0 120px;
+        }
+
+        .hero-eyebrow {
+            font-size: 0.95rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--qc-primary-200);
+            margin-bottom: 0.6rem;
         }
 
         .hero h1 {
             font-size: 3rem;
-            font-weight: 700;
-            margin-bottom: 20px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            font-weight: 800;
+            margin-bottom: 18px;
+            line-height: 1.15;
+            color: #fff;
+            text-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
         }
 
-        .hero p {
-            font-size: 1.2rem;
+        .hero p.lead {
+            font-size: 1.12rem;
+            font-weight: 400;
             margin-bottom: 30px;
-            max-width: 600px;
-            margin-left: auto;
-            margin-right: auto;
+            max-width: 640px;
+            color: rgba(255, 255, 255, 0.92);
+        }
+
+        .hero-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
         }
 
         .btn-hero {
-            padding: 15px 30px;
-            font-size: 1.1rem;
-            font-weight: 600;
-            border-radius: 30px;
-            margin: 10px;
-            transition: all 0.3s ease;
+            padding: 13px 26px;
+            font-size: 0.98rem;
+            font-weight: 700;
+            border-radius: 8px;
+            transition: all 0.2s ease;
         }
 
         .btn-primary-hero {
-            background: var(--accent-color);
+            background: var(--qc-primary-500);
             border: none;
-            color: white;
+            color: #fff;
         }
 
         .btn-primary-hero:hover {
-            background: #45a049;
-            transform: translateY(-3px);
+            background: var(--qc-primary-400);
+            color: #fff;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.25);
         }
 
         .btn-secondary-hero {
             background: transparent;
-            border: 2px solid white;
-            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.85);
+            color: #fff;
         }
 
         .btn-secondary-hero:hover {
-            background: white;
-            color: var(--primary-color);
+            background: #fff;
+            color: var(--qc-primary-800);
+            transform: translateY(-2px);
+        }
+
+        #makeReportBtn.btn-hero {
+            background: var(--accent-color);
+            border: none;
+            color: #fff;
+        }
+
+        #makeReportBtn.btn-hero:hover {
+            background: #c02a2a;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.25);
         }
 
         /* Section Styles */
         .section {
-            padding: 80px 0;
+            padding: 70px 0 60px;
+            background: #ffffff;
         }
 
         .section-title {
             text-align: center;
-            font-size: 2.5rem;
-            font-weight: 700;
-            color: var(--primary-color);
-            margin-bottom: 20px;
+            font-size: 1.7rem;
+            font-weight: 800;
+            color: var(--qc-primary-800);
+            margin-bottom: 12px;
+            line-height: 1.25;
+        }
+
+        .section-title::after {
+            content: '';
+            display: block;
+            width: 56px;
+            height: 4px;
+            margin: 12px auto 0;
+            border-radius: 4px;
+            background: var(--qc-primary-500);
         }
 
         .section-subtitle {
             text-align: center;
-            font-size: 1.1rem;
-            color: #666;
-            margin-bottom: 60px;
+            font-size: 1.02rem;
+            color: var(--qc-shades-500);
+            margin-bottom: 48px;
+            max-width: 620px;
+            margin-left: auto;
+            margin-right: auto;
         }
 
-        /* Road Updates Cards */
+        /* Road Updates Cards — flat QC style */
         .update-card {
-            border: none;
-            border-radius: 15px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border: 1px solid var(--qc-card-border);
+            border-radius: 12px;
+            box-shadow: none;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
             height: 100%;
+            overflow: hidden;
+            background: #fff;
         }
 
         .update-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            transform: translateY(-4px);
+            box-shadow: 0 10px 24px rgba(17, 82, 114, 0.1);
         }
 
         .update-card .card-header {
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            color: white;
-            border-radius: 15px 15px 0 0 !important;
-            font-weight: 600;
+            background: #ffffff;
+            border-bottom: 1px solid #eef3f6;
+            color: var(--qc-primary-900);
+            border-radius: 12px 12px 0 0 !important;
+            font-weight: 700;
+            font-size: 1.02rem;
+            line-height: 1.35;
+            padding: 16px 118px 14px 20px;
         }
 
         .update-badge {
             position: absolute;
-            top: 10px;
-            right: 10px;
-            padding: 5px 10px;
+            top: 14px;
+            right: 14px;
+            padding: 5px 12px;
             border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 600;
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
         }
 
         .badge-maintenance {
-            background: #ff9800;
-            color: white;
+            background: #fff3cd;
+            color: #8a6d1a;
         }
 
         .badge-advisory {
-            background: #2196f3;
-            color: white;
+            background: #d6e9f8;
+            color: #0f4762;
         }
 
         .badge-closure {
-            background: #f44336;
-            color: white;
+            background: #fde3e3;
+            color: #951f1f;
         }
 
-        /* Statistics Cards */
+        /* Statistics Cards — flat QC style */
         .stat-card {
-            background: white;
-            border-radius: 15px;
-            padding: 30px;
+            background: #ffffff;
+            border: 1px solid var(--qc-card-border);
+            border-radius: 12px;
+            padding: 28px 18px;
             text-align: center;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease;
+            box-shadow: none;
+            height: 100%;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
 
         .stat-card:hover {
-            transform: translateY(-5px);
+            transform: translateY(-4px);
+            box-shadow: 0 10px 24px rgba(17, 82, 114, 0.1);
         }
 
         .stat-icon {
-            font-size: 3rem;
-            color: var(--accent-color);
-            margin-bottom: 20px;
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 16px;
+            background: var(--qc-icon-bg);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.55rem;
+            color: var(--qc-primary-800);
         }
 
         .stat-number {
-            font-size: 2.5rem;
-            font-weight: 700;
-            color: var(--primary-color);
-            margin-bottom: 10px;
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: var(--qc-primary-800);
+            margin-bottom: 6px;
         }
 
         .stat-label {
-            font-size: 1.1rem;
-            color: #666;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--qc-shades-500);
         }
 
-        /* Services Section */
+        /* Quick Access / Service Cards — QC E-Services style */
+        .qc-quick-section {
+            padding: 46px 0 54px;
+            background: #ffffff;
+        }
+
         .service-card {
+            background: #ffffff;
+            border: 1px solid var(--qc-primary-300);
+            border-radius: 12px;
+            padding: 1rem 0.5rem;
             text-align: center;
-            padding: 30px;
-            border-radius: 15px;
-            background: white;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            transition: all 0.3s ease;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
             height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-around;
+            text-decoration: none;
+            color: #1F2937;
+            min-height: 120px;
+            box-shadow: none;
+            font-family: inherit;
+            width: 100%;
         }
 
         .service-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            transform: translateY(-3px);
+            box-shadow: 0 6px 16px rgba(17, 82, 114, 0.12);
+            text-decoration: none;
+            color: #1F2937;
         }
 
         .service-icon {
-            font-size: 3rem;
-            color: var(--primary-color);
-            margin-bottom: 20px;
+            width: 72px;
+            height: 72px;
+            background-color: var(--qc-icon-bg);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 0.75rem;
+            flex-shrink: 0;
+        }
+
+        .service-icon i {
+            font-size: 1.8rem;
+            color: var(--qc-primary-800);
         }
 
         .service-title {
-            font-size: 1.3rem;
-            font-weight: 600;
-            color: var(--primary-color);
-            margin-bottom: 15px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--qc-primary-900);
+            margin: 0;
+            line-height: 1.25;
+            text-align: center;
+        }
+
+        .qc-service-more {
+            background: var(--qc-primary-700);
+            border-color: var(--qc-primary-700);
+        }
+
+        .qc-service-more .service-icon {
+            background: rgba(255, 255, 255, 0.16);
+        }
+
+        .qc-service-more .service-icon i {
+            color: #fff;
+        }
+
+        .qc-service-more .service-title {
+            color: #fff;
         }
 
         /* Report Form */
         .report-form {
-            background: white;
-            border-radius: 15px;
+            background: #ffffff;
+            border-radius: 12px;
             padding: 40px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            border: 1px solid var(--qc-card-border);
+            box-shadow: 0 8px 24px rgba(17, 82, 114, 0.08);
         }
 
         .form-control, .form-select {
-            border-radius: 10px;
-            border: 1px solid #ddd;
-            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #cbd3d6;
+            padding: 11px 14px;
+            font-family: 'Montserrat', sans-serif;
         }
 
         .form-control:focus, .form-select:focus {
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 0.2rem rgba(30, 60, 114, 0.25);
+            border-color: var(--qc-primary-500);
+            box-shadow: 0 0 0 0.2rem rgba(33, 161, 214, 0.2);
         }
 
         /* Contact Section */
         .contact-section {
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            color: white;
+            background: var(--light-bg);
         }
 
         .contact-info {
@@ -519,47 +800,193 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         }
 
         .contact-icon {
-            font-size: 2rem;
-            margin-bottom: 15px;
-            color: var(--accent-color);
+            width: 72px;
+            height: 72px;
+            margin: 0 auto 16px;
+            background: var(--qc-icon-bg);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.7rem;
+            color: var(--qc-primary-800);
         }
 
-        /* Footer */
-        footer {
-            background: #0f2341;
-            color: white;
-            padding: 40px 0 20px;
+        .contact-info h4 {
+            font-weight: 700;
+            color: var(--qc-primary-900);
+            margin-bottom: 10px;
         }
 
-        footer .btn-login {
-            margin-left: 15px;
-            vertical-align: middle;
-            padding: 6px 18px;
+        .contact-info p {
+            color: var(--qc-shades-500);
+            margin-bottom: 0;
+        }
+
+        /* Footer — QC E-Services style */
+        footer.qc-footer {
+            background: linear-gradient(135deg, var(--qc-primary-800) 0%, #1d698b 100%);
+            color: #fff;
+            padding: 34px 0 20px;
+        }
+
+        footer.qc-footer a {
+            color: #fff;
+            text-decoration: none;
+        }
+
+        .footer-top-row {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .footer-follow-label {
+            font-weight: 600;
             font-size: 0.9rem;
+            margin-bottom: 8px;
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        .footer-social-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .footer-social-circle {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.92);
+            color: #165b79;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            transition: transform 0.2s ease, color 0.2s ease;
+        }
+
+        .footer-social-circle:hover {
+            transform: translateY(-2px);
+            color: #0e2f43;
+        }
+
+        .footer-contact-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            font-size: 14px;
+        }
+
+        .footer-contact-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #fff;
+        }
+
+        .footer-contact-item:hover {
+            color: #fff;
+        }
+
+        .footer-contact-item i {
+            color: #fff;
+            font-size: 15px;
+        }
+
+        .contact-separator {
+            width: 1px;
+            height: 18px;
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        .footer-links-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 22px;
+        }
+
+        .footer-links-row a {
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.2px;
+        }
+
+        .footer-links-row a:hover {
+            color: #eaf3f9;
+            text-decoration: underline;
+        }
+
+        .footer-divider {
+            height: 1px;
+            background: rgba(255, 255, 255, 0.34);
+            margin: 22px 0 14px;
+        }
+
+        .footer-bottom-row {
+            text-align: center;
+        }
+
+        .footer-copyright {
+            font-size: 13px;
+            color: rgba(244, 248, 251, 0.85);
+        }
+
+        .footer-copyright i {
+            margin-right: 4px;
         }
 
         /* Responsive */
         @media (max-width: 768px) {
-            .hero h1 {
-                font-size: 2rem;
+            .hero {
+                padding: 130px 0 90px;
             }
-            
-            .hero p {
+
+            .hero h1 {
+                font-size: 2.1rem;
+            }
+
+            .hero p.lead {
                 font-size: 1rem;
             }
-            
-            .section-title {
-                font-size: 2rem;
+
+            .section {
+                padding: 54px 0 46px;
             }
-            
+
+            .section-title {
+                font-size: 1.4rem;
+            }
+
             .stat-number {
-                font-size: 2rem;
+                font-size: 1.9rem;
+            }
+
+            .footer-top-row {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .footer-social-row {
+                justify-content: center;
+            }
+
+            .footer-contact-row {
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+
+            .footer-links-row {
+                justify-content: center;
+                gap: 16px;
             }
         }
 
         /* Before & After Projects Section */
         .before-after-section {
-            background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+            background: var(--light-bg);
         }
 
         .before-after-grid {
@@ -576,15 +1003,16 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
         .before-after-card {
             background: white;
-            border-radius: 16px;
+            border: 1px solid var(--qc-card-border);
+            border-radius: 12px;
             overflow: hidden;
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: none;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
 
         .before-after-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+            transform: translateY(-4px);
+            box-shadow: 0 10px 24px rgba(17, 82, 114, 0.1);
         }
 
         .comparison-slider {
@@ -650,7 +1078,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             transform: translate(-50%, -50%);
             font-size: 14px;
             font-weight: 700;
-            color: var(--primary-color);
+            color: var(--qc-primary-800);
             z-index: 4;
             letter-spacing: -2px;
             white-space: nowrap;
@@ -671,13 +1099,13 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
         .label-before {
             left: 12px;
-            background: rgba(244, 67, 54, 0.9);
+            background: rgba(217, 57, 57, 0.92);
             color: white;
         }
 
         .label-after {
             right: 12px;
-            background: rgba(76, 175, 80, 0.9);
+            background: rgba(40, 167, 69, 0.92);
             color: white;
         }
 
@@ -687,8 +1115,8 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
         .before-after-info h4 {
             font-size: 1.1rem;
-            font-weight: 600;
-            color: var(--primary-color);
+            font-weight: 700;
+            color: var(--qc-primary-900);
             margin-bottom: 8px;
         }
 
@@ -701,17 +1129,17 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
         .before-after-meta span {
             font-size: 0.85rem;
-            color: #666;
+            color: var(--qc-shades-500);
         }
 
         .before-after-meta i {
-            color: var(--accent-color);
+            color: var(--qc-primary-500);
             margin-right: 4px;
         }
 
         .before-after-cost {
             display: inline-block;
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            background: var(--qc-primary-800);
             color: white;
             padding: 4px 12px;
             border-radius: 20px;
@@ -722,21 +1150,22 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         .before-after-empty {
             text-align: center;
             padding: 60px 20px;
-            color: #999;
+            color: var(--qc-shades-400);
         }
 
         .before-after-empty i {
             font-size: 3rem;
             margin-bottom: 15px;
-            color: #ccc;
+            color: var(--qc-shades-200);
         }
 
         /* Upcoming & Ongoing Road Projects Section (IPMS feed) */
         #roadProjectsMap {
             height: 420px;
-            border-radius: 16px;
+            border-radius: 12px;
             overflow: hidden;
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+            border: 1px solid var(--qc-card-border);
+            box-shadow: 0 8px 24px rgba(17, 82, 114, 0.08);
             margin-bottom: 30px;
         }
 
@@ -753,8 +1182,10 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             gap: 8px;
             padding: 10px 16px;
             background: #fff;
-            border-radius: 16px 16px 0 0;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            border: 1px solid var(--qc-card-border);
+            border-bottom: none;
+            border-radius: 12px 12px 0 0;
+            box-shadow: 0 2px 12px rgba(17, 82, 114, 0.06);
             z-index: 10;
             position: relative;
         }
@@ -769,7 +1200,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             align-items: center;
             gap: 12px;
             font-size: 12px;
-            color: #555;
+            color: var(--qc-shades-500);
         }
         .gis-legend-item {
             display: inline-flex;
@@ -789,23 +1220,24 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             align-items: center;
             gap: 5px;
             padding: 6px 12px;
-            border: 1px solid rgba(55,98,200,0.25);
-            background: rgba(55,98,200,0.06);
-            color: #3762c8;
+            border: 1px solid rgba(17, 82, 114, 0.3);
+            background: rgba(17, 82, 114, 0.06);
+            color: var(--qc-primary-800);
             border-radius: 8px;
             font-size: 12px;
-            font-weight: 500;
+            font-weight: 600;
             cursor: pointer;
             transition: all 0.2s ease;
             white-space: nowrap;
         }
         .gis-map-btn:hover {
-            background: rgba(55,98,200,0.15);
-            border-color: rgba(55,98,200,0.4);
+            background: var(--qc-primary-800);
+            border-color: var(--qc-primary-800);
+            color: #fff;
         }
         .gis-map-btn.active-toggle {
-            background: rgba(55,98,200,0.15);
-            color: #3762c8;
+            background: rgba(17, 82, 114, 0.15);
+            color: var(--qc-primary-800);
         }
         .gis-map-btn.inactive-toggle {
             background: #6c757d;
@@ -820,7 +1252,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         }
         .gis-search-input {
             padding: 6px 10px;
-            border: 1px solid rgba(55,98,200,0.3);
+            border: 1px solid rgba(17, 82, 114, 0.3);
             border-radius: 8px;
             font-size: 12px;
             width: 170px;
@@ -828,8 +1260,8 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             transition: border-color 0.2s;
         }
         .gis-search-input:focus {
-            border-color: #3762c8;
-            box-shadow: 0 0 0 2px rgba(55,98,200,0.1);
+            border-color: var(--qc-primary-500);
+            box-shadow: 0 0 0 2px rgba(33, 161, 214, 0.15);
         }
         .gis-search-btn {
             padding: 6px 10px;
@@ -841,9 +1273,9 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             left: 0;
             right: 0;
             background: #fff;
-            border: 1px solid #e0e4f0;
+            border: 1px solid var(--qc-card-border);
             border-radius: 8px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+            box-shadow: 0 8px 24px rgba(17, 82, 114, 0.12);
             z-index: 1000;
             max-height: 250px;
             overflow-y: auto;
@@ -857,16 +1289,16 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             transition: background 0.15s;
         }
         .gis-search-result-item:last-child { border-bottom: none; }
-        .gis-search-result-item:hover { background: #f0f4ff; }
-        .gis-search-result-item small { display: block; color: #888; font-size: 11px; margin-top: 2px; }
+        .gis-search-result-item:hover { background: #eaf3f9; }
+        .gis-search-result-item small { display: block; color: var(--qc-shades-400); font-size: 11px; margin-top: 2px; }
         .gis-dropdown-menu {
             position: absolute;
             top: 100%;
             right: 0;
             background: #fff;
-            border: 1px solid #e0e4f0;
+            border: 1px solid var(--qc-card-border);
             border-radius: 10px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+            box-shadow: 0 8px 24px rgba(17, 82, 114, 0.12);
             z-index: 1000;
             min-width: 200px;
             padding: 6px 0;
@@ -886,10 +1318,10 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             text-align: left;
             transition: background 0.15s;
         }
-        .gis-dropdown-item:hover { background: #f0f4ff; color: #3762c8; }
-        .gis-dropdown-item i { width: 16px; text-align: center; color: #3762c8; }
+        .gis-dropdown-item:hover { background: #eaf3f9; color: var(--qc-primary-800); }
+        .gis-dropdown-item i { width: 16px; text-align: center; color: var(--qc-primary-800); }
         .gis-district-tooltip {
-            background: rgba(30,60,114,0.92);
+            background: var(--qc-primary-800);
             color: #fff;
             border-radius: 8px;
             padding: 6px 12px;
@@ -898,7 +1330,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             box-shadow: 0 4px 12px rgba(0,0,0,0.2);
             border: none;
         }
-        .gis-district-tooltip::before { border-top-color: rgba(30,60,114,0.92); }
+        .gis-district-tooltip::before { border-top-color: var(--qc-primary-800); }
 
         /* Fullscreen mode */
         body.gis-map-fullscreen-active .gis-map-wrapper {
@@ -925,13 +1357,13 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         .road-projects-empty {
             text-align: center;
             padding: 60px 20px;
-            color: #999;
+            color: var(--qc-shades-400);
         }
 
         .road-projects-empty i {
             font-size: 3rem;
             margin-bottom: 15px;
-            color: #ccc;
+            color: var(--qc-shades-200);
         }
 
         .road-projects-grid {
@@ -942,22 +1374,23 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
         .road-project-card {
             background: white;
-            border-radius: 14px;
+            border: 1px solid var(--qc-card-border);
+            border-radius: 12px;
             padding: 20px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: none;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
             cursor: pointer;
         }
 
         .road-project-card:hover {
             transform: translateY(-4px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            box-shadow: 0 10px 24px rgba(17, 82, 114, 0.1);
         }
 
         .road-project-card h4 {
             font-size: 1rem;
-            font-weight: 600;
-            color: var(--primary-color);
+            font-weight: 700;
+            color: var(--qc-primary-900);
             margin-bottom: 8px;
         }
 
@@ -979,19 +1412,19 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
         .rp-meta {
             font-size: 0.85rem;
-            color: #666;
+            color: var(--qc-shades-500);
             margin-bottom: 4px;
         }
 
         .rp-meta i {
-            color: var(--accent-color);
+            color: var(--qc-primary-500);
             width: 16px;
             text-align: center;
             margin-right: 4px;
         }
 
         .rp-progress-track {
-            background: #eee;
+            background: #eef1f3;
             border-radius: 10px;
             height: 8px;
             overflow: hidden;
@@ -1000,22 +1433,24 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
         .rp-progress-fill {
             height: 100%;
-            background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+            background: var(--qc-primary-800);
         }
 
         .rp-progress-label {
             font-size: 0.75rem;
-            color: #999;
+            color: var(--qc-shades-400);
         }
 
         /* Citizen Report Modal Styles */
         .modal-header.bg-primary {
-            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%) !important;
+            background: var(--qc-primary-800) !important;
+            border-bottom: none;
         }
         .modal-content {
-            border: none;
-            border-radius: 16px;
+            border: 1px solid var(--qc-card-border);
+            border-radius: 12px;
             overflow: hidden;
+            box-shadow: 0 12px 32px rgba(17, 82, 114, 0.15);
         }
         .modal-body {
             padding: 24px;
@@ -1025,14 +1460,14 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             border-radius: 12px;
             overflow: hidden;
             margin-bottom: 12px;
-            border: 2px dashed #ddd;
+            border: 2px dashed var(--qc-shades-300);
         }
         .citizen-report-map.has-pin {
             border-color: var(--accent-color);
         }
         .citizen-report-hint {
             text-align: center;
-            color: #999;
+            color: var(--qc-shades-400);
             font-size: 0.85rem;
             margin-bottom: 16px;
         }
@@ -1048,7 +1483,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         .cr-form-group label {
             display: block;
             font-weight: 600;
-            color: var(--dark-text);
+            color: var(--qc-primary-900);
             margin-bottom: 6px;
             font-size: 0.9rem;
         }
@@ -1057,7 +1492,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         .cr-form-group textarea {
             width: 100%;
             padding: 10px 14px;
-            border: 1px solid #ddd;
+            border: 1px solid #cbd3d6;
             border-radius: 8px;
             font-size: 0.95rem;
             font-family: inherit;
@@ -1067,23 +1502,23 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         .cr-form-group input:focus,
         .cr-form-group textarea:focus {
             outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(30,60,114,0.1);
+            border-color: var(--qc-primary-500);
+            box-shadow: 0 0 0 3px rgba(33, 161, 214, 0.15);
         }
         .cr-form-group textarea {
             resize: vertical;
             min-height: 80px;
         }
         .cr-verification-box {
-            background: #f8f9ff;
-            border: 1px solid #e0e4f0;
+            background: #f4f8fb;
+            border: 1px solid var(--qc-card-border);
             border-radius: 12px;
             padding: 20px;
             margin-bottom: 20px;
         }
         .cr-verification-box h4 {
             font-size: 1rem;
-            color: var(--primary-color);
+            color: var(--qc-primary-900);
             margin-bottom: 12px;
         }
         .cr-otp-row {
@@ -1094,7 +1529,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         .cr-otp-row input {
             flex: 1;
             padding: 10px 14px;
-            border: 1px solid #ddd;
+            border: 1px solid #cbd3d6;
             border-radius: 8px;
             font-size: 0.95rem;
             font-family: inherit;
@@ -1106,16 +1541,17 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             font-weight: 600;
             font-size: 0.9rem;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: all 0.2s;
             font-family: inherit;
         }
         .cr-btn-primary {
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            background: var(--qc-primary-800);
             color: white;
         }
         .cr-btn-primary:hover {
+            background: var(--qc-primary-950);
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(30,60,114,0.3);
+            box-shadow: 0 4px 12px rgba(17, 82, 114, 0.25);
         }
         .cr-btn-primary:disabled {
             opacity: 0.6;
@@ -1142,11 +1578,11 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         }
         .cr-btn-outline {
             background: transparent;
-            border: 2px solid var(--primary-color);
-            color: var(--primary-color);
+            border: 2px solid var(--qc-primary-800);
+            color: var(--qc-primary-800);
         }
         .cr-btn-outline:hover {
-            background: var(--primary-color);
+            background: var(--qc-primary-800);
             color: white;
         }
         .cr-status {
@@ -1300,6 +1736,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         }
     </style>
     <?php include __DIR__ . '/includes/a11y_css.php'; ?>
+    <?php include __DIR__ . '/includes/hamburger_menu_css.php'; ?>
 </head>
 <body>
     <?php if ($restricted): ?>
@@ -1315,12 +1752,12 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
         }
         .restricted-card i { font-size: 48px; color: #dc3545; margin-bottom: 20px; }
-        .restricted-card h2 { font-size: 24px; color: #1e3c72; margin-bottom: 10px; }
+        .restricted-card h2 { font-size: 24px; color: #115272; margin-bottom: 10px; }
         .restricted-card p { color: #666; margin-bottom: 25px; line-height: 1.6; }
         .restricted-card .btn-login {
-            display: inline-block; background: #3762c8; color: white;
-            padding: 12px 32px; border-radius: 25px; text-decoration: none;
-            font-weight: 600; transition: all 0.3s;
+            display: inline-block; background: #115272; color: white;
+            padding: 12px 32px; border-radius: 8px; text-decoration: none;
+            font-weight: 700; transition: all 0.2s;
         }
         .restricted-card .btn-login:hover { background: #2a4fa8; transform: translateY(-2px); }
     </style>
@@ -1339,47 +1776,24 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     <?php endif; ?>
 
     <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark fixed-top">
-        <div class="container">
-            <a class="navbar-brand" href="#home">
-                <i class="fas fa-road"></i>
-                Road & Transportation Department
+    <nav class="navbar navbar-light fixed-top qc-navbar">
+        <div class="container-fluid">
+            <a class="navbar-brand qc-brand" href="#home">
+                <img src="assets/img/logocityhall.png" alt="Quezon City Hall Logo">
+                <span class="qc-brand-text">
+                    <strong>Road &amp; Transportation Department</strong>
+                    <small>Quezon City Government</small>
+                </span>
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="#home">Home</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="road-updates.php">Road Updates</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#road-projects">Road Projects</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="public_reports.php">Road Status</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="about.php">About</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="contact.php">Contact</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="public_transparency_view.php">Transparency</a>
-                    </li>
-
-                </ul>
-            </div>
         </div>
     </nav>
+
+    <?php include __DIR__ . '/includes/hamburger_menu.php'; ?>
 
     <!-- Hero Section -->
     <section class="hero" id="home" <?php echo ($access_settings['hide_hero'] ?? '0') === '1' ? 'style="display:none"' : ''; ?>>
         <div class="container">
+            <p class="hero-eyebrow"><i class="fas fa-road"></i> Road &amp; Transportation Department</p>
             <h1>Road and Transportation Monitoring System</h1>
             <p class="lead">
                 Monitor road conditions in real-time and report road problems to help us maintain safe and efficient transportation infrastructure for our community.
@@ -1794,8 +2208,8 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     <!-- Contact Section -->
     <section class="section contact-section" id="contact" <?php echo ($access_settings['hide_contact'] ?? '0') === '1' ? 'style="display:none"' : ''; ?>>
         <div class="container">
-            <h2 class="section-title text-white">Contact Us</h2>
-            <p class="section-subtitle text-white">Get in touch with our team for assistance and inquiries</p>
+            <h2 class="section-title">Contact Us</h2>
+            <p class="section-subtitle">Get in touch with our team for assistance and inquiries</p>
             
             <div class="row g-4">
                 <div class="col-md-4">
@@ -1834,17 +2248,37 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     </section>
 
     <!-- Footer -->
-    <footer>
+    <footer class="qc-footer">
         <div class="container">
-            <div class="row">
-                <div class="col-md-6">
-                    <p>&copy; 2026 Road and Transportation Department. All rights reserved.</p>
-                </div>
-                <div class="col-md-6 text-md-end">
-                    <div class="social-icons d-inline-block">
-                        <a href="<?php echo $basePath; ?>lgu_staff/login.php" class="btn btn-login">Login</a>
+            <div class="footer-top-row">
+                <div>
+                    <div class="footer-follow-label">FOLLOW US</div>
+                    <div class="footer-social-row">
+                        <a href="#" aria-label="Facebook" class="footer-social-circle"><i class="fab fa-facebook-f"></i></a>
+                        <a href="#" aria-label="X" class="footer-social-circle"><i class="fab fa-twitter"></i></a>
+                        <a href="#" aria-label="YouTube" class="footer-social-circle"><i class="fab fa-youtube"></i></a>
+                        <a href="#" aria-label="Instagram" class="footer-social-circle"><i class="fab fa-instagram"></i></a>
                     </div>
                 </div>
+                <div class="footer-contact-row">
+                    <a href="tel:+63289881234" class="footer-contact-item"><i class="fas fa-phone-alt"></i> (02) 8988-1234</a>
+                    <span class="contact-separator"></span>
+                    <a href="mailto:roads@lgu.gov.ph" class="footer-contact-item"><i class="fas fa-envelope"></i> roads@lgu.gov.ph</a>
+                    <span class="contact-separator"></span>
+                    <a href="contact.php" class="footer-contact-item"><i class="fas fa-map-marker-alt"></i> Quezon City Hall</a>
+                </div>
+            </div>
+            <div class="footer-links-row">
+                <a href="#home">Home</a>
+                <a href="road-updates.php">Road Updates</a>
+                <a href="#road-projects">Road Projects</a>
+                <a href="public_reports.php">Road Status</a>
+                <a href="about.php">About</a>
+                <a href="contact.php">Contact</a>
+            </div>
+            <div class="footer-divider"></div>
+            <div class="footer-bottom-row">
+                <p class="footer-copyright"><i class="fas fa-copyright"></i> 2026 Road and Transportation Department. All rights reserved.</p>
             </div>
         </div>
     </footer>
@@ -1882,9 +2316,9 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         window.addEventListener('scroll', function() {
             const navbar = document.querySelector('.navbar');
             if (window.scrollY > 100) {
-                navbar.style.background = 'linear-gradient(135deg, rgba(30, 60, 114, 0.95) 0%, rgba(42, 82, 152, 0.95) 100%)';
+                navbar.classList.add('scrolled');
             } else {
-                navbar.style.background = 'linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%)';
+                navbar.classList.remove('scrolled');
             }
         });
 
@@ -1983,6 +2417,8 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         });
     </script>
 
+
+    <?php include __DIR__ . '/includes/hamburger_menu_js.php'; ?>
 
     <script src="lgu_staff/js/page-transition.js"></script>
     <?php include __DIR__ . '/includes/a11y_js.php'; ?>
@@ -2699,7 +3135,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                     </h5>
                 </div>
                 <div class="modal-body">
-                    <h6 style="color:#1e3c72;font-weight:600;margin-bottom:16px;">Terms and Conditions for Citizen Reporting</h6>
+                    <h6 style="color:#115272;font-weight:600;margin-bottom:16px;">Terms and Conditions for Citizen Reporting</h6>
                     <p style="font-weight:500;margin-bottom:12px;">By submitting a report through this system, you agree to the following:</p>
                     <div class="terms-scroll" style="max-height:340px;overflow-y:auto;border:1px solid #e0e4f0;border-radius:8px;padding:16px;background:#fafbfc;font-size:0.9rem;line-height:1.7;color:#333;">
                         <ul style="padding-left:20px;margin:0;">

@@ -164,33 +164,20 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
         }
     </style>
     <?php include __DIR__ . '/includes/a11y_css.php'; ?>
+<?php include __DIR__ . '/includes/hamburger_menu_css.php'; ?>
 </head>
 <body>
     <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark fixed-top">
-        <div class="container">
+    <nav class="navbar navbar-dark fixed-top">
+        <div class="container-fluid">
             <a class="navbar-brand" href="<?php echo $basePath; ?>index.php">
-                <i class="fas fa-road"></i>
+                <img src="<?php echo $basePath; ?>assets/img/logocityhall.png" alt="Quezon City Hall Logo" style="height:40px;width:auto;border-radius:6px;box-shadow:0 2px 6px rgba(0,0,0,0.2);">
                 Road & Transportation Department
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="<?php echo $basePath; ?>index.php">Home</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="<?php echo $basePath; ?>index.php#services">Services</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="<?php echo $basePath; ?>index.php#contact">Contact</a>
-                    </li>
-                </ul>
-            </div>
         </div>
     </nav>
+
+    <?php include __DIR__ . '/includes/hamburger_menu.php'; ?>
 
     <!-- Service Hero Section -->
     <section class="service-hero">
@@ -375,5 +362,6 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
 
     <script src="lgu_staff/js/page-transition.js"></script>
     <?php include __DIR__ . '/includes/a11y_js.php'; ?>
+<?php include __DIR__ . '/includes/hamburger_menu_js.php'; ?>
 </body>
 </html>
