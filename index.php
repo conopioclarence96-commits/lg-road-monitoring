@@ -359,7 +359,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         /* Hamburger button override for the white navbar */
         .qc-navbar .container-fluid { padding-right: 76px; }
         .hamburger-btn {
-            top: 16px !important;
+            top: 11px !important;
             right: 18px !important;
             width: 42px !important;
             height: 42px !important;
@@ -1798,6 +1798,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                     <small>Quezon City Government</small>
                 </span>
             </a>
+            <?php include __DIR__ . '/includes/navbar_quicklinks.php'; ?>
         </div>
     </nav>
 
@@ -2283,14 +2284,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         <div class="container">
             <div class="footer-top-row">
                 <div>
-                    <div class="footer-follow-label">FOLLOW US</div>
-                    <div class="footer-social-row">
-                        <a href="#" aria-label="Facebook" class="footer-social-circle"><i class="fab fa-facebook-f"></i></a>
-                        <a href="#" aria-label="X" class="footer-social-circle"><i class="fab fa-twitter"></i></a>
-                        <a href="#" aria-label="YouTube" class="footer-social-circle"><i class="fab fa-youtube"></i></a>
-                        <a href="#" aria-label="Instagram" class="footer-social-circle"><i class="fab fa-instagram"></i></a>
-                    </div>
-                </div>
                 <div class="footer-contact-row">
                     <a href="tel:+63289881234" class="footer-contact-item"><i class="fas fa-phone-alt"></i> (02) 8988-1234</a>
                     <span class="contact-separator"></span>

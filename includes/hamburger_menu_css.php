@@ -142,6 +142,31 @@
         padding-left: 34px;
     }
 
+    .side-menu-group .menu-label {
+        margin: 0;
+        padding: 12px 28px 4px;
+        color: rgba(255,255,255,0.55);
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.8px;
+        text-transform: uppercase;
+        border-top: 1px solid rgba(255,255,255,0.15);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .side-menu-group .menu-label i {
+        color: var(--accent-color, #4CAF50);
+        width: 20px;
+        text-align: center;
+    }
+
+    .side-menu-group .side-menu-nav {
+        flex: none;
+        padding: 4px 0 10px;
+    }
+
     .side-menu-footer {
         padding: 20px 24px;
         border-top: 1px solid rgba(255,255,255,0.15);

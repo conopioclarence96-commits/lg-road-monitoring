@@ -82,7 +82,7 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
         /* Hamburger button override for the white navbar */
         .qc-navbar .container-fluid { padding-right: 76px; }
         .hamburger-btn {
-            top: 16px !important;
+            top: 11px !important;
             right: 18px !important;
             width: 42px !important;
             height: 42px !important;
@@ -175,6 +175,7 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
                     <small>Quezon City Government</small>
                 </span>
             </a>
+            <?php include __DIR__ . '/includes/navbar_quicklinks.php'; ?>
         </div>
     </nav>
 
