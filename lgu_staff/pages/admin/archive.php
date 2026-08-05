@@ -149,12 +149,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         // happened instead of staying hidden with a terminal status.
         $restore_status = (!empty($row['previous_status'])) ? $row['previous_status'] : $row['status'];
 
-        // A completed transportation report is brought back as an ACTIVE report
-        // ('in-progress') so it reappears in Recent Submissions on
-        // road_transportation_monitoring.php and report_management.php instead
-        // of staying finished.
+        // A completed or cancelled transportation/maintenance report is
+        // restored as 'approved' first so it returns to report_management.php
+        // as an Approved report. It only moves to 'in-progress' once a progress
+        // update is uploaded (handled in progress_update_api.php on the first
+        // update).
         if ($module === 'transport' && $restore_status === 'completed') {
-            $restore_status = 'in-progress';
+            $restore_status = 'approved';
+        }
+
+        // A cancelled transportation or maintenance report is brought back as
+        // 'approved' first so it returns to report_management.php as an approved
+        // project instead of staying cancelled and hidden; it can move to
+        // in-progress afterwards through the normal flow.
+        if (in_array($module, ['transport', 'maintenance'], true) && strtolower((string)($row['status'] ?? '')) === 'cancelled') {
+            $restore_status = 'approved';
         }
 
         // A rejected CITIZEN report (transportation + local + created_by = 0) is
@@ -179,13 +188,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $restore_status = 'Pending Review';
         }
 
-        // A completed CIMM report is brought back as ACTIVE ('In Progress') so
-        // it reappears in report_management.php, road_transportation_monitoring.php
-        // and the active project list (all of which only list CIMM reports whose
+        // A completed CIMM report is restored as 'Approved' first so it returns
+        // to report_management.php, road_transportation_monitoring.php and the
+        // active project list (all of which list CIMM reports whose
         // verification_status is 'Approved' or 'In Progress') instead of staying
-        // finished and hidden.
+        // finished and hidden. It only moves to 'In Progress' once a progress
+        // update is uploaded.
         if ($module === 'cimm' && strtolower((string)$restore_status) === 'completed') {
-            $restore_status = 'In Progress';
+            $restore_status = 'Approved';
+        }
+
+        // A cancelled CIMM report is restored as 'Approved' first so it returns
+        // to report_management.php, road_transportation_monitoring.php and the
+        // active project list instead of staying cancelled and hidden; it can
+        // move to In Progress afterwards through the normal flow.
+        if ($module === 'cimm' && strtolower((string)($row['status'] ?? '')) === 'cancelled') {
+            $restore_status = 'Approved';
         }
 
         // CIMM reports: map the archived row back into cimm_verification_reports.
@@ -649,6 +667,26 @@ if (isset($_SESSION['archive_message'])) {
             background: rgba(55,98,200,0.15);
             color: #3762c8;
         }
+        .status-badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+        .status-completed {
+            background: rgba(34,197,94,0.15);
+            color: #22c55e;
+        }
+        .status-rejected {
+            background: rgba(249,115,22,0.15);
+            color: #f97316;
+        }
+        .status-cancelled {
+            background: rgba(239,68,68,0.15);
+            color: #ef4444;
+        }
 
         @media (max-width: 768px) {
             .main-content { margin-left: 0; }
@@ -731,6 +769,9 @@ if (isset($_SESSION['archive_message'])) {
                             <div class="archive-meta">
                                 <span class="meta-item"><i class="fas fa-tag"></i> <?php echo htmlspecialchars($row['report_type']); ?></span>
                                 <span class="meta-item"><i class="fas fa-building"></i> <?php echo htmlspecialchars($row['department']); ?></span>
+                                <span class="meta-item"><i class="fas fa-flag"></i>
+                                    <span class="status-badge status-<?php echo htmlspecialchars(strtolower($row['status'])); ?>"><?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $row['status']))); ?></span>
+                                </span>
                                 <span class="meta-item"><i class="fas fa-calendar"></i> <?php echo htmlspecialchars($row['created_at']); ?></span>
                                 <span class="meta-item"><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($row['location'] ?? 'N/A'); ?></span>
                                 <span class="meta-item"><i class="fas fa-sitemap"></i>

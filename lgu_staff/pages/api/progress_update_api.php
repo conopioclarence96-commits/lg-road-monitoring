@@ -171,35 +171,27 @@ if ($method === 'GET') {
         }
 
         try {
-            // Determine whether this will be the report's first progress update
-            // BEFORE inserting, so we can auto-advance its status on the very
-            // first upload only (both report_management.php and
-            // road_transportation_monitoring.php post updates here).
-            $cnt_stmt = $conn->prepare("SELECT COUNT(*) AS cnt FROM report_updates WHERE report_id = ?");
-            $cnt_stmt->bind_param("i", $report_id);
-            $cnt_stmt->execute();
-            $is_first_update = ((int)($cnt_stmt->get_result()->fetch_assoc()['cnt'] ?? 0)) === 0;
-
             // Insert update
             $stmt = $conn->prepare("INSERT INTO report_updates (report_id, user_id, title, description) VALUES (?, ?, ?, ?)");
             $stmt->bind_param("iiss", $report_id, $user_id, $title, $description);
             $stmt->execute();
             $update_id = $conn->insert_id;
 
-            // Only when the FIRST progress update is successfully saved, and the
-            // report is currently Approved, automatically advance it to In Progress.
-            // CIMM reports store their status as title-case (e.g. 'Approved',
-            // 'In Progress') in verification_status, so compare and write the
-            // correct casing per table.
-            if ($is_first_update) {
-                $cur = $conn->query("SELECT `{$status_column}` AS st FROM `{$report_table}` WHERE id = {$report_id}")->fetch_assoc();
-                $current_status = strtolower((string)($cur['st'] ?? ''));
-                if ($current_status === 'approved') {
-                    $target_status = ($report_table === 'cimm_verification_reports') ? 'In Progress' : 'in-progress';
-                    $s_stmt = $conn->prepare("UPDATE `{$report_table}` SET `{$status_column}` = ? WHERE id = ?");
-                    $s_stmt->bind_param("si", $target_status, $report_id);
-                    $s_stmt->execute();
-                }
+            // Automatically advance an Approved report to In Progress once an
+            // update is added (report_management.php and
+            // road_transportation_monitoring.php both post updates here).
+            // This runs on every update (not just the first), so reports
+            // restored from the archive still advance even though they carry
+            // prior updates. CIMM reports store their status as title-case
+            // (e.g. 'Approved', 'In Progress') in verification_status, so
+            // compare and write the correct casing per table.
+            $cur = $conn->query("SELECT `{$status_column}` AS st FROM `{$report_table}` WHERE id = {$report_id}")->fetch_assoc();
+            $current_status = strtolower((string)($cur['st'] ?? ''));
+            if ($current_status === 'approved') {
+                $target_status = ($report_table === 'cimm_verification_reports') ? 'In Progress' : 'in-progress';
+                $s_stmt = $conn->prepare("UPDATE `{$report_table}` SET `{$status_column}` = ? WHERE id = ?");
+                $s_stmt->bind_param("si", $target_status, $report_id);
+                $s_stmt->execute();
             }
 
             // Handle media uploads

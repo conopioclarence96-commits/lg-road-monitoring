@@ -958,7 +958,7 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
 
     // Report management only lists active reports: Approved and In Progress.
     // Pending, Rejected, Cancelled and Completed reports are excluded from
-    // every list; Cancelled/Rejected reports are only reachable via the archive.
+    // every list; Completed/Cancelled reports are only reachable via the archive.
     $active_statuses = ['approved', 'in-progress'];
     $all_reports = array_values(array_filter($all_reports, function ($r) use ($active_statuses) {
         return in_array(($r['status'] ?? ''), $active_statuses, true);
@@ -4567,6 +4567,9 @@ if ($focus_id > 0) {
         function updateStatusOnly() {
             var newStatus = (currentUpdatesReportSource === 'cimm') ? 'Completed' : 'completed';
             var statusFormData = new FormData();
+            // Same behavior as road_transportation_monitoring.php: update the
+            // live row to completed (it stays in place), then file a completed
+            // copy into the archive. Nothing is moved or deleted.
             statusFormData.append('action', 'update_status');
             statusFormData.append('report_id', currentUpdatesReportId);
             statusFormData.append('report_type', currentUpdatesReportType);
@@ -4588,6 +4591,17 @@ if ($focus_id > 0) {
                     if (typeof loadUpdates === 'function') {
                         loadUpdates(currentUpdatesReportId, currentUpdatesReportType);
                     }
+                    // File a completed copy of the report into the archive.
+                    // Purely additive — the live report is not moved or deleted.
+                    var archiveFormData = new FormData();
+                    archiveFormData.append('action', 'complete_archive');
+                    archiveFormData.append('report_id', currentUpdatesReportId);
+                    archiveFormData.append('report_type', currentUpdatesReportType);
+                    archiveFormData.append('source', currentUpdatesReportSource);
+                    fetch('../api/progress_update_api.php', {
+                        method: 'POST',
+                        body: archiveFormData
+                    }).catch(function(e) { console.error('Archive copy failed', e); });
                 } else {
                     showNotification(data.message || 'Failed to update status', 'error');
                 }
@@ -4605,7 +4619,11 @@ if ($focus_id > 0) {
             
             var newStatus = (currentUpdatesReportSource === 'cimm') ? 'Cancelled' : 'cancelled';
             var formData = new FormData();
-            formData.append('action', 'update_status');
+            // Cancel MOVES the report into the archive as 'cancelled' and
+            // removes it from the live table, so it disappears from
+            // report_management.php and appears only in archive.php (no
+            // duplicate across the two pages).
+            formData.append('action', 'cancel_archive');
             formData.append('report_id', currentUpdatesReportId);
             formData.append('report_type', currentUpdatesReportType);
             formData.append('status', newStatus);
