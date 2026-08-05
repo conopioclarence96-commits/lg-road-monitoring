@@ -47,6 +47,7 @@ function rgmap_ensure_ipms_road_projects_table(PDO $pdo): void {
         project_id          INT UNSIGNED NOT NULL,
         project_name        VARCHAR(255) NOT NULL,
         project_status      VARCHAR(32)  NOT NULL,
+        status_bucket       VARCHAR(16)  NULL,
         progress_percent    TINYINT UNSIGNED NOT NULL DEFAULT 0,
         start_date          DATE         NULL,
         end_date            DATE         NULL,
@@ -65,8 +66,16 @@ function rgmap_ensure_ipms_road_projects_table(PDO $pdo): void {
         synced_at           TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY uq_ipms_project (project_id),
-        INDEX idx_project_status (project_status)
+        INDEX idx_project_status (project_status),
+        INDEX idx_status_bucket (status_bucket)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    // Idempotent add-on for installs created before status_bucket existed —
+    // same convention IPMS itself uses for its own schema evolution.
+    $existing = $pdo->query("SHOW COLUMNS FROM ipms_road_projects LIKE 'status_bucket'")->fetchAll();
+    if (empty($existing)) {
+        $pdo->exec("ALTER TABLE ipms_road_projects ADD COLUMN status_bucket VARCHAR(16) NULL AFTER project_status, ADD INDEX idx_status_bucket (status_bucket)");
+    }
 }
 
 /**
@@ -94,14 +103,18 @@ function rgmap_upsert_ipms_road_project(PDO $pdo, array $road): bool {
     $start = $road['start_coordinate'] ?? [];
     $end = $road['end_coordinate'] ?? [];
 
+    // Prefer the bucket IPMS sends; fall back to deriving it locally (e.g. an
+    // older IPMS deployment that hasn't picked up the status_bucket field yet).
+    $statusBucket = (string)($road['status_bucket'] ?? '') ?: rgmap_ipms_status_bucket((string)($road['project_status'] ?? ''));
+
     $stmt = $pdo->prepare("
         INSERT INTO ipms_road_projects (
-            project_id, project_name, project_status, progress_percent,
+            project_id, project_name, project_status, status_bucket, progress_percent,
             start_date, end_date, road_name, road_type, road_status,
             polyline_json, road_length_meters, start_lat, start_lng, end_lat, end_lng,
             barangays_json, districts_json, payload_json
         ) VALUES (
-            ?, ?, ?, ?,
+            ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?, ?,
             ?, ?, ?
@@ -109,6 +122,7 @@ function rgmap_upsert_ipms_road_project(PDO $pdo, array $road): bool {
         ON DUPLICATE KEY UPDATE
             project_name = VALUES(project_name),
             project_status = VALUES(project_status),
+            status_bucket = VALUES(status_bucket),
             progress_percent = VALUES(progress_percent),
             start_date = VALUES(start_date),
             end_date = VALUES(end_date),
@@ -131,6 +145,7 @@ function rgmap_upsert_ipms_road_project(PDO $pdo, array $road): bool {
         $projectId,
         (string)($road['project_name'] ?? $road['road_name'] ?? 'Untitled Road Project'),
         (string)($road['project_status'] ?? 'unknown'),
+        $statusBucket,
         $progress,
         $toDate($road['start_date'] ?? null),
         $toDate($road['end_date'] ?? null),
@@ -175,23 +190,35 @@ function rgmap_prune_ipms_road_projects(PDO $pdo, array $keepProjectIds): int {
 }
 
 /**
- * "Upcoming" (not started yet) vs "ongoing" (in progress) bucketing for the
- * dashboard — IPMS already filters the feed to relevant statuses, this just
- * splits it for display.
+ * Bucketing for the dashboard: new (approved, not yet under construction),
+ * ongoing (in progress), completed, or cancelled. Fallback used only when a
+ * cached row (or an older IPMS deployment) doesn't already carry a
+ * status_bucket value from the feed itself.
  */
 function rgmap_ipms_status_bucket(string $status): string {
     $ongoing = ['active', 'delayed', 'on_hold', 'completion_inspection'];
-    return in_array($status, $ongoing, true) ? 'ongoing' : 'upcoming';
+    $completed = ['completed', 'turnover'];
+    if (in_array($status, $ongoing, true)) {
+        return 'ongoing';
+    }
+    if (in_array($status, $completed, true)) {
+        return 'completed';
+    }
+    if ($status === 'cancelled') {
+        return 'cancelled';
+    }
+    return 'new';
 }
 
 /**
  * Fetch cached IPMS road projects.
  *
  * @param PDO   $pdo  Database connection
- * @param array $opts Optional: ['limit' => int, 'status' => string]
+ * @param array $opts Optional: ['limit' => int, 'status' => string, 'bucket' => string]
  * @return array Rows with polyline_coordinates / start_coordinate /
  *               end_coordinate / barangays_covered / districts_covered
- *               decoded back into arrays, plus a 'scope_bucket' field.
+ *               decoded back into arrays, plus a 'scope_bucket' field
+ *               (new/ongoing/completed/cancelled).
  */
 function rgmap_fetch_ipms_road_projects(PDO $pdo, array $opts = []): array {
     $limit = (int)($opts['limit'] ?? 200);
@@ -209,7 +236,16 @@ function rgmap_fetch_ipms_road_projects(PDO $pdo, array $opts = []): array {
         $params[] = $opts['status'];
     }
 
-    $sql .= " ORDER BY FIELD(project_status,'active','delayed','on_hold','completion_inspection','awarded','assigned','bidding','approved'), start_date ASC LIMIT " . $limit;
+    if (!empty($opts['bucket'])) {
+        $sql .= " AND status_bucket = ?";
+        $params[] = $opts['bucket'];
+    }
+
+    // Ongoing/new work surfaces first (most relevant to citizens right now);
+    // completed/cancelled sort to the bottom since they're historical.
+    $sql .= " ORDER BY FIELD(status_bucket,'ongoing','new','completed','cancelled'),
+              FIELD(project_status,'active','delayed','on_hold','completion_inspection','awarded','assigned','bidding','approved'),
+              start_date ASC LIMIT " . $limit;
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -225,7 +261,7 @@ function rgmap_fetch_ipms_road_projects(PDO $pdo, array $opts = []): array {
         $row['end_coordinate'] = ($row['end_lat'] !== null && $row['end_lng'] !== null)
             ? ['lat' => (float)$row['end_lat'], 'lng' => (float)$row['end_lng']]
             : null;
-        $row['scope_bucket'] = rgmap_ipms_status_bucket((string)$row['project_status']);
+        $row['scope_bucket'] = !empty($row['status_bucket']) ? $row['status_bucket'] : rgmap_ipms_status_bucket((string)$row['project_status']);
     }
     unset($row);
 

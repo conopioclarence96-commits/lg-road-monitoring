@@ -167,8 +167,8 @@ if ($database_available && $conn) {
     }
 }
 
-// Get upcoming/ongoing road projects synced from IPMS (see
-// lgu_staff/pages/api/ipms-road-projects-pull.php for the poller that keeps
+// Get road projects (full lifecycle: new/ongoing/completed/cancelled)
+// synced from IPMS (see lgu_staff/pages/api/ipms-road-projects-pull.php for the poller that keeps
 // this cache fresh, and ipms_road_projects_data.php for the schema). This is
 // IPMS's own project data, kept intentionally separate from this app's
 // citizen-reported incident tables.
@@ -185,7 +185,8 @@ if ($database_available && $conn) {
 // Display metadata (badge label/class, human status) for an IPMS project
 // status. IPMS sends the raw status string (approved/bidding/active/... —
 // see ipms-road-projects-pull.php doc comment for the full list); this just
-// maps it to something citizen-friendly.
+// maps it to something citizen-friendly. Covers the full lifecycle IPMS now
+// sends (new/ongoing/completed/cancelled), not just upcoming/ongoing.
 function ipms_status_meta(string $status): array {
     $map = [
         'approved'              => ['label' => 'Upcoming — Approved',        'class' => 'rp-upcoming'],
@@ -196,6 +197,9 @@ function ipms_status_meta(string $status): array {
         'delayed'               => ['label' => 'Ongoing — Delayed',         'class' => 'rp-delayed'],
         'on_hold'               => ['label' => 'On Hold',                    'class' => 'rp-on_hold'],
         'completion_inspection' => ['label' => 'Final Inspection',          'class' => 'rp-completion_inspection'],
+        'completed'             => ['label' => 'Completed',                  'class' => 'rp-completed'],
+        'turnover'              => ['label' => 'Completed — Turned Over',    'class' => 'rp-completed'],
+        'cancelled'             => ['label' => 'Cancelled',                  'class' => 'rp-cancelled'],
     ];
     return $map[$status] ?? ['label' => ucfirst(str_replace('_', ' ', $status)), 'class' => 'rp-upcoming'];
 }
@@ -1159,7 +1163,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             color: var(--qc-shades-200);
         }
 
-        /* Upcoming & Ongoing Road Projects Section (IPMS feed) */
+        /* Road Projects Section (IPMS feed) */
         #roadProjectsMap {
             height: 420px;
             border-radius: 12px;
@@ -1409,6 +1413,15 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         .rp-status-badge.rp-delayed { background: #dc3545; }
         .rp-status-badge.rp-on_hold { background: #6c757d; }
         .rp-status-badge.rp-completion_inspection { background: #17a2b8; }
+        .rp-status-badge.rp-completed { background: #6f42c1; }
+        .rp-status-badge.rp-cancelled { background: #343a40; }
+
+        .rp-bucket-filter {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
 
         .rp-meta {
             font-size: 0.85rem;
@@ -1999,21 +2012,34 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         </div>
     </section>
 
-    <!-- Upcoming & Ongoing Road Projects Section (IPMS feed) -->
+    <!-- Road Projects Section (IPMS feed) -->
     <section class="section" id="road-projects" <?php echo ($access_settings['hide_road_projects'] ?? '0') === '1' ? 'style="display:none"' : ''; ?>>
         <div class="container">
-            <h2 class="section-title">Upcoming &amp; Ongoing Road Projects</h2>
-            <p class="section-subtitle">See which roads are about to be, or currently being, worked on across the city</p>
+            <h2 class="section-title">Road Projects</h2>
+            <p class="section-subtitle">Track road projects across the city — from newly approved through ongoing construction, completion, or cancellation</p>
 
             <?php if (!empty($ipms_road_projects)): ?>
+            <div class="rp-bucket-filter" role="group" aria-label="Filter road projects by stage">
+                <input type="checkbox" class="btn-check" id="rpFilterNew" data-bucket="new" checked>
+                <label class="btn btn-sm btn-outline-primary" for="rpFilterNew">New</label>
+                <input type="checkbox" class="btn-check" id="rpFilterOngoing" data-bucket="ongoing" checked>
+                <label class="btn btn-sm btn-outline-success" for="rpFilterOngoing">Ongoing</label>
+                <input type="checkbox" class="btn-check" id="rpFilterCompleted" data-bucket="completed">
+                <label class="btn btn-sm btn-outline-secondary" for="rpFilterCompleted">Completed</label>
+                <input type="checkbox" class="btn-check" id="rpFilterCancelled" data-bucket="cancelled">
+                <label class="btn btn-sm btn-outline-dark" for="rpFilterCancelled">Cancelled</label>
+            </div>
             <div class="gis-map-wrapper">
                 <div class="gis-map-toolbar">
                     <div class="gis-toolbar-left">
                         <div class="gis-map-legend">
+                            <span class="gis-legend-item"><span class="gis-legend-dot" style="background:#2196f3;"></span> New</span>
                             <span class="gis-legend-item"><span class="gis-legend-dot" style="background:#28a745;"></span> Active</span>
                             <span class="gis-legend-item"><span class="gis-legend-dot" style="background:#dc3545;"></span> Delayed</span>
                             <span class="gis-legend-item"><span class="gis-legend-dot" style="background:#6c757d;"></span> On Hold</span>
                             <span class="gis-legend-item"><span class="gis-legend-dot" style="background:#17a2b8;"></span> Final Inspection</span>
+                            <span class="gis-legend-item"><span class="gis-legend-dot" style="background:#6f42c1;"></span> Completed</span>
+                            <span class="gis-legend-item"><span class="gis-legend-dot" style="background:#343a40;"></span> Cancelled</span>
                         </div>
                         <div class="gis-map-search-box">
                             <input type="text" id="gisMapSearchInput" placeholder="Search places..." class="gis-search-input">
@@ -2046,7 +2072,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                     $meta = ipms_status_meta($proj['project_status']);
                     $progress = max(0, min(100, (int)$proj['progress_percent']));
                 ?>
-                <div class="road-project-card" onclick="focusRoadProjectOnMap(<?php echo (int)$proj['project_id']; ?>)">
+                <div class="road-project-card" data-bucket="<?php echo htmlspecialchars($proj['scope_bucket'] ?? 'new'); ?>" onclick="focusRoadProjectOnMap(<?php echo (int)$proj['project_id']; ?>)">
                     <span class="rp-status-badge <?php echo htmlspecialchars($meta['class']); ?>"><?php echo htmlspecialchars($meta['label']); ?></span>
                     <h4><?php echo htmlspecialchars($proj['project_name']); ?></h4>
                     <div class="rp-meta"><i class="fas fa-road"></i> <?php echo htmlspecialchars($proj['road_type']); ?> &middot; <?php echo htmlspecialchars($proj['road_status']); ?></div>
@@ -2068,11 +2094,16 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 </div>
                 <?php endforeach; ?>
             </div>
+            <div class="road-projects-empty" id="roadProjectsFilterEmpty" style="display:none;">
+                <i class="fas fa-filter"></i>
+                <h5>No Projects in This View</h5>
+                <p>Try enabling another status above.</p>
+            </div>
             <?php else: ?>
             <div class="road-projects-empty">
                 <i class="fas fa-road"></i>
-                <h5>No Upcoming Projects Right Now</h5>
-                <p>Planned and ongoing road projects from IPMS will appear here once available.</p>
+                <h5>No Road Projects Yet</h5>
+                <p>New, ongoing, completed, and cancelled road projects from IPMS will appear here once available.</p>
             </div>
             <?php endif; ?>
         </div>
@@ -2427,8 +2458,9 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         const TOMTOM_API_KEY = '<?php echo TOMTOM_API_KEY; ?>';
         const CITIZEN_API = 'lgu_staff/pages/api/citizen_report.php';
 
-        // Upcoming/ongoing road projects synced from IPMS (read-only cache —
-        // see lgu_staff/pages/api/ipms-road-projects-pull.php). Each
+        // Road projects synced from IPMS across their full lifecycle
+        // (new/ongoing/completed/cancelled — read-only cache, see
+        // lgu_staff/pages/api/ipms-road-projects-pull.php). Each
         // polyline_coordinates pair is [lat, lng], start -> end.
         const IPMS_ROAD_PROJECTS = <?php echo json_encode(array_map(function ($p) {
             return [
@@ -2444,11 +2476,22 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         }, $ipms_road_projects), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
 
         const ROAD_PROJECT_COLORS = {
+            'approved': '#2196f3',
+            'bidding': '#2196f3',
+            'awarded': '#2196f3',
+            'assigned': '#2196f3',
             'active': '#28a745',
             'delayed': '#dc3545',
             'on_hold': '#6c757d',
-            'completion_inspection': '#17a2b8'
+            'completion_inspection': '#17a2b8',
+            'completed': '#6f42c1',
+            'turnover': '#6f42c1',
+            'cancelled': '#343a40'
         };
+        // One Leaflet layerGroup per lifecycle bucket, so the New/Ongoing/
+        // Completed/Cancelled filter chips can show/hide a whole bucket at
+        // once instead of toggling every polyline individually.
+        let roadProjectBucketGroups = null;
         const roadProjectLayers = {};
         let roadProjectsMap = null;
         let gisTrafficLayer = null;
@@ -2531,24 +2574,35 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 })
                 .catch(e => console.warn('Could not load QC districts GeoJSON:', e));
 
+            roadProjectBucketGroups = {
+                new: L.layerGroup(),
+                ongoing: L.layerGroup(),
+                completed: L.layerGroup(),
+                cancelled: L.layerGroup()
+            };
+
             const allPoints = [];
             IPMS_ROAD_PROJECTS.forEach(proj => {
                 if (!Array.isArray(proj.polyline) || proj.polyline.length < 2) return;
                 const latlngs = proj.polyline.map(pt => [pt[0], pt[1]]);
                 const color = ROAD_PROJECT_COLORS[proj.project_status] || '#2196f3';
+                const bucket = roadProjectBucketGroups[proj.scope_bucket] ? proj.scope_bucket : 'new';
                 const line = L.polyline(latlngs, {
                     color: color,
                     weight: 5,
                     opacity: 0.85
-                }).addTo(roadProjectsMap);
+                });
                 line.bindPopup(
                     '<strong>' + escapeRoadProjectHtml(proj.project_name) + '</strong><br>' +
                     escapeRoadProjectHtml(proj.road_type) + ' &middot; ' + escapeRoadProjectHtml(proj.road_status) + '<br>' +
                     proj.progress_percent + '% complete'
                 );
-                roadProjectLayers[proj.project_id] = line;
+                line.addTo(roadProjectBucketGroups[bucket]);
+                roadProjectLayers[proj.project_id] = { layer: line, bucket: bucket };
                 allPoints.push(...latlngs);
             });
+
+            applyRoadProjectFilters();
 
             if (allPoints.length > 0) {
                 roadProjectsMap.fitBounds(L.latLngBounds(allPoints).pad(0.15));
@@ -2557,6 +2611,40 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             }
         }
 
+        function getActiveRoadProjectFilters() {
+            const active = new Set();
+            document.querySelectorAll('.rp-bucket-filter .btn-check').forEach(cb => {
+                if (cb.checked) active.add(cb.dataset.bucket);
+            });
+            return active;
+        }
+
+        function applyRoadProjectFilters() {
+            const active = getActiveRoadProjectFilters();
+            let visible = 0;
+            document.querySelectorAll('.road-project-card').forEach(card => {
+                const show = active.has(card.dataset.bucket);
+                card.style.display = show ? '' : 'none';
+                if (show) visible++;
+            });
+            if (roadProjectsMap && roadProjectBucketGroups) {
+                Object.keys(roadProjectBucketGroups).forEach(bucket => {
+                    const group = roadProjectBucketGroups[bucket];
+                    if (active.has(bucket)) {
+                        if (!roadProjectsMap.hasLayer(group)) group.addTo(roadProjectsMap);
+                    } else if (roadProjectsMap.hasLayer(group)) {
+                        roadProjectsMap.removeLayer(group);
+                    }
+                });
+            }
+            const emptyEl = document.getElementById('roadProjectsFilterEmpty');
+            if (emptyEl) emptyEl.style.display = visible === 0 ? 'block' : 'none';
+        }
+
+        document.querySelectorAll('.rp-bucket-filter .btn-check').forEach(cb => {
+            cb.addEventListener('change', applyRoadProjectFilters);
+        });
+
         function escapeRoadProjectHtml(text) {
             const d = document.createElement('div');
             d.textContent = text || '';
@@ -2564,11 +2652,16 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         }
 
         function focusRoadProjectOnMap(projectId) {
-            const line = roadProjectLayers[projectId];
-            if (!line || !roadProjectsMap) return;
+            const entry = roadProjectLayers[projectId];
+            if (!entry || !roadProjectsMap) return;
+            const checkbox = document.querySelector('.rp-bucket-filter .btn-check[data-bucket="' + entry.bucket + '"]');
+            if (checkbox && !checkbox.checked) {
+                checkbox.checked = true;
+                applyRoadProjectFilters();
+            }
             document.getElementById('roadProjectsMap').scrollIntoView({ behavior: 'smooth', block: 'center' });
-            roadProjectsMap.fitBounds(line.getBounds().pad(0.3));
-            line.openPopup(line.getBounds().getCenter());
+            roadProjectsMap.fitBounds(entry.layer.getBounds().pad(0.3));
+            entry.layer.openPopup(entry.layer.getBounds().getCenter());
         }
 
         let gisTrafficVisible = true;
