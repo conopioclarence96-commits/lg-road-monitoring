@@ -668,6 +668,13 @@ function rgmap_archive_report($conn, $table, $report_id, $status) {
         $stmt->bind_param("i", $report_id);
         $stmt->execute();
 
+        // Auto-remove notifications for this report since it no longer exists
+        // in the live table.  This keeps notifications clean when a report is
+        // permanently deleted (cancelled and archived).
+        $cleanup = $conn->prepare("DELETE FROM report_notifications WHERE report_id = ?");
+        $cleanup->bind_param("i", $report_id);
+        $cleanup->execute();
+
         $conn->commit();
         return true;
     } catch (Exception $e) {
@@ -728,6 +735,12 @@ function rgmap_archive_cimm_report($conn, $cimm_req_id, $status) {
 
         $delete = $conn->prepare("DELETE FROM cimm_verification_reports WHERE id = ?");
         $delete->execute([$cimm_req_id]);
+
+        // Auto-remove notifications for this report since it no longer exists
+        // in the live table.
+        $cleanup = $conn->prepare("DELETE FROM report_notifications WHERE report_id = ?");
+        $cleanup->bind_param("i", $cimm_req_id);
+        $cleanup->execute();
 
         $conn->commit();
         return true;
