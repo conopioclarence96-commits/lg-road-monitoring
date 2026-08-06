@@ -3724,25 +3724,34 @@ annotate_report_assignment_status($conn, $recent_reports);
             .then(function(data) {
                 if (data.success) {
                     showNotification('Report completed successfully', 'success');
-                    // Hide action buttons, show export button
-                    document.getElementById('actionButtons').style.display = 'none';
-                    document.getElementById('exportButtons').style.display = 'flex';
-                    // Reload updates timeline
-                    if (typeof loadUpdates === 'function') {
-                        loadUpdates(currentUpdatesReportId, currentUpdatesReportType);
-                    }
-                    // ADD: file a completed copy of the report into the archive.
-                    // This is purely additive — the live report is not moved or
-                    // deleted, it stays completed exactly where it is.
+                    // MOVE the report into the archive: a completed copy is filed
+                    // in the archive and the live row is removed from the
+                    // monitoring page (same behavior as the Cancel button).
                     var archiveFormData = new FormData();
-                    archiveFormData.append('action', 'complete_archive');
+                    archiveFormData.append('action', 'complete_archive_move');
                     archiveFormData.append('report_id', currentUpdatesReportId);
                     archiveFormData.append('report_type', currentUpdatesReportType);
                     archiveFormData.append('source', currentUpdatesReportSource);
                     fetch('../api/progress_update_api.php', {
                         method: 'POST',
                         body: archiveFormData
-                    }).catch(function(e) { console.error('Archive copy failed', e); });
+                    })
+                    .then(function(r) { return r.json(); })
+                    .then(function(archiveData) {
+                        if (archiveData.success) {
+                            showNotification('Report completed and moved to archive', 'success');
+                            closeModal('updatesModal');
+                            location.reload();
+                        } else {
+                            showNotification(archiveData.message || 'Failed to move report to archive', 'error');
+                            isCompleting = false;
+                        }
+                    })
+                    .catch(function(e) {
+                        showNotification('Network error', 'error');
+                        console.error(e);
+                        isCompleting = false;
+                    });
                 } else {
                     showNotification(data.message || 'Failed to update status', 'error');
                 }

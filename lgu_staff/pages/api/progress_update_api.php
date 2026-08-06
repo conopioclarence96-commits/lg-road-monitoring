@@ -441,6 +441,41 @@ if ($method === 'GET') {
             error_log("Complete archive error: " . $e->getMessage());
             json_response(['success' => false, 'message' => 'Failed to file archive copy: ' . $e->getMessage()], 500);
         }
+    } elseif ($action === 'complete_archive_move') {
+        // Complete a report AND move it to the archive (road_transportation_monitoring.php).
+        // Mirrors cancel_archive: the row is copied into the archive table with
+        // status 'completed', then removed from the live table. The live report
+        // no longer appears on the monitoring page — it lives in the archive.
+        $report_id = intval($_POST['report_id'] ?? 0);
+        $source = sanitize_input($_POST['source'] ?? '');
+
+        if ($report_id <= 0) json_response(['success' => false, 'message' => 'Invalid report ID']);
+
+        try {
+            if ($source === 'cimm') {
+                $archived = rgmap_archive_cimm_report($conn, $report_id, 'completed');
+            } else {
+                $table = rgmap_resolve_report_table($conn, $report_id);
+                $archived = $table ? rgmap_archive_report($conn, $table, $report_id, 'completed') : false;
+            }
+            if (!$archived) {
+                json_response(['success' => false, 'message' => 'Failed to complete and archive the report'], 500);
+            }
+            // Notify the officer who submitted the original review request.
+            $report_row = fetch_one("SELECT report_id FROM road_transportation_reports WHERE id = ?", [$report_id], "i");
+            if (!$report_row) {
+                $report_row = fetch_one("SELECT report_id FROM road_maintenance_reports WHERE id = ?", [$report_id], "i");
+            }
+            if (!$report_row) {
+                $report_row = fetch_one("SELECT reference_code AS report_id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
+            }
+            rgmap_notify_requestor($conn, $report_id, 'complete', $user_id, $report_row['report_id'] ?? null);
+            log_audit_action($user_id, "Completed and archived report", "Report ID: {$report_id}, Status: completed");
+            json_response(['success' => true, 'message' => 'Report completed and moved to archive']);
+        } catch (Exception $e) {
+            error_log("Complete archive move error: " . $e->getMessage());
+            json_response(['success' => false, 'message' => 'Failed to complete and archive the report: ' . $e->getMessage()], 500);
+        }
     } elseif ($action === 'submit_review_request') {
         // Road/Transportation Monitoring Officers request a completion or
         // cancellation of a project. This ONLY creates a role-targeted
@@ -800,8 +835,8 @@ function rgmap_archive_report_copy($conn, $table, $report_id, $status) {
 }
 
 // Notify the officer who submitted a completion/cancellation request when the
-// supervisor processes it (approve or reject).  Called from complete_archive
-// and cancel_archive after the report has been archived.
+// supervisor processes it (approve or reject).  Called from complete_archive,
+// complete_archive_move and cancel_archive after the report has been archived.
 //
 // Logic:
 //   - Find the pending review-request notification (type 'completion' or
