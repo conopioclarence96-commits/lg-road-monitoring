@@ -25,20 +25,16 @@ $method = $_SERVER['REQUEST_METHOD'];
  * (they share this endpoint for posting), and by the can_post_update action
  * that drives the UI button visibility.
  */
-function rgmap_can_post_progress_update($conn, $report_id, $user_id, $current_role) {
+function rgmap_can_post_progress_update($conn, $report_id, $source, $user_id, $current_role) {
     // Restriction applies only to Road/Transportation Monitoring Officers.
     if (!in_array($current_role, ['road_monitoring_officer', 'trans_monitoring_officer'], true)) {
         return true;
     }
 
-    $table = null;
-    if (fetch_one("SELECT id FROM road_transportation_reports WHERE id = ?", [$report_id], "i")) {
-        $table = 'road_transportation_reports';
-    } elseif (fetch_one("SELECT id FROM road_maintenance_reports WHERE id = ?", [$report_id], "i")) {
-        $table = 'road_maintenance_reports';
-    } elseif (fetch_one("SELECT id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i")) {
-        $table = 'cimm_verification_reports';
-    }
+    $source = strtolower(trim($source));
+    $table = $source === 'cimm'
+        ? 'cimm_verification_reports'
+        : 'road_transportation_reports';
     if (!$table) {
         return false;
     }
@@ -75,7 +71,7 @@ function rgmap_can_post_progress_update($conn, $report_id, $user_id, $current_ro
  * Officers are fail-closed: if the report cannot be resolved or the
  * report_assignments table is missing, the request is denied.
  */
-function rgmap_can_request_review($conn, $report_id, $user_id, $current_role) {
+function rgmap_can_request_review($conn, $report_id, $source, $user_id, $current_role) {
     // Restriction applies only to Road/Transportation Monitoring Officers.
     if (!in_array($current_role, ['road_monitoring_officer', 'trans_monitoring_officer'], true)) {
         return true;
@@ -87,14 +83,10 @@ function rgmap_can_request_review($conn, $report_id, $user_id, $current_role) {
             return false;
         }
 
-        $table = null;
-        if (fetch_one("SELECT id FROM road_transportation_reports WHERE id = ?", [$report_id], "i")) {
-            $table = 'road_transportation_reports';
-        } elseif (fetch_one("SELECT id FROM road_maintenance_reports WHERE id = ?", [$report_id], "i")) {
-            $table = 'road_maintenance_reports';
-        } elseif (fetch_one("SELECT id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i")) {
-            $table = 'cimm_verification_reports';
-        }
+        $source = strtolower(trim($source));
+        $table = $source === 'cimm'
+            ? 'cimm_verification_reports'
+            : 'road_transportation_reports';
         if (!$table) {
             return false;
         }
@@ -116,22 +108,24 @@ if ($method === 'GET') {
     if ($action === 'get_updates' || $action === 'get_update' || $action === 'can_post_update' || $action === 'can_request_review') {
         if ($action === 'can_post_update') {
             $report_id = intval($_GET['report_id'] ?? 0);
+            $source = sanitize_input($_GET['source'] ?? '');
             if ($report_id <= 0) {
                 json_response(['success' => false, 'message' => 'Invalid report ID']);
             }
             json_response([
                 'success'  => true,
-                'can_post' => rgmap_can_post_progress_update($conn, $report_id, $user_id, $_SESSION['role'] ?? ''),
+                'can_post' => rgmap_can_post_progress_update($conn, $report_id, $source, $user_id, $_SESSION['role'] ?? ''),
             ]);
         }
         if ($action === 'can_request_review') {
             $report_id = intval($_GET['report_id'] ?? 0);
+            $source = sanitize_input($_GET['source'] ?? '');
             if ($report_id <= 0) {
                 json_response(['success' => false, 'message' => 'Invalid report ID']);
             }
             json_response([
                 'success'     => true,
-                'can_request' => rgmap_can_request_review($conn, $report_id, $user_id, $_SESSION['role'] ?? ''),
+                'can_request' => rgmap_can_request_review($conn, $report_id, $source, $user_id, $_SESSION['role'] ?? ''),
             ]);
         }
 
@@ -202,21 +196,20 @@ if ($method === 'GET') {
     if ($action === 'create_update') {
         $report_id = intval($_POST['report_id'] ?? 0);
         $report_type = sanitize_input($_POST['report_type'] ?? 'transportation');
+        $source = sanitize_input($_POST['source'] ?? '');
         $title = sanitize_input($_POST['title'] ?? '');
         $description = sanitize_input($_POST['description'] ?? '');
 
         if ($report_id <= 0) json_response(['success' => false, 'message' => 'Invalid report ID']);
         if (empty($description)) json_response(['success' => false, 'message' => 'Description is required']);
 
-        $report = fetch_one("SELECT id, report_id FROM road_transportation_reports WHERE id = ?", [$report_id], "i");
-        $report_table = 'road_transportation_reports';
-        if (!$report) {
-            $report = fetch_one("SELECT id, report_id FROM road_maintenance_reports WHERE id = ?", [$report_id], "i");
-            $report_table = 'road_maintenance_reports';
-        }
-        if (!$report) {
+        $report = null;
+        if ($source === 'cimm') {
             $report = fetch_one("SELECT id, reference_code AS report_id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
             $report_table = 'cimm_verification_reports';
+        } else {
+            $report = fetch_one("SELECT id, report_id FROM road_transportation_reports WHERE id = ?", [$report_id], "i");
+            $report_table = 'road_transportation_reports';
         }
         if (!$report) json_response(['success' => false, 'message' => 'Report not found']);
 
@@ -226,7 +219,7 @@ if ($method === 'GET') {
         // Role-based assignment restriction — enforced in the backend so it
         // covers report_management.php and road_transportation_monitoring.php
         // alike (both post progress updates through this endpoint).
-        if (!rgmap_can_post_progress_update($conn, $report_id, $user_id, $_SESSION['role'] ?? '')) {
+        if (!rgmap_can_post_progress_update($conn, $report_id, $source, $user_id, $_SESSION['role'] ?? '')) {
             json_response(['success' => false, 'message' => 'You can only post progress updates to reports assigned to you.'], 403);
         }
 
@@ -562,7 +555,7 @@ if ($method === 'GET') {
         // to them (report_assignments). This is the authoritative check and must
         // not be bypassed by submitting the request directly, so the frontend
         // button visibility is not the only safeguard.
-        if (!rgmap_can_request_review($conn, $report_id, $user_id, $requestor_role)) {
+        if (!rgmap_can_request_review($conn, $report_id, $source, $user_id, $requestor_role)) {
             json_response(['success' => false, 'message' => 'You can only request completion or cancellation for reports assigned to you.'], 403);
         }
 

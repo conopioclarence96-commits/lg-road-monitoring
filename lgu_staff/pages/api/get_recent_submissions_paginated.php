@@ -19,8 +19,9 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['system_admin'
     exit;
 }
 
-// Transportation Operations Supervisors see only Transportation reports.
-$transport_only = (($_SESSION['role'] ?? '') === 'trans_ops_supervisor');
+// Transportation Operations Supervisors and Transportation Monitoring Officers
+// see only Transportation reports (report_category = 'transportation').
+$transport_only = in_array($_SESSION['role'] ?? '', ['trans_ops_supervisor', 'trans_monitoring_officer'], true);
 
 // Road Operations Supervisors and Road Monitoring Officers see only Road
 // reports.

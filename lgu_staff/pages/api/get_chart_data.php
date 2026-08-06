@@ -16,13 +16,13 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 // Road Monitoring Officers see only Road reports (report_category = 'road')
-// in the dashboard chart. Transportation Monitoring Officers see only
-// Transportation reports.
+// in the dashboard chart. Transportation Monitoring Officers and Transportation
+// Operations Supervisors see only Transportation reports.
 $is_road_monitoring_officer = (($_SESSION['role'] ?? '') === 'road_monitoring_officer');
-$is_transport_supervisor = (($_SESSION['role'] ?? '') === 'trans_ops_supervisor');
+$is_transport_only_role = in_array($_SESSION['role'] ?? '', ['trans_ops_supervisor', 'trans_monitoring_officer'], true);
 if ($is_road_monitoring_officer) {
     $cat_filter = " AND report_category = 'road'";
-} elseif ($is_transport_supervisor) {
+} elseif ($is_transport_only_role) {
     $cat_filter = " AND report_category = 'transportation'";
 } else {
     $cat_filter = '';

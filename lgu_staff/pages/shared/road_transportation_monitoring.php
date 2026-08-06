@@ -64,10 +64,11 @@ if (
     exit();
 }
 
-// Transportation Operations Supervisors are restricted to Transportation
-// category reports only — the Roads option is hidden and road submissions
-// are rejected server-side.
-$is_transport_supervisor = (($_SESSION['role'] ?? '') === 'trans_ops_supervisor');
+// Transportation Operations Supervisors and Transportation Monitoring Officers
+// are restricted to Transportation category reports only — the Roads option is
+// hidden and road submissions are rejected server-side. Recent Submissions /
+// map / stats filter report_category = 'transportation'.
+$is_transport_supervisor = in_array($_SESSION['role'] ?? '', ['trans_ops_supervisor', 'trans_monitoring_officer'], true);
 
 // Road Operations Supervisors and Road Monitoring Officers are restricted to
 // Road-category reports only — Transportation reports (LGU or Citizen) are
@@ -3413,7 +3414,7 @@ annotate_report_assignment_status($conn, $recent_reports);
             // hidden until the server confirms an active assignment for this report.
             completeBtn.style.display = 'none';
             cancelBtn.style.display = 'none';
-            fetch('../api/progress_update_api.php?action=can_request_review&report_id=' + currentUpdatesReportId)
+            fetch('../api/progress_update_api.php?action=can_request_review&report_id=' + currentUpdatesReportId + '&source=' + encodeURIComponent(currentUpdatesReportSource || ''))
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data && data.success && data.can_request) {
@@ -3447,7 +3448,7 @@ annotate_report_assignment_status($conn, $recent_reports);
                 btn.style.display = 'inline-flex';
             }
 
-            fetch('../api/progress_update_api.php?action=can_post_update&report_id=' + currentUpdatesReportId)
+            fetch('../api/progress_update_api.php?action=can_post_update&report_id=' + currentUpdatesReportId + '&source=' + encodeURIComponent(currentUpdatesReportSource || ''))
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data && data.success && data.can_post) {
@@ -3464,6 +3465,7 @@ annotate_report_assignment_status($conn, $recent_reports);
             document.getElementById('addUpdateId').value = '';
             document.getElementById('addUpdateReportId').value = currentUpdatesReportId;
             document.getElementById('addUpdateReportType').value = currentUpdatesReportType;
+            document.getElementById('addUpdateSource').value = currentUpdatesReportSource || '';
             document.getElementById('addUpdateTitle').value = '';
             document.getElementById('addUpdateDescription').value = '';
             document.getElementById('updateFilePreviews').innerHTML = '';
@@ -3492,6 +3494,7 @@ annotate_report_assignment_status($conn, $recent_reports);
             document.getElementById('addUpdateId').value = isEdit ? updateData.id : '';
             document.getElementById('addUpdateReportId').value = reportId;
             document.getElementById('addUpdateReportType').value = reportType;
+            document.getElementById('addUpdateSource').value = currentUpdatesReportSource || '';
             document.getElementById('addUpdateTitle').value = isEdit ? (updateData.title || '') : '';
             document.getElementById('addUpdateDescription').value = isEdit ? (updateData.description || '') : '';
             document.getElementById('updateFilePreviews').innerHTML = '';
@@ -4827,6 +4830,7 @@ annotate_report_assignment_status($conn, $recent_reports);
                     <input type="hidden" name="update_id" id="addUpdateId" value="">
                     <input type="hidden" name="report_id" id="addUpdateReportId" value="">
                     <input type="hidden" name="report_type" id="addUpdateReportType" value="">
+                    <input type="hidden" name="source" id="addUpdateSource" value="">
                     <div class="form-group">
                         <label class="form-label">Title *</label>
                         <input type="text" name="title" id="addUpdateTitle" class="form-control" placeholder="e.g., Inspection completed" required>
