@@ -161,7 +161,8 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                     status, priority, severity, created_at, description,
                     latitude, longitude, location, reporter_name, attachments, image_path,
                     cimm_sync_status, cimm_verified_at, cimm_verified_by,
-                    NULL AS approval_status, NULL AS verification_status
+                    NULL AS approval_status, NULL AS verification_status,
+                    'road_transportation_reports' AS _source_table
               FROM road_transportation_reports
              WHERE report_type != 'infrastructure_issue'
                AND status IN ('approved', 'in-progress')
@@ -182,7 +183,8 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                         status, priority, NULL AS severity, created_at, description,
                         NULL AS latitude, NULL AS longitude, location, NULL AS reporter_name,
                         NULL AS attachments, NULL AS image_path,
-                        NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by
+                        NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by,
+                        'road_maintenance_reports' AS _source_table
                  FROM road_maintenance_reports
                  WHERE status IN ('approved','in-progress')",
                 $status_filter, $type_filter, $limit
@@ -197,7 +199,8 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                         'infrastructure' AS source,
                         status, priority, severity, created_at, description,
                         latitude, longitude, location, reporter_name, attachments, image_path,
-                        cimm_sync_status, cimm_verified_at, cimm_verified_by
+                        cimm_sync_status, cimm_verified_at, cimm_verified_by,
+                        'road_transportation_reports' AS _source_table
                  FROM road_transportation_reports
                  WHERE report_type = 'infrastructure_issue'
                    AND status IN ('approved','in-progress'){$road_category_filter}",
@@ -218,7 +221,8 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                             issue AS description, coord_lat AS latitude, coord_lng AS longitude,
                             location, reporter_name, NULL AS attachments, NULL AS image_path,
                             'verified' AS cimm_sync_status, verified_at AS cimm_verified_at,
-                            NULL AS cimm_verified_by, approval_status
+                            NULL AS cimm_verified_by, approval_status,
+                            'cimm_verification_reports' AS _source_table
                      FROM cimm_verification_reports
                      WHERE verification_status IN ('Approved', 'In Progress')
                        AND infrastructure = 'Roads'
@@ -728,6 +732,7 @@ function resolve_recent_focus_row(int $id, string $source_hint = ''): ?array {
                 $r = $stmt->get_result()->fetch_assoc();
                 $stmt->close();
                 if ($r) {
+                    $r['_source_table'] = 'road_transportation_reports';
                     $r['source'] = (($r['report_type'] ?? '') === 'infrastructure_issue')
                         ? 'infrastructure'
                         : ((!empty($r['created_by'])) ? 'lgu' : 'citizen');
@@ -740,6 +745,7 @@ function resolve_recent_focus_row(int $id, string $source_hint = ''): ?array {
                 $r = $stmt->get_result()->fetch_assoc();
                 $stmt->close();
                 if ($r) {
+                    $r['_source_table'] = 'road_maintenance_reports';
                     $r['source'] = 'infrastructure';
                     return $r;
                 }
@@ -751,6 +757,7 @@ function resolve_recent_focus_row(int $id, string $source_hint = ''): ?array {
                 $stmt->execute([$id]);
                 $r = $stmt->fetch(PDO::FETCH_ASSOC);
                 if ($r) {
+                    $r['_source_table'] = 'cimm_verification_reports';
                     $r['source'] = 'cimm';
                     return $r;
                 }
@@ -819,6 +826,11 @@ if ($focus_report_id > 0) {
         }
     }
 }
+
+// Display-only Assignment Status (Assigned / Unassigned) for every report row.
+// Reads live from report_assignments so it reflects Assign/Unassign changes
+// automatically. Never alters the report workflow or report statuses.
+annotate_report_assignment_status($conn, $recent_reports);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -1321,6 +1333,10 @@ if ($focus_report_id > 0) {
         .badge-medium { background: #fff3cd; color: #856404; }
         .badge-low { background: #e2e3e5; color: #383d41; }
         .badge-source { background: #f8f9fa; color: #495057; border: 1px solid #dee2e6; }
+
+        .assignment-badge { font-weight: 600; }
+        .assignment-assigned { background: #d1fae5; color: #065f46; }
+        .assignment-unassigned { background: #e2e3e5; color: #495057; }
         .cimm-verify-badge {
             display: inline-flex; align-items: center; gap: 5px;
             padding: 3px 10px; border-radius: 12px;
@@ -1988,6 +2004,7 @@ if ($focus_report_id > 0) {
                             <th>Title</th>
                             <th>Source</th>
                             <th>Status</th>
+                            <th>Assignment</th>
                             <th>Priority</th>
                             <th>Date</th>
                             <th>CIMM Verification</th>
@@ -1996,7 +2013,7 @@ if ($focus_report_id > 0) {
                     </thead>
                     <tbody>
                         <?php if (empty($recent_reports)): ?>
-                        <tr><td colspan="8" style="text-align:center;padding:30px;color:#6b7280;">No reports yet.</td></tr>
+                        <tr><td colspan="9" style="text-align:center;padding:30px;color:#6b7280;">No reports yet.</td></tr>
                         <?php else: ?>
                         <?php $source_labels = [
                             'lgu' => 'LGU Monitoring',
@@ -2015,6 +2032,7 @@ if ($focus_report_id > 0) {
                             'report_type' => $rr['report_type'],
                             'report_category' => $rr['report_category'],
                             'status' => $rr['status'],
+                            'assignment_status' => $rr['assignment_status'] ?? 'unassigned',
                             'priority' => $rr['priority'],
                             'severity' => $rr['severity'],
                             'created_at' => $rr['created_at'],
@@ -2036,6 +2054,7 @@ if ($focus_report_id > 0) {
                             <td><?php echo htmlspecialchars($rr['title'] ?? 'Untitled'); ?></td>
                             <td><?php echo htmlspecialchars($rr_source_label); ?></td>
                             <td><span class="badge badge-<?php echo strtolower(str_replace(' ', '-', $rr['status'] ?? 'pending')); ?>"><?php echo ucfirst(str_replace('-',' ',$rr['status'] ?? 'pending')); ?></span></td>
+                            <td><span class="badge assignment-badge assignment-<?php echo ($rr['assignment_status'] ?? 'unassigned') === 'assigned' ? 'assigned' : 'unassigned'; ?>"><?php echo ($rr['assignment_status'] ?? 'unassigned') === 'assigned' ? 'Assigned' : 'Unassigned'; ?></span></td>
                             <td><span class="badge badge-<?php echo strtolower($rr['priority'] ?? 'low'); ?>"><?php echo ucfirst($rr['priority'] ?? 'low'); ?></span></td>
                             <td><?php echo date('M d, Y H:i', strtotime($rr['created_at'] ?? 'now')); ?></td>
                             <td>
@@ -2580,6 +2599,7 @@ if ($focus_report_id > 0) {
             html += field('Source', data.source);
             html += field('Type', data.report_type);
             html += field('Status', data.status);
+            html += field('Assignment', (data.assignment_status === 'assigned') ? 'Assigned' : 'Unassigned');
             html += field('Priority', data.priority);
             html += field('Severity', data.severity);
             html += field('Date', data.created_at ? new Date(data.created_at).toLocaleString() : '—');
@@ -2901,6 +2921,48 @@ if ($focus_report_id > 0) {
             }
             // Check if user can add updates and show/hide the Add Update button accordingly
             checkUpdatePermission();
+            // Check if the Request Completion / Request Cancellation buttons may
+            // be shown (officers only get them for reports assigned to them).
+            checkRequestPermission();
+        }
+
+        function checkRequestPermission() {
+            var completeBtn = document.getElementById('completeBtn');
+            var cancelBtn = document.getElementById('cancelBtn');
+            if (!completeBtn || !cancelBtn) return;
+            var role = '';
+            var tag = document.getElementById('sessionTimeoutData');
+            if (tag) role = tag.getAttribute('data-role') || '';
+            var isOfficer = (role === 'road_monitoring_officer' || role === 'trans_monitoring_officer');
+
+            // Non-officers use the direct Complete/Cancel path (no restriction).
+            if (!isOfficer) {
+                completeBtn.style.display = 'inline-flex';
+                cancelBtn.style.display = 'inline-flex';
+                return;
+            }
+            if (!currentUpdatesReportId) {
+                completeBtn.style.display = 'none';
+                cancelBtn.style.display = 'none';
+                return;
+            }
+
+            // Server-authoritative check (role + assignment): Road/Transportation
+            // Monitoring Officers can only request completion/cancellation for
+            // reports assigned to them. The same rule is enforced server-side in
+            // progress_update_api.php. Officers are fail-closed: the buttons stay
+            // hidden until the server confirms an active assignment for this report.
+            completeBtn.style.display = 'none';
+            cancelBtn.style.display = 'none';
+            fetch('../api/progress_update_api.php?action=can_request_review&report_id=' + currentUpdatesReportId)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data && data.success && data.can_request) {
+                        completeBtn.style.display = 'inline-flex';
+                        cancelBtn.style.display = 'inline-flex';
+                    }
+                })
+                .catch(function() {});
         }
 
         function checkUpdatePermission() {
@@ -4090,6 +4152,7 @@ if ($focus_report_id > 0) {
             <td>${escapeHtml(report.title)}</td>
             <td>${escapeHtml(report.source_label)}</td>
             <td><span class="badge badge-${report.status.toLowerCase().replace(' ', '-')}">${escapeHtml(ucfirst(report.status.replace('-', ' ')))}</span></td>
+            <td><span class="badge assignment-badge assignment-${report.assignment_status === 'assigned' ? 'assigned' : 'unassigned'}">${report.assignment_status === 'assigned' ? 'Assigned' : 'Unassigned'}</span></td>
             <td><span class="badge badge-${report.priority.toLowerCase()}">${escapeHtml(ucfirst(report.priority))}</span></td>
             <td>${formatDate(report.created_at)}</td>
             <td>

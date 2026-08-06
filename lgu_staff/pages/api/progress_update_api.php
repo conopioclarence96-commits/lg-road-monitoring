@@ -61,9 +61,59 @@ function rgmap_can_post_progress_update($conn, $report_id, $user_id, $current_ro
     }
 }
 
+/**
+ * Role-based assignment restriction for submitting completion/cancellation
+ * requests. Road/Transportation Monitoring Officers may ONLY request
+ * completion or cancellation for reports they are actively assigned to (via
+ * report_assignments). All other roles are unaffected because they use the
+ * direct Complete/Cancel path, not the review-request flow.
+ *
+ * Used by the can_request_review GET action that drives the UI button
+ * visibility, and by the submit_review_request POST handler as the
+ * authoritative backend check.
+ *
+ * Officers are fail-closed: if the report cannot be resolved or the
+ * report_assignments table is missing, the request is denied.
+ */
+function rgmap_can_request_review($conn, $report_id, $user_id, $current_role) {
+    // Restriction applies only to Road/Transportation Monitoring Officers.
+    if (!in_array($current_role, ['road_monitoring_officer', 'trans_monitoring_officer'], true)) {
+        return true;
+    }
+
+    try {
+        $check = $conn->query("SHOW TABLES LIKE 'report_assignments'");
+        if (!$check || $check->num_rows === 0) {
+            return false;
+        }
+
+        $table = null;
+        if (fetch_one("SELECT id FROM road_transportation_reports WHERE id = ?", [$report_id], "i")) {
+            $table = 'road_transportation_reports';
+        } elseif (fetch_one("SELECT id FROM road_maintenance_reports WHERE id = ?", [$report_id], "i")) {
+            $table = 'road_maintenance_reports';
+        } elseif (fetch_one("SELECT id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i")) {
+            $table = 'cimm_verification_reports';
+        }
+        if (!$table) {
+            return false;
+        }
+
+        // An officer may request ONLY when they are the actively assigned user.
+        $assigned = fetch_one(
+            "SELECT id FROM report_assignments WHERE report_id = ? AND report_type = ? AND user_id = ? AND status = 'active'",
+            [$report_id, $table, $user_id], "isi"
+        );
+        return (bool)$assigned;
+    } catch (Exception $e) {
+        error_log("can_request_review error: " . $e->getMessage());
+        return false;
+    }
+}
+
 if ($method === 'GET') {
     $action = $_GET['action'] ?? '';
-    if ($action === 'get_updates' || $action === 'get_update' || $action === 'can_post_update') {
+    if ($action === 'get_updates' || $action === 'get_update' || $action === 'can_post_update' || $action === 'can_request_review') {
         if ($action === 'can_post_update') {
             $report_id = intval($_GET['report_id'] ?? 0);
             if ($report_id <= 0) {
@@ -72,6 +122,16 @@ if ($method === 'GET') {
             json_response([
                 'success'  => true,
                 'can_post' => rgmap_can_post_progress_update($conn, $report_id, $user_id, $_SESSION['role'] ?? ''),
+            ]);
+        }
+        if ($action === 'can_request_review') {
+            $report_id = intval($_GET['report_id'] ?? 0);
+            if ($report_id <= 0) {
+                json_response(['success' => false, 'message' => 'Invalid report ID']);
+            }
+            json_response([
+                'success'     => true,
+                'can_request' => rgmap_can_request_review($conn, $report_id, $user_id, $_SESSION['role'] ?? ''),
             ]);
         }
 
@@ -402,6 +462,15 @@ if ($method === 'GET') {
         if (($requestor_role === 'road_monitoring_officer' && $category !== 'road') ||
             ($requestor_role === 'trans_monitoring_officer' && $category !== 'transportation')) {
             json_response(['success' => false, 'message' => 'You are not authorized to submit a request for this project.'], 403);
+        }
+
+        // Backend enforcement of the assignment restriction: an officer may only
+        // request completion/cancellation for a report that is actively assigned
+        // to them (report_assignments). This is the authoritative check and must
+        // not be bypassed by submitting the request directly, so the frontend
+        // button visibility is not the only safeguard.
+        if (!rgmap_can_request_review($conn, $report_id, $user_id, $requestor_role)) {
+            json_response(['success' => false, 'message' => 'You can only request completion or cancellation for reports assigned to you.'], 403);
         }
 
         // Route to the supervisor responsible for this module.

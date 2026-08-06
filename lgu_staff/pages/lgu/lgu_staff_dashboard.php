@@ -190,7 +190,6 @@ $recent_activity = getRecentActivity($conn);
 $priority_tasks = getPriorityTasks($conn);
 $chart_data = getWeeklyChartData($conn);
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -214,403 +213,1005 @@ $chart_data = getWeeklyChartData($conn);
             font-family: 'Poppins', sans-serif;
         }
 
+        :root {
+            --db-bg: #f5f7fb;
+            --db-card: #ffffff;
+            --db-border: #e9edf3;
+            --db-text: #0f172a;
+            --db-muted: #64748b;
+            --db-faint: #94a3b8;
+            --db-primary: #1e3c72;
+            --db-accent: #3762c8;
+        }
+
         body {
-            background: #f7f5f0;
+            background: var(--db-bg);
             min-height: 100vh;
         }
 
         .main-content {
             margin-left: 250px;
-            padding: 20px;
+            padding: 28px 30px 60px;
             position: relative;
             z-index: 1;
         }
 
-        .dashboard-header {
-            background: #f0f4fa;
-            backdrop-filter: blur(15px);
-            padding: 30px;
-            border-radius: 16px;
-            margin-bottom: 30px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+        @keyframes dbFadeUp {
+            from { opacity: 0; transform: translateY(14px); }
+            to { opacity: 1; transform: none; }
         }
 
-        .welcome-section {
+        /* ---------- Header ---------- */
+        .db-header {
             display: flex;
+            align-items: center;
             justify-content: space-between;
-            align-items: center;
-            gap: 30px;
-        }
-
-        .welcome-content {
-            display: flex;
-            align-items: center;
             gap: 20px;
-            flex: 1;
-        }
-
-        .logo-container {
-            width: 80px;
-            height: 80px;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-            border: 3px solid rgba(255, 255, 255, 0.9);
-            flex-shrink: 0;
-        }
-
-        .logo-container img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .welcome-text h1 {
-            color: #1e3c72;
-            font-size: 32px;
-            font-weight: 700;
-            margin-bottom: 8px;
-        }
-
-        .welcome-text p {
-            color: #666;
-            font-size: 16px;
-        }
-
-        .date-time {
-            text-align: right;
-            color: #3762c8;
-            font-weight: 500;
-        }
-
-        .quick-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .stat-card {
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.7));
-            backdrop-filter: blur(10px);
-            padding: 20px;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            transition: all 0.3s ease;
+            flex-wrap: wrap;
+            background: linear-gradient(120deg, #1e3c72 0%, #3762c8 100%);
+            padding: 26px 30px;
+            border-radius: 18px;
+            margin-bottom: 26px;
+            color: #fff;
+            box-shadow: 0 10px 30px rgba(30, 60, 114, .28);
             position: relative;
             overflow: hidden;
         }
+        .db-header::after {
+            content: '';
+            position: absolute;
+            right: -60px;
+            top: -60px;
+            width: 220px;
+            height: 220px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, .08);
+        }
+        .db-header::before {
+            content: '';
+            position: absolute;
+            right: 60px;
+            bottom: -80px;
+            width: 160px;
+            height: 160px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, .06);
+        }
+        .db-welcome {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            position: relative;
+            z-index: 1;
+        }
+        .db-logo {
+            width: 64px;
+            height: 64px;
+            border-radius: 14px;
+            overflow: hidden;
+            border: 3px solid rgba(255, 255, 255, .9);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, .2);
+            flex-shrink: 0;
+            background: #fff;
+        }
+        .db-logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .db-welcome h1 { font-size: 24px; font-weight: 700; line-height: 1.25; }
+        .db-welcome p { font-size: 13.5px; opacity: .85; margin-top: 3px; }
+        .db-role-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 255, 255, .18);
+            border: 1px solid rgba(255, 255, 255, .25);
+            padding: 4px 12px;
+            border-radius: 999px;
+            font-size: 11.5px;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+        .db-datetime { text-align: right; position: relative; z-index: 1; }
+        .db-datetime #currentDate { font-size: 15px; font-weight: 600; }
+        .db-datetime #currentTime { font-size: 13px; opacity: .85; margin-top: 2px; }
 
-        .stat-card::before {
+        /* ---------- Stats ---------- */
+        .db-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 26px;
+        }
+        .stat-card {
+            background: var(--db-card);
+            border: 1px solid var(--db-border);
+            border-radius: 16px;
+            padding: 18px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            box-shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 1px 3px rgba(16, 24, 40, .06);
+            transition: transform .2s ease, box-shadow .2s ease;
+            animation: dbFadeUp .45s ease both;
+            position: relative;
+            overflow: hidden;
+        }
+        .stat-card::after {
             content: '';
             position: absolute;
             top: 0;
             left: 0;
             right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, #3762c8, #1e3c72);
+            height: 3px;
+            background: var(--sc);
         }
-
         .stat-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 12px 40px rgba(55, 98, 200, 0.2);
+            transform: translateY(-4px);
+            box-shadow: 0 14px 28px rgba(16, 24, 40, .12);
         }
-
         .stat-icon {
-            width: 50px;
-            height: 50px;
-            background: linear-gradient(135deg, #3762c8, #1e3c72);
-            border-radius: 12px;
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+            background: var(--sc);
+            color: #fff;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
-            font-size: 20px;
-            margin-bottom: 15px;
+            font-size: 22px;
+            flex-shrink: 0;
+            box-shadow: 0 6px 14px rgba(16, 24, 40, .18);
         }
+        .stat-number { font-size: 25px; font-weight: 700; color: var(--db-text); line-height: 1.15; }
+        .stat-label { font-size: 13px; font-weight: 600; color: #475569; }
+        .stat-desc { font-size: 11.5px; color: var(--db-faint); margin-top: 2px; }
 
-        .stat-number {
-            font-size: 28px;
-            font-weight: 700;
-            color: #1e3c72;
-            margin-bottom: 5px;
-        }
-
-        .stat-label {
-            color: #666;
-            font-size: 14px;
-            font-weight: 500;
-        }
-
-        .main-grid {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 30px;
-            margin-bottom: 30px;
-        }
-
-        .chart-container {
-            background: #f0f4fa;
-            backdrop-filter: blur(15px);
-            padding: 25px;
+        /* ---------- Sections ---------- */
+        .dash-section {
+            background: var(--db-card);
+            border: 1px solid var(--db-border);
             border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 20px;
+            box-shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 1px 3px rgba(16, 24, 40, .06);
+            animation: dbFadeUp .45s ease both;
         }
-
-        #reportsChart {
-            max-height: 300px !important;
-            width: 100% !important;
-        }
-
-        .chart-header {
+        .dsh-header {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
         }
-
-        .chart-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: #1e3c72;
-        }
-
-        .activity-feed {
-            background: #f0f4fa;
-            backdrop-filter: blur(15px);
-            padding: 25px;
-            border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .activity-item {
-            display: flex;
-            align-items: flex-start;
-            padding: 15px 0;
-            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-        }
-
-        .activity-item:last-child {
-            border-bottom: none;
-        }
-
-        .activity-icon {
+        .dsh-left { display: flex; align-items: center; gap: 12px; }
+        .dsh-icon {
             width: 40px;
             height: 40px;
-            border-radius: 50%;
+            border-radius: 11px;
+            background: color-mix(in srgb, var(--ds) 14%, transparent);
+            color: var(--ds);
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-right: 15px;
+            font-size: 17px;
             flex-shrink: 0;
         }
-
-        .activity-icon.road {
-            background: rgba(255, 193, 7, 0.2);
-            color: #ffc107;
-        }
-
-        .activity-icon.verification {
-            background: rgba(40, 167, 69, 0.2);
-            color: #28a745;
-        }
-
-        .activity-icon.report {
-            background: rgba(220, 53, 69, 0.2);
-            color: #dc3545;
-        }
-
-        .activity-content {
-            flex: 1;
-        }
-
-        .activity-title {
-            font-weight: 500;
-            color: #333;
-            margin-bottom: 4px;
-        }
-
-        .activity-time {
+        .dsh-left h3 { font-size: 15.5px; font-weight: 600; color: var(--db-text); }
+        .dsh-left p { font-size: 12px; color: var(--db-muted); }
+        .dsh-link { font-size: 12.5px; font-weight: 600; color: var(--db-accent); text-decoration: none; display: inline-flex; align-items: center; gap: 5px; }
+        .dsh-link:hover { text-decoration: underline; }
+        .dsh-badge {
+            background: #eef2ff;
+            color: #4338ca;
             font-size: 12px;
-            color: #999;
+            font-weight: 700;
+            padding: 2px 10px;
+            border-radius: 999px;
         }
 
-        .priority-tasks {
-            background: #f0f4fa;
-            backdrop-filter: blur(15px);
-            padding: 25px;
-            border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+        /* ---------- Grids ---------- */
+        .db-grid-main {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
         }
+        .db-grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .chart-wrap { position: relative; height: 290px; }
 
-        .task-item {
+        .period-select {
+            padding: 8px 12px;
+            border: 1px solid var(--db-border);
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 12.5px;
+            color: var(--db-text);
+            background: var(--db-card);
+            cursor: pointer;
+            outline: none;
+        }
+        .period-select:focus { border-color: var(--db-accent); box-shadow: 0 0 0 3px rgba(55, 98, 200, .12); }
+
+        /* ---------- Notifications widget ---------- */
+        .nt-list { display: flex; flex-direction: column; gap: 8px; }
+        .nt-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 11px;
+            padding: 11px;
+            border-radius: 12px;
+            border: 1px solid transparent;
+            text-decoration: none;
+            transition: background .15s ease, border-color .15s ease;
+        }
+        .nt-item:hover { background: #f8fafc; border-color: var(--db-border); }
+        .nt-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            color: #fff;
             display: flex;
             align-items: center;
-            padding: 12px 0;
-            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-        }
-
-        .task-item:last-child {
-            border-bottom: none;
-        }
-
-        .task-priority {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            margin-right: 15px;
-        }
-
-        .priority-high {
-            background: #dc3545;
-        }
-
-        .priority-medium {
-            background: #ffc107;
-        }
-
-        .priority-low {
-            background: #28a745;
-        }
-
-        .task-text {
-            flex: 1;
+            justify-content: center;
             font-size: 14px;
-            color: #333;
+            flex-shrink: 0;
+            box-shadow: 0 4px 10px rgba(16, 24, 40, .14);
         }
-
-        @media (max-width: 1200px) {
-            .main-grid {
-                grid-template-columns: 1fr;
-            }
+        .nt-body { flex: 1; min-width: 0; }
+        .nt-title { font-size: 13px; font-weight: 600; color: var(--db-text); line-height: 1.35; }
+        .nt-desc {
+            font-size: 12px;
+            color: var(--db-muted);
+            margin-top: 2px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
         }
+        .nt-time { font-size: 11px; color: var(--db-faint); white-space: nowrap; }
 
+        /* ---------- Badges ---------- */
+        .db-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 10px;
+            border-radius: 999px;
+            white-space: nowrap;
+        }
+        .db-st-pending   { background: #fef3c7; color: #b45309; }
+        .db-st-active,
+        .db-st-assigned  { background: #dbeafe; color: #1d4ed8; }
+        .db-st-progress  { background: #ffedd5; color: #c2410c; }
+        .db-st-completed,
+        .db-st-approved  { background: #d1fae5; color: #047857; }
+        .db-st-cancelled,
+        .db-st-rejected  { background: #fee2e2; color: #b91c1c; }
+        .db-pr-high   { background: #fee2e2; color: #dc2626; }
+        .db-pr-medium { background: #ffedd5; color: #c2410c; }
+        .db-pr-low    { background: #d1fae5; color: #059669; }
+
+        /* ---------- Activity & tasks ---------- */
+        .db-list { display: flex; flex-direction: column; }
+        .act-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px 8px;
+            border-radius: 12px;
+            text-decoration: none;
+            transition: background .15s ease;
+        }
+        .act-item:hover { background: #f8fafc; }
+        .act-item + .act-item { border-top: 1px solid var(--db-border); }
+        .act-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 11px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            color: #fff;
+            flex-shrink: 0;
+        }
+        .act-body { flex: 1; min-width: 0; }
+        .act-title { font-size: 13px; font-weight: 600; color: var(--db-text); line-height: 1.35; }
+        .act-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+        .act-time { font-size: 11.5px; color: var(--db-faint); }
+
+        .task-card {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px 8px;
+            border-radius: 12px;
+            text-decoration: none;
+            transition: background .15s ease;
+        }
+        .task-card:hover { background: #f8fafc; }
+        .task-card + .task-card { border-top: 1px solid var(--db-border); }
+        .task-priority-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 11px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            color: #fff;
+            flex-shrink: 0;
+            background: var(--ts);
+        }
+        .task-body { flex: 1; min-width: 0; }
+        .task-title { font-size: 13px; font-weight: 600; color: var(--db-text); line-height: 1.35; }
+        .task-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+        .task-id { font-size: 11.5px; font-weight: 600; color: var(--db-faint); }
+
+        /* ---------- Quick actions ---------- */
+        .qa-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .qa-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 16px 10px;
+            border-radius: 14px;
+            border: 1px solid var(--db-border);
+            background: #f8fafc;
+            text-decoration: none;
+            transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+        }
+        .qa-btn:hover {
+            transform: translateY(-3px);
+            border-color: color-mix(in srgb, var(--qa) 50%, transparent);
+            box-shadow: 0 10px 20px rgba(16, 24, 40, .10);
+        }
+        .qa-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            background: color-mix(in srgb, var(--qa) 16%, transparent);
+            color: var(--qa);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 19px;
+        }
+        .qa-label { font-size: 12.5px; font-weight: 600; color: var(--db-text); }
+
+        /* ---------- My Assignments ---------- */
+        .asg-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 14px;
+        }
+        .asg-card {
+            border: 1px solid var(--db-border);
+            border-radius: 14px;
+            padding: 15px;
+            background: #fbfcfe;
+            transition: transform .18s ease, box-shadow .18s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .asg-card:hover { transform: translateY(-3px); box-shadow: 0 10px 22px rgba(16, 24, 40, .10); }
+        .asg-top { display: flex; align-items: center; gap: 12px; }
+        .asg-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            background: color-mix(in srgb, var(--as) 15%, transparent);
+            color: var(--as);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+        .asg-title { font-size: 13.5px; font-weight: 600; color: var(--db-text); line-height: 1.35; }
+        .asg-id { font-size: 12px; color: var(--db-faint); margin-top: 2px; }
+        .asg-badges { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .asg-foot {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-top: auto;
+            padding-top: 12px;
+            border-top: 1px solid var(--db-border);
+        }
+        .asg-date { font-size: 11.5px; color: var(--db-muted); display: inline-flex; align-items: center; gap: 5px; }
+        .btn-view {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--db-accent);
+            color: #fff;
+            border: none;
+            padding: 7px 13px;
+            border-radius: 9px;
+            font-size: 12.5px;
+            font-weight: 600;
+            font-family: inherit;
+            text-decoration: none;
+            cursor: pointer;
+            transition: background .15s ease, transform .15s ease;
+        }
+        .btn-view:hover { background: #2c52a8; transform: translateY(-1px); }
+
+        .db-empty {
+            text-align: center;
+            padding: 30px 16px;
+            color: var(--db-faint);
+        }
+        .db-empty i { font-size: 32px; margin-bottom: 10px; opacity: .55; }
+        .db-empty p { font-size: 13px; }
+
+        /* ---------- Responsive ---------- */
+        @media (max-width: 1280px) {
+            .db-grid-3 { grid-template-columns: 1fr 1fr; }
+        }
+        @media (max-width: 1024px) {
+            .db-grid-main { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 900px) {
+            .db-grid-3 { grid-template-columns: 1fr; }
+        }
         @media (max-width: 768px) {
-            .welcome-section {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-            
-            .date-time {
-                text-align: left;
-                margin-top: 10px;
-            }
+            .main-content { margin-left: 0; padding: 18px 14px 50px; }
+            .db-header { padding: 20px; }
+            .db-welcome h1 { font-size: 20px; }
+            .db-datetime { text-align: left; }
         }
+
+        /* ---------- Dark mode ---------- */
+        .dark-mode body,
+        body.dark-mode { background: #0f172a; }
+        .dark-mode .stat-card,
+        .dark-mode .dash-section,
+        .dark-mode .asg-card { background: #1e293b; border-color: #334155; }
+        .dark-mode .stat-number,
+        .dark-mode .dsh-left h3,
+        .dark-mode .act-title,
+        .dark-mode .task-title,
+        .dark-mode .qa-label,
+        .dark-mode .asg-title,
+        .dark-mode .nt-title { color: #e2e8f0; }
+        .dark-mode .stat-label { color: #cbd5e1; }
+        .dark-mode .stat-desc,
+        .dark-mode .act-time,
+        .dark-mode .task-id,
+        .dark-mode .asg-id,
+        .dark-mode .nt-time { color: #94a3b8; }
+        .dark-mode .dsh-left p,
+        .dark-mode .nt-desc,
+        .dark-mode .asg-date { color: #94a3b8; }
+        .dark-mode .nt-item:hover,
+        .dark-mode .act-item:hover,
+        .dark-mode .task-card:hover { background: #263449; }
+        .dark-mode .period-select { background: #0f172a; color: #e2e8f0; border-color: #334155; }
+        .dark-mode .qa-btn { background: #263449; border-color: #334155; }
+        .dark-mode .qa-label { color: #e2e8f0; }
+        .dark-mode .asg-card { background: #263449; }
+        .dark-mode .act-item + .act-item,
+        .dark-mode .task-card + .task-card,
+        .dark-mode .asg-foot { border-color: #334155; }
+        .dark-mode .dsh-badge { background: #312e81; color: #c7d2fe; }
+        .dark-mode .db-empty { color: #64748b; }
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
     <!-- SIDEBAR -->
     <?php include '../../includes/sidebar_nav.php'; ?>
 
+    <?php
+    // ---- New read-only queries powering the enhanced dashboard UI. All
+    //      existing queries above remain untouched. ----
+    $user_id = (int)($_SESSION['user_id'] ?? 0);
+    $user_role = $_SESSION['role'] ?? '';
+    $user_email = $_SESSION['email'] ?? '';
+
+    function getHighPriorityCount($conn) {
+        $count = 0;
+        try {
+            $t = $conn->query("SELECT COUNT(*) AS c FROM road_transportation_reports WHERE status = 'pending' AND priority = 'high'")->fetch_assoc()['c'] ?? 0;
+            $m = $conn->query("SELECT COUNT(*) AS c FROM road_maintenance_reports WHERE status = 'pending' AND priority = 'high'")->fetch_assoc()['c'] ?? 0;
+            $count = (int)$t + (int)$m;
+        } catch (Exception $e) {}
+        return $count;
+    }
+
+    function getMyAssignments($conn, $user_id) {
+        $rows = [];
+        if (!$conn || $user_id <= 0) return ['count' => 0, 'items' => $rows];
+        try {
+            $stmt = $conn->prepare("
+                SELECT ra.*, r.report_id AS report_code, r.title AS report_title,
+                       r.status AS report_status, r.priority
+                FROM report_assignments ra
+                LEFT JOIN road_transportation_reports r ON ra.report_id = r.id AND ra.report_type = 'road_transportation_reports'
+                WHERE ra.user_id = ? AND ra.status = 'active'
+                ORDER BY ra.assigned_at DESC
+                LIMIT 12
+            ");
+            $stmt->bind_param("i", $user_id);
+            $stmt->execute();
+            $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+        } catch (Exception $e) {
+            $rows = [];
+        }
+
+        $count = count($rows);
+        try {
+            $cstmt = $conn->prepare("SELECT COUNT(*) AS c FROM report_assignments WHERE user_id = ? AND status = 'active'");
+            $cstmt->bind_param("i", $user_id);
+            $cstmt->execute();
+            $count = (int)$cstmt->get_result()->fetch_assoc()['c'];
+            $cstmt->close();
+        } catch (Exception $e) {}
+
+        foreach ($rows as &$ra) {
+            $ra['_source'] = 'transport';
+            if ($ra['report_type'] === 'road_maintenance_reports') {
+                try {
+                    $m = $conn->prepare("SELECT report_id, title, priority, status FROM road_maintenance_reports WHERE id = ?");
+                    $m->bind_param("i", $ra['report_id']);
+                    $m->execute();
+                    $mr = $m->get_result()->fetch_assoc();
+                    $m->close();
+                    if ($mr) {
+                        $ra['report_code'] = $mr['report_id'];
+                        $ra['report_title'] = $mr['title'];
+                        $ra['priority'] = $mr['priority'];
+                        $ra['report_status'] = $mr['status'];
+                        $ra['_source'] = 'maintenance';
+                    }
+                } catch (Exception $e) {}
+            }
+            $ra['report_code'] = $ra['report_code'] ?? ('#' . $ra['report_id']);
+            $ra['report_title'] = $ra['report_title'] ?? ('Assigned report #' . $ra['report_id']);
+            $ra['priority'] = $ra['priority'] ?? 'medium';
+            $ra['report_status'] = $ra['report_status'] ?? 'pending';
+        }
+        unset($ra);
+
+        return ['count' => $count, 'items' => $rows];
+    }
+
+    function getDashboardNotifications($conn, $user_id, $user_email, $user_role, $assignments) {
+        $items = [];
+        foreach ($assignments as $a) {
+            $items[] = [
+                'icon' => 'fa-user-plus',
+                'color' => '#3b82f6',
+                'title' => 'New assignment · ' . ($a['report_code'] ?? ('#' . $a['report_id'])),
+                'desc' => $a['report_title'] ?? 'A report has been assigned to you.',
+                'time' => $a['assigned_at'],
+                'link' => '../shared/road_transportation_monitoring.php?focus_report_id=' . (int)($a['report_id'] ?? 0) . '&source=' . rawurlencode($a['_source'] ?? 'transport'),
+            ];
+        }
+        if ($conn) {
+            try {
+                $stmt = $conn->prepare("
+                    SELECT rn.*, r.report_id AS report_code
+                    FROM report_notifications rn
+                    LEFT JOIN road_transportation_reports r ON rn.report_id = r.id
+                    WHERE rn.is_read = 0
+                      AND (rn.recipient_email = ? OR rn.recipient_role = ?
+                           OR rn.report_id IN (SELECT id FROM road_transportation_reports WHERE created_by = ?))
+                    ORDER BY rn.created_at DESC
+                    LIMIT 6
+                ");
+                $stmt->bind_param("ssi", $user_email, $user_role, $user_id);
+                $stmt->execute();
+                $rns = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                $stmt->close();
+                foreach ($rns as $n) {
+                    $t = $n['type'];
+                    $icon = 'fa-sync'; $color = '#8b5cf6'; $label = 'Verification update';
+                    if ($t === 'completion') { $icon = 'fa-check-circle'; $color = '#10b981'; $label = 'Completion request'; }
+                    if ($t === 'cancellation') { $icon = 'fa-ban'; $color = '#ef4444'; $label = 'Cancellation request'; }
+                    $items[] = [
+                        'icon' => $icon,
+                        'color' => $color,
+                        'title' => $label . ' · ' . ($n['report_code'] ?? ('#' . $n['report_id'])),
+                        'desc' => $n['message'],
+                        'time' => $n['created_at'],
+                        'link' => '../shared/road_transportation_monitoring.php?focus_report_id=' . (int)($n['report_id'] ?? 0),
+                    ];
+                }
+            } catch (Exception $e) {}
+            try {
+                $stmt = $conn->prepare("SELECT status, admin_notes, created_at FROM change_requests WHERE user_id = ? AND status != 'pending' ORDER BY reviewed_at DESC LIMIT 5");
+                $stmt->bind_param("i", $user_id);
+                $stmt->execute();
+                $cus = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                $stmt->close();
+                foreach ($cus as $c) {
+                    $ok = ($c['status'] === 'approved');
+                    $items[] = [
+                        'icon' => $ok ? 'fa-check-circle' : 'fa-times-circle',
+                        'color' => $ok ? '#10b981' : '#ef4444',
+                        'title' => 'Change request ' . ($ok ? 'approved' : 'rejected'),
+                        'desc' => $c['admin_notes'] ?: 'No additional notes from the admin.',
+                        'time' => $c['created_at'],
+                        'link' => '',
+                    ];
+                }
+            } catch (Exception $e) {}
+        }
+        usort($items, function ($a, $b) { return strtotime($b['time']) - strtotime($a['time']); });
+        return array_slice($items, 0, 8);
+    }
+
+    function getRecentActivityFeed($conn) {
+        $rows = [];
+        if (!$conn) return $rows;
+        try {
+            $query = "(SELECT id, report_id, title, status, priority, created_at, 'transport' AS src FROM road_transportation_reports ORDER BY created_at DESC LIMIT 6)
+                      UNION ALL
+                      (SELECT id, report_id, title, status, priority, created_at, 'maintenance' AS src FROM road_maintenance_reports ORDER BY created_at DESC LIMIT 6)
+                      ORDER BY created_at DESC LIMIT 6";
+            $rows = $conn->query($query)->fetch_all(MYSQLI_ASSOC);
+        } catch (Exception $e) {
+            $rows = [];
+        }
+        return $rows;
+    }
+
+    function getPriorityTaskCards($conn) {
+        $rows = [];
+        if (!$conn) return $rows;
+        try {
+            $query = "(SELECT id, report_id, title, status, priority, created_at, 'transport' AS src FROM road_transportation_reports WHERE status = 'pending' AND priority IN ('high','medium','low') ORDER BY FIELD(priority,'high','medium','low'), created_at DESC LIMIT 6)
+                      UNION ALL
+                      (SELECT id, report_id, title, status, priority, created_at, 'maintenance' AS src FROM road_maintenance_reports WHERE status = 'pending' AND priority IN ('high','medium','low') ORDER BY FIELD(priority,'high','medium','low'), created_at DESC LIMIT 6)
+                      ORDER BY FIELD(priority,'high','medium','low'), created_at DESC LIMIT 6";
+            $rows = $conn->query($query)->fetch_all(MYSQLI_ASSOC);
+        } catch (Exception $e) {
+            $rows = [];
+        }
+        return $rows;
+    }
+
+    function dbStatusBadge($status) {
+        $map = [
+            'pending' => ['Pending', 'db-st-pending'],
+            'in-progress' => ['In Progress', 'db-st-progress'],
+            'completed' => ['Completed', 'db-st-completed'],
+            'approved' => ['Approved', 'db-st-completed'],
+            'rejected' => ['Rejected', 'db-st-rejected'],
+            'cancelled' => ['Cancelled', 'db-st-cancelled'],
+            'active' => ['Active', 'db-st-active'],
+            'assigned' => ['Assigned', 'db-st-assigned'],
+        ];
+        $key = strtolower((string)$status);
+        return $map[$key] ?? [ucfirst($status ?: 'Pending'), 'db-st-pending'];
+    }
+
+    function dbPriorityBadge($priority) {
+        $map = [
+            'high' => ['High', 'db-pr-high', 'fa-exclamation-triangle'],
+            'medium' => ['Medium', 'db-pr-medium', 'fa-exclamation'],
+            'low' => ['Low', 'db-pr-low', 'fa-check'],
+        ];
+        $key = strtolower((string)$priority);
+        return $map[$key] ?? [ucfirst($priority ?: 'Medium'), 'db-pr-medium', 'fa-exclamation'];
+    }
+
+    function dbActivityIcon($src) {
+        return $src === 'maintenance' ? 'fa-tools' : 'fa-road';
+    }
+
+    $my_assign = getMyAssignments($conn, $user_id);
+    $my_assign_count = $my_assign['count'];
+    $my_assign_items = $my_assign['items'];
+    $high_priority = getHighPriorityCount($conn);
+    $activity_feed = getRecentActivityFeed($conn);
+    $task_cards = getPriorityTaskCards($conn);
+    $dash_notifs = getDashboardNotifications($conn, $user_id, $user_email, $user_role, $my_assign_items);
+    ?>
+
     <div class="main-content">
-        <!-- Dashboard Header -->
-        <div class="dashboard-header">
-            <div class="welcome-section">
-                <div class="welcome-content">
-                    <div class="logo-container">
-                        <img src="../../../assets/img/logocityhall.png" alt="LGU Logo">
-                    </div>
-                    <div class="welcome-text">
-                        <h1>Welcome back, <?php echo htmlspecialchars($_SESSION['full_name'] ?? 'Staff'); ?></h1>
-                        <p>Here's what's happening with the Road and Transportation Department today</p>
-                    </div>
+        <!-- Header -->
+        <div class="db-header">
+            <div class="db-welcome">
+                <div class="db-logo">
+                    <img src="../../../assets/img/logocityhall.png" alt="LGU Logo">
                 </div>
-                <div class="date-time">
-                    <div id="currentDate"></div>
-                    <div id="currentTime"></div>
+                <div>
+                    <h1>Welcome back, <?php echo htmlspecialchars($_SESSION['full_name'] ?? 'Staff'); ?></h1>
+                    <p>Here's what's happening with the Road and Transportation Department today</p>
+                    <span class="db-role-chip"><i class="fas fa-id-badge"></i> <?php echo htmlspecialchars(ucfirst($user_role)); ?></span>
+                </div>
+            </div>
+            <div class="db-datetime">
+                <div id="currentDate"></div>
+                <div id="currentTime"></div>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="db-stats">
+            <div class="stat-card" style="--sc:#f59e0b; animation-delay:.02s;">
+                <div class="stat-icon"><i class="fas fa-calendar-day"></i></div>
+                <div>
+                    <div class="stat-number"><?php echo number_format($stats['today_reports']); ?></div>
+                    <div class="stat-label">Reports Today</div>
+                    <div class="stat-desc">New submissions today</div>
+                </div>
+            </div>
+            <div class="stat-card" style="--sc:#eab308; animation-delay:.06s;">
+                <div class="stat-icon"><i class="fas fa-hourglass-half"></i></div>
+                <div>
+                    <div class="stat-number"><?php echo number_format($stats['pending_verifications']); ?></div>
+                    <div class="stat-label">Pending Reports</div>
+                    <div class="stat-desc">Awaiting verification</div>
+                </div>
+            </div>
+            <div class="stat-card" style="--sc:#3b82f6; animation-delay:.10s;">
+                <div class="stat-icon"><i class="fas fa-user-check"></i></div>
+                <div>
+                    <div class="stat-number"><?php echo number_format($my_assign_count); ?></div>
+                    <div class="stat-label">My Assigned Reports</div>
+                    <div class="stat-desc">Currently assigned to you</div>
+                </div>
+            </div>
+            <div class="stat-card" style="--sc:#f97316; animation-delay:.14s;">
+                <div class="stat-icon"><i class="fas fa-tools"></i></div>
+                <div>
+                    <div class="stat-number"><?php echo number_format($stats['under_maintenance']); ?></div>
+                    <div class="stat-label">In Progress</div>
+                    <div class="stat-desc">Being worked on now</div>
+                </div>
+            </div>
+            <div class="stat-card" style="--sc:#10b981; animation-delay:.18s;">
+                <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+                <div>
+                    <div class="stat-number"><?php echo number_format($stats['completed_month']); ?></div>
+                    <div class="stat-label">Completed This Month</div>
+                    <div class="stat-desc">Finished work this month</div>
+                </div>
+            </div>
+            <div class="stat-card" style="--sc:#ef4444; animation-delay:.22s;">
+                <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                <div>
+                    <div class="stat-number"><?php echo number_format($high_priority); ?></div>
+                    <div class="stat-label">High Priority Reports</div>
+                    <div class="stat-desc">Requires immediate attention</div>
                 </div>
             </div>
         </div>
 
-        <!-- Quick Stats -->
-        <div class="quick-stats">
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="fas fa-road"></i>
-                </div>
-                <div class="stat-number"><?php echo number_format($stats['today_reports']); ?></div>
-                <div class="stat-label">Road Reports Today</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="fas fa-clipboard-check"></i>
-                </div>
-                <div class="stat-number"><?php echo number_format($stats['pending_verifications']); ?></div>
-                <div class="stat-label">Pending Verifications</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="fas fa-tools"></i>
-                </div>
-                <div class="stat-number"><?php echo number_format($stats['under_maintenance']); ?></div>
-                <div class="stat-label">Under Maintenance</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="fas fa-check-circle"></i>
-                </div>
-                <div class="stat-number"><?php echo number_format($stats['completed_month']); ?></div>
-                <div class="stat-label">Completed This Month</div>
-            </div>
-        </div>
-
-        <!-- Main Grid -->
-        <div class="main-grid">
-            <!-- Chart Section -->
-            <div class="chart-container">
-                <div class="chart-header">
-                    <h3 class="chart-title">Weekly Road Reports Trend</h3>
-                    <select id="periodSelector" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px;">
+        <!-- Main grid: chart + notifications -->
+        <div class="db-grid-main">
+            <div class="dash-section" style="--ds:#3762c8;">
+                <div class="dsh-header">
+                    <div class="dsh-left">
+                        <span class="dsh-icon"><i class="fas fa-chart-line"></i></span>
+                        <div>
+                            <h3>Weekly Reports</h3>
+                            <p>Reports vs verifications over the selected period</p>
+                        </div>
+                    </div>
+                    <select id="periodSelector" class="period-select">
                         <option value="7">Last 7 Days</option>
                         <option value="30">Last 30 Days</option>
                         <option value="90">Last 3 Months</option>
                     </select>
                 </div>
-                <canvas id="reportsChart" width="400" height="200"></canvas>
+                <div class="chart-wrap">
+                    <canvas id="reportsChart"></canvas>
+                </div>
             </div>
 
-            <!-- Activity Feed -->
-            <div class="activity-feed">
-                <h3 class="chart-title" style="margin-bottom: 20px;">Recent Activity</h3>
-                <?php if ($recent_activity->num_rows > 0): ?>
-                    <?php while ($activity = $recent_activity->fetch_assoc()): ?>
-                        <div class="activity-item">
-                            <div class="activity-icon <?php echo $activity['type']; ?>">
-                                <i class="fas fa-<?php echo getActivityIcon($activity['type']); ?>"></i>
-                            </div>
-                            <div class="activity-content">
-                                <div class="activity-title"><?php echo htmlspecialchars($activity['title']); ?></div>
-                                <div class="activity-time"><?php echo getTimeAgo($activity['created_at']); ?></div>
-                            </div>
+            <div class="dash-section" style="--ds:#8b5cf6;">
+                <div class="dsh-header">
+                    <div class="dsh-left">
+                        <span class="dsh-icon"><i class="fas fa-bell"></i></span>
+                        <div>
+                            <h3>Notifications</h3>
+                            <p>Your latest updates</p>
                         </div>
-                    <?php endwhile; ?>
-                <?php else: ?>
-                    <div class="t-text-secondary" style="text-align: center; padding: 20px;">
-                        <i class="fas fa-clock" style="font-size: 24px; margin-bottom: 10px; opacity: 0.5;"></i>
-                        <p>No recent activity</p>
                     </div>
-                <?php endif; ?>
+                    <a class="dsh-link" href="../shared/notifications.php">View all <i class="fas fa-arrow-right"></i></a>
+                </div>
+                <div class="nt-list">
+                    <?php if (empty($dash_notifs)): ?>
+                        <div class="db-empty">
+                            <i class="fas fa-bell-slash"></i>
+                            <p>No new notifications</p>
+                        </div>
+                    <?php else: ?>
+                        <?php foreach ($dash_notifs as $n): ?>
+                            <?php if ($n['link']): ?>
+                                <a class="nt-item" href="<?php echo $n['link']; ?>">
+                            <?php else: ?>
+                                <div class="nt-item">
+                            <?php endif; ?>
+                                <span class="nt-icon" style="background: <?php echo $n['color']; ?>;"><i class="fas <?php echo $n['icon']; ?>"></i></span>
+                                <div class="nt-body">
+                                    <div class="nt-title"><?php echo htmlspecialchars($n['title']); ?></div>
+                                    <div class="nt-desc"><?php echo htmlspecialchars($n['desc']); ?></div>
+                                </div>
+                                <span class="nt-time"><?php echo getTimeAgo($n['time']); ?></span>
+                            <?php if ($n['link']): ?>
+                                </a>
+                            <?php else: ?>
+                                </div>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
 
-        <!-- Priority Tasks -->
-        <div class="priority-tasks">
-            <h3 class="chart-title" style="margin-bottom: 20px;">Priority Tasks</h3>
-            <?php if ($priority_tasks->num_rows > 0): ?>
-                <?php while ($task = $priority_tasks->fetch_assoc()): ?>
-                    <div class="task-item">
-                        <div class="task-priority priority-<?php echo strtolower($task['priority']); ?>"></div>
-                        <div class="task-text"><?php echo htmlspecialchars($task['title']); ?></div>
+        <!-- Secondary grid: activity + priority tasks + quick actions -->
+        <div class="db-grid-3">
+            <div class="dash-section" style="--ds:#f59e0b;">
+                <div class="dsh-header">
+                    <div class="dsh-left">
+                        <span class="dsh-icon"><i class="fas fa-clock-rotate-left"></i></span>
+                        <div>
+                            <h3>Recent Activity</h3>
+                            <p>Latest reports across the department</p>
+                        </div>
                     </div>
-                <?php endwhile; ?>
+                </div>
+                <div class="db-list">
+                    <?php if (empty($activity_feed)): ?>
+                        <div class="db-empty">
+                            <i class="fas fa-clock"></i>
+                            <p>No recent activity</p>
+                        </div>
+                    <?php else: ?>
+                        <?php foreach ($activity_feed as $act): ?>
+                            <?php $act_link = '../shared/road_transportation_monitoring.php?focus_report_id=' . (int)($act['id'] ?? 0) . '&source=' . rawurlencode($act['src']); ?>
+                            <a class="act-item" href="<?php echo $act_link; ?>">
+                                <span class="act-icon" style="background: <?php echo $act['src'] === 'maintenance' ? '#f97316' : '#3762c8'; ?>;"><i class="fas <?php echo dbActivityIcon($act['src']); ?>"></i></span>
+                                <div class="act-body">
+                                    <div class="act-title"><?php echo htmlspecialchars($act['title']); ?></div>
+                                    <div class="act-meta">
+                                        <?php $sb = dbStatusBadge($act['status']); $pb = dbPriorityBadge($act['priority']); ?>
+                                        <span class="db-badge <?php echo $sb[1]; ?>"><?php echo $sb[0]; ?></span>
+                                        <span class="db-badge <?php echo $pb[1]; ?>"><i class="fas <?php echo $pb[2]; ?>"></i> <?php echo $pb[0]; ?></span>
+                                        <span class="act-time"><i class="far fa-clock"></i> <?php echo getTimeAgo($act['created_at']); ?></span>
+                                    </div>
+                                </div>
+                            </a>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <div class="dash-section" style="--ds:#ef4444;">
+                <div class="dsh-header">
+                    <div class="dsh-left">
+                        <span class="dsh-icon"><i class="fas fa-list-check"></i></span>
+                        <div>
+                            <h3>Priority Tasks</h3>
+                            <p>Reports that need attention first</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="db-list">
+                    <?php if (empty($task_cards)): ?>
+                        <div class="db-empty">
+                            <i class="fas fa-check-circle"></i>
+                            <p>No priority tasks</p>
+                        </div>
+                    <?php else: ?>
+                        <?php foreach ($task_cards as $task): ?>
+                            <?php
+                                $tsrc = $task['src'] === 'maintenance' ? '#f97316' : '#ef4444';
+                                if (strtolower($task['priority']) === 'medium') $tsrc = '#f59e0b';
+                                if (strtolower($task['priority']) === 'low') $tsrc = '#10b981';
+                                $tsb = dbStatusBadge($task['status']);
+                                $tpb = dbPriorityBadge($task['priority']);
+                                $task_link = '../shared/road_transportation_monitoring.php?focus_report_id=' . (int)($task['id'] ?? 0) . '&source=' . rawurlencode($task['src']);
+                            ?>
+                            <a class="task-card" href="<?php echo $task_link; ?>">
+                                <span class="task-priority-icon" style="--ts:<?php echo $tsrc; ?>;"><i class="fas <?php echo $tpb[2]; ?>"></i></span>
+                                <div class="task-body">
+                                    <div class="task-title"><?php echo htmlspecialchars($task['title']); ?></div>
+                                    <div class="task-meta">
+                                        <span class="task-id"># <?php echo htmlspecialchars($task['report_id']); ?></span>
+                                        <span class="db-badge <?php echo $tpb[1]; ?>"><i class="fas <?php echo $tpb[2]; ?>"></i> <?php echo $tpb[0]; ?></span>
+                                        <span class="db-badge <?php echo $tsb[1]; ?>"><?php echo $tsb[0]; ?></span>
+                                        <span class="act-time"><i class="far fa-calendar-alt"></i> <?php echo date('M d, Y', strtotime($task['created_at'])); ?></span>
+                                    </div>
+                                </div>
+                            </a>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <div class="dash-section" style="--ds:#10b981;">
+                <div class="dsh-header">
+                    <div class="dsh-left">
+                        <span class="dsh-icon"><i class="fas fa-bolt"></i></span>
+                        <div>
+                            <h3>Quick Actions</h3>
+                            <p>Jump to your most-used tools</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="qa-grid">
+                    <a class="qa-btn" style="--qa:#3b82f6;" href="../shared/road_transportation_monitoring.php">
+                        <span class="qa-icon"><i class="fas fa-map-location-dot"></i></span>
+                        <span class="qa-label">View Map</span>
+                    </a>
+                    <a class="qa-btn" style="--qa:#8b5cf6;" href="../shared/notifications.php">
+                        <span class="qa-icon"><i class="fas fa-clipboard-list"></i></span>
+                        <span class="qa-label">My Assigned Reports</span>
+                    </a>
+                    <a class="qa-btn" style="--qa:#f59e0b;" href="../shared/notifications.php">
+                        <span class="qa-icon"><i class="fas fa-bell"></i></span>
+                        <span class="qa-label">Notifications</span>
+                    </a>
+                    <a class="qa-btn" style="--qa:#10b981;" href="../shared/analytics.php">
+                        <span class="qa-icon"><i class="fas fa-chart-pie"></i></span>
+                        <span class="qa-label">Analytics</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- My Assignments -->
+        <div class="dash-section" style="--ds:#3b82f6;">
+            <div class="dsh-header">
+                <div class="dsh-left">
+                    <span class="dsh-icon"><i class="fas fa-tasks"></i></span>
+                    <div>
+                        <h3>My Assignments</h3>
+                        <p>Reports currently assigned to you</p>
+                    </div>
+                    <span class="dsh-badge"><?php echo $my_assign_count; ?></span>
+                </div>
+                <a class="dsh-link" href="../shared/road_transportation_monitoring.php">Open map <i class="fas fa-arrow-right"></i></a>
+            </div>
+            <?php if (empty($my_assign_items)): ?>
+                <div class="db-empty">
+                    <i class="fas fa-tasks"></i>
+                    <p>No assignments yet. You're all caught up.</p>
+                </div>
             <?php else: ?>
-                <div class="t-text-secondary" style="text-align: center; padding: 20px;">
-                    <i class="fas fa-check-circle" style="font-size: 24px; margin-bottom: 10px; opacity: 0.5;"></i>
-                    <p>No priority tasks</p>
+                <div class="asg-grid">
+                    <?php foreach ($my_assign_items as $a): ?>
+                        <?php
+                            $asb = dbStatusBadge($a['report_status']);
+                            $apb = dbPriorityBadge($a['priority']);
+                            $asg_link = '../shared/road_transportation_monitoring.php?focus_report_id=' . (int)$a['report_id'] . '&source=' . rawurlencode($a['_source']);
+                        ?>
+                        <div class="asg-card" style="--as:#3b82f6;">
+                            <div class="asg-top">
+                                <span class="asg-icon"><i class="fas fa-tasks"></i></span>
+                                <div>
+                                    <div class="asg-title"><?php echo htmlspecialchars($a['report_title']); ?></div>
+                                    <div class="asg-id"># <?php echo htmlspecialchars($a['report_code']); ?></div>
+                                </div>
+                            </div>
+                            <div class="asg-badges">
+                                <span class="db-badge db-st-active"><i class="fas fa-user-check"></i> Assigned</span>
+                                <span class="db-badge <?php echo $asb[1]; ?>"><?php echo $asb[0]; ?></span>
+                                <span class="db-badge <?php echo $apb[1]; ?>"><i class="fas <?php echo $apb[2]; ?>"></i> <?php echo $apb[0]; ?></span>
+                            </div>
+                            <div class="asg-foot">
+                                <span class="asg-date"><i class="far fa-calendar-alt"></i> <?php echo date('M d, Y', strtotime($a['assigned_at'])); ?></span>
+                                <a class="btn-view" href="<?php echo $asg_link; ?>"><i class="fas fa-eye"></i> View Report</a>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
                 </div>
             <?php endif; ?>
         </div>
@@ -622,16 +1223,23 @@ $chart_data = getWeeklyChartData($conn);
             const now = new Date();
             const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
             const timeOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
-            
+
             document.getElementById('currentDate').textContent = now.toLocaleDateString('en-US', dateOptions);
             document.getElementById('currentTime').textContent = now.toLocaleTimeString('en-US', timeOptions);
         }
-        
+
         updateDateTime();
         setInterval(updateDateTime, 1000);
 
         // Initialize Chart
         const ctx = document.getElementById('reportsChart').getContext('2d');
+        const gradient1 = ctx.createLinearGradient(0, 0, 0, 300);
+        gradient1.addColorStop(0, 'rgba(55, 98, 200, 0.22)');
+        gradient1.addColorStop(1, 'rgba(55, 98, 200, 0)');
+        const gradient2 = ctx.createLinearGradient(0, 0, 0, 300);
+        gradient2.addColorStop(0, 'rgba(16, 185, 129, 0.20)');
+        gradient2.addColorStop(1, 'rgba(16, 185, 129, 0)');
+
         const reportsChart = new Chart(ctx, {
             type: 'line',
             data: {
@@ -640,37 +1248,78 @@ $chart_data = getWeeklyChartData($conn);
                     label: 'Road Reports',
                     data: <?php echo json_encode($chart_data['reports']); ?>,
                     borderColor: '#3762c8',
-                    backgroundColor: 'rgba(55, 98, 200, 0.1)',
-                    tension: 0.4,
-                    fill: true
+                    backgroundColor: gradient1,
+                    borderWidth: 2.5,
+                    tension: 0.45,
+                    fill: true,
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    pointHoverBackgroundColor: '#3762c8',
+                    pointHoverBorderColor: '#fff',
+                    pointHoverBorderWidth: 2
                 }, {
                     label: 'Verifications',
                     data: <?php echo json_encode($chart_data['verifications']); ?>,
-                    borderColor: '#28a745',
-                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
-                    tension: 0.4,
-                    fill: true
+                    borderColor: '#10b981',
+                    backgroundColor: gradient2,
+                    borderWidth: 2.5,
+                    tension: 0.45,
+                    fill: true,
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    pointHoverBackgroundColor: '#10b981',
+                    pointHoverBorderColor: '#fff',
+                    pointHoverBorderWidth: 2
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                aspectRatio: 2,
+                interaction: { mode: 'index', intersect: false },
                 plugins: {
                     legend: {
-                        display: true,
-                        position: 'bottom'
+                        position: 'bottom',
+                        labels: {
+                            usePointStyle: true,
+                            pointStyle: 'circle',
+                            boxWidth: 8,
+                            boxHeight: 8,
+                            padding: 18,
+                            color: '#64748b',
+                            font: { family: 'Poppins', size: 12, weight: '600' }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: '#0f172a',
+                        titleColor: '#e2e8f0',
+                        bodyColor: '#cbd5e1',
+                        padding: 12,
+                        cornerRadius: 10,
+                        displayColors: true,
+                        boxPadding: 4,
+                        titleFont: { family: 'Poppins', size: 13, weight: '600' },
+                        bodyFont: { family: 'Poppins', size: 12 }
                     }
                 },
                 scales: {
                     y: {
                         beginAtZero: true,
-                        max: 50 // Set a reasonable max value to prevent expansion
+                        grace: '20%',
+                        ticks: {
+                            color: '#94a3b8',
+                            font: { family: 'Poppins', size: 11 },
+                            stepSize: 5
+                        },
+                        grid: {
+                            color: 'rgba(148, 163, 184, 0.16)',
+                            borderDash: [4, 4]
+                        },
+                        border: { display: false }
                     },
                     x: {
-                        grid: {
-                            display: false
-                        }
+                        ticks: { color: '#94a3b8', font: { family: 'Poppins', size: 11 } },
+                        grid: { display: false },
+                        border: { color: 'rgba(148, 163, 184, 0.2)' }
                     }
                 }
             }
@@ -678,11 +1327,9 @@ $chart_data = getWeeklyChartData($conn);
 
         // Handle period selector change
         document.getElementById('periodSelector').addEventListener('change', function() {
-            const period = this.value;
-            updateChartData(period);
+            updateChartData(this.value);
         });
 
-        // Function to update chart data based on selected period
         function updateChartData(period) {
             fetch(`../api/get_chart_data.php?period=${period}`)
                 .then(response => response.json())
@@ -693,12 +1340,10 @@ $chart_data = getWeeklyChartData($conn);
                 })
                 .catch(error => {
                     console.error('Error fetching chart data:', error);
-                    // Fallback to current data if fetch fails
                     showNotification('Unable to update chart data', 'error');
                 });
         }
 
-        // Show notification function
         function showNotification(message, type = 'info') {
             const notification = document.createElement('div');
             notification.className = 'notification ' + type;
@@ -708,21 +1353,21 @@ $chart_data = getWeeklyChartData($conn);
                 top: 20px;
                 right: 20px;
                 padding: 15px 20px;
-                border-radius: 8px;
+                border-radius: 10px;
                 color: white;
                 font-weight: 500;
                 z-index: 10000;
                 animation: slideIn 0.3s ease;
                 background: ${type === 'error' ? '#dc3545' : type === 'success' ? '#28a745' : '#17a2b8'};
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
             `;
             document.body.appendChild(notification);
-            
+
             setTimeout(() => {
                 notification.remove();
             }, 3000);
         }
     </script>
-    
 
 </body>
 </html>
@@ -736,7 +1381,7 @@ function getActivityIcon($type) {
         'verification' => 'clipboard-check',
         'report' => 'file-alt'
     ];
-    
+
     return $icons[$type] ?? 'file';
 }
 
@@ -744,7 +1389,7 @@ function getTimeAgo($datetime) {
     $time = strtotime($datetime);
     $now = time();
     $diff = $now - $time;
-    
+
     if ($diff < 60) {
         return 'Just now';
     } elseif ($diff < 3600) {

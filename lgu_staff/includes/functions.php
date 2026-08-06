@@ -613,6 +613,44 @@ function create_user_login_tokens($email, $withRegister = true) {
     ];
 }
 
+// Annotate a list of report rows with a display-only "Assignment Status".
+// The report_assignments table is the single source of truth updated by the
+// Assign/Unassign Staff features, so this reflects assignments live on every
+// page load. Each report row must carry its source table in '_source_table'
+// (set by the caller's SELECT) and its primary key in 'id'. Sets
+// 'assignment_status' to 'assigned' or 'unassigned' and removes the helper
+// key. Purely informational — it never affects the report workflow or the
+// existing report statuses.
+function annotate_report_assignment_status($conn, array &$reports) {
+    if (empty($reports)) {
+        return;
+    }
+    $assigned = [];
+    try {
+        $res = $conn->query(
+            "SELECT ra.report_id, ra.report_type, u.full_name AS officer_name
+             FROM report_assignments ra
+             LEFT JOIN users u ON u.id = ra.user_id
+             WHERE ra.status = 'active'"
+        );
+        if ($res) {
+            while ($row = $res->fetch_assoc()) {
+                $assigned[$row['report_type'] . ':' . $row['report_id']] = $row['officer_name'] ?? '';
+            }
+        }
+    } catch (Exception $e) {
+        error_log("annotate_report_assignment_status error: " . $e->getMessage());
+    }
+    foreach ($reports as &$rr) {
+        $table = $rr['_source_table'] ?? 'road_transportation_reports';
+        $key = $table . ':' . ($rr['id'] ?? 0);
+        $rr['assignment_status'] = isset($assigned[$key]) ? 'assigned' : 'unassigned';
+        $rr['assignment_officer'] = $assigned[$key] ?? '';
+        unset($rr['_source_table']);
+    }
+    unset($rr);
+}
+
 // Send an email containing a magic login URL carrying the login token.
 function send_login_link_email($toEmail, $loginUrl) {
     $envFile = __DIR__ . '/../../.env';
