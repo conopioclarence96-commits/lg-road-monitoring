@@ -71,7 +71,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $raw_password = generate_secure_temporary_password(12);
     $hashed_password = password_hash($raw_password, PASSWORD_DEFAULT);
 
-    $role = 'lgu_staff';
+    $allowed_roles = ['system_admin', 'road_monitoring_officer', 'road_ops_supervisor', 'trans_monitoring_officer', 'trans_ops_supervisor', 'lgu_staff'];
+    $role = $_POST['role'] ?? 'lgu_staff';
+    if (!in_array($role, $allowed_roles, true)) {
+        $role = 'lgu_staff';
+    }
 
     // Handle ID file upload
     $id_file_path = null;
@@ -556,8 +560,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                         <div class="form-group">
                             <label for="role">Role</label>
-                            <select id="role" name="role" class="locked-select">
-                                <option value="lgu_staff" selected>LGU Staff</option>
+                            <select id="role" name="role">
+                                <option value="lgu_staff">LGU Staff</option>
+                                <option value="system_admin">Admin</option>
+                                <option value="road_monitoring_officer">Road Monitoring Officer</option>
+                                <option value="road_ops_supervisor">Road Ops Supervisor</option>
+                                <option value="trans_monitoring_officer">Trans Monitoring Officer</option>
+                                <option value="trans_ops_supervisor">Trans Ops Supervisor</option>
                             </select>
                         </div>
                     </div>
