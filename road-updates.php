@@ -324,25 +324,29 @@ if ($database_available && $conn) {
                                         <?php echo htmlspecialchars(substr($update['description'] ?? 'No description available', 0, 100)) . '...'; ?>
                                     </p>
                                     <?php
-                                    $display_image = null;
+                                    $image_candidates = [];
                                     if (!empty($update['attachments'])):
                                         $attachments = json_decode($update['attachments'], true);
                                         if (is_array($attachments) && !empty($attachments)):
                                             foreach ($attachments as $attachment):
                                                 if (isset($attachment['type']) && $attachment['type'] === 'image' && isset($attachment['file_path'])):
-                                                    $display_image = $attachment['file_path'];
+                                                    $image_candidates[] = $attachment['file_path'];
                                                     break;
                                                 endif;
                                             endforeach;
                                         endif;
                                     endif;
-                                    if (empty($display_image) && !empty($update['image_path']) && $update['image_path'] !== '0' && $update['image_path'] !== 'null'):
-                                        $display_image = $update['image_path'];
+                                    if (!empty($update['image_path']) && $update['image_path'] !== '0' && $update['image_path'] !== 'null'):
+                                        $image_candidates[] = $update['image_path'];
                                     endif;
-                                    if (empty($display_image) && !empty($update['_first_image'])):
-                                        $display_image = $update['_first_image'];
+                                    if (!empty($update['_first_image'])):
+                                        $image_candidates[] = $update['_first_image'];
                                     endif;
-                                    $display_image = road_updates_resolve_image_url($display_image, $basePath);
+                                    $display_image = '';
+                                    foreach ($image_candidates as $candidate):
+                                        $resolved = road_updates_resolve_image_url($candidate, $basePath);
+                                        if ($resolved) { $display_image = $resolved; break; }
+                                    endforeach;
                                     if ($display_image): ?>
                                         <div class="mt-3">
                                             <img src="<?php echo htmlspecialchars($display_image); ?>"
