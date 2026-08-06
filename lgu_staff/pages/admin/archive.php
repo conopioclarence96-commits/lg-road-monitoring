@@ -459,12 +459,11 @@ if (isset($_SESSION['archive_message'])) {
         .meta-item i { color: #6c757d; }
         .archive-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
         .btn-view {
-            padding: 6px 12px; background: rgba(55, 98, 200, 0.1);
-            color: #3762c8; border: none; border-radius: 6px; font-size: 12px;
-            cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;
+            padding: 8px 16px; background: linear-gradient(135deg,#3762c8,#1e3c72);
+            color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 500;
+            cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.3s ease;
         }
-        .btn-view:hover { background: rgba(55, 98, 200, 0.2); }
-        body.dark-mode .btn-view { background: rgba(55,98,200,0.15); color: #60a5fa; }
+        .btn-view:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(55,98,200,0.3); }
         .btn-restore {
             padding: 8px 16px; background: linear-gradient(135deg,#28a745,#20c997);
             color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 500;
@@ -780,8 +779,8 @@ if (isset($_SESSION['archive_message'])) {
                                 </span>
                             </div>
                             <div class="archive-actions">
-                                <button type="button" class="btn-view" onclick="viewArchive(<?php echo $row['id']; ?>)" title="View">
-                                    <i class="fas fa-eye"></i>
+                                <button type="button" class="btn-view" onclick="viewArchive(<?php echo $row['id']; ?>)">
+                                    <i class="fas fa-eye"></i> View
                                 </button>
                                 <form method="POST" style="display: inline-flex;" onsubmit="return confirm('Restore this report back to active table?');">
                                     <input type="hidden" name="archive_id" value="<?php echo $row['id']; ?>">

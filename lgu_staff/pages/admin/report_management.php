@@ -2527,12 +2527,13 @@ if ($focus_id > 0) {
         }
 
         .rm-action-btn {
-            padding: 6px 12px;
+            padding: 5px 10px;
             background: rgba(55, 98, 200, 0.1);
             color: #3762c8;
             border: none;
             border-radius: 6px;
-            font-size: 12px;
+            font-size: 11px;
+            font-weight: 600;
             cursor: pointer;
             transition: all 0.2s;
         }

@@ -1397,16 +1397,13 @@ annotate_report_assignment_status($conn, $recent_reports);
         .cimm-verify-badge-pending  { background: #fff3cd; color: #856404; }
         .cimm-verify-badge-none     { color: #9ca3af; }
         .table-action-btn {
-            padding: 6px 12px; border-radius: 6px; border: none;
-            font-size: 12px; cursor: pointer; transition: all 0.2s;
-            background: rgba(55, 98, 200, 0.1); color: #3762c8;
+            padding: 4px 10px; border-radius: 5px; border: none;
+            font-size: 11px; cursor: pointer; transition: all 0.2s;
         }
-        .table-action-btn:hover { background: rgba(55, 98, 200, 0.2); }
         .table-action-btn.view-map {
             background: rgba(55,98,200,0.12); color: #3762c8;
         }
         .table-action-btn.view-map:hover { background: #3762c8; color: #fff; }
-        body.dark-mode .table-action-btn:not(.view-map) { background: rgba(55,98,200,0.15); color: #60a5fa; }
 
         .table-header-right {
             display: flex;
