@@ -2608,6 +2608,316 @@ if ($focus_id > 0) {
             align-items: center;
         }
 
+        /* Report Detail Modal (mirrors verification_monitoring lgu modal) */
+        .rm-modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+
+        .rm-modal-overlay.active {
+            display: flex;
+        }
+
+        .rm-modal-content {
+            background: #f0f4fa;
+            border-radius: 16px;
+            max-width: 860px;
+            width: 100%;
+            max-height: calc(100vh - 40px);
+            position: relative;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            margin: auto;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            border: 1px solid #c8d0e0;
+        }
+
+        .rm-modal-header {
+            background: white;
+            border-radius: 16px 16px 0 0;
+            padding: 24px 28px 18px;
+            border-bottom: 2px solid rgba(55, 98, 200, 0.15);
+            flex-shrink: 0;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        .rm-modal-header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .rm-modal-title-area {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .rm-modal-report-id {
+            font-size: 13px;
+            color: #3762c8;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            margin-bottom: 4px;
+        }
+
+        .rm-modal-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1e3c72;
+            margin: 0 0 10px 0;
+            line-height: 1.3;
+        }
+
+        .rm-modal-badges {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .rm-modal-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            color: #666;
+            cursor: pointer;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.3s;
+            flex-shrink: 0;
+            margin-left: 15px;
+        }
+
+        .rm-modal-close:hover {
+            background: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+        }
+
+        .rm-modal-body {
+            overflow-y: auto;
+            flex: 1;
+            min-height: 0;
+            padding: 24px 28px;
+        }
+
+        .rm-modal-body::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .rm-modal-body::-webkit-scrollbar-track {
+            background: rgba(55, 98, 200, 0.08);
+            border-radius: 4px;
+        }
+
+        .rm-modal-body::-webkit-scrollbar-thumb {
+            background: rgba(55, 98, 200, 0.2);
+            border-radius: 4px;
+        }
+
+        .rm-modal-body::-webkit-scrollbar-thumb:hover {
+            background: rgba(55, 98, 200, 0.35);
+        }
+
+        .rm-modal-section {
+            background: white;
+            border-radius: 12px;
+            padding: 18px 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            border: 1px solid rgba(55, 98, 200, 0.1);
+        }
+
+        .rm-modal-section-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #1e3c72;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 14px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(55, 98, 200, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .rm-modal-section-title i {
+            color: #3762c8;
+            font-size: 15px;
+        }
+
+        .rm-info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .rm-info-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 6px 0;
+        }
+
+        .rm-info-icon {
+            width: 28px;
+            height: 28px;
+            background: rgba(55, 98, 200, 0.1);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #3762c8;
+            font-size: 13px;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .rm-info-label {
+            font-size: 11px;
+            color: #6b7280;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-bottom: 2px;
+        }
+
+        .rm-info-value {
+            font-size: 14px;
+            color: #1f2937;
+            font-weight: 500;
+            line-height: 1.4;
+            word-break: break-word;
+        }
+
+        .rm-info-value-full {
+            grid-column: 1 / -1;
+        }
+
+        .rm-description-text {
+            font-size: 14px;
+            color: #374151;
+            line-height: 1.7;
+            padding: 8px 0;
+            white-space: pre-wrap;
+        }
+
+        .rm-modal-footer {
+            background: white;
+            border-radius: 0 0 16px 16px;
+            padding: 16px 28px;
+            border-top: 1px solid rgba(55, 98, 200, 0.1);
+            flex-shrink: 0;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .rm-modal-btn-close {
+            padding: 10px 24px;
+            background: rgba(55, 98, 200, 0.1);
+            color: #3762c8;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .rm-modal-btn-close:hover {
+            background: rgba(55, 98, 200, 0.2);
+        }
+
+        @media (max-width: 640px) {
+            .rm-info-grid {
+                grid-template-columns: 1fr;
+            }
+            .rm-modal-header {
+                padding: 18px 16px;
+            }
+            .rm-modal-body {
+                padding: 16px;
+            }
+            .rm-modal-content {
+                max-width: 100%;
+                border-radius: 0;
+            }
+            .rm-modal-overlay {
+                padding: 0;
+            }
+        }
+
+        /* Report Detail Modal Dark Mode */
+        body.dark-mode .rm-modal-content {
+            background: #1a1d24 !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode .rm-modal-header {
+            background: #1a1d24 !important;
+            border-bottom-color: #2d323b !important;
+        }
+        body.dark-mode .rm-modal-title {
+            color: #60a5fa !important;
+        }
+        body.dark-mode .rm-modal-report-id {
+            color: #60a5fa !important;
+        }
+        body.dark-mode .rm-modal-close {
+            color: #9ca3af !important;
+        }
+        body.dark-mode .rm-modal-section {
+            background: #22262e !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode .rm-modal-section-title {
+            color: #60a5fa !important;
+            border-bottom-color: #2d323b !important;
+        }
+        body.dark-mode .rm-info-icon {
+            background: rgba(55,98,200,0.15) !important;
+        }
+        body.dark-mode .rm-info-label {
+            color: #9ca3af !important;
+        }
+        body.dark-mode .rm-info-value {
+            color: #e4e6ea !important;
+        }
+        body.dark-mode .rm-description-text {
+            color: #c0c8d8 !important;
+        }
+        body.dark-mode .rm-modal-footer {
+            background: #1a1d24 !important;
+            border-top-color: #2d323b !important;
+        }
+        body.dark-mode .rm-modal-btn-close {
+            background: rgba(55,98,200,0.15) !important;
+            color: #60a5fa !important;
+        }
+        body.dark-mode .rm-modal-body::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05) !important;
+        }
+        body.dark-mode .rm-modal-body::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.15) !important;
+        }
+
         .rm-edit-btn {
             padding: 5px 10px;
             background: rgba(251, 191, 36, 0.1);
@@ -3592,18 +3902,55 @@ if ($focus_id > 0) {
         </div>
     </div>
 
-    <!-- View Report Modal -->
-    <div id="viewReportModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Report Details</h5>
-                <button class="close" onclick="closeModal('viewReportModal')">&times;</button>
+    <!-- View Report Modal (rm-action-btn viewport) -->
+    <div id="viewReportModal" class="rm-modal-overlay" onclick="if(event.target===this)closeViewReportModal()">
+        <div class="rm-modal-content">
+            <div class="rm-modal-header">
+                <div class="rm-modal-header-top">
+                    <div class="rm-modal-title-area">
+                        <div class="rm-modal-report-id" id="rm-report-id">—</div>
+                        <h3 class="rm-modal-title" id="rm-title">—</h3>
+                        <div class="rm-modal-badges" id="rm-badges"></div>
+                    </div>
+                    <button class="rm-modal-close" onclick="closeViewReportModal()">&times;</button>
+                </div>
             </div>
-            <div class="modal-body" id="viewReportContent">
-                <!-- Content will be loaded dynamically -->
+            <div class="rm-modal-body">
+                <!-- Report Information -->
+                <div class="rm-modal-section">
+                    <div class="rm-modal-section-title"><i class="fas fa-info-circle"></i> Report Information</div>
+                    <div class="rm-info-grid" id="rm-report-grid"></div>
+                </div>
+                <!-- Source & Department -->
+                <div class="rm-modal-section">
+                    <div class="rm-modal-section-title"><i class="fas fa-building"></i> Source &amp; Department</div>
+                    <div class="rm-info-grid" id="rm-source-grid"></div>
+                </div>
+                <!-- Location -->
+                <div class="rm-modal-section">
+                    <div class="rm-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location</div>
+                    <div class="rm-info-grid" id="rm-location-grid"></div>
+                </div>
+                <!-- Description -->
+                <div class="rm-modal-section">
+                    <div class="rm-modal-section-title"><i class="fas fa-align-left"></i> Description</div>
+                    <div class="rm-description-text" id="rm-description">—</div>
+                </div>
+                <!-- Attachments -->
+                <div class="rm-modal-section">
+                    <div class="rm-modal-section-title"><i class="fas fa-paperclip"></i> Attachments</div>
+                    <div id="rm-attachments"></div>
+                </div>
+                <!-- Timeline -->
+                <div class="rm-modal-section">
+                    <div class="rm-modal-section-title"><i class="fas fa-clock"></i> Timeline &amp; Updates</div>
+                    <div class="rm-info-grid" id="rm-timeline-grid"></div>
+                </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn-secondary-custom" onclick="closeModal('viewReportModal')">Close</button>
+            <div class="rm-modal-footer">
+                <button type="button" class="rm-modal-btn-close" onclick="closeViewReportModal()">
+                    <i class="fas fa-times"></i> Close
+                </button>
             </div>
         </div>
     </div>
@@ -3865,82 +4212,203 @@ if ($focus_id > 0) {
             el.parentElement.insertBefore(fallback, el.nextSibling);
         }
 
+        // Report Detail Modal helpers (mirrors verification_monitoring lgu modal)
+        function formatDate(dateStr) {
+            if (!dateStr) return '—';
+            var d = new Date(dateStr);
+            if (isNaN(d.getTime())) return dateStr;
+            var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+        }
+
+        function rmBadge(text, bg, color) {
+            return '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:' + bg + ';color:' + color + ';">' + text + '</span>';
+        }
+
+        function rmInfoItem(icon, label, value) {
+            var displayVal = (value && value !== '—' && value !== null) ? value : '—';
+            return '<div class="rm-info-item"><div class="rm-info-icon"><i class="fas fa-' + icon + '"></i></div><div><div class="rm-info-label">' + label + '</div><div class="rm-info-value">' + displayVal + '</div></div></div>';
+        }
+
+        function openViewReportModal() {
+            var modal = document.getElementById('viewReportModal');
+            if (modal) {
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        function closeViewReportModal() {
+            var modal = document.getElementById('viewReportModal');
+            if (modal) {
+                modal.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        }
+
+        function openLightbox(src) {
+            var lb = document.getElementById('lightboxOverlay');
+            var img = document.getElementById('lightboxImage');
+            img.src = src;
+            lb.classList.add('show');
+            document.body.style.overflow = 'hidden';
+        }
+
         function viewReport(id, type) {
             fetch(`../api/get_report_details.php?id=${id}&type=${encodeURIComponent(type)}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        const content = document.getElementById('viewReportContent');
-                        content.innerHTML = `
-                            <div style="line-height: 1.6;">
-                                <h6 style="color: #1e3c72; margin-bottom: 15px;">${data.report.title}</h6>
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
-                                    ${data.report.report_id ? `<div><strong>Report ID:</strong> ${data.report.report_id}</div>` : ''}
-                                    ${data.report.department ? `<div><strong>Department:</strong> ${data.report.department}</div>` : ''}
-                                    <div><strong>Type:</strong> ${data.report.report_type}</div>
-                                    <div><strong>Status:</strong> <span class="status-badge status-${data.report.status.replace('_', '-')}">${data.report.status}</span></div>
-                                    <div><strong>Priority:</strong> ${data.report.priority}</div>
-                                    <div><strong>Location:</strong> ${data.report.location}</div>
-                                    ${data.report.latitude && data.report.longitude && data.report.latitude != 0 && data.report.longitude != 0 ? `<div><a href="https://www.openstreetmap.org/?mlat=${data.report.latitude}&mlon=${data.report.longitude}&zoom=15" target="_blank" class="btn-map" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:#e8f4f8;color:#1e3c72;border-radius:6px;text-decoration:none;font-size:13px;font-weight:500;margin-top:4px;"><i class="fas fa-map-marker-alt"></i> View on Map</a></div>` : ''}
-                                </div>
-                                <div style="margin-bottom: 20px;">
-                                    <strong>Description:</strong>
-                                    <p style="margin-top: 5px;">${data.report.description}</p>
-                                </div>
-                                ${(() => {
-                                    let html = '';
-                                    const pics = [];
-                                    const seenPaths = new Set();
-                                    if (data.report.image_path && data.report.image_path !== '0' && data.report.image_path !== 'null') {
-                                        const p = '../../' + data.report.image_path;
-                                        pics.push(p);
-                                        seenPaths.add(data.report.image_path);
-                                    }
-                                    if (data.report.attachments) {
-                                        let atts = data.report.attachments;
-                                        if (typeof atts === 'string') { try { atts = JSON.parse(atts); } catch(e) { atts = []; } }
-                                        if (Array.isArray(atts)) {
-                                            atts.forEach(a => {
-                                                const p = a.file_path || a.file || '';
-                                                if (p && !seenPaths.has(p)) {
-                                                    pics.push('../../' + p);
-                                                    seenPaths.add(p);
-                                                }
-                                            });
+                        const r = data.report;
+
+                        var typeLabels = {
+                            'traffic_jam': 'Traffic Jam',
+                            'accident': 'Accident',
+                            'road_damage': 'Road Damage',
+                            'flooding': 'Flooding',
+                            'potholes': 'Potholes',
+                            'road_closure': 'Road Closure',
+                            'infrastructure_issue': 'Infrastructure Issue',
+                            'street_light': 'Street Light',
+                            'maintenance': 'Maintenance',
+                            'other': 'Other'
+                        };
+
+                        var statusStyles = {
+                            'pending':    {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
+                            'approved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
+                            'completed':  {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
+                            'cancelled':  {bg:'rgba(220,53,69,0.15)',  color:'#ef4444'},
+                            'in-progress':{bg:'rgba(59,130,246,0.15)', color:'#3b82f6'},
+                            'resolved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'}
+                        };
+                        var pStyles = {
+                            'high':   {bg:'rgba(220,53,69,0.15)', color:'#ef4444'},
+                            'medium': {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
+                            'low':    {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'}
+                        };
+
+                        // Header
+                        document.getElementById('rm-report-id').textContent = 'Report #' + (r.report_id || '—');
+                        document.getElementById('rm-title').textContent = r.title || '—';
+
+                        var st = (r.status || 'pending').toLowerCase();
+                        var ss = statusStyles[st] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
+                        var pp = (r.priority || 'medium').toLowerCase();
+                        var ps = pStyles[pp] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
+
+                        var badgesHtml = rmBadge(r.status || '—', ss.bg, ss.color);
+                        badgesHtml += rmBadge(r.priority || '—', ps.bg, ps.color);
+                        var reportType = typeLabels[r.report_type] || r.report_type || '—';
+                        if (reportType !== '—') {
+                            badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(55,98,200,0.12);color:#3762c8;">' + reportType + '</span>';
+                        }
+                        document.getElementById('rm-badges').innerHTML = badgesHtml;
+
+                        // Report Information
+                        var reportGrid = '';
+                        reportGrid += rmInfoItem('folder', 'Report Type', reportType);
+                        reportGrid += rmInfoItem('calendar-alt', 'Created Date', formatDate(r.created_at));
+                        reportGrid += rmInfoItem('sync-alt', 'Last Updated', formatDate(r.updated_at));
+                        if (r.due_date) {
+                            reportGrid += rmInfoItem('clock', 'Due Date', formatDate(r.due_date));
+                        }
+                        if (r.severity) {
+                            reportGrid += rmInfoItem('exclamation-circle', 'Severity', r.severity);
+                        }
+                        document.getElementById('rm-report-grid').innerHTML = reportGrid;
+
+                        // Source & Department
+                        var sourceGrid = '';
+                        var sourceLabel = (r.source_system === 'cimm') ? 'CIMM' : (r.source_system === 'maintenance') ? 'Maintenance' : (r.source_system === 'lgu_reports') ? 'LGU Staff' : (r.source_system === 'transport') ? 'Citizen' : (r.report_source === 'local') ? 'LGU Staff' : 'Citizen';
+                        sourceGrid += rmInfoItem('server', 'Source', sourceLabel);
+                        sourceGrid += rmInfoItem('building', 'Department', r.department);
+                        if (r.assigned_to) {
+                            sourceGrid += rmInfoItem('user-cog', 'Assigned To', r.assigned_to);
+                        }
+                        if (r.reporter_name) {
+                            sourceGrid += rmInfoItem('user', 'Reported By', r.reporter_name);
+                        }
+                        if (r.approved_at) {
+                            sourceGrid += rmInfoItem('thumbs-up', 'Approved At', formatDate(r.approved_at));
+                        }
+                        if (r.rejected_at) {
+                            sourceGrid += rmInfoItem('thumbs-down', 'Rejected At', formatDate(r.rejected_at));
+                        }
+                        document.getElementById('rm-source-grid').innerHTML = sourceGrid;
+
+                        // Location
+                        var locationGrid = '';
+                        var locVal = r.location || '—';
+                        if (r.latitude && r.longitude && r.latitude != 0 && r.longitude != 0) {
+                            locVal += '<br><a href="https://www.openstreetmap.org/?mlat=' + r.latitude + '&mlon=' + r.longitude + '&zoom=15" target="_blank" style="color:#3762c8;font-size:12px;text-decoration:none;"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map</a>';
+                        }
+                        locationGrid += '<div class="rm-info-item rm-info-value-full"><div class="rm-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="rm-info-label">Location</div><div class="rm-info-value">' + locVal + '</div></div></div>';
+                        document.getElementById('rm-location-grid').innerHTML = locationGrid;
+
+                        // Description
+                        document.getElementById('rm-description').textContent = r.description || 'No description provided.';
+
+                        // Attachments
+                        var images = [];
+                        var seenPaths = new Set();
+                        if (r.image_path && r.image_path !== '0' && r.image_path !== 'null') {
+                            images.push('../../' + r.image_path);
+                            seenPaths.add(r.image_path);
+                        }
+                        if (r.attachments && typeof r.attachments === 'string') {
+                            try {
+                                var parsed = JSON.parse(r.attachments);
+                                if (Array.isArray(parsed)) {
+                                    parsed.forEach(function(a) {
+                                        var p = a.file_path || a.file || '';
+                                        if (p && (a.type === 'image' || !a.type) && !seenPaths.has(p)) {
+                                            images.push('../../' + p);
+                                            seenPaths.add(p);
                                         }
-                                    }
-                                    if (data.report.update_media && Array.isArray(data.report.update_media)) {
-                                        data.report.update_media.forEach(m => {
-                                            const p = m.file_path || '';
-                                            if (p && !seenPaths.has(p) && m.file_type !== 'video') {
-                                                pics.push('../../' + p);
-                                                seenPaths.add(p);
-                                            }
-                                        });
-                                    }
-                                    if (pics.length) {
-                                        html += '<div style="margin-bottom:20px;"><strong>Photos:</strong><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">';
-                                        pics.forEach((p, i) => {
-                                            html += '<div style="width:100px;height:100px;border-radius:8px;overflow:hidden;border:2px solid #e2e8f0;">' +
-                                                '<img src="' + p + '" alt="Photo ' + (i+1) + '" style="width:100%;height:100%;object-fit:cover;cursor:pointer;" ' +
-                                                'onclick="window.open(\'' + p + '\',\'_blank\')" onerror="imgFallback(this)"></div>';
-                                        });
-                                        html += '</div></div>';
-                                    }
-                                    return html;
-                                })()}
-                                ${data.report.assigned_to ? `<div style="margin-bottom: 10px;"><strong>Assigned To:</strong> ${data.report.assigned_to}</div>` : ''}
-                                ${data.report.notes ? `<div style="margin-bottom: 10px;"><strong>Notes:</strong> ${data.report.notes}</div>` : ''}
-                                ${data.report.reporter_name ? `<div style="margin-bottom: 10px;"><strong>Reporter:</strong> ${data.report.reporter_name}</div>` : ''}
-                                <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee; font-size: 12px; color: #666;">
-                                    <div><strong>Created:</strong> ${data.report.created_at || 'N/A'}</div>
-                                    <div><strong>Updated:</strong> ${data.report.updated_at || 'Not updated'}</div>
-                                    ${data.report.approved_at ? `<div style="color: #28a745;"><strong>Approved:</strong> ${data.report.approved_at}</div>` : ''}
-                                    ${data.report.rejected_at ? `<div style="color: #dc3545;"><strong>Rejected:</strong> ${data.report.rejected_at}</div>` : ''}
-                                </div>
-                            </div>
-                        `;
-                        openModal('viewReportModal');
+                                    });
+                                }
+                            } catch(e) {}
+                        }
+                        if (r.update_media && Array.isArray(r.update_media)) {
+                            r.update_media.forEach(function(m) {
+                                var p = m.file_path || '';
+                                if (p && !seenPaths.has(p) && m.file_type !== 'video') {
+                                    images.push('../../' + p);
+                                    seenPaths.add(p);
+                                }
+                            });
+                        }
+                        var attachHtml = '';
+                        if (images.length > 0) {
+                            attachHtml = '<div style="display:flex;gap:12px;flex-wrap:wrap;">';
+                            images.forEach(function(path) {
+                                attachHtml += '<div style="border-radius:8px;overflow:hidden;max-width:200px;"><img src="' + path + '" alt="Report Photo" style="width:100%;height:auto;cursor:pointer;" onclick="openLightbox(this.src)" loading="lazy" onerror="this.style.display=\'none\'"></div>';
+                            });
+                            attachHtml += '</div>';
+                        } else {
+                            attachHtml = '<div style="padding:8px 0;color:#9ca3af;font-size:14px;">No attachments.</div>';
+                        }
+                        document.getElementById('rm-attachments').innerHTML = attachHtml;
+
+                        // Timeline
+                        var timelineGrid = '';
+                        timelineGrid += rmInfoItem('calendar-check', 'Created', formatDate(r.created_at));
+                        if (r.approved_at) {
+                            timelineGrid += rmInfoItem('thumbs-up', 'Approved', formatDate(r.approved_at));
+                        }
+                        if (r.rejected_at) {
+                            timelineGrid += rmInfoItem('thumbs-down', 'Rejected', formatDate(r.rejected_at));
+                        }
+                        if (r.completed_at) {
+                            timelineGrid += rmInfoItem('check-circle', 'Completed', formatDate(r.completed_at));
+                        }
+                        if (r.updated_at) {
+                            timelineGrid += rmInfoItem('edit', 'Last Updated', formatDate(r.updated_at));
+                        }
+                        document.getElementById('rm-timeline-grid').innerHTML = timelineGrid;
+
+                        openViewReportModal();
                     } else {
                         showNotification('Failed to load report details', 'error');
                     }
@@ -5337,31 +5805,79 @@ if ($focus_id > 0) {
         function viewCimmReport(idx) {
             var r = cimmData[idx];
             if (!r) return;
+
             var statusLabels = { 'pending': 'Pending Review', 'in-progress': 'Flagged', 'completed': 'Verified', 'cancelled': 'Dismissed' };
-            var priorityColors = { 'high': '#ef4444', 'medium': '#f59e0b', 'low': '#22c55e', 'critical': '#dc2626' };
-            var content = document.getElementById('viewReportContent');
-            content.innerHTML = '' +
-                '<div style="line-height:1.6;">' +
-                    '<h6 style="color:#c2410c;margin-bottom:15px;">CIMM Report — ' + (r.report_id || '—') + '</h6>' +
-                    '<div style="background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.2);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:#92400e;">' +
-                        '<i class="fas fa-info-circle"></i> This report originates from the CIMM system and is managed via Verification Monitoring.' +
-                    '</div>' +
-                    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px;">' +
-                        '<div><strong>Report #</strong><br>' + (r.report_id || '—') + '</div>' +
-                        '<div><strong>Infrastructure</strong><br>' + (r.title || '—') + '</div>' +
-                        '<div><strong>Location</strong><br>' + (r.location || '—') + '</div>' +
-                        '<div><strong>Engineer</strong><br>' + (r.assigned_to || '—') + '</div>' +
-                        '<div><strong>Reported By</strong><br>' + (r.reporter_name || '—') + '</div>' +
-                        '<div><strong>Start Date</strong><br>' + (r.start_date || '—') + '</div>' +
-                        '<div><strong>End Date</strong><br>' + (r.end_date || '—') + '</div>' +
-                        '<div><strong>Budget</strong><br>' + (r.estimation ? '₱' + parseFloat(r.estimation).toLocaleString('en-PH', {minimumFractionDigits:2}) : '—') + '</div>' +
-                        '<div><strong>Priority</strong><br><span style="display:inline-block;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:600;color:white;background:' + (priorityColors[r.priority] || '#6b7280') + ';">' + (r.priority ? r.priority.charAt(0).toUpperCase() + r.priority.slice(1) : '—') + '</span></div>' +
-                        '<div><strong>Status</strong><br><span style="display:inline-block;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:600;color:white;background:' + (r.status === 'completed' ? '#22c55e' : r.status === 'in-progress' ? '#f59e0b' : r.status === 'cancelled' ? '#ef4444' : '#6b7280') + ';">' + (statusLabels[r.status] || r.status || '—') + '</span></div>' +
-                    '</div>' +
-                    '<div style="margin-bottom:20px;"><strong>Issue / Notes</strong><p style="margin-top:5px;">' + (r.description || '—') + '</p></div>' +
-                '</div>';
-            document.querySelector('#viewReportModal .modal-title').textContent = 'CIMM Report Details';
-            openModal('viewReportModal');
+            var statusStyles = {
+                'pending':    {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
+                'approved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
+                'completed':  {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
+                'cancelled':  {bg:'rgba(220,53,69,0.15)',  color:'#ef4444'},
+                'in-progress':{bg:'rgba(59,130,246,0.15)', color:'#3b82f6'}
+            };
+            var pStyles = {
+                'high':   {bg:'rgba(220,53,69,0.15)', color:'#ef4444'},
+                'medium': {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
+                'low':    {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'}
+            };
+
+            // Header
+            document.getElementById('rm-report-id').textContent = 'Report #' + (r.report_id || '—');
+            document.getElementById('rm-title').textContent = r.title || '—';
+
+            var st = (r.status || 'pending').toLowerCase();
+            var ss = statusStyles[st] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
+            var pp = (r.priority || 'medium').toLowerCase();
+            var ps = pStyles[pp] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
+
+            var badgesHtml = rmBadge(statusLabels[r.status] || r.status || '—', ss.bg, ss.color);
+            badgesHtml += rmBadge(r.priority || '—', ps.bg, ps.color);
+            badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(249,115,22,0.12);color:#c2410c;">CIMM</span>';
+            document.getElementById('rm-badges').innerHTML = badgesHtml;
+
+            // Report Information
+            var reportGrid = '';
+            reportGrid += rmInfoItem('building', 'Infrastructure', r.title);
+            reportGrid += rmInfoItem('calendar-alt', 'Start Date', formatDate(r.start_date));
+            reportGrid += rmInfoItem('calendar-check', 'End Date', formatDate(r.end_date));
+            reportGrid += rmInfoItem('dollar-sign', 'Budget', r.estimation ? '₱' + parseFloat(r.estimation).toLocaleString('en-PH', {minimumFractionDigits:2}) : '—');
+            document.getElementById('rm-report-grid').innerHTML = reportGrid;
+
+            // Source & Department
+            var sourceGrid = '';
+            sourceGrid += rmInfoItem('server', 'Source', 'CIMM');
+            if (r.assigned_to) {
+                sourceGrid += rmInfoItem('user-cog', 'Engineer', r.assigned_to);
+            }
+            if (r.reporter_name) {
+                sourceGrid += rmInfoItem('user', 'Reported By', r.reporter_name);
+            }
+            document.getElementById('rm-source-grid').innerHTML = sourceGrid;
+
+            // Location
+            var locationGrid = '';
+            var locVal = r.location || '—';
+            if (r.latitude && r.longitude && r.latitude != 0 && r.longitude != 0) {
+                locVal += '<br><a href="https://www.google.com/maps?q=' + r.latitude + ',' + r.longitude + '" target="_blank" style="color:#3762c8;font-size:12px;text-decoration:none;"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map</a>';
+            }
+            locationGrid += '<div class="rm-info-item rm-info-value-full"><div class="rm-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="rm-info-label">Location</div><div class="rm-info-value">' + locVal + '</div></div></div>';
+            document.getElementById('rm-location-grid').innerHTML = locationGrid;
+
+            // Description
+            document.getElementById('rm-description').textContent = r.description || 'No description provided.';
+
+            // Attachments (none available on CIMM cards)
+            var attachHtml = '<div style="padding:8px 0;color:#9ca3af;font-size:14px;">No attachments.</div>';
+            document.getElementById('rm-attachments').innerHTML = attachHtml;
+
+            // Timeline
+            var timelineGrid = '';
+            timelineGrid += rmInfoItem('calendar-check', 'Created', formatDate(r.start_date));
+            if (r.end_date) {
+                timelineGrid += rmInfoItem('flag-checkered', 'Target End', formatDate(r.end_date));
+            }
+            document.getElementById('rm-timeline-grid').innerHTML = timelineGrid;
+
+            openViewReportModal();
         }
 
         // CIMM edit
