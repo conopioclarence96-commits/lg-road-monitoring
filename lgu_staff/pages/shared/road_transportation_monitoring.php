@@ -3400,6 +3400,7 @@ annotate_report_assignment_status($conn, $recent_reports);
             fd.append('report_id', currentUpdatesReportId);
             fd.append('report_type', currentUpdatesReportType);
             fd.append('request_type', requestType);
+            fd.append('source', currentUpdatesReportSource);
 
             fetch('../api/progress_update_api.php', {
                 method: 'POST',

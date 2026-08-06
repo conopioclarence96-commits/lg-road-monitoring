@@ -457,10 +457,50 @@ if ($method === 'GET') {
             json_response(['success' => false, 'message' => 'You are not authorized to submit completion/cancellation requests.'], 403);
         }
 
-        $report = fetch_one(
-            "SELECT id, report_id, title, description, location, report_category FROM road_transportation_reports WHERE id = ?",
-            [$report_id], "i"
-        );
+        $source = sanitize_input($_POST['source'] ?? '');
+
+        // Resolve the report from the correct table based on the source hint
+        // sent by the frontend.  CIMM reports live in cimm_verification_reports;
+        // infrastructure/maintenance reports live in road_maintenance_reports;
+        // everything else comes from road_transportation_reports.
+        if ($source === 'cimm') {
+            require_once __DIR__ . '/cimm_verification_data.php';
+            $pdo = rgmap_verification_pdo();
+            rgmap_ensure_cimm_verification_table($pdo);
+            $stmt = $pdo->prepare("SELECT id, reference_code AS report_id, infrastructure AS title, 'road' AS report_category, location, issue AS description FROM cimm_verification_reports WHERE id = ?");
+            $stmt->execute([$report_id]);
+            $report = $stmt->fetch(PDO::FETCH_ASSOC);
+        } elseif ($source === 'infrastructure') {
+            $report = fetch_one(
+                "SELECT id, report_id, title, description, location, report_category FROM road_maintenance_reports WHERE id = ?",
+                [$report_id], "i"
+            );
+        } else {
+            $report = fetch_one(
+                "SELECT id, report_id, title, description, location, report_category FROM road_transportation_reports WHERE id = ?",
+                [$report_id], "i"
+            );
+        }
+        if (!$report) {
+            // Fallback: try all tables in case the source hint was missing.
+            $report = fetch_one(
+                "SELECT id, report_id, title, description, location, report_category FROM road_transportation_reports WHERE id = ?",
+                [$report_id], "i"
+            );
+            if (!$report) {
+                $report = fetch_one(
+                    "SELECT id, report_id, title, description, location, report_category FROM road_maintenance_reports WHERE id = ?",
+                    [$report_id], "i"
+                );
+            }
+            if (!$report) {
+                $pdo = rgmap_verification_pdo();
+                rgmap_ensure_cimm_verification_table($pdo);
+                $stmt = $pdo->prepare("SELECT id, reference_code AS report_id, infrastructure AS title, 'road' AS report_category, location, issue AS description FROM cimm_verification_reports WHERE id = ?");
+                $stmt->execute([$report_id]);
+                $report = $stmt->fetch(PDO::FETCH_ASSOC);
+            }
+        }
         if (!$report) {
             json_response(['success' => false, 'message' => 'Report not found']);
         }
