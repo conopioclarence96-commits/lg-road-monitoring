@@ -82,12 +82,20 @@ $is_officer_role = in_array($_SESSION['role'] ?? '', ['road_monitoring_officer',
 
 // Function to get enhanced dashboard stats
 function getEnhancedStats() {
-    global $conn, $is_transport_supervisor;
+    global $conn, $is_transport_supervisor, $is_road_only_role;
     $stats = ['total' => 0, 'active' => 0, 'critical' => 0, 'resolved_month' => 0];
     if ($conn) {
         try {
             // Transportation Operations Supervisors see only Transportation reports.
-            $cat_filter = $is_transport_supervisor ? " AND report_category = 'transportation'" : '';
+            // Road-only roles (Road Ops Supervisor, Road Monitoring Officer) see
+            // only Road reports.
+            if ($is_transport_supervisor) {
+                $cat_filter = " AND report_category = 'transportation'";
+            } elseif ($is_road_only_role) {
+                $cat_filter = " AND report_category = 'road'";
+            } else {
+                $cat_filter = '';
+            }
             $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE 1=1{$cat_filter}");
             if ($r) $stats['total'] = (int)$r->fetch_assoc()['c'];
             $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE status IN ('pending','in-progress'){$cat_filter}");
@@ -247,13 +255,24 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
 
 // Function to get monitoring statistics
 function getMonitoringStatistics() {
-    global $conn;
+    global $conn, $is_transport_supervisor, $is_road_only_role;
     $stats = [];
+    
+    // Transportation Operations Supervisors see only Transportation reports.
+    // Road-only roles (Road Ops Supervisor, Road Monitoring Officer) see only
+    // Road reports.
+    if ($is_transport_supervisor) {
+        $cat_filter = " AND report_category = 'transportation'";
+    } elseif ($is_road_only_role) {
+        $cat_filter = " AND report_category = 'road'";
+    } else {
+        $cat_filter = '';
+    }
     
     if ($conn) {
         try {
             // Get active roads count
-            $result = $conn->query("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status != 'completed'");
+            $result = $conn->query("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status != 'completed'" . $cat_filter);
             if ($result) {
                 $stats['active_roads'] = $result->fetch_assoc()['count'];
             } else {
@@ -261,7 +280,7 @@ function getMonitoringStatistics() {
             }
             
             // Get incident count
-            $result = $conn->query("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'pending' AND priority = 'high'");
+            $result = $conn->query("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'pending' AND priority = 'high'" . $cat_filter);
             if ($result) {
                 $stats['incidents'] = $result->fetch_assoc()['count'];
             } else {
@@ -277,11 +296,11 @@ function getMonitoringStatistics() {
             }
             
             // Calculate clear flow percentage
-            $total_result = $conn->query("SELECT COUNT(*) as count FROM road_transportation_reports");
+            $total_result = $conn->query("SELECT COUNT(*) as count FROM road_transportation_reports" . $cat_filter);
             if ($total_result) {
                 $total = $total_result->fetch_assoc()['count'];
                 
-                $clear_result = $conn->query("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'completed'");
+                $clear_result = $conn->query("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'completed'" . $cat_filter);
                 if ($clear_result) {
                     $clear = $clear_result->fetch_assoc()['count'];
                     $stats['clear_flow'] = $total > 0 ? round(($clear / $total) * 100, 0) : 94;
@@ -315,15 +334,25 @@ function getMonitoringStatistics() {
     return $stats;
 }
 
-// Function to get active alerts
 function getActiveAlerts() {
-    global $conn;
+    global $conn, $is_transport_supervisor, $is_road_only_role;
     $alerts = [];
+    
+    // Transportation Operations Supervisors see only Transportation alerts.
+    // Road-only roles (Road Ops Supervisor, Road Monitoring Officer) see only
+    // Road alerts.
+    if ($is_transport_supervisor) {
+        $cat_filter = " AND report_category = 'transportation'";
+    } elseif ($is_road_only_role) {
+        $cat_filter = " AND report_category = 'road'";
+    } else {
+        $cat_filter = '';
+    }
     
     if ($conn) {
         $query = "SELECT title, created_at, priority FROM road_transportation_reports 
                   WHERE status = 'pending' AND priority IN ('high', 'medium') 
-                  ORDER BY created_at DESC LIMIT 5";
+                  {$cat_filter}ORDER BY created_at DESC LIMIT 5";
         $result = $conn->query($query);
         
         while ($row = $result->fetch_assoc()) {
@@ -348,13 +377,24 @@ function getActiveAlerts() {
 
 // Function to get road status
 function getRoadStatus() {
-    global $conn;
+    global $conn, $is_transport_supervisor, $is_road_only_role;
     $roads = [];
+    
+    // Transportation Operations Supervisors see only Transportation reports.
+    // Road-only roles (Road Ops Supervisor, Road Monitoring Officer) see only
+    // Road reports.
+    if ($is_transport_supervisor) {
+        $cat_filter = " AND report_category = 'transportation'";
+    } elseif ($is_road_only_role) {
+        $cat_filter = " AND report_category = 'road'";
+    } else {
+        $cat_filter = '';
+    }
     
     if ($conn) {
         $query = "SELECT title, status, description, created_at FROM road_transportation_reports 
                   WHERE status IN ('pending', 'in-progress', 'completed') 
-                  ORDER BY created_at DESC LIMIT 10";
+                  {$cat_filter}ORDER BY created_at DESC LIMIT 10";
         $result = $conn->query($query);
         
         while ($row = $result->fetch_assoc()) {
@@ -438,10 +478,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
     header('Content-Type: application/json');
     $markers = [];
     if ($conn) {
+        // Transportation Operations Supervisors see only Transportation markers.
+        // Road-only roles (Road Ops Supervisor, Road Monitoring Officer) see only
+        // Road markers.
+        if ($is_transport_supervisor) {
+            $cat_filter = " AND report_category = 'transportation'";
+        } elseif ($is_road_only_role) {
+            $cat_filter = " AND report_category = 'road'";
+        } else {
+            $cat_filter = '';
+        }
         $sql = "SELECT id, report_id, title, report_type, description, status, priority, severity, latitude, longitude, detected_district, barangay, street_name, created_at 
                 FROM road_transportation_reports 
                 WHERE latitude IS NOT NULL AND longitude IS NOT NULL 
                   AND status IN ('approved', 'in-progress')
+                  {$cat_filter}
                 ORDER BY created_at DESC";
         $res = $conn->query($sql);
         while ($row = $res->fetch_assoc()) {

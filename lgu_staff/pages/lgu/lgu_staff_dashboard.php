@@ -15,12 +15,19 @@ if (!isset($_SESSION['user_id']) || !is_staff_role($_SESSION['role'] ?? '')) {
     exit();
 }
 
+// Road Monitoring Officers see only Road reports (report_category = 'road')
+// in every dashboard section. This flag is passed to all dashboard data-
+// fetching functions so transport reports are hidden from the Road
+// Monitoring Officer dashboard only.
+$is_road_monitoring_officer = (($_SESSION['role'] ?? '') === 'road_monitoring_officer');
+
 // Function to get dashboard statistics
-function getDashboardStatistics($conn) {
+function getDashboardStatistics($conn, $road_only = false) {
     $stats = [];
-    
+    $cat_filter = $road_only ? " AND report_category = 'road'" : '';
+
     // Today's road reports
-    $result = $conn->query("SELECT COUNT(*) as today_reports FROM road_transportation_reports WHERE DATE(created_at) = CURDATE()");
+    $result = $conn->query("SELECT COUNT(*) as today_reports FROM road_transportation_reports WHERE DATE(created_at) = CURDATE()" . $cat_filter);
     $transport_today = $result->fetch_assoc()['today_reports'];
     
     $result = $conn->query("SELECT COUNT(*) as today_reports FROM road_maintenance_reports WHERE DATE(created_at) = CURDATE()");
@@ -28,7 +35,7 @@ function getDashboardStatistics($conn) {
     $stats['today_reports'] = $transport_today + $maintenance_today;
     
     // Pending verifications
-    $result = $conn->query("SELECT COUNT(*) as pending FROM road_transportation_reports WHERE status = 'pending'");
+    $result = $conn->query("SELECT COUNT(*) as pending FROM road_transportation_reports WHERE status = 'pending'" . $cat_filter);
     $transport_pending = $result->fetch_assoc()['pending'];
     
     $result = $conn->query("SELECT COUNT(*) as pending FROM road_maintenance_reports WHERE status = 'pending'");
@@ -36,7 +43,7 @@ function getDashboardStatistics($conn) {
     $stats['pending_verifications'] = $transport_pending + $maintenance_pending;
     
     // Under maintenance (in-progress)
-    $result = $conn->query("SELECT COUNT(*) as in_progress FROM road_transportation_reports WHERE status = 'in-progress'");
+    $result = $conn->query("SELECT COUNT(*) as in_progress FROM road_transportation_reports WHERE status = 'in-progress'" . $cat_filter);
     $transport_progress = $result->fetch_assoc()['in_progress'];
     
     $result = $conn->query("SELECT COUNT(*) as in_progress FROM road_maintenance_reports WHERE status = 'in-progress'");
@@ -44,7 +51,7 @@ function getDashboardStatistics($conn) {
     $stats['under_maintenance'] = $transport_progress + $maintenance_progress;
     
     // Completed this month
-    $result = $conn->query("SELECT COUNT(*) as completed FROM road_transportation_reports WHERE status = 'completed' AND MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())");
+    $result = $conn->query("SELECT COUNT(*) as completed FROM road_transportation_reports WHERE status = 'completed' AND MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())" . $cat_filter);
     $transport_completed = $result->fetch_assoc()['completed'];
     
     $result = $conn->query("SELECT COUNT(*) as completed FROM road_maintenance_reports WHERE status = 'completed' AND MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())");
@@ -55,8 +62,9 @@ function getDashboardStatistics($conn) {
 }
 
 // Function to get recent activity
-function getRecentActivity($conn) {
-    $query = "(SELECT 'transport' as source, 'road' as type, title, created_at FROM road_transportation_reports ORDER BY created_at DESC LIMIT 5)
+function getRecentActivity($conn, $road_only = false) {
+    $cat_filter = $road_only ? " AND report_category = 'road'" : '';
+    $query = "(SELECT 'transport' as source, 'road' as type, title, created_at FROM road_transportation_reports WHERE 1=1{$cat_filter} ORDER BY created_at DESC LIMIT 5)
               UNION ALL
               (SELECT 'maintenance' as source, 'maintenance' as type, title, created_at FROM road_maintenance_reports ORDER BY created_at DESC LIMIT 5)
               ORDER BY created_at DESC LIMIT 5";
@@ -65,12 +73,13 @@ function getRecentActivity($conn) {
 }
 
 // Function to get priority tasks
-function getPriorityTasks($conn) {
-    $query = "(SELECT 'High' as priority, title, created_at FROM road_transportation_reports WHERE status = 'pending' AND priority = 'high' ORDER BY created_at DESC LIMIT 3)
+function getPriorityTasks($conn, $road_only = false) {
+    $cat_filter = $road_only ? " AND report_category = 'road'" : '';
+    $query = "(SELECT 'High' as priority, title, created_at FROM road_transportation_reports WHERE status = 'pending' AND priority = 'high'" . $cat_filter . " ORDER BY created_at DESC LIMIT 3)
               UNION ALL
               (SELECT 'High' as priority, title, created_at FROM road_maintenance_reports WHERE status = 'pending' AND priority = 'high' ORDER BY created_at DESC LIMIT 3)
               UNION ALL
-              (SELECT 'Medium' as priority, title, created_at FROM road_transportation_reports WHERE status = 'pending' AND priority = 'medium' ORDER BY created_at DESC LIMIT 2)
+              (SELECT 'Medium' as priority, title, created_at FROM road_transportation_reports WHERE status = 'pending' AND priority = 'medium'" . $cat_filter . " ORDER BY created_at DESC LIMIT 2)
               UNION ALL
               (SELECT 'Medium' as priority, title, created_at FROM road_maintenance_reports WHERE status = 'pending' AND priority = 'medium' ORDER BY created_at DESC LIMIT 2)
               ORDER BY FIELD(priority, 'High', 'Medium'), created_at DESC LIMIT 5";
@@ -79,9 +88,10 @@ function getPriorityTasks($conn) {
 }
 
 // Function to get weekly chart data
-function getWeeklyChartData($conn) {
+function getWeeklyChartData($conn, $road_only = false) {
     $data = ['reports' => [], 'verifications' => []];
     $days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    $cat_filter = $road_only ? " AND report_category = 'road'" : '';
     
     // Get data for the current week
     $current_week = date('W');
@@ -94,7 +104,7 @@ function getWeeklyChartData($conn) {
         $transport_query = "SELECT COUNT(*) as count FROM road_transportation_reports 
                            WHERE DAYOFWEEK(created_at) = $day_of_week 
                            AND WEEK(created_at, 1) = WEEK(CURRENT_DATE, 1) 
-                           AND YEAR(created_at) = $current_year";
+                           AND YEAR(created_at) = $current_year" . $cat_filter;
         $result = $conn->query($transport_query);
         $transport_count = $result->fetch_assoc()['count'];
         
@@ -124,7 +134,7 @@ function getWeeklyChartData($conn) {
                                    WHERE status IN ('completed', 'approved') 
                                    AND DAYOFWEEK(updated_at) = $day_of_week 
                                    AND WEEK(updated_at, 1) = WEEK(CURRENT_DATE, 1) 
-                                   AND YEAR(updated_at) = $current_year)
+                                   AND YEAR(updated_at) = $current_year" . $cat_filter . ")
                                    UNION ALL
                                    (SELECT COUNT(*) as count FROM road_maintenance_reports 
                                    WHERE status IN ('completed', 'approved') 
@@ -149,7 +159,7 @@ function getWeeklyChartData($conn) {
             // Get last week's data
             $transport_query = "SELECT COUNT(*) as count FROM road_transportation_reports 
                                WHERE DAYOFWEEK(created_at) = $day_of_week 
-                               AND WEEK(created_at, 1) = WEEK(CURRENT_DATE - INTERVAL 1 WEEK, 1)";
+                               AND WEEK(created_at, 1) = WEEK(CURRENT_DATE - INTERVAL 1 WEEK, 1)" . $cat_filter;
             $result = $conn->query($transport_query);
             $transport_count = $result->fetch_assoc()['count'];
             
@@ -165,7 +175,7 @@ function getWeeklyChartData($conn) {
             $verification_query = "(SELECT COUNT(*) as count FROM road_transportation_reports 
                                    WHERE status IN ('completed', 'approved') 
                                    AND DAYOFWEEK(updated_at) = $day_of_week 
-                                   AND WEEK(updated_at, 1) = WEEK(CURRENT_DATE - INTERVAL 1 WEEK, 1))
+                                   AND WEEK(updated_at, 1) = WEEK(CURRENT_DATE - INTERVAL 1 WEEK, 1)" . $cat_filter . ")
                                    UNION ALL
                                    (SELECT COUNT(*) as count FROM road_maintenance_reports 
                                    WHERE status IN ('completed', 'approved') 
@@ -185,10 +195,10 @@ function getWeeklyChartData($conn) {
 }
 
 // Get data
-$stats = getDashboardStatistics($conn);
-$recent_activity = getRecentActivity($conn);
-$priority_tasks = getPriorityTasks($conn);
-$chart_data = getWeeklyChartData($conn);
+$stats = getDashboardStatistics($conn, $is_road_monitoring_officer);
+$recent_activity = getRecentActivity($conn, $is_road_monitoring_officer);
+$priority_tasks = getPriorityTasks($conn, $is_road_monitoring_officer);
+$chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -719,26 +729,28 @@ $chart_data = getWeeklyChartData($conn);
     $user_role = $_SESSION['role'] ?? '';
     $user_email = $_SESSION['email'] ?? '';
 
-    function getHighPriorityCount($conn) {
+    function getHighPriorityCount($conn, $road_only = false) {
         $count = 0;
+        $cat_filter = $road_only ? " AND report_category = 'road'" : '';
         try {
-            $t = $conn->query("SELECT COUNT(*) AS c FROM road_transportation_reports WHERE status = 'pending' AND priority = 'high'")->fetch_assoc()['c'] ?? 0;
+            $t = $conn->query("SELECT COUNT(*) AS c FROM road_transportation_reports WHERE status = 'pending' AND priority = 'high'" . $cat_filter)->fetch_assoc()['c'] ?? 0;
             $m = $conn->query("SELECT COUNT(*) AS c FROM road_maintenance_reports WHERE status = 'pending' AND priority = 'high'")->fetch_assoc()['c'] ?? 0;
             $count = (int)$t + (int)$m;
         } catch (Exception $e) {}
         return $count;
     }
 
-    function getMyAssignments($conn, $user_id) {
+    function getMyAssignments($conn, $user_id, $road_only = false) {
         $rows = [];
         if (!$conn || $user_id <= 0) return ['count' => 0, 'items' => $rows];
+        $cat_filter = $road_only ? " AND r.report_category = 'road'" : '';
         try {
             $stmt = $conn->prepare("
                 SELECT ra.*, r.report_id AS report_code, r.title AS report_title,
                        r.status AS report_status, r.priority
                 FROM report_assignments ra
                 LEFT JOIN road_transportation_reports r ON ra.report_id = r.id AND ra.report_type = 'road_transportation_reports'
-                WHERE ra.user_id = ? AND ra.status = 'active'
+                WHERE ra.user_id = ? AND ra.status = 'active'" . $cat_filter . "
                 ORDER BY ra.assigned_at DESC
                 LIMIT 12
             ");
@@ -752,7 +764,7 @@ $chart_data = getWeeklyChartData($conn);
 
         $count = count($rows);
         try {
-            $cstmt = $conn->prepare("SELECT COUNT(*) AS c FROM report_assignments WHERE user_id = ? AND status = 'active'");
+            $cstmt = $conn->prepare("SELECT COUNT(*) AS c FROM report_assignments ra LEFT JOIN road_transportation_reports r ON ra.report_id = r.id AND ra.report_type = 'road_transportation_reports' WHERE ra.user_id = ? AND ra.status = 'active'" . $cat_filter);
             $cstmt->bind_param("i", $user_id);
             $cstmt->execute();
             $count = (int)$cstmt->get_result()->fetch_assoc()['c'];
@@ -787,7 +799,7 @@ $chart_data = getWeeklyChartData($conn);
         return ['count' => $count, 'items' => $rows];
     }
 
-    function getDashboardNotifications($conn, $user_id, $user_email, $user_role, $assignments) {
+    function getDashboardNotifications($conn, $user_id, $user_email, $user_role, $assignments, $road_only = false) {
         $items = [];
         foreach ($assignments as $a) {
             $items[] = [
@@ -801,13 +813,15 @@ $chart_data = getWeeklyChartData($conn);
         }
         if ($conn) {
             try {
+                $cat_filter = $road_only ? " AND r.report_category = 'road'" : '';
+                $subquery_cat = $road_only ? " AND report_category = 'road'" : '';
                 $stmt = $conn->prepare("
                     SELECT rn.*, r.report_id AS report_code
                     FROM report_notifications rn
                     LEFT JOIN road_transportation_reports r ON rn.report_id = r.id
-                    WHERE rn.is_read = 0
+                    WHERE rn.is_read = 0" . $cat_filter . "
                       AND (rn.recipient_email = ? OR rn.recipient_role = ?
-                           OR rn.report_id IN (SELECT id FROM road_transportation_reports WHERE created_by = ?))
+                           OR rn.report_id IN (SELECT id FROM road_transportation_reports WHERE created_by = ?" . $subquery_cat . "))
                     ORDER BY rn.created_at DESC
                     LIMIT 6
                 ");
@@ -820,6 +834,8 @@ $chart_data = getWeeklyChartData($conn);
                     $icon = 'fa-sync'; $color = '#8b5cf6'; $label = 'Verification update';
                     if ($t === 'completion') { $icon = 'fa-check-circle'; $color = '#10b981'; $label = 'Completion request'; }
                     if ($t === 'cancellation') { $icon = 'fa-ban'; $color = '#ef4444'; $label = 'Cancellation request'; }
+                    if ($t === 'approve_request') { $icon = 'fa-check-circle'; $color = '#10b981'; $label = 'Request approved'; }
+                    if ($t === 'reject_request') { $icon = 'fa-times-circle'; $color = '#ef4444'; $label = 'Request rejected'; }
                     $items[] = [
                         'icon' => $icon,
                         'color' => $color,
@@ -853,11 +869,12 @@ $chart_data = getWeeklyChartData($conn);
         return array_slice($items, 0, 8);
     }
 
-    function getRecentActivityFeed($conn) {
+    function getRecentActivityFeed($conn, $road_only = false) {
         $rows = [];
         if (!$conn) return $rows;
+        $cat_filter = $road_only ? " AND report_category = 'road'" : '';
         try {
-            $query = "(SELECT id, report_id, title, status, priority, created_at, 'transport' AS src FROM road_transportation_reports ORDER BY created_at DESC LIMIT 6)
+            $query = "(SELECT id, report_id, title, status, priority, created_at, 'transport' AS src FROM road_transportation_reports WHERE 1=1" . $cat_filter . " ORDER BY created_at DESC LIMIT 6)
                       UNION ALL
                       (SELECT id, report_id, title, status, priority, created_at, 'maintenance' AS src FROM road_maintenance_reports ORDER BY created_at DESC LIMIT 6)
                       ORDER BY created_at DESC LIMIT 6";
@@ -868,11 +885,12 @@ $chart_data = getWeeklyChartData($conn);
         return $rows;
     }
 
-    function getPriorityTaskCards($conn) {
+    function getPriorityTaskCards($conn, $road_only = false) {
         $rows = [];
         if (!$conn) return $rows;
+        $cat_filter = $road_only ? " AND report_category = 'road'" : '';
         try {
-            $query = "(SELECT id, report_id, title, status, priority, created_at, 'transport' AS src FROM road_transportation_reports WHERE status = 'pending' AND priority IN ('high','medium','low') ORDER BY FIELD(priority,'high','medium','low'), created_at DESC LIMIT 6)
+            $query = "(SELECT id, report_id, title, status, priority, created_at, 'transport' AS src FROM road_transportation_reports WHERE status = 'pending' AND priority IN ('high','medium','low')" . $cat_filter . " ORDER BY FIELD(priority,'high','medium','low'), created_at DESC LIMIT 6)
                       UNION ALL
                       (SELECT id, report_id, title, status, priority, created_at, 'maintenance' AS src FROM road_maintenance_reports WHERE status = 'pending' AND priority IN ('high','medium','low') ORDER BY FIELD(priority,'high','medium','low'), created_at DESC LIMIT 6)
                       ORDER BY FIELD(priority,'high','medium','low'), created_at DESC LIMIT 6";
@@ -912,13 +930,13 @@ $chart_data = getWeeklyChartData($conn);
         return $src === 'maintenance' ? 'fa-tools' : 'fa-road';
     }
 
-    $my_assign = getMyAssignments($conn, $user_id);
+    $my_assign = getMyAssignments($conn, $user_id, $is_road_monitoring_officer);
     $my_assign_count = $my_assign['count'];
     $my_assign_items = $my_assign['items'];
-    $high_priority = getHighPriorityCount($conn);
-    $activity_feed = getRecentActivityFeed($conn);
-    $task_cards = getPriorityTaskCards($conn);
-    $dash_notifs = getDashboardNotifications($conn, $user_id, $user_email, $user_role, $my_assign_items);
+    $high_priority = getHighPriorityCount($conn, $is_road_monitoring_officer);
+    $activity_feed = getRecentActivityFeed($conn, $is_road_monitoring_officer);
+    $task_cards = getPriorityTaskCards($conn, $is_road_monitoring_officer);
+    $dash_notifs = getDashboardNotifications($conn, $user_id, $user_email, $user_role, $my_assign_items, $is_road_monitoring_officer);
     ?>
 
     <div class="main-content">

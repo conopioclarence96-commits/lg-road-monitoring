@@ -31,6 +31,8 @@ if (!isset($_SESSION['user_id']) || !is_admin_or_staff_role($user_role)) {
     exit();
 }
 
+$user_email = $_SESSION['email'] ?? '';
+
 // Handle mark as read
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
@@ -54,12 +56,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->close();
         }
 
+        if ($type === 'report_outcome') {
+            $stmt = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE id = ? AND type IN ('approve_request','reject_request')");
+            $stmt->bind_param("i", $id);
+            $stmt->execute();
+            $stmt->close();
+        }
+
         echo json_encode(['success' => true]);
         exit;
     }
 
     if ($action === 'mark_all_read') {
         $conn->query("UPDATE road_transportation_reports SET updated_at = NOW() WHERE status = 'pending'");
+        if ($user_email !== '') {
+            $stmt = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE recipient_email = ? AND type IN ('approve_request','reject_request')");
+            $stmt->bind_param("s", $user_email);
+            $stmt->execute();
+            $stmt->close();
+        }
         echo json_encode(['success' => true]);
         exit;
     }
@@ -298,6 +313,33 @@ if ($is_admin) {
         error_log("Staff report updates query error: " . $e->getMessage());
     }
 
+    // LGU Staff: get their review-request outcome notifications (approve/reject).
+    // These notifications have recipient_email set to the officer's email and
+    // type 'approve_request' or 'reject_request' — created by
+    // rgmap_notify_requestor() after a supervisor processes a request.
+    $user_email = $_SESSION['email'] ?? '';
+    $request_outcomes = [];
+    if ($user_email !== '') {
+        try {
+            $ro_stmt = $conn->prepare("
+                SELECT rn.*, r.report_id AS report_code, r.title AS report_title
+                FROM report_notifications rn
+                LEFT JOIN road_transportation_reports r ON rn.report_id = r.id
+                WHERE rn.recipient_email = ? AND rn.type IN ('approve_request','reject_request')
+                  AND rn.is_read = 0
+                ORDER BY rn.created_at DESC
+                LIMIT 20
+            ");
+            $ro_stmt->bind_param("s", $user_email);
+            $ro_stmt->execute();
+            $request_outcomes = $ro_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $ro_stmt->close();
+            $request_outcomes = array_map('resolve_progress_notification_source', $request_outcomes);
+        } catch (Exception $e) {
+            error_log("Request outcomes query error: " . $e->getMessage());
+        }
+    }
+
     // LGU Staff: get assigned projects
     try {
         $astmt = $conn->prepare("
@@ -385,7 +427,7 @@ if ($is_admin) {
     }
 }
 
-$total_notifications = $is_admin ? (count($pending_reports) + count($pending_changes) + count($progress_notifications) + count($assigned_projects)) : (count($staff_updates) + count($report_updates) + count($assigned_projects));
+$total_notifications = $is_admin ? (count($pending_reports) + count($pending_changes) + count($progress_notifications) + count($assigned_projects)) : (count($staff_updates) + count($report_updates) + count($assigned_projects) + count($request_outcomes));
 
 // --- Notification deep-link helpers ----------------------------------------
 // Every View/Review button must pass the report source together with the id
@@ -627,6 +669,7 @@ function notification_assignment_url(array $ap): string {
         .nc-card[data-kind="approved"]   { border-left-color: #10b981; }
         .nc-card[data-kind="rejected"]   { border-left-color: #ef4444; }
         .nc-card[data-kind="review"]     { border-left-color: #f59e0b; }
+        .nc-card[data-kind="request_outcome"] { border-left-color: #6366f1; }
         .nc-icon {
             width: 44px; height: 44px; border-radius: 12px; flex: 0 0 44px;
             display: flex; align-items: center; justify-content: center;
@@ -898,6 +941,29 @@ function notification_assignment_url(array $ap): string {
             ]);
         }
 
+        // Review request outcomes (approve/reject) — targeted to the officer by email
+        foreach ($request_outcomes as $ro) {
+            $is_approved = ($ro['type'] === 'approve_request');
+            $nc_push([
+                'id' => 'ro' . $ro['id'],
+                'ts' => $ro['created_at'],
+                'kind' => 'request_outcome',
+                'icon' => $is_approved ? 'fa-check-circle' : 'fa-times-circle',
+                'color' => $is_approved ? '#10b981' : '#ef4444',
+                'title' => 'Request ' . ($is_approved ? 'approved' : 'rejected') . ' · ' . ($ro['report_code'] ?? ('#' . $ro['report_id'])),
+                'desc' => $ro['message'] ?? '',
+                'sub' => '',
+                'report_id' => (string)($ro['report_code'] ?? ('#' . $ro['report_id'])),
+                'status' => ['label' => $is_approved ? 'Approved' : 'Rejected', 'class' => $is_approved ? 'nc-st-completed' : 'nc-st-cancelled'],
+                'priority' => null,
+                'tags' => [$is_approved ? 'Approved' : 'Rejected'],
+                'unread' => true,
+                'url' => '../shared/road_transportation_monitoring.php?focus_report_id=' . (int)($ro['report_id'] ?? 0) . '&source=' . rawurlencode($ro['_source'] ?? 'transport'),
+                'url_label' => 'View Report',
+                'mark' => ['url' => '', 'data' => ['action' => 'mark_read', 'type' => 'report_outcome', 'id' => (int)$ro['id']]],
+            ]);
+        }
+
         // My assigned projects
         foreach ($assigned_projects as $ap) {
             $desc = $ap['report_title'] ?? '';
@@ -977,6 +1043,7 @@ function notification_assignment_url(array $ap): string {
                     <option value="unread">Unread</option>
                     <option value="assigned">Assigned Projects</option>
                     <option value="report_update">Report Updates</option>
+                    <option value="request_outcome">Request Outcomes</option>
                     <option value="change_request">Change Requests</option>
                 </select>
                 <input type="text" id="ncSearch" class="nc-search" placeholder="Search notifications..." oninput="ncApplyFilters()">
@@ -1049,10 +1116,11 @@ function notification_assignment_url(array $ap): string {
 
     <script>
         const NC_FILTERS = {
-            all: ['report', 'progress', 'assignment', 'approved', 'rejected', 'review', 'change'],
+            all: ['report', 'progress', 'assignment', 'approved', 'rejected', 'review', 'change', 'request_outcome'],
             unread: null,
             assigned: ['assignment'],
             report_update: ['report', 'progress', 'approved', 'rejected', 'review'],
+            request_outcome: ['request_outcome'],
             change_request: ['change']
         };
         const NC_IS_ADMIN = <?php echo $is_admin ? 'true' : 'false'; ?>;
@@ -1105,13 +1173,11 @@ function notification_assignment_url(array $ap): string {
         }
 
         function ncMarkAllRead() {
-            if (NC_IS_ADMIN) {
-                fetch('', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: 'action=mark_all_read'
-                }).catch(function () {});
-            }
+            fetch('', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'action=mark_all_read'
+            }).catch(function () {});
             document.querySelectorAll('.nc-card').forEach(function (card) {
                 card.dataset.unread = 'false';
                 card.classList.remove('unread');

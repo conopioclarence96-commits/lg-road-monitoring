@@ -392,6 +392,12 @@ if ($method === 'GET') {
             if (!$archived) {
                 json_response(['success' => false, 'message' => 'Failed to cancel and archive the report'], 500);
             }
+            // Notify the officer who submitted the original review request.
+            $report_row = fetch_one("SELECT report_id FROM road_transportation_reports WHERE id = ?", [$report_id], "i");
+            if (!$report_row) {
+                $report_row = fetch_one("SELECT report_id FROM road_maintenance_reports WHERE id = ?", [$report_id], "i");
+            }
+            rgmap_notify_requestor($conn, $report_id, 'cancel', $user_id, $report_row['report_id'] ?? null);
             log_audit_action($user_id, "Cancelled and archived report", "Report ID: {$report_id}, Status: cancelled");
             json_response(['success' => true, 'message' => 'Report cancelled and moved to archive']);
         } catch (Exception $e) {
@@ -418,6 +424,12 @@ if ($method === 'GET') {
             if (!$archived) {
                 json_response(['success' => false, 'message' => 'Failed to file archive copy'], 500);
             }
+            // Notify the officer who submitted the original review request.
+            $report_row = fetch_one("SELECT report_id FROM road_transportation_reports WHERE id = ?", [$report_id], "i");
+            if (!$report_row) {
+                $report_row = fetch_one("SELECT report_id FROM road_maintenance_reports WHERE id = ?", [$report_id], "i");
+            }
+            rgmap_notify_requestor($conn, $report_id, 'complete', $user_id, $report_row['report_id'] ?? null);
             json_response(['success' => true, 'message' => 'Report filed in archive as completed']);
         } catch (Exception $e) {
             error_log("Complete archive error: " . $e->getMessage());
@@ -493,9 +505,12 @@ if ($method === 'GET') {
             $message = "{$request_label} — " . implode(' | ', $details);
 
             // Role-targeted notification (visible only to the matching supervisor
-            // role and to administrators).
-            $stmt = $conn->prepare("INSERT INTO report_notifications (report_id, type, message, recipient_role) VALUES (?, ?, ?, ?)");
-            $stmt->bind_param("isss", $report_id, $request_type, $message, $recipient_role);
+            // role and to administrators).  The requestor's user_id is stored in
+            // recipient_email (a dead column for role-targeted notifications) so
+            // that when the supervisor processes the request we can look up who
+            // submitted it and notify them of the outcome.
+            $stmt = $conn->prepare("INSERT INTO report_notifications (report_id, type, message, recipient_role, recipient_email) VALUES (?, ?, ?, ?, ?)");
+            $stmt->bind_param("issss", $report_id, $request_type, $message, $recipient_role, $user_id);
             $stmt->execute();
 
             log_audit_action($user_id, "Submitted {$request_label}", "Report ID: {$report_id}, Category: {$category}, Recipient role: {$recipient_role}");
@@ -735,6 +750,87 @@ function rgmap_archive_report_copy($conn, $table, $report_id, $status) {
         if ($conn->inTransaction()) $conn->rollback();
         error_log("rgmap_archive_report_copy failed: " . $e->getMessage());
         return false;
+    }
+}
+
+// Notify the officer who submitted a completion/cancellation request when the
+// supervisor processes it (approve or reject).  Called from complete_archive
+// and cancel_archive after the report has been archived.
+//
+// Logic:
+//   - Find the pending review-request notification (type 'completion' or
+//     'cancellation') that was created by submit_review_request for this
+//     report_id.  Its recipient_email holds the requestor's user_id.
+//   - Determine approve vs. reject:
+//       notification type 'completion' + action 'complete' → APPROVED
+//       notification type 'cancellation' + action 'cancel'  → APPROVED
+//       notification type 'completion' + action 'cancel'    → REJECTED
+//       notification type 'cancellation' + action 'complete' → REJECTED
+//   - Fetch the requestor's email from users table.
+//   - Insert a new notification (recipient_email = requestor email) so the
+//     officer sees it in their "Recent Activity" panel.
+//   - Mark the original review-request notification as read.
+function rgmap_notify_requestor($conn, $report_id, $action, $supervisor_id, $report_code) {
+    try {
+        // Look up the pending review-request notification for this report.
+        $stmt = $conn->prepare(
+            "SELECT id, type, recipient_email, recipient_role
+             FROM report_notifications
+             WHERE report_id = ? AND type IN ('completion','cancellation')
+               AND recipient_role IS NOT NULL
+             ORDER BY created_at DESC LIMIT 1"
+        );
+        $stmt->bind_param("i", $report_id);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$row) return;  // No pending review request — nothing to notify.
+
+        $request_type = $row['type'];
+        $requestor_uid = (int)$row['recipient_email'];  // user_id stored by submit_review_request
+        $supervisor = fetch_one("SELECT full_name FROM users WHERE id = ?", [$supervisor_id], "i");
+        $supervisor_name = $supervisor['full_name'] ?? 'Supervisor';
+
+        $report_label = $report_code ?? ('#' . $report_id);
+
+        // Determine approve vs reject based on request type + supervisor action.
+        $approved = false;
+        if ($request_type === 'completion' && $action === 'complete') $approved = true;
+        if ($request_type === 'cancellation' && $action === 'cancel')  $approved = true;
+
+        $type_label    = ($request_type === 'completion') ? 'completion request' : 'cancellation request';
+        $result_label  = $approved ? 'approved' : 'rejected';
+        $status_label  = ($request_type === 'completion')
+            ? ($approved ? 'completed' : 'still open')
+            : ($approved ? 'cancelled' : 'still open');
+
+        $message = "Your {$type_label} for report {$report_label} was {$result_label} by {$supervisor_name}. The report is now {$status_label}.";
+
+        // Fetch the requestor's email so the notification is visible to them.
+        $req_user = fetch_one("SELECT email FROM users WHERE id = ?", [$requestor_uid], "i");
+        $requestor_email = $req_user['email'] ?? null;
+
+        $notif_type = $approved ? 'approve_request' : 'reject_request';
+
+        $stmt = $conn->prepare(
+            "INSERT INTO report_notifications (report_id, type, message, recipient_email) VALUES (?, ?, ?, ?)"
+        );
+        $stmt->bind_param("isss", $report_id, $notif_type, $message, $requestor_email);
+        $stmt->execute();
+        $stmt->close();
+
+        // Mark the original review-request notification as read so it doesn't
+        // linger in the supervisor's pending list.
+        $stmt = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE id = ?");
+        $stmt->bind_param("i", $row['id']);
+        $stmt->execute();
+        $stmt->close();
+
+        log_audit_action($supervisor_id,
+            "Processed {$type_label}",
+            "Report ID: {$report_id}, Action: {$action}, Result: {$result_label}, Report code: {$report_label}");
+    } catch (Exception $e) {
+        error_log("rgmap_notify_requestor error: " . $e->getMessage());
     }
 }
 
