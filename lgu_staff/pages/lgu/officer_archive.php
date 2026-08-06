@@ -176,12 +176,11 @@ if ($conn->query("SHOW TABLES LIKE 'road_maintenance_reports_archive'")->num_row
         .meta-item i { color: #6c757d; }
         .archive-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
         .btn-view {
-            padding: 6px 12px; background: rgba(55, 98, 200, 0.1);
-            color: #3762c8; border: none; border-radius: 6px; font-size: 12px;
-            cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;
+            padding: 8px 16px; background: linear-gradient(135deg,#3762c8,#1e3c72);
+            color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 500;
+            cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.3s ease;
         }
-        .btn-view:hover { background: rgba(55, 98, 200, 0.2); }
-        body.dark-mode .btn-view { background: rgba(55,98,200,0.15); color: #60a5fa; }
+        .btn-view:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(55,98,200,0.3); }
         .notification {
             position: fixed; top: 20px; right: 20px; padding: 15px 20px; border-radius: 8px;
             color: white; font-weight: 500; z-index: 10000; animation: slideIn 0.3s ease;
@@ -371,8 +370,8 @@ if ($conn->query("SHOW TABLES LIKE 'road_maintenance_reports_archive'")->num_row
                                 <span class="meta-item"><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($row['location'] ?? 'N/A'); ?></span>
                             </div>
                             <div class="archive-actions">
-                                <button type="button" class="btn-view" onclick="viewArchive(<?php echo $row['id']; ?>, '<?php echo $row['_source_table'] ?? 'transport'; ?>')" title="View">
-                                    <i class="fas fa-eye"></i>
+                                <button type="button" class="btn-view" onclick="viewArchive(<?php echo $row['id']; ?>, '<?php echo $row['_source_table'] ?? 'transport'; ?>')">
+                                    <i class="fas fa-eye"></i> View
                                 </button>
                             </div>
                         </div>
