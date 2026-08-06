@@ -653,11 +653,6 @@ function handle_delete_cimm_report() {
         $stmt->bind_param("i", $report_id);
 
         if ($stmt->execute()) {
-            // Auto-remove notifications for this report since it no longer exists.
-            $cleanup = $conn->prepare("DELETE FROM report_notifications WHERE report_id = ?");
-            $cleanup->bind_param("i", $report_id);
-            $cleanup->execute();
-
             $label = $row ? ($row['reference_code'] ?? $row['infrastructure'] ?? 'Unknown') : 'Unknown';
             log_audit_action($user_id, "Deleted CIMM report", "Report ID: {$report_id}, Label: {$label}");
             $msg = $archived ? 'CIMM report moved to archive as cancelled.' : 'CIMM report deleted.';

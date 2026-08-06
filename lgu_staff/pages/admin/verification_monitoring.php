@@ -593,12 +593,7 @@ function archive_cimm_rejected_report($conn, $cimm_req_id) {
         // uses, and what the Reject form posts).
         $delete = $conn->prepare("DELETE FROM cimm_verification_reports WHERE cimm_req_id = ?");
         $delete->execute([$cimm_req_id]);
-
-        // Auto-remove notifications for this report since it no longer exists.
-        $cleanup = $conn->prepare("DELETE FROM report_notifications WHERE report_id = ?");
-        $cleanup->bind_param("i", $report_id);
-        $cleanup->execute();
-
+        
         $conn->commit();
         return true;
     } catch (Exception $e) {
