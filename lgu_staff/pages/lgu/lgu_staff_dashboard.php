@@ -822,6 +822,14 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer);
                     WHERE rn.is_read = 0" . $cat_filter . "
                       AND (rn.recipient_email = ? OR rn.recipient_role = ?
                            OR rn.report_id IN (SELECT id FROM road_transportation_reports WHERE created_by = ?" . $subquery_cat . "))
+                      AND EXISTS (
+                          SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
+                          UNION ALL
+                          SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
+                          UNION ALL
+                          SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id
+                          LIMIT 1
+                      )
                     ORDER BY rn.created_at DESC
                     LIMIT 6
                 ");

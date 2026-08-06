@@ -82,71 +82,25 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
     global $conn;
     $count = 0;
     if ($conn) {
-        if ($user_role === 'system_admin') {
-            try {
-                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'pending'");
-                $stmt->execute();
-                $count += $stmt->get_result()->fetch_assoc()['count'];
-                $stmt->close();
-            } catch (Exception $e) {}
-            try {
-                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM users WHERE account_status = 'pending'");
-                $stmt->execute();
-                $count += $stmt->get_result()->fetch_assoc()['count'];
-                $stmt->close();
-            } catch (Exception $e) {}
-            try {
-                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM change_requests WHERE status = 'pending'");
-                $stmt->execute();
-                $count += $stmt->get_result()->fetch_assoc()['count'];
-                $stmt->close();
-            } catch (Exception $e) {}
-            try {
-                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM report_notifications WHERE is_read = 0");
-                $stmt->execute();
-                $count += $stmt->get_result()->fetch_assoc()['count'];
-                $stmt->close();
-            } catch (Exception $e) {}
-            try {
-                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM report_assignments WHERE user_id = ? AND status = 'active'");
-                $stmt->bind_param("i", $user_id);
-                $stmt->execute();
-                $count += $stmt->get_result()->fetch_assoc()['count'];
-                $stmt->close();
-            } catch (Exception $e) {}
-        } elseif (is_staff_role($user_role) && $user_id > 0) {
-            // Supervisors: count completion/cancellation requests for their module.
-            if (in_array($user_role, ['road_ops_supervisor', 'trans_ops_supervisor'], true)) {
-                try {
-                    $stmt = $conn->prepare("SELECT COUNT(*) as count FROM report_notifications WHERE is_read = 0 AND recipient_role = ? AND type IN ('completion', 'cancellation')");
-                    $stmt->bind_param("s", $user_role);
-                    $stmt->execute();
-                    $count += $stmt->get_result()->fetch_assoc()['count'];
-                    $stmt->close();
-                } catch (Exception $e) {}
-            }
-            try {
-                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM change_requests WHERE user_id = ? AND status != 'pending'");
-                $stmt->bind_param("i", $user_id);
-                $stmt->execute();
-                $count += $stmt->get_result()->fetch_assoc()['count'];
-                $stmt->close();
-            } catch (Exception $e) {}
-            try {
-                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE created_by = ? AND status IN ('completed', 'cancelled')");
-                $stmt->bind_param("i", $user_id);
-                $stmt->execute();
-                $count += $stmt->get_result()->fetch_assoc()['count'];
-                $stmt->close();
-            } catch (Exception $e) {}
-            try {
-                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM report_assignments WHERE user_id = ? AND status = 'active'");
-                $stmt->bind_param("i", $user_id);
-                $stmt->execute();
-                $count += $stmt->get_result()->fetch_assoc()['count'];
-                $stmt->close();
-            } catch (Exception $e) {}
-        }
+        // Only count unread report_notifications that reference a report
+        // that still exists in one of the live tables.
+        try {
+            $stmt = $conn->prepare("
+                SELECT COUNT(*) as count FROM report_notifications rn
+                WHERE rn.is_read = 0
+                  AND EXISTS (
+                      SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
+                      UNION ALL
+                      SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
+                      UNION ALL
+                      SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id
+                      LIMIT 1
+                  )
+            ");
+            $stmt->execute();
+            $count += $stmt->get_result()->fetch_assoc()['count'];
+            $stmt->close();
+        } catch (Exception $e) {}
     }
     return $count;
 }

@@ -42,6 +42,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $type = $_POST['type'] ?? '';
         $id = $_POST['id'] ?? 0;
 
+        // Safety check: if a notification references a report that no longer
+        // exists in any live table, delete the notification instead of showing
+        // an error or marking it read.
+        if ($type === 'report' || $type === 'report_outcome' || $type === 'project_assignment') {
+            $check_stmt = $conn->prepare("
+                SELECT rn.id FROM report_notifications rn
+                WHERE rn.id = ?
+                  AND NOT EXISTS (
+                      SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
+                      UNION ALL
+                      SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
+                      UNION ALL
+                      SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id
+                      LIMIT 1
+                  )
+                LIMIT 1
+            ");
+            $check_stmt->bind_param("i", $id);
+            $check_stmt->execute();
+            $orphan = $check_stmt->get_result()->fetch_assoc();
+            $check_stmt->close();
+            if ($orphan) {
+                $del_stmt = $conn->prepare("DELETE FROM report_notifications WHERE id = ?");
+                $del_stmt->bind_param("i", $id);
+                $del_stmt->execute();
+                $del_stmt->close();
+                echo json_encode(['success' => true, 'deleted' => true]);
+                exit;
+            }
+        }
+
         if ($type === 'report') {
             $stmt = $conn->prepare("UPDATE road_transportation_reports SET updated_at = NOW() WHERE id = ? AND status = 'pending'");
             $stmt->bind_param("i", $id);
@@ -195,6 +226,14 @@ if ($is_admin) {
             FROM report_notifications rn
             LEFT JOIN road_transportation_reports r ON rn.report_id = r.id
             WHERE rn.is_read = 0
+              AND EXISTS (
+                  SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
+                  UNION ALL
+                  SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
+                  UNION ALL
+                  SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id
+                  LIMIT 1
+              )
             ORDER BY rn.created_at DESC
             LIMIT 20
         ");
@@ -327,6 +366,14 @@ if ($is_admin) {
                 LEFT JOIN road_transportation_reports r ON rn.report_id = r.id
                 WHERE rn.recipient_email = ? AND rn.type IN ('approve_request','reject_request')
                   AND rn.is_read = 0
+                  AND EXISTS (
+                      SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
+                      UNION ALL
+                      SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
+                      UNION ALL
+                      SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id
+                      LIMIT 1
+                  )
                 ORDER BY rn.created_at DESC
                 LIMIT 20
             ");
@@ -413,6 +460,14 @@ if ($is_admin) {
                 FROM report_notifications rn
                 LEFT JOIN road_transportation_reports r ON rn.report_id = r.id
                 WHERE rn.is_read = 0 AND rn.recipient_role = ? AND rn.type IN ('completion', 'cancellation')
+                  AND EXISTS (
+                      SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
+                      UNION ALL
+                      SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
+                      UNION ALL
+                      SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id
+                      LIMIT 1
+                  )
                 ORDER BY rn.created_at DESC
                 LIMIT 20
             ");
