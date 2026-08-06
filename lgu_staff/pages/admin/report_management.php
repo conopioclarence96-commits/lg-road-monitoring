@@ -2801,406 +2801,6 @@ if ($focus_id > 0) {
         .delete-confirm-footer .btn-confirm-delete.enabled:hover {
             background: #a71d2a;
         }
-
-        /* ===== Report Detail Modals (Verification-style) ===== */
-        .rm-modal-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.7);
-            z-index: 10000;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            box-sizing: border-box;
-            overflow-y: auto;
-        }
-
-        .rm-modal-overlay.active {
-            display: flex;
-        }
-
-        .rm-modal-content {
-            border-radius: 16px;
-            max-width: 860px;
-            width: 100%;
-            max-height: calc(100vh - 40px);
-            position: relative;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-            margin: auto;
-            display: flex;
-            flex-direction: column;
-            box-sizing: border-box;
-            animation: rmModalIn 0.3s ease-out;
-        }
-
-        @keyframes rmModalIn {
-            from { opacity: 0; transform: translateY(24px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .rm-modal-header {
-            background: white;
-            border-radius: 16px 16px 0 0;
-            padding: 24px 28px 18px;
-            border-bottom: 2px solid rgba(55, 98, 200, 0.15);
-            flex-shrink: 0;
-            position: sticky;
-            top: 0;
-            z-index: 1;
-        }
-
-        .rm-modal-header-top {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-        }
-
-        .rm-modal-title-area {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .rm-modal-report-id {
-            font-size: 13px;
-            font-weight: 600;
-            letter-spacing: 0.3px;
-            margin-bottom: 4px;
-        }
-
-        .rm-modal-title {
-            font-size: 22px;
-            font-weight: 700;
-            margin: 0 0 10px 0;
-            line-height: 1.3;
-        }
-
-        .rm-modal-badges {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        .rm-modal-close {
-            background: none;
-            border: none;
-            font-size: 28px;
-            color: #666;
-            cursor: pointer;
-            width: 36px;
-            height: 36px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-            transition: all 0.3s;
-            flex-shrink: 0;
-            margin-left: 15px;
-        }
-
-        .rm-modal-close:hover {
-            background: rgba(220, 53, 69, 0.1);
-            color: #dc3545;
-        }
-
-        .rm-modal-body {
-            overflow-y: auto;
-            flex: 1;
-            min-height: 0;
-            padding: 24px 28px;
-        }
-
-        .rm-modal-body::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        .rm-modal-body::-webkit-scrollbar-track {
-            background: rgba(55, 98, 200, 0.08);
-            border-radius: 4px;
-        }
-
-        .rm-modal-body::-webkit-scrollbar-thumb {
-            background: rgba(55, 98, 200, 0.2);
-            border-radius: 4px;
-        }
-
-        .rm-modal-body::-webkit-scrollbar-thumb:hover {
-            background: rgba(55, 98, 200, 0.35);
-        }
-
-        .rm-modal-section {
-            background: white;
-            border-radius: 12px;
-            padding: 18px 20px;
-            margin-bottom: 16px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-            border: 1px solid rgba(55, 98, 200, 0.1);
-        }
-
-        .rm-modal-section-title {
-            font-size: 14px;
-            font-weight: 700;
-            color: #1e3c72;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 14px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid rgba(55, 98, 200, 0.1);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .rm-modal-section-title i {
-            color: #3762c8;
-            font-size: 15px;
-        }
-
-        .rm-info-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-        }
-
-        .rm-info-item {
-            display: flex;
-            align-items: flex-start;
-            gap: 10px;
-            padding: 6px 0;
-        }
-
-        .rm-info-icon {
-            width: 28px;
-            height: 28px;
-            background: rgba(55, 98, 200, 0.1);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #3762c8;
-            font-size: 13px;
-            flex-shrink: 0;
-            margin-top: 1px;
-        }
-
-        .rm-info-label {
-            font-size: 11px;
-            color: #6b7280;
-            font-weight: 500;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            margin-bottom: 2px;
-        }
-
-        .rm-info-value {
-            font-size: 14px;
-            color: #1f2937;
-            font-weight: 500;
-            line-height: 1.4;
-            word-break: break-word;
-        }
-
-        .rm-info-value-full {
-            grid-column: 1 / -1;
-        }
-
-        .rm-description-text {
-            font-size: 14px;
-            color: #374151;
-            line-height: 1.7;
-            padding: 8px 0;
-            white-space: pre-wrap;
-        }
-
-        .rm-modal-footer {
-            background: white;
-            border-radius: 0 0 16px 16px;
-            padding: 16px 28px;
-            border-top: 1px solid rgba(55, 98, 200, 0.1);
-            flex-shrink: 0;
-            display: flex;
-            justify-content: flex-end;
-        }
-
-        .rm-modal-btn-close {
-            padding: 10px 24px;
-            background: rgba(55, 98, 200, 0.1);
-            color: #3762c8;
-            border: none;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: 600;
-            font-family: 'Poppins', sans-serif;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .rm-modal-btn-close:hover {
-            background: rgba(55, 98, 200, 0.2);
-        }
-
-        .rm-photo-gallery {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 4px;
-        }
-
-        .rm-photo-item {
-            width: 120px;
-            height: 120px;
-            border-radius: 8px;
-            overflow: hidden;
-            border: 2px solid rgba(55, 98, 200, 0.2);
-            cursor: pointer;
-            transition: border-color 0.2s, transform 0.2s;
-            flex-shrink: 0;
-            position: relative;
-            background: #f3f4f6;
-        }
-
-        .rm-photo-item:hover {
-            border-color: #3762c8;
-            transform: scale(1.05);
-        }
-
-        .rm-photo-item img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            display: block;
-        }
-
-        @media (max-width: 640px) {
-            .rm-info-grid {
-                grid-template-columns: 1fr;
-            }
-            .rm-modal-header { padding: 18px 16px; }
-            .rm-modal-body { padding: 16px; }
-            .rm-modal-content { max-width: 100%; border-radius: 0; }
-            .rm-modal-overlay { padding: 0; }
-        }
-
-        /* Citizen theme (green) */
-        .rm-modal-citizen .rm-modal-content { background: #f0f8f4; border: 1px solid #cce0d4; }
-        .rm-modal-citizen .rm-modal-header { border-bottom-color: rgba(22, 163, 74, 0.15); }
-        .rm-modal-citizen .rm-modal-report-id { color: #16a34a; }
-        .rm-modal-citizen .rm-modal-title { color: #15803d; }
-        .rm-modal-citizen .rm-modal-section { border-color: rgba(22, 163, 74, 0.1); }
-        .rm-modal-citizen .rm-modal-section-title { color: #15803d; border-bottom-color: rgba(22, 163, 74, 0.1); }
-        .rm-modal-citizen .rm-modal-section-title i { color: #16a34a; }
-        .rm-modal-citizen .rm-info-icon { background: rgba(22, 163, 74, 0.1); color: #16a34a; }
-        .rm-modal-citizen .rm-modal-footer { border-top-color: rgba(22, 163, 74, 0.1); }
-        .rm-modal-citizen .rm-modal-btn-close { background: rgba(22, 163, 74, 0.1); color: #16a34a; }
-        .rm-modal-citizen .rm-modal-btn-close:hover { background: rgba(22, 163, 74, 0.2); }
-        .rm-modal-citizen .rm-photo-item { border-color: rgba(22, 163, 74, 0.25); }
-        .rm-modal-citizen .rm-photo-item:hover { border-color: #16a34a; }
-        .rm-modal-citizen .rm-modal-body::-webkit-scrollbar-track { background: rgba(22, 163, 74, 0.08); }
-        .rm-modal-citizen .rm-modal-body::-webkit-scrollbar-thumb { background: rgba(22, 163, 74, 0.2); }
-
-        /* CIMM theme (blue) */
-        .rm-modal-cimm .rm-modal-content { background: #eef4ff; border: 1px solid #cdd9f2; }
-        .rm-modal-cimm .rm-modal-header { border-bottom-color: rgba(55, 98, 200, 0.15); }
-        .rm-modal-cimm .rm-modal-report-id { color: #3762c8; }
-        .rm-modal-cimm .rm-modal-title { color: #1e3c72; }
-        .rm-modal-cimm .rm-modal-section { border-color: rgba(55, 98, 200, 0.1); }
-        .rm-modal-cimm .rm-modal-section-title { color: #1e3c72; border-bottom-color: rgba(55, 98, 200, 0.1); }
-        .rm-modal-cimm .rm-modal-section-title i { color: #3762c8; }
-        .rm-modal-cimm .rm-info-icon { background: rgba(55, 98, 200, 0.1); color: #3762c8; }
-        .rm-modal-cimm .rm-modal-footer { border-top-color: rgba(55, 98, 200, 0.1); }
-        .rm-modal-cimm .rm-modal-btn-close { background: rgba(55, 98, 200, 0.1); color: #3762c8; }
-        .rm-modal-cimm .rm-modal-btn-close:hover { background: rgba(55, 98, 200, 0.2); }
-        .rm-modal-cimm .rm-photo-item { border-color: rgba(55, 98, 200, 0.25); }
-        .rm-modal-cimm .rm-photo-item:hover { border-color: #3762c8; }
-        .rm-modal-cimm .rm-modal-body::-webkit-scrollbar-track { background: rgba(55, 98, 200, 0.08); }
-        .rm-modal-cimm .rm-modal-body::-webkit-scrollbar-thumb { background: rgba(55, 98, 200, 0.2); }
-
-        /* Infrastructure theme (orange) */
-        .rm-modal-infra .rm-modal-content { background: #fff7ed; border: 1px solid #f3d7b8; }
-        .rm-modal-infra .rm-modal-header { border-bottom-color: rgba(249, 115, 22, 0.15); }
-        .rm-modal-infra .rm-modal-report-id { color: #f97316; }
-        .rm-modal-infra .rm-modal-title { color: #c2410c; }
-        .rm-modal-infra .rm-modal-section { border-color: rgba(249, 115, 22, 0.1); }
-        .rm-modal-infra .rm-modal-section-title { color: #c2410c; border-bottom-color: rgba(249, 115, 22, 0.1); }
-        .rm-modal-infra .rm-modal-section-title i { color: #f97316; }
-        .rm-modal-infra .rm-info-icon { background: rgba(249, 115, 22, 0.1); color: #f97316; }
-        .rm-modal-infra .rm-modal-footer { border-top-color: rgba(249, 115, 22, 0.1); }
-        .rm-modal-infra .rm-modal-btn-close { background: rgba(249, 115, 22, 0.1); color: #f97316; }
-        .rm-modal-infra .rm-modal-btn-close:hover { background: rgba(249, 115, 22, 0.2); }
-        .rm-modal-infra .rm-photo-item { border-color: rgba(249, 115, 22, 0.25); }
-        .rm-modal-infra .rm-photo-item:hover { border-color: #f97316; }
-        .rm-modal-infra .rm-modal-body::-webkit-scrollbar-track { background: rgba(249, 115, 22, 0.08); }
-        .rm-modal-infra .rm-modal-body::-webkit-scrollbar-thumb { background: rgba(249, 115, 22, 0.2); }
-
-        /* LGU theme (purple) */
-        .rm-modal-lgu .rm-modal-content { background: #faf5ff; border: 1px solid #e2d5f0; }
-        .rm-modal-lgu .rm-modal-header { border-bottom-color: rgba(139, 92, 246, 0.15); }
-        .rm-modal-lgu .rm-modal-report-id { color: #8b5cf6; }
-        .rm-modal-lgu .rm-modal-title { color: #6d28d9; }
-        .rm-modal-lgu .rm-modal-section { border-color: rgba(139, 92, 246, 0.1); }
-        .rm-modal-lgu .rm-modal-section-title { color: #6d28d9; border-bottom-color: rgba(139, 92, 246, 0.1); }
-        .rm-modal-lgu .rm-modal-section-title i { color: #8b5cf6; }
-        .rm-modal-lgu .rm-info-icon { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; }
-        .rm-modal-lgu .rm-modal-footer { border-top-color: rgba(139, 92, 246, 0.1); }
-        .rm-modal-lgu .rm-modal-btn-close { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; }
-        .rm-modal-lgu .rm-modal-btn-close:hover { background: rgba(139, 92, 246, 0.2); }
-        .rm-modal-lgu .rm-photo-item { border-color: rgba(139, 92, 246, 0.25); }
-        .rm-modal-lgu .rm-photo-item:hover { border-color: #8b5cf6; }
-        .rm-modal-lgu .rm-modal-body::-webkit-scrollbar-track { background: rgba(139, 92, 246, 0.08); }
-        .rm-modal-lgu .rm-modal-body::-webkit-scrollbar-thumb { background: rgba(139, 92, 246, 0.2); }
-
-        /* Dark mode */
-        .dark-mode .rm-modal-header,
-        .dark-mode .rm-modal-section,
-        .dark-mode .rm-modal-footer { background: #1e293b; }
-
-        .dark-mode .rm-modal-title { color: #f1f5f9; }
-        .dark-mode .rm-modal-report-id { opacity: 0.9; }
-        .dark-mode .rm-modal-close { color: #cbd5e1; }
-        .dark-mode .rm-modal-close:hover { background: rgba(220, 53, 69, 0.15); color: #f87171; }
-        .dark-mode .rm-modal-section-title { color: #94a3b8; border-bottom-color: rgba(148, 163, 184, 0.15); }
-        .dark-mode .rm-modal-section-title i { color: #cbd5e1; }
-        .dark-mode .rm-info-label { color: #94a3b8; }
-        .dark-mode .rm-info-value { color: #e2e8f0; }
-        .dark-mode .rm-description-text { color: #cbd5e1; }
-        .dark-mode .rm-modal-btn-close { background: rgba(148, 163, 184, 0.15); color: #e2e8f0; }
-        .dark-mode .rm-modal-btn-close:hover { background: rgba(148, 163, 184, 0.25); }
-        .dark-mode .rm-photo-item { background: #0f172a; }
-
-        .dark-mode .rm-modal-citizen .rm-modal-content { background: #12271c; border-color: #1e3a2c; }
-        .dark-mode .rm-modal-citizen .rm-modal-title { color: #4ade80; }
-        .dark-mode .rm-modal-citizen .rm-modal-report-id { color: #22c55e; }
-        .dark-mode .rm-modal-citizen .rm-modal-section-title { color: #86efac; }
-        .dark-mode .rm-modal-citizen .rm-modal-section-title i { color: #4ade80; }
-        .dark-mode .rm-modal-citizen .rm-info-icon { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
-        .dark-mode .rm-modal-citizen .rm-modal-btn-close { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
-
-        .dark-mode .rm-modal-cimm .rm-modal-content { background: #0f1b3d; border-color: #22305c; }
-        .dark-mode .rm-modal-cimm .rm-modal-title { color: #93c5fd; }
-        .dark-mode .rm-modal-cimm .rm-modal-report-id { color: #60a5fa; }
-        .dark-mode .rm-modal-cimm .rm-modal-section-title { color: #bfdbfe; }
-        .dark-mode .rm-modal-cimm .rm-modal-section-title i { color: #93c5fd; }
-        .dark-mode .rm-modal-cimm .rm-info-icon { background: rgba(59, 130, 246, 0.15); color: #93c5fd; }
-        .dark-mode .rm-modal-cimm .rm-modal-btn-close { background: rgba(59, 130, 246, 0.15); color: #93c5fd; }
-
-        .dark-mode .rm-modal-infra .rm-modal-content { background: #2d1a08; border-color: #4a2e15; }
-        .dark-mode .rm-modal-infra .rm-modal-title { color: #fdba74; }
-        .dark-mode .rm-modal-infra .rm-modal-report-id { color: #fb923c; }
-        .dark-mode .rm-modal-infra .rm-modal-section-title { color: #fed7aa; }
-        .dark-mode .rm-modal-infra .rm-modal-section-title i { color: #fdba74; }
-        .dark-mode .rm-modal-infra .rm-info-icon { background: rgba(249, 115, 22, 0.15); color: #fdba74; }
-        .dark-mode .rm-modal-infra .rm-modal-btn-close { background: rgba(249, 115, 22, 0.15); color: #fdba74; }
-
-        .dark-mode .rm-modal-lgu .rm-modal-content { background: #1f1233; border-color: #38265c; }
-        .dark-mode .rm-modal-lgu .rm-modal-title { color: #c4b5fd; }
-        .dark-mode .rm-modal-lgu .rm-modal-report-id { color: #a78bfa; }
-        .dark-mode .rm-modal-lgu .rm-modal-section-title { color: #ddd6fe; }
-        .dark-mode .rm-modal-lgu .rm-modal-section-title i { color: #c4b5fd; }
-        .dark-mode .rm-modal-lgu .rm-info-icon { background: rgba(139, 92, 246, 0.15); color: #c4b5fd; }
-        .dark-mode .rm-modal-lgu .rm-modal-btn-close { background: rgba(139, 92, 246, 0.15); color: #c4b5fd; }
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
@@ -3363,7 +2963,7 @@ if ($focus_id > 0) {
                         <tr data-id="<?php echo (int)$report['id']; ?>" data-source="lgu_reports">
                             <td>
                                 <div class="rm-action-group">
-                                    <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'lgu')">
+                                    <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-eye"></i>
                                     </button>
                                     <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'road_transportation_reports')">
@@ -3477,7 +3077,7 @@ if ($focus_id > 0) {
                         <tr data-id="<?php echo (int)$report['id']; ?>" data-source="citizen">
                             <td>
                                 <div class="rm-action-group">
-                                    <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'citizen')">
+                                    <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-eye"></i>
                                     </button>
                                     <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'road_transportation_reports')">
@@ -3694,7 +3294,7 @@ if ($focus_id > 0) {
                         <tr data-id="<?php echo (int)$report['id']; ?>" data-source="maintenance">
                             <td>
                                 <div class="rm-action-group">
-                                    <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'infra')">
+                                    <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-eye"></i>
                                     </button>
                                     <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'road_maintenance_reports')">
@@ -3992,182 +3592,18 @@ if ($focus_id > 0) {
         </div>
     </div>
 
-    <!-- Citizen Report Detail Modal -->
-    <div id="citizenDetailModal" class="rm-modal-overlay rm-modal-citizen" onclick="if(event.target===this)closeDetailModal('citizen')">
-        <div class="rm-modal-content">
-            <div class="rm-modal-header">
-                <div class="rm-modal-header-top">
-                    <div class="rm-modal-title-area">
-                        <div class="rm-modal-report-id">—</div>
-                        <h3 class="rm-modal-title">—</h3>
-                        <div class="rm-modal-badges"></div>
-                    </div>
-                    <button class="rm-modal-close" onclick="closeDetailModal('citizen')">&times;</button>
-                </div>
+    <!-- View Report Modal -->
+    <div id="viewReportModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Report Details</h5>
+                <button class="close" onclick="closeModal('viewReportModal')">&times;</button>
             </div>
-            <div class="rm-modal-body">
-                <div class="rm-modal-section">
-                    <div class="rm-modal-section-title"><i class="fas fa-info-circle"></i> Report Information</div>
-                    <div class="rm-info-grid rm-project-grid"></div>
-                </div>
-                <div class="rm-modal-section">
-                    <div class="rm-modal-section-title"><i class="fas fa-user"></i> Reporter Information</div>
-                    <div class="rm-info-grid rm-people-grid"></div>
-                </div>
-                <div class="rm-modal-section">
-                    <div class="rm-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location</div>
-                    <div class="rm-info-grid rm-location-grid"></div>
-                </div>
-                <div class="rm-modal-section">
-                    <div class="rm-modal-section-title"><i class="fas fa-align-left"></i> Report Description</div>
-                    <div class="rm-description-text rm-description">—</div>
-                </div>
-                <div class="rm-modal-section">
-                    <div class="rm-modal-section-title"><i class="fas fa-paperclip"></i> Attachments</div>
-                    <div class="rm-attachments"></div>
-                </div>
-                <div class="rm-modal-section">
-                    <div class="rm-modal-section-title"><i class="fas fa-clock"></i> Timeline &amp; Updates</div>
-                    <div class="rm-info-grid rm-timeline-grid"></div>
-                </div>
+            <div class="modal-body" id="viewReportContent">
+                <!-- Content will be loaded dynamically -->
             </div>
-            <div class="rm-modal-footer">
-                <button type="button" class="rm-modal-btn-close" onclick="closeDetailModal('citizen')"><i class="fas fa-times"></i> Close</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- LGU Report Detail Modal -->
-    <div id="lguDetailModal" class="rm-modal-overlay rm-modal-lgu" onclick="if(event.target===this)closeDetailModal('lgu')">
-        <div class="rm-modal-content">
-            <div class="rm-modal-header">
-                <div class="rm-modal-header-top">
-                    <div class="rm-modal-title-area">
-                        <div class="rm-modal-report-id">—</div>
-                        <h3 class="rm-modal-title">—</h3>
-                        <div class="rm-modal-badges"></div>
-                    </div>
-                    <button class="rm-modal-close" onclick="closeDetailModal('lgu')">&times;</button>
-                </div>
-            </div>
-            <div class="rm-modal-body">
-                <div class="rm-modal-section">
-                    <div class="rm-modal-section-title"><i class="fas fa-info-circle"></i> Report Information</div>
-                    <div class="rm-info-grid rm-project-grid"></div>
-                </div>
-                <div class="rm-modal-section">
-                    <div class="rm-modal-section-title"><i class="fas fa-building"></i> Department &amp; Staff</div>
-                    <div class="rm-info-grid rm-people-grid"></div>
-                </div>
-                <div class="rm-modal-section">
-                    <div class="rm-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location</div>
-                    <div class="rm-info-grid rm-location-grid"></div>
-                </div>
-                <div class="rm-modal-section">
-                    <div class="rm-modal-section-title"><i class="fas fa-align-left"></i> Report Description</div>
-                    <div class="rm-description-text rm-description">—</div>
-                </div>
-                <div class="rm-modal-section">
-                    <div class="rm-modal-section-title"><i class="fas fa-paperclip"></i> Attachments</div>
-                    <div class="rm-attachments"></div>
-                </div>
-                <div class="rm-modal-section">
-                    <div class="rm-modal-section-title"><i class="fas fa-clock"></i> Timeline &amp; Updates</div>
-                    <div class="rm-info-grid rm-timeline-grid"></div>
-                </div>
-            </div>
-            <div class="rm-modal-footer">
-                <button type="button" class="rm-modal-btn-close" onclick="closeDetailModal('lgu')"><i class="fas fa-times"></i> Close</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- CIMM Report Detail Modal -->
-    <div id="cimmReportModal" class="rm-modal-overlay rm-modal-cimm" onclick="if(event.target===this)closeDetailModal('cimm')">
-        <div class="rm-modal-content">
-            <div class="rm-modal-header">
-                <div class="rm-modal-header-top">
-                    <div class="rm-modal-title-area">
-                        <div class="rm-modal-report-id">—</div>
-                        <h3 class="rm-modal-title">—</h3>
-                        <div class="rm-modal-badges"></div>
-                    </div>
-                    <button class="rm-modal-close" onclick="closeDetailModal('cimm')">&times;</button>
-                </div>
-            </div>
-            <div class="rm-modal-body">
-                <div class="rm-modal-section">
-                    <div class="rm-modal-section-title"><i class="fas fa-info-circle"></i> Project Information</div>
-                    <div class="rm-info-grid rm-project-grid"></div>
-                </div>
-                <div class="rm-modal-section">
-                    <div class="rm-modal-section-title"><i class="fas fa-user"></i> Reporter Information</div>
-                    <div class="rm-info-grid rm-people-grid"></div>
-                </div>
-                <div class="rm-modal-section">
-                    <div class="rm-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location</div>
-                    <div class="rm-info-grid rm-location-grid"></div>
-                </div>
-                <div class="rm-modal-section">
-                    <div class="rm-modal-section-title"><i class="fas fa-align-left"></i> Project Description</div>
-                    <div class="rm-description-text rm-description">—</div>
-                </div>
-                <div class="rm-modal-section">
-                    <div class="rm-modal-section-title"><i class="fas fa-paperclip"></i> Attachments</div>
-                    <div class="rm-attachments"></div>
-                </div>
-                <div class="rm-modal-section">
-                    <div class="rm-modal-section-title"><i class="fas fa-clock"></i> Timeline &amp; Updates</div>
-                    <div class="rm-info-grid rm-timeline-grid"></div>
-                </div>
-            </div>
-            <div class="rm-modal-footer">
-                <button type="button" class="rm-modal-btn-close" onclick="closeDetailModal('cimm')"><i class="fas fa-times"></i> Close</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Infrastructure Report Detail Modal -->
-    <div id="infraReportModal" class="rm-modal-overlay rm-modal-infra" onclick="if(event.target===this)closeDetailModal('infra')">
-        <div class="rm-modal-content">
-            <div class="rm-modal-header">
-                <div class="rm-modal-header-top">
-                    <div class="rm-modal-title-area">
-                        <div class="rm-modal-report-id">—</div>
-                        <h3 class="rm-modal-title">—</h3>
-                        <div class="rm-modal-badges"></div>
-                    </div>
-                    <button class="rm-modal-close" onclick="closeDetailModal('infra')">&times;</button>
-                </div>
-            </div>
-            <div class="rm-modal-body">
-                <div class="rm-modal-section">
-                    <div class="rm-modal-section-title"><i class="fas fa-info-circle"></i> Project Information</div>
-                    <div class="rm-info-grid rm-project-grid"></div>
-                </div>
-                <div class="rm-modal-section">
-                    <div class="rm-modal-section-title"><i class="fas fa-user"></i> Reporter Information</div>
-                    <div class="rm-info-grid rm-people-grid"></div>
-                </div>
-                <div class="rm-modal-section">
-                    <div class="rm-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location</div>
-                    <div class="rm-info-grid rm-location-grid"></div>
-                </div>
-                <div class="rm-modal-section">
-                    <div class="rm-modal-section-title"><i class="fas fa-align-left"></i> Report Description</div>
-                    <div class="rm-description-text rm-description">—</div>
-                </div>
-                <div class="rm-modal-section">
-                    <div class="rm-modal-section-title"><i class="fas fa-paperclip"></i> Attachments</div>
-                    <div class="rm-attachments"></div>
-                </div>
-                <div class="rm-modal-section">
-                    <div class="rm-modal-section-title"><i class="fas fa-clock"></i> Timeline &amp; Updates</div>
-                    <div class="rm-info-grid rm-timeline-grid"></div>
-                </div>
-            </div>
-            <div class="rm-modal-footer">
-                <button type="button" class="rm-modal-btn-close" onclick="closeDetailModal('infra')"><i class="fas fa-times"></i> Close</button>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary-custom" onclick="closeModal('viewReportModal')">Close</button>
             </div>
         </div>
     </div>
@@ -4429,12 +3865,82 @@ if ($focus_id > 0) {
             el.parentElement.insertBefore(fallback, el.nextSibling);
         }
 
-        function viewReport(id, type, source) {
+        function viewReport(id, type) {
             fetch(`../api/get_report_details.php?id=${id}&type=${encodeURIComponent(type)}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        renderReportDetail(source, data.report);
+                        const content = document.getElementById('viewReportContent');
+                        content.innerHTML = `
+                            <div style="line-height: 1.6;">
+                                <h6 style="color: #1e3c72; margin-bottom: 15px;">${data.report.title}</h6>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                                    ${data.report.report_id ? `<div><strong>Report ID:</strong> ${data.report.report_id}</div>` : ''}
+                                    ${data.report.department ? `<div><strong>Department:</strong> ${data.report.department}</div>` : ''}
+                                    <div><strong>Type:</strong> ${data.report.report_type}</div>
+                                    <div><strong>Status:</strong> <span class="status-badge status-${data.report.status.replace('_', '-')}">${data.report.status}</span></div>
+                                    <div><strong>Priority:</strong> ${data.report.priority}</div>
+                                    <div><strong>Location:</strong> ${data.report.location}</div>
+                                    ${data.report.latitude && data.report.longitude && data.report.latitude != 0 && data.report.longitude != 0 ? `<div><a href="https://www.openstreetmap.org/?mlat=${data.report.latitude}&mlon=${data.report.longitude}&zoom=15" target="_blank" class="btn-map" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:#e8f4f8;color:#1e3c72;border-radius:6px;text-decoration:none;font-size:13px;font-weight:500;margin-top:4px;"><i class="fas fa-map-marker-alt"></i> View on Map</a></div>` : ''}
+                                </div>
+                                <div style="margin-bottom: 20px;">
+                                    <strong>Description:</strong>
+                                    <p style="margin-top: 5px;">${data.report.description}</p>
+                                </div>
+                                ${(() => {
+                                    let html = '';
+                                    const pics = [];
+                                    const seenPaths = new Set();
+                                    if (data.report.image_path && data.report.image_path !== '0' && data.report.image_path !== 'null') {
+                                        const p = '../../' + data.report.image_path;
+                                        pics.push(p);
+                                        seenPaths.add(data.report.image_path);
+                                    }
+                                    if (data.report.attachments) {
+                                        let atts = data.report.attachments;
+                                        if (typeof atts === 'string') { try { atts = JSON.parse(atts); } catch(e) { atts = []; } }
+                                        if (Array.isArray(atts)) {
+                                            atts.forEach(a => {
+                                                const p = a.file_path || a.file || '';
+                                                if (p && !seenPaths.has(p)) {
+                                                    pics.push('../../' + p);
+                                                    seenPaths.add(p);
+                                                }
+                                            });
+                                        }
+                                    }
+                                    if (data.report.update_media && Array.isArray(data.report.update_media)) {
+                                        data.report.update_media.forEach(m => {
+                                            const p = m.file_path || '';
+                                            if (p && !seenPaths.has(p) && m.file_type !== 'video') {
+                                                pics.push('../../' + p);
+                                                seenPaths.add(p);
+                                            }
+                                        });
+                                    }
+                                    if (pics.length) {
+                                        html += '<div style="margin-bottom:20px;"><strong>Photos:</strong><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">';
+                                        pics.forEach((p, i) => {
+                                            html += '<div style="width:100px;height:100px;border-radius:8px;overflow:hidden;border:2px solid #e2e8f0;">' +
+                                                '<img src="' + p + '" alt="Photo ' + (i+1) + '" style="width:100%;height:100%;object-fit:cover;cursor:pointer;" ' +
+                                                'onclick="window.open(\'' + p + '\',\'_blank\')" onerror="imgFallback(this)"></div>';
+                                        });
+                                        html += '</div></div>';
+                                    }
+                                    return html;
+                                })()}
+                                ${data.report.assigned_to ? `<div style="margin-bottom: 10px;"><strong>Assigned To:</strong> ${data.report.assigned_to}</div>` : ''}
+                                ${data.report.notes ? `<div style="margin-bottom: 10px;"><strong>Notes:</strong> ${data.report.notes}</div>` : ''}
+                                ${data.report.reporter_name ? `<div style="margin-bottom: 10px;"><strong>Reporter:</strong> ${data.report.reporter_name}</div>` : ''}
+                                <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee; font-size: 12px; color: #666;">
+                                    <div><strong>Created:</strong> ${data.report.created_at || 'N/A'}</div>
+                                    <div><strong>Updated:</strong> ${data.report.updated_at || 'Not updated'}</div>
+                                    ${data.report.approved_at ? `<div style="color: #28a745;"><strong>Approved:</strong> ${data.report.approved_at}</div>` : ''}
+                                    ${data.report.rejected_at ? `<div style="color: #dc3545;"><strong>Rejected:</strong> ${data.report.rejected_at}</div>` : ''}
+                                </div>
+                            </div>
+                        `;
+                        openModal('viewReportModal');
                     } else {
                         showNotification('Failed to load report details', 'error');
                     }
@@ -4447,7 +3953,6 @@ if ($focus_id > 0) {
 
         function closeLightbox() {
             document.getElementById('lightboxOverlay').classList.remove('show');
-            document.body.style.overflow = '';
         }
 
         function escapeHtml(text) {
@@ -4458,194 +3963,6 @@ if ($focus_id > 0) {
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#039;');
-        }
-
-        // ===== Report Detail Modal Helpers (Verification-style) =====
-        var detailModalConfig = {
-            citizen:     { modal: 'citizenDetailModal',      theme: 'citizen' },
-            lgu:         { modal: 'lguDetailModal',          theme: 'lgu' },
-            cimm:        { modal: 'cimmReportModal',         theme: 'cimm' },
-            maintenance: { modal: 'infraReportModal',        theme: 'infra' },
-            infra:       { modal: 'infraReportModal',        theme: 'infra' }
-        };
-
-        function getDetailModal(source) {
-            const cfg = detailModalConfig[source] || detailModalConfig.lgu;
-            return document.getElementById(cfg.modal);
-        }
-
-        function openDetailModal(source) {
-            const modal = getDetailModal(source);
-            if (modal) {
-                modal.classList.add('active');
-                document.body.style.overflow = 'hidden';
-            }
-        }
-
-        function closeDetailModal(source) {
-            const modal = getDetailModal(source);
-            if (modal) {
-                modal.classList.remove('active');
-                document.body.style.overflow = '';
-            }
-        }
-
-        function rmFormatDate(dateStr) {
-            if (!dateStr || dateStr === 'N/A') return '—';
-            const d = new Date(dateStr);
-            if (isNaN(d.getTime())) return dateStr;
-            const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-            return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
-        }
-
-        function rmFormatCurrency(val) {
-            if (val === null || val === undefined || val === '' || Number(val) === 0) return '—';
-            return '₱' + Number(val).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        }
-
-        function rmBadge(text, bg, color) {
-            return '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:' + bg + ';color:' + color + ';">' + escapeHtml(String(text)) + '</span>';
-        }
-
-        function rmInfoItem(icon, label, value) {
-            const v = (value !== null && value !== undefined && value !== '' && value !== '—') ? escapeHtml(String(value)) : '—';
-            return '<div class="rm-info-item"><div class="rm-info-icon"><i class="fas fa-' + icon + '"></i></div><div><div class="rm-info-label">' + label + '</div><div class="rm-info-value">' + v + '</div></div></div>';
-        }
-
-        function rmFullInfoItem(icon, label, valueHtml) {
-            return '<div class="rm-info-item rm-info-value-full"><div class="rm-info-icon"><i class="fas fa-' + icon + '"></i></div><div><div class="rm-info-label">' + label + '</div><div class="rm-info-value">' + valueHtml + '</div></div></div>';
-        }
-
-        var rmStatusStyles = {
-            'pending':     { bg: 'rgba(251,191,36,0.15)',  color: '#f59e0b' },
-            'submitted':   { bg: 'rgba(251,191,36,0.15)',  color: '#f59e0b' },
-            'approved':    { bg: 'rgba(34,197,94,0.15)',   color: '#22c55e' },
-            'completed':   { bg: 'rgba(34,197,94,0.15)',   color: '#22c55e' },
-            'resolved':    { bg: 'rgba(34,197,94,0.15)',   color: '#22c55e' },
-            'cancelled':   { bg: 'rgba(220,53,69,0.15)',   color: '#ef4444' },
-            'rejected':    { bg: 'rgba(220,53,69,0.15)',   color: '#ef4444' },
-            'in-progress': { bg: 'rgba(59,130,246,0.15)',  color: '#3b82f6' }
-        };
-
-        var rmPriorityStyles = {
-            'high':     { bg: 'rgba(220,53,69,0.15)',  color: '#ef4444' },
-            'critical': { bg: 'rgba(220,53,69,0.15)',  color: '#dc2626' },
-            'medium':   { bg: 'rgba(251,191,36,0.15)', color: '#f59e0b' },
-            'low':      { bg: 'rgba(34,197,94,0.15)',  color: '#22c55e' }
-        };
-
-        var rmTypeLabels = {
-            'infrastructure_issue': 'Infrastructure Issue',
-            'traffic_jam': 'Traffic Jam',
-            'accident': 'Vehicle Accident',
-            'road_closure': 'Road Closure',
-            'potholes': 'Potholes',
-            'road_damage': 'Road Damage',
-            'flooding': 'Flooding',
-            'street_light': 'Street Light',
-            'congestion': 'Congestion',
-            'routine': 'Routine Maintenance',
-            'emergency': 'Emergency Repair',
-            'preventive': 'Preventive Maintenance',
-            'corrective': 'Corrective Maintenance',
-            'scheduled': 'Scheduled Maintenance'
-        };
-
-        function rmBuildPhotos(r) {
-            const pics = [];
-            const seen = {};
-            if (r.image_path && r.image_path !== '0' && r.image_path !== 'null' && r.image_path !== null) {
-                pics.push('../../' + r.image_path);
-                seen[r.image_path] = true;
-            }
-            if (r.attachments) {
-                let atts = r.attachments;
-                if (typeof atts === 'string') { try { atts = JSON.parse(atts); } catch(e) { atts = []; } }
-                if (Array.isArray(atts)) {
-                    atts.forEach(a => {
-                        const p = a.file_path || a.file || '';
-                        if (p && !seen[p]) { pics.push('../../' + p); seen[p] = true; }
-                    });
-                }
-            }
-            if (r.update_media && Array.isArray(r.update_media)) {
-                r.update_media.forEach(m => {
-                    const p = m.file_path || '';
-                    if (p && !seen[p] && m.file_type !== 'video') { pics.push('../../' + p); seen[p] = true; }
-                });
-            }
-            if (!pics.length) {
-                return '<div style="padding:8px 0;color:#9ca3af;font-size:14px;">No attachments.</div>';
-            }
-            let html = '<div class="rm-photo-gallery">';
-            pics.forEach((p, i) => {
-                html += '<div class="rm-photo-item"><img src="' + p + '" alt="Photo ' + (i+1) + '" onclick="openLightbox(\'' + p.replace(/'/g, "\\'") + '\')" onerror="this.closest(\'.rm-photo-item\').style.display=\'none\'" loading="lazy"></div>';
-            });
-            html += '</div>';
-            return html;
-        }
-
-        function renderReportDetail(source, r) {
-            if (!r) return;
-            const modal = getDetailModal(source);
-            if (!modal) return;
-
-            modal.querySelector('.rm-modal-report-id').textContent = 'Report #' + (r.report_id || r.id || '—');
-            modal.querySelector('.rm-modal-title').textContent = r.title || 'Report Details';
-
-            let badges = '';
-            const st = String(r.status || 'pending').toLowerCase();
-            const ss = rmStatusStyles[st] || { bg: 'rgba(107,114,128,0.15)', color: '#6b7280' };
-            badges += rmBadge(r.status || '—', ss.bg, ss.color);
-            const pp = String(r.priority || 'medium').toLowerCase();
-            const ps = rmPriorityStyles[pp] || { bg: 'rgba(107,114,128,0.15)', color: '#6b7280' };
-            badges += rmBadge(r.priority || '—', ps.bg, ps.color);
-            const typeLabel = rmTypeLabels[r.report_type] || r.report_type;
-            if (typeLabel) {
-                badges += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(55,98,200,0.12);color:#3762c8;">' + escapeHtml(typeLabel) + '</span>';
-            }
-            if (source === 'cimm' && r.source_system) {
-                badges += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(249,115,22,0.12);color:#f97316;">CIMM</span>';
-            }
-            modal.querySelector('.rm-modal-badges').innerHTML = badges;
-
-            let projectGrid = '';
-            projectGrid += rmInfoItem('folder', 'Report Type', typeLabel || '—');
-            if (r.department && r.department !== 'cimm') projectGrid += rmInfoItem('building', 'Department', r.department);
-            projectGrid += rmInfoItem('calendar-alt', 'Created Date', rmFormatDate(r.created_date || r.created_at));
-            if (r.due_date) projectGrid += rmInfoItem('calendar-check', 'Due Date', rmFormatDate(r.due_date));
-            if (r.estimation && Number(r.estimation) > 0) projectGrid += rmInfoItem('wallet', 'Budget / Est. Cost', rmFormatCurrency(r.estimation));
-            if (r.assigned_to) projectGrid += rmInfoItem('hard-hat', 'Assigned To', r.assigned_to);
-            if (r.notes) projectGrid += rmInfoItem('sticky-note', 'Notes', r.notes);
-            modal.querySelector('.rm-project-grid').innerHTML = projectGrid;
-
-            let peopleGrid = '';
-            if (r.reporter_name) peopleGrid += rmInfoItem('user', 'Reporter', r.reporter_name);
-            if (r.reporter_email) peopleGrid += rmInfoItem('envelope', 'Reporter Email', r.reporter_email);
-            if (r.department && source === 'lgu') peopleGrid += rmInfoItem('building', 'Department', r.department);
-            if (r.assigned_to && source === 'lgu') peopleGrid += rmInfoItem('hard-hat', 'Assigned To', r.assigned_to);
-            modal.querySelector('.rm-people-grid').innerHTML = peopleGrid || '<div style="color:#9ca3af;font-size:14px;">No reporter information available.</div>';
-
-            let locVal = escapeHtml(r.location || '—');
-            if (r.latitude && r.longitude && Number(r.latitude) !== 0 && Number(r.longitude) !== 0) {
-                locVal += '<br><a href="https://www.openstreetmap.org/?mlat=' + r.latitude + '&mlon=' + r.longitude + '&zoom=15" target="_blank" rel="noopener" style="color:#3762c8;font-size:12px;text-decoration:none;font-weight:600;"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map</a>';
-            }
-            modal.querySelector('.rm-location-grid').innerHTML = rmFullInfoItem('map-marker-alt', 'Location', locVal);
-
-            modal.querySelector('.rm-description').textContent = r.description || r.notes || 'No description provided.';
-
-            modal.querySelector('.rm-attachments').innerHTML = rmBuildPhotos(r);
-
-            let timelineGrid = '';
-            timelineGrid += rmInfoItem('calendar-plus', 'Created', rmFormatDate(r.created_at || r.created_date));
-            if (r.updated_at) timelineGrid += rmInfoItem('edit', 'Last Updated', rmFormatDate(r.updated_at));
-            if (r.approved_at) timelineGrid += rmInfoItem('thumbs-up', 'Approved', rmFormatDate(r.approved_at));
-            if (r.rejected_at) timelineGrid += rmInfoItem('thumbs-down', 'Rejected', rmFormatDate(r.rejected_at));
-            if (r.completed_at) timelineGrid += rmInfoItem('check-circle', 'Completed', rmFormatDate(r.completed_at));
-            if (r.resolved_at) timelineGrid += rmInfoItem('check-circle', 'Resolved', rmFormatDate(r.resolved_at));
-            modal.querySelector('.rm-timeline-grid').innerHTML = timelineGrid;
-
-            openDetailModal(source);
         }
 
         function loadAssignedUsers() {
@@ -6020,7 +5337,31 @@ if ($focus_id > 0) {
         function viewCimmReport(idx) {
             var r = cimmData[idx];
             if (!r) return;
-            renderReportDetail('cimm', r);
+            var statusLabels = { 'pending': 'Pending Review', 'in-progress': 'Flagged', 'completed': 'Verified', 'cancelled': 'Dismissed' };
+            var priorityColors = { 'high': '#ef4444', 'medium': '#f59e0b', 'low': '#22c55e', 'critical': '#dc2626' };
+            var content = document.getElementById('viewReportContent');
+            content.innerHTML = '' +
+                '<div style="line-height:1.6;">' +
+                    '<h6 style="color:#c2410c;margin-bottom:15px;">CIMM Report — ' + (r.report_id || '—') + '</h6>' +
+                    '<div style="background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.2);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:#92400e;">' +
+                        '<i class="fas fa-info-circle"></i> This report originates from the CIMM system and is managed via Verification Monitoring.' +
+                    '</div>' +
+                    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px;">' +
+                        '<div><strong>Report #</strong><br>' + (r.report_id || '—') + '</div>' +
+                        '<div><strong>Infrastructure</strong><br>' + (r.title || '—') + '</div>' +
+                        '<div><strong>Location</strong><br>' + (r.location || '—') + '</div>' +
+                        '<div><strong>Engineer</strong><br>' + (r.assigned_to || '—') + '</div>' +
+                        '<div><strong>Reported By</strong><br>' + (r.reporter_name || '—') + '</div>' +
+                        '<div><strong>Start Date</strong><br>' + (r.start_date || '—') + '</div>' +
+                        '<div><strong>End Date</strong><br>' + (r.end_date || '—') + '</div>' +
+                        '<div><strong>Budget</strong><br>' + (r.estimation ? '₱' + parseFloat(r.estimation).toLocaleString('en-PH', {minimumFractionDigits:2}) : '—') + '</div>' +
+                        '<div><strong>Priority</strong><br><span style="display:inline-block;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:600;color:white;background:' + (priorityColors[r.priority] || '#6b7280') + ';">' + (r.priority ? r.priority.charAt(0).toUpperCase() + r.priority.slice(1) : '—') + '</span></div>' +
+                        '<div><strong>Status</strong><br><span style="display:inline-block;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:600;color:white;background:' + (r.status === 'completed' ? '#22c55e' : r.status === 'in-progress' ? '#f59e0b' : r.status === 'cancelled' ? '#ef4444' : '#6b7280') + ';">' + (statusLabels[r.status] || r.status || '—') + '</span></div>' +
+                    '</div>' +
+                    '<div style="margin-bottom:20px;"><strong>Issue / Notes</strong><p style="margin-top:5px;">' + (r.description || '—') + '</p></div>' +
+                '</div>';
+            document.querySelector('#viewReportModal .modal-title').textContent = 'CIMM Report Details';
+            openModal('viewReportModal');
         }
 
         // CIMM edit
