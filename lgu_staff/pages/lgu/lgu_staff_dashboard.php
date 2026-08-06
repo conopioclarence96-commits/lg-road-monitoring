@@ -2,6 +2,7 @@
 require_once '../../includes/session_config.php';
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
+require_once __DIR__ . '/../api/cimm_verification_data.php';
 
 // Check if user is logged in
 if (!isset($_SESSION['user_id']) || !is_staff_role($_SESSION['role'] ?? '')) {
@@ -742,18 +743,44 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer);
 
     function getMyAssignments($conn, $user_id, $road_only = false) {
         $rows = [];
-        if (!$conn || $user_id <= 0) return ['count' => 0, 'items' => $rows];
-        $cat_filter = $road_only ? " AND r.report_category = 'road'" : '';
+        if (!$conn || $user_id <= 0) {
+            return ['count' => 0, 'items' => $rows];
+        }
+
+        $road_only_filter = $road_only
+            ? " AND (ra.report_type <> 'road_transportation_reports' OR r.report_category = 'road')"
+            : '';
+
+        $assignment_sql = "
+            SELECT ra.*,
+                   r.report_id AS transport_code,
+                   r.title AS transport_title,
+                   r.status AS transport_status,
+                   r.priority AS transport_priority,
+                   c.reference_code AS cimm_code,
+                   c.cimm_req_id AS cimm_req_id,
+                   c.infrastructure AS cimm_title,
+                   c.priority AS cimm_priority,
+                   c.resolution_status AS cimm_resolution_status,
+                   c.approval_status AS cimm_approval_status,
+                   m.report_id AS maintenance_code,
+                   m.title AS maintenance_title,
+                   m.status AS maintenance_status,
+                   m.priority AS maintenance_priority
+            FROM report_assignments ra
+            LEFT JOIN road_transportation_reports r
+                ON ra.report_id = r.id AND ra.report_type = 'road_transportation_reports'
+            LEFT JOIN cimm_verification_reports c
+                ON ra.report_id = c.id AND ra.report_type = 'cimm_verification_reports'
+            LEFT JOIN road_maintenance_reports m
+                ON ra.report_id = m.id AND ra.report_type = 'road_maintenance_reports'
+            WHERE ra.user_id = ? AND ra.status = 'active'" . $road_only_filter . "
+            ORDER BY ra.assigned_at DESC
+            LIMIT 12
+        ";
+
         try {
-            $stmt = $conn->prepare("
-                SELECT ra.*, r.report_id AS report_code, r.title AS report_title,
-                       r.status AS report_status, r.priority
-                FROM report_assignments ra
-                LEFT JOIN road_transportation_reports r ON ra.report_id = r.id AND ra.report_type = 'road_transportation_reports'
-                WHERE ra.user_id = ? AND ra.status = 'active'" . $cat_filter . "
-                ORDER BY ra.assigned_at DESC
-                LIMIT 12
-            ");
+            $stmt = $conn->prepare($assignment_sql);
             $stmt->bind_param("i", $user_id);
             $stmt->execute();
             $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -762,9 +789,15 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer);
             $rows = [];
         }
 
-        $count = count($rows);
+        $count = 0;
         try {
-            $cstmt = $conn->prepare("SELECT COUNT(*) AS c FROM report_assignments ra LEFT JOIN road_transportation_reports r ON ra.report_id = r.id AND ra.report_type = 'road_transportation_reports' WHERE ra.user_id = ? AND ra.status = 'active'" . $cat_filter);
+            $cstmt = $conn->prepare("
+                SELECT COUNT(*) AS c
+                FROM report_assignments ra
+                LEFT JOIN road_transportation_reports r
+                    ON ra.report_id = r.id AND ra.report_type = 'road_transportation_reports'
+                WHERE ra.user_id = ? AND ra.status = 'active'" . $road_only_filter . "
+            ");
             $cstmt->bind_param("i", $user_id);
             $cstmt->execute();
             $count = (int)$cstmt->get_result()->fetch_assoc()['c'];
@@ -772,23 +805,30 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer);
         } catch (Exception $e) {}
 
         foreach ($rows as &$ra) {
-            $ra['_source'] = 'transport';
-            if ($ra['report_type'] === 'road_maintenance_reports') {
-                try {
-                    $m = $conn->prepare("SELECT report_id, title, priority, status FROM road_maintenance_reports WHERE id = ?");
-                    $m->bind_param("i", $ra['report_id']);
-                    $m->execute();
-                    $mr = $m->get_result()->fetch_assoc();
-                    $m->close();
-                    if ($mr) {
-                        $ra['report_code'] = $mr['report_id'];
-                        $ra['report_title'] = $mr['title'];
-                        $ra['priority'] = $mr['priority'];
-                        $ra['report_status'] = $mr['status'];
-                        $ra['_source'] = 'maintenance';
-                    }
-                } catch (Exception $e) {}
+            if ($ra['report_type'] === 'cimm_verification_reports') {
+                $ra['report_code'] = $ra['cimm_code']
+                    ?: (!empty($ra['cimm_req_id']) ? 'REQ-' . $ra['cimm_req_id'] : null);
+                $ra['report_title'] = $ra['cimm_title'];
+                $ra['priority'] = $ra['cimm_priority'];
+                $ra['report_status'] = cimm_resolution_status_to_display(
+                    $ra['cimm_resolution_status'] ?? null,
+                    $ra['cimm_approval_status'] ?? null
+                );
+                $ra['_source'] = 'cimm';
+            } elseif ($ra['report_type'] === 'road_maintenance_reports') {
+                $ra['report_code'] = $ra['maintenance_code'];
+                $ra['report_title'] = $ra['maintenance_title'];
+                $ra['priority'] = $ra['maintenance_priority'];
+                $ra['report_status'] = $ra['maintenance_status'];
+                $ra['_source'] = 'maintenance';
+            } else {
+                $ra['report_code'] = $ra['transport_code'];
+                $ra['report_title'] = $ra['transport_title'];
+                $ra['priority'] = $ra['transport_priority'];
+                $ra['report_status'] = $ra['transport_status'];
+                $ra['_source'] = 'transport';
             }
+
             $ra['report_code'] = $ra['report_code'] ?? ('#' . $ra['report_id']);
             $ra['report_title'] = $ra['report_title'] ?? ('Assigned report #' . $ra['report_id']);
             $ra['priority'] = $ra['priority'] ?? 'medium';
