@@ -531,6 +531,316 @@ if (isset($_SESSION['archive_message'])) {
             margin-top: 10px; cursor: pointer;
         }
 
+        /* View Archive Modal (btn-view viewport — mirrors report_management rm modal) */
+        .rm-modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+
+        .rm-modal-overlay.active {
+            display: flex;
+        }
+
+        .rm-modal-content {
+            background: #f0f4fa;
+            border-radius: 16px;
+            max-width: 860px;
+            width: 100%;
+            max-height: calc(100vh - 40px);
+            position: relative;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            margin: auto;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            border: 1px solid #c8d0e0;
+        }
+
+        .rm-modal-header {
+            background: white;
+            border-radius: 16px 16px 0 0;
+            padding: 24px 28px 18px;
+            border-bottom: 2px solid rgba(55, 98, 200, 0.15);
+            flex-shrink: 0;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        .rm-modal-header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .rm-modal-title-area {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .rm-modal-report-id {
+            font-size: 13px;
+            color: #3762c8;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            margin-bottom: 4px;
+        }
+
+        .rm-modal-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1e3c72;
+            margin: 0 0 10px 0;
+            line-height: 1.3;
+        }
+
+        .rm-modal-badges {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .rm-modal-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            color: #666;
+            cursor: pointer;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.3s;
+            flex-shrink: 0;
+            margin-left: 15px;
+        }
+
+        .rm-modal-close:hover {
+            background: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+        }
+
+        .rm-modal-body {
+            overflow-y: auto;
+            flex: 1;
+            min-height: 0;
+            padding: 24px 28px;
+        }
+
+        .rm-modal-body::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .rm-modal-body::-webkit-scrollbar-track {
+            background: rgba(55, 98, 200, 0.08);
+            border-radius: 4px;
+        }
+
+        .rm-modal-body::-webkit-scrollbar-thumb {
+            background: rgba(55, 98, 200, 0.2);
+            border-radius: 4px;
+        }
+
+        .rm-modal-body::-webkit-scrollbar-thumb:hover {
+            background: rgba(55, 98, 200, 0.35);
+        }
+
+        .rm-modal-section {
+            background: white;
+            border-radius: 12px;
+            padding: 18px 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            border: 1px solid rgba(55, 98, 200, 0.1);
+        }
+
+        .rm-modal-section-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #1e3c72;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 14px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(55, 98, 200, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .rm-modal-section-title i {
+            color: #3762c8;
+            font-size: 15px;
+        }
+
+        .rm-info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .rm-info-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 6px 0;
+        }
+
+        .rm-info-icon {
+            width: 28px;
+            height: 28px;
+            background: rgba(55, 98, 200, 0.1);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #3762c8;
+            font-size: 13px;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .rm-info-label {
+            font-size: 11px;
+            color: #6b7280;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-bottom: 2px;
+        }
+
+        .rm-info-value {
+            font-size: 14px;
+            color: #1f2937;
+            font-weight: 500;
+            line-height: 1.4;
+            word-break: break-word;
+        }
+
+        .rm-info-value-full {
+            grid-column: 1 / -1;
+        }
+
+        .rm-description-text {
+            font-size: 14px;
+            color: #374151;
+            line-height: 1.7;
+            padding: 8px 0;
+            white-space: pre-wrap;
+        }
+
+        .rm-modal-footer {
+            background: white;
+            border-radius: 0 0 16px 16px;
+            padding: 16px 28px;
+            border-top: 1px solid rgba(55, 98, 200, 0.1);
+            flex-shrink: 0;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .rm-modal-btn-close {
+            padding: 10px 24px;
+            background: rgba(55, 98, 200, 0.1);
+            color: #3762c8;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .rm-modal-btn-close:hover {
+            background: rgba(55, 98, 200, 0.2);
+        }
+
+        @media (max-width: 640px) {
+            .rm-info-grid {
+                grid-template-columns: 1fr;
+            }
+            .rm-modal-header {
+                padding: 18px 16px;
+            }
+            .rm-modal-body {
+                padding: 16px;
+            }
+            .rm-modal-content {
+                max-width: 100%;
+                border-radius: 0;
+            }
+            .rm-modal-overlay {
+                padding: 0;
+            }
+        }
+
+        /* View Archive Modal Dark Mode */
+        body.dark-mode .rm-modal-content {
+            background: #1a1d24 !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode .rm-modal-header {
+            background: #1a1d24 !important;
+            border-bottom-color: #2d323b !important;
+        }
+        body.dark-mode .rm-modal-title {
+            color: #60a5fa !important;
+        }
+        body.dark-mode .rm-modal-report-id {
+            color: #60a5fa !important;
+        }
+        body.dark-mode .rm-modal-close {
+            color: #9ca3af !important;
+        }
+        body.dark-mode .rm-modal-section {
+            background: #22262e !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode .rm-modal-section-title {
+            color: #60a5fa !important;
+            border-bottom-color: #2d323b !important;
+        }
+        body.dark-mode .rm-info-icon {
+            background: rgba(55,98,200,0.15) !important;
+        }
+        body.dark-mode .rm-info-label {
+            color: #9ca3af !important;
+        }
+        body.dark-mode .rm-info-value {
+            color: #e4e6ea !important;
+        }
+        body.dark-mode .rm-description-text {
+            color: #c0c8d8 !important;
+        }
+        body.dark-mode .rm-modal-footer {
+            background: #1a1d24 !important;
+            border-top-color: #2d323b !important;
+        }
+        body.dark-mode .rm-modal-btn-close {
+            background: rgba(55,98,200,0.15) !important;
+            color: #60a5fa !important;
+        }
+        body.dark-mode .rm-modal-body::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05) !important;
+        }
+        body.dark-mode .rm-modal-body::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.15) !important;
+        }
+
         /* Dark mode */
         body.dark-mode { background: #1a1d23; }
         body.dark-mode .archive-header,
@@ -807,14 +1117,56 @@ if (isset($_SESSION['archive_message'])) {
         </div>
     </div>
 
-    <!-- View Modal -->
-    <div class="modal-overlay" id="viewModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2><i class="fas fa-file-alt"></i> <span id="modalTitle">Report Details</span></h2>
-                <button type="button" class="modal-close" onclick="closeViewModal()">&times;</button>
+    <!-- View Archive Modal (btn-view viewport) -->
+    <div class="rm-modal-overlay" id="viewModal" onclick="if(event.target===this)closeViewModal()">
+        <div class="rm-modal-content">
+            <div class="rm-modal-header">
+                <div class="rm-modal-header-top">
+                    <div class="rm-modal-title-area">
+                        <div class="rm-modal-report-id" id="rm-report-id">—</div>
+                        <h3 class="rm-modal-title" id="rm-title">—</h3>
+                        <div class="rm-modal-badges" id="rm-badges"></div>
+                    </div>
+                    <button type="button" class="rm-modal-close" onclick="closeViewModal()">&times;</button>
+                </div>
             </div>
-            <div class="modal-body" id="modalBody"></div>
+            <div class="rm-modal-body">
+                <!-- Report Information -->
+                <div class="rm-modal-section">
+                    <div class="rm-modal-section-title"><i class="fas fa-info-circle"></i> Report Information</div>
+                    <div class="rm-info-grid" id="rm-report-grid"></div>
+                </div>
+                <!-- Source & Department -->
+                <div class="rm-modal-section">
+                    <div class="rm-modal-section-title"><i class="fas fa-building"></i> Source &amp; Department</div>
+                    <div class="rm-info-grid" id="rm-source-grid"></div>
+                </div>
+                <!-- Location -->
+                <div class="rm-modal-section">
+                    <div class="rm-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location</div>
+                    <div class="rm-info-grid" id="rm-location-grid"></div>
+                </div>
+                <!-- Description -->
+                <div class="rm-modal-section">
+                    <div class="rm-modal-section-title"><i class="fas fa-align-left"></i> Description</div>
+                    <div class="rm-description-text" id="rm-description">—</div>
+                </div>
+                <!-- Attachments -->
+                <div class="rm-modal-section">
+                    <div class="rm-modal-section-title"><i class="fas fa-paperclip"></i> Attachments</div>
+                    <div id="rm-attachments"></div>
+                </div>
+                <!-- Timeline -->
+                <div class="rm-modal-section">
+                    <div class="rm-modal-section-title"><i class="fas fa-clock"></i> Timeline &amp; Updates</div>
+                    <div class="rm-info-grid" id="rm-timeline-grid"></div>
+                </div>
+            </div>
+            <div class="rm-modal-footer">
+                <button type="button" class="rm-modal-btn-close" onclick="closeViewModal()">
+                    <i class="fas fa-times"></i> Close
+                </button>
+            </div>
         </div>
     </div>
 
@@ -840,77 +1192,157 @@ if (isset($_SESSION['archive_message'])) {
             echo json_encode($rows);
         ?>;
 
+        // View Archive Modal helpers (mirrors report_management rm modal)
+        function formatDate(dateStr) {
+            if (!dateStr) return '—';
+            var d = new Date(dateStr);
+            if (isNaN(d.getTime())) return dateStr;
+            var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+        }
+
+        function rmBadge(text, bg, color) {
+            return '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:' + bg + ';color:' + color + ';">' + text + '</span>';
+        }
+
+        function rmInfoItem(icon, label, value) {
+            var displayVal = (value && value !== '—' && value !== null) ? value : '—';
+            return '<div class="rm-info-item"><div class="rm-info-icon"><i class="fas fa-' + icon + '"></i></div><div><div class="rm-info-label">' + label + '</div><div class="rm-info-value">' + displayVal + '</div></div></div>';
+        }
+
         function viewArchive(id) {
             var row = archiveData.find(function(r) { return r.id == id; });
             if (!row) return;
 
-            document.getElementById('modalTitle').textContent = row.title || 'Report Details';
-
-            var html = '';
-            var fields = [
-                { label: 'Report ID', value: row.report_id },
-                { label: 'Title', value: row.title },
-                { label: 'Report Type', value: row.report_type },
-                { label: 'Department', value: row.department },
-                { label: 'Priority', value: row.priority },
-                { label: 'Status', value: row.status },
-                { label: 'Location', value: row.location },
-                { label: 'Description', value: row.description },
-                { label: 'Created Date', value: row.created_date },
-                { label: 'Due Date', value: row.due_date },
-                { label: 'Latitude', value: row.latitude },
-                { label: 'Longitude', value: row.longitude },
-                { label: 'Created At', value: row.created_at },
-                { label: 'Updated At', value: row.updated_at },
-                { label: 'Approved At', value: row.approved_at },
-                { label: 'Rejected At', value: row.rejected_at }
-            ];
+            var statusStyles = {
+                'pending':    {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
+                'approved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
+                'completed':  {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
+                'resolved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
+                'cancelled':  {bg:'rgba(220,53,69,0.15)',  color:'#ef4444'},
+                'rejected':   {bg:'rgba(249,115,22,0.15)', color:'#f97316'},
+                'in-progress':{bg:'rgba(59,130,246,0.15)', color:'#3b82f6'}
+            };
+            var pStyles = {
+                'high':   {bg:'rgba(220,53,69,0.15)', color:'#ef4444'},
+                'critical':{bg:'rgba(220,53,69,0.15)', color:'#dc2626'},
+                'medium': {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
+                'low':    {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'}
+            };
 
             var sourceLabels = { 'lgu': 'LGU Monitoring', 'citizen': 'Citizen', 'cimm': 'CIMM', 'infrastructure': 'Infrastructure' };
-            var sourceIcons = { 'lgu': 'fa-users', 'citizen': 'fa-user', 'cimm': 'fa-handshake', 'infrastructure': 'fa-hard-hat' };
+
+            // Header
+            document.getElementById('rm-report-id').textContent = 'Report #' + (row.report_id || '—');
+            document.getElementById('rm-title').textContent = row.title || '—';
+
+            var st = (row.status || 'pending').toLowerCase();
+            var ss = statusStyles[st] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
+            var pp = (row.priority || 'medium').toLowerCase();
+            var ps = pStyles[pp] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
+
+            var badgesHtml = rmBadge(row.status || '—', ss.bg, ss.color);
+            badgesHtml += rmBadge(row.priority || '—', ps.bg, ps.color);
             var src = row.source_system || 'citizen';
             var sourceLabel = sourceLabels[src] || src;
-            var sourceIcon = sourceIcons[src] || 'fa-file-archive';
+            if (sourceLabel !== '—') {
+                badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(55,98,200,0.12);color:#3762c8;">' + sourceLabel + '</span>';
+            }
+            document.getElementById('rm-badges').innerHTML = badgesHtml;
 
-            html += '<div class="detail-row"><span class="detail-label">Source System</span><span class="detail-value"><i class="fas ' + sourceIcon + '"></i> ' + sourceLabel + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Report ID</span><span class="detail-value">' + (row.report_id || 'N/A') + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Title</span><span class="detail-value">' + esc(row.title) + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Report Type</span><span class="detail-value">' + esc(row.report_type) + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Department</span><span class="detail-value">' + esc(row.department) + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Priority</span><span class="detail-value">' + esc(row.priority) + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">' + esc(row.status) + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Location</span><span class="detail-value">' + esc(row.location || 'N/A') + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Description</span><span class="detail-value">' + esc(row.description || 'N/A') + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Created Date</span><span class="detail-value">' + esc(row.created_date || 'N/A') + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Due Date</span><span class="detail-value">' + esc(row.due_date || 'N/A') + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Latitude</span><span class="detail-value">' + esc(row.latitude || 'N/A') + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Longitude</span><span class="detail-value">' + esc(row.longitude || 'N/A') + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Created At</span><span class="detail-value">' + esc(row.created_at || 'N/A') + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Updated At</span><span class="detail-value">' + esc(row.updated_at || 'N/A') + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Approved At</span><span class="detail-value">' + esc(row.approved_at || 'N/A') + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Rejected At</span><span class="detail-value">' + esc(row.rejected_at || 'N/A') + '</span></div>';
+            // Report Information
+            var reportGrid = '';
+            reportGrid += rmInfoItem('folder', 'Report Type', row.report_type);
+            reportGrid += rmInfoItem('calendar-alt', 'Created Date', row.created_date);
+            reportGrid += rmInfoItem('calendar-check', 'Due Date', row.due_date);
+            reportGrid += rmInfoItem('tag', 'Source System', sourceLabel);
+            if (row.estimation) {
+                reportGrid += rmInfoItem('dollar-sign', 'Estimation', row.estimation ? '₱' + parseFloat(row.estimation).toLocaleString('en-PH', {minimumFractionDigits:2}) : '—');
+            }
+            if (row.assigned_to) {
+                reportGrid += rmInfoItem('user-cog', 'Assigned To', row.assigned_to);
+            }
+            document.getElementById('rm-report-grid').innerHTML = reportGrid;
 
+            // Source & Department
+            var sourceGrid = '';
+            sourceGrid += rmInfoItem('building', 'Department', row.department);
+            sourceGrid += rmInfoItem('history', 'Archived From', row.archived_from);
+            if (row.previous_status) {
+                sourceGrid += rmInfoItem('undo', 'Previous Status', row.previous_status);
+            }
+            if (row.approved_at) {
+                sourceGrid += rmInfoItem('thumbs-up', 'Approved At', formatDate(row.approved_at));
+            }
+            if (row.rejected_at) {
+                sourceGrid += rmInfoItem('thumbs-down', 'Rejected At', formatDate(row.rejected_at));
+            }
+            document.getElementById('rm-source-grid').innerHTML = sourceGrid;
+
+            // Location
+            var locationGrid = '';
+            var locVal = row.location || '—';
+            if (row.latitude && row.longitude && row.latitude != 0 && row.longitude != 0) {
+                locVal += '<br><a href="https://www.openstreetmap.org/?mlat=' + row.latitude + '&mlon=' + row.longitude + '&zoom=15" target="_blank" style="color:#3762c8;font-size:12px;text-decoration:none;"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map (' + row.latitude + ', ' + row.longitude + ')</a>';
+            }
+            locationGrid += '<div class="rm-info-item rm-info-value-full"><div class="rm-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="rm-info-label">Location</div><div class="rm-info-value">' + locVal + '</div></div></div>';
+            document.getElementById('rm-location-grid').innerHTML = locationGrid;
+
+            // Description
+            document.getElementById('rm-description').textContent = row.description || 'No description provided.';
+
+            // Attachments
+            var images = [];
+            var seenPaths = new Set();
+            if (row.image_path && row.image_path !== '0' && row.image_path !== 'null') {
+                images.push('../../' + row.image_path);
+                seenPaths.add(row.image_path);
+            }
             if (row.attachments) {
                 try {
                     var attachments = JSON.parse(row.attachments);
-                    if (Array.isArray(attachments) && attachments.length) {
-                        html += '<div class="detail-row"><span class="detail-label">Attachments</span><span class="detail-value">';
+                    if (Array.isArray(attachments)) {
                         attachments.forEach(function(a) {
-                            if (a.type === 'image' && a.file_path) {
-                                html += '<img src="../../' + a.file_path + '" class="modal-image" onclick="window.open(this.src,\'_blank\')" title="Click to view full size" style="max-width:100%;max-height:300px;border-radius:8px;margin-top:8px;cursor:pointer;" />';
+                            if ((a.type === 'image' || !a.type) && a.file_path && !seenPaths.has(a.file_path)) {
+                                images.push('../../' + a.file_path);
+                                seenPaths.add(a.file_path);
                             }
                         });
-                        html += '</span></div>';
                     }
                 } catch(e) {}
             }
+            var attachHtml = '';
+            if (images.length > 0) {
+                attachHtml = '<div style="display:flex;gap:12px;flex-wrap:wrap;">';
+                images.forEach(function(path) {
+                    attachHtml += '<div style="border-radius:8px;overflow:hidden;max-width:200px;"><img src="' + path + '" alt="Archived Photo" style="width:100%;height:auto;cursor:pointer;" onclick="window.open(this.src,\'_blank\')" loading="lazy" onerror="this.style.display=\'none\'"></div>';
+                });
+                attachHtml += '</div>';
+            } else {
+                attachHtml = '<div style="padding:8px 0;color:#9ca3af;font-size:14px;">No attachments.</div>';
+            }
+            document.getElementById('rm-attachments').innerHTML = attachHtml;
 
-            document.getElementById('modalBody').innerHTML = html;
+            // Timeline
+            var timelineGrid = '';
+            timelineGrid += rmInfoItem('calendar-check', 'Created', formatDate(row.created_at));
+            if (row.approved_at) {
+                timelineGrid += rmInfoItem('thumbs-up', 'Approved', formatDate(row.approved_at));
+            }
+            if (row.rejected_at) {
+                timelineGrid += rmInfoItem('thumbs-down', 'Rejected', formatDate(row.rejected_at));
+            }
+            if (row.updated_at) {
+                timelineGrid += rmInfoItem('edit', 'Last Updated', formatDate(row.updated_at));
+            }
+            document.getElementById('rm-timeline-grid').innerHTML = timelineGrid;
+
             document.getElementById('viewModal').classList.add('active');
         }
 
         function closeViewModal() {
             document.getElementById('viewModal').classList.remove('active');
+            document.body.style.overflow = '';
         }
 
         function esc(str) {
@@ -950,7 +1382,7 @@ if (isset($_SESSION['archive_message'])) {
         }
 
         function closeModalAndRefresh() {
-            closeModal('viewModal');
+            closeViewModal();
             location.reload();
         }
     </script>
