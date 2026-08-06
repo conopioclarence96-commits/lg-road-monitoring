@@ -397,6 +397,9 @@ if ($method === 'GET') {
             if (!$report_row) {
                 $report_row = fetch_one("SELECT report_id FROM road_maintenance_reports WHERE id = ?", [$report_id], "i");
             }
+            if (!$report_row) {
+                $report_row = fetch_one("SELECT reference_code AS report_id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
+            }
             rgmap_notify_requestor($conn, $report_id, 'cancel', $user_id, $report_row['report_id'] ?? null);
             log_audit_action($user_id, "Cancelled and archived report", "Report ID: {$report_id}, Status: cancelled");
             json_response(['success' => true, 'message' => 'Report cancelled and moved to archive']);
@@ -428,6 +431,9 @@ if ($method === 'GET') {
             $report_row = fetch_one("SELECT report_id FROM road_transportation_reports WHERE id = ?", [$report_id], "i");
             if (!$report_row) {
                 $report_row = fetch_one("SELECT report_id FROM road_maintenance_reports WHERE id = ?", [$report_id], "i");
+            }
+            if (!$report_row) {
+                $report_row = fetch_one("SELECT reference_code AS report_id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
             }
             rgmap_notify_requestor($conn, $report_id, 'complete', $user_id, $report_row['report_id'] ?? null);
             json_response(['success' => true, 'message' => 'Report filed in archive as completed']);

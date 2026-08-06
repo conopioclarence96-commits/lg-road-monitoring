@@ -151,6 +151,185 @@ try {
 } catch (Exception $e) {
     error_log("Report stats error: " . $e->getMessage());
 }
+
+// Latest reports for the panel
+$latest_reports = [];
+try {
+    $lrstmt = $conn->prepare("
+        SELECT r.id, r.report_id, r.title, r.report_type, r.report_category, r.report_source,
+               r.priority, r.status, r.created_at, r.created_by,
+               u.full_name as reporter_name
+        FROM road_transportation_reports r
+        LEFT JOIN users u ON r.created_by = u.id
+        ORDER BY r.created_at DESC
+        LIMIT 10
+    ");
+    $lrstmt->execute();
+    $latest_reports = $lrstmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $lrstmt->close();
+} catch (Exception $e) {
+    error_log("Latest reports error: " . $e->getMessage());
+}
+
+// Recent activity from audit logs
+$recent_activity = [];
+try {
+    $ractmt = $conn->prepare("
+        SELECT al.*, u.full_name as user_name
+        FROM audit_logs al
+        LEFT JOIN users u ON al.user_id = u.id
+        ORDER BY al.created_at DESC
+        LIMIT 15
+    ");
+    $ractmt->execute();
+    $recent_activity = $ractmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $ractmt->close();
+} catch (Exception $e) {
+    error_log("Recent activity error: " . $e->getMessage());
+}
+
+// Quick insights data
+$quick_insights = [
+    'new_reports_today' => 0,
+    'total_reports' => 0,
+    'pending_reports' => 0,
+    'in_progress_reports' => 0,
+    'completed_reports' => 0,
+    'cancelled_reports' => 0,
+    'high_priority' => 0,
+    'waiting_verification' => 0,
+    'waiting_assignment' => 0,
+    'overdue_reports' => 0,
+    'completed_today' => 0,
+    'active_officers' => 0,
+];
+try {
+    // New reports today
+    $qstmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE DATE(created_at) = CURDATE()");
+    $qstmt->execute();
+    $quick_insights['new_reports_today'] = (int)$qstmt->get_result()->fetch_assoc()['count'];
+    $qstmt->close();
+
+    // Total reports
+    $qstmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports");
+    $qstmt->execute();
+    $quick_insights['total_reports'] = (int)$qstmt->get_result()->fetch_assoc()['count'];
+    $qstmt->close();
+
+    // Pending reports
+    $qstmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'pending'");
+    $qstmt->execute();
+    $quick_insights['pending_reports'] = (int)$qstmt->get_result()->fetch_assoc()['count'];
+    $qstmt->close();
+
+    // In progress reports
+    $qstmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status IN ('in-progress', 'approved')");
+    $qstmt->execute();
+    $quick_insights['in_progress_reports'] = (int)$qstmt->get_result()->fetch_assoc()['count'];
+    $qstmt->close();
+
+    // Completed reports
+    $qstmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'completed'");
+    $qstmt->execute();
+    $quick_insights['completed_reports'] = (int)$qstmt->get_result()->fetch_assoc()['count'];
+    $qstmt->close();
+
+    // Cancelled reports
+    $qstmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'cancelled'");
+    $qstmt->execute();
+    $quick_insights['cancelled_reports'] = (int)$qstmt->get_result()->fetch_assoc()['count'];
+    $qstmt->close();
+
+    // High priority reports
+    $qstmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE priority = 'high' AND status NOT IN ('completed', 'cancelled')");
+    $qstmt->execute();
+    $quick_insights['high_priority'] = (int)$qstmt->get_result()->fetch_assoc()['count'];
+    $qstmt->close();
+
+    // Waiting for verification (pending status)
+    $quick_insights['waiting_verification'] = $quick_insights['pending_reports'];
+
+    // Waiting for assignment (pending and no active assignment)
+    $qstmt = $conn->prepare("
+        SELECT COUNT(*) as count FROM road_transportation_reports r
+        WHERE r.status = 'pending'
+        AND NOT EXISTS (SELECT 1 FROM report_assignments ra WHERE ra.report_id = r.id AND ra.status = 'active' LIMIT 1)
+    ");
+    $qstmt->execute();
+    $quick_insights['waiting_assignment'] = (int)$qstmt->get_result()->fetch_assoc()['count'];
+    $qstmt->close();
+
+    // Overdue reports (pending/in-progress for more than 7 days)
+    $qstmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status IN ('pending', 'in-progress') AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)");
+    $qstmt->execute();
+    $quick_insights['overdue_reports'] = (int)$qstmt->get_result()->fetch_assoc()['count'];
+    $qstmt->close();
+
+    // Completed today
+    $qstmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'completed' AND DATE(updated_at) = CURDATE()");
+    $qstmt->execute();
+    $quick_insights['completed_today'] = (int)$qstmt->get_result()->fetch_assoc()['count'];
+    $qstmt->close();
+
+    // Active officers (users with monitoring officer roles)
+    $qstmt = $conn->prepare("SELECT COUNT(*) as count FROM users WHERE role IN ('road_monitoring_officer', 'trans_monitoring_officer') AND is_active = 1");
+    $qstmt->execute();
+    $quick_insights['active_officers'] = (int)$qstmt->get_result()->fetch_assoc()['count'];
+    $qstmt->close();
+} catch (Exception $e) {
+    error_log("Quick insights error: " . $e->getMessage());
+}
+
+// Reports by source (for pie chart)
+$reports_by_source = [];
+try {
+    $src_stmt = $conn->prepare("
+        SELECT
+            CASE
+                WHEN report_source = 'external' THEN 'CIMMI'
+                WHEN report_type IN ('infrastructure_issue','maintenance','maintenance_request') THEN 'Infrastructure'
+                WHEN report_source = 'local' AND COALESCE(created_by, 0) != 0 THEN 'LGU Monitoring'
+                ELSE 'Citizen'
+            END as source_label,
+            COUNT(*) as count
+        FROM road_transportation_reports
+        GROUP BY source_label
+        ORDER BY count DESC
+    ");
+    $src_stmt->execute();
+    $reports_by_source = $src_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $src_stmt->close();
+} catch (Exception $e) {
+    error_log("Reports by source error: " . $e->getMessage());
+}
+
+// Reports by category (road vs transportation)
+$reports_by_category = [];
+try {
+    $cat_stmt = $conn->prepare("SELECT report_category, COUNT(*) as count FROM road_transportation_reports GROUP BY report_category ORDER BY count DESC");
+    $cat_stmt->execute();
+    $reports_by_category = $cat_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $cat_stmt->close();
+} catch (Exception $e) {
+    error_log("Reports by category error: " . $e->getMessage());
+}
+
+// Reports submitted last 30 days (for line chart)
+$reports_last_30_days = [];
+try {
+    $days_stmt = $conn->prepare("
+        SELECT DATE(created_at) as day, COUNT(*) as count
+        FROM road_transportation_reports
+        WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+        GROUP BY DATE(created_at)
+        ORDER BY day ASC
+    ");
+    $days_stmt->execute();
+    $reports_last_30_days = $days_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $days_stmt->close();
+} catch (Exception $e) {
+    error_log("Reports last 30 days error: " . $e->getMessage());
+}
 ?>
 
 <!DOCTYPE html>
@@ -169,586 +348,178 @@ try {
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body {
-            background: #f7f5f0;
-            min-height: 100vh;
-        }
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Poppins', sans-serif;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
+        body { background: #f8fafc; min-height: 100vh; color: #1e293b; }
+        .main-content { margin-left: 250px; padding: 28px 32px; }
 
-        .main-content {
-            margin-left: 250px;
-            padding: 20px;
-            position: relative;
-            z-index: 1;
-        }
-
+        /* Header */
         .dashboard-header {
-            background: #f0f4fa;
-            backdrop-filter: blur(15px);
-            padding: 30px;
-            border-radius: 16px;
-            margin-bottom: 30px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: white; border-radius: 12px; padding: 20px 28px; margin-bottom: 24px;
+            border: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;
         }
+        .welcome-text h1 { font-size: 20px; font-weight: 600; color: #1e293b; margin-bottom: 2px; }
+        .welcome-text h1 i { color: #3b82f6; margin-right: 8px; }
+        .welcome-text p { color: #64748b; font-size: 13px; }
+        .date-time { text-align: right; color: #64748b; font-size: 13px; }
 
-        .welcome-section {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
+        /* Summary Cards */
+        .summary-row {
+            display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-bottom: 24px;
         }
-
-        .welcome-text h1 {
-            color: #1e3c72;
-            font-size: 32px;
-            font-weight: 700;
-            margin-bottom: 8px;
+        .summary-card {
+            background: white; border-radius: 12px; padding: 18px 20px;
+            border: 1px solid #e2e8f0; position: relative; overflow: hidden;
         }
-
-        .welcome-text p {
-            color: #666;
-            font-size: 16px;
+        .summary-card::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
         }
-
-        .date-time {
-            text-align: right;
-            color: #3762c8;
-            font-weight: 500;
+        .summary-card.blue::before { background: #3b82f6; }
+        .summary-card.amber::before { background: #f59e0b; }
+        .summary-card.emerald::before { background: #10b981; }
+        .summary-card.rose::before { background: #f43f5e; }
+        .summary-card.violet::before { background: #8b5cf6; }
+        .summary-card.cyan::before { background: #06b6d4; }
+        .summary-card .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+        .summary-card .card-icon {
+            width: 36px; height: 36px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center; font-size: 14px;
         }
+        .summary-card.blue .card-icon { background: #eff6ff; color: #3b82f6; }
+        .summary-card.amber .card-icon { background: #fffbeb; color: #f59e0b; }
+        .summary-card.emerald .card-icon { background: #ecfdf5; color: #10b981; }
+        .summary-card.rose .card-icon { background: #fff1f2; color: #f43f5e; }
+        .summary-card.violet .card-icon { background: #f5f3ff; color: #8b5cf6; }
+        .summary-card.cyan .card-icon { background: #ecfeff; color: #06b6d4; }
+        .summary-card .card-value { font-size: 28px; font-weight: 700; color: #1e293b; }
+        .summary-card .card-label { font-size: 12px; color: #64748b; font-weight: 500; }
 
-        .quick-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
+        /* Main Layout 70/30 */
+        .main-grid { display: grid; grid-template-columns: 1fr 380px; gap: 24px; margin-bottom: 24px; }
+        .left-col { min-width: 0; }
+        .right-col { min-width: 0; }
 
-        .stat-card {
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.7));
-            backdrop-filter: blur(10px);
-            padding: 20px;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-            text-align: center;
-        }
-
-        .stat-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, #3762c8, #1e3c72);
-        }
-
-        .stat-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 12px 40px rgba(55, 98, 200, 0.2);
-        }
-
-        .stat-icon {
-            width: 50px;
-            height: 50px;
-            background: linear-gradient(135deg, #3762c8, #1e3c72);
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 20px;
-            margin: 0 auto 15px;
-        }
-
-        .stat-number {
-            font-size: 28px;
-            font-weight: 700;
-            color: #1e3c72;
-            margin-bottom: 5px;
-        }
-
-        .stat-label {
-            color: #666;
-            font-size: 14px;
-            font-weight: 500;
-        }
-
-        .main-grid {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 30px;
-            margin-bottom: 30px;
-        }
-
+        /* Cards */
         .card {
-            background: #f0f4fa;
-            backdrop-filter: blur(15px);
-            padding: 25px;
-            border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            overflow: hidden;
+            background: white; border-radius: 12px; padding: 20px;
+            border: 1px solid #e2e8f0; margin-bottom: 20px;
         }
-
         .card-header {
-            background: #f8fafc;
-            padding: 20px;
-            border-bottom: 1px solid #e2e8f0;
-            margin: -25px -25px 20px -25px;
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9;
         }
+        .card-title { font-size: 14px; font-weight: 600; color: #1e293b; display: flex; align-items: center; gap: 8px; }
+        .card-title i { color: #3b82f6; font-size: 13px; }
 
-        .card-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: #1e3c72;
-            margin: 0;
+        /* Charts */
+        .chart-container { position: relative; width: 100%; height: 260px; }
+        .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        .chart-grid .chart-card:first-child { grid-column: 1 / -1; }
+
+        /* Table */
+        .table-container { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+        th { background: #f8fafc; font-weight: 600; color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; }
+        td { color: #334155; }
+        tr:hover td { background: #f8fafc; }
+
+        /* Badges */
+        .badge {
+            display: inline-block; padding: 2px 8px; border-radius: 4px;
+            font-size: 11px; font-weight: 500;
         }
+        .badge-pending { background: #fef3c7; color: #92400e; }
+        .badge-in-progress { background: #dbeafe; color: #1e40af; }
+        .badge-completed { background: #dcfce7; color: #166534; }
+        .badge-cancelled { background: #fee2e2; color: #991b1b; }
+        .badge-approved { background: #dcfce7; color: #166534; }
+        .badge-high { background: #fee2e2; color: #991b1b; }
+        .badge-medium { background: #fef3c7; color: #92400e; }
+        .badge-low { background: #dcfce7; color: #166534; }
+        .badge-citizen { background: #dbeafe; color: #1e40af; }
+        .badge-cimm { background: #fef3c7; color: #92400e; }
+        .badge-infrastructure { background: #e0e7ff; color: #3730a3; }
+        .badge-lgu { background: #dcfce7; color: #166534; }
 
-        .table-container {
-            overflow-x: auto;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-        }
-
-        th, td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #e2e8f0;
-        }
-
-        th {
-            background: #f8fafc;
-            font-weight: 600;
-            color: #475569;
-        }
-
-        .status-badge {
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.85em;
-            font-weight: 500;
-        }
-
-        .status-pending {
-            background: #fef3c7;
-            color: #d97706;
-        }
-
-        .status-verified {
-            background: #dcfce7;
-            color: #166534;
-        }
-
-        .status-deactivated {
-            background: #fee2e2;
-            color: #dc2626;
-        }
-
-        .action-buttons {
-            display: flex;
-            gap: 8px;
-        }
-
+        /* Buttons */
         .btn-sm {
-            padding: 6px 12px;
-            font-size: 0.85em;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: all 0.2s;
+            padding: 5px 10px; font-size: 11px; border: none; border-radius: 6px;
+            cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 4px;
+            font-weight: 500; text-decoration: none;
         }
+        .btn-primary { background: #3b82f6; color: white; }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-success { background: #10b981; color: white; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-warning { background: #f59e0b; color: white; }
 
-        .btn-approve {
-            background: #22c55e;
-            color: white;
+        /* Activity Timeline */
+        .activity-list { max-height: 320px; overflow-y: auto; }
+        .activity-item { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+        .activity-item:last-child { border-bottom: none; }
+        .activity-dot {
+            width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex-shrink: 0;
         }
+        .activity-content { flex: 1; }
+        .activity-action { font-size: 13px; color: #334155; }
+        .activity-time { font-size: 11px; color: #94a3b8; margin-top: 2px; }
 
-        .btn-reject {
-            background: #ef4444;
-            color: white;
+        /* Sidebar Widgets */
+        .widget-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+        .widget-item:last-child { border-bottom: none; }
+        .widget-avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: 600; color: white; flex-shrink: 0;
         }
+        .widget-info { flex: 1; min-width: 0; }
+        .widget-title { font-size: 13px; font-weight: 500; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .widget-meta { font-size: 11px; color: #94a3b8; }
+        .widget-badge { flex-shrink: 0; }
 
-        .btn-deactivate {
-            background: #f59e0b;
-            color: white;
-        }
-
-        .btn-assign {
-            background: #3b82f6;
-            color: white;
-        }
-
-        .btn-manage {
-            background: #3b82f6;
-            color: white;
-        }
-
+        /* Modal */
         .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
+            display: none; position: fixed; z-index: 1000; left: 0; top: 0;
+            width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);
+            align-items: center; justify-content: center;
         }
-
         .modal-content {
-            background-color: white;
-            margin: auto;
-            padding: 30px;
-            border-radius: 10px;
-            width: 90%;
-            max-width: 500px;
+            background-color: white; padding: 28px; border-radius: 12px;
+            width: 90%; max-width: 480px;
         }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .modal-title { font-size: 16px; font-weight: 600; color: #1e293b; }
+        .close { font-size: 24px; cursor: pointer; color: #94a3b8; }
+        .close:hover { color: #f43f5e; }
 
-        .form-group {
-            margin-bottom: 20px;
+        /* Responsive */
+        @media (max-width: 1400px) {
+            .summary-row { grid-template-columns: repeat(3, 1fr); }
         }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 500;
+        @media (max-width: 1100px) {
+            .main-grid { grid-template-columns: 1fr; }
+            .chart-grid { grid-template-columns: 1fr; }
+            .chart-grid .chart-card:first-child { grid-column: 1 / -1; }
         }
-
-        .form-group select,
-        .form-group textarea {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #d1d5db;
-            border-radius: 5px;
-        }
-
-        .form-group textarea {
-            resize: vertical;
-        }
-
-        .audit-log {
-            max-height: 400px;
-            overflow-y: auto;
-        }
-
-        .log-entry {
-            padding: 15px;
-            border-bottom: 1px solid #e2e8f0;
-        }
-
-        .log-entry:last-child {
-            border-bottom: none;
-        }
-
-        .log-action {
-            font-weight: 500;
-            color: #1e293b;
-        }
-
-        .log-details {
-            color: #64748b;
-            font-size: 0.9em;
-            margin-top: 5px;
-        }
-
-        .log-time {
-            color: #94a3b8;
-            font-size: 0.85em;
-        }
-
-        .btn-logout {
-            background: #ef4444;
-            color: white;
-            padding: 10px 20px;
-            text-decoration: none;
-            border-radius: 5px;
-            transition: all 0.2s;
-        }
-
-        .btn-logout:hover {
-            background: #dc2626;
-        }
-
-        .charts-section {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 25px;
-            margin-bottom: 30px;
-        }
-
-        .chart-card {
-            background: #f0f4fa;
-            backdrop-filter: blur(15px);
-            padding: 25px;
-            border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .chart-card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid rgba(55, 98, 200, 0.1);
-        }
-
-        .chart-card-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: #1e3c72;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .chart-container {
-            position: relative;
-            width: 100%;
-            max-height: 300px;
-        }
-
-        .chart-body {
-            display: flex;
-            align-items: center;
-            gap: 25px;
-        }
-
-        .chart-body .chart-container {
-            flex: 0 0 55%;
-            max-height: 260px;
-        }
-
-        .chart-summary {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .chart-summary-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 10px 14px;
-            border-radius: 10px;
-            background: rgba(241, 245, 249, 0.7);
-            transition: background 0.2s;
-        }
-
-        .chart-summary-item:hover {
-            background: rgba(241, 245, 249, 1);
-        }
-
-        .summary-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            flex-shrink: 0;
-        }
-
-        .summary-info {
-            flex: 1;
-        }
-
-        .summary-label {
-            font-size: 12px;
-            color: #64748b;
-            font-weight: 500;
-        }
-
-        .summary-count {
-            font-size: 18px;
-            font-weight: 700;
-            color: #1e3c72;
-        }
-
-        .summary-percent {
-            font-size: 13px;
-            font-weight: 600;
-            color: #94a3b8;
-        }
-
-        .chart-full {
-            grid-column: 1 / -1;
-        }
-
-        .workflow-container {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 25px;
-        }
-
-        .workflow-card {
-            background: #f0f4fa;
-            backdrop-filter: blur(15px);
-            padding: 25px;
-            border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .workflow-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid rgba(55, 98, 200, 0.1);
-        }
-
-        .workflow-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: #1e3c72;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .workflow-badge {
-            background: #3762c8;
-            color: white;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 500;
-        }
-
-        .workflow-content {
-            max-height: 400px;
-            overflow-y: auto;
-            padding-right: 10px;
-        }
-
-        .workflow-content::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .workflow-content::-webkit-scrollbar-track {
-            background: rgba(55, 98, 200, 0.1);
-            border-radius: 3px;
-        }
-
-        .workflow-content::-webkit-scrollbar-thumb {
-            background: rgba(55, 98, 200, 0.3);
-            border-radius: 3px;
-        }
-
-        .workflow-content::-webkit-scrollbar-thumb:hover {
-            background: rgba(55, 98, 200, 0.5);
-        }
-
-        @media (max-width: 1200px) {
-            .workflow-container {
-                grid-template-columns: 1fr;
-            }
-        }
-
         @media (max-width: 768px) {
-            .welcome-section {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-            
-            .date-time {
-                text-align: left;
-                margin-top: 10px;
-            }
+            .main-content { margin-left: 0; padding: 16px; }
+            .summary-row { grid-template-columns: repeat(2, 1fr); }
+        }
 
-            .charts-section {
-                grid-template-columns: 1fr;
-            }
-
-            .chart-body {
-                flex-direction: column;
-            }
-
-            .chart-body .chart-container {
-                flex: 0 0 auto;
-                max-height: 260px;
-            }
+        /* Workflow Card (Inactive Users) */
+        .workflow-container { margin-bottom: 24px; }
+        .workflow-card {
+            background: white; border-radius: 12px; padding: 20px;
+            border: 1px solid #e2e8f0;
         }
-    .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
+        .workflow-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9;
         }
-        
-        .modal-content {
-            background-color: white;
-            margin: auto;
-            padding: 30px;
-            border-radius: 10px;
-            width: 90%;
-            max-width: 500px;
-            position: relative;
-        }
-        
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-        
-        .modal-title {
-            margin: 0;
-            color: #333;
-        }
-        
-        .close {
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-        
-        .form-group {
-            margin-bottom: 15px;
-        }
-        
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-        
-        input {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-        
-        .modal-form-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 15px;
-        }
-        
-        .modal-form-grid .form-group {
-            margin-bottom: 0;
-        }
+        .workflow-title { font-size: 14px; font-weight: 600; color: #1e293b; display: flex; align-items: center; gap: 8px; }
+        .workflow-title i { color: #f43f5e; }
+        .workflow-badge { background: #f43f5e; color: white; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+        .workflow-content { max-height: 360px; overflow-y: auto; }
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
@@ -758,107 +529,260 @@ try {
     <div class="main-content">
         <!-- Dashboard Header -->
         <div class="dashboard-header">
-            <div class="welcome-section">
-                <div class="welcome-text">
-                    <h1>📋 Accounts Approval</h1>
-                    <p>Review and approve pending LGU Staff account registrations</p>
-                </div>
-                <div class="date-time">
-                    <div id="currentDate"></div>
-                    <div id="currentTime"></div>
-                </div>
+            <div class="welcome-text">
+                <h1><i class="fas fa-shield-alt"></i> Admin Dashboard</h1>
+                <p>Road &amp; Transportation Monitoring System</p>
+            </div>
+            <div class="date-time">
+                <div id="currentDate"></div>
+                <div id="currentTime"></div>
             </div>
         </div>
 
-        <!-- Statistics -->
-        <div class="quick-stats">
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="fas fa-user-clock"></i>
+        <!-- Summary Cards -->
+        <div class="summary-row">
+            <div class="summary-card blue">
+                <div class="card-top">
+                    <div class="card-icon"><i class="fas fa-file-alt"></i></div>
                 </div>
-                <div class="stat-number"><?php echo $stats['pending_users']; ?></div>
-                <div class="stat-label">Pending Users</div>
+                <div class="card-value"><?php echo $quick_insights['total_reports']; ?></div>
+                <div class="card-label">Total Reports</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="fas fa-user-check"></i>
+            <div class="summary-card amber">
+                <div class="card-top">
+                    <div class="card-icon"><i class="fas fa-clock"></i></div>
                 </div>
-                <div class="stat-number"><?php echo $stats['approved_users']; ?></div>
-                <div class="stat-label">Approved Users</div>
+                <div class="card-value"><?php echo $quick_insights['pending_reports']; ?></div>
+                <div class="card-label">Pending</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="fas fa-user-slash"></i>
+            <div class="summary-card emerald">
+                <div class="card-top">
+                    <div class="card-icon"><i class="fas fa-spinner"></i></div>
                 </div>
-                <div class="stat-number"><?php echo $stats['inactive_2weeks']; ?></div>
-                <div class="stat-label">Inactive (2+ Weeks)</div>
+                <div class="card-value"><?php echo $quick_insights['in_progress_reports']; ?></div>
+                <div class="card-label">In Progress</div>
+            </div>
+            <div class="summary-card rose">
+                <div class="card-top">
+                    <div class="card-icon"><i class="fas fa-check-circle"></i></div>
+                </div>
+                <div class="card-value"><?php echo $quick_insights['completed_reports']; ?></div>
+                <div class="card-label">Completed</div>
+            </div>
+            <div class="summary-card violet">
+                <div class="card-top">
+                    <div class="card-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                </div>
+                <div class="card-value"><?php echo $quick_insights['high_priority']; ?></div>
+                <div class="card-label">High Priority</div>
+            </div>
+            <div class="summary-card cyan">
+                <div class="card-top">
+                    <div class="card-icon"><i class="fas fa-users"></i></div>
+                </div>
+                <div class="card-value"><?php echo $stats['approved_users']; ?></div>
+                <div class="card-label">Total Users</div>
             </div>
         </div>
 
-        <!-- Charts Section -->
-        <div class="charts-section">
-            <!-- User Accounts Overview -->
-            <div class="chart-card">
-                <div class="chart-card-header">
-                    <h3 class="chart-card-title">
-                        <i class="fas fa-chart-pie"></i>
-                        <span>User Accounts Overview</span>
-                    </h3>
-                    <span class="workflow-badge"><?php echo $stats['pending_users'] + $stats['approved_users'] + $stats['inactive_2weeks'] + $stats['deactivated_users']; ?> Total</span>
-                </div>
-                <div class="chart-body">
+        <!-- Main Grid: 70/30 -->
+        <div class="main-grid">
+            <!-- Left Column (70%) -->
+            <div class="left-col">
+                <!-- Reports Submitted Last 30 Days -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-chart-line"></i> Reports Submitted (Last 30 Days)</h3>
+                    </div>
                     <div class="chart-container">
-                        <canvas id="userAccountsChart"></canvas>
+                        <canvas id="reportsTrend30DayChart"></canvas>
                     </div>
-                    <div class="chart-summary">
-                        <?php
-                        $total_users = $stats['pending_users'] + $stats['approved_users'] + $stats['inactive_2weeks'] + $stats['deactivated_users'];
-                        $summary_items = [
-                            ['label' => 'Pending', 'count' => $stats['pending_users'], 'color' => '#f59e0b'],
-                            ['label' => 'Approved', 'count' => $stats['approved_users'], 'color' => '#10b981'],
-                            ['label' => 'Inactive (2+ Weeks)', 'count' => $stats['inactive_2weeks'], 'color' => '#6b7280'],
-                            ['label' => 'Deactivated', 'count' => $stats['deactivated_users'], 'color' => '#ef4444'],
-                        ];
-                        foreach ($summary_items as $item):
-                            $pct = $total_users > 0 ? round(($item['count'] / $total_users) * 100) : 0;
-                        ?>
-                        <div class="chart-summary-item">
-                            <span class="summary-dot" style="background: <?php echo $item['color']; ?>;"></span>
-                            <div class="summary-info">
-                                <div class="summary-label"><?php echo $item['label']; ?></div>
-                            </div>
-                            <div class="summary-count"><?php echo $item['count']; ?></div>
-                            <div class="summary-percent"><?php echo $pct; ?>%</div>
+                </div>
+
+                <!-- Charts Row -->
+                <div class="chart-grid">
+                    <div class="card" style="margin-bottom:0;">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-chart-bar"></i> Reports by Status</h3>
                         </div>
-                        <?php endforeach; ?>
+                        <div class="chart-container">
+                            <canvas id="reportsByStatusChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="card" style="margin-bottom:0;">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-chart-pie"></i> User Accounts</h3>
+                        </div>
+                        <div class="chart-container" style="height: 220px; max-width: 320px; margin: 0 auto;">
+                            <canvas id="userAccountsChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Latest Uploaded Reports Table -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-file-alt"></i> Latest Uploaded Reports</h3>
+                        <a href="report_management.php" class="btn-sm btn-primary">View All</a>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Report ID</th>
+                                    <th>Title</th>
+                                    <th>Source</th>
+                                    <th>Priority</th>
+                                    <th>Status</th>
+                                    <th>Submitted</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (empty($latest_reports)): ?>
+                                    <tr><td colspan="7" style="text-align:center; color:#94a3b8; padding:24px;">No reports found.</td></tr>
+                                <?php else: ?>
+                                    <?php foreach ($latest_reports as $lr): ?>
+                                    <tr>
+                                        <td style="font-family:monospace; font-size:12px;"><?php echo htmlspecialchars($lr['report_id']); ?></td>
+                                        <td><?php echo htmlspecialchars($lr['title'] ?? 'Untitled'); ?></td>
+                                        <td><span class="badge badge-<?php echo strtolower($lr['report_source'] ?? 'citizen'); ?>"><?php echo ucfirst($lr['report_source'] ?? 'Citizen'); ?></span></td>
+                                        <td><span class="badge badge-<?php echo strtolower($lr['priority'] ?? 'medium'); ?>"><?php echo ucfirst($lr['priority'] ?? 'Medium'); ?></span></td>
+                                        <td><span class="badge badge-<?php echo strtolower(str_replace(' ', '-', $lr['status'])); ?>"><?php echo ucfirst($lr['status']); ?></span></td>
+                                        <td style="font-size:12px; color:#64748b;"><?php echo date('M d, Y', strtotime($lr['created_at'])); ?></td>
+                                        <td><a href="report_management.php?focus_report_id=<?php echo $lr['id']; ?>" class="btn-sm btn-primary"><i class="fas fa-eye"></i> View</a></td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
 
-            <!-- Reports by Status -->
-            <div class="chart-card">
-                <div class="chart-card-header">
-                    <h3 class="chart-card-title">
-                        <i class="fas fa-chart-bar"></i>
-                        <span>Reports by Status</span>
-                    </h3>
+            <!-- Right Column (30%) -->
+            <div class="right-col">
+                <!-- Recent Activity -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-history"></i> Recent Activity</h3>
+                    </div>
+                    <div class="activity-list">
+                        <?php if (empty($recent_activity)): ?>
+                            <p style="text-align:center; color:#94a3b8; padding:16px;">No recent activity.</p>
+                        <?php else: ?>
+                            <?php foreach (array_slice($recent_activity, 0, 8) as $ra): ?>
+                                <?php
+                                $dot_color = '#3b82f6';
+                                foreach (['approve' => '#10b981', 'reject' => '#ef4444', 'delete' => '#ef4444', 'complete' => '#10b981', 'cancel' => '#f59e0b'] as $k => $c) {
+                                    if (stripos($ra['action'], $k) !== false) { $dot_color = $c; break; }
+                                }
+                                ?>
+                                <div class="activity-item">
+                                    <div class="activity-dot" style="background:<?php echo $dot_color; ?>;"></div>
+                                    <div class="activity-content">
+                                        <div class="activity-action"><?php echo htmlspecialchars($ra['action']); ?></div>
+                                        <div class="activity-time"><?php echo htmlspecialchars($ra['user_name'] ?? 'System'); ?> &middot; <?php echo date('M d, g:ia', strtotime($ra['created_at'])); ?></div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
                 </div>
-                <div class="chart-container">
-                    <canvas id="reportsByStatusChart"></canvas>
+
+                <!-- Pending Approvals -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-user-clock"></i> Pending Approvals</h3>
+                        <span class="badge badge-pending"><?php echo $stats['pending_users']; ?></span>
+                    </div>
+                    <div class="activity-list">
+                        <?php
+                        $pending_users_list = [];
+                        try {
+                            $pu_stmt = $conn->prepare("SELECT id, full_name, role, created_at FROM users WHERE account_status = 'pending' ORDER BY created_at DESC LIMIT 5");
+                            $pu_stmt->execute();
+                            $pending_users_list = $pu_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                            $pu_stmt->close();
+                        } catch (Exception $e) {}
+                        ?>
+                        <?php if (empty($pending_users_list)): ?>
+                            <p style="text-align:center; color:#94a3b8; padding:16px;">No pending approvals.</p>
+                        <?php else: ?>
+                            <?php foreach ($pending_users_list as $pu): ?>
+                                <div class="widget-item">
+                                    <div class="widget-avatar" style="background:#f59e0b;"><i class="fas fa-user"></i></div>
+                                    <div class="widget-info">
+                                        <div class="widget-title"><?php echo htmlspecialchars($pu['full_name']); ?></div>
+                                        <div class="widget-meta"><?php echo htmlspecialchars($pu['role']); ?> &middot; <?php echo date('M d', strtotime($pu['created_at'])); ?></div>
+                                    </div>
+                                    <a href="account_approvals.php" class="btn-sm btn-primary">Review</a>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <!-- High Priority Reports -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-exclamation-triangle"></i> High Priority</h3>
+                        <span class="badge badge-high"><?php echo $quick_insights['high_priority']; ?></span>
+                    </div>
+                    <div class="activity-list">
+                        <?php
+                        $high_priority_reports = [];
+                        try {
+                            $hp_stmt = $conn->prepare("SELECT id, report_id, title, status, created_at FROM road_transportation_reports WHERE priority = 'high' AND status NOT IN ('completed','cancelled') ORDER BY created_at DESC LIMIT 5");
+                            $hp_stmt->execute();
+                            $high_priority_reports = $hp_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                            $hp_stmt->close();
+                        } catch (Exception $e) {}
+                        ?>
+                        <?php if (empty($high_priority_reports)): ?>
+                            <p style="text-align:center; color:#94a3b8; padding:16px;">No high priority reports.</p>
+                        <?php else: ?>
+                            <?php foreach ($high_priority_reports as $hp): ?>
+                                <div class="widget-item">
+                                    <div class="widget-avatar" style="background:#f43f5e;"><i class="fas fa-exclamation"></i></div>
+                                    <div class="widget-info">
+                                        <div class="widget-title"><?php echo htmlspecialchars($hp['title'] ?? 'Untitled'); ?></div>
+                                        <div class="widget-meta"><?php echo htmlspecialchars($hp['report_id']); ?> &middot; <?php echo ucfirst($hp['status']); ?></div>
+                                    </div>
+                                    <a href="report_management.php?focus_report_id=<?php echo $hp['id']; ?>" class="btn-sm btn-primary"><i class="fas fa-eye"></i></a>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Reports Trend (Last 6 Months) -->
-            <div class="chart-card chart-full">
-                <div class="chart-card-header">
-                    <h3 class="chart-card-title">
-                        <i class="fas fa-chart-line"></i>
-                        <span>Reports Trend (Last 6 Months)</span>
-                    </h3>
+        <!-- Bottom Section: Charts -->
+        <div class="chart-grid">
+            <div class="card" style="margin-bottom:0;">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-chart-pie"></i> Reports by Source</h3>
                 </div>
                 <div class="chart-container">
-                    <canvas id="reportsTrendChart"></canvas>
+                    <canvas id="reportsBySourceChart"></canvas>
                 </div>
+            </div>
+            <div class="card" style="margin-bottom:0;">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-road"></i> Reports by Category</h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="reportsByCategoryChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title"><i class="fas fa-calendar-alt"></i> Monthly Trend</h3>
+            </div>
+            <div class="chart-container">
+                <canvas id="reportsTrendChart"></canvas>
             </div>
         </div>
 
@@ -960,6 +884,9 @@ try {
         const reportsByStatus = <?php echo json_encode($report_stats['by_status']); ?>;
         const reportsByMonth = <?php echo json_encode($report_stats['by_month']); ?>;
         const reportsByType = <?php echo json_encode($report_stats['by_type']); ?>;
+        const reportsBySource = <?php echo json_encode($reports_by_source); ?>;
+        const reportsByCategory = <?php echo json_encode($reports_by_category); ?>;
+        const reportsLast30Days = <?php echo json_encode($reports_last_30_days); ?>;
 
         // Color palette
         const chartColors = {
@@ -973,6 +900,7 @@ try {
 
         // User Accounts Doughnut Chart
         const userAccountsCtx = document.getElementById('userAccountsChart').getContext('2d');
+        const userAccountsTotal = userStats.pending + userStats.approved + userStats.inactive + userStats.deactivated;
         new Chart(userAccountsCtx, {
             type: 'doughnut',
             data: {
@@ -991,14 +919,49 @@ try {
                     legend: {
                         position: 'bottom',
                         labels: {
-                            padding: 15,
+                            padding: 12,
                             usePointStyle: true,
-                            font: { size: 12 }
+                            font: { size: 11 },
+                            generateLabels: function(chart) {
+                                const data = chart.data;
+                                return data.labels.map((label, i) => ({
+                                    text: label + ': ' + data.datasets[0].data[i],
+                                    fillStyle: data.datasets[0].backgroundColor[i],
+                                    hidden: false,
+                                    index: i,
+                                    pointStyle: 'circle'
+                                }));
+                            }
                         }
                     }
                 },
-                cutout: '60%'
-            }
+                cutout: '65%'
+            },
+            plugins: [{
+                id: 'centerText',
+                afterDraw: function(chart) {
+                    const ctx = chart.ctx;
+                    const width = chart.width;
+                    const height = chart.height;
+                    ctx.restore();
+                    // Draw total number
+                    const fontSize = (height / 116).toFixed(2);
+                    ctx.font = 'bold ' + fontSize + 'em Poppins';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = '#1e293b';
+                    const text = userAccountsTotal;
+                    const textX = Math.round((width - ctx.measureText(text).width) / 2);
+                    const textY = height / 2 - 8;
+                    ctx.fillText(text, textX, textY);
+                    // Draw label
+                    ctx.font = (fontSize * 0.4).toFixed(2) + 'em Poppins';
+                    ctx.fillStyle = '#64748b';
+                    const label = 'Total Users';
+                    const labelX = Math.round((width - ctx.measureText(label).width) / 2);
+                    ctx.fillText(label, labelX, textY + 18);
+                    ctx.save();
+                }
+            }]
         });
 
         // Reports by Status Bar Chart
@@ -1082,7 +1045,99 @@ try {
                 }
             }
         });
-        
+
+        // Reports Submitted Last 30 Days Line Chart
+        const reports30DayCtx = document.getElementById('reportsTrend30DayChart').getContext('2d');
+        const dayLabels = reportsLast30Days.map(r => { const d = new Date(r.day); return (d.getMonth()+1) + '/' + d.getDate(); });
+        const dayData = reportsLast30Days.map(r => r.count);
+        // Fill in missing days with 0
+        const filledLabels = []; const filledData = [];
+        for (let i = 29; i >= 0; i--) {
+            const d = new Date(); d.setDate(d.getDate() - i);
+            const key = d.toISOString().split('T')[0];
+            const label = (d.getMonth()+1) + '/' + d.getDate();
+            filledLabels.push(label);
+            const found = reportsLast30Days.find(x => x.day === key);
+            filledData.push(found ? found.count : 0);
+        }
+        new Chart(reports30DayCtx, {
+            type: 'line',
+            data: {
+                labels: filledLabels,
+                datasets: [{
+                    label: 'Reports',
+                    data: filledData,
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 0,
+                    pointHoverRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 11 } }, grid: { color: 'rgba(0,0,0,0.05)' } },
+                    x: { ticks: { font: { size: 10 }, maxTicksLimit: 10 }, grid: { display: false } }
+                }
+            }
+        });
+
+        // Reports by Source Pie Chart
+        const reportsSourceCtx = document.getElementById('reportsBySourceChart').getContext('2d');
+        const sourceLabels = reportsBySource.map(r => r.source_label);
+        const sourceData = reportsBySource.map(r => r.count);
+        const sourceColors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444'];
+        new Chart(reportsSourceCtx, {
+            type: 'doughnut',
+            data: {
+                labels: sourceLabels,
+                datasets: [{
+                    data: sourceData,
+                    backgroundColor: sourceColors.slice(0, sourceLabels.length),
+                    borderWidth: 2,
+                    borderColor: '#fff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true, font: { size: 11 } } }
+                },
+                cutout: '55%'
+            }
+        });
+
+        // Reports by Category Doughnut Chart
+        const reportsCategoryCtx = document.getElementById('reportsByCategoryChart').getContext('2d');
+        const categoryLabels = reportsByCategory.map(r => r.report_category ? r.report_category.charAt(0).toUpperCase() + r.report_category.slice(1) : 'Unknown');
+        const categoryData = reportsByCategory.map(r => r.count);
+        new Chart(reportsCategoryCtx, {
+            type: 'doughnut',
+            data: {
+                labels: categoryLabels,
+                datasets: [{
+                    data: categoryData,
+                    backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'],
+                    borderWidth: 2,
+                    borderColor: '#fff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true, font: { size: 11 } } }
+                },
+                cutout: '55%'
+            }
+        });
+
         // Auto-hide messages after 5 seconds
         setTimeout(() => {
             const alerts = document.querySelectorAll('.alert');

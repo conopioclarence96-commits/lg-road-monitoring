@@ -951,6 +951,11 @@ function notification_assignment_url(array $ap): string {
         // Supervisors: completion/cancellation review requests
         if ($is_supervisor) {
             foreach ($review_requests as $rr) {
+                // Resolve source for reports not found in road_transportation_reports
+                // (e.g. CIMM reports live in cimm_verification_reports).
+                if (empty($rr['report_code'])) {
+                    $rr = resolve_progress_notification_source($rr);
+                }
                 $nc_push([
                     'id' => 'rq' . $rr['id'],
                     'ts' => $rr['created_at'],
