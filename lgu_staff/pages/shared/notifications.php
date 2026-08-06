@@ -958,7 +958,7 @@ function notification_assignment_url(array $ap): string {
                 'priority' => null,
                 'tags' => [$is_approved ? 'Approved' : 'Rejected'],
                 'unread' => true,
-                'url' => '../shared/road_transportation_monitoring.php?focus_report_id=' . (int)($ro['report_id'] ?? 0) . '&source=' . rawurlencode($ro['_source'] ?? 'transport'),
+                'url' => '../lgu/officer_archive.php?focus_report_id=' . (int)($ro['report_id'] ?? 0),
                 'url_label' => 'View Report',
                 'mark' => ['url' => '', 'data' => ['action' => 'mark_read', 'type' => 'report_outcome', 'id' => (int)$ro['id']]],
             ]);
