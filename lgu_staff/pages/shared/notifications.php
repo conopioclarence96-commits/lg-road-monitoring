@@ -1101,7 +1101,7 @@ function notification_assignment_url(array $ap): string {
                 <select id="ncFilter" class="nc-filter" onchange="ncApplyFilters()">
                     <option value="all">All</option>
                     <option value="unread">Unread</option>
-                    <option value="assigned">Assigned Projects</option>
+                    <option value="assigned">Assigned reports</option>
                     <option value="report_update">Report Updates</option>
                     <option value="request_outcome">Request Outcomes</option>
                     <option value="change_request">Change Requests</option>

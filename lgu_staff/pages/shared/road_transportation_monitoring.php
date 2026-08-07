@@ -12,6 +12,10 @@ session_start();
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 require_once __DIR__ . '/../api/cimm_verification_data.php';
+// Archive helpers (rgmap_archive_report, rgmap_archive_cimm_report,
+// rgmap_notify_requestor, rgmap_auto_archive_completed, ...) — shared with
+// progress_update_api.php.
+require_once __DIR__ . '/../api/progress_archive_helpers.php';
 
 // Defensive migration for the CIMM sync/verification columns — these are
 // normally added by rgmap_cimm_ensure_schema() the first time a report gets
@@ -64,6 +68,16 @@ if (
     exit();
 }
 
+// Auto-archive sweep: move any completed report whose 3-day retention window
+// (auto_archive_at, set by the Complete button's complete_status action) has
+// passed into the archive. Runs once per page load; it only touches reports
+// carrying auto_archive_at, so report_management completions are never moved.
+try {
+    rgmap_auto_archive_completed($conn);
+} catch (Exception $e) {
+    error_log('Road/Transportation monitoring auto-archive sweep: ' . $e->getMessage());
+}
+
 // Transportation Operations Supervisors and Transportation Monitoring Officers
 // are restricted to Transportation category reports only — the Roads option is
 // hidden and road submissions are rejected server-side. Recent Submissions /
@@ -80,6 +94,11 @@ $is_road_only_role = in_array($_SESSION['role'] ?? '', ['road_ops_supervisor', '
 // Request Completion / Request Cancellation, which do not change the status or
 // archive the report (the request review workflow will be added later).
 $is_officer_role = in_array($_SESSION['role'] ?? '', ['road_monitoring_officer', 'trans_monitoring_officer'], true);
+
+// Road Operations Supervisors (the Road supervisor portal) get a trimmed Recent
+// Submissions source filter: Citizen Reports and Infrastructure Projects are
+// hidden from the Type dropdown (their reports still appear under All Types).
+$is_road_supervisor = ($_SESSION['role'] ?? '') === 'road_ops_supervisor';
 
 // Function to get enhanced dashboard stats
 function getEnhancedStats() {
@@ -136,7 +155,9 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
         $params = [];
         $types = '';
         if ($status_filter !== 'all') {
-            $sql .= " AND status = ?";
+            // LOWER() so CIMM rows (verification_status stores 'Completed',
+            // 'Approved', ... capitalized) match the lowercase dropdown values.
+            $sql .= " AND LOWER(status) = LOWER(?)";
             $params[] = $status_filter;
             $types .= 's';
         }
@@ -174,7 +195,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                     'road_transportation_reports' AS _source_table
               FROM road_transportation_reports
              WHERE report_type != 'infrastructure_issue'
-               AND status IN ('approved', 'in-progress')
+               AND status IN ('approved', 'in-progress', 'completed')
                AND (created_by IS NULL OR created_by = 0
                     OR cimm_sync_status IS NULL OR cimm_sync_status <> 'pushed'
                     OR (report_category = 'transportation' AND report_source = 'local' AND created_by != 0))
@@ -195,7 +216,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                         NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by,
                         'road_maintenance_reports' AS _source_table
                  FROM road_maintenance_reports
-                 WHERE status IN ('approved','in-progress')",
+                 WHERE status IN ('approved','in-progress','completed')",
                 $status_filter, $type_filter, $limit
             ));
         }
@@ -212,7 +233,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                         'road_transportation_reports' AS _source_table
                  FROM road_transportation_reports
                  WHERE report_type = 'infrastructure_issue'
-                   AND status IN ('approved','in-progress'){$road_category_filter}",
+                   AND status IN ('approved','in-progress','completed'){$road_category_filter}",
                 $status_filter, $type_filter, $limit
             ));
         }
@@ -233,7 +254,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                             NULL AS cimm_verified_by, approval_status,
                             'cimm_verification_reports' AS _source_table
                      FROM cimm_verification_reports
-                     WHERE verification_status IN ('Approved', 'In Progress')
+                     WHERE verification_status IN ('Approved', 'In Progress', 'Completed')
                        AND infrastructure = 'Roads'
                  ) AS cimm_mapped WHERE 1=1",
                 $status_filter, $type_filter, $limit
@@ -492,7 +513,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
         $sql = "SELECT id, report_id, title, report_type, description, status, priority, severity, latitude, longitude, detected_district, barangay, street_name, created_at 
                 FROM road_transportation_reports 
                 WHERE latitude IS NOT NULL AND longitude IS NOT NULL 
-                  AND status IN ('approved', 'in-progress')
+                  AND status IN ('approved', 'in-progress', 'completed')
                   {$cat_filter}
                 ORDER BY created_at DESC";
         $res = $conn->query($sql);
@@ -2342,12 +2363,17 @@ annotate_report_assignment_status($conn, $recent_reports);
                         <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
                         <option value="approved" <?php echo $status_filter === 'approved' ? 'selected' : ''; ?>>Approved</option>
                         <option value="in-progress" <?php echo $status_filter === 'in-progress' ? 'selected' : ''; ?>>In Progress</option>
+                        <option value="completed" <?php echo $status_filter === 'completed' ? 'selected' : ''; ?>>Completed</option>
                     </select>
                     <select class="filter-select" id="typeFilter" onchange="filterReportsBySource()">
                         <option value="all">All Types</option>
+                        <?php if (!$is_road_supervisor): ?>
                         <option value="citizen">Citizen Reports</option>
+                        <?php endif; ?>
                         <?php if (!$is_transport_supervisor): ?>
                         <option value="cimm">CIMM Reports</option>
+                        <?php endif; ?>
+                        <?php if (!$is_transport_supervisor && !$is_road_supervisor): ?>
                         <option value="infrastructure">Infrastructure Projects</option>
                         <?php endif; ?>
                         <option value="lgu">LGU Monitoring Reports</option>
@@ -2416,7 +2442,11 @@ annotate_report_assignment_status($conn, $recent_reports);
                             <td><?php echo htmlspecialchars($rr['title'] ?? 'Untitled'); ?></td>
                             <td><?php echo htmlspecialchars($rr_source_label); ?></td>
                             <td><span class="badge badge-<?php echo strtolower(str_replace(' ', '-', $rr['status'] ?? 'pending')); ?>"><?php echo ucfirst(str_replace('-',' ',$rr['status'] ?? 'pending')); ?></span></td>
-                            <td><span class="badge assignment-badge assignment-<?php echo ($rr['assignment_status'] ?? 'unassigned') === 'assigned' ? 'assigned' : 'unassigned'; ?>"><?php echo ($rr['assignment_status'] ?? 'unassigned') === 'assigned' ? 'Assigned' : 'Unassigned'; ?></span></td>
+                            <td><?php if ($is_road_supervisor && ($rr['assignment_status'] ?? 'unassigned') === 'assigned' && !empty($rr['assignment_officer'])): ?>
+                                <span class="badge assignment-badge assignment-assigned"><?php echo htmlspecialchars($rr['assignment_officer']); ?></span>
+                            <?php else: ?>
+                                <span class="badge assignment-badge assignment-<?php echo ($rr['assignment_status'] ?? 'unassigned') === 'assigned' ? 'assigned' : 'unassigned'; ?>"><?php echo ($rr['assignment_status'] ?? 'unassigned') === 'assigned' ? 'Assigned' : 'Unassigned'; ?></span>
+                            <?php endif; ?></td>
                             <td><span class="badge badge-<?php echo strtolower($rr['priority'] ?? 'low'); ?>"><?php echo ucfirst($rr['priority'] ?? 'low'); ?></span></td>
                             <td><?php echo date('M d, Y H:i', strtotime($rr['created_at'] ?? 'now')); ?></td>
                             <td>
@@ -3650,6 +3680,18 @@ annotate_report_assignment_status($conn, $recent_reports);
             return (role === 'road_monitoring_officer' || role === 'trans_monitoring_officer');
         }
 
+        // Road Operations Supervisors are routed to the Notifications page after
+        // completing/cancelling a report; everyone else keeps the in-place reload.
+        function afterStatusActionRedirect() {
+            var tag = document.getElementById('sessionTimeoutData');
+            var role = tag ? tag.getAttribute('data-role') || '' : '';
+            if (role === 'road_ops_supervisor') {
+                window.location.href = 'notifications.php';
+            } else {
+                location.reload();
+            }
+        }
+
         function completeReport() {
             if (!currentUpdatesReportId) return;
             // Road/Transportation Monitoring Officers cannot directly complete a
@@ -3711,12 +3753,15 @@ annotate_report_assignment_status($conn, $recent_reports);
         }
 
         function updateStatusOnly() {
-            var newStatus = (currentUpdatesReportSource === 'cimm') ? 'Completed' : 'completed';
+            // complete_status marks the report completed AND stamps a 3-day
+            // auto-archive deadline (auto_archive_at) instead of moving it to
+            // the archive immediately. It stays on the monitoring page so the
+            // officer can still view it; the background sweep
+            // (auto_archive_completed / rgmap_auto_archive_completed) moves it
+            // to the archive once the deadline passes.
             var statusFormData = new FormData();
-            statusFormData.append('action', 'update_status');
+            statusFormData.append('action', 'complete_status');
             statusFormData.append('report_id', currentUpdatesReportId);
-            statusFormData.append('report_type', currentUpdatesReportType);
-            statusFormData.append('status', newStatus);
             statusFormData.append('source', currentUpdatesReportSource);
 
             fetch('../api/progress_update_api.php', {
@@ -3726,35 +3771,9 @@ annotate_report_assignment_status($conn, $recent_reports);
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.success) {
-                    showNotification('Report completed successfully', 'success');
-                    // MOVE the report into the archive: a completed copy is filed
-                    // in the archive and the live row is removed from the
-                    // monitoring page (same behavior as the Cancel button).
-                    var archiveFormData = new FormData();
-                    archiveFormData.append('action', 'complete_archive_move');
-                    archiveFormData.append('report_id', currentUpdatesReportId);
-                    archiveFormData.append('report_type', currentUpdatesReportType);
-                    archiveFormData.append('source', currentUpdatesReportSource);
-                    fetch('../api/progress_update_api.php', {
-                        method: 'POST',
-                        body: archiveFormData
-                    })
-                    .then(function(r) { return r.json(); })
-                    .then(function(archiveData) {
-                        if (archiveData.success) {
-                            showNotification('Report completed and moved to archive', 'success');
-                            closeModal('updatesModal');
-                            location.reload();
-                        } else {
-                            showNotification(archiveData.message || 'Failed to move report to archive', 'error');
-                            isCompleting = false;
-                        }
-                    })
-                    .catch(function(e) {
-                        showNotification('Network error', 'error');
-                        console.error(e);
-                        isCompleting = false;
-                    });
+                    showNotification(data.message || 'Report completed successfully', 'success');
+                    closeModal('updatesModal');
+                    afterStatusActionRedirect();
                 } else {
                     showNotification(data.message || 'Failed to update status', 'error');
                 }
@@ -3794,7 +3813,7 @@ annotate_report_assignment_status($conn, $recent_reports);
                 if (data.success) {
                     showNotification(data.message, 'success');
                     closeModal('updatesModal');
-                    location.reload();
+                    afterStatusActionRedirect();
                 } else {
                     showNotification(data.message || 'Failed to update status', 'error');
                 }
@@ -4542,6 +4561,11 @@ annotate_report_assignment_status($conn, $recent_reports);
     let isLoadingMore = false;
     let hasMoreReports = true;
 
+    let currentUserRole = '';
+    const sessionRoleTag = document.getElementById('sessionTimeoutData');
+    if (sessionRoleTag) currentUserRole = sessionRoleTag.getAttribute('data-role') || '';
+    const isRoadSupervisor = (currentUserRole === 'road_ops_supervisor');
+
     function loadMoreReports() {
         if (isLoadingMore || !hasMoreReports) return;
         
@@ -4624,7 +4648,11 @@ annotate_report_assignment_status($conn, $recent_reports);
             <td>${escapeHtml(report.title)}</td>
             <td>${escapeHtml(report.source_label)}</td>
             <td><span class="badge badge-${report.status.toLowerCase().replace(' ', '-')}">${escapeHtml(ucfirst(report.status.replace('-', ' ')))}</span></td>
-            <td><span class="badge assignment-badge assignment-${report.assignment_status === 'assigned' ? 'assigned' : 'unassigned'}">${report.assignment_status === 'assigned' ? 'Assigned' : 'Unassigned'}</span></td>
+            <td>${report.assignment_status === 'assigned'
+                ? (isRoadSupervisor && report.assignment_officer
+                    ? `<span class="badge assignment-badge assignment-assigned">${escapeHtml(report.assignment_officer)}</span>`
+                    : `<span class="badge assignment-badge assignment-assigned">Assigned</span>`)
+                : `<span class="badge assignment-badge assignment-unassigned">Unassigned</span>`}</td>
             <td><span class="badge badge-${report.priority.toLowerCase()}">${escapeHtml(ucfirst(report.priority))}</span></td>
             <td>${formatDate(report.created_at)}</td>
             <td>

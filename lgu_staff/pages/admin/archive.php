@@ -1225,7 +1225,6 @@ if (isset($_SESSION['archive_message'])) {
             };
             var pStyles = {
                 'high':   {bg:'rgba(220,53,69,0.15)', color:'#ef4444'},
-                'critical':{bg:'rgba(220,53,69,0.15)', color:'#dc2626'},
                 'medium': {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
                 'low':    {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'}
             };

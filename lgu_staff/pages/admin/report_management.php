@@ -206,8 +206,15 @@ function handle_update_report() {
     }
     
     // Update the report
-    $transport_types = ['transportation', 'infrastructure_issue', 'traffic_jam', 'accident', 'road_closure', 'traffic_light_outage', 'congestion', 'parking_violation', 'public_transport_issue'];
+    $transport_types = ['potholes', 'road_damage', 'shoulder_damage', 'traffic_jam', 'accident', 'congestion', 'traffic_light_outage', 'vehicle_breakdown', 'traffic_sign_issue', 'transportation', 'infrastructure_issue', 'road_closure', 'parking_violation', 'public_transport_issue'];
     $table = in_array($report_type, $transport_types) ? 'road_transportation_reports' : 'road_maintenance_reports';
+
+    // The edit form also sends the row's source table explicitly (derived from
+    // the same query that rendered the row), so honor it whenever it is valid.
+    $report_table = sanitize_input($_POST['report_table'] ?? '');
+    if (in_array($report_table, ['road_transportation_reports', 'road_maintenance_reports'], true)) {
+        $table = $report_table;
+    }
     
     $update_fields = [];
     $params = [];
@@ -444,7 +451,7 @@ function handle_delete_report() {
             return;
         }
         
-        $transport_types = ['transportation', 'infrastructure_issue', 'traffic_jam', 'accident', 'road_closure', 'traffic_light_outage', 'congestion', 'parking_violation', 'public_transport_issue'];
+        $transport_types = ['potholes', 'road_damage', 'shoulder_damage', 'traffic_jam', 'accident', 'congestion', 'traffic_light_outage', 'vehicle_breakdown', 'traffic_sign_issue', 'transportation', 'infrastructure_issue', 'road_closure', 'parking_violation', 'public_transport_issue'];
         $table = in_array($report_type, $transport_types) ? 'road_transportation_reports' : 'road_maintenance_reports';
         $stmt = $conn->prepare("SELECT title, location FROM {$table} WHERE id = ?");
         $stmt->bind_param("i", $report_id);
@@ -3221,7 +3228,9 @@ if ($focus_id > 0) {
                         <option value="transport" <?php echo $source_filter === 'transport' ? 'selected' : ''; ?>>Citizen Reports</option>
                         <option value="lgu_reports" <?php echo $source_filter === 'lgu_reports' ? 'selected' : ''; ?>>LGU Monitoring Reports</option>
                         <option value="cimm" <?php echo $source_filter === 'cimm' ? 'selected' : ''; ?>>CIMM Reports</option>
+                        <?php if (!$is_road_supervisor): ?>
                         <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>Infrastructure Projects</option>
+                        <?php endif; ?>
                     </select>
                 </div>
                 <div>
@@ -3568,8 +3577,8 @@ if ($focus_id > 0) {
         </div>
         <?php endif; ?>
 
-        <!-- Infrastructure Projects Panel -->
-        <?php if (!$is_transport_supervisor): ?>
+        <!-- Infrastructure Projects Panel (hidden for Road Operations Supervisors) -->
+        <?php if (!$is_transport_supervisor && !$is_road_supervisor): ?>
         <div class="rm-panel" id="infraReportsPanel">
             <div class="rm-panel-header">
                 <div class="rm-panel-header-left">
@@ -3770,7 +3779,6 @@ if ($focus_id > 0) {
                                     <option value="low">Low</option>
                                     <option value="medium">Medium</option>
                                     <option value="high">High</option>
-                                    <option value="critical">Critical</option>
                                 </select>
                             </div>
                         </div>
@@ -3877,7 +3885,6 @@ if ($focus_id > 0) {
                                     <option value="low">Low</option>
                                     <option value="medium">Medium</option>
                                     <option value="high">High</option>
-                                    <option value="critical">Critical</option>
                                 </select>
                             </div>
                         </div>

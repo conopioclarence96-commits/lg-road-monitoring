@@ -49,7 +49,9 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
         $params = [];
         $types = '';
         if ($status_filter !== 'all') {
-            $sql .= " AND status = ?";
+            // LOWER() so CIMM rows (verification_status stores 'Completed',
+            // 'Approved', ... capitalized) match the lowercase dropdown values.
+            $sql .= " AND LOWER(status) = LOWER(?)";
             $params[] = $status_filter;
             $types .= 's';
         }
@@ -75,7 +77,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
                     'road_transportation_reports' AS _source_table
              FROM road_transportation_reports
              WHERE report_type != 'infrastructure_issue'
-               AND status IN ('approved', 'in-progress')
+               AND status IN ('approved', 'in-progress', 'completed')
                AND (created_by IS NULL OR created_by = 0
                     OR cimm_sync_status IS NULL OR cimm_sync_status <> 'pushed'
                     OR (report_category = 'transportation' AND report_source = 'local' AND created_by != 0)){$transport_category_filter}{$road_category_filter}",
@@ -94,7 +96,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
                     NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by,
                     'road_maintenance_reports' AS _source_table
              FROM road_maintenance_reports
-             WHERE status IN ('approved','in-progress')",
+             WHERE status IN ('approved','in-progress','completed')",
             $status_filter
         ));
 
@@ -108,7 +110,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
                     'road_transportation_reports' AS _source_table
              FROM road_transportation_reports
              WHERE report_type = 'infrastructure_issue'
-               AND status IN ('approved','in-progress'){$road_category_filter}",
+               AND status IN ('approved','in-progress','completed'){$road_category_filter}",
             $status_filter
         ));
 
@@ -131,7 +133,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
                             NULL AS cimm_verified_by, approval_status,
                             'cimm_verification_reports' AS _source_table
                      FROM cimm_verification_reports
-                     WHERE verification_status IN ('Approved', 'In Progress')
+                     WHERE verification_status IN ('Approved', 'In Progress', 'Completed')
                        AND infrastructure = 'Roads'
                  ) AS cimm_mapped WHERE 1=1",
                 $status_filter
@@ -187,6 +189,7 @@ try {
             'source_label' => $rr_source_label,
             'status' => $rr['status'] ?? 'pending',
             'assignment_status' => $rr['assignment_status'] ?? 'unassigned',
+            'assignment_officer' => $rr['assignment_officer'] ?? '',
             'priority' => $rr['priority'] ?? 'low',
             'created_at' => $rr['created_at'],
             'cimm_sync_status' => $rr['cimm_sync_status'] ?? '',
