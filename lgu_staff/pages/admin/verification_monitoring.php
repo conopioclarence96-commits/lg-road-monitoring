@@ -5616,7 +5616,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 if (infraPanel) infraPanel.style.display = '';
                 if (citizenPanel) citizenPanel.style.display = 'none';
             } else if (source === 'transport') {
-                if (allReportsPanel) allReportsPanel.style.display = '';
+                // Citizen Reports filter: show ONLY the Citizen Reports panel.
+                // The LGU Monitoring panel (staff transport reports), CIMM
+                // panel, and Infrastructure panel are all hidden so only
+                // citizen-submitted reports are shown. CIMM / IPMS integration
+                // code is untouched.
+                if (allReportsPanel) allReportsPanel.style.display = 'none';
                 if (cimmPanel) cimmPanel.style.display = 'none';
                 if (infraPanel) infraPanel.style.display = 'none';
                 if (citizenPanel) citizenPanel.style.display = '';
