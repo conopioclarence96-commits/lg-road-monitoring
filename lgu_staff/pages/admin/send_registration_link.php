@@ -249,6 +249,10 @@ try {
             border-radius: 16px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
             border: 1px solid rgba(255, 255, 255, 0.2);
+            width: 100%;
+        }
+
+        .workflow-card.narrow {
             max-width: 640px;
         }
 
@@ -509,7 +513,7 @@ try {
         </div>
 
         <div class="workflow-container">
-            <div class="workflow-card">
+            <div class="workflow-card narrow">
                 <div class="workflow-header">
                     <h3 class="workflow-title">
                         <i class="fas fa-paper-plane"></i>
