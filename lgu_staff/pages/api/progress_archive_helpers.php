@@ -320,6 +320,34 @@ function rgmap_notify_requestor($conn, $report_id, $action, $supervisor_id, $rep
     }
 }
 
+// Notify the supervisor who performed a Complete/Cancel action on the
+// monitoring portal. Unlike rgmap_notify_requestor (which targets the officer
+// who submitted the review request), this targets the acting supervisor by
+// email so the completion/cancellation result appears in their own
+// notifications feed (notifications.php).
+function rgmap_notify_supervisor_action($conn, $report_id, $action, $supervisor_id, $report_code) {
+    try {
+        if (!in_array($action, ['complete', 'cancel'], true)) return;
+
+        $supervisor = fetch_one("SELECT full_name, email, role FROM users WHERE id = ?", [$supervisor_id], "i");
+        if (!$supervisor) return;
+
+        $report_label = $report_code ?? ('#' . $report_id);
+        $action_label = ($action === 'complete') ? 'completed' : 'cancelled';
+        $notif_type   = ($action === 'complete') ? 'complete_report' : 'cancel_report';
+        $message      = "You {$action_label} report {$report_label}. The report is now marked as {$action_label}.";
+
+        $stmt = $conn->prepare(
+            "INSERT INTO report_notifications (report_id, type, message, recipient_email, recipient_role) VALUES (?, ?, ?, ?, ?)"
+        );
+        $stmt->bind_param("issss", $report_id, $notif_type, $message, $supervisor['email'], $supervisor['role']);
+        $stmt->execute();
+        $stmt->close();
+    } catch (Exception $e) {
+        error_log("rgmap_notify_supervisor_action error: " . $e->getMessage());
+    }
+}
+
 // File a COPY of a CIMM report into the archive with the given status, WITHOUT
 // deleting it from cimm_verification_reports.
 function rgmap_archive_copy_cimm_report($conn, $cimm_req_id, $status) {

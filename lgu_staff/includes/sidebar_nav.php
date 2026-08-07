@@ -85,21 +85,58 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
         // Only count unread report_notifications that reference a report
         // that still exists in one of the live tables.
         try {
-            $stmt = $conn->prepare("
-                SELECT COUNT(*) as count FROM report_notifications rn
-                WHERE rn.is_read = 0
-                  AND EXISTS (
-                      SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
-                      UNION ALL
-                      SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
-                      UNION ALL
-                      SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id
-                      LIMIT 1
-                  )
-            ");
-            $stmt->execute();
-            $count += $stmt->get_result()->fetch_assoc()['count'];
-            $stmt->close();
+            if ($user_role === 'road_ops_supervisor') {
+                // Road supervisors: count only the unread notifications that
+                // actually appear in their notifications feed — review requests
+                // routed to their role plus results targeted to their email.
+                // (The generic count below would include notifications meant
+                // for other roles, inflating the badge.)
+                $email = '';
+                if ($user_id > 0) {
+                    $estmt = $conn->prepare("SELECT email FROM users WHERE id = ?");
+                    $estmt->bind_param("i", $user_id);
+                    $estmt->execute();
+                    $erow = $estmt->get_result()->fetch_assoc();
+                    $estmt->close();
+                    $email = $erow['email'] ?? '';
+                }
+                $stmt = $conn->prepare("
+                    SELECT COUNT(*) as count FROM report_notifications rn
+                    WHERE rn.is_read = 0
+                      AND (
+                          (rn.recipient_role = 'road_ops_supervisor' AND rn.type IN ('completion', 'cancellation'))
+                          OR (rn.recipient_email = ? AND rn.type IN ('approve_request', 'reject_request', 'complete_report', 'cancel_report'))
+                      )
+                      AND EXISTS (
+                          SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
+                          UNION ALL
+                          SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
+                          UNION ALL
+                          SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id
+                          LIMIT 1
+                      )
+                ");
+                $stmt->bind_param("s", $email);
+                $stmt->execute();
+                $count += $stmt->get_result()->fetch_assoc()['count'];
+                $stmt->close();
+            } else {
+                $stmt = $conn->prepare("
+                    SELECT COUNT(*) as count FROM report_notifications rn
+                    WHERE rn.is_read = 0
+                      AND EXISTS (
+                          SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
+                          UNION ALL
+                          SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
+                          UNION ALL
+                          SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id
+                          LIMIT 1
+                      )
+                ");
+                $stmt->execute();
+                $count += $stmt->get_result()->fetch_assoc()['count'];
+                $stmt->close();
+            }
         } catch (Exception $e) {}
     }
     return $count;

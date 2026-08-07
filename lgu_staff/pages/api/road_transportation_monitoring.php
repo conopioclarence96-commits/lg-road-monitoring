@@ -1995,6 +1995,7 @@ if ($focus_report_id > 0) {
                                 <button class="table-action-btn" title="View Details" onclick="viewReportDetails(<?php echo $rr['id']; ?>, '<?php echo $rr['source']; ?>')"><i class="fas fa-eye"></i></button>
                                 <button class="table-action-btn view-map" onclick="focusReportOnMap(<?php echo $rr['id']; ?>)"><i class="fas fa-map-pin"></i> Map</button>
                                 <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(<?php echo $rr['id']; ?>, '<?php echo $rr['report_type']; ?>')"><i class="fas fa-clock"></i> Updates</button>
+                                <button class="table-action-btn" title="Archive" style="background:linear-gradient(135deg,#6b7280,#4b5563);color:#fff;margin-left:4px;" onclick="archiveReport(<?php echo $rr['id']; ?>, '<?php echo $rr['source']; ?>')"><i class="fas fa-archive"></i> Archive</button>
                             </td>
                         </tr>
                         <?php endforeach; ?>
@@ -2819,6 +2820,37 @@ if ($focus_report_id > 0) {
             document.getElementById('lightboxOverlay').classList.remove('show');
         }
 
+        // Archive button on the Recent Submissions panel. Every report row
+        // (including completed reports) shows it for any admin/staff role.
+        // Moves the report into the archive keeping its current status — it
+        // leaves Recent Submissions but is not completed or cancelled.
+        function archiveReport(id, source) {
+            if (!id) return;
+            if (!confirm('Archive this report? It will be moved out of Recent Submissions into the Archive, keeping its current status.')) return;
+
+            var fd = new FormData();
+            fd.append('action', 'archive_report');
+            fd.append('report_id', id);
+            fd.append('source', source || '');
+
+            fetch('../api/progress_update_api.php', {
+                method: 'POST',
+                body: fd
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    setTimeout(function() { location.reload(); }, 700);
+                } else {
+                    showNotification(data.message || 'Failed to archive the report', 'error');
+                }
+            })
+            .catch(function() {
+                showNotification('Network error', 'error');
+            });
+        }
+
         function viewReportUpdates(id, type) {
             currentUpdatesReportId = id;
             currentUpdatesReportType = type;
@@ -3598,6 +3630,7 @@ if ($focus_report_id > 0) {
                 <button class="table-action-btn" title="View Details" onclick="viewReportDetails(${report.id}, '${report.source}')"><i class="fas fa-eye"></i></button>
                 <button class="table-action-btn view-map" onclick="focusReportOnMap(${report.id})"><i class="fas fa-map-pin"></i> Map</button>
                 <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(${report.id}, '${report.report_type}')"><i class="fas fa-clock"></i> Updates</button>
+                <button class="table-action-btn" title="Archive" style="background:linear-gradient(135deg,#6b7280,#4b5563);color:#fff;margin-left:4px;" onclick="archiveReport(${report.id}, '${report.source}')"><i class="fas fa-archive"></i> Archive</button>
             </td>
         `;
         

@@ -65,18 +65,22 @@ switch ($source_filter) {
 // Build WHERE clause
 $where_clauses = [];
 
-// Status filter. The archive only ever contains completed / rejected / cancelled
-// reports, so every selection (including "All Status") is restricted to those
-// three statuses — any other status can never appear here.
+// Status filter. The archive's classic entries are completed / rejected /
+// cancelled reports, but the Road Supervisor portal can also archive a report
+// while keeping its current status (approved / in-progress / pending), so the
+// "All Status" view shows every status rather than only terminal ones.
 if ($status_filter === 'completed') {
     $where_clauses[] = "status = 'completed'";
 } elseif ($status_filter === 'rejected') {
     $where_clauses[] = "status = 'rejected'";
 } elseif ($status_filter === 'cancelled') {
     $where_clauses[] = "status = 'cancelled'";
-} else {
-    // All Status
-    $where_clauses[] = "status IN ('completed','rejected','cancelled')";
+} elseif ($status_filter === 'approved') {
+    $where_clauses[] = "status = 'approved'";
+} elseif ($status_filter === 'in-progress') {
+    $where_clauses[] = "status = 'in-progress'";
+} elseif ($status_filter === 'pending') {
+    $where_clauses[] = "status = 'pending'";
 }
 
 if ($source_where !== '') {
@@ -989,6 +993,18 @@ if (isset($_SESSION['archive_message'])) {
             background: rgba(34,197,94,0.15);
             color: #22c55e;
         }
+        .status-approved {
+            background: rgba(34,197,94,0.15);
+            color: #22c55e;
+        }
+        .status-pending {
+            background: rgba(251,191,36,0.15);
+            color: #f59e0b;
+        }
+        .status-in-progress {
+            background: rgba(59,130,246,0.15);
+            color: #3b82f6;
+        }
         .status-rejected {
             background: rgba(249,115,22,0.15);
             color: #f97316;
@@ -1022,6 +1038,9 @@ if (isset($_SESSION['archive_message'])) {
                     <label class="form-label">Status Filter</label>
                     <select class="filter-select" id="statusFilter" onchange="filterReports()">
                         <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
+                        <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending</option>
+                        <option value="approved" <?php echo $status_filter === 'approved' ? 'selected' : ''; ?>>Approved</option>
+                        <option value="in-progress" <?php echo $status_filter === 'in-progress' ? 'selected' : ''; ?>>In Progress</option>
                         <option value="completed" <?php echo $status_filter === 'completed' ? 'selected' : ''; ?>>Completed</option>
                         <option value="rejected" <?php echo $status_filter === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
                         <option value="cancelled" <?php echo $status_filter === 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>

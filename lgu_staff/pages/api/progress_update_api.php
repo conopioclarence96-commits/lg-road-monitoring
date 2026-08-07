@@ -512,11 +512,54 @@ if ($method === 'GET') {
                 $report_row = fetch_one("SELECT reference_code AS report_id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
             }
             rgmap_notify_requestor($conn, $report_id, 'complete', $user_id, $report_row['report_id'] ?? null);
+            // Notify the acting supervisor so the completion result appears in
+            // their notifications feed (notifications.php).
+            rgmap_notify_supervisor_action($conn, $report_id, 'complete', $user_id, $report_row['report_id'] ?? null);
             log_audit_action($user_id, "Completed report", "Report ID: {$report_id}, Status: completed (auto-archive in 3 days)");
             json_response(['success' => true, 'message' => 'Report completed. It will stay on this page for 3 days, then move to the archive automatically.']);
         } catch (Exception $e) {
             error_log("Complete status error: " . $e->getMessage());
             json_response(['success' => false, 'message' => 'Failed to complete the report: ' . $e->getMessage()], 500);
+        }
+    } elseif ($action === 'archive_report') {
+        // Archive button on the Recent Submissions panel of
+        // road_transportation_monitoring.php. Moves the report into
+        // road_transportation_reports_archive KEEPING its current status — the
+        // report leaves Recent Submissions but is neither completed nor cancelled.
+        // Available to every report in the panel (including completed reports) for
+        // any admin/staff role that can access the monitoring page.
+        if (!is_admin_or_staff_role($_SESSION['role'] ?? '')) {
+            json_response(['success' => false, 'message' => 'You are not authorized to archive reports.'], 403);
+        }
+        $report_id = intval($_POST['report_id'] ?? 0);
+        $source = sanitize_input($_POST['source'] ?? '');
+
+        if ($report_id <= 0) json_response(['success' => false, 'message' => 'Invalid report ID']);
+
+        try {
+            if ($source === 'cimm') {
+                // CIMM reports store their status in verification_status
+                // (title case, e.g. 'Approved'); normalise to the lowercase form
+                // the archive page filters on.
+                $row = fetch_one("SELECT verification_status AS status FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
+                if (!$row) json_response(['success' => false, 'message' => 'Report not found'], 404);
+                $status = strtolower(trim((string)($row['status'] ?? 'approved')));
+                $archived = rgmap_archive_cimm_report($conn, $report_id, $status);
+            } else {
+                $table = rgmap_resolve_report_table($conn, $report_id);
+                if (!$table) json_response(['success' => false, 'message' => 'Report not found'], 404);
+                $row = fetch_one("SELECT status FROM `$table` WHERE id = ?", [$report_id], "i");
+                $status = strtolower(trim((string)($row['status'] ?? 'approved')));
+                $archived = rgmap_archive_report($conn, $table, $report_id, $status);
+            }
+            if (!$archived) {
+                json_response(['success' => false, 'message' => 'Failed to archive the report'], 500);
+            }
+            log_audit_action($user_id, "Archived report", "Report ID: {$report_id}, Status kept: {$status}");
+            json_response(['success' => true, 'message' => 'Report archived. It is no longer listed in Recent Submissions.']);
+        } catch (Exception $e) {
+            error_log("Archive report error: " . $e->getMessage());
+            json_response(['success' => false, 'message' => 'Failed to archive the report: ' . $e->getMessage()], 500);
         }
     } elseif ($action === 'auto_archive_completed') {
         // Move every completed report whose 3-day retention window has passed

@@ -3872,11 +3872,15 @@ if ($focus_id > 0) {
                             <div class="form-group" style="flex: 1;">
                                 <label class="form-label">Status *</label>
                                 <select class="form-control" name="status" id="editCimmStatus" required>
+                                    <?php if (!$is_road_supervisor): ?>
                                     <option value="pending">Pending</option>
+                                    <?php endif; ?>
                                     <option value="approved">Approved</option>
                                     <option value="in-progress">In Progress</option>
+                                    <?php if (!$is_road_supervisor): ?>
                                     <option value="completed">Completed</option>
                                     <option value="cancelled">Cancelled</option>
+                                    <?php endif; ?>
                                 </select>
                             </div>
                             <div class="form-group" style="flex: 1;">

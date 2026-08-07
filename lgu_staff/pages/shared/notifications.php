@@ -88,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($type === 'report_outcome') {
-            $stmt = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE id = ? AND type IN ('approve_request','reject_request')");
+            $stmt = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE id = ? AND type IN ('approve_request','reject_request','complete_report','cancel_report')");
             $stmt->bind_param("i", $id);
             $stmt->execute();
             $stmt->close();
@@ -101,8 +101,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'mark_all_read') {
         $conn->query("UPDATE road_transportation_reports SET updated_at = NOW() WHERE status = 'pending'");
         if ($user_email !== '') {
-            $stmt = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE recipient_email = ? AND type IN ('approve_request','reject_request')");
+            $stmt = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE recipient_email = ? AND type IN ('approve_request','reject_request','complete_report','cancel_report')");
             $stmt->bind_param("s", $user_email);
+            $stmt->execute();
+            $stmt->close();
+        }
+        if ($user_role === 'road_ops_supervisor') {
+            // Road supervisors: also mark role-targeted review requests
+            // (completion/cancellation routed to their role) as read so the
+            // badge fully resets instead of counting them again on reload.
+            $stmt = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE recipient_role = ? AND type IN ('completion','cancellation')");
+            $stmt->bind_param("s", $user_role);
             $stmt->execute();
             $stmt->close();
         }
@@ -131,6 +140,7 @@ $report_updates = [];
 $staff_updates = [];
 $assigned_projects = [];
 $review_requests = [];
+$supervisor_actions = [];
 
 if ($is_admin) {
     // Admin: get pending reports
@@ -478,6 +488,35 @@ if ($is_admin) {
         } catch (Exception $e) {
             error_log("Review requests query error: " . $e->getMessage());
             $review_requests = [];
+        }
+
+        // Confirmations for actions the supervisor performed themselves
+        // (Complete/Cancel buttons on road_transportation_monitoring.php),
+        // targeted by email to the acting supervisor.
+        try {
+            $sastmt = $conn->prepare("
+                SELECT rn.*, r.report_id as report_code, r.title as report_title, r.report_category, r.location
+                FROM report_notifications rn
+                LEFT JOIN road_transportation_reports r ON rn.report_id = r.id
+                WHERE rn.is_read = 0 AND rn.recipient_email = ? AND rn.type IN ('complete_report', 'cancel_report')
+                  AND EXISTS (
+                      SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
+                      UNION ALL
+                      SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
+                      UNION ALL
+                      SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id
+                      LIMIT 1
+                  )
+                ORDER BY rn.created_at DESC
+                LIMIT 20
+            ");
+            $sastmt->bind_param("s", $user_email);
+            $sastmt->execute();
+            $supervisor_actions = $sastmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $sastmt->close();
+        } catch (Exception $e) {
+            error_log("Supervisor actions query error: " . $e->getMessage());
+            $supervisor_actions = [];
         }
     }
 }
@@ -975,6 +1014,32 @@ function notification_assignment_url(array $ap): string {
                     'mark' => null,
                 ]);
             }
+
+            // Supervisor action confirmations (Complete/Cancel results)
+            foreach ($supervisor_actions as $sa) {
+                // Resolve source for reports not found in road_transportation_reports.
+                if (empty($sa['report_code'])) {
+                    $sa = resolve_progress_notification_source($sa);
+                }
+                $nc_push([
+                    'id' => 'sa' . $sa['id'],
+                    'ts' => $sa['created_at'],
+                    'kind' => 'action',
+                    'icon' => 'fa-check-circle',
+                    'color' => '#10b981',
+                    'title' => $sa['message'],
+                    'desc' => ($sa['report_title'] ?? '') . (!empty($sa['report_category']) ? ' — Module: ' . ucfirst($sa['report_category']) : ''),
+                    'sub' => '',
+                    'report_id' => $sa['report_code'] ?? ('#' . $sa['report_id']),
+                    'status' => ['label' => ($sa['type'] === 'complete_report') ? 'Completed' : 'Cancelled', 'class' => ($sa['type'] === 'complete_report') ? 'nc-st-completed' : 'nc-st-cancelled'],
+                    'priority' => null,
+                    'tags' => ['Action Result'],
+                    'unread' => true,
+                    'url' => notification_progress_focus_url($sa),
+                    'url_label' => 'View Report',
+                    'mark' => ['url' => '', 'data' => ['action' => 'mark_read', 'type' => 'report_outcome', 'id' => (int)$sa['id']]],
+                ]);
+            }
         }
 
         // My report status updates
@@ -1246,6 +1311,9 @@ function notification_assignment_url(array $ap): string {
             document.querySelectorAll('.nc-mark').forEach(function (b) { b.remove(); });
             ncRefreshBadge();
             ncApplyFilters();
+            // Reset the sidebar notification badge as well.
+            var sidebarBadge = document.querySelector('.nav-link .notification-badge');
+            if (sidebarBadge) sidebarBadge.remove();
         }
 
         function ncDismiss(el) {

@@ -2472,6 +2472,7 @@ annotate_report_assignment_status($conn, $recent_reports);
                                 <button class="table-action-btn" title="View Details" onclick="viewReportDetails(<?php echo $rr['id']; ?>, '<?php echo $rr['source']; ?>')"><i class="fas fa-eye"></i></button>
                                 <button class="table-action-btn view-map" onclick="focusReportOnMap(<?php echo $rr['id']; ?>)"><i class="fas fa-map-pin"></i> Map</button>
                                 <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(<?php echo $rr['id']; ?>, '<?php echo $rr['report_type']; ?>', '<?php echo $rr['source']; ?>')"><i class="fas fa-clock"></i> Updates</button>
+                                <button class="table-action-btn" title="Archive" style="background:linear-gradient(135deg,#6b7280,#4b5563);color:#fff;margin-left:4px;" onclick="archiveReport(<?php echo $rr['id']; ?>, '<?php echo $rr['source']; ?>')"><i class="fas fa-archive"></i> Archive</button>
                             </td>
                         </tr>
                         <?php endforeach; ?>
@@ -3419,7 +3420,7 @@ annotate_report_assignment_status($conn, $recent_reports);
         function checkRequestPermission() {
             var completeBtn = document.getElementById('completeBtn');
             var cancelBtn = document.getElementById('cancelBtn');
-            if (!completeBtn || !cancelBtn) return;
+            if (!completeBtn) return;
             var role = '';
             var tag = document.getElementById('sessionTimeoutData');
             if (tag) role = tag.getAttribute('data-role') || '';
@@ -3428,12 +3429,12 @@ annotate_report_assignment_status($conn, $recent_reports);
             // Non-officers use the direct Complete/Cancel path (no restriction).
             if (!isOfficer) {
                 completeBtn.style.display = 'inline-flex';
-                cancelBtn.style.display = 'inline-flex';
+                if (cancelBtn) cancelBtn.style.display = 'inline-flex';
                 return;
             }
             if (!currentUpdatesReportId) {
                 completeBtn.style.display = 'none';
-                cancelBtn.style.display = 'none';
+                if (cancelBtn) cancelBtn.style.display = 'none';
                 return;
             }
 
@@ -3443,13 +3444,13 @@ annotate_report_assignment_status($conn, $recent_reports);
             // progress_update_api.php. Officers are fail-closed: the buttons stay
             // hidden until the server confirms an active assignment for this report.
             completeBtn.style.display = 'none';
-            cancelBtn.style.display = 'none';
+            if (cancelBtn) cancelBtn.style.display = 'none';
             fetch('../api/progress_update_api.php?action=can_request_review&report_id=' + currentUpdatesReportId + '&source=' + encodeURIComponent(currentUpdatesReportSource || ''))
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data && data.success && data.can_request) {
                         completeBtn.style.display = 'inline-flex';
-                        cancelBtn.style.display = 'inline-flex';
+                        if (cancelBtn) cancelBtn.style.display = 'inline-flex';
                     }
                 })
                 .catch(function() {});
@@ -3680,16 +3681,40 @@ annotate_report_assignment_status($conn, $recent_reports);
             return (role === 'road_monitoring_officer' || role === 'trans_monitoring_officer');
         }
 
-        // Road Operations Supervisors are routed to the Notifications page after
-        // completing/cancelling a report; everyone else keeps the in-place reload.
+        // After completing/cancelling a report, reload the page in place.
         function afterStatusActionRedirect() {
-            var tag = document.getElementById('sessionTimeoutData');
-            var role = tag ? tag.getAttribute('data-role') || '' : '';
-            if (role === 'road_ops_supervisor') {
-                window.location.href = 'notifications.php';
-            } else {
-                location.reload();
-            }
+            location.reload();
+        }
+
+        // Archive button on the Recent Submissions panel. Every report row
+        // (including completed reports) shows it for any admin/staff role.
+        // Moves the report into the archive keeping its current status — it
+        // leaves Recent Submissions but is not completed or cancelled.
+        function archiveReport(id, source) {
+            if (!id) return;
+            if (!confirm('Archive this report? It will be moved out of Recent Submissions into the Archive, keeping its current status.')) return;
+
+            var fd = new FormData();
+            fd.append('action', 'archive_report');
+            fd.append('report_id', id);
+            fd.append('source', source || '');
+
+            fetch('../api/progress_update_api.php', {
+                method: 'POST',
+                body: fd
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    setTimeout(function() { location.reload(); }, 700);
+                } else {
+                    showNotification(data.message || 'Failed to archive the report', 'error');
+                }
+            })
+            .catch(function() {
+                showNotification('Network error', 'error');
+            });
         }
 
         function completeReport() {
@@ -4673,6 +4698,7 @@ annotate_report_assignment_status($conn, $recent_reports);
                 <button class="table-action-btn" title="View Details" onclick="viewReportDetails(${report.id}, '${report.source}')"><i class="fas fa-eye"></i></button>
                 <button class="table-action-btn view-map" onclick="focusReportOnMap(${report.id})"><i class="fas fa-map-pin"></i> Map</button>
                 <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(${report.id}, '${report.report_type}', '${report.source}')"><i class="fas fa-clock"></i> Updates</button>
+                <button class="table-action-btn" title="Archive" style="background:linear-gradient(135deg,#6b7280,#4b5563);color:#fff;margin-left:4px;" onclick="archiveReport(${report.id}, '${report.source}')"><i class="fas fa-archive"></i> Archive</button>
             </td>
         `;
         
@@ -4825,6 +4851,9 @@ annotate_report_assignment_status($conn, $recent_reports);
                         <?php if ($is_officer_role): ?>
                         <button type="button" class="btn-success-custom" id="completeBtn">Request Completion</button>
                         <button type="button" class="btn-danger-custom" id="cancelBtn">Request Cancellation</button>
+                        <?php elseif ($is_road_supervisor): ?>
+                        <button type="button" class="btn-success-custom" id="completeBtn">Complete</button>
+                        <button type="button" class="btn-action" id="exportWordBtn" onclick="exportUpdatesToExcel()"><i class="fas fa-file-word"></i> Export as Word</button>
                         <?php else: ?>
                         <button type="button" class="btn-success-custom" id="completeBtn">Complete</button>
                         <button type="button" class="btn-danger-custom" id="cancelBtn">Cancel</button>
