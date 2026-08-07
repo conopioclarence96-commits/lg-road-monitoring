@@ -1643,8 +1643,19 @@ if ($focus_id > 0) {
         .filter-group {
             display: flex;
             gap: 15px;
-            align-items: center;
+            align-items: flex-end;
             flex-wrap: wrap;
+        }
+
+        .filter-group > div {
+            flex: 1;
+            min-width: 180px;
+        }
+
+        .filter-group .btn-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
         .filter-select {
@@ -1653,6 +1664,7 @@ if ($focus_id > 0) {
             border-radius: 6px;
             background: white;
             min-width: 150px;
+            width: 100%;
         }
 
         .btn-primary-custom {
@@ -1687,7 +1699,7 @@ if ($focus_id > 0) {
         }
 
         .btn-success-custom {
-            padding: 10px 20px;
+            padding: 8px 20px;
             background: linear-gradient(135deg, #10b981, #059669);
             color: white;
             border: none;
@@ -3214,7 +3226,7 @@ if ($focus_id > 0) {
                 </div>
                 <div>
                     <label class="form-label">&nbsp;</label>
-                    <div>
+                    <div class="btn-wrapper">
                         <button class="btn-secondary-custom" onclick="resetFilters()">
                             <i class="fas fa-arrow-clockwise"></i> Reset
                         </button>
