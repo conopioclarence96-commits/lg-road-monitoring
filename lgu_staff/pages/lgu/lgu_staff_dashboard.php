@@ -1081,45 +1081,47 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer);
                 </div>
             </div>
 
-            <div class="dash-section" style="--ds:#8b5cf6;">
-                <div class="dsh-header">
-                    <div class="dsh-left">
-                        <span class="dsh-icon"><i class="fas fa-bell"></i></span>
-                        <div>
-                            <h3>Notifications</h3>
-                            <p>Your latest updates</p>
+            <?php if (!$is_supervisor): ?>
+                <div class="dash-section" style="--ds:#8b5cf6;">
+                    <div class="dsh-header">
+                        <div class="dsh-left">
+                            <span class="dsh-icon"><i class="fas fa-bell"></i></span>
+                            <div>
+                                <h3>Notifications</h3>
+                                <p>Your latest updates</p>
+                            </div>
                         </div>
+                        <a class="dsh-link" href="../shared/notifications.php">View all <i class="fas fa-arrow-right"></i></a>
                     </div>
-                    <a class="dsh-link" href="../shared/notifications.php">View all <i class="fas fa-arrow-right"></i></a>
+                    <div class="nt-list">
+                        <?php if (empty($dash_notifs)): ?>
+                            <div class="db-empty">
+                                <i class="fas fa-bell-slash"></i>
+                                <p>No new notifications</p>
+                            </div>
+                        <?php else: ?>
+                            <?php foreach ($dash_notifs as $n): ?>
+                                <?php if ($n['link']): ?>
+                                    <a class="nt-item" href="<?php echo $n['link']; ?>">
+                                <?php else: ?>
+                                    <div class="nt-item">
+                                <?php endif; ?>
+                                    <span class="nt-icon" style="background: <?php echo $n['color']; ?>;"><i class="fas <?php echo $n['icon']; ?>"></i></span>
+                                    <div class="nt-body">
+                                        <div class="nt-title"><?php echo htmlspecialchars($n['title']); ?></div>
+                                        <div class="nt-desc"><?php echo htmlspecialchars($n['desc']); ?></div>
+                                    </div>
+                                    <span class="nt-time"><?php echo getTimeAgo($n['time']); ?></span>
+                                <?php if ($n['link']): ?>
+                                    </a>
+                                <?php else: ?>
+                                    </div>
+                                <?php endif; ?>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
                 </div>
-                <div class="nt-list">
-                    <?php if (empty($dash_notifs)): ?>
-                        <div class="db-empty">
-                            <i class="fas fa-bell-slash"></i>
-                            <p>No new notifications</p>
-                        </div>
-                    <?php else: ?>
-                        <?php foreach ($dash_notifs as $n): ?>
-                            <?php if ($n['link']): ?>
-                                <a class="nt-item" href="<?php echo $n['link']; ?>">
-                            <?php else: ?>
-                                <div class="nt-item">
-                            <?php endif; ?>
-                                <span class="nt-icon" style="background: <?php echo $n['color']; ?>;"><i class="fas <?php echo $n['icon']; ?>"></i></span>
-                                <div class="nt-body">
-                                    <div class="nt-title"><?php echo htmlspecialchars($n['title']); ?></div>
-                                    <div class="nt-desc"><?php echo htmlspecialchars($n['desc']); ?></div>
-                                </div>
-                                <span class="nt-time"><?php echo getTimeAgo($n['time']); ?></span>
-                            <?php if ($n['link']): ?>
-                                </a>
-                            <?php else: ?>
-                                </div>
-                            <?php endif; ?>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
-            </div>
+            <?php endif; ?>
         </div>
 
         <!-- Secondary grid: activity + priority tasks + quick actions -->
