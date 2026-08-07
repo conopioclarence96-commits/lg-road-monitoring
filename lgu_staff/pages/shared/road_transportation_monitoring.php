@@ -3754,6 +3754,11 @@ annotate_report_assignment_status($conn, $recent_reports);
             updateFormData.append('action', 'create_update');
             updateFormData.append('report_id', currentUpdatesReportId);
             updateFormData.append('report_type', currentUpdatesReportType);
+            // Send the row's source so the backend resolves CIMM reports
+            // (cimm_verification_reports) instead of only road_transportation_reports.
+            // Without this the create_update step returns "Report not found" for
+            // CIMM reports and surfaces an error in the upper-right notification.
+            updateFormData.append('source', currentUpdatesReportSource);
             updateFormData.append('title', 'Completed');
             updateFormData.append('description', 'completed on ' + today);
 
