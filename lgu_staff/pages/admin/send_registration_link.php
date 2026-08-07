@@ -252,10 +252,6 @@ try {
             width: 100%;
         }
 
-        .workflow-card.narrow {
-            max-width: 640px;
-        }
-
         .workflow-header {
             display: flex;
             justify-content: space-between;
@@ -513,7 +509,7 @@ try {
         </div>
 
         <div class="workflow-container">
-            <div class="workflow-card narrow">
+            <div class="workflow-card">
                 <div class="workflow-header">
                     <h3 class="workflow-title">
                         <i class="fas fa-paper-plane"></i>
