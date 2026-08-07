@@ -5734,10 +5734,12 @@ if ($focus_id > 0) {
         // panelSearch is hoisted to global scope) AND via these listeners (in
         // case a browser ignores the attribute). Filtering is idempotent, so
         // having both is harmless.
-        document.getElementById('citizenSearchInput')?.addEventListener('input', function() { panelSearch('citizenSearchInput', 'citizenTable'); });
-        document.getElementById('lguSearchInput')?.addEventListener('input', function() { panelSearch('lguSearchInput', 'lguTable'); });
-        document.getElementById('cimmSearchInput')?.addEventListener('input', function() { panelSearch('cimmSearchInput', 'cimmTable'); });
-        document.getElementById('infraSearchInput')?.addEventListener('input', function() { panelSearch('infraSearchInput', 'infraTable'); });
+        document.getElementById('citizenSearchInput').addEventListener('input', function() { panelSearch('citizenSearchInput', 'citizenTable'); });
+        document.getElementById('lguSearchInput').addEventListener('input', function() { panelSearch('lguSearchInput', 'lguTable'); });
+        <?php if (!$is_transport_supervisor): ?>
+        document.getElementById('cimmSearchInput').addEventListener('input', function() { panelSearch('cimmSearchInput', 'cimmTable'); });
+        document.getElementById('infraSearchInput').addEventListener('input', function() { panelSearch('infraSearchInput', 'infraTable'); });
+        <?php endif; ?>
 
         // Compare two cell values using "natural" ordering — each embedded number
         // group is compared numerically (so RPT-9 sorts before RPT-100), while text
@@ -5960,40 +5962,16 @@ if ($focus_id > 0) {
         function filterSource(source) {
             const citizen = document.getElementById('citizenReportsPanel');
             const lgu     = document.getElementById('lguReportsPanel');
+            <?php if (!$is_transport_supervisor): ?>
             const cimm    = document.getElementById('cimmReportsPanel');
             const infra   = document.getElementById('infraReportsPanel');
-
-            if (source === 'cimm') {
-                if (citizen) citizen.style.display = 'none';
-                if (lgu) lgu.style.display = 'none';
-                if (cimm) cimm.style.display = '';
-                if (infra) infra.style.display = 'none';
-            } else if (source === 'maintenance') {
-                if (citizen) citizen.style.display = 'none';
-                if (lgu) lgu.style.display = 'none';
-                if (cimm) cimm.style.display = 'none';
-                if (infra) infra.style.display = '';
-            } else if (source === 'lgu_reports') {
-                if (citizen) citizen.style.display = 'none';
-                if (lgu) lgu.style.display = '';
-                if (cimm) cimm.style.display = 'none';
-                if (infra) infra.style.display = 'none';
-            } else if (source === 'transport') {
-                // Citizen Reports filter: show ONLY the Citizen Reports panel.
-                // The LGU Monitoring panel, CIMM panel, and Infrastructure
-                // panel are all hidden so only citizen-submitted reports are
-                // shown. CIMM / IPMS integration code is untouched.
-                if (citizen) citizen.style.display = '';
-                if (lgu) lgu.style.display = 'none';
-                if (cimm) cimm.style.display = 'none';
-                if (infra) infra.style.display = 'none';
-            } else {
-                // 'all' or unset — show everything
-                if (citizen) citizen.style.display = '';
-                if (lgu) lgu.style.display = '';
-                if (cimm) cimm.style.display = '';
-                if (infra) infra.style.display = '';
-            }
+            <?php endif; ?>
+            citizen.style.display = (source === 'all' || source === 'transport') ? '' : 'none';
+            lgu.style.display     = (source === 'all' || source === 'lgu_reports') ? '' : 'none';
+            <?php if (!$is_transport_supervisor): ?>
+            cimm.style.display    = (source === 'all' || source === 'cimm')      ? '' : 'none';
+            infra.style.display   = (source === 'all' || source === 'maintenance') ? '' : 'none';
+            <?php endif; ?>
         }
 
         // Sync source filter dropdown with panels on page load
