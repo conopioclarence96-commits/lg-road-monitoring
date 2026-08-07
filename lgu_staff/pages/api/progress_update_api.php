@@ -111,7 +111,7 @@ function rgmap_can_request_review($conn, $report_id, $source, $user_id, $current
 
 if ($method === 'GET') {
     $action = $_GET['action'] ?? '';
-    if ($action === 'get_updates' || $action === 'get_update' || $action === 'can_post_update' || $action === 'can_request_review') {
+    if ($action === 'get_updates' || $action === 'get_update' || $action === 'can_post_update' || $action === 'can_request_review' || $action === 'can_complete_report') {
         if ($action === 'can_post_update') {
             $report_id = intval($_GET['report_id'] ?? 0);
             $source = sanitize_input($_GET['source'] ?? '');
@@ -132,6 +132,65 @@ if ($method === 'GET') {
             json_response([
                 'success'     => true,
                 'can_request' => rgmap_can_request_review($conn, $report_id, $source, $user_id, $_SESSION['role'] ?? ''),
+            ]);
+        }
+
+        // Road Operations Supervisor completion gate (report_management.php
+        // Updates modal -> Complete button). For this role only, a report may
+        // NOT be marked Completed when there is no active officer assignment
+        // for it AND no progress update has been added yet — i.e. no work has
+        // been claimed or recorded against the report. All other roles are
+        // unaffected and resolve to allowed (true).
+        if ($action === 'can_complete_report') {
+            $report_id = intval($_GET['report_id'] ?? 0);
+            $source = sanitize_input($_GET['source'] ?? '');
+            if ($report_id <= 0) {
+                json_response(['success' => false, 'message' => 'Invalid report ID']);
+            }
+
+            $source_lower = strtolower(trim($source));
+            $table = ($source_lower === 'cimm') ? 'cimm_verification_reports' : 'road_transportation_reports';
+
+            $has_assignment = false;
+            $has_updates = false;
+
+            try {
+                $check = $conn->query("SHOW TABLES LIKE 'report_assignments'");
+                if ($check && $check->num_rows > 0 && $table) {
+                    $assigned = fetch_one(
+                        "SELECT id FROM report_assignments WHERE report_id = ? AND report_type = ? AND status = 'active'",
+                        [$report_id, $table], "is"
+                    );
+                    $has_assignment = (bool)$assigned;
+                }
+            } catch (Exception $e) {
+                error_log("can_complete_report assignment check error: " . $e->getMessage());
+            }
+
+            try {
+                $upd = fetch_one("SELECT id FROM report_updates WHERE report_id = ? LIMIT 1", [$report_id], "i");
+                $has_updates = (bool)$upd;
+            } catch (Exception $e) {
+                error_log("can_complete_report updates check error: " . $e->getMessage());
+            }
+
+            $current_role = $_SESSION['role'] ?? '';
+            if ($current_role === 'road_ops_supervisor') {
+                $can_complete = $has_assignment || $has_updates;
+                $message = $can_complete
+                    ? ''
+                    : 'Complete blocked: assign an officer to this report or add a progress update first.';
+            } else {
+                $can_complete = true;
+                $message = '';
+            }
+
+            json_response([
+                'success'       => true,
+                'can_complete'  => $can_complete,
+                'has_assignment'=> $has_assignment,
+                'has_updates'   => $has_updates,
+                'message'       => $message,
             ]);
         }
 

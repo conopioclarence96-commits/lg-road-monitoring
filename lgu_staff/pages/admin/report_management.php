@@ -5041,10 +5041,40 @@ if ($focus_id > 0) {
 
         var isCompleting = false; // Flag to prevent multiple clicks
 
+        function validateSupervisorComplete(reportId, reportType, source, callback) {
+            // The completion gate applies only to the Road Operations Supervisor.
+            var role = '';
+            var tag = document.getElementById('sessionTimeoutData');
+            if (tag) role = tag.getAttribute('data-role') || '';
+            if (role !== 'road_ops_supervisor') { callback(true); return; }
+
+            fetch('../api/progress_update_api.php?action=can_complete_report&report_id=' + encodeURIComponent(reportId) + '&report_type=' + encodeURIComponent(reportType) + '&source=' + encodeURIComponent(source))
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (!(data && data.success)) {
+                        showNotification(data && data.message ? data.message : 'Unable to verify completion eligibility', 'error');
+                        callback(false); return;
+                    }
+                    if (!data.can_complete) {
+                        showNotification(data.message || 'Cannot complete: an officer must be assigned or progress updates must be added first', 'error');
+                        callback(false); return;
+                    }
+                    callback(true);
+                })
+                .catch(function() { showNotification('Unable to verify completion eligibility', 'error'); callback(false); });
+        }
+
         function completeReport() {
             if (!currentUpdatesReportId) return;
             if (isCompleting) return; // Prevent multiple clicks
             isCompleting = true;
+            validateSupervisorComplete(currentUpdatesReportId, currentUpdatesReportType, currentUpdatesReportSource, function(allowed) {
+                if (!allowed) { isCompleting = false; return; }
+                finishCompleteReport();
+            });
+        }
+
+        function finishCompleteReport() {
             
             var today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
             
@@ -5071,6 +5101,7 @@ if ($focus_id > 0) {
             updateFormData.append('action', 'create_update');
             updateFormData.append('report_id', currentUpdatesReportId);
             updateFormData.append('report_type', currentUpdatesReportType);
+            updateFormData.append('source', currentUpdatesReportSource);
             updateFormData.append('title', 'Completed');
             updateFormData.append('description', 'completed on ' + today);
 
