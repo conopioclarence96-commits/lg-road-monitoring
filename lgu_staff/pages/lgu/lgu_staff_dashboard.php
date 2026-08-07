@@ -21,6 +21,7 @@ if (!isset($_SESSION['user_id']) || !is_staff_role($_SESSION['role'] ?? '')) {
 // fetching functions so transport reports are hidden from the Road
 // Monitoring Officer dashboard only.
 $is_road_monitoring_officer = (($_SESSION['role'] ?? '') === 'road_monitoring_officer');
+$is_supervisor = in_array($_SESSION['role'] ?? '', ['road_ops_supervisor', 'trans_ops_supervisor'], true);
 
 // Function to get dashboard statistics
 function getDashboardStatistics($conn, $road_only = false) {
@@ -1217,14 +1218,16 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer);
                         <span class="qa-icon"><i class="fas fa-map-location-dot"></i></span>
                         <span class="qa-label">View Map</span>
                     </a>
-                    <a class="qa-btn" style="--qa:#8b5cf6;" href="../shared/notifications.php">
-                        <span class="qa-icon"><i class="fas fa-clipboard-list"></i></span>
-                        <span class="qa-label">My Assigned Reports</span>
-                    </a>
-                    <a class="qa-btn" style="--qa:#f59e0b;" href="../shared/notifications.php">
-                        <span class="qa-icon"><i class="fas fa-bell"></i></span>
-                        <span class="qa-label">Notifications</span>
-                    </a>
+                    <?php if (!$is_supervisor): ?>
+                        <a class="qa-btn" style="--qa:#8b5cf6;" href="../shared/notifications.php">
+                            <span class="qa-icon"><i class="fas fa-clipboard-list"></i></span>
+                            <span class="qa-label">My Assigned Reports</span>
+                        </a>
+                        <a class="qa-btn" style="--qa:#f59e0b;" href="../shared/notifications.php">
+                            <span class="qa-icon"><i class="fas fa-bell"></i></span>
+                            <span class="qa-label">Notifications</span>
+                        </a>
+                    <?php endif; ?>
                     <a class="qa-btn" style="--qa:#10b981;" href="../shared/analytics.php">
                         <span class="qa-icon"><i class="fas fa-chart-pie"></i></span>
                         <span class="qa-label">Analytics</span>
