@@ -4109,15 +4109,22 @@ if ($focus_id > 0) {
             document.body.style.overflow = 'auto';
         }
 
-        document.getElementById('deleteConfirmInput').addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                cancelDeleteConfirm();
-            } else if (e.key === 'Enter') {
-                e.preventDefault();
-                if (document.getElementById('deleteConfirmBtn').classList.contains('enabled')) {
-                    confirmDeleteAction();
+        // The delete-confirm modal markup is rendered AFTER this script block,
+        // so its input does not exist yet — bind after DOM ready and guard with
+        // a null check so a missing element cannot abort the rest of the script.
+        document.addEventListener('DOMContentLoaded', function() {
+            const deleteInput = document.getElementById('deleteConfirmInput');
+            if (!deleteInput) return;
+            deleteInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    cancelDeleteConfirm();
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (document.getElementById('deleteConfirmBtn').classList.contains('enabled')) {
+                        confirmDeleteAction();
+                    }
                 }
-            }
+            });
         });
 
         // Close modal when clicking outside
