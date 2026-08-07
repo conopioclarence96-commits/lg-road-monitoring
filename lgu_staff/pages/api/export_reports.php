@@ -36,7 +36,13 @@ function get_export_reports($status_filter, $source_filter) {
     
     if ($source_filter !== 'all') {
         if ($source_filter === 'transport') {
-            $transport_query .= " WHERE " . implode(' AND ', $where_conditions);
+            // Citizen Reports export: only citizen-submitted reports
+            // (created_by = 0). LGU staff-created reports are excluded.
+            $conditions = ['created_by = 0'];
+            if (!empty($where_conditions)) {
+                $conditions = array_merge($conditions, $where_conditions);
+            }
+            $transport_query .= " WHERE " . implode(' AND ', $conditions);
             $maintenance_query = "SELECT NULL FROM road_maintenance_reports WHERE 1=0";
         } elseif ($source_filter === 'lgu_reports') {
             $transport_query .= " WHERE report_category = 'transportation' AND report_source = 'local' AND created_by != 0";

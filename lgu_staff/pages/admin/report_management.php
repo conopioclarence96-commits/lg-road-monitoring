@@ -900,6 +900,11 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
         }
         if ($is_lgu_filter) {
             $transport_query .= " AND report_source = 'local' AND created_by != 0 AND status IN ('approved', 'in-progress')";
+        } else {
+            // 'transport' (Citizen Reports) filter: only citizen-submitted
+            // reports. LGU staff-created reports (created_by != 0) must never
+            // be fetched here so the Citizen Reports panel shows citizens only.
+            $transport_query .= " AND created_by = 0";
         }
         if (!empty($where_conditions)) {
             $transport_query .= " AND " . implode(' AND ', $where_conditions);
@@ -5733,13 +5738,13 @@ if ($focus_id > 0) {
         // to work even if this script throws before reaching here, since
         // panelSearch is hoisted to global scope) AND via these listeners (in
         // case a browser ignores the attribute). Filtering is idempotent, so
-        // having both is harmless.
-        document.getElementById('citizenSearchInput').addEventListener('input', function() { panelSearch('citizenSearchInput', 'citizenTable'); });
-        document.getElementById('lguSearchInput').addEventListener('input', function() { panelSearch('lguSearchInput', 'lguTable'); });
-        <?php if (!$is_transport_supervisor): ?>
-        document.getElementById('cimmSearchInput').addEventListener('input', function() { panelSearch('cimmSearchInput', 'cimmTable'); });
-        document.getElementById('infraSearchInput').addEventListener('input', function() { panelSearch('infraSearchInput', 'infraTable'); });
-        <?php endif; ?>
+        // having both is harmless. Null-checks keep this from throwing when a
+        // panel is not rendered for the current role (e.g. the Citizen panel is
+        // hidden for Road Operations Supervisors).
+        ['citizenSearchInput' => 'citizenTable', 'lguSearchInput' => 'lguTable', 'cimmSearchInput' => 'cimmTable', 'infraSearchInput' => 'infraTable'].forEach(function(pair) {
+            var input = document.getElementById(pair[0]);
+            if (input) input.addEventListener('input', function() { panelSearch(pair[0], pair[1]); });
+        });
 
         // Compare two cell values using "natural" ordering — each embedded number
         // group is compared numerically (so RPT-9 sorts before RPT-100), while text
@@ -5962,16 +5967,40 @@ if ($focus_id > 0) {
         function filterSource(source) {
             const citizen = document.getElementById('citizenReportsPanel');
             const lgu     = document.getElementById('lguReportsPanel');
-            <?php if (!$is_transport_supervisor): ?>
             const cimm    = document.getElementById('cimmReportsPanel');
             const infra   = document.getElementById('infraReportsPanel');
-            <?php endif; ?>
-            citizen.style.display = (source === 'all' || source === 'transport') ? '' : 'none';
-            lgu.style.display     = (source === 'all' || source === 'lgu_reports') ? '' : 'none';
-            <?php if (!$is_transport_supervisor): ?>
-            cimm.style.display    = (source === 'all' || source === 'cimm')      ? '' : 'none';
-            infra.style.display   = (source === 'all' || source === 'maintenance') ? '' : 'none';
-            <?php endif; ?>
+
+            if (source === 'cimm') {
+                if (citizen) citizen.style.display = 'none';
+                if (lgu) lgu.style.display = 'none';
+                if (cimm) cimm.style.display = '';
+                if (infra) infra.style.display = 'none';
+            } else if (source === 'maintenance') {
+                if (citizen) citizen.style.display = 'none';
+                if (lgu) lgu.style.display = 'none';
+                if (cimm) cimm.style.display = 'none';
+                if (infra) infra.style.display = '';
+            } else if (source === 'lgu_reports') {
+                if (citizen) citizen.style.display = 'none';
+                if (lgu) lgu.style.display = '';
+                if (cimm) cimm.style.display = 'none';
+                if (infra) infra.style.display = 'none';
+            } else if (source === 'transport') {
+                // Citizen Reports filter: show ONLY the Citizen Reports panel.
+                // The LGU Monitoring panel, CIMM panel, and Infrastructure
+                // panel are all hidden so only citizen-submitted reports are
+                // shown.
+                if (citizen) citizen.style.display = '';
+                if (lgu) lgu.style.display = 'none';
+                if (cimm) cimm.style.display = 'none';
+                if (infra) infra.style.display = 'none';
+            } else {
+                // 'all' or unset — show everything
+                if (citizen) citizen.style.display = '';
+                if (lgu) lgu.style.display = '';
+                if (cimm) cimm.style.display = '';
+                if (infra) infra.style.display = '';
+            }
         }
 
         // Sync source filter dropdown with panels on page load
