@@ -189,7 +189,18 @@ function handle_receive_report() {
 
 function handle_update_report() {
     global $conn, $user_id;
-    
+
+    // Edit / Save Changes is restricted to the Road Operations Supervisor only.
+    if (($_SESSION['role'] ?? '') !== 'road_ops_supervisor') {
+        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => 'You are not authorized to edit reports. Only the Road Operations Supervisor may do this.']);
+            exit;
+        }
+        set_flash_message('error', 'You are not authorized to edit reports. Only the Road Operations Supervisor may do this.');
+        return;
+    }
+
     $report_id = intval($_POST['report_id'] ?? 0);
     $report_type = sanitize_input($_POST['report_type'] ?? '');
     $report_type_from_db = sanitize_input($_POST['report_type_from_db'] ?? '');
@@ -3302,9 +3313,11 @@ if ($focus_id > 0) {
                                     <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-eye"></i>
                                     </button>
+                                    <?php if ($is_road_supervisor): ?>
                                     <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'road_transportation_reports')">
                                         <i class="fas fa-pencil"></i>
                                     </button>
+                                    <?php endif; ?>
                                     <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-trash"></i>
                                     </button>
@@ -3416,9 +3429,11 @@ if ($focus_id > 0) {
                                     <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-eye"></i>
                                     </button>
+                                    <?php if ($is_road_supervisor): ?>
                                     <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'road_transportation_reports')">
                                         <i class="fas fa-pencil"></i>
                                     </button>
+                                    <?php endif; ?>
                                     <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-trash"></i>
                                     </button>
@@ -3633,9 +3648,11 @@ if ($focus_id > 0) {
                                     <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-eye"></i>
                                     </button>
+                                    <?php if ($is_road_supervisor): ?>
                                     <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'road_maintenance_reports')">
                                         <i class="fas fa-pencil"></i>
                                     </button>
+                                    <?php endif; ?>
                                     <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-trash"></i>
                                     </button>
@@ -5235,6 +5252,14 @@ if ($focus_id > 0) {
         var editSelectedFiles = [];
 
         function editReport(id, type, table) {
+            // Save Changes (edit) is restricted to the Road Operations Supervisor.
+            var role = '';
+            var tag = document.getElementById('sessionTimeoutData');
+            if (tag) role = tag.getAttribute('data-role') || '';
+            if (role !== 'road_ops_supervisor') {
+                showNotification('Only the Road Operations Supervisor can edit reports.', 'error');
+                return;
+            }
             fetch(`../api/get_report_details.php?id=${id}&type=${encodeURIComponent(type)}&_=${Date.now()}`)
                 .then(response => {
                     if (!response.ok) {
@@ -5723,11 +5748,7 @@ if ($focus_id > 0) {
                     }
                     showNotification(msg, 'success');
                     closeModal('editReportModal');
-                    indicator.textContent = 'Changes saved. Loading report view...';
-
-                    setTimeout(() => {
-                        window.location.href = '../shared/road_transportation_monitoring.php';
-                    }, 500);
+                    indicator.textContent = 'Changes saved.';
                 } else {
                     showNotification(data.message || 'Failed to update report', 'error');
                     indicator.textContent = 'Failed to save changes';
