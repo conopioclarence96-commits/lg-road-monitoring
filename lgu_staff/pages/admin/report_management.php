@@ -5741,7 +5741,7 @@ if ($focus_id > 0) {
         // having both is harmless. Null-checks keep this from throwing when a
         // panel is not rendered for the current role (e.g. the Citizen panel is
         // hidden for Road Operations Supervisors).
-        ['citizenSearchInput' => 'citizenTable', 'lguSearchInput' => 'lguTable', 'cimmSearchInput' => 'cimmTable', 'infraSearchInput' => 'infraTable'].forEach(function(pair) {
+        [['citizenSearchInput', 'citizenTable'], ['lguSearchInput', 'lguTable'], ['cimmSearchInput', 'cimmTable'], ['infraSearchInput', 'infraTable']].forEach(function(pair) {
             var input = document.getElementById(pair[0]);
             if (input) input.addEventListener('input', function() { panelSearch(pair[0], pair[1]); });
         });
