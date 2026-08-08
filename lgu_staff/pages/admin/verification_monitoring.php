@@ -46,6 +46,17 @@ if ($check2 && $check2->num_rows === 0) {
     $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN report_source ENUM('local','external') DEFAULT 'local' AFTER report_category");
 }
 
+// Ensure engineer and budget_allocation columns exist in road_transportation_reports
+// (CIMM syncs these for road reports via the verify webhook).
+$check_engineer = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'engineer'");
+if ($check_engineer && $check_engineer->num_rows === 0) {
+    $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN engineer VARCHAR(150) NULL DEFAULT NULL");
+}
+$check_budget = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'budget_allocation'");
+if ($check_budget && $check_budget->num_rows === 0) {
+    $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN budget_allocation DECIMAL(15,2) NULL DEFAULT NULL");
+}
+
 // Ensure reporter_phone / image_path exist — getCitizenReports() below
 // selects them, and without this guard a DB that predates those columns
 // (e.g. a fresh/older local install) throws "Unknown column" and takes
@@ -72,6 +83,16 @@ if ($check_arch && $check_arch->num_rows === 0) {
 $check_arch2 = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE 'report_source'");
 if ($check_arch2 && $check_arch2->num_rows === 0) {
     $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN report_source ENUM('local','external') DEFAULT 'local' AFTER report_category");
+}
+
+// Ensure archive table mirrors the engineer/budget_allocation columns
+$check_arch_engineer = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE 'engineer'");
+if ($check_arch_engineer && $check_arch_engineer->num_rows === 0) {
+    $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN engineer VARCHAR(150) NULL DEFAULT NULL");
+}
+$check_arch_budget = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE 'budget_allocation'");
+if ($check_arch_budget && $check_arch_budget->num_rows === 0) {
+    $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN budget_allocation DECIMAL(15,2) NULL DEFAULT NULL");
 }
 
 // Ensure reports table exists (from reports.sql)
@@ -212,23 +233,23 @@ function getAllReports($conn, $status_filter = 'all', $source_filter = 'all', $t
     if ($source_filter === 'transport') {
         $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}" : " WHERE {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}";
         $source_case = "CASE WHEN report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
-        $q = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$where})";
+        $q = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at, engineer, budget_allocation FROM road_transportation_reports{$where})";
         $parts[] = $q;
     } elseif ($source_filter === 'maintenance') {
         if (!$transport_only) {
-            $q = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
+            $q = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at, NULL as engineer, NULL as budget_allocation FROM road_maintenance_reports{$maintenance_where})";
             $parts[] = $q;
         }
     } else {
         $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}" : " WHERE {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}";
         $source_case = "CASE WHEN report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
-        $parts[] = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, cimm_sync_status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$where})";
+        $parts[] = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, cimm_sync_status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at, engineer, budget_allocation FROM road_transportation_reports{$where})";
         if (!$transport_only) {
-            $parts[] = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, NULL as cimm_sync_status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
+            $parts[] = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, NULL as cimm_sync_status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at, NULL as engineer, NULL as budget_allocation FROM road_maintenance_reports{$maintenance_where})";
         }
     }
     if (empty($parts)) {
-        $query = "(SELECT 'transport' as source, 0 as id, '' as report_id, '' as title, '' as report_type, '' as report_category, '' as report_source, '' as department, '' as priority, '' as status, NULL as created_date, NULL as due_date, '' as description, '' as location, NULL as attachments, NULL as latitude, NULL as longitude, NULL as created_at, NULL as updated_at, NULL as approved_at, NULL as rejected_at, NULL as cimm_sync_status FROM road_transportation_reports WHERE 1 = 0)";
+        $query = "(SELECT 'transport' as source, 0 as id, '' as report_id, '' as title, '' as report_type, '' as report_category, '' as report_source, '' as department, '' as priority, '' as status, NULL as created_date, NULL as due_date, '' as description, '' as location, NULL as attachments, NULL as latitude, NULL as longitude, NULL as created_at, NULL as updated_at, NULL as approved_at, NULL as rejected_at, NULL as cimm_sync_status, NULL as engineer, NULL as budget_allocation FROM road_transportation_reports WHERE 1 = 0)";
     } else {
         $query = implode(' UNION ALL ', $parts) . " ORDER BY created_at DESC";
     }
@@ -270,13 +291,12 @@ function getActivityTimeline($conn) {
 // Map a synced cimm_verification_reports row (from cimm_verification_data.php)
 // into the flat shape the CIMM/Dept tables on this page already render.
 //
-// Two known gaps vs. the old mock data, left explicit rather than guessed:
-//  1) "engineer" — CIMM doesn't sync an assigned engineer name; shows '—'
-//     until/unless CIMM starts sending one (e.g. via cprf_facility_name or a
-//     future assigned_engineer field).
+// The 'engineer' field now reads from cimm_verification_reports.engineer
+// (synced from CIMM's payload via cimm-reports-webhook.php), falling back to
+// cprf_facility_name for backward compatibility with older rows.
+//
 //  2) "report_type" (staff vs dept) — CIMM's sync payload has no staff/dept
 //     category today, so every synced row is bucketed as 'staff' for now.
-//     Update this mapping once CIMM adds a category field to the payload.
 function rgmap_map_cimm_row_for_display(array $row): array {
     $verification = $row['verification_status'] ?? 'Pending Review';
 
@@ -321,13 +341,14 @@ function rgmap_map_cimm_row_for_display(array $row): array {
         'infrastructure'=> $row['infrastructure'] ?? '',
         'location'      => $row['location'] ?? '',
         'issue_notes'   => $row['issue'] ?? '',
-        'engineer'      => $row['cprf_facility_name'] ?? '—',
+        'engineer'      => $row['engineer'] ?? $row['cprf_facility_name'] ?? '—',
         'reported_by'   => $row['reporter_name'] ?? '—',
         'report_type'   => 'staff', // see gap #2 above
         'start_date'    => $row['starting_date'] ?? null,
         'end_date'      => $row['estimated_end_date'] ?? null,
         'priority'      => strtolower((string)($row['priority'] ?? 'medium')),
-        'budget'        => $row['budget'] ?? null,
+        'budget'        => $row['budget_allocation'] ?? $row['budget'] ?? null,
+        'budget_allocation' => $row['budget_allocation'] ?? null,
         'status'        => $status,
         'approval_status'      => $row['approval_status'] ?? null,
         'verification_status'  => $verification,
@@ -558,24 +579,26 @@ function archive_cimm_rejected_report($conn, $cimm_req_id) {
         
         // Map CIMM columns to road_transportation_reports_archive columns
         $insert_fields = [
-            'report_id' => $cimm_report['reference_code'] ?? 'CIMM-' . $cimm_req_id,
-            'title' => $cimm_report['infrastructure'] ?? 'CIMM Report',
-            'report_type' => 'infrastructure_issue',
+            'report_id'       => $cimm_report['reference_code'] ?? 'CIMM-' . $cimm_req_id,
+            'title'           => $cimm_report['infrastructure'] ?? 'CIMM Report',
+            'report_type'     => 'infrastructure_issue',
             'report_category' => 'road',
-            'report_source' => 'external',
-            'department' => 'engineering',
-            'priority' => $cimm_report['priority'] ?? 'medium',
-            'status' => 'rejected',
-            'archived_from' => 'cimm_verification_reports',
-            'created_date' => $cimm_report['submitted_at'] ?? date('Y-m-d'),
-            'description' => $cimm_report['issue'] ?? '',
-            'location' => $cimm_report['location'] ?? '',
-            'latitude' => $cimm_report['coord_lat'] ?? null,
-            'longitude' => $cimm_report['coord_lng'] ?? null,
-            'created_at' => $cimm_report['submitted_at'] ?? date('Y-m-d H:i:s'),
-            'updated_at' => date('Y-m-d H:i:s'),
-            'rejected_at' => date('Y-m-d H:i:s'),
-            'approved_at' => null
+            'report_source'   => 'external',
+            'department'      => 'engineering',
+            'priority'        => $cimm_report['priority'] ?? 'medium',
+            'status'          => 'rejected',
+            'archived_from'   => 'cimm_verification_reports',
+            'created_date'    => (!empty($cimm_report['submitted_at'])) ? date('Y-m-d', strtotime($cimm_report['submitted_at'])) : date('Y-m-d'),
+            'description'     => $cimm_report['issue'] ?? '',
+            'location'        => $cimm_report['location'] ?? '',
+            'latitude'        => $cimm_report['coord_lat'] ?? null,
+            'longitude'       => $cimm_report['coord_lng'] ?? null,
+            'created_at'      => $cimm_report['submitted_at'] ?? date('Y-m-d H:i:s'),
+            'updated_at'      => date('Y-m-d H:i:s'),
+            'rejected_at'     => date('Y-m-d H:i:s'),
+            'approved_at'     => null,
+            'engineer'        => $cimm_report['engineer'] ?? null,
+            'budget_allocation' => $cimm_report['budget_allocation'] ?? null,
         ];
         
         // Build INSERT query dynamically
@@ -4959,16 +4982,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <div class="lgu-table-wrapper">
                 <table class="lgu-table" id="lguTable">
                     <thead>
-                        <tr>
-                            <th>Action</th>
-                            <th>Report #</th>
-                            <th>Title</th>
-                            <th>Type</th>
-                            <th>Source</th>
-                            <th>Priority</th>
-                            <th>Status</th>
-                            <th>Date</th>
-                        </tr>
+                            <tr>
+                                <th>Action</th>
+                                <th>Report #</th>
+                                <th>Title</th>
+                                <th>Type</th>
+                                <th>Source</th>
+                                <th>Priority</th>
+                                <th>Engineer</th>
+                                <th>Budget Allocation</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                            </tr>
                     </thead>
                     <tbody>
                         <?php 
@@ -5135,6 +5160,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                 <strong>Rejected At:</strong> <?php echo htmlspecialchars($report['rejected_at']); ?>
                                             </div>
                                             <?php endif; ?>
+                                            <?php if (!empty($report['engineer'])): ?>
+                                            <div class="detail-item">
+                                                <strong>CIMM Assigned Engineer:</strong> 
+                                                <span class="lgu-status-badge t-badge t-badge-info"><?php echo htmlspecialchars($report['engineer']); ?></span>
+                                            </div>
+                                            <?php endif; ?>
+                                            <?php if (!empty($report['budget_allocation']) && $report['budget_allocation'] !== '0.00'): ?>
+                                            <div class="detail-item">
+                                                <strong>CIMM Budget Allocation:</strong> 
+                                                <span class="t-text-success">₱ <?php echo number_format((float)$report['budget_allocation'], 2); ?></span>
+                                            </div>
+                                            <?php endif; ?>
                                         </div>
                                     </div>
                                 </td>
@@ -5143,6 +5180,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 <td><?php echo htmlspecialchars($lgu_type_labels[$report['report_type']] ?? ucfirst($report['report_type'])); ?></td>
                                 <td><?php echo htmlspecialchars($lgu_source_labels[$report['source']] ?? $report['department'] ?? '—'); ?></td>
                                 <td><span class="lgu-status-badge <?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'] ?? 'medium')); ?></span></td>
+                                <td>
+                                    <?php
+                                    $lgu_engineer = $report['engineer'] ?? null;
+                                    if ($lgu_engineer):
+                                    ?>
+                                    <span class="lgu-status-badge t-badge t-badge-info" title="CIMM Assigned Engineer"><?php echo htmlspecialchars($lgu_engineer); ?></span>
+                                    <?php else: ?>
+                                    <span class="t-text-muted">—</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php
+                                    $lgu_budget = $report['budget_allocation'] ?? null;
+                                    if ($lgu_budget !== null && $lgu_budget !== ''):
+                                    ?>
+                                    <span class="t-text-success" title="CIMM Budget Allocation">₱ <?php echo number_format((float)$lgu_budget, 2); ?></span>
+                                    <?php else: ?>
+                                    <span class="t-text-muted">—</span>
+                                    <?php endif; ?>
+                                </td>
                                 <td>
                                     <?php if ($pending_ext_verify): ?>
                                     <span class="lgu-status-badge t-badge t-badge-pending">Awaiting Ext.</span>
@@ -5155,7 +5212,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <?php endwhile; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="8">
+                                <td colspan="10">
                                     <div class="lgu-empty-state">
                                         <div class="lgu-empty-icon"><i class="fas fa-clipboard-list"></i></div>
                                         <p>No reports at this time.</p>
@@ -6003,6 +6060,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if (r.rejected_at) {
                 sourceGrid += lguInfoItem('thumbs-down', 'Rejected At', formatDate(r.rejected_at));
             }
+            if (r.report_category === 'road') {
+                if (r.engineer) {
+                    sourceGrid += lguInfoItem('hard-hat', 'CIMM Engineer', r.engineer);
+                }
+                if (r.budget_allocation) {
+                    sourceGrid += lguInfoItem('money-bill-wave', 'CIMM Budget Allocation', '₱ ' + Number(r.budget_allocation).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+                }
+            }
             document.getElementById('lgu-source-grid').innerHTML = sourceGrid;
 
             // Location
@@ -6135,6 +6200,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             projectGrid += cimmInfoItem('calendar-alt', 'Start Date', formatDate(r.start_date));
             projectGrid += cimmInfoItem('calendar-check', 'End Date', formatDate(r.end_date));
             projectGrid += cimmInfoItem('wallet', 'Budget', formatCurrency(r.budget));
+            if (r.budget_allocation) {
+                projectGrid += cimmInfoItem('wallet', 'Budget Allocation', formatCurrency(r.budget_allocation));
+            }
             document.getElementById('cimm-project-grid').innerHTML = projectGrid;
 
             // Reporter & Engineer
@@ -6547,7 +6615,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     created_at: <?php echo json_encode($lr['created_at']); ?>,
                     updated_at: <?php echo json_encode($lr['updated_at']); ?>,
                     approved_at: <?php echo json_encode($lr['approved_at']); ?>,
-                    rejected_at: <?php echo json_encode($lr['rejected_at']); ?>
+                    rejected_at: <?php echo json_encode($lr['rejected_at']); ?>,
+                    engineer: <?php echo json_encode($lr['engineer'] ?? null); ?>,
+                    budget_allocation: <?php echo json_encode($lr['budget_allocation'] ?? null); ?>
                 };
             } catch(e) {
                 console.error('Error adding LGU report to map:', e);

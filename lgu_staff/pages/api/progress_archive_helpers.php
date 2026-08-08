@@ -160,6 +160,8 @@ function rgmap_archive_cimm_report($conn, $cimm_req_id, $status) {
             'updated_at' => $now,
             $timestamp_key => $now,
             'approved_at' => null,
+            'engineer' => $cimm_report['engineer'] ?? null,
+            'budget_allocation' => $cimm_report['budget_allocation'] ?? null,
         ];
 
         $fields = array_keys($insert_fields);
@@ -382,6 +384,8 @@ function rgmap_archive_copy_cimm_report($conn, $cimm_req_id, $status) {
             'updated_at' => $now,
             $timestamp_key => $now,
             'approved_at' => null,
+            'engineer' => $cimm_report['engineer'] ?? null,
+            'budget_allocation' => $cimm_report['budget_allocation'] ?? null,
         ];
 
         $fields = array_keys($insert_fields);

@@ -79,6 +79,8 @@ function rgmap_ensure_cimm_verification_table(PDO $pdo): void {
         verification_note   TEXT         NULL,
         verified_by         INT UNSIGNED NULL,
         verified_at         DATETIME     NULL,
+        engineer            VARCHAR(150) NULL,
+        budget_allocation   DECIMAL(15,2) NULL,
         payload_json        LONGTEXT     NULL,
         last_event          VARCHAR(32)  NOT NULL DEFAULT 'upsert',
         synced_at           TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -117,6 +119,8 @@ function rgmap_ensure_cimm_verification_table(PDO $pdo): void {
         "payload_json LONGTEXT NULL AFTER verified_at",
         "last_event VARCHAR(32) NOT NULL DEFAULT 'upsert' AFTER payload_json",
         "synced_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER last_event",
+        "engineer VARCHAR(150) NULL AFTER verified_at",
+        "budget_allocation DECIMAL(15,2) NULL AFTER engineer",
     ];
     foreach ($columns as $def) {
         try {

@@ -34,6 +34,22 @@ try {
     if ($result && $result->num_rows > 0) {
         $estimation_column_exists = true;
     }
+    
+    // Check if engineer and budget_allocation columns exist
+    $engineer_column_exists = false;
+    $budget_column_exists = false;
+    $check_eng = $conn->query("SHOW COLUMNS FROM {$table} LIKE 'engineer'");
+    if ($check_eng && $check_eng->num_rows > 0) {
+        $engineer_column_exists = true;
+    }
+    $check_bud = $conn->query("SHOW COLUMNS FROM {$table} LIKE 'budget_allocation'");
+    if ($check_bud && $check_bud->num_rows > 0) {
+        $budget_column_exists = true;
+    }
+    
+    $cimm_extra_cols = '';
+    if ($engineer_column_exists) $cimm_extra_cols .= ', engineer';
+    if ($budget_column_exists) $cimm_extra_cols .= ', budget_allocation';
 
     // Check if approved_at and rejected_at columns exist
     $approved_at_exists = false;
@@ -60,8 +76,9 @@ try {
     if ($table === 'road_transportation_reports') {
         $query = "SELECT id, report_id, report_type, title, department, priority, status, created_date, due_date, description,
                     location, latitude, longitude, reporter_name, reporter_email, severity, reported_date, resolved_date, assigned_to,
-                    resolution_notes as notes, estimation, attachments, created_by, created_at, updated_at, image_path 
-                    {$extra_cols}
+                    resolution_notes as notes, estimation, attachments, created_by, created_at, updated_at, image_path,
+                    report_category, report_source, reporter_phone
+                    {$extra_cols} {$cimm_extra_cols}
                     FROM road_transportation_reports WHERE id = ?";
         
     } else {

@@ -22,6 +22,8 @@ $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS c
 $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_pushed_at TIMESTAMP NULL DEFAULT NULL");
 $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_verified_at TIMESTAMP NULL DEFAULT NULL");
 $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_verified_by VARCHAR(150) DEFAULT NULL");
+$conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS engineer VARCHAR(150) NULL DEFAULT NULL");
+$conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS budget_allocation DECIMAL(15,2) NULL DEFAULT NULL");
 
 // report_type/department were ENUMs whose allowed values never actually
 // matched what the form below submits (report_type: 'road_damage' etc. vs

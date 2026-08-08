@@ -119,14 +119,16 @@ try {
             district, coord_lat, coord_lng, cprf_facility_id, cprf_facility_name,
             approval_status, rejection_reason, resolution_status, resolution_note, resolved_at,
             priority, budget, starting_date, estimated_end_date, submitted_at,
-            evidence_json, ai_json, portal_url, payload_json, last_event
+            evidence_json, ai_json, portal_url, payload_json, last_event,
+            engineer, budget_allocation
         ) VALUES (
             ?, ?, ?, ?,
             ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?
+            ?, ?, ?, ?, ?,
+            ?, ?
         )
         ON DUPLICATE KEY UPDATE
             cimm_rep_id = VALUES(cimm_rep_id),
@@ -158,6 +160,8 @@ try {
             portal_url = VALUES(portal_url),
             payload_json = VALUES(payload_json),
             last_event = VALUES(last_event),
+            engineer = VALUES(engineer),
+            budget_allocation = VALUES(budget_allocation),
             synced_at = CURRENT_TIMESTAMP
     ");
 
@@ -192,6 +196,8 @@ try {
         $data['portal_url'] ?? null,
         $payloadJson,
         $event,
+        $data['engineer'] ?? null,
+        $data['budget_allocation'] ?? null,
     ]);
 
     $localIdStmt = $pdo->prepare('SELECT id FROM cimm_verification_reports WHERE cimm_req_id = ? LIMIT 1');
