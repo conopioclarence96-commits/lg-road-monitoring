@@ -212,23 +212,23 @@ function getAllReports($conn, $status_filter = 'all', $source_filter = 'all', $t
     if ($source_filter === 'transport') {
         $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}" : " WHERE {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}";
         $source_case = "CASE WHEN report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
-        $q = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$where})";
+        $q = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at, engineer, budget_allocation FROM road_transportation_reports{$where})";
         $parts[] = $q;
     } elseif ($source_filter === 'maintenance') {
         if (!$transport_only) {
-            $q = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
+            $q = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at, NULL as engineer, NULL as budget_allocation FROM road_maintenance_reports{$maintenance_where})";
             $parts[] = $q;
         }
     } else {
         $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}" : " WHERE {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}";
         $source_case = "CASE WHEN report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
-        $parts[] = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, cimm_sync_status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at FROM road_transportation_reports{$where})";
+        $parts[] = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, cimm_sync_status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at, engineer, budget_allocation FROM road_transportation_reports{$where})";
         if (!$transport_only) {
-            $parts[] = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, NULL as cimm_sync_status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at FROM road_maintenance_reports{$maintenance_where})";
+            $parts[] = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, NULL as cimm_sync_status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at, NULL as engineer, NULL as budget_allocation FROM road_maintenance_reports{$maintenance_where})";
         }
     }
     if (empty($parts)) {
-        $query = "(SELECT 'transport' as source, 0 as id, '' as report_id, '' as title, '' as report_type, '' as report_category, '' as report_source, '' as department, '' as priority, '' as status, NULL as created_date, NULL as due_date, '' as description, '' as location, NULL as attachments, NULL as latitude, NULL as longitude, NULL as created_at, NULL as updated_at, NULL as approved_at, NULL as rejected_at, NULL as cimm_sync_status FROM road_transportation_reports WHERE 1 = 0)";
+        $query = "(SELECT 'transport' as source, 0 as id, '' as report_id, '' as title, '' as report_type, '' as report_category, '' as report_source, '' as department, '' as priority, '' as status, NULL as created_date, NULL as due_date, '' as description, '' as location, NULL as attachments, NULL as latitude, NULL as longitude, NULL as created_at, NULL as updated_at, NULL as approved_at, NULL as rejected_at, NULL as cimm_sync_status, NULL as engineer, NULL as budget_allocation FROM road_transportation_reports WHERE 1 = 0)";
     } else {
         $query = implode(' UNION ALL ', $parts) . " ORDER BY created_at DESC";
     }
@@ -4961,16 +4961,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <div class="lgu-table-wrapper">
                 <table class="lgu-table" id="lguTable">
                     <thead>
-                        <tr>
-                            <th>Action</th>
-                            <th>Report #</th>
-                            <th>Title</th>
-                            <th>Type</th>
-                            <th>Source</th>
-                            <th>Priority</th>
-                            <th>Status</th>
-                            <th>Date</th>
-                        </tr>
+                            <tr>
+                                <th>Action</th>
+                                <th>Report #</th>
+                                <th>Title</th>
+                                <th>Type</th>
+                                <th>Source</th>
+                                <th>Priority</th>
+                                <th>Engineer</th>
+                                <th>Budget Allocation</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                            </tr>
                     </thead>
                     <tbody>
                         <?php 
@@ -5137,6 +5139,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                 <strong>Rejected At:</strong> <?php echo htmlspecialchars($report['rejected_at']); ?>
                                             </div>
                                             <?php endif; ?>
+                                            <?php if (!empty($report['engineer'])): ?>
+                                            <div class="detail-item">
+                                                <strong>CIMM Assigned Engineer:</strong> 
+                                                <span class="lgu-status-badge t-badge t-badge-info"><?php echo htmlspecialchars($report['engineer']); ?></span>
+                                            </div>
+                                            <?php endif; ?>
+                                            <?php if (!empty($report['budget_allocation']) && $report['budget_allocation'] !== '0.00'): ?>
+                                            <div class="detail-item">
+                                                <strong>CIMM Budget Allocation:</strong> 
+                                                <span class="t-text-success">₱ <?php echo number_format((float)$report['budget_allocation'], 2); ?></span>
+                                            </div>
+                                            <?php endif; ?>
                                         </div>
                                     </div>
                                 </td>
@@ -5145,6 +5159,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 <td><?php echo htmlspecialchars($lgu_type_labels[$report['report_type']] ?? ucfirst($report['report_type'])); ?></td>
                                 <td><?php echo htmlspecialchars($lgu_source_labels[$report['source']] ?? $report['department'] ?? '—'); ?></td>
                                 <td><span class="lgu-status-badge <?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'] ?? 'medium')); ?></span></td>
+                                <td>
+                                    <?php
+                                    $lgu_engineer = $report['engineer'] ?? null;
+                                    if ($lgu_engineer):
+                                    ?>
+                                    <span class="lgu-status-badge t-badge t-badge-info" title="CIMM Assigned Engineer"><?php echo htmlspecialchars($lgu_engineer); ?></span>
+                                    <?php else: ?>
+                                    <span class="t-text-muted">—</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php
+                                    $lgu_budget = $report['budget_allocation'] ?? null;
+                                    if ($lgu_budget !== null && $lgu_budget !== ''):
+                                    ?>
+                                    <span class="t-text-success" title="CIMM Budget Allocation">₱ <?php echo number_format((float)$lgu_budget, 2); ?></span>
+                                    <?php else: ?>
+                                    <span class="t-text-muted">—</span>
+                                    <?php endif; ?>
+                                </td>
                                 <td>
                                     <?php if ($pending_ext_verify): ?>
                                     <span class="lgu-status-badge t-badge t-badge-pending">Awaiting Ext.</span>
@@ -5157,7 +5191,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <?php endwhile; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="8">
+                                <td colspan="10">
                                     <div class="lgu-empty-state">
                                         <div class="lgu-empty-icon"><i class="fas fa-clipboard-list"></i></div>
                                         <p>No reports at this time.</p>
@@ -6005,6 +6039,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if (r.rejected_at) {
                 sourceGrid += lguInfoItem('thumbs-down', 'Rejected At', formatDate(r.rejected_at));
             }
+            if (r.report_category === 'road') {
+                if (r.engineer) {
+                    sourceGrid += lguInfoItem('hard-hat', 'CIMM Engineer', r.engineer);
+                }
+                if (r.budget_allocation) {
+                    sourceGrid += lguInfoItem('money-bill-wave', 'CIMM Budget Allocation', '₱ ' + Number(r.budget_allocation).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+                }
+            }
             document.getElementById('lgu-source-grid').innerHTML = sourceGrid;
 
             // Location
@@ -6552,7 +6594,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     created_at: <?php echo json_encode($lr['created_at']); ?>,
                     updated_at: <?php echo json_encode($lr['updated_at']); ?>,
                     approved_at: <?php echo json_encode($lr['approved_at']); ?>,
-                    rejected_at: <?php echo json_encode($lr['rejected_at']); ?>
+                    rejected_at: <?php echo json_encode($lr['rejected_at']); ?>,
+                    engineer: <?php echo json_encode($lr['engineer'] ?? null); ?>,
+                    budget_allocation: <?php echo json_encode($lr['budget_allocation'] ?? null); ?>
                 };
             } catch(e) {
                 console.error('Error adding LGU report to map:', e);
