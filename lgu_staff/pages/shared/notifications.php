@@ -33,6 +33,25 @@ if (!isset($_SESSION['user_id']) || !is_admin_or_staff_role($user_role)) {
 
 $user_email = $_SESSION['email'] ?? '';
 
+// Transportation roles only ever receive notifications for transportation
+// reports (report_category = 'transportation', not infrastructure/maintenance).
+// Every report-reference existence check below is narrowed to transportation
+// rows for these roles so CIMM, road or maintenance notifications never leak
+// into their feed.
+$is_trans_supervisor = ($user_role === 'trans_ops_supervisor');
+$is_trans_officer = ($user_role === 'trans_monitoring_officer');
+$is_trans_role = $is_trans_supervisor || $is_trans_officer;
+$trans_exists = "SELECT 1 FROM road_transportation_reports
+                 WHERE id = rn.report_id
+                   AND report_category = 'transportation'
+                   AND report_type != 'infrastructure_issue'";
+$all_tables_exists = "SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
+                      UNION ALL
+                      SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
+                      UNION ALL
+                      SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id";
+$ro_exists = $is_trans_officer ? $trans_exists : $all_tables_exists;
+
 // Handle mark as read
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
@@ -358,6 +377,7 @@ if ($is_admin) {
                    report_type, report_category, report_source, created_by
             FROM road_transportation_reports
             WHERE created_by = ? AND status IN ('completed', 'cancelled')
+            " . ($is_trans_role ? "AND report_category = 'transportation' AND report_type != 'infrastructure_issue'" : '') . "
             ORDER BY GREATEST(COALESCE(approved_at, '1970-01-01'), COALESCE(rejected_at, '1970-01-01'), updated_at) DESC
             LIMIT 20
         ");
@@ -383,12 +403,7 @@ if ($is_admin) {
                 LEFT JOIN road_transportation_reports r ON rn.report_id = r.id
                 WHERE rn.recipient_email = ? AND rn.type IN ('approve_request','reject_request')
                   AND rn.is_read = 0
-                  AND EXISTS (
-                      SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
-                      UNION ALL
-                      SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
-                      UNION ALL
-                      SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id
+                  AND EXISTS (" . $ro_exists . "
                       LIMIT 1
                   )
                 ORDER BY rn.created_at DESC
@@ -477,12 +492,7 @@ if ($is_admin) {
                 FROM report_notifications rn
                 LEFT JOIN road_transportation_reports r ON rn.report_id = r.id
                 WHERE rn.is_read = 0 AND rn.recipient_role = ? AND rn.type IN ('completion', 'cancellation')
-                  AND EXISTS (
-                      SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
-                      UNION ALL
-                      SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
-                      UNION ALL
-                      SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id
+                  AND EXISTS (" . ($is_trans_supervisor ? $trans_exists : $all_tables_exists) . "
                       LIMIT 1
                   )
                 ORDER BY rn.created_at DESC
@@ -506,12 +516,7 @@ if ($is_admin) {
                 FROM report_notifications rn
                 LEFT JOIN road_transportation_reports r ON rn.report_id = r.id
                 WHERE rn.is_read = 0 AND rn.recipient_email = ? AND rn.type IN ('complete_report', 'cancel_report')
-                  AND EXISTS (
-                      SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
-                      UNION ALL
-                      SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
-                      UNION ALL
-                      SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id
+                  AND EXISTS (" . ($is_trans_supervisor ? $trans_exists : $all_tables_exists) . "
                       LIMIT 1
                   )
                 ORDER BY rn.created_at DESC
@@ -1173,10 +1178,15 @@ function notification_assignment_url(array $ap): string {
                 <select id="ncFilter" class="nc-filter" onchange="ncApplyFilters()">
                     <option value="all">All</option>
                     <option value="unread">Unread</option>
-                    <option value="assigned">Assigned reports</option>
-                    <option value="report_update">Report Updates</option>
-                    <option value="request_outcome">Request Outcomes</option>
-                    <option value="change_request">Change Requests</option>
+                    <?php if ($is_trans_supervisor): ?>
+                        <option value="change_request">Change Requests</option>
+                        <option value="report_update">Report Updates</option>
+                    <?php else: ?>
+                        <option value="assigned">Assigned reports</option>
+                        <option value="report_update">Report Updates</option>
+                        <option value="request_outcome">Request Outcomes</option>
+                        <option value="change_request">Change Requests</option>
+                    <?php endif; ?>
                 </select>
                 <input type="text" id="ncSearch" class="nc-search" placeholder="Search notifications..." oninput="ncApplyFilters()">
             </div>
@@ -1247,15 +1257,39 @@ function notification_assignment_url(array $ap): string {
     </div>
 
     <script>
-        const NC_FILTERS = {
-            all: ['report', 'progress', 'assignment', 'approved', 'rejected', 'review', 'change', 'request_outcome'],
-            unread: null,
-            assigned: ['assignment'],
-            report_update: ['report', 'progress', 'approved', 'rejected', 'review'],
-            request_outcome: ['request_outcome'],
-            change_request: ['change']
-        };
         const NC_IS_ADMIN = <?php echo $is_admin ? 'true' : 'false'; ?>;
+        const NC_IS_TRANS_SUPERVISOR = <?php echo $is_trans_supervisor ? 'true' : 'false'; ?>;
+        const NC_IS_TRANS_OFFICER = <?php echo $is_trans_officer ? 'true' : 'false'; ?>;
+        // Role-specific filter maps so each filter shows exactly the kinds of
+        // notifications that role can receive. Non-transportation roles keep
+        // the existing definitions.
+        let NC_FILTERS;
+        if (NC_IS_TRANS_SUPERVISOR) {
+            NC_FILTERS = {
+                all: ['review', 'action', 'approved', 'rejected', 'assignment', 'change', 'request_outcome'],
+                unread: null,
+                report_update: ['review', 'action', 'approved', 'rejected'],
+                change_request: ['change']
+            };
+        } else if (NC_IS_TRANS_OFFICER) {
+            NC_FILTERS = {
+                all: ['assignment', 'approved', 'rejected', 'change', 'request_outcome'],
+                unread: null,
+                assigned: ['assignment'],
+                report_update: ['approved', 'rejected'],
+                request_outcome: ['request_outcome'],
+                change_request: ['change']
+            };
+        } else {
+            NC_FILTERS = {
+                all: ['report', 'progress', 'assignment', 'approved', 'rejected', 'review', 'change', 'request_outcome'],
+                unread: null,
+                assigned: ['assignment'],
+                report_update: ['report', 'progress', 'approved', 'rejected', 'review'],
+                request_outcome: ['request_outcome'],
+                change_request: ['change']
+            };
+        }
 
         function ncRefreshBadge() {
             var n = document.querySelectorAll('.nc-card[data-unread="true"]').length;
@@ -1263,6 +1297,22 @@ function notification_assignment_url(array $ap): string {
             var btn = document.getElementById('ncMarkAll');
             if (badge) { badge.textContent = n; badge.style.display = n ? '' : 'none'; }
             if (btn) btn.disabled = n === 0;
+        }
+
+        // Keep the sidebar notification badge in sync when a single
+        // notification is marked as read: decrement it immediately instead of
+        // waiting for the next page reload. Hidden entirely at zero.
+        function ncRefreshSidebarBadge() {
+            var badge = document.querySelector('.nav-link .notification-badge');
+            if (!badge) return;
+            var n = parseInt(badge.textContent, 10) || 0;
+            n = Math.max(0, n - 1);
+            if (n === 0) {
+                badge.remove();
+            } else {
+                badge.textContent = n;
+                badge.setAttribute('aria-label', n + ' unread notifications');
+            }
         }
 
         function ncApplyFilters() {
@@ -1301,6 +1351,7 @@ function notification_assignment_url(array $ap): string {
             card.classList.add('read');
             btn.remove();
             ncRefreshBadge();
+            ncRefreshSidebarBadge();
             ncApplyFilters();
         }
 

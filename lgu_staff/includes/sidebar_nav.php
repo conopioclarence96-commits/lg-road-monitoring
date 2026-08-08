@@ -85,6 +85,19 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
         // Only count unread report_notifications that reference a report
         // that still exists in one of the live tables.
         try {
+            // Email of the logged-in user — used to match notifications that
+            // are targeted to an individual (request outcomes, own action
+            // results) rather than to a whole role.
+            $email = '';
+            if ($user_id > 0) {
+                $estmt = $conn->prepare("SELECT email FROM users WHERE id = ?");
+                $estmt->bind_param("i", $user_id);
+                $estmt->execute();
+                $erow = $estmt->get_result()->fetch_assoc();
+                $estmt->close();
+                $email = $erow['email'] ?? '';
+            }
+
             if (in_array($user_role, ['road_ops_supervisor', 'trans_ops_supervisor'], true)) {
                 // Supervisors: count only the unread notifications that
                 // actually appear in their notifications feed — review requests
@@ -92,14 +105,21 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
                 // (The generic count below would include notifications meant
                 // for other roles or broadcast progress updates, inflating the
                 // badge.)
-                $email = '';
-                if ($user_id > 0) {
-                    $estmt = $conn->prepare("SELECT email FROM users WHERE id = ?");
-                    $estmt->bind_param("i", $user_id);
-                    $estmt->execute();
-                    $erow = $estmt->get_result()->fetch_assoc();
-                    $estmt->close();
-                    $email = $erow['email'] ?? '';
+                if ($user_role === 'trans_ops_supervisor') {
+                    // Transportation supervisors only ever receive notifications
+                    // for transportation reports, so the existence check is
+                    // narrowed to transportation rows — never CIMM, road or
+                    // maintenance reports.
+                    $exists = "SELECT 1 FROM road_transportation_reports
+                               WHERE id = rn.report_id
+                                 AND report_category = 'transportation'
+                                 AND report_type != 'infrastructure_issue'";
+                } else {
+                    $exists = "SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
+                               UNION ALL
+                               SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
+                               UNION ALL
+                               SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id";
                 }
                 $stmt = $conn->prepare("
                     SELECT COUNT(*) as count FROM report_notifications rn
@@ -108,16 +128,30 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
                           (rn.recipient_role = ? AND rn.type IN ('completion', 'cancellation'))
                           OR (rn.recipient_email = ? AND rn.type IN ('approve_request', 'reject_request', 'complete_report', 'cancel_report'))
                       )
+                      AND EXISTS (" . $exists . " LIMIT 1)
+                ");
+                $stmt->bind_param("ss", $user_role, $email);
+                $stmt->execute();
+                $count += $stmt->get_result()->fetch_assoc()['count'];
+                $stmt->close();
+            } elseif ($user_role === 'trans_monitoring_officer') {
+                // Transportation monitoring officers: their unread notifications
+                // are the review-request outcomes (approve/reject) routed to
+                // their email — and only ever for transportation reports.
+                $stmt = $conn->prepare("
+                    SELECT COUNT(*) as count FROM report_notifications rn
+                    WHERE rn.is_read = 0
+                      AND rn.recipient_email = ?
+                      AND rn.type IN ('approve_request', 'reject_request')
                       AND EXISTS (
-                          SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
-                          UNION ALL
-                          SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
-                          UNION ALL
-                          SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id
+                          SELECT 1 FROM road_transportation_reports
+                          WHERE id = rn.report_id
+                            AND report_category = 'transportation'
+                            AND report_type != 'infrastructure_issue'
                           LIMIT 1
                       )
                 ");
-                $stmt->bind_param("ss", $user_role, $email);
+                $stmt->bind_param("s", $email);
                 $stmt->execute();
                 $count += $stmt->get_result()->fetch_assoc()['count'];
                 $stmt->close();
@@ -178,7 +212,7 @@ $nav_items = [
     ],
     'system' => [
         ['href' => $nav_base . 'pages/shared/notifications.php', 'icon' => 'bell', 'title' => 'Notifications', 'roles' => ['system_admin', 'lgu_staff']],
-        ['href' => $nav_base . 'pages/admin/archive.php', 'icon' => 'archive', 'title' => 'Archive', 'roles' => ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor']],
+        ['href' => $nav_base . 'pages/admin/archive.php', 'icon' => 'archive', 'title' => 'Archive', 'roles' => ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor', 'trans_monitoring_officer']],
         ['href' => $nav_base . 'pages/lgu/officer_archive.php', 'icon' => 'archive', 'title' => 'Archive', 'roles' => ['road_monitoring_officer']],
         ['href' => $nav_base . 'pages/shared/settings.php', 'icon' => 'cog', 'title' => 'Settings', 'roles' => ['system_admin', 'lgu_staff']],
     ]

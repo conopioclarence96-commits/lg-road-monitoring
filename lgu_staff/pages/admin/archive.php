@@ -3,11 +3,15 @@ require_once '../../includes/session_config.php';
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 
-$archive_allowed_roles = ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor'];
+$archive_allowed_roles = ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor', 'trans_monitoring_officer'];
 if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', $archive_allowed_roles, true)) {
     header('Location: ../../login.php');
     exit();
 }
+
+$user_role = $_SESSION['role'] ?? '';
+$is_trans_role = in_array($user_role, ['trans_ops_supervisor', 'trans_monitoring_officer'], true);
+$is_trans_officer = ($user_role === 'trans_monitoring_officer');
 
 $conn->query("CREATE TABLE IF NOT EXISTS road_transportation_reports_archive LIKE road_transportation_reports");
 
@@ -27,6 +31,14 @@ $status_filter = $_GET['status'] ?? 'all';
 $source_filter = $_GET['source'] ?? 'all';
 $sort_order = $_GET['sort'] ?? 'latest';
 $id_search = trim($_GET['id'] ?? '');
+
+// Trans roles may only ever query the Road & Transportation (LGU Monitoring)
+// and Citizen sources. Normalize any tampered source parameter (CIMM /
+// Infrastructure) to 'all' BEFORE the filter switch below, so the per-source
+// WHERE clause can never be built for the excluded sources.
+if ($is_trans_role && ($source_filter === 'cimm' || $source_filter === 'infrastructure')) {
+    $source_filter = 'all';
+}
 
 // Source system classification. Every archived report is assigned to exactly
 // one source bucket using the existing archive columns.
@@ -62,6 +74,32 @@ switch ($source_filter) {
         break;
 }
 
+// Trans roles (trans_ops_supervisor, trans_monitoring_officer) may only see
+// the Road & Transportation (LGU Monitoring) and Citizen archives. CIMM and
+// Infrastructure reports are always excluded for them — both in the dropdown
+// and, critically, in the query itself (so tampering with the source filter
+// cannot surface those reports).
+$trans_source_restrict = '';
+if ($is_trans_role) {
+    $trans_source_restrict = "report_type NOT IN ('infrastructure_issue','maintenance','maintenance_request') AND (report_source IS NULL OR report_source != 'external')";
+}
+
+// trans_monitoring_officer may only see the archived reports that were
+// assigned to them (mirrors the officer archive's assignment join).
+$trans_officer_restrict = '';
+if ($is_trans_officer) {
+    $trans_officer_restrict = "EXISTS (
+        SELECT 1 FROM report_assignments ra
+        WHERE ra.user_id = " . (int)$_SESSION['user_id'] . " AND ra.status = 'active'
+          AND (road_transportation_reports_archive.id = ra.report_id
+               OR (
+                   road_transportation_reports_archive.report_id IS NOT NULL
+                   AND road_transportation_reports_archive.report_id != ''
+                   AND road_transportation_reports_archive.report_id = (SELECT r.report_id FROM road_transportation_reports r WHERE r.id = ra.report_id LIMIT 1)
+               ))
+    )";
+}
+
 // Build WHERE clause
 $where_clauses = [];
 
@@ -85,6 +123,14 @@ if ($status_filter === 'completed') {
 
 if ($source_where !== '') {
     $where_clauses[] = $source_where;
+}
+
+if ($trans_source_restrict !== '') {
+    $where_clauses[] = $trans_source_restrict;
+}
+
+if ($trans_officer_restrict !== '') {
+    $where_clauses[] = $trans_officer_restrict;
 }
 
 // ID search filter
@@ -115,6 +161,14 @@ $sql = "SELECT *, $source_case AS source_system FROM road_transportation_reports
 $archives = $conn->query($sql);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    // trans_monitoring_officer is a view-only archive viewer: they may never
+    // restore or permanently delete archived reports, regardless of the POST
+    // parameters they send.
+    if ($is_trans_officer && in_array($_POST['action'], ['restore', 'delete_forever'], true)) {
+        $_SESSION['archive_message'] = 'You are not authorized to restore or delete archived reports.';
+        header('Location: archive.php');
+        exit();
+    }
     if ($_POST['action'] === 'restore' && isset($_POST['archive_id'])) {
         $archive_id = (int) $_POST['archive_id'];
         $arch = $conn->prepare("SELECT * FROM road_transportation_reports_archive WHERE id = ?");
@@ -1052,8 +1106,10 @@ if (isset($_SESSION['archive_message'])) {
                         <option value="all" <?php echo $source_filter === 'all' ? 'selected' : ''; ?>>All Systems</option>
                         <option value="lgu" <?php echo $source_filter === 'lgu' ? 'selected' : ''; ?>>Road & Transportation (LGU Monitoring)</option>
                         <option value="citizen" <?php echo $source_filter === 'citizen' ? 'selected' : ''; ?>>Citizen</option>
+                        <?php if (!$is_trans_role): ?>
                         <option value="cimm" <?php echo $source_filter === 'cimm' ? 'selected' : ''; ?>>CIMM</option>
                         <option value="infrastructure" <?php echo $source_filter === 'infrastructure' ? 'selected' : ''; ?>>Infrastructure</option>
+                        <?php endif; ?>
                     </select>
                 </div>
                 <div>
@@ -1111,6 +1167,7 @@ if (isset($_SESSION['archive_message'])) {
                                 <button type="button" class="btn-view" onclick="viewArchive(<?php echo $row['id']; ?>)">
                                     <i class="fas fa-eye"></i> View
                                 </button>
+                                <?php if (!$is_trans_officer): ?>
                                 <form method="POST" style="display: inline-flex;" onsubmit="return confirm('Restore this report back to active table?');">
                                     <input type="hidden" name="archive_id" value="<?php echo $row['id']; ?>">
                                     <button type="submit" name="action" value="restore" class="btn-restore">
@@ -1123,6 +1180,7 @@ if (isset($_SESSION['archive_message'])) {
                                         <i class="fas fa-trash"></i> Delete Forever
                                     </button>
                                 </form>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>

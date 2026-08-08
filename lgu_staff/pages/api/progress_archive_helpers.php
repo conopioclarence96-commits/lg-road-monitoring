@@ -240,6 +240,27 @@ function rgmap_archive_report_copy($conn, $table, $report_id, $status) {
     }
 }
 
+// True when the report lives in the live transportation table with a
+// transportation category (not an infrastructure/maintenance project).
+// Used to scope duplicate-notification protection to the Transportation
+// module only — Road/CIMM/maintenance behavior stays untouched.
+function rgmap_is_transportation_report($conn, $report_id) {
+    try {
+        $stmt = $conn->prepare(
+            "SELECT id FROM road_transportation_reports
+             WHERE id = ? AND report_category = 'transportation' AND report_type != 'infrastructure_issue'
+             LIMIT 1"
+        );
+        $stmt->bind_param("i", $report_id);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return (bool)$row;
+    } catch (Exception $e) {
+        return false;
+    }
+}
+
 // Notify the officer who submitted a completion/cancellation request when the
 // supervisor processes it (approve or reject).  Called from complete_archive,
 // complete_archive_move, cancel_archive and complete_status after the report
@@ -300,6 +321,31 @@ function rgmap_notify_requestor($conn, $report_id, $action, $supervisor_id, $rep
 
         $notif_type = $approved ? 'approve_request' : 'reject_request';
 
+        // Transportation reports only: never file a second outcome notification
+        // for the same report/request if one is still pending (unread) — a
+        // supervisor reprocessing the request would otherwise spam the officer
+        // with duplicate approve/reject notices. Road/CIMM/maintenance behavior
+        // is unchanged.
+        if ($requestor_email !== null && rgmap_is_transportation_report($conn, $report_id)) {
+            $dup = $conn->prepare("SELECT id FROM report_notifications WHERE report_id = ? AND type = ? AND recipient_email = ? AND is_read = 0 ORDER BY id DESC LIMIT 1");
+            $dup->bind_param("iss", $report_id, $notif_type, $requestor_email);
+            $dup->execute();
+            $dup_row = $dup->get_result()->fetch_assoc();
+            $dup->close();
+            if ($dup_row) {
+                // Still retire the original review-request notification so it
+                // does not linger in the supervisor's pending list.
+                $mk = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE id = ?");
+                $mk->bind_param("i", $row['id']);
+                $mk->execute();
+                $mk->close();
+                log_audit_action($supervisor_id,
+                    "Duplicate {$type_label} outcome blocked",
+                    "Report ID: {$report_id}, Result: {$result_label}");
+                return;
+            }
+        }
+
         $stmt = $conn->prepare(
             "INSERT INTO report_notifications (report_id, type, message, recipient_email) VALUES (?, ?, ?, ?)"
         );
@@ -338,6 +384,18 @@ function rgmap_notify_supervisor_action($conn, $report_id, $action, $supervisor_
         $action_label = ($action === 'complete') ? 'completed' : 'cancelled';
         $notif_type   = ($action === 'complete') ? 'complete_report' : 'cancel_report';
         $message      = "You {$action_label} report {$report_label}. The report is now marked as {$action_label}.";
+
+        // Transportation reports only: skip when an identical result notification
+        // is already pending (unread) for the acting supervisor, so reprocessing
+        // the same report does not stack duplicate confirmations.
+        if (rgmap_is_transportation_report($conn, $report_id)) {
+            $dup = $conn->prepare("SELECT id FROM report_notifications WHERE report_id = ? AND type = ? AND recipient_email = ? AND is_read = 0 ORDER BY id DESC LIMIT 1");
+            $dup->bind_param("iss", $report_id, $notif_type, $supervisor['email']);
+            $dup->execute();
+            $dup_row = $dup->get_result()->fetch_assoc();
+            $dup->close();
+            if ($dup_row) return;
+        }
 
         $stmt = $conn->prepare(
             "INSERT INTO report_notifications (report_id, type, message, recipient_email, recipient_role) VALUES (?, ?, ?, ?, ?)"
