@@ -4,7 +4,7 @@
  *
  * Moved out of progress_update_api.php so the supervisor monitoring portal
  * (road_transportation_monitoring.php) can drive the same archive routines
- * directly — including the 3-day auto-archive sweep for reports completed
+ * directly — including the 7-day auto-archive sweep for reports completed
  * through the portal's Complete button.
  *
  * Safe to require_once from any page that has already bootstrapped config.php
@@ -423,9 +423,11 @@ function rgmap_ensure_auto_archive_column() {
     }
 }
 
-// Auto-archive sweep: move every report whose 3-day retention window has
-// passed (auto_archive_at <= NOW()) into the archive. Only reports completed
-// through the supervisor portal's Complete button carry auto_archive_at, so
+// Auto-archive sweep: move every completed report whose 7-day retention window
+// has passed into the archive. The deadline is computed from the report's
+// actual completion timestamp (completed_at + 7 days), NOT from when it was
+// last viewed or updated. Only reports completed through the supervisor
+// portal's Complete button carry auto_archive_at (a non-null marker), so
 // reports completed via report_management.php are never affected.
 // Returns the number of reports archived.
 function rgmap_auto_archive_completed($conn) {
@@ -434,7 +436,7 @@ function rgmap_auto_archive_completed($conn) {
         rgmap_ensure_auto_archive_column();
 
         foreach (['road_transportation_reports', 'road_maintenance_reports'] as $table) {
-            $stmt = $conn->prepare("SELECT id FROM $table WHERE status = 'completed' AND auto_archive_at IS NOT NULL AND auto_archive_at <= NOW()");
+            $stmt = $conn->prepare("SELECT id FROM $table WHERE status = 'completed' AND auto_archive_at IS NOT NULL AND completed_at IS NOT NULL AND completed_at <= (NOW() - INTERVAL 7 DAY)");
             $stmt->execute();
             $res = $stmt->get_result();
             $stmt->close();
@@ -445,7 +447,10 @@ function rgmap_auto_archive_completed($conn) {
             }
         }
 
-        $stmt = $conn->prepare("SELECT id FROM cimm_verification_reports WHERE verification_status = 'Completed' AND auto_archive_at IS NOT NULL AND auto_archive_at <= NOW()");
+        // CIMM reports have no completed_at column; their auto_archive_at is
+        // stamped at the moment they are completed, so it doubles as the
+        // completion timestamp for the 7-day window.
+        $stmt = $conn->prepare("SELECT id FROM cimm_verification_reports WHERE verification_status = 'Completed' AND auto_archive_at IS NOT NULL AND auto_archive_at <= (NOW() - INTERVAL 7 DAY)");
         $stmt->execute();
         $res = $stmt->get_result();
         $stmt->close();

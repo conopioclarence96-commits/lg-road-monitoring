@@ -190,14 +190,15 @@ function handle_receive_report() {
 function handle_update_report() {
     global $conn, $user_id;
 
-    // Edit / Save Changes is restricted to the Road Operations Supervisor only.
-    if (($_SESSION['role'] ?? '') !== 'road_ops_supervisor') {
+    // Edit / Save Changes is restricted to the Road and Transportation
+    // Operations Supervisors.
+    if (!in_array($_SESSION['role'] ?? '', ['road_ops_supervisor', 'trans_ops_supervisor'], true)) {
         if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
             header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'message' => 'You are not authorized to edit reports. Only the Road Operations Supervisor may do this.']);
+            echo json_encode(['success' => false, 'message' => 'You are not authorized to edit reports. Only the Road/Transportation Operations Supervisors may do this.']);
             exit;
         }
-        set_flash_message('error', 'You are not authorized to edit reports. Only the Road Operations Supervisor may do this.');
+        set_flash_message('error', 'You are not authorized to edit reports. Only the Road/Transportation Operations Supervisors may do this.');
         return;
     }
 
@@ -3313,7 +3314,7 @@ if ($focus_id > 0) {
                                     <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-eye"></i>
                                     </button>
-                                    <?php if ($is_road_supervisor): ?>
+                                    <?php if ($is_road_supervisor || $is_transport_supervisor): ?>
                                     <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'road_transportation_reports')">
                                         <i class="fas fa-pencil"></i>
                                     </button>
@@ -3429,7 +3430,7 @@ if ($focus_id > 0) {
                                     <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-eye"></i>
                                     </button>
-                                    <?php if ($is_road_supervisor): ?>
+                                    <?php if ($is_road_supervisor || $is_transport_supervisor): ?>
                                     <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'road_transportation_reports')">
                                         <i class="fas fa-pencil"></i>
                                     </button>
@@ -5283,12 +5284,13 @@ if ($focus_id > 0) {
         var editSelectedFiles = [];
 
         function editReport(id, type, table) {
-            // Save Changes (edit) is restricted to the Road Operations Supervisor.
+            // Save Changes (edit) is restricted to the Road and Transportation
+            // Operations Supervisors.
             var role = '';
             var tag = document.getElementById('sessionTimeoutData');
             if (tag) role = tag.getAttribute('data-role') || '';
-            if (role !== 'road_ops_supervisor') {
-                showNotification('Only the Road Operations Supervisor can edit reports.', 'error');
+            if (role !== 'road_ops_supervisor' && role !== 'trans_ops_supervisor') {
+                showNotification('Only the Road/Transportation Operations Supervisors can edit reports.', 'error');
                 return;
             }
             fetch(`../api/get_report_details.php?id=${id}&type=${encodeURIComponent(type)}&_=${Date.now()}`)

@@ -24,6 +24,13 @@ $is_road_monitoring_officer = (($_SESSION['role'] ?? '') === 'road_monitoring_of
 $is_supervisor = in_array($_SESSION['role'] ?? '', ['road_ops_supervisor', 'trans_ops_supervisor'], true);
 $user_role = $_SESSION['role'] ?? '';
 $is_road_supervisor = ($is_supervisor && $user_role === 'road_ops_supervisor');
+// Transportation Monitoring Officers and Transportation Operations Supervisors
+// see only Transportation reports (report_category = 'transportation') in the
+// dashboard "Recent Activity" feed.
+$is_transport_only_role = in_array($_SESSION['role'] ?? '', ['trans_ops_supervisor', 'trans_monitoring_officer'], true);
+// The Weekly Reports chart is filtered to Transportation reports and labelled
+// "Transportation Reports" for the Transportation Operations Supervisor only.
+$is_trans_ops_supervisor = ($user_role === 'trans_ops_supervisor');
 
 // Function to get dashboard statistics
 function getDashboardStatistics($conn, $road_only = false, $supervisor = false, $role = '') {
@@ -133,10 +140,16 @@ function getPriorityTasks($conn, $road_only = false) {
 }
 
 // Function to get weekly chart data
-function getWeeklyChartData($conn, $road_only = false) {
+function getWeeklyChartData($conn, $road_only = false, $transport_only = false) {
     $data = ['reports' => [], 'verifications' => []];
     $days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    $cat_filter = $road_only ? " AND report_category = 'road'" : '';
+    if ($road_only) {
+        $cat_filter = " AND report_category = 'road'";
+    } elseif ($transport_only) {
+        $cat_filter = " AND report_category = 'transportation'";
+    } else {
+        $cat_filter = '';
+    }
     
     // Get data for the current week
     $current_week = date('W');
@@ -145,7 +158,7 @@ function getWeeklyChartData($conn, $road_only = false) {
     foreach ($days as $index => $day) {
         $day_of_week = ($index + 2); // MySQL DAYOFWEEK: 1=Sunday, 2=Monday, etc.
         
-        // Get road reports for this day
+        // Get transportation reports for this day
         $transport_query = "SELECT COUNT(*) as count FROM road_transportation_reports 
                            WHERE DAYOFWEEK(created_at) = $day_of_week 
                            AND WEEK(created_at, 1) = WEEK(CURRENT_DATE, 1) 
@@ -153,43 +166,57 @@ function getWeeklyChartData($conn, $road_only = false) {
         $result = $conn->query($transport_query);
         $transport_count = $result->fetch_assoc()['count'];
         
-        $maintenance_query = "SELECT COUNT(*) as count FROM road_maintenance_reports 
-                             WHERE DAYOFWEEK(created_at) = $day_of_week 
-                             AND WEEK(created_at, 1) = WEEK(CURRENT_DATE, 1) 
-                             AND YEAR(created_at) = $current_year";
-        $result = $conn->query($maintenance_query);
-        $maintenance_count = $result->fetch_assoc()['count'];
+        $maintenance_count = 0;
+        if (!$transport_only) {
+            $maintenance_query = "SELECT COUNT(*) as count FROM road_maintenance_reports 
+                                 WHERE DAYOFWEEK(created_at) = $day_of_week 
+                                 AND WEEK(created_at, 1) = WEEK(CURRENT_DATE, 1) 
+                                 AND YEAR(created_at) = $current_year";
+            $result = $conn->query($maintenance_query);
+            $maintenance_count = $result->fetch_assoc()['count'];
+        }
         
         $data['reports'][] = (int)($transport_count + $maintenance_count);
         
         // Get verification activities for this day
-        // Check if audit_trails table exists and has data
-        $audit_check = $conn->query("SHOW TABLES LIKE 'audit_trails'");
-        if ($audit_check->num_rows > 0) {
-            $verification_query = "SELECT COUNT(*) as count FROM audit_trails 
-                                 WHERE audit_type = 'verification' 
-                                 AND DAYOFWEEK(created_at) = $day_of_week 
-                                 AND WEEK(created_at, 1) = WEEK(CURRENT_DATE, 1) 
-                                 AND YEAR(created_at) = $current_year";
+        if ($transport_only) {
+            // Transport-only roles: count completed/approved transportation reports
+            $verification_query = "SELECT COUNT(*) as count FROM road_transportation_reports 
+                                   WHERE status IN ('completed', 'approved') 
+                                   AND DAYOFWEEK(updated_at) = $day_of_week 
+                                   AND WEEK(updated_at, 1) = WEEK(CURRENT_DATE, 1) 
+                                   AND YEAR(updated_at) = $current_year" . $cat_filter;
             $result = $conn->query($verification_query);
             $verification_count = $result->fetch_assoc()['count'];
         } else {
-            // Fallback: count status changes to 'completed' or 'approved' as verifications
-            $verification_query = "(SELECT COUNT(*) as count FROM road_transportation_reports 
-                                   WHERE status IN ('completed', 'approved') 
-                                   AND DAYOFWEEK(updated_at) = $day_of_week 
-                                   AND WEEK(updated_at, 1) = WEEK(CURRENT_DATE, 1) 
-                                   AND YEAR(updated_at) = $current_year" . $cat_filter . ")
-                                   UNION ALL
-                                   (SELECT COUNT(*) as count FROM road_maintenance_reports 
-                                   WHERE status IN ('completed', 'approved') 
-                                   AND DAYOFWEEK(updated_at) = $day_of_week 
-                                   AND WEEK(updated_at, 1) = WEEK(CURRENT_DATE, 1) 
-                                   AND YEAR(updated_at) = $current_year)";
-            $result = $conn->query($verification_query);
-            $verification_count = 0;
-            while ($row = $result->fetch_assoc()) {
-                $verification_count += $row['count'];
+            // Check if audit_trails table exists and has data
+            $audit_check = $conn->query("SHOW TABLES LIKE 'audit_trails'");
+            if ($audit_check->num_rows > 0) {
+                $verification_query = "SELECT COUNT(*) as count FROM audit_trails 
+                                     WHERE audit_type = 'verification' 
+                                     AND DAYOFWEEK(created_at) = $day_of_week 
+                                     AND WEEK(created_at, 1) = WEEK(CURRENT_DATE, 1) 
+                                     AND YEAR(created_at) = $current_year";
+                $result = $conn->query($verification_query);
+                $verification_count = $result->fetch_assoc()['count'];
+            } else {
+                // Fallback: count status changes to 'completed' or 'approved' as verifications
+                $verification_query = "(SELECT COUNT(*) as count FROM road_transportation_reports 
+                                       WHERE status IN ('completed', 'approved') 
+                                       AND DAYOFWEEK(updated_at) = $day_of_week 
+                                       AND WEEK(updated_at, 1) = WEEK(CURRENT_DATE, 1) 
+                                       AND YEAR(updated_at) = $current_year" . $cat_filter . ")
+                                       UNION ALL
+                                       (SELECT COUNT(*) as count FROM road_maintenance_reports 
+                                       WHERE status IN ('completed', 'approved') 
+                                       AND DAYOFWEEK(updated_at) = $day_of_week 
+                                       AND WEEK(updated_at, 1) = WEEK(CURRENT_DATE, 1) 
+                                       AND YEAR(updated_at) = $current_year)";
+                $result = $conn->query($verification_query);
+                $verification_count = 0;
+                while ($row = $result->fetch_assoc()) {
+                    $verification_count += $row['count'];
+                }
             }
         }
         
@@ -208,28 +235,40 @@ function getWeeklyChartData($conn, $road_only = false) {
             $result = $conn->query($transport_query);
             $transport_count = $result->fetch_assoc()['count'];
             
-            $maintenance_query = "SELECT COUNT(*) as count FROM road_maintenance_reports 
-                                 WHERE DAYOFWEEK(created_at) = $day_of_week 
-                                 AND WEEK(created_at, 1) = WEEK(CURRENT_DATE - INTERVAL 1 WEEK, 1)";
-            $result = $conn->query($maintenance_query);
-            $maintenance_count = $result->fetch_assoc()['count'];
+            $maintenance_count = 0;
+            if (!$transport_only) {
+                $maintenance_query = "SELECT COUNT(*) as count FROM road_maintenance_reports 
+                                     WHERE DAYOFWEEK(created_at) = $day_of_week 
+                                     AND WEEK(created_at, 1) = WEEK(CURRENT_DATE - INTERVAL 1 WEEK, 1)";
+                $result = $conn->query($maintenance_query);
+                $maintenance_count = $result->fetch_assoc()['count'];
+            }
             
             $data['reports'][$index] = (int)($transport_count + $maintenance_count);
             
             // Get verifications for last week
-            $verification_query = "(SELECT COUNT(*) as count FROM road_transportation_reports 
-                                   WHERE status IN ('completed', 'approved') 
-                                   AND DAYOFWEEK(updated_at) = $day_of_week 
-                                   AND WEEK(updated_at, 1) = WEEK(CURRENT_DATE - INTERVAL 1 WEEK, 1)" . $cat_filter . ")
-                                   UNION ALL
-                                   (SELECT COUNT(*) as count FROM road_maintenance_reports 
-                                   WHERE status IN ('completed', 'approved') 
-                                   AND DAYOFWEEK(updated_at) = $day_of_week 
-                                   AND WEEK(updated_at, 1) = WEEK(CURRENT_DATE - INTERVAL 1 WEEK, 1))";
-            $result = $conn->query($verification_query);
-            $verification_count = 0;
-            while ($row = $result->fetch_assoc()) {
-                $verification_count += $row['count'];
+            if ($transport_only) {
+                $verification_query = "SELECT COUNT(*) as count FROM road_transportation_reports 
+                                       WHERE status IN ('completed', 'approved') 
+                                       AND DAYOFWEEK(updated_at) = $day_of_week 
+                                       AND WEEK(updated_at, 1) = WEEK(CURRENT_DATE - INTERVAL 1 WEEK, 1)" . $cat_filter;
+                $result = $conn->query($verification_query);
+                $verification_count = $result->fetch_assoc()['count'];
+            } else {
+                $verification_query = "(SELECT COUNT(*) as count FROM road_transportation_reports 
+                                       WHERE status IN ('completed', 'approved') 
+                                       AND DAYOFWEEK(updated_at) = $day_of_week 
+                                       AND WEEK(updated_at, 1) = WEEK(CURRENT_DATE - INTERVAL 1 WEEK, 1)" . $cat_filter . ")
+                                       UNION ALL
+                                       (SELECT COUNT(*) as count FROM road_maintenance_reports 
+                                       WHERE status IN ('completed', 'approved') 
+                                       AND DAYOFWEEK(updated_at) = $day_of_week 
+                                       AND WEEK(updated_at, 1) = WEEK(CURRENT_DATE - INTERVAL 1 WEEK, 1))";
+                $result = $conn->query($verification_query);
+                $verification_count = 0;
+                while ($row = $result->fetch_assoc()) {
+                    $verification_count += $row['count'];
+                }
             }
             
             $data['verifications'][$index] = (int)$verification_count;
@@ -243,7 +282,7 @@ function getWeeklyChartData($conn, $road_only = false) {
 $stats = getDashboardStatistics($conn, $is_road_monitoring_officer, $is_supervisor, $user_role);
 $recent_activity = getRecentActivity($conn, $is_road_monitoring_officer);
 $priority_tasks = getPriorityTasks($conn, $is_road_monitoring_officer);
-$chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer);
+$chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_ops_supervisor);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -1110,10 +1149,19 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer);
                 END";
     }
 
-    function getRecentActivityFeed($conn, $road_only = false, $show_updates = false) {
+    function getRecentActivityFeed($conn, $road_only = false, $show_updates = false, $transport_only = false) {
         $rows = [];
         if (!$conn) return $rows;
-        $cat_filter = $road_only ? " AND report_category = 'road'" : '';
+        if ($road_only) {
+            $cat_filter = " AND report_category = 'road'";
+            $cat_filter_upd = " AND r.report_category = 'road'";
+        } elseif ($transport_only) {
+            $cat_filter = " AND report_category = 'transportation'";
+            $cat_filter_upd = " AND r.report_category = 'transportation'";
+        } else {
+            $cat_filter = '';
+            $cat_filter_upd = '';
+        }
         try {
             rgmap_ensure_cimm_verification_table(rgmap_verification_pdo());
         } catch (\Throwable $e) {}
@@ -1123,53 +1171,56 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer);
                 // on report_management.php (report_updates), so "Recent Activity"
                 // surfaces the reports that were most recently updated there —
                 // status/priority/notes changes, photos and progress entries.
-                $cat_filter_upd = $road_only ? " AND r.report_category = 'road'" : '';
-                $query = "(SELECT ru.id AS update_id, r.id, r.report_id, r.title, r.status, r.priority, ru.created_at, ru.title AS update_title, ru.description AS update_desc, 'transport' AS src
+                $parts = [];
+                $parts[] = "(SELECT ru.id AS update_id, r.id, r.report_id, r.title, r.status, r.priority, ru.created_at, ru.title AS update_title, ru.description AS update_desc, 'transport' AS src
                            FROM report_updates ru
                            JOIN road_transportation_reports r ON ru.report_id = r.id
                            WHERE 1=1{$cat_filter_upd}
                              AND r.status != 'completed'
-                           ORDER BY ru.created_at DESC LIMIT 15)
-                          UNION ALL
-                          (SELECT ru.id AS update_id, m.id, m.report_id, m.title, m.status, m.priority, ru.created_at, ru.title AS update_title, ru.description AS update_desc, 'maintenance' AS src
-                           FROM report_updates ru
-                           JOIN road_maintenance_reports m ON ru.report_id = m.id
-                           WHERE NOT EXISTS (SELECT 1 FROM road_transportation_reports r2 WHERE r2.id = ru.report_id)
-                             AND m.status != 'completed'
-                           ORDER BY ru.created_at DESC LIMIT 15)
-                          UNION ALL
-                          (SELECT * FROM (
-                            SELECT ru.id AS update_id, c.id, c.reference_code COLLATE utf8mb4_unicode_ci AS report_id, c.infrastructure COLLATE utf8mb4_unicode_ci AS title,
-                                   " . cimm_activity_status_sql() . " COLLATE utf8mb4_unicode_ci AS status,
-                                   COALESCE(c.priority COLLATE utf8mb4_unicode_ci, 'medium') AS priority, ru.created_at, ru.title AS update_title, ru.description AS update_desc, 'cimm' AS src
-                            FROM report_updates ru
-                            JOIN cimm_verification_reports c ON ru.report_id = c.id
-                            WHERE NOT EXISTS (SELECT 1 FROM road_transportation_reports r2 WHERE r2.id = ru.report_id)
-                              AND NOT EXISTS (SELECT 1 FROM road_maintenance_reports m2 WHERE m2.id = ru.report_id)
-                          ) AS cimm_feed
-                           WHERE status != 'completed'
-                           ORDER BY created_at DESC LIMIT 15)
-                           ORDER BY created_at DESC LIMIT 15";
+                           ORDER BY ru.created_at DESC LIMIT 15)";
+                if (!$transport_only) {
+                    $parts[] = "(SELECT ru.id AS update_id, m.id, m.report_id, m.title, m.status, m.priority, ru.created_at, ru.title AS update_title, ru.description AS update_desc, 'maintenance' AS src
+                               FROM report_updates ru
+                               JOIN road_maintenance_reports m ON ru.report_id = m.id
+                               WHERE NOT EXISTS (SELECT 1 FROM road_transportation_reports r2 WHERE r2.id = ru.report_id)
+                                 AND m.status != 'completed'
+                               ORDER BY ru.created_at DESC LIMIT 15)";
+                    $parts[] = "(SELECT * FROM (
+                                SELECT ru.id AS update_id, c.id, c.reference_code COLLATE utf8mb4_unicode_ci AS report_id, c.infrastructure COLLATE utf8mb4_unicode_ci AS title,
+                                       " . cimm_activity_status_sql() . " COLLATE utf8mb4_unicode_ci AS status,
+                                       COALESCE(c.priority COLLATE utf8mb4_unicode_ci, 'medium') AS priority, ru.created_at, ru.title AS update_title, ru.description AS update_desc, 'cimm' AS src
+                                FROM report_updates ru
+                                JOIN cimm_verification_reports c ON ru.report_id = c.id
+                                WHERE NOT EXISTS (SELECT 1 FROM road_transportation_reports r2 WHERE r2.id = ru.report_id)
+                                  AND NOT EXISTS (SELECT 1 FROM road_maintenance_reports m2 WHERE m2.id = ru.report_id)
+                              ) AS cimm_feed
+                               WHERE status != 'completed'
+                               ORDER BY created_at DESC LIMIT 15)";
+                }
+                $query = implode("\n UNION ALL \n", $parts) . "\n ORDER BY created_at DESC LIMIT 15";
             } else {
-                $query = "(SELECT id, report_id, title, status, priority, created_at, 'transport' AS src FROM road_transportation_reports WHERE 1=1" . $cat_filter . " AND status != 'completed' ORDER BY created_at DESC LIMIT 6)
-                          UNION ALL
-                          (SELECT id, report_id, title, status, priority, created_at, 'maintenance' AS src FROM road_maintenance_reports WHERE status != 'completed' ORDER BY created_at DESC LIMIT 6)
-                          UNION ALL
-                          (SELECT * FROM (
-                            SELECT id, reference_code COLLATE utf8mb4_unicode_ci AS report_id, infrastructure COLLATE utf8mb4_unicode_ci AS title, " . cimm_status_case_sql() . " COLLATE utf8mb4_unicode_ci AS status, COALESCE(priority COLLATE utf8mb4_unicode_ci, 'medium') AS priority, COALESCE(submitted_at, verified_at, synced_at, created_at) AS created_at, 'cimm' AS src
-                            FROM cimm_verification_reports
-                          ) AS cimm_feed
-                          WHERE status != 'completed'
-                          ORDER BY created_at DESC LIMIT 6)
-                          ORDER BY created_at DESC LIMIT 6";
+                $parts = [];
+                $parts[] = "(SELECT id, report_id, title, status, priority, created_at, 'transport' AS src FROM road_transportation_reports WHERE 1=1" . $cat_filter . " AND status != 'completed' ORDER BY created_at DESC LIMIT 6)";
+                if (!$transport_only) {
+                    $parts[] = "(SELECT id, report_id, title, status, priority, created_at, 'maintenance' AS src FROM road_maintenance_reports WHERE status != 'completed' ORDER BY created_at DESC LIMIT 6)";
+                    $parts[] = "(SELECT * FROM (
+                        SELECT id, reference_code COLLATE utf8mb4_unicode_ci AS report_id, infrastructure COLLATE utf8mb4_unicode_ci AS title, " . cimm_status_case_sql() . " COLLATE utf8mb4_unicode_ci AS status, COALESCE(priority COLLATE utf8mb4_unicode_ci, 'medium') AS priority, COALESCE(submitted_at, verified_at, synced_at, created_at) AS created_at, 'cimm' AS src
+                        FROM cimm_verification_reports
+                      ) AS cimm_feed
+                      WHERE status != 'completed'
+                      ORDER BY created_at DESC LIMIT 6)";
+                }
+                $query = implode("\n UNION ALL \n", $parts) . "\n ORDER BY created_at DESC LIMIT 6";
             }
             $rows = $conn->query($query)->fetch_all(MYSQLI_ASSOC);
         } catch (Exception $e) {
             try {
-                $query = "(SELECT id, report_id, title, status, priority, created_at, 'transport' AS src FROM road_transportation_reports WHERE 1=1" . $cat_filter . " AND status != 'completed' ORDER BY created_at DESC LIMIT 6)
-                          UNION ALL
-                          (SELECT id, report_id, title, status, priority, created_at, 'maintenance' AS src FROM road_maintenance_reports WHERE status != 'completed' ORDER BY created_at DESC LIMIT 6)
-                          ORDER BY created_at DESC LIMIT 6";
+                $parts = [];
+                $parts[] = "(SELECT id, report_id, title, status, priority, created_at, 'transport' AS src FROM road_transportation_reports WHERE 1=1" . $cat_filter . " AND status != 'completed' ORDER BY created_at DESC LIMIT 6)";
+                if (!$transport_only) {
+                    $parts[] = "(SELECT id, report_id, title, status, priority, created_at, 'maintenance' AS src FROM road_maintenance_reports WHERE status != 'completed' ORDER BY created_at DESC LIMIT 6)";
+                }
+                $query = implode("\n UNION ALL \n", $parts) . "\n ORDER BY created_at DESC LIMIT 6";
                 $rows = $conn->query($query)->fetch_all(MYSQLI_ASSOC);
             } catch (Exception $e) {
                 $rows = [];
@@ -1181,6 +1232,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer);
     function getPriorityTaskCards($conn, $road_only = false, $supervisor = false, $role = '') {
         $rows = [];
         if (!$conn) return $rows;
+        $is_transport_only = in_array($role, ['trans_ops_supervisor', 'trans_monitoring_officer'], true);
         $cat_filter = $road_only ? " AND report_category = 'road'" : '';
         try {
             if ($supervisor) {
@@ -1192,7 +1244,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer);
                 // attention. Scope follows report_management.php's role rules:
                 // Transport supervisors see only Transportation reports; Road
                 // supervisors see Road transport, maintenance and CIMM reports.
-                $is_transport_sup = in_array($role, ['trans_ops_supervisor', 'trans_monitoring_officer'], true);
+                $is_transport_sup = $is_transport_only;
                 $is_road_sup = in_array($role, ['road_ops_supervisor', 'road_monitoring_officer'], true);
                 $active_cond = "((priority = 'high' AND status NOT IN ('completed','cancelled')) OR (status = 'pending' AND priority IN ('medium','low')))";
                 if ($is_transport_sup) {
@@ -1225,10 +1277,16 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer);
                 $query = implode("\n UNION ALL \n", $parts)
                     . "\n ORDER BY FIELD(priority,'high','medium','low'), created_at DESC LIMIT 8";
             } else {
-                $query = "(SELECT id, report_id, title, status, priority, created_at, 'transport' AS src FROM road_transportation_reports WHERE status = 'pending' AND priority IN ('high','medium','low')" . $cat_filter . " ORDER BY FIELD(priority,'high','medium','low'), created_at DESC LIMIT 6)
-                          UNION ALL
-                          (SELECT id, report_id, title, status, priority, created_at, 'maintenance' AS src FROM road_maintenance_reports WHERE status = 'pending' AND priority IN ('high','medium','low') ORDER BY FIELD(priority,'high','medium','low'), created_at DESC LIMIT 6)
-                          ORDER BY FIELD(priority,'high','medium','low'), created_at DESC LIMIT 6";
+                // Transport Monitoring Officers (non-supervisor) see only
+                // Transportation reports, mirroring the supervisor scope.
+                $non_sup_scope = $is_transport_only ? " AND report_category = 'transportation'" : $cat_filter;
+                $parts = [];
+                $parts[] = "(SELECT id, report_id, title, status, priority, created_at, 'transport' AS src FROM road_transportation_reports WHERE status = 'pending' AND priority IN ('high','medium','low')" . $non_sup_scope . " ORDER BY FIELD(priority,'high','medium','low'), created_at DESC LIMIT 6)";
+                if (!$is_transport_only) {
+                    $parts[] = "(SELECT id, report_id, title, status, priority, created_at, 'maintenance' AS src FROM road_maintenance_reports WHERE status = 'pending' AND priority IN ('high','medium','low') ORDER BY FIELD(priority,'high','medium','low'), created_at DESC LIMIT 6)";
+                }
+                $query = implode("\n UNION ALL \n", $parts)
+                    . "\n ORDER BY FIELD(priority,'high','medium','low'), created_at DESC LIMIT 6";
             }
             $rows = $conn->query($query)->fetch_all(MYSQLI_ASSOC);
         } catch (Exception $e) {
@@ -1274,7 +1332,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer);
     $sup_assigned_reports = $is_road_supervisor ? getSupervisorAssignedReports($conn) : [];
     $high_priority = getHighPriorityCount($conn, $is_road_monitoring_officer, $is_supervisor, $user_role);
     $awaiting_assign = getAwaitingAssignmentCount($conn, $is_supervisor, $user_role);
-    $activity_feed = getRecentActivityFeed($conn, $is_road_monitoring_officer, $is_supervisor);
+    $activity_feed = getRecentActivityFeed($conn, $is_road_monitoring_officer, $is_supervisor, $is_transport_only_role);
     $task_cards = getPriorityTaskCards($conn, $is_road_monitoring_officer, $is_supervisor, $user_role);
     $dash_notifs = getDashboardNotifications($conn, $user_id, $user_email, $user_role, $my_assign_items, $is_road_monitoring_officer);
     ?>
@@ -1432,11 +1490,13 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer);
                             <p><?php echo $is_supervisor ? 'Latest report updates' : 'Latest reports across the department'; ?></p>
                         </div>
                     </div>
-                    <select class="period-select" id="activityFilter" onchange="filterActivityFeed(this.value)">
-                        <option value="all">All Reports</option>
-                        <option value="road">LGU Monitoring</option>
-                        <option value="cimm">CIMM Reports</option>
-                    </select>
+                    <?php if (!$is_transport_only_role): ?>
+                        <select class="period-select" id="activityFilter" onchange="filterActivityFeed(this.value)">
+                            <option value="all">All Reports</option>
+                            <option value="road">LGU Monitoring</option>
+                            <option value="cimm">CIMM Reports</option>
+                        </select>
+                    <?php endif; ?>
                 </div>
                 <div class="db-list<?php echo $is_supervisor ? ' act-scroll' : ''; ?>" id="activityFeed">
                     <?php if (empty($activity_feed)): ?>
@@ -1639,7 +1699,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer);
             data: {
                 labels: <?php echo json_encode(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']); ?>,
                 datasets: [{
-                    label: 'Road Reports',
+                    label: <?php echo json_encode($is_trans_ops_supervisor ? 'Transportation Reports' : 'Road Reports'); ?>,
                     data: <?php echo json_encode($chart_data['reports']); ?>,
                     borderColor: '#3762c8',
                     backgroundColor: gradient1,

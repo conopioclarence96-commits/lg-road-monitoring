@@ -68,10 +68,11 @@ if (
     exit();
 }
 
-// Auto-archive sweep: move any completed report whose 3-day retention window
-// (auto_archive_at, set by the Complete button's complete_status action) has
-// passed into the archive. Runs once per page load; it only touches reports
-// carrying auto_archive_at, so report_management completions are never moved.
+// Auto-archive sweep: move any completed report whose 7-day retention window
+// (measured from completed_at, set by the Complete button's complete_status
+// action) has passed into the archive. Runs once per page load; it only touches
+// reports carrying auto_archive_at, so report_management completions are never
+// moved. Completed reports stay visible in Recent Submissions until then.
 try {
     rgmap_auto_archive_completed($conn);
 } catch (Exception $e) {
@@ -2472,7 +2473,9 @@ annotate_report_assignment_status($conn, $recent_reports);
                                 <button class="table-action-btn" title="View Details" onclick="viewReportDetails(<?php echo $rr['id']; ?>, '<?php echo $rr['source']; ?>')"><i class="fas fa-eye"></i></button>
                                 <button class="table-action-btn view-map" onclick="focusReportOnMap(<?php echo $rr['id']; ?>)"><i class="fas fa-map-pin"></i> Map</button>
                                 <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(<?php echo $rr['id']; ?>, '<?php echo $rr['report_type']; ?>', '<?php echo $rr['source']; ?>')"><i class="fas fa-clock"></i> Updates</button>
+                                <?php if (strtolower((string)($rr['status'] ?? '')) === 'completed'): ?>
                                 <button class="table-action-btn" title="Archive" style="background:linear-gradient(135deg,#6b7280,#4b5563);color:#fff;margin-left:4px;" onclick="archiveReport(<?php echo $rr['id']; ?>, '<?php echo $rr['source']; ?>')"><i class="fas fa-archive"></i> Archive</button>
+                                <?php endif; ?>
                             </td>
                         </tr>
                         <?php endforeach; ?>
@@ -3686,10 +3689,12 @@ annotate_report_assignment_status($conn, $recent_reports);
             location.reload();
         }
 
-        // Archive button on the Recent Submissions panel. Every report row
-        // (including completed reports) shows it for any admin/staff role.
-        // Moves the report into the archive keeping its current status — it
-        // leaves Recent Submissions but is not completed or cancelled.
+        // Archive button on the Recent Submissions panel. Only shown for
+        // reports whose status is COMPLETED — Pending, Approved, In Progress,
+        // Cancelled, Rejected, and every other status hide it. Moves the
+        // report into the archive keeping its current status, so it leaves
+        // Recent Submissions immediately instead of waiting out the 7-day
+        // auto-archive window.
         function archiveReport(id, source) {
             if (!id) return;
             if (!confirm('Archive this report? It will be moved out of Recent Submissions into the Archive, keeping its current status.')) return;
@@ -3783,12 +3788,12 @@ annotate_report_assignment_status($conn, $recent_reports);
         }
 
         function updateStatusOnly() {
-            // complete_status marks the report completed AND stamps a 3-day
+            // complete_status marks the report completed AND stamps a 7-day
             // auto-archive deadline (auto_archive_at) instead of moving it to
             // the archive immediately. It stays on the monitoring page so the
             // officer can still view it; the background sweep
             // (auto_archive_completed / rgmap_auto_archive_completed) moves it
-            // to the archive once the deadline passes.
+            // to the archive once the deadline (completed_at + 7 days) passes.
             var statusFormData = new FormData();
             statusFormData.append('action', 'complete_status');
             statusFormData.append('report_id', currentUpdatesReportId);
@@ -4703,7 +4708,8 @@ annotate_report_assignment_status($conn, $recent_reports);
                 <button class="table-action-btn" title="View Details" onclick="viewReportDetails(${report.id}, '${report.source}')"><i class="fas fa-eye"></i></button>
                 <button class="table-action-btn view-map" onclick="focusReportOnMap(${report.id})"><i class="fas fa-map-pin"></i> Map</button>
                 <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(${report.id}, '${report.report_type}', '${report.source}')"><i class="fas fa-clock"></i> Updates</button>
-                <button class="table-action-btn" title="Archive" style="background:linear-gradient(135deg,#6b7280,#4b5563);color:#fff;margin-left:4px;" onclick="archiveReport(${report.id}, '${report.source}')"><i class="fas fa-archive"></i> Archive</button>
+                ${(report.status || '').toLowerCase() === 'completed' ?
+                    `<button class="table-action-btn" title="Archive" style="background:linear-gradient(135deg,#6b7280,#4b5563);color:#fff;margin-left:4px;" onclick="archiveReport(${report.id}, '${report.source}')"><i class="fas fa-archive"></i> Archive</button>` : ''}
             </td>
         `;
         

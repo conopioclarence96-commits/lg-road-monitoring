@@ -94,6 +94,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->close();
         }
 
+        if ($type === 'review') {
+            $stmt = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE id = ? AND recipient_role = ? AND type IN ('completion','cancellation')");
+            $stmt->bind_param("is", $id, $user_role);
+            $stmt->execute();
+            $stmt->close();
+        }
+
         echo json_encode(['success' => true]);
         exit;
     }
@@ -106,8 +113,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute();
             $stmt->close();
         }
-        if ($user_role === 'road_ops_supervisor') {
-            // Road supervisors: also mark role-targeted review requests
+        if (in_array($user_role, ['road_ops_supervisor', 'trans_ops_supervisor'], true)) {
+            // Supervisors: also mark role-targeted review requests
             // (completion/cancellation routed to their role) as read so the
             // badge fully resets instead of counting them again on reload.
             $stmt = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE recipient_role = ? AND type IN ('completion','cancellation')");
@@ -1011,7 +1018,7 @@ function notification_assignment_url(array $ap): string {
                     'unread' => true,
                     'url' => notification_progress_focus_url($rr),
                     'url_label' => 'View Report',
-                    'mark' => null,
+                    'mark' => ['url' => '', 'data' => ['action' => 'mark_read', 'type' => 'review', 'id' => (int)$rr['id']]],
                 ]);
             }
 

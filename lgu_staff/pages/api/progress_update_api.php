@@ -5,7 +5,7 @@ require_once '../../includes/functions.php';
 
 // Archive helpers (rgmap_archive_report, rgmap_archive_cimm_report,
 // rgmap_auto_archive_completed, ...) — shared with
-// road_transportation_monitoring.php so the portal can run the 3-day
+// road_transportation_monitoring.php so the portal can run the 7-day
 // auto-archive sweep on page load.
 require_once __DIR__ . '/progress_archive_helpers.php';
 
@@ -537,12 +537,14 @@ if ($method === 'GET') {
     } elseif ($action === 'complete_status') {
         // Supervisor Complete button on road_transportation_monitoring.php.
         // Marks the report completed but KEEPS it on the monitoring page: a
-        // 3-day auto-archive deadline (auto_archive_at) is stamped instead of
-        // moving the row to the archive immediately (unlike the old
-        // complete_archive_move). The background sweep (auto_archive_completed
-        // / rgmap_auto_archive_completed) moves it to the archive once the
-        // deadline passes, and the Recent Submissions query shows completed
-        // reports until then.
+        // 7-day auto-archive deadline is stamped instead of moving the row to
+        // the archive immediately (unlike the old complete_archive_move). The
+        // background sweep (auto_archive_completed / rgmap_auto_archive_completed)
+        // moves it to the archive once the deadline passes, and the Recent
+        // Submissions query shows completed reports until then. The sweep
+        // measures the deadline from the actual completion timestamp
+        // (completed_at + 7 days), so the stamped auto_archive_at is only used
+        // as a "completed via portal" marker.
         $report_id = intval($_POST['report_id'] ?? 0);
         $source = sanitize_input($_POST['source'] ?? '');
 
@@ -551,13 +553,13 @@ if ($method === 'GET') {
         try {
             rgmap_ensure_auto_archive_column();
             if ($source === 'cimm') {
-                $stmt = $conn->prepare("UPDATE cimm_verification_reports SET verification_status = 'Completed', auto_archive_at = COALESCE(auto_archive_at, DATE_ADD(NOW(), INTERVAL 3 DAY)) WHERE id = ?");
+                $stmt = $conn->prepare("UPDATE cimm_verification_reports SET verification_status = 'Completed', auto_archive_at = COALESCE(auto_archive_at, DATE_ADD(NOW(), INTERVAL 7 DAY)) WHERE id = ?");
                 $stmt->bind_param("i", $report_id);
                 $stmt->execute();
             } else {
                 $table = rgmap_resolve_report_table($conn, $report_id);
                 if (!$table) json_response(['success' => false, 'message' => 'Report not found'], 404);
-                $stmt = $conn->prepare("UPDATE $table SET status = 'completed', completed_at = COALESCE(completed_at, NOW()), auto_archive_at = COALESCE(auto_archive_at, DATE_ADD(NOW(), INTERVAL 3 DAY)) WHERE id = ?");
+                $stmt = $conn->prepare("UPDATE $table SET status = 'completed', completed_at = COALESCE(completed_at, NOW()), auto_archive_at = COALESCE(auto_archive_at, DATE_ADD(NOW(), INTERVAL 7 DAY)) WHERE id = ?");
                 $stmt->bind_param("i", $report_id);
                 $stmt->execute();
             }
@@ -574,19 +576,20 @@ if ($method === 'GET') {
             // Notify the acting supervisor so the completion result appears in
             // their notifications feed (notifications.php).
             rgmap_notify_supervisor_action($conn, $report_id, 'complete', $user_id, $report_row['report_id'] ?? null);
-            log_audit_action($user_id, "Completed report", "Report ID: {$report_id}, Status: completed (auto-archive in 3 days)");
-            json_response(['success' => true, 'message' => 'Report completed. It will stay on this page for 3 days, then move to the archive automatically.']);
+            log_audit_action($user_id, "Completed report", "Report ID: {$report_id}, Status: completed (auto-archive in 7 days)");
+            json_response(['success' => true, 'message' => 'Report completed. It will stay on this page for 7 days, then move to the archive automatically.']);
         } catch (Exception $e) {
             error_log("Complete status error: " . $e->getMessage());
             json_response(['success' => false, 'message' => 'Failed to complete the report: ' . $e->getMessage()], 500);
         }
     } elseif ($action === 'archive_report') {
         // Archive button on the Recent Submissions panel of
-        // road_transportation_monitoring.php. Moves the report into
-        // road_transportation_reports_archive KEEPING its current status — the
-        // report leaves Recent Submissions but is neither completed nor cancelled.
-        // Available to every report in the panel (including completed reports) for
-        // any admin/staff role that can access the monitoring page.
+        // road_transportation_monitoring.php. The button is only rendered for
+        // reports whose status is COMPLETED (all other statuses hide it), and
+        // it moves the report into road_transportation_reports_archive keeping
+        // its current status — the report leaves Recent Submissions immediately
+        // instead of waiting out the 7-day auto-archive window.
+        // Available to any admin/staff role that can access the monitoring page.
         if (!is_admin_or_staff_role($_SESSION['role'] ?? '')) {
             json_response(['success' => false, 'message' => 'You are not authorized to archive reports.'], 403);
         }
@@ -621,7 +624,7 @@ if ($method === 'GET') {
             json_response(['success' => false, 'message' => 'Failed to archive the report: ' . $e->getMessage()], 500);
         }
     } elseif ($action === 'auto_archive_completed') {
-        // Move every completed report whose 3-day retention window has passed
+        // Move every completed report whose 7-day retention window has passed
         // into the archive. Only reports completed through the supervisor
         // portal's Complete button carry auto_archive_at, so report_management
         // completions are never touched. Fired by the portal on page load.
@@ -741,6 +744,27 @@ if ($method === 'GET') {
                 'Requested by: ' . $requestor_name,
             ];
             $message = "{$request_label} — " . implode(' | ', $details);
+
+            // Transportation requests only: a trans monitoring officer re-submitting
+            // the same completion/cancellation request (double-click, page refresh,
+            // or reopening the monitoring page) must not spawn a duplicate
+            // notification for the trans_ops_supervisor. The request is uniquely
+            // identified by report ID + request type + requesting officer, and is
+            // only blocked while the previous request is still pending review
+            // (unread). Road requests keep their existing behavior untouched.
+            if ($recipient_role === 'trans_ops_supervisor') {
+                $dup = fetch_one(
+                    "SELECT id FROM report_notifications
+                     WHERE report_id = ? AND type = ? AND recipient_role = ? AND recipient_email = ? AND is_read = 0
+                     ORDER BY id DESC LIMIT 1",
+                    [$report_id, $request_type, $recipient_role, $user_id],
+                    "isss"
+                );
+                if ($dup) {
+                    log_audit_action($user_id, "Duplicate {$request_label} blocked", "Report ID: {$report_id}, Category: {$category}");
+                    json_response(['success' => true, 'message' => "{$request_label} already submitted for review. The report status is unchanged."]);
+                }
+            }
 
             // Role-targeted notification (visible only to the matching supervisor
             // role and to administrators).  The requestor's user_id is stored in

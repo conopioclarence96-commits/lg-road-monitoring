@@ -85,12 +85,13 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
         // Only count unread report_notifications that reference a report
         // that still exists in one of the live tables.
         try {
-            if ($user_role === 'road_ops_supervisor') {
-                // Road supervisors: count only the unread notifications that
+            if (in_array($user_role, ['road_ops_supervisor', 'trans_ops_supervisor'], true)) {
+                // Supervisors: count only the unread notifications that
                 // actually appear in their notifications feed — review requests
                 // routed to their role plus results targeted to their email.
                 // (The generic count below would include notifications meant
-                // for other roles, inflating the badge.)
+                // for other roles or broadcast progress updates, inflating the
+                // badge.)
                 $email = '';
                 if ($user_id > 0) {
                     $estmt = $conn->prepare("SELECT email FROM users WHERE id = ?");
@@ -104,7 +105,7 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
                     SELECT COUNT(*) as count FROM report_notifications rn
                     WHERE rn.is_read = 0
                       AND (
-                          (rn.recipient_role = 'road_ops_supervisor' AND rn.type IN ('completion', 'cancellation'))
+                          (rn.recipient_role = ? AND rn.type IN ('completion', 'cancellation'))
                           OR (rn.recipient_email = ? AND rn.type IN ('approve_request', 'reject_request', 'complete_report', 'cancel_report'))
                       )
                       AND EXISTS (
@@ -116,7 +117,7 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
                           LIMIT 1
                       )
                 ");
-                $stmt->bind_param("s", $email);
+                $stmt->bind_param("ss", $user_role, $email);
                 $stmt->execute();
                 $count += $stmt->get_result()->fetch_assoc()['count'];
                 $stmt->close();

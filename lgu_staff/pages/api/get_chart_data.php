@@ -16,20 +16,21 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 // Road Monitoring Officers see only Road reports (report_category = 'road')
-// in the dashboard chart. Transportation Monitoring Officers and Transportation
-// Operations Supervisors see only Transportation reports.
+// in the dashboard chart. Transportation Operations Supervisors see only
+// Transportation reports.
 $is_road_monitoring_officer = (($_SESSION['role'] ?? '') === 'road_monitoring_officer');
-$is_transport_only_role = in_array($_SESSION['role'] ?? '', ['trans_ops_supervisor', 'trans_monitoring_officer'], true);
+$is_trans_ops_supervisor = (($_SESSION['role'] ?? '') === 'trans_ops_supervisor');
+$transport_only = $is_trans_ops_supervisor;
 if ($is_road_monitoring_officer) {
     $cat_filter = " AND report_category = 'road'";
-} elseif ($is_transport_only_role) {
+} elseif ($is_trans_ops_supervisor) {
     $cat_filter = " AND report_category = 'transportation'";
 } else {
     $cat_filter = '';
 }
 
 // Function to get chart data for different periods
-function getChartData($conn, $period, $cat_filter = '') {
+function getChartData($conn, $period, $cat_filter = '', $transport_only = false) {
     $data = ['reports' => [], 'verifications' => []];
     
     switch ($period) {
@@ -50,12 +51,15 @@ function getChartData($conn, $period, $cat_filter = '') {
                 $result = $conn->query($transport_query);
                 $transport_count = $result->fetch_assoc()['count'];
                 
-                $maintenance_query = "SELECT COUNT(*) as count FROM road_maintenance_reports 
-                                     WHERE DAYOFWEEK(created_at) = $day_of_week 
-                                     AND WEEK(created_at, 1) = WEEK(CURRENT_DATE, 1) 
-                                     AND YEAR(created_at) = $current_year";
-                $result = $conn->query($maintenance_query);
-                $maintenance_count = $result->fetch_assoc()['count'];
+                $maintenance_count = 0;
+                if (!$transport_only) {
+                    $maintenance_query = "SELECT COUNT(*) as count FROM road_maintenance_reports 
+                                         WHERE DAYOFWEEK(created_at) = $day_of_week 
+                                         AND WEEK(created_at, 1) = WEEK(CURRENT_DATE, 1) 
+                                         AND YEAR(created_at) = $current_year";
+                    $result = $conn->query($maintenance_query);
+                    $maintenance_count = $result->fetch_assoc()['count'];
+                }
                 
                 $data['reports'][] = (int)($transport_count + $maintenance_count);
                 
@@ -64,13 +68,15 @@ function getChartData($conn, $period, $cat_filter = '') {
                                        WHERE status IN ('completed', 'approved') 
                                        AND DAYOFWEEK(updated_at) = $day_of_week 
                                        AND WEEK(updated_at, 1) = WEEK(CURRENT_DATE, 1) 
-                                       AND YEAR(updated_at) = $current_year" . $cat_filter . ")
-                                       UNION ALL
-                                       (SELECT COUNT(*) as count FROM road_maintenance_reports 
-                                       WHERE status IN ('completed', 'approved') 
-                                       AND DAYOFWEEK(updated_at) = $day_of_week 
-                                       AND WEEK(updated_at, 1) = WEEK(CURRENT_DATE, 1) 
-                                       AND YEAR(updated_at) = $current_year)";
+                                       AND YEAR(updated_at) = $current_year" . $cat_filter . ")";
+                if (!$transport_only) {
+                    $verification_query .= " UNION ALL
+                                           (SELECT COUNT(*) as count FROM road_maintenance_reports 
+                                           WHERE status IN ('completed', 'approved') 
+                                           AND DAYOFWEEK(updated_at) = $day_of_week 
+                                           AND WEEK(updated_at, 1) = WEEK(CURRENT_DATE, 1) 
+                                           AND YEAR(updated_at) = $current_year)";
+                }
                 $result = $conn->query($verification_query);
                 $verification_count = 0;
                 while ($row = $result->fetch_assoc()) {
@@ -93,21 +99,26 @@ function getChartData($conn, $period, $cat_filter = '') {
                 $result = $conn->query($transport_query);
                 $transport_count = $result->fetch_assoc()['count'];
                 
-                $maintenance_query = "SELECT COUNT(*) as count FROM road_maintenance_reports 
-                                     WHERE DATE(created_at) = '$date'";
-                $result = $conn->query($maintenance_query);
-                $maintenance_count = $result->fetch_assoc()['count'];
+                $maintenance_count = 0;
+                if (!$transport_only) {
+                    $maintenance_query = "SELECT COUNT(*) as count FROM road_maintenance_reports 
+                                         WHERE DATE(created_at) = '$date'";
+                    $result = $conn->query($maintenance_query);
+                    $maintenance_count = $result->fetch_assoc()['count'];
+                }
                 
                 $data['reports'][] = (int)($transport_count + $maintenance_count);
                 
                 // Get verifications
                 $verification_query = "(SELECT COUNT(*) as count FROM road_transportation_reports 
                                        WHERE status IN ('completed', 'approved') 
-                                       AND DATE(updated_at) = '$date'" . $cat_filter . ")
-                                       UNION ALL
-                                       (SELECT COUNT(*) as count FROM road_maintenance_reports 
-                                       WHERE status IN ('completed', 'approved') 
-                                       AND DATE(updated_at) = '$date')";
+                                       AND DATE(updated_at) = '$date'" . $cat_filter . ")";
+                if (!$transport_only) {
+                    $verification_query .= " UNION ALL
+                                           (SELECT COUNT(*) as count FROM road_maintenance_reports 
+                                           WHERE status IN ('completed', 'approved') 
+                                           AND DATE(updated_at) = '$date')";
+                }
                 $result = $conn->query($verification_query);
                 $verification_count = 0;
                 while ($row = $result->fetch_assoc()) {
@@ -131,21 +142,26 @@ function getChartData($conn, $period, $cat_filter = '') {
                 $result = $conn->query($transport_query);
                 $transport_count = $result->fetch_assoc()['count'];
                 
-                $maintenance_query = "SELECT COUNT(*) as count FROM road_maintenance_reports 
-                                     WHERE created_at BETWEEN '$week_start' AND '$week_end 23:59:59'";
-                $result = $conn->query($maintenance_query);
-                $maintenance_count = $result->fetch_assoc()['count'];
+                $maintenance_count = 0;
+                if (!$transport_only) {
+                    $maintenance_query = "SELECT COUNT(*) as count FROM road_maintenance_reports 
+                                         WHERE created_at BETWEEN '$week_start' AND '$week_end 23:59:59'";
+                    $result = $conn->query($maintenance_query);
+                    $maintenance_count = $result->fetch_assoc()['count'];
+                }
                 
                 $data['reports'][] = (int)($transport_count + $maintenance_count);
                 
                 // Get verifications
                 $verification_query = "(SELECT COUNT(*) as count FROM road_transportation_reports 
                                        WHERE status IN ('completed', 'approved') 
-                                       AND updated_at BETWEEN '$week_start' AND '$week_end 23:59:59'" . $cat_filter . ")
-                                       UNION ALL
-                                       (SELECT COUNT(*) as count FROM road_maintenance_reports 
-                                       WHERE status IN ('completed', 'approved') 
-                                       AND updated_at BETWEEN '$week_start' AND '$week_end 23:59:59')";
+                                       AND updated_at BETWEEN '$week_start' AND '$week_end 23:59:59'" . $cat_filter . ")";
+                if (!$transport_only) {
+                    $verification_query .= " UNION ALL
+                                           (SELECT COUNT(*) as count FROM road_maintenance_reports 
+                                           WHERE status IN ('completed', 'approved') 
+                                           AND updated_at BETWEEN '$week_start' AND '$week_end 23:59:59')";
+                }
                 $result = $conn->query($verification_query);
                 $verification_count = 0;
                 while ($row = $result->fetch_assoc()) {
@@ -175,7 +191,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['period'])) {
         exit();
     }
     
-    $chart_data = getChartData($conn, $period, $cat_filter);
+    $chart_data = getChartData($conn, $period, $cat_filter, $transport_only);
     
     header('Content-Type: application/json');
     echo json_encode($chart_data);
