@@ -3302,6 +3302,10 @@ if ($focus_id > 0) {
                             <th>Location</th>
                             <th>Department</th>
                             <th>Priority</th>
+                            <?php if ($is_road_supervisor || $user_role === 'system_admin'): ?>
+                            <th>Engineer</th>
+                            <th>Budget Allocation</th>
+                            <?php endif; ?>
                             <th>Status</th>
                             <th>Created</th>
                         </tr>
@@ -3348,6 +3352,22 @@ if ($focus_id > 0) {
                             <td><?php echo htmlspecialchars($report['location'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars(ucfirst($report['department'] ?? '')); ?></td>
                             <td><span class="rm-priority-badge <?php echo htmlspecialchars($report['priority']); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'])); ?></span></td>
+                            <?php if ($is_road_supervisor || $user_role === 'system_admin'): ?>
+                            <td>
+                                <?php if (!empty($report['engineer']) && ($report['report_category'] ?? '') === 'road'): ?>
+                                <span class="rm-badge lgu" title="CIMM Assigned Engineer"><?php echo htmlspecialchars($report['engineer']); ?></span>
+                                <?php else: ?>
+                                <span class="t-text-muted">—</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php if (!empty($report['budget_allocation']) && ($report['report_category'] ?? '') === 'road'): ?>
+                                <span class="t-text-success" title="CIMM Budget Allocation">₱ <?php echo number_format((float)$report['budget_allocation'], 2); ?></span>
+                                <?php else: ?>
+                                <span class="t-text-muted">—</span>
+                                <?php endif; ?>
+                            </td>
+                            <?php endif; ?>
                             <td><span class="rm-status-badge <?php echo htmlspecialchars(strtolower($report['status'])); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span></td>
                             <td>
                                 <?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?>
@@ -3363,7 +3383,7 @@ if ($focus_id > 0) {
 
                         <?php if (!$hasLgu): ?>
                         <tr>
-                            <td colspan="9">
+                            <td colspan="<?php echo ($is_road_supervisor || $user_role === 'system_admin') ? 11 : 9; ?>">
                                 <div class="rm-empty-state">
                                     <div class="rm-empty-icon" style="background: rgba(55, 98, 200, 0.12);">
                                         <i class="fas fa-clipboard-list t-text-link"></i>
@@ -4392,6 +4412,14 @@ if ($focus_id > 0) {
                         }
                         if (r.rejected_at) {
                             sourceGrid += rmInfoItem('thumbs-down', 'Rejected At', formatDate(r.rejected_at));
+                        }
+                        if (r.report_category === 'road') {
+                            if (r.engineer) {
+                                sourceGrid += rmInfoItem('hard-hat', 'CIMM Engineer', r.engineer);
+                            }
+                            if (r.budget_allocation) {
+                                sourceGrid += rmInfoItem('money-bill-wave', 'CIMM Budget Allocation', '₱ ' + Number(r.budget_allocation).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+                            }
                         }
                         document.getElementById('rm-source-grid').innerHTML = sourceGrid;
 
