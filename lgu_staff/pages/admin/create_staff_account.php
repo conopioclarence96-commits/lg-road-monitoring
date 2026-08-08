@@ -37,6 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $birthday = trim($_POST['birthday'] ?? '');
     $address = trim($_POST['address'] ?? '');
     $civil_status = trim($_POST['civil_status'] ?? '');
+    $phone_number = trim($_POST['phone_number'] ?? '');
     $department = trim($_POST['department'] ?? '');
 
     if (empty($email) || empty($first_name) || empty($last_name)) {
@@ -95,8 +96,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    $stmt = $conn->prepare("INSERT INTO users (username, email, password, full_name, role, department, address, birthday, civil_status, id_file_path, account_status, is_active, must_change_password, temporary_password_created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, ?, 'verified', 1, 1, NOW())");
-    $stmt->bind_param("ssssssssss", $username, $email, $hashed_password, $full_name, $role, $department, $address, $birthday, $civil_status, $id_file_path);
+    $stmt = $conn->prepare("INSERT INTO users (username, email, password, full_name, role, department, address, birthday, civil_status, phone_number, id_file_path, account_status, is_active, must_change_password, temporary_password_created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, NULLIF(?, ''), ?, 'verified', 1, 1, NOW())");
+    $stmt->bind_param("sssssssssss", $username, $email, $hashed_password, $full_name, $role, $department, $address, $birthday, $civil_status, $phone_number, $id_file_path);
 
     if ($stmt->execute()) {
         $new_user_id = $stmt->insert_id;
@@ -611,6 +612,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <option value="divorced">Divorced</option>
                                 <option value="widowed">Widowed</option>
                             </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="phone_number">Contact Number</label>
+                            <input type="tel" id="phone_number" name="phone_number" placeholder="e.g. 09171234567" maxlength="20" pattern="[0-9+\-\s()]+" title="Enter a valid contact number">
                         </div>
                         <div class="form-group full-width">
                             <label for="id_file">Upload Valid ID (Optional)</label>

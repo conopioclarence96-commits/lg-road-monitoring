@@ -36,11 +36,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $address = sanitize_input($_POST['address'] ?? '');
         $birthday = sanitize_input($_POST['birthday'] ?? '');
         $civil_status = sanitize_input($_POST['civil_status'] ?? '');
+        $phone_number = sanitize_input($_POST['phone_number'] ?? '');
 
         if (!empty($full_name) && !empty($email)) {
-            $sql = "UPDATE users SET full_name = ?, email = ?, department = ?, address = ?, birthday = ?, civil_status = ?";
-            $params = [$full_name, $email, $department, $address, $birthday, $civil_status];
-            $types = "ssssss";
+            $sql = "UPDATE users SET full_name = ?, email = ?, department = ?, address = ?, birthday = ?, civil_status = ?, phone_number = ?";
+            $params = [$full_name, $email, $department, $address, $birthday, $civil_status, $phone_number];
+            $types = "sssssss";
 
             // Handle ID file upload
             if (isset($_FILES['id_file']) && $_FILES['id_file']['error'] === UPLOAD_ERR_OK) {
@@ -84,6 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'address' => sanitize_input($_POST['address'] ?? ''),
             'birthday' => sanitize_input($_POST['birthday'] ?? ''),
             'civil_status' => sanitize_input($_POST['civil_status'] ?? ''),
+            'phone_number' => sanitize_input($_POST['phone_number'] ?? ''),
         ];
         // Handle profile picture upload
         if (isset($_FILES['profile_picture']) && $_FILES['profile_picture']['error'] === UPLOAD_ERR_OK) {
@@ -302,7 +304,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Get user data
-$stmt = $conn->prepare("SELECT username, full_name, email, role, profile_picture, twofa, darkmode, department, address, birthday, civil_status, id_file_path FROM users WHERE id = ?");
+$stmt = $conn->prepare("SELECT username, full_name, email, role, profile_picture, twofa, darkmode, department, address, birthday, civil_status, phone_number, id_file_path FROM users WHERE id = ?");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $user_data = $stmt->get_result()->fetch_assoc();
@@ -831,6 +833,7 @@ try {
                             <span><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($user_data['address'] ?? 'N/A'); ?></span>
                             <span><i class="fas fa-calendar"></i> <?php echo htmlspecialchars($user_data['birthday'] ?? 'N/A'); ?></span>
                             <span><i class="fas fa-heart"></i> <?php echo htmlspecialchars(ucfirst($user_data['civil_status'] ?? 'N/A')); ?></span>
+                            <span><i class="fas fa-phone"></i> <?php echo htmlspecialchars($user_data['phone_number'] ?? 'N/A'); ?></span>
                             <?php if (!empty($user_data['id_file_path'])): ?>
                                 <span><i class="fas fa-id-card"></i> ID uploaded</span>
                             <?php endif; ?>
@@ -911,6 +914,10 @@ try {
                                         </select>
                                     </div>
                                     <div class="form-group">
+                                        <label>Contact Number</label>
+                                        <input type="tel" name="phone_number" class="form-control" maxlength="20" pattern="[0-9+\-\s()]+" title="Enter a valid contact number" value="<?php echo htmlspecialchars($user_data['phone_number'] ?? ''); ?>">
+                                    </div>
+                                    <div class="form-group">
                                         <label><i class="fas fa-id-card"></i> Upload ID</label>
                                         <input type="file" name="id_file" accept="image/*,.pdf" class="form-control" style="padding:8px;">
                                     </div>
@@ -968,6 +975,10 @@ try {
                                             <option value="divorced" <?php echo ($user_data['civil_status'] ?? '') === 'divorced' ? 'selected' : ''; ?>>Divorced</option>
                                             <option value="widowed" <?php echo ($user_data['civil_status'] ?? '') === 'widowed' ? 'selected' : ''; ?>>Widowed</option>
                                         </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Contact Number</label>
+                                        <input type="tel" name="phone_number" class="form-control" maxlength="20" pattern="[0-9+\-\s()]+" title="Enter a valid contact number" value="<?php echo htmlspecialchars($user_data['phone_number'] ?? ''); ?>">
                                     </div>
                                     <div class="form-group">
                                         <label>Upload ID</label>

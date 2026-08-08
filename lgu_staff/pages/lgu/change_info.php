@@ -46,6 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_request'])) {
     $address = sanitize_input($_POST['address'] ?? '');
     $civil_status = sanitize_input($_POST['civil_status'] ?? '');
     $birthday = sanitize_input($_POST['birthday'] ?? '');
+    $phone_number = sanitize_input($_POST['phone_number'] ?? '');
     $new_password = $_POST['new_password'] ?? '';
     $reason = sanitize_input($_POST['reason'] ?? '');
 
@@ -56,7 +57,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_request'])) {
             'email' => $email,
             'address' => $address,
             'civil_status' => $civil_status,
-            'birthday' => $birthday
+            'birthday' => $birthday,
+            'phone_number' => $phone_number
         ];
 
         if (!empty($new_password)) {
@@ -98,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_request'])) {
     }
 }
 
-$stmt = $conn->prepare("SELECT username, full_name, email, role, department, address, birthday, civil_status FROM users WHERE id = ?");
+$stmt = $conn->prepare("SELECT username, full_name, email, role, department, address, birthday, civil_status, phone_number FROM users WHERE id = ?");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $user = $stmt->get_result()->fetch_assoc();
@@ -309,6 +311,11 @@ $stmt->close();
                         <label for="birthday">Birthday</label>
                         <input type="date" id="birthday" name="birthday" class="form-control"
                                value="<?php echo htmlspecialchars($user['birthday'] ?? ''); ?>">
+                    </div>
+                    <div class="form-group">
+                        <label for="phone_number">Contact Number</label>
+                        <input type="tel" id="phone_number" name="phone_number" class="form-control" maxlength="20" pattern="[0-9+\-\s()]+" title="Enter a valid contact number"
+                               value="<?php echo htmlspecialchars($user['phone_number'] ?? ''); ?>" placeholder="e.g. 09171234567">
                     </div>
                     <div class="form-group">
                         <label for="id_file">New ID Photo</label>

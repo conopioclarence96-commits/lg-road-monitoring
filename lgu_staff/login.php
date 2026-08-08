@@ -8,7 +8,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 // Session timeout configuration
-$session_timeout = 30 * 60; // 30 minutes in seconds
+$session_timeout = 5 * 60; // 5 minutes in seconds
 
 // Check if session has expired
 if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
@@ -56,54 +56,6 @@ if ($conn) {
     } catch (Exception $e) {}
 }
 
-// Access-token entry (emailed magic link). The login page is ONLY reachable
-// through a valid login token, so any request without one (or with an invalid
-// or disabled token) is sent back to the public homepage. When the login token
-// is valid, the register action is only offered while the register token is
-// still active (not used and not expired).
-$token_email = '';
-$token_valid = false;
-$register_token_disabled = false;
-$loginTokenParam = trim($_GET['login_token'] ?? ($_GET['token'] ?? ''));
-$registerTokenParam = trim($_GET['register_token'] ?? '');
-if ($loginTokenParam === '') {
-    header('Location: ' . $basePath . 'index.php');
-    exit;
-}
-try {
-    $tokStmt = $conn->prepare("SELECT email, login_token_active, register_token, register_token_used_at, register_token_expires_at FROM user_tokens WHERE login_token = ?");
-    $tokStmt->bind_param("s", $loginTokenParam);
-    $tokStmt->execute();
-    $tokRow = $tokStmt->get_result()->fetch_assoc();
-    $tokStmt->close();
-
-    if (!$tokRow || empty($tokRow['login_token_active'])) {
-        header('Location: ' . $basePath . 'index.php');
-        exit;
-    }
-
-    $token_email = $tokRow['email'];
-    $token_valid = true;
-    if ($registerTokenParam !== '') {
-        // A register_token is supplied in the URL: registration is only offered
-        // while it matches the stored register token AND is unused and unexpired.
-        $register_token_disabled = !(
-            hash_equals($registerTokenParam, rtrim((string) $tokRow['register_token']))
-            && empty($tokRow['register_token_used_at'])
-            && !empty($tokRow['register_token_expires_at'])
-            && strtotime($tokRow['register_token_expires_at']) >= time()
-        );
-    } else {
-        // No register_token in the URL: fall back to the stored token's state.
-        $register_token_disabled = !empty($tokRow['register_token_used_at'])
-            || (!empty($tokRow['register_token_expires_at']) && strtotime($tokRow['register_token_expires_at']) < time());
-    }
-} catch (Exception $e) {
-    error_log("Login token validation error: " . $e->getMessage());
-    header('Location: ' . $basePath . 'index.php');
-    exit;
-}
-
 // Create dump LGU staff account (for testing purposes)
 if (isset($_GET['create_dump_account']) && $_GET['create_dump_account'] === 'lgu_staff') {
     try {
@@ -123,7 +75,7 @@ if (isset($_GET['create_dump_account']) && $_GET['create_dump_account'] === 'lgu
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'verified', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             ");
             
-            $username = 'staff@lgu.gov.ph';
+            $username = 'lgu_staff';
             $email = 'staff@lgu.gov.ph';
             $full_name = 'LGU Staff Test Account';
             $role = 'lgu_staff';
@@ -251,22 +203,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_login_otp'])) 
 
             unset($_SESSION['login_verify_data']);
 
-            // First login with a temporary password - force password change first
-            if (!empty($user['must_change_password'])) {
-                header('Location: ' . $basePath . 'lgu_staff/change_password.php');
-                exit;
-            }
-
             switch ($user['role']) {
                 case 'system_admin':
                     $redirectUrl = $basePath . 'lgu_staff/pages/admin/admin_dashboard.php';
                     break;
                 case 'lgu_staff':
+                    $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
+                    break;
                 case 'citizen':
-                case 'road_ops_supervisor':
-                case 'road_monitoring_officer':
-                case 'trans_ops_supervisor':
-                case 'trans_monitoring_officer':
                     $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
                     break;
                 default:
@@ -315,54 +259,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['resend_otp'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_register'])) {
     $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL);
     $password = $_POST['password'] ?? '';
-    $confirm_password = $_POST['confirm_password'] ?? '';
     
     // Validate input
-    if (empty($email) || empty($password) || empty($confirm_password)) {
+    if (empty($email) || empty($password)) {
         $registerMessage = 'Please fill in all fields';
         $registerMessageType = 'error';
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $registerMessage = 'Invalid email format';
         $registerMessageType = 'error';
-    } elseif ($password !== $confirm_password) {
-        $registerMessage = 'Passwords do not match';
+    } elseif (strlen($password) < 6) {
+        $registerMessage = 'Password must be at least 6 characters';
         $registerMessageType = 'error';
     } else {
-        $passwordErrors = validate_password_strength($password);
-        if (!empty($passwordErrors)) {
-            $registerMessage = 'Password must contain: ' . implode(', ', $passwordErrors);
-            $registerMessageType = 'error';
-        } else {
-            try {
-                // Check if email already exists
-                $checkStmt = $conn->prepare("SELECT id FROM users WHERE email = ?");
-                $checkStmt->bind_param("s", $email);
-                $checkStmt->execute();
-                $existingUser = $checkStmt->get_result()->num_rows > 0;
-                $checkStmt->close();
-                
-                if ($existingUser) {
-                    $registerMessage = 'Email address already registered';
-                    $registerMessageType = 'error';
-                } else {
-                    // Store registration data in session for step 2
-                    $_SESSION['registration_data'] = [
-                        'email' => $email,
-                        'password' => password_hash($password, PASSWORD_DEFAULT)
-                    ];
-                    
-                    // Generate and send OTP
-                    handle_registration_otp($email);
-                    
-                    $registerMessage = 'A verification code has been sent to your email. Please check your inbox.';
-                    $registerMessageType = 'success';
-                    $showOTPModal = true;
-                }
-            } catch (Exception $e) {
-                error_log("Registration error: " . $e->getMessage());
-                $registerMessage = 'An error occurred during registration';
+        try {
+            // Check if email already exists
+            $checkStmt = $conn->prepare("SELECT id FROM users WHERE email = ?");
+            $checkStmt->bind_param("s", $email);
+            $checkStmt->execute();
+            $existingUser = $checkStmt->get_result()->num_rows > 0;
+            $checkStmt->close();
+            
+            if ($existingUser) {
+                $registerMessage = 'Email address already registered';
                 $registerMessageType = 'error';
+            } else {
+                // Store registration data in session for step 2
+                $_SESSION['registration_data'] = [
+                    'email' => $email,
+                    'password' => password_hash($password, PASSWORD_DEFAULT)
+                ];
+                
+                // Generate and send OTP
+                handle_registration_otp($email);
+                
+                $registerMessage = 'A verification code has been sent to your email. Please check your inbox.';
+                $registerMessageType = 'success';
+                $showOTPModal = true;
             }
+        } catch (Exception $e) {
+            error_log("Registration error: " . $e->getMessage());
+            $registerMessage = 'An error occurred during registration';
+            $registerMessageType = 'error';
         }
     }
 }
@@ -397,6 +334,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
         $birthday = sanitize_input($_POST['birthday'] ?? '');
         $address = sanitize_input($_POST['address'] ?? '');
         $civil_status = sanitize_input($_POST['civil_status'] ?? '');
+        $phone_number = sanitize_input($_POST['phone_number'] ?? '');
         $role = sanitize_input($_POST['role'] ?? '');
         
         // Validate required fields
@@ -413,8 +351,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
                 $full_name = trim($first_name . ' ' . $middle_name . ' ' . $last_name);
                 $full_name = preg_replace('/\s+/', ' ', $full_name); // Remove extra spaces
                 
-                // The email address is the user's username throughout the system
-                $username = $email;
+                // Create username from email (before @)
+                $username = explode('@', $email)[0];
                 
                 // Set department based on role
                 if ($role === 'system_admin') {
@@ -453,14 +391,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
                 $stmt = $conn->prepare("
                     INSERT INTO users (
                         username, email, password, full_name, role, department, 
-                        address, birthday, civil_status, id_file_path, account_status, is_active, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        address, birthday, civil_status, phone_number, id_file_path, account_status, is_active, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 ");
                 
                 if ($stmt) {
-                    $stmt->bind_param("ssssssssss", 
+                    $stmt->bind_param("sssssssssss", 
                         $username, $email, $hashedPassword, $full_name, $role, $department,
-                        $address, $birthday, $civil_status, $idFilePath
+                        $address, $birthday, $civil_status, $phone_number, $idFilePath
                     );
                     
                     if ($stmt->execute()) {
@@ -521,7 +459,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
         try {
             // Prepare statement to prevent SQL injection
             $stmt = $conn->prepare("
-                SELECT id, email, password, full_name, role, is_active, account_status, twofa, darkmode, failed_attempts, lock_until, lock_level, must_change_password
+                SELECT id, email, password, full_name, role, is_active, account_status, twofa, darkmode
                 FROM users 
                 WHERE email = ?
             ");
@@ -537,40 +475,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
             if ($result->num_rows === 1) {
                 $user = $result->fetch_assoc();
                 
-                // Step 3: Check if the account is temporarily locked.
-                // Uses server-side time only; failed_attempts is NOT incremented
-                // while the account is locked.
-                $isLocked = false;
-                $lockRemainingText = '';
-                if (!empty($user['lock_until'])) {
-                    $nowTs = time();
-                    $lockUntilTs = strtotime($user['lock_until']);
-                    if ($nowTs < $lockUntilTs) {
-                        $isLocked = true;
-                        $remainingSecs = $lockUntilTs - $nowTs;
-                        $mm = str_pad(floor($remainingSecs / 60), 2, '0', STR_PAD_LEFT);
-                        $ss = str_pad($remainingSecs % 60, 2, '0', STR_PAD_LEFT);
-                        $lockRemainingText = $mm . ' minutes ' . $ss . ' seconds';
-                    } else {
-                        // Lock expired - clear it automatically
-                        $unlockStmt = $conn->prepare("UPDATE users SET lock_until = NULL, failed_attempts = 0 WHERE id = ?");
-                        $unlockStmt->bind_param("i", $user['id']);
-                        $unlockStmt->execute();
-                        $unlockStmt->close();
-                    }
-                }
-                
-                if ($isLocked) {
-                    $loginMessage = 'Your account is temporarily locked. Try again in ' . $lockRemainingText . '.';
-                    $messageType = 'error';
-                }
                 // Verify password
-                elseif (password_verify($password, $user['password'])) {
-                    // Successful password verification resets the security state
-                    $resetLockStmt = $conn->prepare("UPDATE users SET failed_attempts = 0, lock_until = NULL, lock_level = 0 WHERE id = ?");
-                    $resetLockStmt->bind_param("i", $user['id']);
-                    $resetLockStmt->execute();
-                    $resetLockStmt->close();
+                if (password_verify($password, $user['password'])) {
                     
                     // Check account status
                     if ($user['account_status'] === 'pending') {
@@ -621,22 +527,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                             $login_update->execute();
                             $login_update->close();
 
-                            // First login with a temporary password - force password change first
-                            if (!empty($user['must_change_password'])) {
-                                header('Location: ' . $basePath . 'lgu_staff/change_password.php');
-                                exit;
-                            }
-
                             switch ($user['role']) {
                                 case 'system_admin':
                                     $redirectUrl = $basePath . 'lgu_staff/pages/admin/admin_dashboard.php';
                                     break;
                                 case 'lgu_staff':
+                                    $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
+                                    break;
                                 case 'citizen':
-                                case 'road_ops_supervisor':
-                                case 'road_monitoring_officer':
-                                case 'trans_ops_supervisor':
-                                case 'trans_monitoring_officer':
                                     $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
                                     break;
                                 default:
@@ -648,47 +546,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                         }
                     }
                 } else {
-                    // Password verification failed - increment consecutive failures
-                    $newAttempts = intval($user['failed_attempts'] ?? 0) + 1;
-                    $lockLevel = intval($user['lock_level'] ?? 0);
-                    
-                    if ($lockLevel == 0 && $newAttempts >= 3) {
-                        // First lock: 15 minutes
-                        $lockStmt = $conn->prepare("UPDATE users SET failed_attempts = 0, lock_until = CURRENT_TIMESTAMP + INTERVAL 15 MINUTE, lock_level = 1 WHERE id = ?");
-                        $lockStmt->bind_param("i", $user['id']);
-                        $lockStmt->execute();
-                        $lockStmt->close();
-                        $loginMessage = 'Your account has been temporarily locked for 15 minutes due to multiple failed login attempts.';
-                        $messageType = 'error';
-                    } elseif ($lockLevel == 1 && $newAttempts >= 3) {
-                        // Second lock: 30 minutes
-                        $lockStmt = $conn->prepare("UPDATE users SET failed_attempts = 0, lock_until = CURRENT_TIMESTAMP + INTERVAL 30 MINUTE, lock_level = 2 WHERE id = ?");
-                        $lockStmt->bind_param("i", $user['id']);
-                        $lockStmt->execute();
-                        $lockStmt->close();
-                        $loginMessage = 'Your account has been temporarily locked for 30 minutes due to repeated failed login attempts.';
-                        $messageType = 'error';
-                    } elseif ($lockLevel >= 2 && $newAttempts >= 3) {
-                        // Subsequent locks stay at 30 minutes (never increase beyond that)
-                        $lockStmt = $conn->prepare("UPDATE users SET failed_attempts = 0, lock_until = CURRENT_TIMESTAMP + INTERVAL 30 MINUTE, lock_level = 2 WHERE id = ?");
-                        $lockStmt->bind_param("i", $user['id']);
-                        $lockStmt->execute();
-                        $lockStmt->close();
-                        $loginMessage = 'Your account has been temporarily locked for 30 minutes due to repeated failed login attempts.';
-                        $messageType = 'error';
-                    } else {
-                        // Not enough consecutive failures yet - record the attempt
-                        $attemptStmt = $conn->prepare("UPDATE users SET failed_attempts = ? WHERE id = ?");
-                        $attemptStmt->bind_param("ii", $newAttempts, $user['id']);
-                        $attemptStmt->execute();
-                        $attemptStmt->close();
-                        $loginMessage = 'Invalid email or password.';
-                        $messageType = 'error';
-                    }
+                    // Invalid password
+                    $loginMessage = 'Invalid email or password';
+                    $messageType = 'error';
                 }
             } else {
                 // User not found
-                $loginMessage = 'Invalid email or password.';
+                $loginMessage = 'Invalid email or password';
                 $messageType = 'error';
             }
             
@@ -747,7 +611,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
             <form method="POST" onsubmit="return confirm('Are you sure you want to sign in?')">
               <div class="input-box">
                 <label>Email Address</label>
-                <input type="email" name="email" placeholder="name@lgu.gov.ph" value="<?php echo isset($_POST['email']) && !isset($_POST['submit_register']) && !isset($_POST['submit_additional']) ? htmlspecialchars($_POST['email']) : ($token_valid ? htmlspecialchars($token_email) : ''); ?>" />
+                <input type="email" name="email" placeholder="name@lgu.gov.ph" value="<?php echo isset($_POST['email']) && !isset($_POST['submit_register']) && !isset($_POST['submit_additional']) ? htmlspecialchars($_POST['email']) : ''; ?>" />
                 <span class="icon">📧</span>
               </div>
 
@@ -757,10 +621,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                 <button type="button" class="password-toggle" onclick="togglePassword('loginPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
                 <span class="icon">🔒</span>
               </div>
-
-              <p class="forgot-password">
-                <a href="forgot_password.php" class="link">Forgot Password?</a>
-              </p>
 
               <div class="remember-me">
                 <label class="checkbox-label">
@@ -772,7 +632,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
 
               <button class="btn-primary">Sign In</button>
 
-              <?php if (!$disable_signup && !$register_token_disabled): ?>
+              <?php if (!$disable_signup): ?>
               <p class="small-text">
                 Don't have an account?
                 <a href="#" class="link" onclick="showPanel('register')"
@@ -800,37 +660,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                 </div>
             <?php endif; ?>
 
-            <form method="POST" id="registerForm">
+            <form method="POST">
               <input type="hidden" name="submit_register" value="1">
               <div class="input-box">
                 <label>Email Address</label>
-                <input type="email" name="email" id="registerEmail" placeholder="name@lgu.gov.ph" value="<?php echo isset($_POST['email']) && isset($_POST['submit_register']) ? htmlspecialchars($_POST['email']) : ($token_valid ? htmlspecialchars($token_email) : ''); ?>" required />
+                <input type="email" name="email" placeholder="name@lgu.gov.ph" value="<?php echo isset($_POST['email']) && isset($_POST['submit_register']) ? htmlspecialchars($_POST['email']) : ''; ?>" required />
                 <span class="icon">📧</span>
               </div>
 
               <div class="input-box">
                 <label>Password</label>
-                <input type="password" name="password" id="registerPassword" placeholder="•••••••" autocomplete="new-password" required />
+                <input type="password" name="password" id="registerPassword" placeholder="•••••••" required />
                 <button type="button" class="password-toggle" onclick="togglePassword('registerPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
                 <span class="icon">🔒</span>
               </div>
-
-              <div class="input-box">
-                <label>Confirm Password</label>
-                <input type="password" name="confirm_password" id="confirmPassword" placeholder="•••••••" autocomplete="new-password" required />
-                <button type="button" class="password-toggle" onclick="togglePassword('confirmPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
-                <span class="icon">🔒</span>
-              </div>
-
-              <ul class="password-checklist" id="passwordChecklist" aria-live="polite">
-                <li data-check="length"><i class="fas fa-circle"></i> Minimum 8 characters</li>
-                <li data-check="uppercase"><i class="fas fa-circle"></i> Uppercase letter</li>
-                <li data-check="lowercase"><i class="fas fa-circle"></i> Lowercase letter</li>
-                <li data-check="number"><i class="fas fa-circle"></i> Number</li>
-                <li data-check="special"><i class="fas fa-circle"></i> Special character</li>
-                <li data-check="no-space"><i class="fas fa-circle"></i> No spaces</li>
-                <li data-check="match"><i class="fas fa-circle"></i> Passwords match</li>
-              </ul>
 
               <button class="btn-primary" type="submit">Next Step</button>
 
@@ -893,6 +736,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                   <option value="divorced" <?php echo (isset($_POST['civil_status']) && $_POST['civil_status'] == 'divorced') ? 'selected' : ''; ?>>Divorced</option>
                   <option value="widowed" <?php echo (isset($_POST['civil_status']) && $_POST['civil_status'] == 'widowed') ? 'selected' : ''; ?>>Widowed</option>
                 </select>
+              </div>
+
+              <div class="input-box">
+                <label>Contact Number</label>
+                <input type="tel" name="phone_number" maxlength="20" pattern="[0-9+\-\s()]+" title="Enter a valid contact number" value="<?php echo isset($_POST['phone_number']) ? htmlspecialchars($_POST['phone_number']) : ''; ?>" />
               </div>
 
               <div class="input-box">
@@ -1059,48 +907,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
       .password-toggle:hover {
         color: #333;
       }
-
-      /* Password strength checklist */
-      .password-checklist {
-        list-style: none;
-        margin: 2px 0 10px 0;
-        padding: 10px 12px;
-        text-align: left;
-        background: rgba(255, 255, 255, 0.55);
-        border-radius: 10px;
-        font-size: 12px;
-        display: none;
-      }
-      .password-checklist.show {
-        display: block;
-      }
-      .password-checklist li {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        color: #999;
-        margin-bottom: 4px;
-        transition: color 0.2s;
-      }
-      .password-checklist li:last-child {
-        margin-bottom: 0;
-      }
-      .password-checklist li i {
-        font-size: 13px;
-        color: #ccc;
-      }
-      .password-checklist li.valid {
-        color: #16a34a;
-      }
-      .password-checklist li.valid i {
-        color: #16a34a;
-      }
-      .password-checklist li.invalid {
-        color: #c0392b;
-      }
-      .password-checklist li.invalid i {
-        color: #c0392b;
-      }
       
       .otp-actions {
         margin: 20px 0;
@@ -1137,11 +943,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
       .remember-me {
         text-align: left;
         margin: 8px 0 0 0;
-      }
-      .forgot-password {
-        text-align: right;
-        margin: 6px 0 0 0;
-        font-size: 13px;
       }
       .checkbox-label {
         display: inline-flex;
@@ -1221,91 +1022,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
           btn.querySelector('i').className = 'fas fa-eye';
         }
       }
-
-      function setCheckState(item, state) {
-        var icon = item.querySelector('i');
-        item.classList.remove('valid', 'invalid');
-        if (state === 'valid') {
-          item.classList.add('valid');
-          icon.className = 'fas fa-check-circle';
-        } else if (state === 'invalid') {
-          item.classList.add('invalid');
-          icon.className = 'fas fa-times-circle';
-        } else {
-          icon.className = 'fas fa-circle';
-        }
-      }
-
-      function validatePasswordStrength() {
-        var password = document.getElementById('registerPassword');
-        var confirm = document.getElementById('confirmPassword');
-        var checklist = document.getElementById('passwordChecklist');
-        if (!password || !checklist) return;
-
-        var value = password.value;
-        var hasValue = value.length > 0;
-        var confirmValue = confirm ? confirm.value : '';
-        var hasConfirm = confirmValue.length > 0;
-
-        var rules = {
-          length: value.length >= 8,
-          uppercase: /[A-Z]/.test(value),
-          lowercase: /[a-z]/.test(value),
-          number: /[0-9]/.test(value),
-          special: /[^A-Za-z0-9]/.test(value),
-          'no-space': !/\s/.test(value)
-        };
-
-        for (var key in rules) {
-          var item = checklist.querySelector('[data-check="' + key + '"]');
-          if (!item) continue;
-          setCheckState(item, !hasValue ? 'neutral' : (rules[key] ? 'valid' : 'invalid'));
-        }
-
-        var matchItem = checklist.querySelector('[data-check="match"]');
-        if (matchItem) {
-          if (!hasValue || !hasConfirm) {
-            setCheckState(matchItem, 'neutral');
-          } else {
-            setCheckState(matchItem, value === confirmValue ? 'valid' : 'invalid');
-          }
-        }
-
-        if (hasValue) {
-          checklist.classList.add('show');
-        } else if (!checklist.matches(':focus-within')) {
-          checklist.classList.remove('show');
-        }
-      }
-
-      document.addEventListener('DOMContentLoaded', function() {
-        var registerPassword = document.getElementById('registerPassword');
-        var confirmPassword = document.getElementById('confirmPassword');
-        var checklist = document.getElementById('passwordChecklist');
-        if (registerPassword) {
-          registerPassword.addEventListener('input', validatePasswordStrength);
-          registerPassword.addEventListener('focus', function() {
-            if (checklist) checklist.classList.add('show');
-          });
-          registerPassword.addEventListener('blur', function() {
-            if (checklist && registerPassword.value.length === 0) {
-              checklist.classList.remove('show');
-            }
-          });
-        }
-        if (confirmPassword) {
-          confirmPassword.addEventListener('input', validatePasswordStrength);
-          confirmPassword.addEventListener('focus', function() {
-            if (checklist) checklist.classList.add('show');
-          });
-          confirmPassword.addEventListener('blur', function() {
-            if (checklist && registerPassword && registerPassword.value.length === 0) {
-              checklist.classList.remove('show');
-            }
-          });
-        }
-        validatePasswordStrength();
-      });
 
       // Auto-focus on email field for login
       document.addEventListener('DOMContentLoaded', function() {
