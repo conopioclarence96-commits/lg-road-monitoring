@@ -568,9 +568,10 @@ function handle_update_cimm_report() {
     $types = "ssi";
 
     if (!empty($assigned_to)) {
-        $update_fields .= ", cprf_facility_name = ?";
+        $update_fields .= ", cprf_facility_name = ?, engineer = ?";
         $params[] = $assigned_to;
-        $types .= "s";
+        $params[] = $assigned_to;
+        $types .= "ss";
     }
 
     $update_fields .= ", priority = ?";
@@ -578,9 +579,10 @@ function handle_update_cimm_report() {
     $types .= "s";
 
     if ($estimation > 0) {
-        $update_fields .= ", budget = ?";
+        $update_fields .= ", budget = ?, budget_allocation = ?";
         $params[] = $estimation;
-        $types .= "d";
+        $params[] = $estimation;
+        $types .= "dd";
     }
 
     $params[] = $report_id;
@@ -653,6 +655,8 @@ function handle_delete_cimm_report() {
                     'rejected_at'     => $now,
                     'completed_at'    => null,
                     'approved_at'     => null,
+                    'engineer'        => $row['engineer'] ?? null,
+                    'budget_allocation' => $row['budget_allocation'] ?? null,
                 ];
 
                 $fields = array_keys($insert_fields);
@@ -796,8 +800,10 @@ function mapCimmToReportManagement(array $row): array {
         'longitude'     => $row['coord_lng'] ?? null,
         'priority'      => strtolower((string)($row['priority'] ?? 'medium')),
         'status'        => $status,
-        'assigned_to'   => $row['cprf_facility_name'] ?? null,
-        'estimation'    => $row['budget'] ?? 0,
+        'assigned_to'   => $row['engineer'] ?? $row['cprf_facility_name'] ?? null,
+        'estimation'    => $row['budget_allocation'] ?? $row['budget'] ?? 0,
+        'engineer'      => $row['engineer'] ?? null,
+        'budget_allocation'=> $row['budget_allocation'] ?? null,
         'notes'         => $row['issue'] ?? '',
         'department'    => 'cimm',
         'created_date'  => $row['starting_date'] ?? date('Y-m-d'),
@@ -5927,6 +5933,9 @@ if ($focus_id > 0) {
             reportGrid += rmInfoItem('calendar-alt', 'Start Date', formatDate(r.start_date));
             reportGrid += rmInfoItem('calendar-check', 'End Date', formatDate(r.end_date));
             reportGrid += rmInfoItem('dollar-sign', 'Budget', r.estimation ? '₱' + parseFloat(r.estimation).toLocaleString('en-PH', {minimumFractionDigits:2}) : '—');
+            if (r.budget_allocation) {
+                reportGrid += rmInfoItem('dollar-sign', 'Budget Allocation', '₱' + parseFloat(r.budget_allocation).toLocaleString('en-PH', {minimumFractionDigits:2}));
+            }
             document.getElementById('rm-report-grid').innerHTML = reportGrid;
 
             // Source & Department

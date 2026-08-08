@@ -270,13 +270,12 @@ function getActivityTimeline($conn) {
 // Map a synced cimm_verification_reports row (from cimm_verification_data.php)
 // into the flat shape the CIMM/Dept tables on this page already render.
 //
-// Two known gaps vs. the old mock data, left explicit rather than guessed:
-//  1) "engineer" — CIMM doesn't sync an assigned engineer name; shows '—'
-//     until/unless CIMM starts sending one (e.g. via cprf_facility_name or a
-//     future assigned_engineer field).
+// The 'engineer' field now reads from cimm_verification_reports.engineer
+// (synced from CIMM's payload via cimm-reports-webhook.php), falling back to
+// cprf_facility_name for backward compatibility with older rows.
+//
 //  2) "report_type" (staff vs dept) — CIMM's sync payload has no staff/dept
 //     category today, so every synced row is bucketed as 'staff' for now.
-//     Update this mapping once CIMM adds a category field to the payload.
 function rgmap_map_cimm_row_for_display(array $row): array {
     $verification = $row['verification_status'] ?? 'Pending Review';
 
@@ -321,13 +320,14 @@ function rgmap_map_cimm_row_for_display(array $row): array {
         'infrastructure'=> $row['infrastructure'] ?? '',
         'location'      => $row['location'] ?? '',
         'issue_notes'   => $row['issue'] ?? '',
-        'engineer'      => $row['cprf_facility_name'] ?? '—',
+        'engineer'      => $row['engineer'] ?? $row['cprf_facility_name'] ?? '—',
         'reported_by'   => $row['reporter_name'] ?? '—',
         'report_type'   => 'staff', // see gap #2 above
         'start_date'    => $row['starting_date'] ?? null,
         'end_date'      => $row['estimated_end_date'] ?? null,
         'priority'      => strtolower((string)($row['priority'] ?? 'medium')),
-        'budget'        => $row['budget'] ?? null,
+        'budget'        => $row['budget_allocation'] ?? $row['budget'] ?? null,
+        'budget_allocation' => $row['budget_allocation'] ?? null,
         'status'        => $status,
         'approval_status'      => $row['approval_status'] ?? null,
         'verification_status'  => $verification,
@@ -558,24 +558,26 @@ function archive_cimm_rejected_report($conn, $cimm_req_id) {
         
         // Map CIMM columns to road_transportation_reports_archive columns
         $insert_fields = [
-            'report_id' => $cimm_report['reference_code'] ?? 'CIMM-' . $cimm_req_id,
-            'title' => $cimm_report['infrastructure'] ?? 'CIMM Report',
-            'report_type' => 'infrastructure_issue',
+            'report_id'       => $cimm_report['reference_code'] ?? 'CIMM-' . $cimm_req_id,
+            'title'           => $cimm_report['infrastructure'] ?? 'CIMM Report',
+            'report_type'     => 'infrastructure_issue',
             'report_category' => 'road',
-            'report_source' => 'external',
-            'department' => 'engineering',
-            'priority' => $cimm_report['priority'] ?? 'medium',
-            'status' => 'rejected',
-            'archived_from' => 'cimm_verification_reports',
-            'created_date' => $cimm_report['submitted_at'] ?? date('Y-m-d'),
-            'description' => $cimm_report['issue'] ?? '',
-            'location' => $cimm_report['location'] ?? '',
-            'latitude' => $cimm_report['coord_lat'] ?? null,
-            'longitude' => $cimm_report['coord_lng'] ?? null,
-            'created_at' => $cimm_report['submitted_at'] ?? date('Y-m-d H:i:s'),
-            'updated_at' => date('Y-m-d H:i:s'),
-            'rejected_at' => date('Y-m-d H:i:s'),
-            'approved_at' => null
+            'report_source'   => 'external',
+            'department'      => 'engineering',
+            'priority'        => $cimm_report['priority'] ?? 'medium',
+            'status'          => 'rejected',
+            'archived_from'   => 'cimm_verification_reports',
+            'created_date'    => (!empty($cimm_report['submitted_at'])) ? date('Y-m-d', strtotime($cimm_report['submitted_at'])) : date('Y-m-d'),
+            'description'     => $cimm_report['issue'] ?? '',
+            'location'        => $cimm_report['location'] ?? '',
+            'latitude'        => $cimm_report['coord_lat'] ?? null,
+            'longitude'       => $cimm_report['coord_lng'] ?? null,
+            'created_at'      => $cimm_report['submitted_at'] ?? date('Y-m-d H:i:s'),
+            'updated_at'      => date('Y-m-d H:i:s'),
+            'rejected_at'     => date('Y-m-d H:i:s'),
+            'approved_at'     => null,
+            'engineer'        => $cimm_report['engineer'] ?? null,
+            'budget_allocation' => $cimm_report['budget_allocation'] ?? null,
         ];
         
         // Build INSERT query dynamically
@@ -6135,6 +6137,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             projectGrid += cimmInfoItem('calendar-alt', 'Start Date', formatDate(r.start_date));
             projectGrid += cimmInfoItem('calendar-check', 'End Date', formatDate(r.end_date));
             projectGrid += cimmInfoItem('wallet', 'Budget', formatCurrency(r.budget));
+            if (r.budget_allocation) {
+                projectGrid += cimmInfoItem('wallet', 'Budget Allocation', formatCurrency(r.budget_allocation));
+            }
             document.getElementById('cimm-project-grid').innerHTML = projectGrid;
 
             // Reporter & Engineer
