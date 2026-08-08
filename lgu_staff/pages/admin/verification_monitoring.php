@@ -46,6 +46,17 @@ if ($check2 && $check2->num_rows === 0) {
     $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN report_source ENUM('local','external') DEFAULT 'local' AFTER report_category");
 }
 
+// Ensure engineer and budget_allocation columns exist in road_transportation_reports
+// (CIMM syncs these for road reports via the verify webhook).
+$check_engineer = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'engineer'");
+if ($check_engineer && $check_engineer->num_rows === 0) {
+    $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN engineer VARCHAR(150) NULL DEFAULT NULL");
+}
+$check_budget = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'budget_allocation'");
+if ($check_budget && $check_budget->num_rows === 0) {
+    $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN budget_allocation DECIMAL(15,2) NULL DEFAULT NULL");
+}
+
 // Ensure reporter_phone / image_path exist — getCitizenReports() below
 // selects them, and without this guard a DB that predates those columns
 // (e.g. a fresh/older local install) throws "Unknown column" and takes
@@ -72,6 +83,16 @@ if ($check_arch && $check_arch->num_rows === 0) {
 $check_arch2 = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE 'report_source'");
 if ($check_arch2 && $check_arch2->num_rows === 0) {
     $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN report_source ENUM('local','external') DEFAULT 'local' AFTER report_category");
+}
+
+// Ensure archive table mirrors the engineer/budget_allocation columns
+$check_arch_engineer = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE 'engineer'");
+if ($check_arch_engineer && $check_arch_engineer->num_rows === 0) {
+    $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN engineer VARCHAR(150) NULL DEFAULT NULL");
+}
+$check_arch_budget = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE 'budget_allocation'");
+if ($check_arch_budget && $check_arch_budget->num_rows === 0) {
+    $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN budget_allocation DECIMAL(15,2) NULL DEFAULT NULL");
 }
 
 // Ensure reports table exists (from reports.sql)
