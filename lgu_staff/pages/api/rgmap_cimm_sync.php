@@ -73,6 +73,19 @@ function rgmap_cimm_ensure_schema(mysqli $conn): void {
     $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_verified_at TIMESTAMP NULL DEFAULT NULL");
     $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_verified_by VARCHAR(150) DEFAULT NULL");
 
+    // Read-only mirror of the CIMM-native report this row was auto-converted
+    // into on verify — kept in sync (engineer/budget/dates/status) every time
+    // that CIMM report changes on current_reports.php/pending_reports.php, so
+    // LGU staff can see the latest state here without leaving Road Monitoring.
+    // Populated by cimm-reports-webhook.php whenever a payload carries
+    // rgmap_report_pk (see cimm_rgmap_fetch_report() on the CIMM side).
+    $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_engineer_name VARCHAR(150) DEFAULT NULL");
+    $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_budget DECIMAL(15,2) DEFAULT NULL");
+    $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_starting_date DATE DEFAULT NULL");
+    $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_estimated_end_date DATE DEFAULT NULL");
+    $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_status VARCHAR(50) DEFAULT NULL");
+    $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_report_url VARCHAR(500) DEFAULT NULL");
+
     $conn->query("
         CREATE TABLE IF NOT EXISTS rgmap_cimm_push_log (
             report_id INT UNSIGNED NOT NULL PRIMARY KEY,

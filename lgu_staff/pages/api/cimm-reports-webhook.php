@@ -198,6 +198,43 @@ try {
     $localIdStmt->execute([$cimmReqId]);
     $localId = (int)($localIdStmt->fetchColumn() ?: 0);
 
+    // ── If this CIMM report originated from one of THIS system's own
+    //    road_transportation_reports rows (see rgmap_report_pk — set by
+    //    rgmap_road_reports_convert_to_cimm_report() on the CIMM side when
+    //    a Road Monitoring report gets verified and auto-converted), also
+    //    keep that specific row current — not just the separate
+    //    cimm_verification_reports mirror above — so staff looking at the
+    //    report they originally submitted see the latest engineer/budget/
+    //    dates/status without having to go find it in a different panel. ──
+    $rgmapReportPk = isset($data['rgmap_report_pk']) ? (int)$data['rgmap_report_pk'] : 0;
+    if ($rgmapReportPk > 0 && isset($conn) && $conn instanceof mysqli) {
+        require_once __DIR__ . '/rgmap_cimm_sync.php';
+        rgmap_cimm_ensure_schema($conn);
+
+        $cimmEngineerName = $data['engineer'] ?? null;
+        $cimmBudget = isset($data['budget']) ? (float)$data['budget'] : null;
+        $cimmStartingDate = $data['starting_date'] ?? null;
+        $cimmEstimatedEndDate = $data['estimated_end_date'] ?? null;
+        $cimmStatus = $data['resolution_status'] ?? null;
+        $cimmReportUrl = $data['portal_url'] ?? null;
+
+        $updStmt = $conn->prepare(
+            "UPDATE road_transportation_reports
+             SET cimm_engineer_name = ?, cimm_budget = ?, cimm_starting_date = ?,
+                 cimm_estimated_end_date = ?, cimm_status = ?, cimm_report_url = ?
+             WHERE id = ?"
+        );
+        if ($updStmt) {
+            $updStmt->bind_param(
+                'sdssssi',
+                $cimmEngineerName, $cimmBudget, $cimmStartingDate,
+                $cimmEstimatedEndDate, $cimmStatus, $cimmReportUrl, $rgmapReportPk
+            );
+            $updStmt->execute();
+            $updStmt->close();
+        }
+    }
+
     echo json_encode([
         'success' => true,
         'message' => 'Report synced to verification monitoring',
