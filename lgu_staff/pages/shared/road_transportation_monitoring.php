@@ -2443,7 +2443,7 @@ annotate_report_assignment_status($conn, $recent_reports);
                             <td><?php echo htmlspecialchars($rr['title'] ?? 'Untitled'); ?></td>
                             <td><?php echo htmlspecialchars($rr_source_label); ?></td>
                             <td><span class="badge badge-<?php echo strtolower(str_replace(' ', '-', $rr['status'] ?? 'pending')); ?>"><?php echo ucfirst(str_replace('-',' ',$rr['status'] ?? 'pending')); ?></span></td>
-                            <td><?php if ($is_road_supervisor && ($rr['assignment_status'] ?? 'unassigned') === 'assigned' && !empty($rr['assignment_officer'])): ?>
+                            <td><?php if (($is_road_supervisor || $is_transport_supervisor) && ($rr['assignment_status'] ?? 'unassigned') === 'assigned' && !empty($rr['assignment_officer'])): ?>
                                 <span class="badge assignment-badge assignment-assigned"><?php echo htmlspecialchars($rr['assignment_officer']); ?></span>
                             <?php else: ?>
                                 <span class="badge assignment-badge assignment-<?php echo ($rr['assignment_status'] ?? 'unassigned') === 'assigned' ? 'assigned' : 'unassigned'; ?>"><?php echo ($rr['assignment_status'] ?? 'unassigned') === 'assigned' ? 'Assigned' : 'Unassigned'; ?></span>
@@ -4600,6 +4600,7 @@ annotate_report_assignment_status($conn, $recent_reports);
     const sessionRoleTag = document.getElementById('sessionTimeoutData');
     if (sessionRoleTag) currentUserRole = sessionRoleTag.getAttribute('data-role') || '';
     const isRoadSupervisor = (currentUserRole === 'road_ops_supervisor');
+    const isTransportSupervisor = (currentUserRole === 'trans_ops_supervisor' || currentUserRole === 'trans_monitoring_officer');
 
     function loadMoreReports() {
         if (isLoadingMore || !hasMoreReports) return;
@@ -4684,7 +4685,7 @@ annotate_report_assignment_status($conn, $recent_reports);
             <td>${escapeHtml(report.source_label)}</td>
             <td><span class="badge badge-${report.status.toLowerCase().replace(' ', '-')}">${escapeHtml(ucfirst(report.status.replace('-', ' ')))}</span></td>
             <td>${report.assignment_status === 'assigned'
-                ? (isRoadSupervisor && report.assignment_officer
+                ? ((isRoadSupervisor || isTransportSupervisor) && report.assignment_officer
                     ? `<span class="badge assignment-badge assignment-assigned">${escapeHtml(report.assignment_officer)}</span>`
                     : `<span class="badge assignment-badge assignment-assigned">Assigned</span>`)
                 : `<span class="badge assignment-badge assignment-unassigned">Unassigned</span>`}</td>

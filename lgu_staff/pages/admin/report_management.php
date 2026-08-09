@@ -1152,6 +1152,13 @@ foreach ($reports as $report) {
     }
 }
 
+// Transportation Operations Supervisors see the assigned staff member's name
+// in the LGU Monitoring and Citizen Reports tables.
+if ($is_transport_supervisor) {
+    annotate_report_assignment_status($conn, $lgu_reports_list);
+    annotate_report_assignment_status($conn, $citizen_reports);
+}
+
 // Fetch CIMM reports independently (not through the combined get_reports pipeline
 // which limits all sources to 20 total, crowding out CIMM reports)
 $include_cimm = ($source_filter === 'all' || $source_filter === 'cimm');
@@ -2616,6 +2623,17 @@ if ($focus_id > 0) {
         .rm-priority-badge.medium { background: rgba(251, 191, 36, 0.15); color: #f59e0b; }
         .rm-priority-badge.low { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
 
+        .assignment-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+        .assignment-badge.assignment-assigned { background: #d1fae5; color: #065f46; }
+        .assignment-badge.assignment-unassigned { background: #e2e3e5; color: #495057; }
+
         .rm-empty-state {
             text-align: center;
             padding: 60px 20px;
@@ -3303,6 +3321,9 @@ if ($focus_id > 0) {
                             <th>Location</th>
                             <th>Department</th>
                             <th>Priority</th>
+                            <?php if ($is_transport_supervisor): ?>
+                            <th>Assignment</th>
+                            <?php endif; ?>
                             <?php if ($is_road_supervisor || $user_role === 'system_admin'): ?>
                             <th>Engineer</th>
                             <th>Budget Allocation</th>
@@ -3353,6 +3374,15 @@ if ($focus_id > 0) {
                             <td><?php echo htmlspecialchars($report['location'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars(ucfirst($report['department'] ?? '')); ?></td>
                             <td><span class="rm-priority-badge <?php echo htmlspecialchars($report['priority']); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'])); ?></span></td>
+                            <?php if ($is_transport_supervisor): ?>
+                            <td>
+                                <?php if (($report['assignment_status'] ?? 'unassigned') === 'assigned' && !empty($report['assignment_officer'])): ?>
+                                <span class="assignment-badge assignment-assigned"><?php echo htmlspecialchars($report['assignment_officer']); ?></span>
+                                <?php else: ?>
+                                <span class="assignment-badge assignment-unassigned">Unassigned</span>
+                                <?php endif; ?>
+                            </td>
+                            <?php endif; ?>
                             <?php if ($is_road_supervisor || $user_role === 'system_admin'): ?>
                             <td>
                                 <?php if (!empty($report['engineer']) && ($report['report_category'] ?? '') === 'road'): ?>
@@ -3384,7 +3414,7 @@ if ($focus_id > 0) {
 
                         <?php if (!$hasLgu): ?>
                         <tr>
-                            <td colspan="<?php echo ($is_road_supervisor || $user_role === 'system_admin') ? 11 : 9; ?>">
+                            <td colspan="<?php echo (($is_road_supervisor || $user_role === 'system_admin') ? 11 : 9) + ($is_transport_supervisor ? 1 : 0); ?>">
                                 <div class="rm-empty-state">
                                     <div class="rm-empty-icon" style="background: rgba(55, 98, 200, 0.12);">
                                         <i class="fas fa-clipboard-list t-text-link"></i>
@@ -3439,6 +3469,9 @@ if ($focus_id > 0) {
                             <th>Location</th>
                             <th>Department</th>
                             <th>Priority</th>
+                            <?php if ($is_transport_supervisor): ?>
+                            <th>Assignment</th>
+                            <?php endif; ?>
                             <th>Status</th>
                             <th>Created</th>
                         </tr>
@@ -3485,6 +3518,15 @@ if ($focus_id > 0) {
                             <td><?php echo htmlspecialchars($report['location'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars(ucfirst($report['department'] ?? '')); ?></td>
                             <td><span class="rm-priority-badge <?php echo htmlspecialchars($report['priority']); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'])); ?></span></td>
+                            <?php if ($is_transport_supervisor): ?>
+                            <td>
+                                <?php if (($report['assignment_status'] ?? 'unassigned') === 'assigned' && !empty($report['assignment_officer'])): ?>
+                                <span class="assignment-badge assignment-assigned"><?php echo htmlspecialchars($report['assignment_officer']); ?></span>
+                                <?php else: ?>
+                                <span class="assignment-badge assignment-unassigned">Unassigned</span>
+                                <?php endif; ?>
+                            </td>
+                            <?php endif; ?>
                             <td><span class="rm-status-badge <?php echo htmlspecialchars(strtolower($report['status'])); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span></td>
                             <td>
                                 <?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?>
@@ -3500,7 +3542,7 @@ if ($focus_id > 0) {
 
                         <?php if (!$hasCitizen): ?>
                         <tr>
-                            <td colspan="9">
+                            <td colspan="<?php echo 9 + ($is_transport_supervisor ? 1 : 0); ?>">
                                 <div class="rm-empty-state">
                                     <div class="rm-empty-icon">
                                         <i class="fas fa-users"></i>

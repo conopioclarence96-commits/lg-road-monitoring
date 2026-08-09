@@ -739,8 +739,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
               </div>
 
               <div class="input-box">
-                <label>Contact Number</label>
-                <input type="tel" name="phone_number" maxlength="20" pattern="[0-9+\-\s()]+" title="Enter a valid contact number" value="<?php echo isset($_POST['phone_number']) ? htmlspecialchars($_POST['phone_number']) : ''; ?>" />
+                <label>Contact Number *</label>
+                <input type="tel" name="phone_number" maxlength="20" pattern="[0-9+\-\s()]+" title="Enter a valid contact number" value="<?php echo isset($_POST['phone_number']) ? htmlspecialchars($_POST['phone_number']) : ''; ?>" required />
               </div>
 
               <div class="input-box">
