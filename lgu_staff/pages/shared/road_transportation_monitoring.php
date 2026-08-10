@@ -735,38 +735,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $department = 'Road and Transportation';
                 }
                 $location_address = sanitize_input($_POST['location_address'] ?? '');
-                // Normalize the stored location string: trim parts, drop blanks
-                // and duplicate "Quezon City" so the exact location reads cleanly
-                // on the Verification and Monitoring page.
-                $normalize_loc_parts = function ($parts) {
-                    $out = [];
-                    foreach ($parts as $part) {
-                        $part = trim((string)$part);
-                        if ($part === '') continue;
-                        $key = strtolower($part);
-                        if (in_array($key, ['quezon city', 'qc'])) {
-                            if (in_array('quezon city', array_map('strtolower', $out), true)) continue;
-                            $part = 'Quezon City';
-                        }
-                        $out[] = $part;
-                    }
-                    return $out;
-                };
-                $location_parts = $normalize_loc_parts([$street_name, $barangay, $detected_district]);
-                if (empty($location_parts)) {
-                    $location_parts = $normalize_loc_parts([$detected_district, $lat . ', ' . $lng]);
-                }
-                if (!empty($location_address)) {
-                    $loc_parts = $normalize_loc_parts(explode(',', $location_address));
-                    if (!in_array('quezon city', array_map('strtolower', $loc_parts), true)) {
-                        $loc_parts[] = 'Quezon City';
-                    }
-                    $location_str = implode(', ', $loc_parts);
-                } elseif (!empty($location_parts)) {
-                    $location_str = implode(', ', $location_parts) . ', Quezon City';
-                } else {
-                    $location_str = $lat . ', ' . $lng . ', Quezon City';
-                }
+                $location_parts = array_filter([$street_name, $barangay, $detected_district]);
+                $location_str = !empty($location_address) ? $location_address : (!empty($location_parts) ? implode(', ', $location_parts) . ', Quezon City' : $lat . ', ' . $lng . ', Quezon City');
                 $attachments_json = !empty($attachments) ? json_encode($attachments) : null;
                 // Extract image path for the new image_path column
                 $image_path = !empty($attachments) ? $attachments[0]['file_path'] : null;
@@ -2696,18 +2666,16 @@ annotate_report_assignment_status($conn, $recent_reports);
                 html += '<span class="gis-field-tag" style="background:rgba(220,53,69,0.1);color:#721c24;"><span class="gis-tag-label">District:</span> Not detected</span>';
             }
 
-            // Barangay from reverse geocoding. TomTom Orbis uses different
-            // address keys than classic Search, so probe several fallbacks to
-            // capture the exact neighbourhood/barangay whenever possible.
+            // Barangay from reverse geocoding
             let barangay = '';
             let street = '';
             let fullAddress = '';
             let municipality = '';
             if (addressData) {
                 const addr = addressData.address || {};
-                barangay = addr.subdivision || addr.municipalitySubdivision || addr.neighbourhood || addr.districtName || addr.locality || '';
-                street = addr.street || addr.streetName || '';
-                municipality = addr.municipality || addr.municipalityName || addr.city || '';
+                barangay = addr.subdivision || addr.municipalitySubdivision || addr.neighbourhood || '';
+                street = addr.street || '';
+                municipality = addr.municipality || '';
                 const houseNum = addr.houseNumber || '';
                 if (houseNum && street) {
                     fullAddress = houseNum + ' ' + street;
@@ -2719,20 +2687,8 @@ annotate_report_assignment_status($conn, $recent_reports);
             }
             document.getElementById('pin-barangay').value = barangay;
             document.getElementById('pin-street').value = street;
-            // Compose the address without duplicating "Quezon City".
-            const dName = (districtProps && (districtProps.district_name || districtProps.district)) || '';
-            const qcCity = 'Quezon City';
-            const seen = new Set();
-            const addressParts = [fullAddress, barangay, dName, municipality, qcCity]
-                .filter(Boolean)
-                .map(function(part) { return String(part).trim(); })
-                .filter(function(part) {
-                    const key = part.toLowerCase();
-                    if (seen.has(key)) return false;
-                    seen.add(key);
-                    return true;
-                });
-            document.getElementById('pin-address').value = addressParts.length > 0 ? addressParts.join(', ') : (lat.toFixed(5) + ', ' + lng.toFixed(5) + ', ' + qcCity);
+            var addressParts = [fullAddress, barangay, municipality, 'Quezon City'].filter(Boolean);
+            document.getElementById('pin-address').value = addressParts.join(', ');
 
             if (barangay) {
                 html += '<span class="gis-field-tag"><span class="gis-tag-label">Barangay:</span> ' + barangay + '</span>';
@@ -2745,10 +2701,7 @@ annotate_report_assignment_status($conn, $recent_reports);
             }
             if (!fullAddress && !barangay && !street) {
                 html += '<span style="font-size:11px;color:#999;">Address details unavailable for this pin location.</span>';
-                // Keep the detected district so the report still has an exact
-                // area even when street/barangay reverse geocoding fails.
-                const dName = (districtProps && (districtProps.district_name || districtProps.district)) || '';
-                document.getElementById('pin-address').value = [dName, lat.toFixed(5) + ', ' + lng.toFixed(5), 'Quezon City'].filter(Boolean).join(', ');
+                document.getElementById('pin-address').value = lat.toFixed(5) + ', ' + lng.toFixed(5) + ', Quezon City';
             }
 
             detailsEl.innerHTML = html;
@@ -2779,13 +2732,14 @@ annotate_report_assignment_status($conn, $recent_reports);
             // Step 1: District detection (instant, local data)
             const districtProps = detectDistrict(lat, lng);
 
-            // Step 2: Reverse geocode via TomTom (async). Try the Orbis
-            // endpoint first, then fall back to classic Search so the exact
-            // street/barangay is captured whenever possible.
-            const fillLocationInfo = function(result) {
+            // Step 2: Reverse geocode via TomTom (async)
+            TomTomServices.reverseGeocodeOrbis(lat, lng).then(data => {
+                const result = data.data?.results?.[0];
                 populateGISLocationInfo(lat, lng, districtProps, result || null);
-                if (pinMarker) {
-                    const addr = (result && result.address) || {};
+
+                // Also update the marker popup with formatted address
+                if (pinMarker && result) {
+                    const addr = result.address || {};
                     const parts = [
                         addr.street && addr.houseNumber ? addr.houseNumber + ' ' + addr.street : addr.street || '',
                         addr.municipality || '',
@@ -2796,24 +2750,10 @@ annotate_report_assignment_status($conn, $recent_reports);
                         + (districtProps ? '<br><small style="color:#10b981;">' + (districtProps.district_name || districtProps.district || '') + '</small>' : '');
                     pinMarker.bindPopup(popupHtml).openPopup();
                 }
-            };
-            TomTomServices.reverseGeocodeOrbis(lat, lng)
-                .then(data => {
-                    const result = data.data?.results?.[0] || null;
-                    if (result) {
-                        fillLocationInfo(result);
-                    } else {
-                        // Orbis returned nothing usable — retry with classic Search.
-                        return TomTomServices.reverseGeocode(lat, lng).then(d => {
-                            fillLocationInfo(d.results?.[0] || null);
-                        });
-                    }
-                })
-                .catch(() => {
-                    TomTomServices.reverseGeocode(lat, lng)
-                        .then(d => { fillLocationInfo(d.results?.[0] || null); })
-                        .catch(() => { fillLocationInfo(null); });
-                });
+            }).catch(() => {
+                // Geocode failed, still show district if detected
+                populateGISLocationInfo(lat, lng, districtProps, null);
+            });
         }
 
         // Restrict map panning with a padded bounding box of QC
