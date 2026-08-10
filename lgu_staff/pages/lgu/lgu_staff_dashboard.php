@@ -82,6 +82,32 @@ function getDashboardStatistics($conn, $road_only = false, $supervisor = false, 
         }
     }
 
+    // Transportation Monitoring Officers: every number must only count the
+    // transportation reports that actually appear on their monitoring page
+    // (road_transportation_monitoring.php) — i.e. status approved /
+    // in-progress / completed. Pending transportation reports are never shown
+    // there, so they are excluded from every dashboard count.
+    if ($role === 'trans_monitoring_officer') {
+        $scope = " AND report_category = 'transportation' AND status IN ('approved','in-progress','completed')";
+        try {
+            $t = $conn->query("SELECT COUNT(*) AS c FROM road_transportation_reports WHERE DATE(created_at) = CURDATE()" . $scope)->fetch_assoc()['c'] ?? 0;
+            $stats['today_reports'] = (int)$t;
+
+            $t = $conn->query("SELECT COUNT(*) AS c FROM road_transportation_reports WHERE status = 'pending' AND report_category = 'transportation'")->fetch_assoc()['c'] ?? 0;
+            $stats['pending_verifications'] = (int)$t;
+
+            $t = $conn->query("SELECT COUNT(*) AS c FROM road_transportation_reports WHERE status = 'in-progress'" . $scope)->fetch_assoc()['c'] ?? 0;
+            $stats['under_maintenance'] = (int)$t;
+
+            $t = $conn->query("SELECT COUNT(*) AS c FROM road_transportation_reports WHERE status = 'completed' AND MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())" . $scope)->fetch_assoc()['c'] ?? 0;
+            $stats['completed_month'] = (int)$t;
+
+            return $stats;
+        } catch (Exception $e) {
+            error_log("Transport officer dashboard stats error: " . $e->getMessage());
+        }
+    }
+
     // Today's road reports
     $result = $conn->query("SELECT COUNT(*) as today_reports FROM road_transportation_reports WHERE DATE(created_at) = CURDATE()" . $cat_filter);
     $transport_today = $result->fetch_assoc()['today_reports'];
@@ -144,13 +170,20 @@ function getPriorityTasks($conn, $road_only = false) {
 }
 
 // Function to get weekly chart data
-function getWeeklyChartData($conn, $road_only = false, $transport_only = false) {
+function getWeeklyChartData($conn, $road_only = false, $transport_only = false, $trans_monitoring_officer = false) {
     $data = ['reports' => [], 'verifications' => []];
     $days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    // Transportation Monitoring Officers: the chart must only count the
+    // transportation reports that appear on their monitoring page (status
+    // approved / in-progress / completed), matching road_transportation_monitoring.php.
+    $transport_visible = $trans_monitoring_officer;
     if ($road_only) {
         $cat_filter = " AND report_category = 'road'";
-    } elseif ($transport_only) {
+    } elseif ($transport_only || $transport_visible) {
         $cat_filter = " AND report_category = 'transportation'";
+        if ($transport_visible) {
+            $cat_filter .= " AND status IN ('approved','in-progress','completed')";
+        }
     } else {
         $cat_filter = '';
     }
@@ -171,7 +204,7 @@ function getWeeklyChartData($conn, $road_only = false, $transport_only = false) 
         $transport_count = $result->fetch_assoc()['count'];
         
         $maintenance_count = 0;
-        if (!$transport_only) {
+        if (!$transport_only && !$transport_visible) {
             $maintenance_query = "SELECT COUNT(*) as count FROM road_maintenance_reports 
                                  WHERE DAYOFWEEK(created_at) = $day_of_week 
                                  AND WEEK(created_at, 1) = WEEK(CURRENT_DATE, 1) 
@@ -183,7 +216,7 @@ function getWeeklyChartData($conn, $road_only = false, $transport_only = false) 
         $data['reports'][] = (int)($transport_count + $maintenance_count);
         
         // Get verification activities for this day
-        if ($transport_only) {
+        if ($transport_only || $transport_visible) {
             // Transport-only roles: count completed/approved transportation reports
             $verification_query = "SELECT COUNT(*) as count FROM road_transportation_reports 
                                    WHERE status IN ('completed', 'approved') 
@@ -240,7 +273,7 @@ function getWeeklyChartData($conn, $road_only = false, $transport_only = false) 
             $transport_count = $result->fetch_assoc()['count'];
             
             $maintenance_count = 0;
-            if (!$transport_only) {
+            if (!$transport_only && !$transport_visible) {
                 $maintenance_query = "SELECT COUNT(*) as count FROM road_maintenance_reports 
                                      WHERE DAYOFWEEK(created_at) = $day_of_week 
                                      AND WEEK(created_at, 1) = WEEK(CURRENT_DATE - INTERVAL 1 WEEK, 1)";
@@ -251,7 +284,7 @@ function getWeeklyChartData($conn, $road_only = false, $transport_only = false) 
             $data['reports'][$index] = (int)($transport_count + $maintenance_count);
             
             // Get verifications for last week
-            if ($transport_only) {
+            if ($transport_only || $transport_visible) {
                 $verification_query = "SELECT COUNT(*) as count FROM road_transportation_reports 
                                        WHERE status IN ('completed', 'approved') 
                                        AND DAYOFWEEK(updated_at) = $day_of_week 
@@ -286,7 +319,7 @@ function getWeeklyChartData($conn, $road_only = false, $transport_only = false) 
 $stats = getDashboardStatistics($conn, $is_road_monitoring_officer, $is_supervisor, $user_role);
 $recent_activity = getRecentActivity($conn, $is_road_monitoring_officer);
 $priority_tasks = getPriorityTasks($conn, $is_road_monitoring_officer);
-$chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_ops_supervisor);
+$chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_ops_supervisor, $is_transport_monitoring_officer);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -853,6 +886,14 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
         $count = 0;
         $cat_filter = $road_only ? " AND report_category = 'road'" : '';
         try {
+            if ($role === 'trans_monitoring_officer') {
+                // Transportation Monitoring Officers: the count only includes
+                // the high-priority transportation reports that actually appear
+                // on their monitoring page (status approved / in-progress).
+                // Pending reports are never shown there, so they are excluded.
+                $t = $conn->query("SELECT COUNT(*) AS c FROM road_transportation_reports WHERE priority = 'high' AND status IN ('approved','in-progress') AND report_category = 'transportation'")->fetch_assoc()['c'] ?? 0;
+                return (int)$t;
+            }
             if ($supervisor && $role === 'road_ops_supervisor') {
                 // Road supervisor portal: all reports needing immediate attention
                 // (high priority and not yet completed/cancelled) across Road
@@ -901,8 +942,12 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
         $road_only_filter = $road_only
             ? " AND (ra.report_type <> 'road_transportation_reports' OR r.report_category = 'road')"
             : '';
+        // Transportation Monitoring Officers: only assignments to transportation
+        // reports that actually appear on their monitoring page (status
+        // approved / in-progress / completed) are shown. Pending reports are
+        // never shown there, so they are excluded.
         $transport_only_filter = $transport_only
-            ? " AND (ra.report_type <> 'road_transportation_reports' OR r.report_category = 'transportation')"
+            ? " AND (ra.report_type <> 'road_transportation_reports' OR (r.report_category = 'transportation' AND r.status IN ('approved','in-progress','completed')))"
             : '';
 
         $assignment_sql = "
@@ -1245,7 +1290,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                            JOIN road_transportation_reports r ON ru.report_id = r.id
                            WHERE ru.user_id = " . (int)$my_user_id . "
                              AND r.report_category = 'transportation'
-                             AND r.status != 'completed'
+                             AND r.status IN ('approved','in-progress','completed')
                            ORDER BY ru.created_at DESC LIMIT 15)";
                 if (!$transport_only) {
                     $parts[] = "(SELECT ru.id AS update_id, m.id, m.report_id, m.title, m.status, m.priority, ru.created_at, 'maintenance' AS src
@@ -1381,10 +1426,14 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                     . "\n ORDER BY FIELD(priority,'high','medium','low'), created_at DESC LIMIT 8";
             } else {
                 // Transport Monitoring Officers (non-supervisor) see only
-                // Transportation reports, mirroring the supervisor scope.
+                // Transportation reports, mirroring the supervisor scope. The
+                // tasks shown are limited to the reports that actually appear
+                // on their monitoring page (status approved / in-progress);
+                // pending transportation reports are never shown there.
                 $non_sup_scope = $is_transport_only ? " AND report_category = 'transportation'" : $cat_filter;
+                $task_status = $is_transport_only ? "status IN ('approved','in-progress')" : "status = 'pending'";
                 $parts = [];
-                $parts[] = "(SELECT id, report_id, title, status, priority, created_at, 'transport' AS src FROM road_transportation_reports WHERE status = 'pending' AND priority IN ('high','medium','low')" . $non_sup_scope . " ORDER BY FIELD(priority,'high','medium','low'), created_at DESC LIMIT 6)";
+                $parts[] = "(SELECT id, report_id, title, status, priority, created_at, 'transport' AS src FROM road_transportation_reports WHERE " . $task_status . " AND priority IN ('high','medium','low')" . $non_sup_scope . " ORDER BY FIELD(priority,'high','medium','low'), created_at DESC LIMIT 6)";
                 if (!$is_transport_only) {
                     $parts[] = "(SELECT id, report_id, title, status, priority, created_at, 'maintenance' AS src FROM road_maintenance_reports WHERE status = 'pending' AND priority IN ('high','medium','low') ORDER BY FIELD(priority,'high','medium','low'), created_at DESC LIMIT 6)";
                 }
@@ -1924,7 +1973,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
             data: {
                 labels: <?php echo json_encode(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']); ?>,
                 datasets: [{
-                    label: <?php echo json_encode($is_trans_ops_supervisor ? 'Transportation Reports' : 'Road Reports'); ?>,
+                    label: <?php echo json_encode(($is_trans_ops_supervisor || $is_transport_monitoring_officer) ? 'Transportation Reports' : 'Road Reports'); ?>,
                     data: <?php echo json_encode($chart_data['reports']); ?>,
                     borderColor: '#3762c8',
                     backgroundColor: gradient1,
