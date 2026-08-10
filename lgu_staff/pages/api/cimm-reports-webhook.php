@@ -118,14 +118,14 @@ try {
             infrastructure, location, issue, reporter_name, contact_number, email,
             district, coord_lat, coord_lng, cprf_facility_id, cprf_facility_name,
             approval_status, rejection_reason, resolution_status, resolution_note, resolved_at,
-            priority, budget, starting_date, estimated_end_date, submitted_at,
+            priority, engineer, budget, starting_date, estimated_end_date, submitted_at,
             evidence_json, ai_json, portal_url, payload_json, last_event
         ) VALUES (
             ?, ?, ?, ?,
             ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?
         )
         ON DUPLICATE KEY UPDATE
@@ -149,6 +149,7 @@ try {
             resolution_note = VALUES(resolution_note),
             resolved_at = VALUES(resolved_at),
             priority = VALUES(priority),
+            engineer = VALUES(engineer),
             budget = VALUES(budget),
             starting_date = VALUES(starting_date),
             estimated_end_date = VALUES(estimated_end_date),
@@ -183,6 +184,7 @@ try {
         $data['resolution_note'] ?? null,
         $data['resolved_at'] ?? null,
         $data['priority'] ?? null,
+        $data['engineer'] ?? null,
         $data['budget'] ?? null,
         $data['starting_date'] ?? null,
         $data['estimated_end_date'] ?? null,
@@ -217,18 +219,20 @@ try {
         $cimmEstimatedEndDate = $data['estimated_end_date'] ?? null;
         $cimmStatus = $data['resolution_status'] ?? null;
         $cimmReportUrl = $data['portal_url'] ?? null;
+        $cimmDistrict = $data['district'] ?? null;
 
         $updStmt = $conn->prepare(
             "UPDATE road_transportation_reports
              SET cimm_engineer_name = ?, cimm_budget = ?, cimm_starting_date = ?,
-                 cimm_estimated_end_date = ?, cimm_status = ?, cimm_report_url = ?
+                 cimm_estimated_end_date = ?, cimm_status = ?, cimm_report_url = ?,
+                 cimm_district = ?
              WHERE id = ?"
         );
         if ($updStmt) {
             $updStmt->bind_param(
-                'sdssssi',
+                'sdsssssi',
                 $cimmEngineerName, $cimmBudget, $cimmStartingDate,
-                $cimmEstimatedEndDate, $cimmStatus, $cimmReportUrl, $rgmapReportPk
+                $cimmEstimatedEndDate, $cimmStatus, $cimmReportUrl, $cimmDistrict, $rgmapReportPk
             );
             $updStmt->execute();
             $updStmt->close();

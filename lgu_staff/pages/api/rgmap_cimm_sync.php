@@ -85,6 +85,11 @@ function rgmap_cimm_ensure_schema(mysqli $conn): void {
     $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_estimated_end_date DATE DEFAULT NULL");
     $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_status VARCHAR(50) DEFAULT NULL");
     $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_report_url VARCHAR(500) DEFAULT NULL");
+    // District CIMM resolved for this report (see cimm_resolve_district() on
+    // the CIMM side) — this system's own detected_district/barangay columns
+    // are computed locally from a separate GIS engine and are left untouched;
+    // this is CIMM's own value, kept alongside for the LGU Monitoring table.
+    $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_district VARCHAR(50) DEFAULT NULL");
 
     $conn->query("
         CREATE TABLE IF NOT EXISTS rgmap_cimm_push_log (
