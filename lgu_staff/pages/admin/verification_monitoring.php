@@ -5203,26 +5203,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 <td><?php echo !empty($report['cimm_budget']) ? '₱' . number_format((float)$report['cimm_budget'], 2) : '—'; ?></td>
                                 <td>
                                     <?php
-                                    $lgu_engineer = $report['engineer'] ?? null;
-                                    if ($lgu_engineer):
+                                    // Once CIMM has verified this report and turned it into a real
+                                    // CIMM report, cimm_status carries CIMM's own resolution status
+                                    // (the same value that decides whether a report shows on CIMM's
+                                    // Pending / Current / Archive Reports pages) — show that instead
+                                    // of this system's local workflow status, so the two systems
+                                    // never disagree about where a report actually stands. Only
+                                    // reports CIMM hasn't verified yet (no cimm_status) fall back to
+                                    // the local "Awaiting Ext." / RGMAP-native status below.
+                                    //
+                                    // Label + routing mirrored exactly from CIMM's own
+                                    // reportStatusBadge() / resolveRepPage() so this page never
+                                    // shows a status CIMM itself wouldn't recognize.
+                                    $cimmStatusRaw = trim((string)($report['cimm_status'] ?? ''));
+                                    if ($cimmStatusRaw !== ''):
+                                        $cimmLabelMap = [
+                                            'Pending Admin Approval' => 'Pending Approval',
+                                            'Approved'               => 'Validated',
+                                        ];
+                                        $cimmDisplayLabel = $cimmLabelMap[$cimmStatusRaw] ?? $cimmStatusRaw;
+
+                                        $cimmStatusLc = strtolower($cimmStatusRaw);
+                                        if ($cimmStatusLc === 'completed' || $cimmStatusLc === 'archived') {
+                                            $cimmStatusClass = 'completed';   // Archive Reports
+                                        } elseif ($cimmStatusLc === 'cancelled') {
+                                            $cimmStatusClass = 'cancelled';
+                                        } elseif ($cimmStatusLc === 'pending' || $cimmStatusLc === 'awaiting engineer') {
+                                            $cimmStatusClass = 'pending';     // Pending Reports
+                                        } else {
+                                            $cimmStatusClass = 'approved';    // Current Reports
+                                        }
                                     ?>
-                                    <span class="lgu-status-badge t-badge t-badge-info" title="CIMM Assigned Engineer"><?php echo htmlspecialchars($lgu_engineer); ?></span>
-                                    <?php else: ?>
-                                    <span class="t-text-muted">—</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <?php
-                                    $lgu_budget = $report['budget_allocation'] ?? null;
-                                    if ($lgu_budget !== null && $lgu_budget !== ''):
-                                    ?>
-                                    <span class="t-text-success" title="CIMM Budget Allocation">₱ <?php echo number_format((float)$lgu_budget, 2); ?></span>
-                                    <?php else: ?>
-                                    <span class="t-text-muted">—</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <?php if ($pending_ext_verify): ?>
+                                    <span class="lgu-status-badge <?php echo $cimmStatusClass; ?>" title="CIMM report status"><?php echo htmlspecialchars($cimmDisplayLabel); ?></span>
+                                    <?php elseif ($pending_ext_verify): ?>
                                     <span class="lgu-status-badge t-badge t-badge-pending">Awaiting Ext.</span>
                                     <?php else: ?>
                                     <span class="lgu-status-badge <?php echo $lgu_status_class; ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span>
