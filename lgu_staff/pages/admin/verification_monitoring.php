@@ -232,24 +232,24 @@ function getAllReports($conn, $status_filter = 'all', $source_filter = 'all', $t
     $road_category_filter = $road_only ? " AND report_category = 'road'" : '';
     if ($source_filter === 'transport') {
         $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}" : " WHERE {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}";
-        $source_case = "CASE WHEN report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
-        $q = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, detected_district, created_at, updated_at, approved_at, rejected_at, engineer, budget_allocation FROM road_transportation_reports{$where})";
+        $source_case = "CASE WHEN rt.report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
+        $q = "(SELECT {$source_case}, rt.id, rt.report_id, rt.title, rt.report_type, rt.report_category, rt.report_source, rt.department, rt.priority, rt.status, rt.created_date, rt.due_date, rt.description, rt.location, rt.attachments, rt.latitude, rt.longitude, rt.detected_district, rt.created_at, rt.updated_at, rt.approved_at, rt.rejected_at, rt.engineer, rt.budget_allocation, rt.created_by, u.full_name AS creator_full_name, u.phone_number AS creator_phone, u.email AS creator_email FROM road_transportation_reports rt LEFT JOIN users u ON u.id = rt.created_by{$where})";
         $parts[] = $q;
     } elseif ($source_filter === 'maintenance') {
         if (!$transport_only) {
-            $q = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, NULL as detected_district, created_at, updated_at, approved_at, rejected_at, NULL as engineer, NULL as budget_allocation FROM road_maintenance_reports{$maintenance_where})";
+            $q = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, NULL as detected_district, created_at, updated_at, approved_at, rejected_at, NULL as engineer, NULL as budget_allocation, NULL as created_by, NULL as creator_full_name, NULL as creator_phone, NULL as creator_email FROM road_maintenance_reports{$maintenance_where})";
             $parts[] = $q;
         }
     } else {
         $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}" : " WHERE {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}";
-        $source_case = "CASE WHEN report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
-        $parts[] = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, cimm_sync_status, created_date, due_date, description, location, attachments, latitude, longitude, detected_district, created_at, updated_at, approved_at, rejected_at, engineer, budget_allocation FROM road_transportation_reports{$where})";
+        $source_case = "CASE WHEN rt.report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
+        $parts[] = "(SELECT {$source_case}, rt.id, rt.report_id, rt.title, rt.report_type, rt.report_category, rt.report_source, rt.department, rt.priority, rt.status, rt.cimm_sync_status, rt.created_date, rt.due_date, rt.description, rt.location, rt.attachments, rt.latitude, rt.longitude, rt.detected_district, rt.created_at, rt.updated_at, rt.approved_at, rt.rejected_at, rt.engineer, rt.budget_allocation, rt.created_by, u.full_name AS creator_full_name, u.phone_number AS creator_phone, u.email AS creator_email FROM road_transportation_reports rt LEFT JOIN users u ON u.id = rt.created_by{$where})";
         if (!$transport_only) {
-            $parts[] = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, NULL as cimm_sync_status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, NULL as detected_district, created_at, updated_at, approved_at, rejected_at, NULL as engineer, NULL as budget_allocation FROM road_maintenance_reports{$maintenance_where})";
+            $parts[] = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, NULL as cimm_sync_status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, NULL as detected_district, created_at, updated_at, approved_at, rejected_at, NULL as engineer, NULL as budget_allocation, NULL as created_by, NULL as creator_full_name, NULL as creator_phone, NULL as creator_email FROM road_maintenance_reports{$maintenance_where})";
         }
     }
     if (empty($parts)) {
-        $query = "(SELECT 'transport' as source, 0 as id, '' as report_id, '' as title, '' as report_type, '' as report_category, '' as report_source, '' as department, '' as priority, '' as status, NULL as created_date, NULL as due_date, '' as description, '' as location, NULL as attachments, NULL as latitude, NULL as longitude, NULL as detected_district, NULL as created_at, NULL as updated_at, NULL as approved_at, NULL as rejected_at, NULL as cimm_sync_status, NULL as engineer, NULL as budget_allocation FROM road_transportation_reports WHERE 1 = 0)";
+        $query = "(SELECT 'transport' as source, 0 as id, '' as report_id, '' as title, '' as report_type, '' as report_category, '' as report_source, '' as department, '' as priority, '' as status, NULL as created_date, NULL as due_date, '' as description, '' as location, NULL as attachments, NULL as latitude, NULL as longitude, NULL as detected_district, NULL as created_at, NULL as updated_at, NULL as approved_at, NULL as rejected_at, NULL as cimm_sync_status, NULL as engineer, NULL as budget_allocation, NULL as created_by, NULL as creator_full_name, NULL as creator_phone, NULL as creator_email FROM road_transportation_reports WHERE 1 = 0)";
     } else {
         $query = implode(' UNION ALL ', $parts) . " ORDER BY created_at DESC";
     }
@@ -6081,6 +6081,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
             document.getElementById('lgu-source-grid').innerHTML = sourceGrid;
 
+            // Report Creator Information — Road Supervisor portal only.
+            var creatorSection = document.getElementById('lgu-creator-section');
+            if (creatorSection) {
+                if (r.creator_full_name) {
+                    var creatorGrid = '';
+                    creatorGrid += lguInfoItem('user', 'Full Name', r.creator_full_name);
+                    creatorGrid += lguInfoItem('phone', 'Contact Number', r.creator_phone);
+                    creatorGrid += lguInfoItem('envelope', 'Email', r.creator_email);
+                    document.getElementById('lgu-creator-grid').innerHTML = creatorGrid;
+                    creatorSection.style.display = '';
+                } else {
+                    creatorSection.style.display = 'none';
+                }
+            }
+
             // Location
             var locationGrid = '';
             var locVal = r.location || '—';
@@ -6633,6 +6648,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     rejected_at: <?php echo json_encode($lr['rejected_at']); ?>,
                     engineer: <?php echo json_encode($lr['engineer'] ?? null); ?>,
                     budget_allocation: <?php echo json_encode($lr['budget_allocation'] ?? null); ?>
+                    <?php if ($is_road_supervisor): ?>,
+                    creator_full_name: <?php echo json_encode($lr['creator_full_name'] ?? null); ?>,
+                    creator_phone: <?php echo json_encode($lr['creator_phone'] ?? null); ?>,
+                    creator_email: <?php echo json_encode($lr['creator_email'] ?? null); ?>
+                    <?php endif; ?>
                 };
             } catch(e) {
                 console.error('Error adding LGU report to map:', e);
@@ -7088,6 +7108,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 <div class="lgu-modal-section">
                     <div class="lgu-modal-section-title"><i class="fas fa-building"></i> Source &amp; Department</div>
                     <div class="lgu-info-grid" id="lgu-source-grid"></div>
+                </div>
+                <!-- Report Creator (Road Supervisor portal only) -->
+                <div class="lgu-modal-section" id="lgu-creator-section" style="display:none;">
+                    <div class="lgu-modal-section-title"><i class="fas fa-user-circle"></i> Report Creator Information</div>
+                    <div class="lgu-info-grid" id="lgu-creator-grid"></div>
                 </div>
                 <!-- Location -->
                 <div class="lgu-modal-section">

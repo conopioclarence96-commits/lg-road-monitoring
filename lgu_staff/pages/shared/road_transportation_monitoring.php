@@ -187,19 +187,21 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
         //    LGU Transportation reports (report_category='transportation') do not
         //    require CIMM verification and appear once they are finalized.
         $reports = array_merge($reports, $fetch(
-            "SELECT id, report_id, title, report_type, report_category,
-                    CASE WHEN created_by IS NULL OR created_by = 0 THEN 'citizen' ELSE 'lgu' END AS source,
-                    status, priority, severity, created_at, description,
-                    latitude, longitude, location, reporter_name, attachments, image_path,
-                    cimm_sync_status, cimm_verified_at, cimm_verified_by,
+            "SELECT t.id, t.report_id, t.title, t.report_type, t.report_category,
+                    CASE WHEN t.created_by IS NULL OR t.created_by = 0 THEN 'citizen' ELSE 'lgu' END AS source,
+                    t.status, t.priority, t.severity, t.created_at, t.description,
+                    t.latitude, t.longitude, t.location, t.reporter_name, t.attachments, t.image_path,
+                    t.cimm_sync_status, t.cimm_verified_at, t.cimm_verified_by,
+                    u.full_name AS creator_full_name, u.phone_number AS creator_phone, u.email AS creator_email,
                     NULL AS approval_status, NULL AS verification_status,
                     'road_transportation_reports' AS _source_table
-              FROM road_transportation_reports
-             WHERE report_type != 'infrastructure_issue'
-               AND status IN ('approved', 'in-progress', 'completed')
-               AND (created_by IS NULL OR created_by = 0
-                    OR cimm_sync_status IS NULL OR cimm_sync_status <> 'pushed'
-                    OR (report_category = 'transportation' AND report_source = 'local' AND created_by != 0))
+              FROM road_transportation_reports t
+              LEFT JOIN users u ON u.id = t.created_by
+             WHERE t.report_type != 'infrastructure_issue'
+               AND t.status IN ('approved', 'in-progress', 'completed')
+               AND (t.created_by IS NULL OR t.created_by = 0
+                    OR t.cimm_sync_status IS NULL OR t.cimm_sync_status <> 'pushed'
+                    OR (t.report_category = 'transportation' AND t.report_source = 'local' AND t.created_by != 0))
                    $transport_category_filter{$road_category_filter}",
             $status_filter, $type_filter, $limit
         ));
@@ -800,7 +802,7 @@ function resolve_recent_focus_row(int $id, string $source_hint = ''): ?array {
     try {
         foreach ($candidates as $src) {
             if ($src === 'transport') {
-                $stmt = $conn->prepare("SELECT id, report_id, title, report_type, report_category, status, priority, severity, created_at, description, latitude, longitude, location, reporter_name, attachments, image_path, cimm_sync_status, cimm_verified_at, cimm_verified_by, created_by FROM road_transportation_reports WHERE id = ?");
+                $stmt = $conn->prepare("SELECT t.id, t.report_id, t.title, t.report_type, t.report_category, t.status, t.priority, t.severity, t.created_at, t.description, t.latitude, t.longitude, t.location, t.reporter_name, t.attachments, t.image_path, t.cimm_sync_status, t.cimm_verified_at, t.cimm_verified_by, t.created_by, u.full_name AS creator_full_name, u.phone_number AS creator_phone, u.email AS creator_email FROM road_transportation_reports t LEFT JOIN users u ON u.id = t.created_by WHERE t.id = ?");
                 $stmt->bind_param("i", $id);
                 $stmt->execute();
                 $r = $stmt->get_result()->fetch_assoc();
@@ -2413,7 +2415,7 @@ annotate_report_assignment_status($conn, $recent_reports);
                         <?php foreach ($recent_reports as $rr): ?>
                         <?php $rr_source_key = $rr['source'] ?? 'citizen'; ?>
                         <?php $rr_source_label = $source_labels[$rr_source_key] ?? ucfirst($rr_source_key); ?>
-                        <?php $rr_details = htmlspecialchars(json_encode([
+                        <?php $rr_details = [
                             'id' => $rr['id'],
                             'report_id' => $rr['report_id'],
                             'title' => $rr['title'],
@@ -2437,8 +2439,15 @@ annotate_report_assignment_status($conn, $recent_reports);
                             'cimm_verified_by' => $rr['cimm_verified_by'] ?? '',
                             'approval_status' => $rr['approval_status'] ?? '',
                             'verification_status' => $rr['verification_status'] ?? '',
-                        ]), ENT_QUOTES, 'UTF-8'); ?>
-                         <tr class="report-table-row" data-id="<?php echo $rr['id']; ?>" data-title="<?php echo htmlspecialchars(strtolower($rr['title'] ?? '')); ?>" data-report-id="<?php echo htmlspecialchars(strtolower($rr['report_id'] ?? '')); ?>" data-status="<?php echo $rr['status'] ?? 'pending'; ?>" data-source="<?php echo $rr_source_key; ?>" data-details='<?php echo $rr_details; ?>'>
+                        ];
+                        if ($is_road_supervisor) {
+                            // Report Creator Information — Road Supervisor portal only.
+                            $rr_details['creator_full_name'] = $rr['creator_full_name'] ?? '';
+                            $rr_details['creator_phone'] = $rr['creator_phone'] ?? '';
+                            $rr_details['creator_email'] = $rr['creator_email'] ?? '';
+                        }
+                        $rr_details_json = htmlspecialchars(json_encode($rr_details), ENT_QUOTES, 'UTF-8'); ?>
+                         <tr class="report-table-row" data-id="<?php echo $rr['id']; ?>" data-title="<?php echo htmlspecialchars(strtolower($rr['title'] ?? '')); ?>" data-report-id="<?php echo htmlspecialchars(strtolower($rr['report_id'] ?? '')); ?>" data-status="<?php echo $rr['status'] ?? 'pending'; ?>" data-source="<?php echo $rr_source_key; ?>" data-details='<?php echo $rr_details_json; ?>'>
                             <td style="font-family:monospace;font-size:12px;"><?php echo htmlspecialchars($rr['report_id'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars($rr['title'] ?? 'Untitled'); ?></td>
                             <td><?php echo htmlspecialchars($rr_source_label); ?></td>
@@ -3107,6 +3116,21 @@ annotate_report_assignment_status($conn, $recent_reports);
                 sourceGrid += rmInfoItem('shield-alt', 'Verification', r.verification_status);
             }
             document.getElementById('rm-source-grid').innerHTML = sourceGrid;
+
+            // Report Creator Information — Road Supervisor portal only.
+            var creatorSection = document.getElementById('rm-creator-section');
+            if (creatorSection) {
+                if (IS_ROAD_SUPERVISOR && r.creator_full_name) {
+                    var creatorGrid = '';
+                    creatorGrid += rmInfoItem('user', 'Full Name', r.creator_full_name);
+                    creatorGrid += rmInfoItem('phone', 'Contact Number', r.creator_phone);
+                    creatorGrid += rmInfoItem('envelope', 'Email', r.creator_email);
+                    document.getElementById('rm-creator-grid').innerHTML = creatorGrid;
+                    creatorSection.style.display = '';
+                } else {
+                    creatorSection.style.display = 'none';
+                }
+            }
 
             // Location
             var locationGrid = '';
@@ -4853,6 +4877,11 @@ annotate_report_assignment_status($conn, $recent_reports);
                 <div class="rm-modal-section">
                     <div class="rm-modal-section-title"><i class="fas fa-building"></i> Source &amp; Assignment</div>
                     <div class="rm-info-grid" id="rm-source-grid"></div>
+                </div>
+                <!-- Report Creator (Road Supervisor portal only) -->
+                <div class="rm-modal-section" id="rm-creator-section" style="display:none;">
+                    <div class="rm-modal-section-title"><i class="fas fa-user-circle"></i> Report Creator Information</div>
+                    <div class="rm-info-grid" id="rm-creator-grid"></div>
                 </div>
                 <!-- Location -->
                 <div class="rm-modal-section">

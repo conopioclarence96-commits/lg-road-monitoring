@@ -27,6 +27,10 @@ $transport_only = in_array($_SESSION['role'] ?? '', ['trans_ops_supervisor', 'tr
 // reports.
 $road_only = in_array($_SESSION['role'] ?? '', ['road_ops_supervisor', 'road_monitoring_officer'], true);
 
+// Road Operations Supervisors (Road supervisor portal) also get the Report
+// Creator Information (full name, contact number, email) in report details.
+$is_road_supervisor = ($_SESSION['role'] ?? '') === 'road_ops_supervisor';
+
 $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
 $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
 $status_filter = isset($_GET['status']) ? $_GET['status'] : 'all';
@@ -69,18 +73,20 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
     try {
         // 1. LGU Monitoring (Road & Transportation Monitoring) + Citizen reports
         $reports = array_merge($reports, $fetch(
-            "SELECT id, report_id, title, report_type, report_category,
-                    CASE WHEN created_by IS NULL OR created_by = 0 THEN 'citizen' ELSE 'lgu' END AS source,
-                    status, priority, severity, created_at, description,
-                    latitude, longitude, location, reporter_name, attachments, image_path,
-                    cimm_sync_status, cimm_verified_at, cimm_verified_by,
+            "SELECT t.id, t.report_id, t.title, t.report_type, t.report_category,
+                    CASE WHEN t.created_by IS NULL OR t.created_by = 0 THEN 'citizen' ELSE 'lgu' END AS source,
+                    t.status, t.priority, t.severity, t.created_at, t.description,
+                    t.latitude, t.longitude, t.location, t.reporter_name, t.attachments, t.image_path,
+                    t.cimm_sync_status, t.cimm_verified_at, t.cimm_verified_by,
+                    u.full_name AS creator_full_name, u.phone_number AS creator_phone, u.email AS creator_email,
                     'road_transportation_reports' AS _source_table
-             FROM road_transportation_reports
-             WHERE report_type != 'infrastructure_issue'
-               AND status IN ('approved', 'in-progress', 'completed')
-               AND (created_by IS NULL OR created_by = 0
-                    OR cimm_sync_status IS NULL OR cimm_sync_status <> 'pushed'
-                    OR (report_category = 'transportation' AND report_source = 'local' AND created_by != 0)){$transport_category_filter}{$road_category_filter}",
+             FROM road_transportation_reports t
+             LEFT JOIN users u ON u.id = t.created_by
+             WHERE t.report_type != 'infrastructure_issue'
+               AND t.status IN ('approved', 'in-progress', 'completed')
+               AND (t.created_by IS NULL OR t.created_by = 0
+                    OR t.cimm_sync_status IS NULL OR t.cimm_sync_status <> 'pushed'
+                    OR (t.report_category = 'transportation' AND t.report_source = 'local' AND t.created_by != 0)){$transport_category_filter}{$road_category_filter}",
             $status_filter
         ));
 
@@ -217,7 +223,12 @@ try {
                 'reporter_name' => $rr['reporter_name'],
                 'attachments' => $rr['attachments'],
                 'image_path' => $rr['image_path'],
-            ]
+                'report_category' => $rr['report_category'] ?? '',
+            ] + ($is_road_supervisor ? [
+                'creator_full_name' => $rr['creator_full_name'] ?? '',
+                'creator_phone' => $rr['creator_phone'] ?? '',
+                'creator_email' => $rr['creator_email'] ?? '',
+            ] : [])
         ];
     }
     
