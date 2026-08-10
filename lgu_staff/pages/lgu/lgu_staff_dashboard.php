@@ -28,6 +28,10 @@ $is_road_supervisor = ($is_supervisor && $user_role === 'road_ops_supervisor');
 // see only Transportation reports (report_category = 'transportation') in the
 // dashboard "Recent Activity" feed.
 $is_transport_only_role = in_array($_SESSION['role'] ?? '', ['trans_ops_supervisor', 'trans_monitoring_officer'], true);
+// Transportation Monitoring Officers see only Transportation reports assigned
+// to them (report_category = 'transportation') in "My Assignments", mirroring
+// how Road Monitoring Officers see only their Road reports.
+$is_transport_monitoring_officer = (($_SESSION['role'] ?? '') === 'trans_monitoring_officer');
 // The Weekly Reports chart is filtered to Transportation reports and labelled
 // "Transportation Reports" for the Transportation Operations Supervisor only.
 $is_trans_ops_supervisor = ($user_role === 'trans_ops_supervisor');
@@ -888,7 +892,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
         return $count;
     }
 
-    function getMyAssignments($conn, $user_id, $road_only = false) {
+    function getMyAssignments($conn, $user_id, $road_only = false, $transport_only = false) {
         $rows = [];
         if (!$conn || $user_id <= 0) {
             return ['count' => 0, 'items' => $rows];
@@ -896,6 +900,9 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
 
         $road_only_filter = $road_only
             ? " AND (ra.report_type <> 'road_transportation_reports' OR r.report_category = 'road')"
+            : '';
+        $transport_only_filter = $transport_only
+            ? " AND (ra.report_type <> 'road_transportation_reports' OR r.report_category = 'transportation')"
             : '';
 
         $assignment_sql = "
@@ -921,7 +928,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                 ON ra.report_id = c.id AND ra.report_type = 'cimm_verification_reports'
             LEFT JOIN road_maintenance_reports m
                 ON ra.report_id = m.id AND ra.report_type = 'road_maintenance_reports'
-            WHERE ra.user_id = ? AND ra.status = 'active'" . $road_only_filter . "
+            WHERE ra.user_id = ? AND ra.status = 'active'" . $road_only_filter . $transport_only_filter . "
             ORDER BY ra.assigned_at DESC
             LIMIT 12
         ";
@@ -943,7 +950,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                 FROM report_assignments ra
                 LEFT JOIN road_transportation_reports r
                     ON ra.report_id = r.id AND ra.report_type = 'road_transportation_reports'
-                WHERE ra.user_id = ? AND ra.status = 'active'" . $road_only_filter . "
+                WHERE ra.user_id = ? AND ra.status = 'active'" . $road_only_filter . $transport_only_filter . "
             ");
             $cstmt->bind_param("i", $user_id);
             $cstmt->execute();
@@ -1212,7 +1219,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                 END";
     }
 
-    function getRecentActivityFeed($conn, $road_only = false, $show_updates = false, $transport_only = false) {
+    function getRecentActivityFeed($conn, $road_only = false, $show_updates = false, $transport_only = false, $my_user_id = null) {
         $rows = [];
         if (!$conn) return $rows;
         if ($road_only) {
@@ -1229,7 +1236,40 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
             rgmap_ensure_cimm_verification_table(rgmap_verification_pdo());
         } catch (\Throwable $e) {}
         try {
-            if ($show_updates) {
+            if ($my_user_id) {
+                // Monitoring officers: the feed shows only the activities (report
+                // updates) performed by the currently logged-in officer.
+                $parts = [];
+                $parts[] = "(SELECT ru.id AS update_id, r.id, r.report_id, r.title, r.status, r.priority, ru.created_at, 'transport' AS src
+                           FROM report_updates ru
+                           JOIN road_transportation_reports r ON ru.report_id = r.id
+                           WHERE ru.user_id = " . (int)$my_user_id . "
+                             AND r.report_category = 'transportation'
+                             AND r.status != 'completed'
+                           ORDER BY ru.created_at DESC LIMIT 15)";
+                if (!$transport_only) {
+                    $parts[] = "(SELECT ru.id AS update_id, m.id, m.report_id, m.title, m.status, m.priority, ru.created_at, 'maintenance' AS src
+                               FROM report_updates ru
+                               JOIN road_maintenance_reports m ON ru.report_id = m.id
+                               WHERE ru.user_id = " . (int)$my_user_id . "
+                                 AND NOT EXISTS (SELECT 1 FROM road_transportation_reports r2 WHERE r2.id = ru.report_id)
+                                 AND m.status != 'completed'
+                               ORDER BY ru.created_at DESC LIMIT 15)";
+                    $parts[] = "(SELECT * FROM (
+                                SELECT ru.id AS update_id, c.id, c.reference_code COLLATE utf8mb4_unicode_ci AS report_id, c.infrastructure COLLATE utf8mb4_unicode_ci AS title,
+                                       " . cimm_activity_status_sql() . " COLLATE utf8mb4_unicode_ci AS status,
+                                       COALESCE(c.priority COLLATE utf8mb4_unicode_ci, 'medium') AS priority, ru.created_at, 'cimm' AS src
+                                FROM report_updates ru
+                                JOIN cimm_verification_reports c ON ru.report_id = c.id
+                                WHERE ru.user_id = " . (int)$my_user_id . "
+                                  AND NOT EXISTS (SELECT 1 FROM road_transportation_reports r2 WHERE r2.id = ru.report_id)
+                                  AND NOT EXISTS (SELECT 1 FROM road_maintenance_reports m2 WHERE m2.id = ru.report_id)
+                              ) AS cimm_feed
+                               WHERE status != 'completed'
+                               ORDER BY created_at DESC LIMIT 15)";
+                }
+                $query = implode("\n UNION ALL \n", $parts) . "\n ORDER BY created_at DESC LIMIT 15";
+            } elseif ($show_updates) {
                 // Supervisors: the feed is driven by the progress updates logged
                 // on report_management.php (report_updates), so "Recent Activity"
                 // surfaces the reports that were most recently updated there —
@@ -1352,6 +1392,19 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                     . "\n ORDER BY FIELD(priority,'high','medium','low'), created_at DESC LIMIT 6";
             }
             $rows = $conn->query($query)->fetch_all(MYSQLI_ASSOC);
+            if (!$supervisor && $role === 'trans_monitoring_officer') {
+                // Transportation Monitoring Officers: show each priority task
+                // only once (deduplicate by title).
+                $seen = [];
+                $unique = [];
+                foreach ($rows as $row) {
+                    $key = strtolower(trim((string)($row['title'] ?? '')));
+                    if ($key === '' || isset($seen[$key])) continue;
+                    $seen[$key] = true;
+                    $unique[] = $row;
+                }
+                $rows = $unique;
+            }
         } catch (Exception $e) {
             $rows = [];
         }
@@ -1389,14 +1442,14 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
         return 'fa-road';
     }
 
-    $my_assign = getMyAssignments($conn, $user_id, $is_road_monitoring_officer);
+    $my_assign = getMyAssignments($conn, $user_id, $is_road_monitoring_officer, $is_transport_monitoring_officer);
     $my_assign_count = $my_assign['count'];
     $my_assign_items = $my_assign['items'];
     $sup_assigned_reports = $is_road_supervisor ? getSupervisorAssignedReports($conn) : [];
     $awaiting_transport_reports = $is_trans_ops_supervisor ? getAwaitingTransportationReports($conn) : [];
     $high_priority = getHighPriorityCount($conn, $is_road_monitoring_officer, $is_supervisor, $user_role);
     $awaiting_assign = getAwaitingAssignmentCount($conn, $is_supervisor, $user_role);
-    $activity_feed = getRecentActivityFeed($conn, $is_road_monitoring_officer, $is_supervisor, $is_transport_only_role);
+    $activity_feed = getRecentActivityFeed($conn, $is_road_monitoring_officer, $is_supervisor, $is_transport_only_role, $is_transport_monitoring_officer ? $user_id : null);
     $task_cards = getPriorityTaskCards($conn, $is_road_monitoring_officer, $is_supervisor, $user_role);
     $dash_notifs = getDashboardNotifications($conn, $user_id, $user_email, $user_role, $my_assign_items, $is_road_monitoring_officer);
     ?>
@@ -1430,6 +1483,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                     <div class="stat-desc">New submissions today</div>
                 </div>
             </div>
+            <?php if (!$is_transport_monitoring_officer): ?>
             <div class="stat-card" style="--sc:#eab308; animation-delay:.06s;">
                 <div class="stat-icon"><i class="fas fa-hourglass-half"></i></div>
                 <div>
@@ -1438,6 +1492,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                     <div class="stat-desc">Awaiting verification</div>
                 </div>
             </div>
+            <?php endif; ?>
             <?php if (!$is_trans_ops_supervisor): ?>
             <div class="stat-card" style="--sc:#3b82f6; animation-delay:.10s;">
                 <div class="stat-icon"><i class="fas fa-user-check"></i></div>
@@ -1481,7 +1536,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
         </div>
 
         <!-- Main grid: chart + notifications -->
-        <div class="db-grid-main<?php echo $is_supervisor ? ' db-grid-full' : ''; ?>">
+        <div class="db-grid-main<?php echo ($is_supervisor || $is_transport_monitoring_officer) ? ' db-grid-full' : ''; ?>">
             <div class="dash-section" style="--ds:#3762c8;">
                 <div class="dsh-header">
                     <div class="dsh-left">
@@ -1502,7 +1557,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                 </div>
             </div>
 
-            <?php if (!$is_supervisor): ?>
+            <?php if (!$is_supervisor && !$is_transport_monitoring_officer): ?>
                 <div class="dash-section" style="--ds:#8b5cf6;">
                     <div class="dsh-header">
                         <div class="dsh-left">
@@ -1667,7 +1722,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                         <span class="qa-icon"><i class="fas fa-map-location-dot"></i></span>
                         <span class="qa-label">View Map</span>
                     </a>
-                    <?php if (!$is_supervisor): ?>
+                    <?php if (!$is_supervisor && !$is_transport_monitoring_officer): ?>
                         <a class="qa-btn" style="--qa:#8b5cf6;" href="../shared/notifications.php">
                             <span class="qa-icon"><i class="fas fa-clipboard-list"></i></span>
                             <span class="qa-label">My Assigned Reports</span>
@@ -1684,6 +1739,59 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                 </div>
             </div>
         </div>
+
+        <?php if ($is_transport_monitoring_officer): ?>
+            <!-- My Assignments for Transportation Monitoring Officers -->
+            <div class="dash-section" style="--ds:#0ea5e9;">
+                <div class="dsh-header">
+                    <div class="dsh-left">
+                        <span class="dsh-icon"><i class="fas fa-list-check"></i></span>
+                        <div>
+                            <h3>My Assignments</h3>
+                            <p>Transportation reports assigned to you</p>
+                        </div>
+                        <span class="dsh-badge"><?php echo count($my_assign_items); ?></span>
+                    </div>
+                </div>
+                <?php if (empty($my_assign_items)): ?>
+                    <div class="db-empty">
+                        <i class="fas fa-check-circle"></i>
+                        <p>No assignments yet</p>
+                    </div>
+                <?php else: ?>
+                    <div class="asg-grid">
+                        <?php foreach ($my_assign_items as $task): ?>
+                            <?php
+                                $tsb = dbStatusBadge($task['report_status']);
+                                $tpb = dbPriorityBadge($task['priority']);
+                                if ($task['_source'] === 'cimm') {
+                                    $task_link = '../admin/report_management.php?source=cimm&id=' . (int)($task['report_id'] ?? 0);
+                                } else {
+                                    $task_link = '../shared/road_transportation_monitoring.php?focus_report_id=' . (int)($task['report_id'] ?? 0) . '&source=' . rawurlencode($task['_source'] ?? 'transport');
+                                }
+                            ?>
+                            <div class="asg-card" style="--as:#0ea5e9;">
+                                <div class="asg-top">
+                                    <span class="asg-icon"><i class="fas fa-map-location-dot"></i></span>
+                                    <div>
+                                        <div class="asg-title"><?php echo htmlspecialchars($task['report_title']); ?></div>
+                                        <div class="asg-id"># <?php echo htmlspecialchars($task['report_code']); ?></div>
+                                    </div>
+                                </div>
+                                <div class="asg-badges">
+                                    <span class="db-badge <?php echo $tpb[1]; ?>"><i class="fas <?php echo $tpb[2]; ?>"></i> <?php echo $tpb[0]; ?></span>
+                                    <span class="db-badge <?php echo $tsb[1]; ?>"><?php echo $tsb[0]; ?></span>
+                                </div>
+                                <div class="asg-foot">
+                                    <span class="asg-date"><i class="far fa-calendar-alt"></i> <?php echo date('M d, Y', strtotime($task['assigned_at'])); ?></span>
+                                    <a class="btn-view" href="<?php echo $task_link; ?>"><i class="fas fa-eye"></i> View Report</a>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
 
         <?php if ($is_road_supervisor): ?>
             <!-- Reports Assigned by Road Supervisors -->
