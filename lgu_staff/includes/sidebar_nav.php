@@ -77,193 +77,27 @@ function getPortalTitle($role) {
     return $portal_titles[$role] ?? 'Portal';
 }
 
-// Mirrors the unread-count logic of pages/shared/notifications.php for the
-// two transportation roles. That page builds its badge (count($nc_feed)) from
-// several panels; this sums the same panels so the sidebar badge always matches
-// what the Notifications page shows for the logged-in user.
-function getNotificationsFeedCount($conn, $user_role, $user_id, $email) {
-    $count = 0;
-
-    $is_trans_supervisor = ($user_role === 'trans_ops_supervisor');
-    $is_trans_role = $is_trans_supervisor || ($user_role === 'trans_monitoring_officer');
-
-    // "Mark All as Read" records the ids of the always-on cards (assignments,
-    // report status updates, change-request outcomes) as read in the session
-    // (see pages/shared/notifications.php). Those stay visible on the page but
-    // are not counted, so exclude them here to keep the badge in sync.
-    $read = $_SESSION['nc_read'][(int)$user_id] ?? [];
-
-    // Trans monitoring officers persist the always-on card keys (asg/ru/su) in
-    // report_notifications (type 'always_on_read') so they survive logout/login.
-    // Merge them here so the sidebar badge matches the Notifications page's
-    // merged read-set after a fresh login, when the session is empty.
-    if ($user_role === 'trans_monitoring_officer' && $email !== '') {
-        try {
-            $stmt = $conn->prepare("SELECT message FROM report_notifications WHERE type = 'always_on_read' AND recipient_email = ?");
-            $stmt->bind_param("s", $email);
-            $stmt->execute();
-            $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-            $stmt->close();
-            foreach ($rows as $r) { $read[] = (string)$r['message']; }
-        } catch (Exception $e) {}
-    }
-
-    // Cards dismissed with the X button (see notifications.php) are removed
-    // from the page feed entirely, so mirror that here for the badge too.
-    $dismissed_map = [];
-    foreach (($_SESSION['nc_dismissed'][(int)$user_id] ?? []) as $k) { $dismissed_map[(string)$k] = true; }
-
-    // Reports I submitted that were completed/cancelled (status updates).
-    // The Notifications page narrows this to transportation for both trans
-    // roles, so we always apply that scope here. Each panel caps at 20 items
-    // (the page fetches LIMIT 20 per panel), so the count is capped too.
-    $stmt = $conn->prepare("
-        SELECT id FROM road_transportation_reports
-        WHERE created_by = ? AND status IN ('completed', 'cancelled')
-          AND report_category = 'transportation'
-          AND report_type != 'infrastructure_issue'
-        LIMIT 20
-    ");
-    $stmt->bind_param("i", $user_id);
-    $stmt->execute();
-    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-    $stmt->close();
-    $read_ru = [];
-    foreach ($read as $k) { if (strncmp((string)$k, 'ru', 2) === 0) $read_ru[(int)substr((string)$k, 2)] = true; }
-    foreach ($rows as $r) { if (!isset($read_ru[(int)$r['id']]) && !isset($dismissed_map['ru' . $r['id']])) $count++; }
-
-    // Review-request outcomes (approve/reject) routed to my email. On the
-    // Notifications page the existence check is narrowed to transportation
-    // rows only for trans officers; trans supervisors use all tables.
-    if ($email !== '') {
-        if ($is_trans_supervisor) {
-            $ro_exists = "SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
-                          UNION ALL
-                          SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
-                          UNION ALL
-                          SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id";
-        } else {
-            $ro_exists = "SELECT 1 FROM road_transportation_reports
-                          WHERE id = rn.report_id
-                            AND report_category = 'transportation'
-                            AND report_type != 'infrastructure_issue'";
-        }
-        $stmt = $conn->prepare("
-            SELECT rn.id FROM report_notifications rn
-            WHERE rn.recipient_email = ? AND rn.type IN ('approve_request','reject_request')
-              AND rn.is_read = 0
-              AND EXISTS (" . $ro_exists . " LIMIT 1)
-            LIMIT 20
-        ");
-        $stmt->bind_param("s", $email);
-        $stmt->execute();
-        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        $stmt->close();
-        foreach ($rows as $r) { if (!isset($dismissed_map['ro' . $r['id']])) $count++; }
-    }
-
-    // My assigned projects
-    $stmt = $conn->prepare("
-        SELECT ra.id FROM report_assignments ra
-        WHERE ra.user_id = ? AND ra.status = 'active'
-        LIMIT 20
-    ");
-    $stmt->bind_param("i", $user_id);
-    $stmt->execute();
-    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-    $stmt->close();
-    $read_asg = [];
-    foreach ($read as $k) { if (strncmp((string)$k, 'asg', 3) === 0) $read_asg[(int)substr((string)$k, 3)] = true; }
-    foreach ($rows as $r) { if (!isset($read_asg[(int)$r['id']]) && !isset($dismissed_map['asg' . $r['id']])) $count++; }
-
-    // My change-request status updates
-    $stmt = $conn->prepare("
-        SELECT id FROM change_requests
-        WHERE user_id = ? AND status != 'pending'
-        LIMIT 20
-    ");
-    $stmt->bind_param("i", $user_id);
-    $stmt->execute();
-    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-    $stmt->close();
-    $read_su = [];
-    foreach ($read as $k) { if (strncmp((string)$k, 'su', 2) === 0) $read_su[(int)substr((string)$k, 2)] = true; }
-    foreach ($rows as $r) { if (!isset($read_su[(int)$r['id']]) && !isset($dismissed_map['su' . $r['id']])) $count++; }
-
-    // Supervisors: completion/cancellation requests routed to my role, plus
-    // confirmations for actions I performed (Complete/Cancel).
-    if ($is_trans_supervisor) {
-        $trans_exists = "SELECT 1 FROM road_transportation_reports
-                         WHERE id = rn.report_id
-                           AND report_category = 'transportation'
-                           AND report_type != 'infrastructure_issue'";
-        $stmt = $conn->prepare("
-            SELECT rn.id FROM report_notifications rn
-            WHERE rn.is_read = 0 AND rn.recipient_role = ?
-              AND rn.type IN ('completion', 'cancellation')
-              AND EXISTS (" . $trans_exists . " LIMIT 1)
-            LIMIT 20
-        ");
-        $stmt->bind_param("s", $user_role);
-        $stmt->execute();
-        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        $stmt->close();
-        foreach ($rows as $r) { if (!isset($dismissed_map['rq' . $r['id']])) $count++; }
-
-        if ($email !== '') {
-            $stmt = $conn->prepare("
-                SELECT rn.id FROM report_notifications rn
-                WHERE rn.is_read = 0 AND rn.recipient_email = ?
-                  AND rn.type IN ('complete_report', 'cancel_report')
-                  AND EXISTS (" . $trans_exists . " LIMIT 1)
-                LIMIT 20
-            ");
-            $stmt->bind_param("s", $email);
-            $stmt->execute();
-            $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-            $stmt->close();
-            foreach ($rows as $r) { if (!isset($dismissed_map['sa' . $r['id']])) $count++; }
-        }
-    }
-
-    return $count;
-}
-
 // Get notification count
 function getSidebarNotificationCount($user_role = '', $user_id = 0) {
     global $conn;
     $count = 0;
     if ($conn) {
-        // Email of the logged-in user — used to match notifications that
-        // are targeted to an individual (request outcomes, own action
-        // results) rather than to a whole role.
-        $email = '';
-        if ($user_id > 0) {
-            try {
+        // Only count unread report_notifications that reference a report
+        // that still exists in one of the live tables.
+        try {
+            // Email of the logged-in user — used to match notifications that
+            // are targeted to an individual (request outcomes, own action
+            // results) rather than to a whole role.
+            $email = '';
+            if ($user_id > 0) {
                 $estmt = $conn->prepare("SELECT email FROM users WHERE id = ?");
                 $estmt->bind_param("i", $user_id);
                 $estmt->execute();
                 $erow = $estmt->get_result()->fetch_assoc();
                 $estmt->close();
                 $email = $erow['email'] ?? '';
-            } catch (Exception $e) {}
-        }
-
-        // Transportation Monitoring Officers and Transportation Operations
-        // Supervisors: the sidebar badge must show exactly the same unread
-        // count as their Notifications page (pages/shared/notifications.php),
-        // which builds its badge from several panels. Mirror that feed count.
-        if (in_array($user_role, ['trans_monitoring_officer', 'trans_ops_supervisor'], true)) {
-            try {
-                return getNotificationsFeedCount($conn, $user_role, $user_id, $email);
-            } catch (Exception $e) {
-                return 0;
             }
-        }
 
-        // Only count unread report_notifications that reference a report
-        // that still exists in one of the live tables.
-        try {
             if (in_array($user_role, ['road_ops_supervisor', 'trans_ops_supervisor'], true)) {
                 // Supervisors: count only the unread notifications that
                 // actually appear in their notifications feed — review requests

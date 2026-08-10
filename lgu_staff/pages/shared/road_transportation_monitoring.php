@@ -110,36 +110,7 @@ function getEnhancedStats() {
             // Transportation Operations Supervisors see only Transportation reports.
             // Road-only roles (Road Ops Supervisor, Road Monitoring Officer) see
             // only Road reports.
-            if (($_SESSION['role'] ?? '') === 'trans_ops_supervisor') {
-                // ONLY for the Transportation Operations Supervisor: the dashboard
-                // cards mirror the transportation reports actually shown in this
-                // page's Recent Submissions list (same WHERE as
-                // getRecentSubmissions()): finalized transportation reports that
-                // are not infrastructure issues. Active = Approved or In Progress;
-                // High/Critical = only Critical reports (severity = 'critical';
-                // the priority column only holds high/medium/low), and only when
-                // that report is also listed in report_management.php
-                // (approved/in-progress and visible there as Citizen or LGU
-                // Monitoring).
-                $shown_where = "report_type != 'infrastructure_issue'
-                    AND status IN ('approved','in-progress','completed')
-                    AND (created_by IS NULL OR created_by = 0
-                         OR cimm_sync_status IS NULL OR cimm_sync_status <> 'pushed'
-                         OR (report_category = 'transportation' AND report_source = 'local' AND created_by != 0))
-                    AND report_category = 'transportation'";
-                $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE {$shown_where}");
-                if ($r) $stats['total'] = (int)$r->fetch_assoc()['c'];
-                $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE {$shown_where} AND status IN ('approved','in-progress')");
-                if ($r) $stats['active'] = (int)$r->fetch_assoc()['c'];
-                $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE {$shown_where} AND status IN ('approved','in-progress') AND severity = 'critical' AND (created_by = 0 OR (created_by != 0 AND report_source = 'local'))");
-                if ($r) $stats['critical'] = (int)$r->fetch_assoc()['c'];
-                $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE status='completed' AND report_category = 'transportation' AND MONTH(updated_at)=MONTH(CURDATE()) AND YEAR(updated_at)=YEAR(CURDATE())");
-                if ($r) $stats['resolved_month'] = (int)$r->fetch_assoc()['c'];
-                return $stats;
-            } elseif ($is_transport_supervisor) {
-                // Transportation Monitoring Officers keep the original behavior:
-                // they see only Transportation reports but counted the same way
-                // as every other role.
+            if ($is_transport_supervisor) {
                 $cat_filter = " AND report_category = 'transportation'";
             } elseif ($is_road_only_role) {
                 $cat_filter = " AND report_category = 'road'";
