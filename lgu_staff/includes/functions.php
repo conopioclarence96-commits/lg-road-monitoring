@@ -237,6 +237,38 @@ function validate_required($fields) {
     return $errors;
 }
 
+// Returns an array of unmet password strength requirements (empty when valid).
+// Rules: min 8 chars, uppercase, lowercase, number, special char, no spaces.
+function validate_password_strength($password) {
+    $errors = [];
+
+    if (strlen($password) < 8) {
+        $errors[] = 'at least 8 characters';
+    }
+
+    if (!preg_match('/[A-Z]/', $password)) {
+        $errors[] = 'at least one uppercase letter';
+    }
+
+    if (!preg_match('/[a-z]/', $password)) {
+        $errors[] = 'at least one lowercase letter';
+    }
+
+    if (!preg_match('/[0-9]/', $password)) {
+        $errors[] = 'at least one number';
+    }
+
+    if (!preg_match('/[^A-Za-z0-9]/', $password)) {
+        $errors[] = 'at least one special character';
+    }
+
+    if (preg_match('/\s/', $password)) {
+        $errors[] = 'no spaces';
+    }
+
+    return $errors;
+}
+
 // Notification functions
 function set_flash_message($type, $message) {
     $_SESSION['flash_message'] = [
@@ -432,5 +464,249 @@ function handle_login_otp($email) {
     store_otp($email, $otpCode, 'login');
     send_otp_to_email($email, $otpCode);
     return $otpCode;
+}
+
+function handle_password_reset_otp($email) {
+    $otpCode = generate_otp();
+    store_otp($email, $otpCode, 'password_reset');
+    send_otp_to_email($email, $otpCode);
+    return $otpCode;
+}
+
+// Generates a secure random temporary password with at least one uppercase,
+// lowercase, digit, and special character. Minimum length is 12 characters.
+function generate_secure_temporary_password($length = 12) {
+    $upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    $lower = 'abcdefghijkmnopqrstuvwxyz';
+    $digits = '23456789';
+    $special = '!@#$%^&*()-_=+[]{};:,.?';
+
+    if ($length < 12) {
+        $length = 12;
+    }
+
+    $pool = str_split($upper . $lower . $digits . $special);
+    $poolSize = count($pool);
+
+    $password = '';
+    $password .= $upper[random_int(0, strlen($upper) - 1)];
+    $password .= $lower[random_int(0, strlen($lower) - 1)];
+    $password .= $digits[random_int(0, strlen($digits) - 1)];
+    $password .= $special[random_int(0, strlen($special) - 1)];
+
+    for ($i = 4; $i < $length; $i++) {
+        $password .= $pool[random_int(0, $poolSize - 1)];
+    }
+
+    return str_shuffle($password);
+}
+
+// Sends the "staff account created" email with the temporary password and login link.
+function send_staff_account_email($toEmail, $firstName, $temporaryPassword, $loginUrl) {
+    $envFile = __DIR__ . '/../../.env';
+    $envVariables = file_exists($envFile) ? parse_ini_file($envFile) : [];
+    $apiKey = $envVariables['BREVO_API_KEY'] ?? getenv('BREVO_API_KEY');
+    $senderName = $envVariables['BREVO_SENDER_NAME'] ?? getenv('BREVO_SENDER_NAME');
+    $senderEmail = $envVariables['BREVO_SENDER_EMAIL'] ?? getenv('BREVO_SENDER_EMAIL');
+
+    $firstNameSafe = htmlspecialchars($firstName);
+    $emailSafe = htmlspecialchars($toEmail);
+    $passwordSafe = htmlspecialchars($temporaryPassword);
+    $loginUrlSafe = htmlspecialchars($loginUrl);
+
+    $htmlContent = "
+    <html>
+        <body style='font-family: Arial, sans-serif; color: #333;'>
+            <div style='max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;'>
+                <h2 style='color: #0066cc;'>Hello {$firstNameSafe},</h2>
+                <p>Your staff account has been successfully created by the system administrator.</p>
+                <p>You may now log in using the following credentials.</p>
+                <table style='background-color: #f4f4f4; padding: 15px; text-align: left; border-radius: 5px; margin: 20px 0; width: 100%;'>
+                    <tr><td style='padding: 4px 8px;'><strong>Email:</strong></td><td style='padding: 4px 8px;'>{$emailSafe}</td></tr>
+                    <tr><td style='padding: 4px 8px;'><strong>Temporary Password:</strong></td><td style='padding: 4px 8px;'><span style='font-family: monospace; font-weight: bold;'>{$passwordSafe}</span></td></tr>
+                    <tr><td style='padding: 4px 8px;'><strong>Login Link:</strong></td><td style='padding: 4px 8px;'><a href='{$loginUrlSafe}'>{$loginUrlSafe}</a></td></tr>
+                </table>
+                <p>For security reasons, you will be required to change your temporary password immediately after your first login before you can access the dashboard.</p>
+                <p style='font-size: 12px; color: #999; margin-top: 30px;'>If you did not expect this email, please contact your system administrator.</p>
+                <p style='font-size: 12px; color: #999;'>Regards,<br>LGU Monitoring System</p>
+            </div>
+        </body>
+    </html>";
+
+    $ch = curl_init('https://api.brevo.com/v3/smtp/email');
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'accept: application/json',
+        'api-key: ' . $apiKey,
+        'content-type: application/json'
+    ]);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+        'sender' => [
+            'name' => $senderName,
+            'email' => $senderEmail
+        ],
+        'to' => [
+            [
+                'email' => $toEmail,
+                'name' => $firstName
+            ]
+        ],
+        'subject' => 'Your LGU Staff Account Has Been Created',
+        'htmlContent' => $htmlContent
+    ]));
+
+    $response = curl_exec($ch);
+    curl_close($ch);
+
+    error_log("Staff account email response: " . $response);
+
+    return json_decode($response, true);
+}
+
+// Create (or rotate) the access tokens for an email. The login token never
+// expires (only deactivated via login_token_active); the register token expires
+// after 1 day and is marked used once consumed.
+//
+// When $withRegister is false a login-only token is produced: a register token
+// is still stored (the column is NOT NULL) but is immediately marked as used,
+// so the login page never offers registration for that email. No DB schema
+// changes are required.
+function create_user_login_tokens($email, $withRegister = true) {
+    global $conn;
+
+    $loginToken = bin2hex(random_bytes(32));   // 64 hex chars
+    $registerToken = bin2hex(random_bytes(32)); // 64 hex chars
+
+    if ($withRegister) {
+        $sql = "INSERT INTO user_tokens (email, login_token, login_token_active, register_token, register_token_expires_at, register_token_used_at)
+                VALUES (?, ?, 1, ?, DATE_ADD(NOW(), INTERVAL 1 DAY), NULL)
+                ON DUPLICATE KEY UPDATE
+                    login_token = VALUES(login_token),
+                    login_token_active = 1,
+                    register_token = VALUES(register_token),
+                    register_token_expires_at = VALUES(register_token_expires_at),
+                    register_token_used_at = NULL";
+    } else {
+        $sql = "INSERT INTO user_tokens (email, login_token, login_token_active, register_token, register_token_expires_at, register_token_used_at)
+                VALUES (?, ?, 1, ?, DATE_ADD(NOW(), INTERVAL 1 DAY), NOW())
+                ON DUPLICATE KEY UPDATE
+                    login_token = VALUES(login_token),
+                    login_token_active = 1,
+                    register_token = VALUES(register_token),
+                    register_token_expires_at = VALUES(register_token_expires_at),
+                    register_token_used_at = NOW()";
+    }
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("sss", $email, $loginToken, $registerToken);
+    if (!$stmt->execute()) {
+        error_log("create_user_login_tokens failed: " . $stmt->error);
+        $stmt->close();
+        return false;
+    }
+    $stmt->close();
+
+    return [
+        'email' => $email,
+        'login_token' => $loginToken,
+        'register_token' => $registerToken,
+    ];
+}
+
+// Annotate a list of report rows with a display-only "Assignment Status".
+// The report_assignments table is the single source of truth updated by the
+// Assign/Unassign Staff features, so this reflects assignments live on every
+// page load. Each report row must carry its source table in '_source_table'
+// (set by the caller's SELECT) and its primary key in 'id'. Sets
+// 'assignment_status' to 'assigned' or 'unassigned' and removes the helper
+// key. Purely informational — it never affects the report workflow or the
+// existing report statuses.
+function annotate_report_assignment_status($conn, array &$reports) {
+    if (empty($reports)) {
+        return;
+    }
+    $assigned = [];
+    try {
+        $res = $conn->query(
+            "SELECT ra.report_id, ra.report_type, u.full_name AS officer_name
+             FROM report_assignments ra
+             LEFT JOIN users u ON u.id = ra.user_id
+             WHERE ra.status = 'active'"
+        );
+        if ($res) {
+            while ($row = $res->fetch_assoc()) {
+                $assigned[$row['report_type'] . ':' . $row['report_id']] = $row['officer_name'] ?? '';
+            }
+        }
+    } catch (Exception $e) {
+        error_log("annotate_report_assignment_status error: " . $e->getMessage());
+    }
+    foreach ($reports as &$rr) {
+        $table = $rr['_source_table'] ?? 'road_transportation_reports';
+        $key = $table . ':' . ($rr['id'] ?? 0);
+        $rr['assignment_status'] = isset($assigned[$key]) ? 'assigned' : 'unassigned';
+        $rr['assignment_officer'] = $assigned[$key] ?? '';
+        unset($rr['_source_table']);
+    }
+    unset($rr);
+}
+
+// Send an email containing a magic login URL carrying the login token.
+function send_login_link_email($toEmail, $loginUrl) {
+    $envFile = __DIR__ . '/../../.env';
+    $envVariables = file_exists($envFile) ? parse_ini_file($envFile) : [];
+    $apiKey = $envVariables['BREVO_API_KEY'] ?? getenv('BREVO_API_KEY');
+    $senderName = $envVariables['BREVO_SENDER_NAME'] ?? getenv('BREVO_SENDER_NAME');
+    $senderEmail = $envVariables['BREVO_SENDER_EMAIL'] ?? getenv('BREVO_SENDER_EMAIL');
+
+    $emailSafe = htmlspecialchars($toEmail);
+    $urlSafe = htmlspecialchars($loginUrl);
+
+    $htmlContent = "
+    <html>
+        <body style='font-family: Arial, sans-serif; color: #333;'>
+            <div style='max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;'>
+                <h2 style='color: #0066cc;'>Access Your LGU Account</h2>
+                <p>Use the link below to sign in to your account.</p>
+                <p style='text-align: center; margin: 25px 0;'>
+                    <a href='{$urlSafe}' style='background-color: #0066cc; color: #fff; padding: 12px 28px; text-decoration: none; border-radius: 6px; display: inline-block;'>Sign In</a>
+                </p>
+                <p>Or copy this link into your browser:</p>
+                <p style='font-family: monospace; font-size: 12px; word-break: break-all; background: #f4f4f4; padding: 10px; border-radius: 5px;'>{$urlSafe}</p>
+                <p style='font-size: 12px; color: #999; margin-top: 30px;'>If you did not request this link, you can safely ignore this email.</p>
+                <p style='font-size: 12px; color: #999;'>Regards,<br>LGU Monitoring System</p>
+            </div>
+        </body>
+    </html>";
+
+    $ch = curl_init('https://api.brevo.com/v3/smtp/email');
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'accept: application/json',
+        'api-key: ' . $apiKey,
+        'content-type: application/json'
+    ]);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+        'sender' => [
+            'name' => $senderName,
+            'email' => $senderEmail
+        ],
+        'to' => [
+            [
+                'email' => $toEmail,
+                'name' => $emailSafe
+            ]
+        ],
+        'subject' => 'Your LGU Account Access Link',
+        'htmlContent' => $htmlContent
+    ]));
+
+    $response = curl_exec($ch);
+    curl_close($ch);
+
+    error_log("Login link email response: " . $response);
+
+    return json_decode($response, true);
 }
 ?>

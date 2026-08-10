@@ -19,7 +19,7 @@ $response = ['success' => true, 'data' => ['pending_users' => [], 'change_reques
 
 try {
     $stmt = $conn->prepare("
-        SELECT id, username, email, full_name, role, department, address, birthday, civil_status, is_active, created_at, updated_at, approved_at, rejected_at, id_file_path
+        SELECT id, username, email, full_name, role, department, address, birthday, civil_status, phone_number, is_active, created_at, updated_at, approved_at, rejected_at, id_file_path
         FROM users
         WHERE role IN ('lgu_staff', 'citizen', 'road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer') AND account_status = 'pending'
         ORDER BY created_at DESC
@@ -36,6 +36,7 @@ try {
         SELECT cr.*, u.full_name as user_name, u.email as user_email,
                u.department as user_department, u.address as user_address,
                u.civil_status as user_civil_status, u.birthday as user_birthday,
+               u.phone_number as user_phone_number,
                u.id_file_path as user_id_file
         FROM change_requests cr
         LEFT JOIN users u ON cr.user_id = u.id

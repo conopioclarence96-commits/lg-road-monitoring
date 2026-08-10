@@ -159,6 +159,8 @@ try {
             portal_url = VALUES(portal_url),
             payload_json = VALUES(payload_json),
             last_event = VALUES(last_event),
+            engineer = VALUES(engineer),
+            budget_allocation = VALUES(budget_allocation),
             synced_at = CURRENT_TIMESTAMP
     ");
 
@@ -194,6 +196,8 @@ try {
         $data['portal_url'] ?? null,
         $payloadJson,
         $event,
+        $data['engineer'] ?? null,
+        $data['budget_allocation'] ?? null,
     ]);
 
     $localIdStmt = $pdo->prepare('SELECT id FROM cimm_verification_reports WHERE cimm_req_id = ? LIMIT 1');

@@ -149,15 +149,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $new_address = sanitize_input($_POST['new_address'] ?? '');
         $new_civil_status = sanitize_input($_POST['new_civil_status'] ?? '');
         $new_birthday = sanitize_input($_POST['new_birthday'] ?? '');
+        $new_phone_number = sanitize_input($_POST['new_phone_number'] ?? '');
         $new_password = $_POST['new_password'] ?? '';
         $new_id_file = $_POST['new_id_file_path'] ?? '';
         $new_profile_picture = $_POST['new_profile_picture'] ?? '';
         $admin_notes = sanitize_input($_POST['admin_notes'] ?? '');
 
         if ($request_id > 0 && $cr_user_id > 0) {
-            $sql = "UPDATE users SET email = ?, address = ?, civil_status = ?, birthday = ?";
-            $params = [$new_email, $new_address, $new_civil_status, $new_birthday];
-            $types = "ssss";
+            $sql = "UPDATE users SET email = ?, address = ?, civil_status = ?, birthday = ?, phone_number = ?";
+            $params = [$new_email, $new_address, $new_civil_status, $new_birthday, $new_phone_number];
+            $types = "sssss";
 
             if (!empty($new_password)) {
                 $sql .= ", password = ?";
@@ -216,7 +217,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $stmt = $conn->prepare("
-    SELECT id, username, email, full_name, role, department, address, birthday, civil_status, is_active, created_at, updated_at, approved_at, rejected_at, id_file_path 
+    SELECT id, username, email, full_name, role, department, address, birthday, civil_status, phone_number, is_active, created_at, updated_at, approved_at, rejected_at, id_file_path 
     FROM users 
     WHERE role IN ('lgu_staff', 'citizen', 'road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer') AND account_status = 'pending'
     ORDER BY created_at DESC
@@ -240,6 +241,7 @@ try {
         SELECT cr.*, u.full_name as user_name, u.email as user_email,
                u.department as user_department, u.address as user_address,
                u.civil_status as user_civil_status, u.birthday as user_birthday,
+               u.phone_number as user_phone_number,
                u.id_file_path as user_id_file
         FROM change_requests cr
         LEFT JOIN users u ON cr.user_id = u.id
@@ -580,12 +582,13 @@ if ($focus_cr_id > 0) {
                                         $req_data = json_decode($cr['requested_data'], true);
                                     ?>
                                         <?php
-                                            $fields = ['email', 'address', 'civil_status', 'birthday'];
+                                            $fields = ['email', 'address', 'civil_status', 'birthday', 'phone_number'];
                                             $current_map = [
                                                 'email' => $cr['user_email'],
                                                 'address' => $cr['user_address'],
                                                 'civil_status' => $cr['user_civil_status'],
                                                 'birthday' => $cr['user_birthday'],
+                                                'phone_number' => $cr['user_phone_number'],
                                             ];
                                             $changed_fields = [];
                                             foreach ($fields as $f) {
@@ -671,6 +674,7 @@ if ($focus_cr_id > 0) {
                 <div class="form-group"><label>Address:</label><input type="text" id="modalAddress" disabled></div>
                 <div class="form-group"><label>Birthday:</label><input type="text" id="modalBirthday" disabled></div>
                 <div class="form-group"><label>Civil Status:</label><input type="text" id="modalCivilStatus" disabled></div>
+                <div class="form-group"><label>Contact Number:</label><input type="text" id="modalPhoneNumber" disabled></div>
                 <div class="form-group"><label>Account Status:</label><input type="text" id="modalAccountStatus" disabled></div>
                 <div class="form-group"><label>Created At:</label><input type="text" id="modalCreatedAt" disabled></div>
                 <div class="form-group"><label>Approved At:</label><input type="text" id="modalApprovedAt" disabled></div>
@@ -718,6 +722,7 @@ if ($focus_cr_id > 0) {
                 <input type="hidden" id="crAddress" name="new_address">
                 <input type="hidden" id="crCivilStatus" name="new_civil_status">
                 <input type="hidden" id="crBirthday" name="new_birthday">
+                <input type="hidden" id="crPhoneNumber" name="new_phone_number">
                 <input type="hidden" id="crPassword" name="new_password">
 
                 <div class="cr-modal-section" id="crCurrentSection">
@@ -743,6 +748,10 @@ if ($focus_cr_id > 0) {
                         <div class="cr-compare-item">
                             <span class="cr-compare-label">Birthday</span>
                             <div class="cr-compare-new" id="crBirthdayDisplay">--</div>
+                        </div>
+                        <div class="cr-compare-item">
+                            <span class="cr-compare-label">Contact Number</span>
+                            <div class="cr-compare-new" id="crPhoneNumberDisplay">--</div>
                         </div>
                         <div class="cr-compare-item">
                             <span class="cr-compare-label">New Password</span>
@@ -789,6 +798,7 @@ if ($focus_cr_id > 0) {
             document.getElementById('modalAddress').value = user.address || 'N/A';
             document.getElementById('modalBirthday').value = user.birthday || 'N/A';
             document.getElementById('modalCivilStatus').value = user.civil_status ? user.civil_status.charAt(0).toUpperCase() + user.civil_status.slice(1) : 'N/A';
+            document.getElementById('modalPhoneNumber').value = user.phone_number || 'N/A';
             document.getElementById('modalAccountStatus').value = user.is_active ? 'Active' : 'Inactive';
             document.getElementById('modalCreatedAt').value = user.created_at;
             document.getElementById('modalApprovedAt').value = user.approved_at || 'N/A';
@@ -868,7 +878,8 @@ if ($focus_cr_id > 0) {
                 { key: 'email', label: 'Email', value: cr.user_email },
                 { key: 'address', label: 'Address', value: cr.user_address },
                 { key: 'civil_status', label: 'Civil Status', value: cr.user_civil_status ? cr.user_civil_status.charAt(0).toUpperCase() + cr.user_civil_status.slice(1) : 'N/A' },
-                { key: 'birthday', label: 'Birthday', value: cr.user_birthday }
+                { key: 'birthday', label: 'Birthday', value: cr.user_birthday },
+                { key: 'phone_number', label: 'Contact Number', value: cr.user_phone_number }
             ];
             fields.forEach(function(f) {
                 currentHtml += '<div class="cr-compare-item"><span class="cr-compare-label">' + f.label + '</span><div class="cr-compare-old">' + escapeHtml(f.value || 'N/A') + '</div></div>';
@@ -898,6 +909,10 @@ if ($focus_cr_id > 0) {
             document.getElementById('crBirthday').value = data.birthday || cr.user_birthday || '';
             document.getElementById('crBirthdayDisplay').textContent = data.birthday || 'N/A';
             document.getElementById('crBirthdayDisplay').className = (data.birthday && data.birthday !== cr.user_birthday) ? 'cr-compare-new' : 'cr-compare-new no-change';
+
+            document.getElementById('crPhoneNumber').value = data.phone_number || cr.user_phone_number || '';
+            document.getElementById('crPhoneNumberDisplay').textContent = data.phone_number || 'N/A';
+            document.getElementById('crPhoneNumberDisplay').className = (data.phone_number && data.phone_number !== cr.user_phone_number) ? 'cr-compare-new' : 'cr-compare-new no-change';
 
             var pwVal = '';
             if (data.new_password_hash) { pwVal = data.new_password_hash; }
@@ -1028,12 +1043,13 @@ if ($focus_cr_id > 0) {
         function renderChangeRequestRow(cr) {
             var reqData = {};
             try { reqData = JSON.parse(cr.requested_data); } catch(e) {}
-            var fields = ['email', 'address', 'civil_status', 'birthday'];
+            var fields = ['email', 'address', 'civil_status', 'birthday', 'phone_number'];
             var currentMap = {
                 'email': cr.user_email,
                 'address': cr.user_address,
                 'civil_status': cr.user_civil_status,
-                'birthday': cr.user_birthday
+                'birthday': cr.user_birthday,
+                'phone_number': cr.user_phone_number
             };
             var changedFields = [];
             fields.forEach(function(f) {

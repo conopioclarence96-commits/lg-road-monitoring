@@ -80,6 +80,8 @@ function rgmap_ensure_cimm_verification_table(PDO $pdo): void {
         verification_note   TEXT         NULL,
         verified_by         INT UNSIGNED NULL,
         verified_at         DATETIME     NULL,
+        engineer            VARCHAR(150) NULL,
+        budget_allocation   DECIMAL(15,2) NULL,
         payload_json        LONGTEXT     NULL,
         last_event          VARCHAR(32)  NOT NULL DEFAULT 'upsert',
         synced_at           TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -119,6 +121,8 @@ function rgmap_ensure_cimm_verification_table(PDO $pdo): void {
         "payload_json LONGTEXT NULL AFTER verified_at",
         "last_event VARCHAR(32) NOT NULL DEFAULT 'upsert' AFTER payload_json",
         "synced_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER last_event",
+        "engineer VARCHAR(150) NULL AFTER verified_at",
+        "budget_allocation DECIMAL(15,2) NULL AFTER engineer",
     ];
     foreach ($columns as $def) {
         try {
@@ -158,9 +162,31 @@ function rgmap_fetch_cimm_verification_reports(PDO $pdo, array $opts = []): arra
     $sql = "SELECT * FROM cimm_verification_reports WHERE 1=1";
     $params = [];
 
-    // Exclude reports with certain verification statuses
-    $sql .= " AND verification_status IN ('Verified')";
+    // Apply specific filters based on opts
+    if (!empty($opts['infrastructure'])) {
+        $sql .= " AND infrastructure = ?";
+        $params[] = $opts['infrastructure'];
+    }
 
+    if (!empty($opts['verification_status'])) {
+        if (is_array($opts['verification_status'])) {
+            $placeholders = implode(',', array_fill(0, count($opts['verification_status']), '?'));
+            $sql .= " AND verification_status IN ($placeholders)";
+            foreach ($opts['verification_status'] as $value) {
+                $params[] = $value;
+            }
+        } else {
+            $sql .= " AND verification_status = ?";
+            $params[] = $opts['verification_status'];
+        }
+    }
+
+    if (!empty($opts['approval_status'])) {
+        $sql .= " AND approval_status = ?";
+        $params[] = $opts['approval_status'];
+    }
+
+    // Legacy support for old 'status' and 'approval' parameters
     if (!empty($opts['status'])) {
         $sql .= " AND verification_status = ?";
         $params[] = $opts['status'];

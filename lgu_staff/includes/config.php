@@ -117,6 +117,15 @@ try {
     } catch (Exception $e) {
         // FK may already be dropped or not exist
     }
+
+    // Role-targeted notifications: NULL means a broadcast (seen by everyone with
+    // access); a specific value (e.g. 'road_ops_supervisor') restricts visibility
+    // to users holding that role. Used for completion/cancellation request reviews.
+    try {
+        $conn->query("ALTER TABLE report_notifications ADD COLUMN IF NOT EXISTS recipient_role VARCHAR(50) DEFAULT NULL AFTER recipient_email");
+    } catch (Exception $e) {
+        error_log("report_notifications.recipient_role migration: " . $e->getMessage());
+    }
     
     // Ensure citizen report columns exist
     try {
@@ -152,6 +161,52 @@ try {
     try {
         $conn->query("ALTER TABLE road_maintenance_reports ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP NULL AFTER updated_at");
     } catch (Exception $e) {}
+
+    // Account lockout columns for brute-force protection
+    try {
+        $conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_attempts INT NOT NULL DEFAULT 0 AFTER last_login");
+    } catch (Exception $e) {}
+    try {
+        $conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS lock_until DATETIME NULL DEFAULT NULL AFTER failed_attempts");
+    } catch (Exception $e) {}
+    try {
+        $conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS lock_level TINYINT NOT NULL DEFAULT 0 AFTER lock_until");
+    } catch (Exception $e) {}
+
+    // Forced password change fields for admin-created accounts
+    try {
+        $conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password TINYINT(1) NOT NULL DEFAULT 1 AFTER lock_level");
+    } catch (Exception $e) {}
+    try {
+        $conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS temporary_password_created_at DATETIME NULL DEFAULT NULL AFTER must_change_password");
+    } catch (Exception $e) {}
+    try {
+        $conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at DATETIME NULL DEFAULT NULL AFTER temporary_password_created_at");
+    } catch (Exception $e) {}
+    // Existing accounts created before this feature must NOT be forced to change
+    // passwords. New accounts created through create_staff_account.php always set
+    // temporary_password_created_at so they are intentionally left at must_change_password = 1.
+    try {
+        $conn->query("UPDATE users SET must_change_password = 0 WHERE must_change_password = 1 AND temporary_password_created_at IS NULL AND password_changed_at IS NULL");
+    } catch (Exception $e) {}
+
+    // Email access tokens for magic-link login / registration (see database/create_user_token.sql).
+    // login_token never expires (toggled via login_token_active); register_token expires after 1 day.
+    try {
+        $conn->query("CREATE TABLE IF NOT EXISTS user_tokens (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            email VARCHAR(255) NOT NULL UNIQUE,
+            login_token CHAR(64) NOT NULL UNIQUE,
+            login_token_active TINYINT(1) NOT NULL DEFAULT 1,
+            register_token CHAR(64) NOT NULL UNIQUE,
+            register_token_expires_at DATETIME NOT NULL,
+            register_token_used_at DATETIME NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Exception $e) {
+        error_log("user_tokens table creation: " . $e->getMessage());
+    }
     
     // Create project_analytics table for recording completion metrics
     try {
@@ -268,4 +323,44 @@ define('SMTP_USERNAME', '');
 define('SMTP_PASSWORD', '');
 define('FROM_EMAIL', 'noreply@lgu.gov.ph');
 define('FROM_NAME', APP_NAME);
+
+// Forced password change guard. Admin-created accounts start with a temporary
+// password and must_change_password = 1, so they may only reach change_password.php
+// until they set their own password. config.php is required before any output on
+// every page, so this runs early enough for a clean redirect.
+if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['user_id'])) {
+    $mcp_page = basename($_SERVER['PHP_SELF'] ?? '');
+    if ($mcp_page !== 'change_password.php' && $mcp_page !== 'logout.php') {
+        // Derive the app web root (everything before /lgu_staff/ in SCRIPT_NAME),
+        // so the redirect works from any page depth and on the live server.
+        $mcp_root = '';
+        $mcp_script = $_SERVER['SCRIPT_NAME'] ?? '';
+        $mcp_pos = strpos($mcp_script, '/lgu_staff/');
+        if ($mcp_pos !== false) {
+            $mcp_root = substr($mcp_script, 0, $mcp_pos);
+        }
+        try {
+            $mcp_stmt = $conn->prepare("SELECT must_change_password FROM users WHERE id = ?");
+            $mcp_stmt->bind_param("i", $_SESSION['user_id']);
+            $mcp_stmt->execute();
+            $mcp_row = $mcp_stmt->get_result()->fetch_assoc();
+            $mcp_stmt->close();
+            if ($mcp_row && !empty($mcp_row['must_change_password'])) {
+                $is_api_req = (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
+                    || (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
+                    || (isset($_SERVER['CONTENT_TYPE']) && strpos($_SERVER['CONTENT_TYPE'], 'application/json') !== false);
+                if ($is_api_req) {
+                    http_response_code(403);
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode(['success' => false, 'message' => 'You must change your password before continuing.']);
+                    exit;
+                }
+                header('Location: ' . $mcp_root . '/lgu_staff/change_password.php');
+                exit;
+            }
+        } catch (Exception $e) {
+            error_log("Password change guard: " . $e->getMessage());
+        }
+    }
+}
 ?>

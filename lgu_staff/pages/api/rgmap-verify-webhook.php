@@ -86,26 +86,65 @@ if ($reportPk <= 0 && $reportIdStr === '') {
     exit;
 }
 
-$verifiedBy = trim((string)($data['verified_by'] ?? 'CIMM staff'));
+    $verifiedBy = trim((string)($data['verified_by'] ?? 'CIMM staff'));
 
-try {
-    rgmap_cimm_ensure_schema($conn);
+    try {
+        rgmap_cimm_ensure_schema($conn);
 
-    if ($reportPk > 0) {
-        $stmt = $conn->prepare(
-            "UPDATE road_transportation_reports
-             SET cimm_sync_status = 'verified', cimm_verified_at = NOW(), cimm_verified_by = ?
-             WHERE id = ?"
+        // Engineer and budget_allocation are only relevant for Road reports
+        // (report_category = 'road'). Transportation reports must not receive
+        // these fields — the WHERE clause on report_category enforces that.
+        $pdo = rgmap_verification_pdo();
+        rgmap_ensure_cimm_verification_table($pdo);
+
+        // Look up engineer and budget_allocation that CIMM stored in
+        // cimm_verification_reports for this LGU report (matched via the
+        // rgmap_report_pk that CIMM echoes back in payload_json).
+        $engineer = null;
+        $budgetAllocation = null;
+        $cimmLookup = $pdo->prepare(
+            "SELECT engineer, budget_allocation
+               FROM cimm_verification_reports
+              WHERE JSON_EXTRACT(payload_json, '$.rgmap_report_pk') = ?
+              LIMIT 1"
         );
-        $stmt->bind_param('si', $verifiedBy, $reportPk);
-    } else {
-        $stmt = $conn->prepare(
-            "UPDATE road_transportation_reports
-             SET cimm_sync_status = 'verified', cimm_verified_at = NOW(), cimm_verified_by = ?
-             WHERE report_id = ?"
-        );
-        $stmt->bind_param('ss', $verifiedBy, $reportIdStr);
-    }
+        $cimmLookup->execute([$reportPk]);
+        $cimmRow = $cimmLookup->fetch(PDO::FETCH_ASSOC);
+        if ($cimmRow) {
+            $engineer = $cimmRow['engineer'] ?? null;
+            $budgetAllocation = $cimmRow['budget_allocation'] ?? null;
+        }
+
+        if ($reportPk > 0) {
+            $stmt = $conn->prepare(
+                "UPDATE road_transportation_reports
+                 SET cimm_sync_status = 'verified', cimm_verified_at = NOW(), cimm_verified_by = ?,
+                     engineer = ?, budget_allocation = ?
+                 WHERE id = ? AND report_category = 'road'"
+            );
+            $stmt->bind_param('sssi', $verifiedBy, $engineer, $budgetAllocation, $reportPk);
+        } else {
+            // Look up engineer/budget_allocation via report_reference (the LGU
+            // report_id CIMM echoes back in payload_json) for the string-ID path.
+            $cimmLookup2 = $pdo->prepare(
+                "SELECT engineer, budget_allocation
+                   FROM cimm_verification_reports
+                  WHERE report_reference = ? OR JSON_EXTRACT(payload_json, '$.rgmap_report_id') = ?
+                  LIMIT 1"
+            );
+            $cimmLookup2->execute([$reportIdStr, $reportIdStr]);
+            $cimmRow2 = $cimmLookup2->fetch(PDO::FETCH_ASSOC);
+            $engineer2 = $cimmRow2['engineer'] ?? null;
+            $budgetAllocation2 = $cimmRow2['budget_allocation'] ?? null;
+
+            $stmt = $conn->prepare(
+                "UPDATE road_transportation_reports
+                 SET cimm_sync_status = 'verified', cimm_verified_at = NOW(), cimm_verified_by = ?,
+                     engineer = ?, budget_allocation = ?
+                 WHERE report_id = ? AND report_category = 'road'"
+            );
+            $stmt->bind_param('sssa', $verifiedBy, $engineer2, $budgetAllocation2, $reportIdStr);
+        }
 
     if (!$stmt) {
         http_response_code(500);

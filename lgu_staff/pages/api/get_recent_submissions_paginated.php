@@ -19,12 +19,17 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['system_admin'
     exit;
 }
 
-// Transportation Operations Supervisors see only Transportation reports.
-$transport_only = (($_SESSION['role'] ?? '') === 'trans_ops_supervisor');
+// Transportation Operations Supervisors and Transportation Monitoring Officers
+// see only Transportation reports (report_category = 'transportation').
+$transport_only = in_array($_SESSION['role'] ?? '', ['trans_ops_supervisor', 'trans_monitoring_officer'], true);
 
 // Road Operations Supervisors and Road Monitoring Officers see only Road
 // reports.
 $road_only = in_array($_SESSION['role'] ?? '', ['road_ops_supervisor', 'road_monitoring_officer'], true);
+
+// Road Operations Supervisors (Road supervisor portal) also get the Report
+// Creator Information (full name, contact number, email) in report details.
+$is_road_supervisor = ($_SESSION['role'] ?? '') === 'road_ops_supervisor';
 
 $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
 $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
@@ -48,7 +53,9 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
         $params = [];
         $types = '';
         if ($status_filter !== 'all') {
-            $sql .= " AND status = ?";
+            // LOWER() so CIMM rows (verification_status stores 'Completed',
+            // 'Approved', ... capitalized) match the lowercase dropdown values.
+            $sql .= " AND LOWER(status) = LOWER(?)";
             $params[] = $status_filter;
             $types .= 's';
         }
@@ -66,17 +73,20 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
     try {
         // 1. LGU Monitoring (Road & Transportation Monitoring) + Citizen reports
         $reports = array_merge($reports, $fetch(
-            "SELECT id, report_id, title, report_type,
-                    CASE WHEN created_by IS NULL OR created_by = 0 THEN 'citizen' ELSE 'lgu' END AS source,
-                    status, priority, severity, created_at, description,
-                    latitude, longitude, location, reporter_name, attachments, image_path,
-                    cimm_sync_status, cimm_verified_at, cimm_verified_by
-             FROM road_transportation_reports
-             WHERE report_type != 'infrastructure_issue'
-               AND status IN ('approved', 'in-progress')
-               AND (created_by IS NULL OR created_by = 0
-                    OR cimm_sync_status IS NULL OR cimm_sync_status <> 'pushed'
-                    OR (report_category = 'transportation' AND report_source = 'local' AND created_by != 0)){$transport_category_filter}{$road_category_filter}",
+            "SELECT t.id, t.report_id, t.title, t.report_type, t.report_category,
+                    CASE WHEN t.created_by IS NULL OR t.created_by = 0 THEN 'citizen' ELSE 'lgu' END AS source,
+                    t.status, t.priority, t.severity, t.created_at, t.description,
+                    t.latitude, t.longitude, t.location, t.reporter_name, t.attachments, t.image_path,
+                    t.cimm_sync_status, t.cimm_verified_at, t.cimm_verified_by,
+                    u.full_name AS creator_full_name, u.phone_number AS creator_phone, u.email AS creator_email,
+                    'road_transportation_reports' AS _source_table
+             FROM road_transportation_reports t
+             LEFT JOIN users u ON u.id = t.created_by
+             WHERE t.report_type != 'infrastructure_issue'
+               AND t.status IN ('approved', 'in-progress', 'completed')
+               AND (t.created_by IS NULL OR t.created_by = 0
+                    OR t.cimm_sync_status IS NULL OR t.cimm_sync_status <> 'pushed'
+                    OR (t.report_category = 'transportation' AND t.report_source = 'local' AND t.created_by != 0)){$transport_category_filter}{$road_category_filter}",
             $status_filter
         ));
 
@@ -89,9 +99,10 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
                     status, priority, NULL AS severity, created_at, description,
                     NULL AS latitude, NULL AS longitude, location, NULL AS reporter_name,
                     NULL AS attachments, NULL AS image_path,
-                    NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by
+                    NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by,
+                    'road_maintenance_reports' AS _source_table
              FROM road_maintenance_reports
-             WHERE status IN ('approved','completed')",
+             WHERE status IN ('approved','in-progress','completed')",
             $status_filter
         ));
 
@@ -101,10 +112,11 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
                     'infrastructure' AS source,
                     status, priority, severity, created_at, description,
                     latitude, longitude, location, reporter_name, attachments, image_path,
-                    cimm_sync_status, cimm_verified_at, cimm_verified_by
+                    cimm_sync_status, cimm_verified_at, cimm_verified_by,
+                    'road_transportation_reports' AS _source_table
              FROM road_transportation_reports
              WHERE report_type = 'infrastructure_issue'
-               AND status IN ('approved','completed'){$road_category_filter}",
+               AND status IN ('approved','in-progress','completed'){$road_category_filter}",
             $status_filter
         ));
 
@@ -124,9 +136,11 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
                             issue AS description, coord_lat AS latitude, coord_lng AS longitude,
                             location, reporter_name, NULL AS attachments, NULL AS image_path,
                             'approved' AS cimm_sync_status, verified_at AS cimm_verified_at,
-                            NULL AS cimm_verified_by
+                            NULL AS cimm_verified_by, approval_status,
+                            'cimm_verification_reports' AS _source_table
                      FROM cimm_verification_reports
-                     WHERE verification_status IN ('Approved', 'In-Progress')
+                     WHERE verification_status IN ('Approved', 'In Progress', 'Completed')
+                       AND infrastructure = 'Roads'
                  ) AS cimm_mapped WHERE 1=1",
                 $status_filter
             ));
@@ -156,6 +170,10 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
 
 try {
     $reports = getRecentSubmissionsPaginated($offset, $limit, $status_filter, $type_filter, $transport_only, $road_only);
+
+    // Display-only Assignment Status (Assigned / Unassigned) for each report,
+    // read live from report_assignments so it reflects Assign/Unassign changes.
+    annotate_report_assignment_status($conn, $reports);
     
     $source_labels = [
         'lgu' => 'LGU Monitoring',
@@ -176,11 +194,16 @@ try {
             'source' => $rr_source_key,
             'source_label' => $rr_source_label,
             'status' => $rr['status'] ?? 'pending',
+            'assignment_status' => $rr['assignment_status'] ?? 'unassigned',
+            'assignment_officer' => $rr['assignment_officer'] ?? '',
             'priority' => $rr['priority'] ?? 'low',
             'created_at' => $rr['created_at'],
             'cimm_sync_status' => $rr['cimm_sync_status'] ?? '',
             'cimm_verified_at' => $rr['cimm_verified_at'] ?? '',
             'cimm_verified_by' => $rr['cimm_verified_by'] ?? '',
+            'approval_status' => $rr['approval_status'] ?? '',
+            'verification_status' => $rr['verification_status'] ?? '',
+            'report_category' => $rr['report_category'] ?? '',
             'report_type' => $rr['report_type'] ?? '',
             'details' => [
                 'id' => $rr['id'],
@@ -189,6 +212,7 @@ try {
                 'source' => $rr_source_label,
                 'report_type' => $rr['report_type'],
                 'status' => $rr['status'],
+                'assignment_status' => $rr['assignment_status'] ?? 'unassigned',
                 'priority' => $rr['priority'],
                 'severity' => $rr['severity'],
                 'created_at' => $rr['created_at'],
@@ -199,7 +223,12 @@ try {
                 'reporter_name' => $rr['reporter_name'],
                 'attachments' => $rr['attachments'],
                 'image_path' => $rr['image_path'],
-            ]
+                'report_category' => $rr['report_category'] ?? '',
+            ] + ($is_road_supervisor ? [
+                'creator_full_name' => $rr['creator_full_name'] ?? '',
+                'creator_phone' => $rr['creator_phone'] ?? '',
+                'creator_email' => $rr['creator_email'] ?? '',
+            ] : [])
         ];
     }
     

@@ -91,15 +91,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $address = $_POST['address'] ?? '';
         $birthday = $_POST['birthday'] ?? '';
         $civil_status = $_POST['civil_status'] ?? '';
+        $phone_number = $_POST['phone_number'] ?? '';
 
         if (empty($full_name) || empty($role)) {
             echo json_encode(['success' => false, 'message' => 'Full name and role are required.']);
             exit;
         }
 
-        $stmt = $conn->prepare("UPDATE users SET full_name = ?, role = ?, department = ?, address = ?, birthday = ?, civil_status = ?, updated_at = NOW() WHERE id = ?");
+        $stmt = $conn->prepare("UPDATE users SET full_name = ?, role = ?, department = ?, address = ?, birthday = ?, civil_status = ?, phone_number = ?, updated_at = NOW() WHERE id = ?");
         $birthday_val = ($birthday !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $birthday)) ? $birthday : null;
-        $stmt->bind_param("ssssssi", $full_name, $role, $department, $address, $birthday_val, $civil_status, $userId);
+        $stmt->bind_param("sssssssi", $full_name, $role, $department, $address, $birthday_val, $civil_status, $phone_number, $userId);
         $stmt->execute();
         $stmt->close();
 
@@ -119,7 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Get verified accounts only
 $stmt = $conn->prepare("
-    SELECT id, username, email, full_name, role, department, address, birthday, civil_status, is_active, created_at, updated_at, approved_at, rejected_at, id_file_path 
+    SELECT id, username, email, full_name, role, department, address, birthday, civil_status, phone_number, is_active, created_at, updated_at, approved_at, rejected_at, id_file_path 
     FROM users 
     WHERE role IN ('lgu_staff', 'citizen', 'road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer') AND account_status = 'verified'
     ORDER BY created_at DESC
@@ -130,7 +131,7 @@ $stmt->close();
 
 // Get unverified/rejected accounts
 $stmt2 = $conn->prepare("
-    SELECT id, username, email, full_name, role, department, address, birthday, civil_status, is_active, account_status, created_at, updated_at, approved_at, rejected_at, id_file_path 
+    SELECT id, username, email, full_name, role, department, address, birthday, civil_status, phone_number, is_active, account_status, created_at, updated_at, approved_at, rejected_at, id_file_path 
     FROM users 
     WHERE role IN ('lgu_staff', 'citizen', 'road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer') AND account_status IN ('pending', 'rejected')
     ORDER BY created_at DESC
@@ -141,7 +142,7 @@ $stmt2->close();
 
 // Get deactivated accounts
 $stmt3 = $conn->prepare("
-    SELECT id, username, email, full_name, role, department, address, birthday, civil_status, is_active, account_status, created_at, updated_at, approved_at, rejected_at, id_file_path 
+    SELECT id, username, email, full_name, role, department, address, birthday, civil_status, phone_number, is_active, account_status, created_at, updated_at, approved_at, rejected_at, id_file_path 
     FROM users 
     WHERE role IN ('lgu_staff', 'citizen', 'road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer') AND account_status = 'deactivated'
     ORDER BY updated_at DESC
@@ -604,6 +605,10 @@ try {
                         </select>
                     </div>
                     <div class="form-group">
+                        <label>Contact Number:</label>
+                        <input type="tel" id="modalPhoneNumber" class="editable-field" maxlength="20" pattern="[0-9+\-\s()]+" title="Enter a valid contact number" disabled>
+                    </div>
+                    <div class="form-group">
                         <label>Account Status:</label>
                         <input type="text" id="modalAccountStatus" disabled>
                     </div>
@@ -984,7 +989,7 @@ try {
         let usersData = <?php echo json_encode($users); ?>;
         let unverifiedUsersData = <?php echo json_encode($unverified_users); ?>;
         
-        const editableFields = ['modalFullName', 'modalRole', 'modalDepartment', 'modalAddress', 'modalBirthday', 'modalCivilStatus'];
+        const editableFields = ['modalFullName', 'modalRole', 'modalDepartment', 'modalAddress', 'modalBirthday', 'modalCivilStatus', 'modalPhoneNumber'];
 
         function showUserModal(userId) {
             console.log('Opening modal for user ID:', userId);
@@ -1001,6 +1006,7 @@ try {
                 document.getElementById('modalAddress').value = user.address || '';
                 document.getElementById('modalBirthday').value = user.birthday || '';
                 document.getElementById('modalCivilStatus').value = user.civil_status || '';
+                document.getElementById('modalPhoneNumber').value = user.phone_number || '';
                 document.getElementById('modalAccountStatus').value = user.is_active ? 'Active' : 'Inactive';
                 document.getElementById('modalCreatedAt').value = user.created_at;
                 document.getElementById('modalApprovedAt').value = user.approved_at || 'N/A';
@@ -1078,6 +1084,7 @@ try {
             formData.append('address', document.getElementById('modalAddress').value.trim());
             formData.append('birthday', document.getElementById('modalBirthday').value);
             formData.append('civil_status', document.getElementById('modalCivilStatus').value);
+            formData.append('phone_number', document.getElementById('modalPhoneNumber').value.trim());
 
             const saveBtn = document.getElementById('saveButton');
             saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
@@ -1236,6 +1243,7 @@ try {
                 document.getElementById('modalAddress').value = user.address || '';
                 document.getElementById('modalBirthday').value = user.birthday || '';
                 document.getElementById('modalCivilStatus').value = user.civil_status || '';
+                document.getElementById('modalPhoneNumber').value = user.phone_number || '';
                 document.getElementById('modalAccountStatus').value = user.account_status.charAt(0).toUpperCase() + user.account_status.slice(1);
                 document.getElementById('modalCreatedAt').value = user.created_at;
                 document.getElementById('modalApprovedAt').value = user.approved_at || 'N/A';

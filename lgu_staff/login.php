@@ -334,6 +334,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
         $birthday = sanitize_input($_POST['birthday'] ?? '');
         $address = sanitize_input($_POST['address'] ?? '');
         $civil_status = sanitize_input($_POST['civil_status'] ?? '');
+        $phone_number = sanitize_input($_POST['phone_number'] ?? '');
         $role = sanitize_input($_POST['role'] ?? '');
         
         // Validate required fields
@@ -390,14 +391,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
                 $stmt = $conn->prepare("
                     INSERT INTO users (
                         username, email, password, full_name, role, department, 
-                        address, birthday, civil_status, id_file_path, account_status, is_active, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        address, birthday, civil_status, phone_number, id_file_path, account_status, is_active, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 ");
                 
                 if ($stmt) {
-                    $stmt->bind_param("ssssssssss", 
+                    $stmt->bind_param("sssssssssss", 
                         $username, $email, $hashedPassword, $full_name, $role, $department,
-                        $address, $birthday, $civil_status, $idFilePath
+                        $address, $birthday, $civil_status, $phone_number, $idFilePath
                     );
                     
                     if ($stmt->execute()) {
@@ -735,6 +736,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                   <option value="divorced" <?php echo (isset($_POST['civil_status']) && $_POST['civil_status'] == 'divorced') ? 'selected' : ''; ?>>Divorced</option>
                   <option value="widowed" <?php echo (isset($_POST['civil_status']) && $_POST['civil_status'] == 'widowed') ? 'selected' : ''; ?>>Widowed</option>
                 </select>
+              </div>
+
+              <div class="input-box">
+                <label>Contact Number *</label>
+                <input type="tel" name="phone_number" maxlength="20" pattern="[0-9+\-\s()]+" title="Enter a valid contact number" value="<?php echo isset($_POST['phone_number']) ? htmlspecialchars($_POST['phone_number']) : ''; ?>" required />
               </div>
 
               <div class="input-box">

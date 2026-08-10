@@ -139,7 +139,7 @@ function getNavigationItems($user_role) {
                 'href' => '../pages/admin/archive.php',
                 'icon' => 'archive',
                 'title' => 'Archive',
-                'roles' => ['system_admin']
+                'roles' => ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor']
             ],
             [
                 'href' => '../pages/shared/settings.php',
@@ -166,105 +166,33 @@ function getNavigationItems($user_role) {
 // Function to get notification count
 function getNotificationCount($user_role = '', $user_id = 0) {
     global $conn;
-    
+
     $count = 0;
-    
+
     if ($conn) {
-        if ($user_role === 'system_admin') {
-            // Count pending reports (from other departments)
-            try {
-                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'pending'");
-                $stmt->execute();
-                $result = $stmt->get_result();
-                $count += $result->fetch_assoc()['count'];
-                $stmt->close();
-            } catch (Exception $e) {
-                // Ignore errors
-            }
-            
-            // Count pending account requests from users
-            try {
-                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM users WHERE account_status = 'pending'");
-                $stmt->execute();
-                $result = $stmt->get_result();
-                $count += $result->fetch_assoc()['count'];
-                $stmt->close();
-            } catch (Exception $e) {
-                // Ignore errors
-            }
-            
-            // Count pending change requests
-            try {
-                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM change_requests WHERE status = 'pending'");
-                $stmt->execute();
-                $result = $stmt->get_result();
-                $count += $result->fetch_assoc()['count'];
-                $stmt->close();
-            } catch (Exception $e) {
-                // Ignore errors
-            }
-            
-            // Count unread progress update notifications
-            try {
-                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM report_notifications WHERE is_read = 0");
-                $stmt->execute();
-                $result = $stmt->get_result();
-                $count += $result->fetch_assoc()['count'];
-                $stmt->close();
-            } catch (Exception $e) {
-                // Ignore errors
-            }
-
-            // Count assigned projects for admin
-            try {
-                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM report_assignments WHERE user_id = ? AND status = 'active'");
-                $stmt->bind_param("i", $user_id);
-                $stmt->execute();
-                $result = $stmt->get_result();
-                $count += $result->fetch_assoc()['count'];
-                $stmt->close();
-            } catch (Exception $e) {
-                // Ignore errors
-            }
-        } elseif (is_staff_role($user_role) && $user_id > 0) {
-            // Count staff's own reviewed change requests
-            try {
-                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM change_requests WHERE user_id = ? AND status != 'pending'");
-                $stmt->bind_param("i", $user_id);
-                $stmt->execute();
-                $result = $stmt->get_result();
-                $count += $result->fetch_assoc()['count'];
-                $stmt->close();
-            } catch (Exception $e) {
-                // Ignore errors
-            }
-
-            // Count staff's own report status updates
-            try {
-                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE created_by = ? AND status IN ('completed', 'cancelled')");
-                $stmt->bind_param("i", $user_id);
-                $stmt->execute();
-                $result = $stmt->get_result();
-                $count += $result->fetch_assoc()['count'];
-                $stmt->close();
-            } catch (Exception $e) {
-                // Ignore errors
-            }
-
-            // Count assigned projects for staff
-            try {
-                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM report_assignments WHERE user_id = ? AND status = 'active'");
-                $stmt->bind_param("i", $user_id);
-                $stmt->execute();
-                $result = $stmt->get_result();
-                $count += $result->fetch_assoc()['count'];
-                $stmt->close();
-            } catch (Exception $e) {
-                // Ignore errors
-            }
+        // Only count unread report_notifications that reference a report
+        // that still exists in one of the live tables.
+        try {
+            $stmt = $conn->prepare("
+                SELECT COUNT(*) as count FROM report_notifications rn
+                WHERE rn.is_read = 0
+                  AND EXISTS (
+                      SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
+                      UNION ALL
+                      SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
+                      UNION ALL
+                      SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id
+                      LIMIT 1
+                  )
+            ");
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $count += $result->fetch_assoc()['count'];
+            $stmt->close();
+        } catch (Exception $e) {
+            // Ignore errors
         }
     }
-    
     return $count;
 }
 

@@ -177,22 +177,79 @@ CREATE TABLE IF NOT EXISTS `road_transportation_reports` (
   `severity` ENUM('low', 'medium', 'high', 'critical'),
   `reported_date` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `resolved_date` TIMESTAMP NULL,
-  `assigned_to` VARCHAR(100),
-  `resolution_notes` TEXT,
-  `attachments` JSON,
-  `created_by` INT,
-  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX `idx_report_id` (`report_id`),
-  INDEX `idx_status` (`status`),
-  INDEX `idx_report_type` (`report_type`),
-  INDEX `idx_priority` (`priority`),
-  INDEX `idx_created_date` (`created_date`)
+   `assigned_to` VARCHAR(100),
+   `resolution_notes` TEXT,
+   `attachments` JSON,
+   `created_by` INT,
+   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+   `engineer` VARCHAR(150) NULL DEFAULT NULL,
+   `budget_allocation` DECIMAL(15,2) NULL DEFAULT NULL,
+   INDEX `idx_report_id` (`report_id`),
+   INDEX `idx_status` (`status`),
+   INDEX `idx_report_type` (`report_type`),
+   INDEX `idx_priority` (`priority`),
+   INDEX `idx_created_date` (`created_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Sample reports removed - only user-created reports with images will remain
 -- INSERT INTO `road_transportation_reports` (`report_id`, `report_type`, `title`, `department`, `priority`, `status`, `created_date`, `due_date`, `description`) VALUES
 -- Sample data commented out - use remove_dummy_reports.sql to clean existing database
+
+-- =====================================================
+-- TABLE: CIMM VERIFICATION REPORTS
+-- =====================================================
+-- Populated by the CIMM -> RGMAO sync (cimm-reports-webhook.php /
+-- cimm-reports-pull.php). Stores CIMM's copy of each road report that has
+-- been synced for verification monitoring. Engineer and budget_allocation
+-- are only populated for road reports (report_category = 'road');
+-- transportation reports do not carry these fields.
+CREATE TABLE IF NOT EXISTS `cimm_verification_reports` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `cimm_req_id` INT UNSIGNED NOT NULL,
+  `cimm_rep_id` INT UNSIGNED NULL,
+  `reference_code` VARCHAR(32) NOT NULL,
+  `report_reference` VARCHAR(32) NULL,
+  `infrastructure` VARCHAR(120) NOT NULL,
+  `location` VARCHAR(255) NOT NULL,
+  `issue` TEXT NOT NULL,
+  `reporter_name` VARCHAR(120) NULL,
+  `contact_number` VARCHAR(30) NULL,
+  `email` VARCHAR(180) NULL,
+  `district` VARCHAR(80) NULL,
+  `coord_lat` DECIMAL(10,7) NULL,
+  `coord_lng` DECIMAL(10,7) NULL,
+  `cprf_facility_id` INT UNSIGNED NULL,
+  `cprf_facility_name` VARCHAR(150) NULL,
+  `approval_status` VARCHAR(32) NOT NULL DEFAULT 'Pending',
+  `rejection_reason` TEXT NULL,
+  `resolution_status` VARCHAR(64) NULL,
+  `resolution_note` TEXT NULL,
+  `resolved_at` DATETIME NULL,
+  `priority` VARCHAR(32) DEFAULT 'medium',
+  `budget` DECIMAL(15,2) NULL,
+  `starting_date` DATE NULL,
+  `estimated_end_date` DATE NULL,
+  `submitted_at` DATETIME NULL,
+  `evidence_json` LONGTEXT NULL,
+  `ai_json` LONGTEXT NULL,
+  `portal_url` VARCHAR(500) NULL,
+  `verification_status` VARCHAR(30) NOT NULL DEFAULT 'Pending Review',
+  `verification_note` TEXT NULL,
+  `verified_by` INT UNSIGNED NULL,
+  `verified_at` DATETIME NULL,
+  `engineer` VARCHAR(150) NULL,
+  `budget_allocation` DECIMAL(15,2) NULL,
+  `payload_json` LONGTEXT NULL,
+  `last_event` VARCHAR(32) NOT NULL DEFAULT 'upsert',
+  `synced_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `uq_cimm_req` (`cimm_req_id`),
+  INDEX `idx_verification_status` (`verification_status`),
+  INDEX `idx_approval_status` (`approval_status`),
+  INDEX `idx_submitted` (`submitted_at`),
+  INDEX `idx_infrastructure` (`infrastructure`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================
 -- TABLE: ROAD_MAINTENANCE_REPORTS

@@ -12,6 +12,10 @@ session_start();
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 require_once __DIR__ . '/../api/cimm_verification_data.php';
+// Archive helpers (rgmap_archive_report, rgmap_archive_cimm_report,
+// rgmap_notify_requestor, rgmap_auto_archive_completed, ...) — shared with
+// progress_update_api.php.
+require_once __DIR__ . '/../api/progress_archive_helpers.php';
 
 // Defensive migration for the CIMM sync/verification columns — these are
 // normally added by rgmap_cimm_ensure_schema() the first time a report gets
@@ -64,24 +68,55 @@ if (
     exit();
 }
 
-// Transportation Operations Supervisors are restricted to Transportation
-// category reports only — the Roads option is hidden and road submissions
-// are rejected server-side.
-$is_transport_supervisor = (($_SESSION['role'] ?? '') === 'trans_ops_supervisor');
+// Auto-archive sweep: move any completed report whose 7-day retention window
+// (measured from completed_at, set by the Complete button's complete_status
+// action) has passed into the archive. Runs once per page load; it only touches
+// reports carrying auto_archive_at, so report_management completions are never
+// moved. Completed reports stay visible in Recent Submissions until then.
+try {
+    rgmap_auto_archive_completed($conn);
+} catch (Exception $e) {
+    error_log('Road/Transportation monitoring auto-archive sweep: ' . $e->getMessage());
+}
+
+// Transportation Operations Supervisors and Transportation Monitoring Officers
+// are restricted to Transportation category reports only — the Roads option is
+// hidden and road submissions are rejected server-side. Recent Submissions /
+// map / stats filter report_category = 'transportation'.
+$is_transport_supervisor = in_array($_SESSION['role'] ?? '', ['trans_ops_supervisor', 'trans_monitoring_officer'], true);
 
 // Road Operations Supervisors and Road Monitoring Officers are restricted to
 // Road-category reports only — Transportation reports (LGU or Citizen) are
 // hidden from Recent Submissions.
 $is_road_only_role = in_array($_SESSION['role'] ?? '', ['road_ops_supervisor', 'road_monitoring_officer'], true);
 
+// Road/Transportation Monitoring Officers may not directly complete or cancel
+// a project. For these roles the Complete/Cancel buttons are replaced with
+// Request Completion / Request Cancellation, which do not change the status or
+// archive the report (the request review workflow will be added later).
+$is_officer_role = in_array($_SESSION['role'] ?? '', ['road_monitoring_officer', 'trans_monitoring_officer'], true);
+
+// Road Operations Supervisors (the Road supervisor portal) get a trimmed Recent
+// Submissions source filter: Citizen Reports and Infrastructure Projects are
+// hidden from the Type dropdown (their reports still appear under All Types).
+$is_road_supervisor = ($_SESSION['role'] ?? '') === 'road_ops_supervisor';
+
 // Function to get enhanced dashboard stats
 function getEnhancedStats() {
-    global $conn, $is_transport_supervisor;
+    global $conn, $is_transport_supervisor, $is_road_only_role;
     $stats = ['total' => 0, 'active' => 0, 'critical' => 0, 'resolved_month' => 0];
     if ($conn) {
         try {
             // Transportation Operations Supervisors see only Transportation reports.
-            $cat_filter = $is_transport_supervisor ? " AND report_category = 'transportation'" : '';
+            // Road-only roles (Road Ops Supervisor, Road Monitoring Officer) see
+            // only Road reports.
+            if ($is_transport_supervisor) {
+                $cat_filter = " AND report_category = 'transportation'";
+            } elseif ($is_road_only_role) {
+                $cat_filter = " AND report_category = 'road'";
+            } else {
+                $cat_filter = '';
+            }
             $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE 1=1{$cat_filter}");
             if ($r) $stats['total'] = (int)$r->fetch_assoc()['c'];
             $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE status IN ('pending','in-progress'){$cat_filter}");
@@ -121,7 +156,9 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
         $params = [];
         $types = '';
         if ($status_filter !== 'all') {
-            $sql .= " AND status = ?";
+            // LOWER() so CIMM rows (verification_status stores 'Completed',
+            // 'Approved', ... capitalized) match the lowercase dropdown values.
+            $sql .= " AND LOWER(status) = LOWER(?)";
             $params[] = $status_filter;
             $types .= 's';
         }
@@ -150,17 +187,21 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
         //    LGU Transportation reports (report_category='transportation') do not
         //    require CIMM verification and appear once they are finalized.
         $reports = array_merge($reports, $fetch(
-            "SELECT id, report_id, title, report_type, report_category,
-                    CASE WHEN created_by IS NULL OR created_by = 0 THEN 'citizen' ELSE 'lgu' END AS source,
-                    status, priority, severity, created_at, description,
-                    latitude, longitude, location, reporter_name, attachments, image_path,
-                    cimm_sync_status, cimm_verified_at, cimm_verified_by
-              FROM road_transportation_reports
-             WHERE report_type != 'infrastructure_issue'
-               AND status IN ('approved', 'in-progress')
-               AND (created_by IS NULL OR created_by = 0
-                    OR cimm_sync_status IS NULL OR cimm_sync_status <> 'pushed'
-                    OR (report_category = 'transportation' AND report_source = 'local' AND created_by != 0))
+            "SELECT t.id, t.report_id, t.title, t.report_type, t.report_category,
+                    CASE WHEN t.created_by IS NULL OR t.created_by = 0 THEN 'citizen' ELSE 'lgu' END AS source,
+                    t.status, t.priority, t.severity, t.created_at, t.description,
+                    t.latitude, t.longitude, t.location, t.reporter_name, t.attachments, t.image_path,
+                    t.cimm_sync_status, t.cimm_verified_at, t.cimm_verified_by,
+                    u.full_name AS creator_full_name, u.phone_number AS creator_phone, u.email AS creator_email,
+                    NULL AS approval_status, NULL AS verification_status,
+                    'road_transportation_reports' AS _source_table
+              FROM road_transportation_reports t
+              LEFT JOIN users u ON u.id = t.created_by
+             WHERE t.report_type != 'infrastructure_issue'
+               AND t.status IN ('approved', 'in-progress', 'completed')
+               AND (t.created_by IS NULL OR t.created_by = 0
+                    OR t.cimm_sync_status IS NULL OR t.cimm_sync_status <> 'pushed'
+                    OR (t.report_category = 'transportation' AND t.report_source = 'local' AND t.created_by != 0))
                    $transport_category_filter{$road_category_filter}",
             $status_filter, $type_filter, $limit
         ));
@@ -175,9 +216,10 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                         status, priority, NULL AS severity, created_at, description,
                         NULL AS latitude, NULL AS longitude, location, NULL AS reporter_name,
                         NULL AS attachments, NULL AS image_path,
-                        NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by
+                        NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by,
+                        'road_maintenance_reports' AS _source_table
                  FROM road_maintenance_reports
-                 WHERE status IN ('approved','completed')",
+                 WHERE status IN ('approved','in-progress','completed')",
                 $status_filter, $type_filter, $limit
             ));
         }
@@ -190,10 +232,11 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                         'infrastructure' AS source,
                         status, priority, severity, created_at, description,
                         latitude, longitude, location, reporter_name, attachments, image_path,
-                        cimm_sync_status, cimm_verified_at, cimm_verified_by
-                 FROM road_transportation_reportsssss
+                        cimm_sync_status, cimm_verified_at, cimm_verified_by,
+                        'road_transportation_reports' AS _source_table
+                 FROM road_transportation_reports
                  WHERE report_type = 'infrastructure_issue'
-                   AND status IN ('approved','completed'){$road_category_filter}",
+                   AND status IN ('approved','in-progress','completed'){$road_category_filter}",
                 $status_filter, $type_filter, $limit
             ));
         }
@@ -206,14 +249,16 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                 "SELECT * FROM (
                     SELECT id, reference_code AS report_id, infrastructure AS title,
                             'infrastructure_issue' AS report_type, 'road' AS report_category, 'cimm' AS source,
-                            " . cimm_status_case_sql() . " AS status, priority, NULL AS severity,
+                            verification_status AS status, priority, NULL AS severity,
                             COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at,
                             issue AS description, coord_lat AS latitude, coord_lng AS longitude,
                             location, reporter_name, NULL AS attachments, NULL AS image_path,
                             'verified' AS cimm_sync_status, verified_at AS cimm_verified_at,
-                            NULL AS cimm_verified_by
+                            NULL AS cimm_verified_by, approval_status,
+                            'cimm_verification_reports' AS _source_table
                      FROM cimm_verification_reports
-                     WHERE verification_status = 'Verified'
+                     WHERE verification_status IN ('Approved', 'In Progress', 'Completed')
+                       AND infrastructure = 'Roads'
                  ) AS cimm_mapped WHERE 1=1",
                 $status_filter, $type_filter, $limit
             ));
@@ -235,13 +280,24 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
 
 // Function to get monitoring statistics
 function getMonitoringStatistics() {
-    global $conn;
+    global $conn, $is_transport_supervisor, $is_road_only_role;
     $stats = [];
+    
+    // Transportation Operations Supervisors see only Transportation reports.
+    // Road-only roles (Road Ops Supervisor, Road Monitoring Officer) see only
+    // Road reports.
+    if ($is_transport_supervisor) {
+        $cat_filter = " AND report_category = 'transportation'";
+    } elseif ($is_road_only_role) {
+        $cat_filter = " AND report_category = 'road'";
+    } else {
+        $cat_filter = '';
+    }
     
     if ($conn) {
         try {
             // Get active roads count
-            $result = $conn->query("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status != 'completed'");
+            $result = $conn->query("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status != 'completed'" . $cat_filter);
             if ($result) {
                 $stats['active_roads'] = $result->fetch_assoc()['count'];
             } else {
@@ -249,7 +305,7 @@ function getMonitoringStatistics() {
             }
             
             // Get incident count
-            $result = $conn->query("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'pending' AND priority = 'high'");
+            $result = $conn->query("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'pending' AND priority = 'high'" . $cat_filter);
             if ($result) {
                 $stats['incidents'] = $result->fetch_assoc()['count'];
             } else {
@@ -265,11 +321,11 @@ function getMonitoringStatistics() {
             }
             
             // Calculate clear flow percentage
-            $total_result = $conn->query("SELECT COUNT(*) as count FROM road_transportation_reports");
+            $total_result = $conn->query("SELECT COUNT(*) as count FROM road_transportation_reports" . $cat_filter);
             if ($total_result) {
                 $total = $total_result->fetch_assoc()['count'];
                 
-                $clear_result = $conn->query("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'completed'");
+                $clear_result = $conn->query("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'completed'" . $cat_filter);
                 if ($clear_result) {
                     $clear = $clear_result->fetch_assoc()['count'];
                     $stats['clear_flow'] = $total > 0 ? round(($clear / $total) * 100, 0) : 94;
@@ -303,15 +359,25 @@ function getMonitoringStatistics() {
     return $stats;
 }
 
-// Function to get active alerts
 function getActiveAlerts() {
-    global $conn;
+    global $conn, $is_transport_supervisor, $is_road_only_role;
     $alerts = [];
+    
+    // Transportation Operations Supervisors see only Transportation alerts.
+    // Road-only roles (Road Ops Supervisor, Road Monitoring Officer) see only
+    // Road alerts.
+    if ($is_transport_supervisor) {
+        $cat_filter = " AND report_category = 'transportation'";
+    } elseif ($is_road_only_role) {
+        $cat_filter = " AND report_category = 'road'";
+    } else {
+        $cat_filter = '';
+    }
     
     if ($conn) {
         $query = "SELECT title, created_at, priority FROM road_transportation_reports 
                   WHERE status = 'pending' AND priority IN ('high', 'medium') 
-                  ORDER BY created_at DESC LIMIT 5";
+                  {$cat_filter}ORDER BY created_at DESC LIMIT 5";
         $result = $conn->query($query);
         
         while ($row = $result->fetch_assoc()) {
@@ -336,13 +402,24 @@ function getActiveAlerts() {
 
 // Function to get road status
 function getRoadStatus() {
-    global $conn;
+    global $conn, $is_transport_supervisor, $is_road_only_role;
     $roads = [];
+    
+    // Transportation Operations Supervisors see only Transportation reports.
+    // Road-only roles (Road Ops Supervisor, Road Monitoring Officer) see only
+    // Road reports.
+    if ($is_transport_supervisor) {
+        $cat_filter = " AND report_category = 'transportation'";
+    } elseif ($is_road_only_role) {
+        $cat_filter = " AND report_category = 'road'";
+    } else {
+        $cat_filter = '';
+    }
     
     if ($conn) {
         $query = "SELECT title, status, description, created_at FROM road_transportation_reports 
                   WHERE status IN ('pending', 'in-progress', 'completed') 
-                  ORDER BY created_at DESC LIMIT 10";
+                  {$cat_filter}ORDER BY created_at DESC LIMIT 10";
         $result = $conn->query($query);
         
         while ($row = $result->fetch_assoc()) {
@@ -426,9 +503,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
     header('Content-Type: application/json');
     $markers = [];
     if ($conn) {
+        // Transportation Operations Supervisors see only Transportation markers.
+        // Road-only roles (Road Ops Supervisor, Road Monitoring Officer) see only
+        // Road markers.
+        if ($is_transport_supervisor) {
+            $cat_filter = " AND report_category = 'transportation'";
+        } elseif ($is_road_only_role) {
+            $cat_filter = " AND report_category = 'road'";
+        } else {
+            $cat_filter = '';
+        }
         $sql = "SELECT id, report_id, title, report_type, description, status, priority, severity, latitude, longitude, detected_district, barangay, street_name, created_at 
                 FROM road_transportation_reports 
                 WHERE latitude IS NOT NULL AND longitude IS NOT NULL 
+                  AND status IN ('approved', 'in-progress', 'completed')
+                  {$cat_filter}
                 ORDER BY created_at DESC";
         $res = $conn->query($sql);
         while ($row = $res->fetch_assoc()) {
@@ -713,12 +802,13 @@ function resolve_recent_focus_row(int $id, string $source_hint = ''): ?array {
     try {
         foreach ($candidates as $src) {
             if ($src === 'transport') {
-                $stmt = $conn->prepare("SELECT id, report_id, title, report_type, report_category, status, priority, severity, created_at, description, latitude, longitude, location, reporter_name, attachments, image_path, cimm_sync_status, cimm_verified_at, cimm_verified_by, created_by FROM road_transportation_reports WHERE id = ?");
+                $stmt = $conn->prepare("SELECT t.id, t.report_id, t.title, t.report_type, t.report_category, t.status, t.priority, t.severity, t.created_at, t.description, t.latitude, t.longitude, t.location, t.reporter_name, t.attachments, t.image_path, t.cimm_sync_status, t.cimm_verified_at, t.cimm_verified_by, t.created_by, u.full_name AS creator_full_name, u.phone_number AS creator_phone, u.email AS creator_email FROM road_transportation_reports t LEFT JOIN users u ON u.id = t.created_by WHERE t.id = ?");
                 $stmt->bind_param("i", $id);
                 $stmt->execute();
                 $r = $stmt->get_result()->fetch_assoc();
                 $stmt->close();
                 if ($r) {
+                    $r['_source_table'] = 'road_transportation_reports';
                     $r['source'] = (($r['report_type'] ?? '') === 'infrastructure_issue')
                         ? 'infrastructure'
                         : ((!empty($r['created_by'])) ? 'lgu' : 'citizen');
@@ -731,6 +821,7 @@ function resolve_recent_focus_row(int $id, string $source_hint = ''): ?array {
                 $r = $stmt->get_result()->fetch_assoc();
                 $stmt->close();
                 if ($r) {
+                    $r['_source_table'] = 'road_maintenance_reports';
                     $r['source'] = 'infrastructure';
                     return $r;
                 }
@@ -742,6 +833,7 @@ function resolve_recent_focus_row(int $id, string $source_hint = ''): ?array {
                 $stmt->execute([$id]);
                 $r = $stmt->fetch(PDO::FETCH_ASSOC);
                 if ($r) {
+                    $r['_source_table'] = 'cimm_verification_reports';
                     $r['source'] = 'cimm';
                     return $r;
                 }
@@ -810,6 +902,11 @@ if ($focus_report_id > 0) {
         }
     }
 }
+
+// Display-only Assignment Status (Assigned / Unassigned) for every report row.
+// Reads live from report_assignments so it reflects Assign/Unassign changes
+// automatically. Never alters the report workflow or report statuses.
+annotate_report_assignment_status($conn, $recent_reports);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -1312,6 +1409,10 @@ if ($focus_report_id > 0) {
         .badge-medium { background: #fff3cd; color: #856404; }
         .badge-low { background: #e2e3e5; color: #383d41; }
         .badge-source { background: #f8f9fa; color: #495057; border: 1px solid #dee2e6; }
+
+        .assignment-badge { font-weight: 600; }
+        .assignment-assigned { background: #d1fae5; color: #065f46; }
+        .assignment-unassigned { background: #e2e3e5; color: #495057; }
         .cimm-verify-badge {
             display: inline-flex; align-items: center; gap: 5px;
             padding: 3px 10px; border-radius: 12px;
@@ -1328,6 +1429,316 @@ if ($focus_report_id > 0) {
             background: rgba(55,98,200,0.12); color: #3762c8;
         }
         .table-action-btn.view-map:hover { background: #3762c8; color: #fff; }
+
+        /* View Details Modal (table-action-btn viewport — mirrors report_management rm modal) */
+        .rm-modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+
+        .rm-modal-overlay.active {
+            display: flex;
+        }
+
+        .rm-modal-content {
+            background: #f0f4fa;
+            border-radius: 16px;
+            max-width: 860px;
+            width: 100%;
+            max-height: calc(100vh - 40px);
+            position: relative;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            margin: auto;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            border: 1px solid #c8d0e0;
+        }
+
+        .rm-modal-header {
+            background: white;
+            border-radius: 16px 16px 0 0;
+            padding: 24px 28px 18px;
+            border-bottom: 2px solid rgba(55, 98, 200, 0.15);
+            flex-shrink: 0;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        .rm-modal-header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .rm-modal-title-area {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .rm-modal-report-id {
+            font-size: 13px;
+            color: #3762c8;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            margin-bottom: 4px;
+        }
+
+        .rm-modal-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1e3c72;
+            margin: 0 0 10px 0;
+            line-height: 1.3;
+        }
+
+        .rm-modal-badges {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .rm-modal-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            color: #666;
+            cursor: pointer;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.3s;
+            flex-shrink: 0;
+            margin-left: 15px;
+        }
+
+        .rm-modal-close:hover {
+            background: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+        }
+
+        .rm-modal-body {
+            overflow-y: auto;
+            flex: 1;
+            min-height: 0;
+            padding: 24px 28px;
+        }
+
+        .rm-modal-body::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .rm-modal-body::-webkit-scrollbar-track {
+            background: rgba(55, 98, 200, 0.08);
+            border-radius: 4px;
+        }
+
+        .rm-modal-body::-webkit-scrollbar-thumb {
+            background: rgba(55, 98, 200, 0.2);
+            border-radius: 4px;
+        }
+
+        .rm-modal-body::-webkit-scrollbar-thumb:hover {
+            background: rgba(55, 98, 200, 0.35);
+        }
+
+        .rm-modal-section {
+            background: white;
+            border-radius: 12px;
+            padding: 18px 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            border: 1px solid rgba(55, 98, 200, 0.1);
+        }
+
+        .rm-modal-section-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #1e3c72;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 14px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(55, 98, 200, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .rm-modal-section-title i {
+            color: #3762c8;
+            font-size: 15px;
+        }
+
+        .rm-info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .rm-info-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 6px 0;
+        }
+
+        .rm-info-icon {
+            width: 28px;
+            height: 28px;
+            background: rgba(55, 98, 200, 0.1);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #3762c8;
+            font-size: 13px;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .rm-info-label {
+            font-size: 11px;
+            color: #6b7280;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-bottom: 2px;
+        }
+
+        .rm-info-value {
+            font-size: 14px;
+            color: #1f2937;
+            font-weight: 500;
+            line-height: 1.4;
+            word-break: break-word;
+        }
+
+        .rm-info-value-full {
+            grid-column: 1 / -1;
+        }
+
+        .rm-description-text {
+            font-size: 14px;
+            color: #374151;
+            line-height: 1.7;
+            padding: 8px 0;
+            white-space: pre-wrap;
+        }
+
+        .rm-modal-footer {
+            background: white;
+            border-radius: 0 0 16px 16px;
+            padding: 16px 28px;
+            border-top: 1px solid rgba(55, 98, 200, 0.1);
+            flex-shrink: 0;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .rm-modal-btn-close {
+            padding: 10px 24px;
+            background: rgba(55, 98, 200, 0.1);
+            color: #3762c8;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .rm-modal-btn-close:hover {
+            background: rgba(55, 98, 200, 0.2);
+        }
+
+        @media (max-width: 640px) {
+            .rm-info-grid {
+                grid-template-columns: 1fr;
+            }
+            .rm-modal-header {
+                padding: 18px 16px;
+            }
+            .rm-modal-body {
+                padding: 16px;
+            }
+            .rm-modal-content {
+                max-width: 100%;
+                border-radius: 0;
+            }
+            .rm-modal-overlay {
+                padding: 0;
+            }
+        }
+
+        /* View Details Modal Dark Mode */
+        body.dark-mode .rm-modal-content {
+            background: #1a1d24 !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode .rm-modal-header {
+            background: #1a1d24 !important;
+            border-bottom-color: #2d323b !important;
+        }
+        body.dark-mode .rm-modal-title {
+            color: #60a5fa !important;
+        }
+        body.dark-mode .rm-modal-report-id {
+            color: #60a5fa !important;
+        }
+        body.dark-mode .rm-modal-close {
+            color: #9ca3af !important;
+        }
+        body.dark-mode .rm-modal-section {
+            background: #22262e !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode .rm-modal-section-title {
+            color: #60a5fa !important;
+            border-bottom-color: #2d323b !important;
+        }
+        body.dark-mode .rm-info-icon {
+            background: rgba(55,98,200,0.15) !important;
+        }
+        body.dark-mode .rm-info-label {
+            color: #9ca3af !important;
+        }
+        body.dark-mode .rm-info-value {
+            color: #e4e6ea !important;
+        }
+        body.dark-mode .rm-description-text {
+            color: #c0c8d8 !important;
+        }
+        body.dark-mode .rm-modal-footer {
+            background: #1a1d24 !important;
+            border-top-color: #2d323b !important;
+        }
+        body.dark-mode .rm-modal-btn-close {
+            background: rgba(55,98,200,0.15) !important;
+            color: #60a5fa !important;
+        }
+        body.dark-mode .rm-modal-body::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05) !important;
+        }
+        body.dark-mode .rm-modal-body::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.15) !important;
+        }
 
         .table-header-right {
             display: flex;
@@ -1953,16 +2364,19 @@ if ($focus_report_id > 0) {
                 <div class="table-header-right">
                     <select class="filter-select" id="statusFilter" onchange="filterReports()">
                         <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
-                        <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending</option>
+                        <option value="approved" <?php echo $status_filter === 'approved' ? 'selected' : ''; ?>>Approved</option>
                         <option value="in-progress" <?php echo $status_filter === 'in-progress' ? 'selected' : ''; ?>>In Progress</option>
                         <option value="completed" <?php echo $status_filter === 'completed' ? 'selected' : ''; ?>>Completed</option>
-                        <option value="cancelled" <?php echo $status_filter === 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
                     </select>
                     <select class="filter-select" id="typeFilter" onchange="filterReportsBySource()">
                         <option value="all">All Types</option>
+                        <?php if (!$is_road_supervisor): ?>
                         <option value="citizen">Citizen Reports</option>
+                        <?php endif; ?>
                         <?php if (!$is_transport_supervisor): ?>
                         <option value="cimm">CIMM Reports</option>
+                        <?php endif; ?>
+                        <?php if (!$is_transport_supervisor && !$is_road_supervisor): ?>
                         <option value="infrastructure">Infrastructure Projects</option>
                         <?php endif; ?>
                         <option value="lgu">LGU Monitoring Reports</option>
@@ -1981,6 +2395,7 @@ if ($focus_report_id > 0) {
                             <th>Title</th>
                             <th>Source</th>
                             <th>Status</th>
+                            <th>Assignment</th>
                             <th>Priority</th>
                             <th>Date</th>
                             <th>CIMM Verification</th>
@@ -1989,7 +2404,7 @@ if ($focus_report_id > 0) {
                     </thead>
                     <tbody>
                         <?php if (empty($recent_reports)): ?>
-                        <tr><td colspan="8" style="text-align:center;padding:30px;color:#6b7280;">No reports yet.</td></tr>
+                        <tr><td colspan="9" style="text-align:center;padding:30px;color:#6b7280;">No reports yet.</td></tr>
                         <?php else: ?>
                         <?php $source_labels = [
                             'lgu' => 'LGU Monitoring',
@@ -2000,7 +2415,7 @@ if ($focus_report_id > 0) {
                         <?php foreach ($recent_reports as $rr): ?>
                         <?php $rr_source_key = $rr['source'] ?? 'citizen'; ?>
                         <?php $rr_source_label = $source_labels[$rr_source_key] ?? ucfirst($rr_source_key); ?>
-                        <?php $rr_details = htmlspecialchars(json_encode([
+                        <?php $rr_details = [
                             'id' => $rr['id'],
                             'report_id' => $rr['report_id'],
                             'title' => $rr['title'],
@@ -2008,6 +2423,7 @@ if ($focus_report_id > 0) {
                             'report_type' => $rr['report_type'],
                             'report_category' => $rr['report_category'],
                             'status' => $rr['status'],
+                            'assignment_status' => $rr['assignment_status'] ?? 'unassigned',
                             'priority' => $rr['priority'],
                             'severity' => $rr['severity'],
                             'created_at' => $rr['created_at'],
@@ -2018,33 +2434,57 @@ if ($focus_report_id > 0) {
                             'reporter_name' => $rr['reporter_name'],
                             'attachments' => $rr['attachments'],
                             'image_path' => $rr['image_path'],
-                        ]), ENT_QUOTES, 'UTF-8'); ?>
-                         <tr class="report-table-row" data-id="<?php echo $rr['id']; ?>" data-title="<?php echo htmlspecialchars(strtolower($rr['title'] ?? '')); ?>" data-report-id="<?php echo htmlspecialchars(strtolower($rr['report_id'] ?? '')); ?>" data-status="<?php echo $rr['status'] ?? 'pending'; ?>" data-source="<?php echo $rr_source_key; ?>" data-details='<?php echo $rr_details; ?>'>
+                            'cimm_sync_status' => $rr['cimm_sync_status'] ?? '',
+                            'cimm_verified_at' => $rr['cimm_verified_at'] ?? '',
+                            'cimm_verified_by' => $rr['cimm_verified_by'] ?? '',
+                            'approval_status' => $rr['approval_status'] ?? '',
+                            'verification_status' => $rr['verification_status'] ?? '',
+                        ];
+                        if ($is_road_supervisor) {
+                            // Report Creator Information — Road Supervisor portal only.
+                            $rr_details['creator_full_name'] = $rr['creator_full_name'] ?? '';
+                            $rr_details['creator_phone'] = $rr['creator_phone'] ?? '';
+                            $rr_details['creator_email'] = $rr['creator_email'] ?? '';
+                        }
+                        $rr_details_json = htmlspecialchars(json_encode($rr_details), ENT_QUOTES, 'UTF-8'); ?>
+                         <tr class="report-table-row" data-id="<?php echo $rr['id']; ?>" data-title="<?php echo htmlspecialchars(strtolower($rr['title'] ?? '')); ?>" data-report-id="<?php echo htmlspecialchars(strtolower($rr['report_id'] ?? '')); ?>" data-status="<?php echo $rr['status'] ?? 'pending'; ?>" data-source="<?php echo $rr_source_key; ?>" data-details='<?php echo $rr_details_json; ?>'>
                             <td style="font-family:monospace;font-size:12px;"><?php echo htmlspecialchars($rr['report_id'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars($rr['title'] ?? 'Untitled'); ?></td>
                             <td><?php echo htmlspecialchars($rr_source_label); ?></td>
-                            <td><span class="badge badge-<?php echo strtolower($rr['status'] ?? 'pending'); ?>"><?php echo ucfirst(str_replace('-',' ',$rr['status'] ?? 'pending')); ?></span></td>
+                            <td><span class="badge badge-<?php echo strtolower(str_replace(' ', '-', $rr['status'] ?? 'pending')); ?>"><?php echo ucfirst(str_replace('-',' ',$rr['status'] ?? 'pending')); ?></span></td>
+                            <td><?php if (($is_road_supervisor || $is_transport_supervisor) && ($rr['assignment_status'] ?? 'unassigned') === 'assigned' && !empty($rr['assignment_officer'])): ?>
+                                <span class="badge assignment-badge assignment-assigned"><?php echo htmlspecialchars($rr['assignment_officer']); ?></span>
+                            <?php else: ?>
+                                <span class="badge assignment-badge assignment-<?php echo ($rr['assignment_status'] ?? 'unassigned') === 'assigned' ? 'assigned' : 'unassigned'; ?>"><?php echo ($rr['assignment_status'] ?? 'unassigned') === 'assigned' ? 'Assigned' : 'Unassigned'; ?></span>
+                            <?php endif; ?></td>
                             <td><span class="badge badge-<?php echo strtolower($rr['priority'] ?? 'low'); ?>"><?php echo ucfirst($rr['priority'] ?? 'low'); ?></span></td>
                             <td><?php echo date('M d, Y H:i', strtotime($rr['created_at'] ?? 'now')); ?></td>
                             <td>
-                                <?php if (($rr['report_category'] ?? '') === 'transportation'): ?>
-                                    <span class="cimm-verify-badge cimm-verify-badge-none">—</span>
-                                <?php elseif (strtolower($rr['status'] ?? '') === 'approved'): ?>
-                                    <span class="cimm-verify-badge cimm-verify-badge-verified" title="Approved by <?php echo htmlspecialchars($rr['cimm_verified_by'] ?? 'CIMM staff'); ?><?php echo !empty($rr['cimm_verified_at']) ? ' on ' . date('M d, Y', strtotime($rr['cimm_verified_at'])) : ''; ?>">
-                                        <i class="fas fa-check-circle"></i> Approved
-                                    </span>
-                                <?php elseif (strtolower($rr['status'] ?? '') === 'in-progress'): ?>
-                                    <span class="cimm-verify-badge cimm-verify-badge-pending" title="In Progress">
-                                        <i class="fas fa-hourglass-half"></i> In Progress
-                                    </span>
+                                <?php if (($rr['source'] ?? '') === 'cimm'): ?>
+                                    <?php if (strtolower($rr['approval_status'] ?? '') === 'approved'): ?>
+                                        <span class="cimm-verify-badge cimm-verify-badge-verified" title="Approved by CIMM">
+                                            <i class="fas fa-check-circle"></i> Approved
+                                        </span>
+                                    <?php else: ?>
+                                        <span class="cimm-verify-badge cimm-verify-badge-none">—</span>
+                                    <?php endif; ?>
                                 <?php else: ?>
-                                    <span class="cimm-verify-badge cimm-verify-badge-none">—</span>
+                                    <?php if (strtolower($rr['cimm_sync_status'] ?? '') === 'verified'): ?>
+                                        <span class="cimm-verify-badge cimm-verify-badge-verified" title="Approved by CIMM">
+                                            <i class="fas fa-check-circle"></i> Approved
+                                        </span>
+                                    <?php else: ?>
+                                        <span class="cimm-verify-badge cimm-verify-badge-none">—</span>
+                                    <?php endif; ?>
                                 <?php endif; ?>
                             </td>
                             <td style="white-space:nowrap;">
                                 <button class="table-action-btn" title="View Details" onclick="viewReportDetails(<?php echo $rr['id']; ?>, '<?php echo $rr['source']; ?>')"><i class="fas fa-eye"></i></button>
                                 <button class="table-action-btn view-map" onclick="focusReportOnMap(<?php echo $rr['id']; ?>)"><i class="fas fa-map-pin"></i> Map</button>
                                 <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(<?php echo $rr['id']; ?>, '<?php echo $rr['report_type']; ?>', '<?php echo $rr['source']; ?>')"><i class="fas fa-clock"></i> Updates</button>
+                                <?php if (strtolower((string)($rr['status'] ?? '')) === 'completed'): ?>
+                                <button class="table-action-btn" title="Archive" style="background:linear-gradient(135deg,#6b7280,#4b5563);color:#fff;margin-left:4px;" onclick="archiveReport(<?php echo $rr['id']; ?>, '<?php echo $rr['source']; ?>')"><i class="fas fa-archive"></i> Archive</button>
+                                <?php endif; ?>
                             </td>
                         </tr>
                         <?php endforeach; ?>
@@ -2062,6 +2502,10 @@ if ($focus_report_id > 0) {
     </div>
 
     <script>
+        // Road Supervisor portal only: appends "(Near <landmark>)" to the
+        // detected report location using the nearest TomTom point of interest.
+        const IS_ROAD_SUPERVISOR = <?php echo $is_road_supervisor ? 'true' : 'false'; ?>;
+
         // Quezon City center
         const QC_CENTER = [14.651417, 121.04917];
         const map = L.map('map').setView(QC_CENTER, 13);
@@ -2217,7 +2661,7 @@ if ($focus_report_id > 0) {
         // ====================================================================
         // REVERSE GEOCODING + FORM AUTOFILL ENGINE
         // ====================================================================
-        function populateGISLocationInfo(lat, lng, districtProps, addressData) {
+        function populateGISLocationInfo(lat, lng, districtProps, addressData, nearbyPoi) {
             const infoPanel = document.getElementById('gis-location-info');
             const detailsEl = document.getElementById('gis-location-details');
             const loadingBadge = document.getElementById('gis-loading-badge');
@@ -2234,6 +2678,9 @@ if ($focus_report_id > 0) {
                 document.getElementById('pin-district').value = '';
                 html += '<span class="gis-field-tag" style="background:rgba(220,53,69,0.1);color:#721c24;"><span class="gis-tag-label">District:</span> Not detected</span>';
             }
+
+            // Nearest landmark (Road Supervisor portal only), e.g. "Near Lenie Sari-Sari Store"
+            const poiName = nearbyPoi && (nearbyPoi.poi || {}).name ? nearbyPoi.poi.name : '';
 
             // Barangay from reverse geocoding
             let barangay = '';
@@ -2257,6 +2704,9 @@ if ($focus_report_id > 0) {
             document.getElementById('pin-barangay').value = barangay;
             document.getElementById('pin-street').value = street;
             var addressParts = [fullAddress, barangay, municipality, 'Quezon City'].filter(Boolean);
+            if (poiName) {
+                addressParts.push('(Near ' + poiName + ')');
+            }
             document.getElementById('pin-address').value = addressParts.join(', ');
 
             if (barangay) {
@@ -2268,9 +2718,12 @@ if ($focus_report_id > 0) {
             if (municipality) {
                 html += '<span class="gis-field-tag"><span class="gis-tag-label">Municipality:</span> ' + municipality + '</span>';
             }
+            if (poiName) {
+                html += '<span class="gis-field-tag" style="background:rgba(55,98,200,0.08);"><span class="gis-tag-label">Near:</span> ' + poiName + '</span>';
+            }
             if (!fullAddress && !barangay && !street) {
                 html += '<span style="font-size:11px;color:#999;">Address details unavailable for this pin location.</span>';
-                document.getElementById('pin-address').value = lat.toFixed(5) + ', ' + lng.toFixed(5) + ', Quezon City';
+                document.getElementById('pin-address').value = lat.toFixed(5) + ', ' + lng.toFixed(5) + ', Quezon City' + (poiName ? ', (Near ' + poiName + ')' : '');
             }
 
             detailsEl.innerHTML = html;
@@ -2301,14 +2754,24 @@ if ($focus_report_id > 0) {
             // Step 1: District detection (instant, local data)
             const districtProps = detectDistrict(lat, lng);
 
+            // Async lookups: reverse geocode + nearest landmark (Road Supervisor
+            // portal only). Each resolves independently and re-renders the panel,
+            // so the final render includes whatever data has arrived.
+            let geocodeData = null;
+            let nearbyPoi = null;
+
+            function finalizeGISLocationInfo() {
+                populateGISLocationInfo(lat, lng, districtProps, geocodeData, nearbyPoi);
+            }
+
             // Step 2: Reverse geocode via TomTom (async)
             TomTomServices.reverseGeocodeOrbis(lat, lng).then(data => {
-                const result = data.data?.results?.[0];
-                populateGISLocationInfo(lat, lng, districtProps, result || null);
+                geocodeData = data.data?.results?.[0] || null;
+                finalizeGISLocationInfo();
 
                 // Also update the marker popup with formatted address
-                if (pinMarker && result) {
-                    const addr = result.address || {};
+                if (pinMarker && geocodeData) {
+                    const addr = geocodeData.address || {};
                     const parts = [
                         addr.street && addr.houseNumber ? addr.houseNumber + ' ' + addr.street : addr.street || '',
                         addr.municipality || '',
@@ -2321,8 +2784,24 @@ if ($focus_report_id > 0) {
                 }
             }).catch(() => {
                 // Geocode failed, still show district if detected
-                populateGISLocationInfo(lat, lng, districtProps, null);
+                geocodeData = null;
+                finalizeGISLocationInfo();
             });
+
+            // Step 3 (Road Supervisor portal only): nearest landmark/POI so the
+            // report location reads like "…Quezon City, (Near <landmark>)".
+            if (IS_ROAD_SUPERVISOR) {
+                TomTomServices.nearbySearch(lat, lng, { limit: 10, radius: 500 }).then(data => {
+                    const results = data.data?.results || [];
+                    nearbyPoi = results.find(function(r) {
+                        return r.type === 'POI' && r.poi && r.poi.name;
+                    }) || null;
+                    finalizeGISLocationInfo();
+                }).catch(() => {
+                    nearbyPoi = null;
+                    finalizeGISLocationInfo();
+                });
+            }
         }
 
         // Restrict map panning with a padded bounding box of QC
@@ -2539,6 +3018,32 @@ if ($focus_report_id > 0) {
             window.location.href = url.toString();
         }
 
+        // View Details Modal helpers (mirrors report_management rm modal)
+        function rmBadge(text, bg, color) {
+            return '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:' + bg + ';color:' + color + ';">' + text + '</span>';
+        }
+
+        function rmInfoItem(icon, label, value) {
+            var displayVal = (value && value !== '—' && value !== null) ? value : '—';
+            return '<div class="rm-info-item"><div class="rm-info-icon"><i class="fas fa-' + icon + '"></i></div><div><div class="rm-info-label">' + label + '</div><div class="rm-info-value">' + displayVal + '</div></div></div>';
+        }
+
+        function openViewDetailsModal() {
+            var modal = document.getElementById('viewDetailsModal');
+            if (modal) {
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        function closeViewDetailsModal() {
+            var modal = document.getElementById('viewDetailsModal');
+            if (modal) {
+                modal.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        }
+
         // View Report Details Modal
         function viewReportDetails(id, source) {
             const row = document.querySelector(`#recentReportsTable .report-table-row[data-id="${id}"]`);
@@ -2551,53 +3056,141 @@ if ($focus_report_id > 0) {
                 showNotification('Could not parse report details.', 'error');
                 return;
             }
-            const modal = document.getElementById('viewDetailsModal');
-            const body = modal.querySelector('.modal-body');
-            let html = '<div class="details-grid">';
+            const r = data;
 
-            function field(label, value, cls) {
-                const v = (value && value !== 'null' && value !== '') ? value : '—';
-                return '<div class="detail-field ' + (cls || '') + '"><span class="detail-label">' + label + '</span><span class="detail-value">' + escapeHtml(v) + '</span></div>';
+            var statusStyles = {
+                'pending':    {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
+                'approved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
+                'completed':  {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
+                'resolved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
+                'cancelled':  {bg:'rgba(220,53,69,0.15)',  color:'#ef4444'},
+                'rejected':   {bg:'rgba(220,53,69,0.15)',  color:'#ef4444'},
+                'in-progress':{bg:'rgba(59,130,246,0.15)', color:'#3b82f6'},
+                'verified':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'}
+            };
+            var pStyles = {
+                'high':   {bg:'rgba(220,53,69,0.15)', color:'#ef4444'},
+                'critical':{bg:'rgba(220,53,69,0.15)', color:'#dc2626'},
+                'medium': {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
+                'low':    {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'}
+            };
+
+            // Header
+            document.getElementById('rm-report-id').textContent = 'Report #' + (r.report_id || '—');
+            document.getElementById('rm-title').textContent = r.title || '—';
+
+            var st = (r.status || 'pending').toLowerCase();
+            var ss = statusStyles[st] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
+            var pp = (r.priority || 'medium').toLowerCase();
+            var ps = pStyles[pp] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
+
+            var badgesHtml = rmBadge(r.status || '—', ss.bg, ss.color);
+            badgesHtml += rmBadge(r.priority || '—', ps.bg, ps.color);
+            var reportType = r.report_type || '—';
+            if (reportType !== '—') {
+                badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(55,98,200,0.12);color:#3762c8;">' + reportType + '</span>';
             }
-            html += field('Report ID', data.report_id);
-            html += field('Title', data.title, 'full-width');
-            html += field('Source', data.source);
-            html += field('Type', data.report_type);
-            html += field('Status', data.status);
-            html += field('Priority', data.priority);
-            html += field('Severity', data.severity);
-            html += field('Date', data.created_at ? new Date(data.created_at).toLocaleString() : '—');
-            html += field('Location Address', data.location, 'full-width');
-            html += field('Coordinates', (data.latitude && data.longitude) ? data.latitude + ', ' + data.longitude : '—');
-            html += field('Reporter', data.reporter_name, 'full-width');
-            html += field('Description', data.description, 'full-width');
+            document.getElementById('rm-badges').innerHTML = badgesHtml;
 
-            // Photos
-            let photoHtml = '';
-            if (data.image_path) {
-                const paths = Array.isArray(data.image_path) ? data.image_path : [data.image_path];
+            // Report Information
+            var reportGrid = '';
+            reportGrid += rmInfoItem('folder', 'Report Type', r.report_type);
+            reportGrid += rmInfoItem('tag', 'Category', r.report_category);
+            reportGrid += rmInfoItem('exclamation-circle', 'Severity', r.severity);
+            reportGrid += rmInfoItem('calendar-alt', 'Created Date', formatDate(r.created_at));
+            if (r.assignment_status) {
+                reportGrid += rmInfoItem('user-check', 'Assignment', (r.assignment_status === 'assigned') ? 'Assigned' : 'Unassigned');
+            }
+            document.getElementById('rm-report-grid').innerHTML = reportGrid;
+
+            // Source & Assignment
+            var sourceGrid = '';
+            sourceGrid += rmInfoItem('server', 'Source', r.source);
+            if (r.reporter_name) {
+                sourceGrid += rmInfoItem('user', 'Reported By', r.reporter_name);
+            }
+            if (r.approval_status) {
+                sourceGrid += rmInfoItem('clipboard-check', 'Approval Status', r.approval_status);
+            }
+            if (r.verification_status) {
+                sourceGrid += rmInfoItem('shield-alt', 'Verification', r.verification_status);
+            }
+            document.getElementById('rm-source-grid').innerHTML = sourceGrid;
+
+            // Report Creator Information — Road Supervisor portal only.
+            var creatorSection = document.getElementById('rm-creator-section');
+            if (creatorSection) {
+                if (IS_ROAD_SUPERVISOR && r.creator_full_name) {
+                    var creatorGrid = '';
+                    creatorGrid += rmInfoItem('user', 'Full Name', r.creator_full_name);
+                    creatorGrid += rmInfoItem('phone', 'Contact Number', r.creator_phone);
+                    creatorGrid += rmInfoItem('envelope', 'Email', r.creator_email);
+                    document.getElementById('rm-creator-grid').innerHTML = creatorGrid;
+                    creatorSection.style.display = '';
+                } else {
+                    creatorSection.style.display = 'none';
+                }
+            }
+
+            // Location
+            var locationGrid = '';
+            var locVal = r.location || '—';
+            if (r.latitude && r.longitude && r.latitude != 0 && r.longitude != 0) {
+                locVal += '<br><a href="https://www.openstreetmap.org/?mlat=' + r.latitude + '&mlon=' + r.longitude + '&zoom=15" target="_blank" style="color:#3762c8;font-size:12px;text-decoration:none;"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map</a>';
+            }
+            locationGrid += '<div class="rm-info-item rm-info-value-full"><div class="rm-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="rm-info-label">Location</div><div class="rm-info-value">' + locVal + '</div></div></div>';
+            document.getElementById('rm-location-grid').innerHTML = locationGrid;
+
+            // Description
+            document.getElementById('rm-description').textContent = r.description || 'No description provided.';
+
+            // Attachments
+            var images = [];
+            var seenPaths = new Set();
+            if (r.image_path) {
+                const paths = Array.isArray(r.image_path) ? r.image_path : [r.image_path];
                 paths.forEach(function(p) {
-                    if (p) photoHtml += '<img src="../../' + p + '" class="detail-photo" onclick="openLightbox(\'../../' + p.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') + '\')">';
+                    if (p && !seenPaths.has(p)) {
+                        images.push('../../' + p);
+                        seenPaths.add(p);
+                    }
                 });
             }
-            if (data.attachments) {
+            if (r.attachments) {
                 try {
-                    const atts = typeof data.attachments === 'string' ? JSON.parse(data.attachments) : data.attachments;
+                    const atts = typeof r.attachments === 'string' ? JSON.parse(r.attachments) : r.attachments;
                     if (Array.isArray(atts)) {
                         atts.forEach(function(a) {
                             const path = a.file_path || a.path || a.url || (typeof a === 'string' ? a : '');
-                            if (path) photoHtml += '<img src="../../' + path + '" class="detail-photo" onclick="openLightbox(\'../../' + path.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') + '\')">';
+                            if (path && !seenPaths.has(path)) {
+                                images.push('../../' + path);
+                                seenPaths.add(path);
+                            }
                         });
                     }
                 } catch(e) {}
             }
-            if (photoHtml) {
-                html += '<div class="detail-field full-width"><span class="detail-label">Photos</span><div class="detail-photos">' + photoHtml + '</div></div>';
+            var attachHtml = '';
+            if (images.length > 0) {
+                attachHtml = '<div style="display:flex;gap:12px;flex-wrap:wrap;">';
+                images.forEach(function(path) {
+                    attachHtml += '<div style="border-radius:8px;overflow:hidden;max-width:200px;"><img src="' + path + '" alt="Report Photo" style="width:100%;height:auto;cursor:pointer;" onclick="openLightbox(this.src)" loading="lazy" onerror="this.style.display=\'none\'"></div>';
+                });
+                attachHtml += '</div>';
+            } else {
+                attachHtml = '<div style="padding:8px 0;color:#9ca3af;font-size:14px;">No attachments.</div>';
             }
-            html += '</div>';
-            body.innerHTML = html;
-            modal.style.display = 'block';
-            document.body.style.overflow = 'hidden';
+            document.getElementById('rm-attachments').innerHTML = attachHtml;
+
+            // Timeline
+            var timelineGrid = '';
+            timelineGrid += rmInfoItem('calendar-check', 'Created', formatDate(r.created_at));
+            if (r.cimm_verified_at) {
+                timelineGrid += rmInfoItem('check-circle', 'CIMM Verified', formatDate(r.cimm_verified_at));
+            }
+            document.getElementById('rm-timeline-grid').innerHTML = timelineGrid;
+
+            openViewDetailsModal();
         }
 
         function openLightbox(src) {
@@ -2885,6 +3478,48 @@ if ($focus_report_id > 0) {
             }
             // Check if user can add updates and show/hide the Add Update button accordingly
             checkUpdatePermission();
+            // Check if the Request Completion / Request Cancellation buttons may
+            // be shown (officers only get them for reports assigned to them).
+            checkRequestPermission();
+        }
+
+        function checkRequestPermission() {
+            var completeBtn = document.getElementById('completeBtn');
+            var cancelBtn = document.getElementById('cancelBtn');
+            if (!completeBtn) return;
+            var role = '';
+            var tag = document.getElementById('sessionTimeoutData');
+            if (tag) role = tag.getAttribute('data-role') || '';
+            var isOfficer = (role === 'road_monitoring_officer' || role === 'trans_monitoring_officer');
+
+            // Non-officers use the direct Complete/Cancel path (no restriction).
+            if (!isOfficer) {
+                completeBtn.style.display = 'inline-flex';
+                if (cancelBtn) cancelBtn.style.display = 'inline-flex';
+                return;
+            }
+            if (!currentUpdatesReportId) {
+                completeBtn.style.display = 'none';
+                if (cancelBtn) cancelBtn.style.display = 'none';
+                return;
+            }
+
+            // Server-authoritative check (role + assignment): Road/Transportation
+            // Monitoring Officers can only request completion/cancellation for
+            // reports assigned to them. The same rule is enforced server-side in
+            // progress_update_api.php. Officers are fail-closed: the buttons stay
+            // hidden until the server confirms an active assignment for this report.
+            completeBtn.style.display = 'none';
+            if (cancelBtn) cancelBtn.style.display = 'none';
+            fetch('../api/progress_update_api.php?action=can_request_review&report_id=' + currentUpdatesReportId + '&source=' + encodeURIComponent(currentUpdatesReportSource || ''))
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data && data.success && data.can_request) {
+                        completeBtn.style.display = 'inline-flex';
+                        if (cancelBtn) cancelBtn.style.display = 'inline-flex';
+                    }
+                })
+                .catch(function() {});
         }
 
         function checkUpdatePermission() {
@@ -2910,7 +3545,7 @@ if ($focus_report_id > 0) {
                 btn.style.display = 'inline-flex';
             }
 
-            fetch('../api/progress_update_api.php?action=can_post_update&report_id=' + currentUpdatesReportId)
+            fetch('../api/progress_update_api.php?action=can_post_update&report_id=' + currentUpdatesReportId + '&source=' + encodeURIComponent(currentUpdatesReportSource || ''))
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data && data.success && data.can_post) {
@@ -2927,6 +3562,7 @@ if ($focus_report_id > 0) {
             document.getElementById('addUpdateId').value = '';
             document.getElementById('addUpdateReportId').value = currentUpdatesReportId;
             document.getElementById('addUpdateReportType').value = currentUpdatesReportType;
+            document.getElementById('addUpdateSource').value = currentUpdatesReportSource || '';
             document.getElementById('addUpdateTitle').value = '';
             document.getElementById('addUpdateDescription').value = '';
             document.getElementById('updateFilePreviews').innerHTML = '';
@@ -2955,6 +3591,7 @@ if ($focus_report_id > 0) {
             document.getElementById('addUpdateId').value = isEdit ? updateData.id : '';
             document.getElementById('addUpdateReportId').value = reportId;
             document.getElementById('addUpdateReportType').value = reportType;
+            document.getElementById('addUpdateSource').value = currentUpdatesReportSource || '';
             document.getElementById('addUpdateTitle').value = isEdit ? (updateData.title || '') : '';
             document.getElementById('addUpdateDescription').value = isEdit ? (updateData.description || '') : '';
             document.getElementById('updateFilePreviews').innerHTML = '';
@@ -3103,8 +3740,60 @@ if ($focus_report_id > 0) {
 
         let isCompleting = false; // Flag to prevent multiple clicks
 
+        function isOfficerRole() {
+            var tag = document.getElementById('sessionTimeoutData');
+            if (!tag) return false;
+            var role = tag.getAttribute('data-role') || '';
+            return (role === 'road_monitoring_officer' || role === 'trans_monitoring_officer');
+        }
+
+        // After completing/cancelling a report, reload the page in place.
+        function afterStatusActionRedirect() {
+            location.reload();
+        }
+
+        // Archive button on the Recent Submissions panel. Only shown for
+        // reports whose status is COMPLETED — Pending, Approved, In Progress,
+        // Cancelled, Rejected, and every other status hide it. Moves the
+        // report into the archive keeping its current status, so it leaves
+        // Recent Submissions immediately instead of waiting out the 7-day
+        // auto-archive window.
+        function archiveReport(id, source) {
+            if (!id) return;
+            if (!confirm('Archive this report? It will be moved out of Recent Submissions into the Archive, keeping its current status.')) return;
+
+            var fd = new FormData();
+            fd.append('action', 'archive_report');
+            fd.append('report_id', id);
+            fd.append('source', source || '');
+
+            fetch('../api/progress_update_api.php', {
+                method: 'POST',
+                body: fd
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    setTimeout(function() { location.reload(); }, 700);
+                } else {
+                    showNotification(data.message || 'Failed to archive the report', 'error');
+                }
+            })
+            .catch(function() {
+                showNotification('Network error', 'error');
+            });
+        }
+
         function completeReport() {
             if (!currentUpdatesReportId) return;
+            // Road/Transportation Monitoring Officers cannot directly complete a
+            // project. Instead they submit a completion request that is routed to
+            // the appropriate supervisor for review; the status is left unchanged.
+            if (isOfficerRole()) {
+                submitReviewRequest('completion');
+                return;
+            }
             if (isCompleting) return; // Prevent multiple clicks
             isCompleting = true;
             
@@ -3133,6 +3822,11 @@ if ($focus_report_id > 0) {
             updateFormData.append('action', 'create_update');
             updateFormData.append('report_id', currentUpdatesReportId);
             updateFormData.append('report_type', currentUpdatesReportType);
+            // Send the row's source so the backend resolves CIMM reports
+            // (cimm_verification_reports) instead of only road_transportation_reports.
+            // Without this the create_update step returns "Report not found" for
+            // CIMM reports and surfaces an error in the upper-right notification.
+            updateFormData.append('source', currentUpdatesReportSource);
             updateFormData.append('title', 'Completed');
             updateFormData.append('description', 'completed on ' + today);
 
@@ -3157,12 +3851,15 @@ if ($focus_report_id > 0) {
         }
 
         function updateStatusOnly() {
-            var newStatus = (currentUpdatesReportSource === 'cimm') ? 'Completed' : 'completed';
+            // complete_status marks the report completed AND stamps a 7-day
+            // auto-archive deadline (auto_archive_at) instead of moving it to
+            // the archive immediately. It stays on the monitoring page so the
+            // officer can still view it; the background sweep
+            // (auto_archive_completed / rgmap_auto_archive_completed) moves it
+            // to the archive once the deadline (completed_at + 7 days) passes.
             var statusFormData = new FormData();
-            statusFormData.append('action', 'update_status');
+            statusFormData.append('action', 'complete_status');
             statusFormData.append('report_id', currentUpdatesReportId);
-            statusFormData.append('report_type', currentUpdatesReportType);
-            statusFormData.append('status', newStatus);
             statusFormData.append('source', currentUpdatesReportSource);
 
             fetch('../api/progress_update_api.php', {
@@ -3172,26 +3869,9 @@ if ($focus_report_id > 0) {
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.success) {
-                    showNotification('Report completed successfully', 'success');
-                    // Hide action buttons, show export button
-                    document.getElementById('actionButtons').style.display = 'none';
-                    document.getElementById('exportButtons').style.display = 'flex';
-                    // Reload updates timeline
-                    if (typeof loadUpdates === 'function') {
-                        loadUpdates(currentUpdatesReportId, currentUpdatesReportType);
-                    }
-                    // ADD: file a completed copy of the report into the archive.
-                    // This is purely additive — the live report is not moved or
-                    // deleted, it stays completed exactly where it is.
-                    var archiveFormData = new FormData();
-                    archiveFormData.append('action', 'complete_archive');
-                    archiveFormData.append('report_id', currentUpdatesReportId);
-                    archiveFormData.append('report_type', currentUpdatesReportType);
-                    archiveFormData.append('source', currentUpdatesReportSource);
-                    fetch('../api/progress_update_api.php', {
-                        method: 'POST',
-                        body: archiveFormData
-                    }).catch(function(e) { console.error('Archive copy failed', e); });
+                    showNotification(data.message || 'Report completed successfully', 'success');
+                    closeModal('updatesModal');
+                    afterStatusActionRedirect();
                 } else {
                     showNotification(data.message || 'Failed to update status', 'error');
                 }
@@ -3206,6 +3886,13 @@ if ($focus_report_id > 0) {
 
         function cancelReport() {
             if (!currentUpdatesReportId) return;
+            // Road/Transportation Monitoring Officers cannot directly cancel a
+            // project. Instead they submit a cancellation request that is routed
+            // to the appropriate supervisor for review; the status is left unchanged.
+            if (isOfficerRole()) {
+                submitReviewRequest('cancellation');
+                return;
+            }
             
             var newStatus = (currentUpdatesReportSource === 'cimm') ? 'Cancelled' : 'cancelled';
             var formData = new FormData();
@@ -3224,7 +3911,7 @@ if ($focus_report_id > 0) {
                 if (data.success) {
                     showNotification(data.message, 'success');
                     closeModal('updatesModal');
-                    location.reload();
+                    afterStatusActionRedirect();
                 } else {
                     showNotification(data.message || 'Failed to update status', 'error');
                 }
@@ -3232,6 +3919,53 @@ if ($focus_report_id > 0) {
             .catch(function(e) {
                 showNotification('Network error', 'error');
                 console.error(e);
+            });
+        }
+
+        // Submit a completion/cancellation request (officers only). The backend
+        // validates role + project category, notifies the matching supervisor,
+        // and leaves the report status and archive untouched.
+        function submitReviewRequest(requestType) {
+            if (!currentUpdatesReportId) return;
+            var btn = (requestType === 'completion') ? document.getElementById('completeBtn') : document.getElementById('cancelBtn');
+            if (btn) btn.disabled = true;
+            var orig = btn ? btn.innerHTML : '';
+            if (btn) btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+
+            var fd = new FormData();
+            fd.append('action', 'submit_review_request');
+            fd.append('report_id', currentUpdatesReportId);
+            fd.append('report_type', currentUpdatesReportType);
+            fd.append('request_type', requestType);
+            fd.append('source', currentUpdatesReportSource);
+
+            fetch('../api/progress_update_api.php', {
+                method: 'POST',
+                body: fd
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    if (btn) {
+                        btn.disabled = true;
+                        btn.innerHTML = (requestType === 'completion') ? 'Request Submitted' : 'Request Submitted';
+                    }
+                } else {
+                    showNotification(data.message || 'Failed to submit request', 'error');
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = orig;
+                    }
+                }
+            })
+            .catch(function(e) {
+                showNotification('Network error', 'error');
+                console.error(e);
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = orig;
+                }
             });
         }
 
@@ -3925,6 +4659,12 @@ if ($focus_report_id > 0) {
     let isLoadingMore = false;
     let hasMoreReports = true;
 
+    let currentUserRole = '';
+    const sessionRoleTag = document.getElementById('sessionTimeoutData');
+    if (sessionRoleTag) currentUserRole = sessionRoleTag.getAttribute('data-role') || '';
+    const isRoadSupervisor = (currentUserRole === 'road_ops_supervisor');
+    const isTransportSupervisor = (currentUserRole === 'trans_ops_supervisor' || currentUserRole === 'trans_monitoring_officer');
+
     function loadMoreReports() {
         if (isLoadingMore || !hasMoreReports) return;
         
@@ -4006,26 +4746,34 @@ if ($focus_report_id > 0) {
             <td style="font-family:monospace;font-size:12px;">${escapeHtml(report.report_id)}</td>
             <td>${escapeHtml(report.title)}</td>
             <td>${escapeHtml(report.source_label)}</td>
-            <td><span class="badge badge-${report.status.toLowerCase()}">${escapeHtml(ucfirst(report.status.replace('-', ' ')))}</span></td>
+            <td><span class="badge badge-${report.status.toLowerCase().replace(' ', '-')}">${escapeHtml(ucfirst(report.status.replace('-', ' ')))}</span></td>
+            <td>${report.assignment_status === 'assigned'
+                ? ((isRoadSupervisor || isTransportSupervisor) && report.assignment_officer
+                    ? `<span class="badge assignment-badge assignment-assigned">${escapeHtml(report.assignment_officer)}</span>`
+                    : `<span class="badge assignment-badge assignment-assigned">Assigned</span>`)
+                : `<span class="badge assignment-badge assignment-unassigned">Unassigned</span>`}</td>
             <td><span class="badge badge-${report.priority.toLowerCase()}">${escapeHtml(ucfirst(report.priority))}</span></td>
             <td>${formatDate(report.created_at)}</td>
             <td>
-                ${report.status.toLowerCase() === 'approved' ?
-                    `<span class="cimm-verify-badge cimm-verify-badge-verified" title="Approved by ${escapeHtml(report.cimm_verified_by || 'CIMM staff')}${report.cimm_verified_at ? ' on ' + formatDate(report.cimm_verified_at) : ''}">
-                        <i class="fas fa-check-circle"></i> Approved
-                    </span>` :
-                    (report.status.toLowerCase() === 'in-progress' ?
-                        `<span class="cimm-verify-badge cimm-verify-badge-pending" title="In Progress">
-                            <i class="fas fa-hourglass-half"></i> In Progress
+                ${report.source === 'cimm' ? 
+                    (report.approval_status && report.approval_status.toLowerCase() === 'approved' ?
+                        `<span class="cimm-verify-badge cimm-verify-badge-verified" title="Approved by CIMM">
+                            <i class="fas fa-check-circle"></i> Approved
                         </span>` :
-                        `<span class="cimm-verify-badge cimm-verify-badge-none">—</span>`
-                    )
+                        `<span class="cimm-verify-badge cimm-verify-badge-none">—</span>`) :
+                    (report.cimm_sync_status && report.cimm_sync_status.toLowerCase() === 'verified' ?
+                        `<span class="cimm-verify-badge cimm-verify-badge-verified" title="Approved by CIMM">
+                            <i class="fas fa-check-circle"></i> Approved
+                        </span>` :
+                        `<span class="cimm-verify-badge cimm-verify-badge-none">—</span>`)
                 }
             </td>
             <td style="white-space:nowrap;">
                 <button class="table-action-btn" title="View Details" onclick="viewReportDetails(${report.id}, '${report.source}')"><i class="fas fa-eye"></i></button>
                 <button class="table-action-btn view-map" onclick="focusReportOnMap(${report.id})"><i class="fas fa-map-pin"></i> Map</button>
                 <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(${report.id}, '${report.report_type}', '${report.source}')"><i class="fas fa-clock"></i> Updates</button>
+                ${(report.status || '').toLowerCase() === 'completed' ?
+                    `<button class="table-action-btn" title="Archive" style="background:linear-gradient(135deg,#6b7280,#4b5563);color:#fff;margin-left:4px;" onclick="archiveReport(${report.id}, '${report.source}')"><i class="fas fa-archive"></i> Archive</button>` : ''}
             </td>
         `;
         
@@ -4033,7 +4781,9 @@ if ($focus_report_id > 0) {
     }
 
     function formatDate(dateStr) {
+        if (!dateStr) return '—';
         const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return dateStr;
         return date.toLocaleDateString('en-US', { 
             month: 'short', 
             day: 'numeric', 
@@ -4104,16 +4854,60 @@ if ($focus_report_id > 0) {
 
     </script>
     
-    <!-- View Details Modal -->
-    <div id="viewDetailsModal" class="modal">
-        <div class="modal-content" style="max-width: 700px;">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-info-circle"></i> Report Details</h5>
-                <button class="close" onclick="closeModal('viewDetailsModal')">&times;</button>
+    <!-- View Details Modal (table-action-btn viewport) -->
+    <div id="viewDetailsModal" class="rm-modal-overlay" onclick="if(event.target===this)closeViewDetailsModal()">
+        <div class="rm-modal-content">
+            <div class="rm-modal-header">
+                <div class="rm-modal-header-top">
+                    <div class="rm-modal-title-area">
+                        <div class="rm-modal-report-id" id="rm-report-id">—</div>
+                        <h3 class="rm-modal-title" id="rm-title">—</h3>
+                        <div class="rm-modal-badges" id="rm-badges"></div>
+                    </div>
+                    <button class="rm-modal-close" onclick="closeViewDetailsModal()">&times;</button>
+                </div>
             </div>
-            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;"></div>
-            <div class="modal-footer" style="justify-content:flex-end;">
-                <button type="button" class="btn-secondary-custom" onclick="closeModal('viewDetailsModal')">Close</button>
+            <div class="rm-modal-body">
+                <!-- Report Information -->
+                <div class="rm-modal-section">
+                    <div class="rm-modal-section-title"><i class="fas fa-info-circle"></i> Report Information</div>
+                    <div class="rm-info-grid" id="rm-report-grid"></div>
+                </div>
+                <!-- Source & Assignment -->
+                <div class="rm-modal-section">
+                    <div class="rm-modal-section-title"><i class="fas fa-building"></i> Source &amp; Assignment</div>
+                    <div class="rm-info-grid" id="rm-source-grid"></div>
+                </div>
+                <!-- Report Creator (Road Supervisor portal only) -->
+                <div class="rm-modal-section" id="rm-creator-section" style="display:none;">
+                    <div class="rm-modal-section-title"><i class="fas fa-user-circle"></i> Report Creator Information</div>
+                    <div class="rm-info-grid" id="rm-creator-grid"></div>
+                </div>
+                <!-- Location -->
+                <div class="rm-modal-section">
+                    <div class="rm-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location</div>
+                    <div class="rm-info-grid" id="rm-location-grid"></div>
+                </div>
+                <!-- Description -->
+                <div class="rm-modal-section">
+                    <div class="rm-modal-section-title"><i class="fas fa-align-left"></i> Description</div>
+                    <div class="rm-description-text" id="rm-description">—</div>
+                </div>
+                <!-- Attachments -->
+                <div class="rm-modal-section">
+                    <div class="rm-modal-section-title"><i class="fas fa-paperclip"></i> Attachments</div>
+                    <div id="rm-attachments"></div>
+                </div>
+                <!-- Timeline -->
+                <div class="rm-modal-section">
+                    <div class="rm-modal-section-title"><i class="fas fa-clock"></i> Timeline &amp; Updates</div>
+                    <div class="rm-info-grid" id="rm-timeline-grid"></div>
+                </div>
+            </div>
+            <div class="rm-modal-footer">
+                <button type="button" class="rm-modal-btn-close" onclick="closeViewDetailsModal()">
+                    <i class="fas fa-times"></i> Close
+                </button>
             </div>
         </div>
     </div>
@@ -4134,8 +4928,16 @@ if ($focus_report_id > 0) {
                 <span id="updateReportInfo" class="t-text-secondary" style="font-size: 13px;"></span>
                 <div id="actionButtons" style="display: flex; justify-content: space-between;">
                     <div style="display: flex; gap: 8px;">
+                        <?php if ($is_officer_role): ?>
+                        <button type="button" class="btn-success-custom" id="completeBtn">Request Completion</button>
+                        <button type="button" class="btn-danger-custom" id="cancelBtn">Request Cancellation</button>
+                        <?php elseif ($is_road_supervisor): ?>
+                        <button type="button" class="btn-success-custom" id="completeBtn">Complete</button>
+                        <button type="button" class="btn-action" id="exportWordBtn" onclick="exportUpdatesToExcel()"><i class="fas fa-file-word"></i> Export as Word</button>
+                        <?php else: ?>
                         <button type="button" class="btn-success-custom" id="completeBtn">Complete</button>
                         <button type="button" class="btn-danger-custom" id="cancelBtn">Cancel</button>
+                        <?php endif; ?>
                     </div>
                     <div style="display: flex; gap: 8px;">
                         <button type="button" class="btn-action" id="addUpdateBtn" onclick="showAddUpdateModal()">+ Add Update</button>
@@ -4165,6 +4967,7 @@ if ($focus_report_id > 0) {
                     <input type="hidden" name="update_id" id="addUpdateId" value="">
                     <input type="hidden" name="report_id" id="addUpdateReportId" value="">
                     <input type="hidden" name="report_type" id="addUpdateReportType" value="">
+                    <input type="hidden" name="source" id="addUpdateSource" value="">
                     <div class="form-group">
                         <label class="form-label">Title *</label>
                         <input type="text" name="title" id="addUpdateTitle" class="form-control" placeholder="e.g., Inspection completed" required>
