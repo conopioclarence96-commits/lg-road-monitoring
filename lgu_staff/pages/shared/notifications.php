@@ -31,6 +31,27 @@ if (!isset($_SESSION['user_id']) || !is_admin_or_staff_role($user_role)) {
     exit();
 }
 
+$user_email = $_SESSION['email'] ?? '';
+
+// Transportation roles only ever receive notifications for transportation
+// reports (report_category = 'transportation', not infrastructure/maintenance).
+// Every report-reference existence check below is narrowed to transportation
+// rows for these roles so CIMM, road or maintenance notifications never leak
+// into their feed.
+$is_trans_supervisor = ($user_role === 'trans_ops_supervisor');
+$is_trans_officer = ($user_role === 'trans_monitoring_officer');
+$is_trans_role = $is_trans_supervisor || $is_trans_officer;
+$trans_exists = "SELECT 1 FROM road_transportation_reports
+                 WHERE id = rn.report_id
+                   AND report_category = 'transportation'
+                   AND report_type != 'infrastructure_issue'";
+$all_tables_exists = "SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
+                      UNION ALL
+                      SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
+                      UNION ALL
+                      SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id";
+$ro_exists = $is_trans_officer ? $trans_exists : $all_tables_exists;
+
 // Handle mark as read
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
@@ -39,6 +60,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'mark_read') {
         $type = $_POST['type'] ?? '';
         $id = $_POST['id'] ?? 0;
+
+        // Safety check: if a notification references a report that no longer
+        // exists in any live table, delete the notification instead of showing
+        // an error or marking it read.
+        if ($type === 'report' || $type === 'report_outcome' || $type === 'project_assignment') {
+            $check_stmt = $conn->prepare("
+                SELECT rn.id FROM report_notifications rn
+                WHERE rn.id = ?
+                  AND NOT EXISTS (
+                      SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
+                      UNION ALL
+                      SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
+                      UNION ALL
+                      SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id
+                      LIMIT 1
+                  )
+                LIMIT 1
+            ");
+            $check_stmt->bind_param("i", $id);
+            $check_stmt->execute();
+            $orphan = $check_stmt->get_result()->fetch_assoc();
+            $check_stmt->close();
+            if ($orphan) {
+                $del_stmt = $conn->prepare("DELETE FROM report_notifications WHERE id = ?");
+                $del_stmt->bind_param("i", $id);
+                $del_stmt->execute();
+                $del_stmt->close();
+                echo json_encode(['success' => true, 'deleted' => true]);
+                exit;
+            }
+        }
 
         if ($type === 'report') {
             $stmt = $conn->prepare("UPDATE road_transportation_reports SET updated_at = NOW() WHERE id = ? AND status = 'pending'");
@@ -54,12 +106,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->close();
         }
 
+        if ($type === 'report_outcome') {
+            $stmt = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE id = ? AND type IN ('approve_request','reject_request','complete_report','cancel_report')");
+            $stmt->bind_param("i", $id);
+            $stmt->execute();
+            $stmt->close();
+        }
+
+        if ($type === 'review') {
+            $stmt = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE id = ? AND recipient_role = ? AND type IN ('completion','cancellation')");
+            $stmt->bind_param("is", $id, $user_role);
+            $stmt->execute();
+            $stmt->close();
+        }
+
         echo json_encode(['success' => true]);
         exit;
     }
 
     if ($action === 'mark_all_read') {
         $conn->query("UPDATE road_transportation_reports SET updated_at = NOW() WHERE status = 'pending'");
+        if ($user_email !== '') {
+            $stmt = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE recipient_email = ? AND type IN ('approve_request','reject_request','complete_report','cancel_report')");
+            $stmt->bind_param("s", $user_email);
+            $stmt->execute();
+            $stmt->close();
+        }
+        if (in_array($user_role, ['road_ops_supervisor', 'trans_ops_supervisor'], true)) {
+            // Supervisors: also mark role-targeted review requests
+            // (completion/cancellation routed to their role) as read so the
+            // badge fully resets instead of counting them again on reload.
+            $stmt = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE recipient_role = ? AND type IN ('completion','cancellation')");
+            $stmt->bind_param("s", $user_role);
+            $stmt->execute();
+            $stmt->close();
+        }
         echo json_encode(['success' => true]);
         exit;
     }
@@ -78,11 +159,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $is_admin = ($user_role === 'system_admin');
+$is_supervisor = in_array($user_role, ['road_ops_supervisor', 'trans_ops_supervisor'], true);
 $pending_reports = [];
 $pending_changes = [];
 $report_updates = [];
 $staff_updates = [];
 $assigned_projects = [];
+$review_requests = [];
+$supervisor_actions = [];
 
 if ($is_admin) {
     // Admin: get pending reports
@@ -178,6 +262,14 @@ if ($is_admin) {
             FROM report_notifications rn
             LEFT JOIN road_transportation_reports r ON rn.report_id = r.id
             WHERE rn.is_read = 0
+              AND EXISTS (
+                  SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
+                  UNION ALL
+                  SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
+                  UNION ALL
+                  SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id
+                  LIMIT 1
+              )
             ORDER BY rn.created_at DESC
             LIMIT 20
         ");
@@ -285,6 +377,7 @@ if ($is_admin) {
                    report_type, report_category, report_source, created_by
             FROM road_transportation_reports
             WHERE created_by = ? AND status IN ('completed', 'cancelled')
+            " . ($is_trans_role ? "AND report_category = 'transportation' AND report_type != 'infrastructure_issue'" : '') . "
             ORDER BY GREATEST(COALESCE(approved_at, '1970-01-01'), COALESCE(rejected_at, '1970-01-01'), updated_at) DESC
             LIMIT 20
         ");
@@ -294,6 +387,36 @@ if ($is_admin) {
         $rstmt->close();
     } catch (Exception $e) {
         error_log("Staff report updates query error: " . $e->getMessage());
+    }
+
+    // LGU Staff: get their review-request outcome notifications (approve/reject).
+    // These notifications have recipient_email set to the officer's email and
+    // type 'approve_request' or 'reject_request' — created by
+    // rgmap_notify_requestor() after a supervisor processes a request.
+    $user_email = $_SESSION['email'] ?? '';
+    $request_outcomes = [];
+    if ($user_email !== '') {
+        try {
+            $ro_stmt = $conn->prepare("
+                SELECT rn.*, r.report_id AS report_code, r.title AS report_title
+                FROM report_notifications rn
+                LEFT JOIN road_transportation_reports r ON rn.report_id = r.id
+                WHERE rn.recipient_email = ? AND rn.type IN ('approve_request','reject_request')
+                  AND rn.is_read = 0
+                  AND EXISTS (" . $ro_exists . "
+                      LIMIT 1
+                  )
+                ORDER BY rn.created_at DESC
+                LIMIT 20
+            ");
+            $ro_stmt->bind_param("s", $user_email);
+            $ro_stmt->execute();
+            $request_outcomes = $ro_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $ro_stmt->close();
+            $request_outcomes = array_map('resolve_progress_notification_source', $request_outcomes);
+        } catch (Exception $e) {
+            error_log("Request outcomes query error: " . $e->getMessage());
+        }
     }
 
     // LGU Staff: get assigned projects
@@ -357,9 +480,60 @@ if ($is_admin) {
         error_log("Staff assigned projects query error: " . $e->getMessage());
         $assigned_projects = [];
     }
+
+    // Supervisors: get completion/cancellation requests routed to their module.
+    // Road Operations Supervisors only see road requests, Transportation
+    // Operations Supervisors only see transportation requests (the request
+    // notification's recipient_role matches the requesting officer's module).
+    if ($is_supervisor) {
+        try {
+            $rrstmt = $conn->prepare("
+                SELECT rn.*, r.report_id as report_code, r.title as report_title, r.report_category, r.location
+                FROM report_notifications rn
+                LEFT JOIN road_transportation_reports r ON rn.report_id = r.id
+                WHERE rn.is_read = 0 AND rn.recipient_role = ? AND rn.type IN ('completion', 'cancellation')
+                  AND EXISTS (" . ($is_trans_supervisor ? $trans_exists : $all_tables_exists) . "
+                      LIMIT 1
+                  )
+                ORDER BY rn.created_at DESC
+                LIMIT 20
+            ");
+            $rrstmt->bind_param("s", $user_role);
+            $rrstmt->execute();
+            $review_requests = $rrstmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $rrstmt->close();
+        } catch (Exception $e) {
+            error_log("Review requests query error: " . $e->getMessage());
+            $review_requests = [];
+        }
+
+        // Confirmations for actions the supervisor performed themselves
+        // (Complete/Cancel buttons on road_transportation_monitoring.php),
+        // targeted by email to the acting supervisor.
+        try {
+            $sastmt = $conn->prepare("
+                SELECT rn.*, r.report_id as report_code, r.title as report_title, r.report_category, r.location
+                FROM report_notifications rn
+                LEFT JOIN road_transportation_reports r ON rn.report_id = r.id
+                WHERE rn.is_read = 0 AND rn.recipient_email = ? AND rn.type IN ('complete_report', 'cancel_report')
+                  AND EXISTS (" . ($is_trans_supervisor ? $trans_exists : $all_tables_exists) . "
+                      LIMIT 1
+                  )
+                ORDER BY rn.created_at DESC
+                LIMIT 20
+            ");
+            $sastmt->bind_param("s", $user_email);
+            $sastmt->execute();
+            $supervisor_actions = $sastmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $sastmt->close();
+        } catch (Exception $e) {
+            error_log("Supervisor actions query error: " . $e->getMessage());
+            $supervisor_actions = [];
+        }
+    }
 }
 
-$total_notifications = $is_admin ? (count($pending_reports) + count($pending_changes) + count($progress_notifications) + count($assigned_projects)) : (count($staff_updates) + count($report_updates) + count($assigned_projects));
+$total_notifications = $is_admin ? (count($pending_reports) + count($pending_changes) + count($progress_notifications) + count($assigned_projects)) : (count($staff_updates) + count($report_updates) + count($assigned_projects) + count($request_outcomes));
 
 // --- Notification deep-link helpers ----------------------------------------
 // Every View/Review button must pass the report source together with the id
@@ -518,800 +692,701 @@ function notification_assignment_url(array $ap): string {
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <style>
-        body {
-            background: #f7f5f0;
-            min-height: 100vh;
-        }
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Poppins', sans-serif;
+        :root {
+            --nc-bg: #f6f7fb;
+            --nc-card: #ffffff;
+            --nc-border: #e9edf3;
+            --nc-text: #0f172a;
+            --nc-muted: #64748b;
+            --nc-primary: #4f46e5;
         }
 
         .main-content {
-            margin-left: 250px;
-            padding: 20px;
-            position: relative;
-            z-index: 1;
+            max-width: 920px;
+            margin: 0 auto;
+            padding: 28px 24px 60px;
         }
 
-        .dashboard-header {
-            background: #f0f4fa;
-            backdrop-filter: blur(15px);
-            padding: 25px;
+        /* Header */
+        .nc-header {
+            background: var(--nc-card);
+            border: 1px solid var(--nc-border);
             border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            margin-bottom: 25px;
+            padding: 18px 20px 16px;
+            box-shadow: 0 4px 18px rgba(15, 23, 42, .06);
+            margin-bottom: 6px;
         }
-
-        .welcome-section {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 20px;
+        .nc-header-top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+        .nc-title { display: flex; align-items: center; gap: 12px; }
+        .nc-title-icon {
+            width: 40px; height: 40px; border-radius: 12px;
+            background: #eef2ff; color: var(--nc-primary);
+            display: flex; align-items: center; justify-content: center; font-size: 18px;
         }
-
-        .welcome-text h1 {
-            font-size: 28px;
-            font-weight: 700;
-            color: #1e3c72;
-            margin-bottom: 8px;
+        .nc-title h1 { font-size: 20px; font-weight: 700; color: var(--nc-text); margin: 0; }
+        .nc-unread-badge {
+            background: #ef4444; color: #fff; font-size: 12px; font-weight: 600;
+            padding: 2px 10px; border-radius: 999px; line-height: 1.6;
         }
-
-        .welcome-text p {
-            color: #64748b;
-            font-size: 16px;
+        .nc-header-actions { margin-left: auto; }
+        .nc-header-sub { margin: 12px 0 0; font-size: 13px; color: var(--nc-muted); }
+        .nc-toolbar { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+        .nc-filter {
+            padding: 9px 12px; border-radius: 10px; border: 1px solid var(--nc-border);
+            font-family: inherit; font-size: 13px; color: var(--nc-text); background: var(--nc-card);
+            cursor: pointer; outline: none;
         }
-
-        .date-time {
-            text-align: right;
-            color: #1e3c72;
+        .nc-filter:focus, .nc-search:focus { border-color: var(--nc-primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, .12); }
+        .nc-search {
+            flex: 1; min-width: 220px; padding: 9px 14px; border-radius: 10px;
+            border: 1px solid var(--nc-border); font-family: inherit; font-size: 13px;
+            color: var(--nc-text); background: var(--nc-card); outline: none;
         }
+        .nc-search::placeholder { color: #94a3b8; }
 
-        .quick-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 25px;
+        /* Group labels */
+        .nc-group {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em;
+            color: var(--nc-muted); margin: 24px 4px 10px;
         }
+        .nc-group-count { background: #eef1f6; color: var(--nc-muted); border-radius: 999px; padding: 1px 9px; font-size: 11px; }
 
-        .stat-card {
-            background: #f0f4fa;
-            backdrop-filter: blur(15px);
-            padding: 20px;
-            border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            text-align: center;
-            transition: transform 0.2s;
+        /* Notification cards */
+        .nc-card {
+            display: flex; gap: 14px;
+            background: var(--nc-card);
+            border: 1px solid var(--nc-border);
+            border-left: 4px solid #cbd5e1;
+            border-radius: 14px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, .05);
+            transition: transform .18s ease, box-shadow .18s ease, opacity .2s ease;
+            margin-bottom: 12px;
         }
-
-        .stat-card:hover {
-            transform: translateY(-5px);
+        .nc-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(15, 23, 42, .10); }
+        .nc-card.unread { background: #eff6ff; border-color: #dbeafe; }
+        .nc-card.read { background: var(--nc-card); }
+        .nc-card.hidden { display: none; }
+        .nc-card[data-kind="report"]     { border-left-color: #f59e0b; }
+        .nc-card[data-kind="progress"]   { border-left-color: #8b5cf6; }
+        .nc-card[data-kind="assignment"] { border-left-color: #3b82f6; }
+        .nc-card[data-kind="change"]     { border-left-color: #8b5cf6; }
+        .nc-card[data-kind="approved"]   { border-left-color: #10b981; }
+        .nc-card[data-kind="rejected"]   { border-left-color: #ef4444; }
+        .nc-card[data-kind="review"]     { border-left-color: #f59e0b; }
+        .nc-card[data-kind="request_outcome"] { border-left-color: #6366f1; }
+        .nc-icon {
+            width: 44px; height: 44px; border-radius: 12px; flex: 0 0 44px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; color: #fff; box-shadow: 0 3px 8px rgba(15, 23, 42, .18);
         }
+        .nc-body { flex: 1; min-width: 0; }
+        .nc-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+        .nc-card-title { font-weight: 600; font-size: 14.5px; color: var(--nc-text); line-height: 1.35; }
+        .nc-time { font-size: 12px; color: var(--nc-muted); margin-top: 3px; }
+        .nc-desc { font-size: 13px; color: #475569; margin-top: 6px; line-height: 1.5; }
+        .nc-sub { font-size: 12.5px; color: var(--nc-muted); margin-top: 3px; line-height: 1.45; }
+        .nc-meta { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+        .nc-tag { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
 
-        .stat-icon {
-            font-size: 24px;
-            margin-bottom: 10px;
+        .nc-report-tag { background: #f1f5f9; color: #475569; }
+        .nc-st-pending   { background: #fef3c7; color: #b45309; }
+        .nc-st-assigned  { background: #dbeafe; color: #1d4ed8; }
+        .nc-st-progress  { background: #ffedd5; color: #c2410c; }
+        .nc-st-completed { background: #d1fae5; color: #047857; }
+        .nc-st-cancelled { background: #fee2e2; color: #b91c1c; }
+        .nc-st-approved  { background: #d1fae5; color: #047857; }
+        .nc-st-rejected  { background: #fee2e2; color: #b91c1c; }
+        .nc-st-review    { background: #e0e7ff; color: #4338ca; }
+
+        .nc-pr-high   { background: #fee2e2; color: #dc2626; }
+        .nc-pr-critical { background: #fecaca; color: #b91c1c; }
+        .nc-pr-medium { background: #ffedd5; color: #c2410c; }
+        .nc-pr-low    { background: #d1fae5; color: #059669; }
+
+        /* Actions */
+        .nc-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .nc-btn {
+            border: none; background: #f1f5f9; color: #475569; font-family: inherit;
+            padding: 7px 13px; border-radius: 9px; font-size: 12.5px; font-weight: 500;
+            cursor: pointer; transition: background .15s ease, color .15s ease;
+            display: inline-flex; align-items: center; gap: 6px; text-decoration: none;
         }
-
-        .stat-number {
-            font-size: 32px;
-            font-weight: 700;
-            color: #1e3c72;
-            margin-bottom: 5px;
+        .nc-btn:hover { background: #e2e8f0; color: #1e293b; }
+        .nc-btn:disabled { opacity: .5; cursor: not-allowed; }
+        .nc-btn-primary { background: var(--nc-primary); color: #fff; }
+        .nc-btn-primary:hover { background: #4338ca; color: #fff; }
+        .nc-dismiss {
+            background: none; border: none; color: #cbd5e1; cursor: pointer;
+            font-size: 14px; padding: 6px; border-radius: 8px; line-height: 1;
         }
+        .nc-dismiss:hover { color: #ef4444; background: #fee2e2; }
 
-        .stat-label {
-            font-size: 14px;
-            color: #64748b;
-            font-weight: 500;
-        }
+        /* Empty state */
+        .nc-empty { text-align: center; padding: 72px 20px; color: #94a3b8; }
+        .nc-empty > i { font-size: 64px; margin-bottom: 18px; color: #cbd5e1; }
+        .nc-empty h2 { font-size: 18px; color: #334155; margin: 0 0 6px; font-weight: 600; }
+        .nc-empty p { font-size: 13.5px; margin: 0 0 20px; }
+        .nc-noresults { padding: 48px 20px; }
+        .nc-noresults > i { font-size: 40px; }
 
-        .workflow-container {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 25px;
-        }
+        /* Dark mode */
+        .dark-mode .nc-header, .dark-mode .nc-card, .dark-mode .nc-card.read,
+        .dark-mode .nc-search, .dark-mode .nc-filter { background: #1e293b; border-color: #334155; }
+        .dark-mode .nc-card.unread { background: #182338; border-color: #2b3a55; }
+        .dark-mode .nc-card:hover { box-shadow: 0 10px 24px rgba(0, 0, 0, .45); }
+        .dark-mode .nc-title h1, .dark-mode .nc-card-title { color: #e2e8f0; }
+        .dark-mode .nc-desc { color: #94a3b8; }
+        .dark-mode .nc-time, .dark-mode .nc-sub, .dark-mode .nc-header-sub,
+        .dark-mode .nc-group, .dark-mode .nc-group-count { color: #94a3b8; }
+        .dark-mode .nc-title-icon { background: #312e81; color: #c7d2fe; }
+        .dark-mode .nc-btn { background: #334155; color: #cbd5e1; }
+        .dark-mode .nc-btn:hover { background: #475569; color: #e2e8f0; }
+        .dark-mode .nc-report-tag { background: #334155; color: #cbd5e1; }
+        .dark-mode .nc-empty h2 { color: #e2e8f0; }
+        .dark-mode .nc-empty > i { color: #475569; }
+        .dark-mode .nc-dismiss { color: #64748b; }
 
-        .workflow-card {
-            background: #f0f4fa;
-            backdrop-filter: blur(15px);
-            padding: 25px;
-            border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .workflow-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid rgba(55, 98, 200, 0.1);
-        }
-
-        .workflow-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: #1e3c72;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .workflow-badge {
-            background: #3762c8;
-            color: white;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 500;
-        }
-
-        .workflow-content {
-            max-height: 600px;
-            overflow-y: auto;
-        }
-
-        .table-container {
-            overflow-x: auto;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        th, td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #e5e7eb;
-        }
-
-        th {
-            background: rgba(55, 98, 200, 0.1);
-            font-weight: 600;
-            color: #1e3c72;
-        }
-
-        .priority-badge {
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-
-        .priority-high {
-            background: #fef2f2;
-            color: #dc2626;
-            border: 1px solid #fecaca;
-        }
-
-        .priority-medium {
-            background: #fffbeb;
-            color: #d97706;
-            border: 1px solid #fde68a;
-        }
-
-        .priority-low {
-            background: #f0fdf4;
-            color: #16a34a;
-            border: 1px solid #bbf7d0;
-        }
-
-        .department-badge {
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 500;
-            background: #eff6ff;
-            color: #2563eb;
-            border: 1px solid #bfdbfe;
-        }
-
-        .source-badge {
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-        }
-
-        .source-citizen {
-            background: #f0fdf4;
-            color: #16a34a;
-            border: 1px solid #bbf7d0;
-        }
-
-        .source-cimm {
-            background: #faf5ff;
-            color: #9333ea;
-            border: 1px solid #e9d5ff;
-        }
-
-        .source-lgu {
-            background: #f0f9ff;
-            color: #0284c7;
-            border: 1px solid #bae6fd;
-        }
-
-        .source-maintenance {
-            background: #fff7ed;
-            color: #ea580c;
-            border: 1px solid #fed7aa;
-        }
-
-        .action-buttons {
-            display: flex;
-            gap: 8px;
-        }
-
-        .btn-sm {
-            padding: 6px 12px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 12px;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-
-        .btn-view {
-            background: #3762c8;
-            color: white;
-        }
-
-        .btn-view:hover {
-            background: #2a4a9a;
-        }
-
-        .btn-approve {
-            background: #10b981;
-            color: white;
-        }
-
-        .btn-approve:hover {
-            background: #059669;
-        }
-
-        .btn-reject {
-            background: #ef4444;
-            color: white;
-        }
-
-        .btn-reject:hover {
-            background: #dc2626;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 40px 20px;
-            color: #64748b;
-        }
-
-        .empty-state i {
-            font-size: 48px;
-            margin-bottom: 15px;
-            color: #cbd5e1;
-        }
-
-        .empty-state p {
-            font-size: 16px;
-        }
-
-        .notification-item {
-            padding: 15px;
-            border-bottom: 1px solid #e5e7eb;
-            transition: background 0.2s;
-        }
-
-        .notification-item:hover {
-            background: rgba(55, 98, 200, 0.03);
-        }
-
-        .notification-item:last-child {
-            border-bottom: none;
-        }
-
-        .notification-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 8px;
-        }
-
-        .notification-title {
-            font-weight: 600;
-            color: #1e3c72;
-            font-size: 14px;
-        }
-
-        .notification-time {
-            font-size: 12px;
-            color: #94a3b8;
-        }
-
-        .notification-body {
-            font-size: 13px;
-            color: #64748b;
-            margin-bottom: 10px;
-        }
-
-        .notification-meta {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .notification-tag {
-            font-size: 11px;
-            padding: 2px 8px;
-            border-radius: 8px;
-            background: #f1f5f9;
-            color: #475569;
-        }
-
-        @media (max-width: 768px) {
-            .main-content {
-                margin-left: 0;
-                padding: 10px;
-            }
-
-            .welcome-section {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-
-            .date-time {
-                text-align: left;
-            }
+        @media (max-width: 640px) {
+            .main-content { padding: 18px 14px 50px; }
+            .nc-actions { width: 100%; justify-content: flex-start; }
         }
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
     <?php include '../../includes/sidebar_nav.php'; ?>
 
+    <?php
+    // ---- Presentation layer: assemble the unified notification feed from the
+    //      data already fetched above. No queries or backend logic changed. ----
+    $nc_today = date('Y-m-d');
+    $nc_yesterday = date('Y-m-d', strtotime('-1 day'));
+
+    function nc_group_key($dt, $today, $yesterday) {
+        $t = strtotime($dt);
+        $d = date('Y-m-d', $t);
+        if ($d === $today) return 'today';
+        if ($d === $yesterday) return 'yesterday';
+        if ($t >= strtotime('-7 days')) return 'week';
+        return 'older';
+    }
+
+    function nc_group_label($k) {
+        return ['today' => 'Today', 'yesterday' => 'Yesterday', 'week' => 'This Week', 'older' => 'Older'][$k] ?? 'Older';
+    }
+
+    function nc_time_ago($datetime) {
+        $diff = time() - strtotime($datetime);
+        if ($diff < 60) return 'Just now';
+        if ($diff < 3600) return floor($diff / 60) . ' min ago';
+        if ($diff < 7200) return '1 hr ago';
+        if ($diff < 86400) return floor($diff / 3600) . ' hrs ago';
+        if ($diff < 172800) return 'Yesterday';
+        if ($diff < 604800) return floor($diff / 86400) . ' days ago';
+        return date('M d, Y', strtotime($datetime));
+    }
+
+    function nc_priority($p) {
+        $p = strtolower(trim((string)$p));
+        if ($p === '' || $p === 'none') return null;
+        $class = in_array($p, ['high', 'medium', 'low', 'critical'], true) ? 'nc-pr-' . $p : 'nc-pr-medium';
+        return ['label' => ucfirst($p), 'class' => $class];
+    }
+
+    $nc_feed = [];
+    $nc_push = function ($item) use (&$nc_feed) { $nc_feed[] = $item; };
+
+    if ($is_admin) {
+        // Pending reports from departments
+        foreach ($pending_reports as $report) {
+            $src = notification_source_badge($report);
+            $sub = trim(($report['location'] ?? '') . '  •  ' . ($report['reporter_name'] ?? ''));
+            $nc_push([
+                'id' => 'rep' . $report['id'],
+                'ts' => $report['created_at'],
+                'kind' => 'report',
+                'icon' => 'fa-file',
+                'color' => '#f59e0b',
+                'title' => 'New report from ' . $src['label'],
+                'desc' => $report['title'],
+                'sub' => $sub,
+                'report_id' => (string)($report['report_id'] ?? ''),
+                'status' => ['label' => 'Pending', 'class' => 'nc-st-pending'],
+                'priority' => nc_priority($report['priority'] ?? ''),
+                'tags' => array_values(array_filter([$src['label'], !empty($report['department']) ? $report['department'] : null])),
+                'unread' => true,
+                'url' => notification_pending_report_focus_url($report),
+                'url_label' => 'View Report',
+                'mark' => ['url' => '', 'data' => ['action' => 'mark_read', 'type' => 'report', 'id' => (int)$report['id']]],
+            ]);
+        }
+
+        // Pending change requests
+        foreach ($pending_changes as $cr) {
+            $req_data = json_decode($cr['requested_data'], true);
+            $changes_list = [];
+            if (!empty($req_data['email'])) $changes_list[] = 'Email: ' . $req_data['email'];
+            if (!empty($req_data['address'])) $changes_list[] = 'Address: ' . $req_data['address'];
+            if (!empty($req_data['civil_status'])) $changes_list[] = 'Status: ' . ucfirst($req_data['civil_status']);
+            if (!empty($req_data['birthday'])) $changes_list[] = 'Birthday: ' . $req_data['birthday'];
+            if (!empty($req_data['new_password'])) $changes_list[] = 'Password change requested';
+            if (!empty($req_data['id_file_path'])) $changes_list[] = 'New ID photo uploaded';
+            $nc_push([
+                'id' => 'cr' . $cr['id'],
+                'ts' => $cr['created_at'],
+                'kind' => 'change',
+                'icon' => 'fa-user-edit',
+                'color' => '#8b5cf6',
+                'title' => 'Change request from ' . ($cr['user_name'] ?? 'Staff'),
+                'desc' => 'Requesting information update' . ($changes_list ? ': ' . implode(' • ', $changes_list) : ''),
+                'sub' => !empty($cr['reason']) ? 'Reason: ' . $cr['reason'] : '',
+                'report_id' => '',
+                'status' => ['label' => 'Pending', 'class' => 'nc-st-pending'],
+                'priority' => null,
+                'tags' => ['Change Request'],
+                'unread' => true,
+                'url' => '../admin/account_approvals.php?cr_id=' . (int)$cr['id'],
+                'url_label' => 'Review',
+                'mark' => ['url' => '', 'data' => ['action' => 'mark_read_change', 'id' => (int)$cr['id']]],
+            ]);
+        }
+
+        // Progress update notifications
+        foreach ($progress_notifications as $pn) {
+            $src = notification_source_badge($pn);
+            $nc_push([
+                'id' => 'pn' . $pn['id'],
+                'ts' => $pn['created_at'],
+                'kind' => 'progress',
+                'icon' => 'fa-sync',
+                'color' => '#8b5cf6',
+                'title' => 'Status update · ' . ($pn['report_code'] ?? ('#' . $pn['report_id'])),
+                'desc' => $pn['message'] . ($pn['report_title'] ? ' — ' . $pn['report_title'] : ''),
+                'sub' => '',
+                'report_id' => $pn['report_code'] ?? ('#' . $pn['report_id']),
+                'status' => ['label' => 'In Progress', 'class' => 'nc-st-progress'],
+                'priority' => null,
+                'tags' => [$src['label']],
+                'unread' => true,
+                'url' => notification_progress_focus_url($pn),
+                'url_label' => 'View Report',
+                'mark' => null,
+            ]);
+        }
+
+        // Assigned projects
+        foreach ($assigned_projects as $ap) {
+            $desc = $ap['report_title'] ?? '';
+            if (!empty($ap['notes'])) $desc .= ($desc ? ' — ' : '') . 'Notes: ' . $ap['notes'];
+            $nc_push([
+                'id' => 'asg' . $ap['id'],
+                'ts' => $ap['assigned_at'],
+                'kind' => 'assignment',
+                'icon' => 'fa-user',
+                'color' => '#3b82f6',
+                'title' => 'Project assigned · ' . ($ap['report_code'] ?? ('#' . $ap['report_id'])),
+                'desc' => $desc ?: 'A project has been assigned to you.',
+                'sub' => '',
+                'report_id' => $ap['report_code'] ?? ('#' . $ap['report_id']),
+                'status' => ['label' => 'Assigned', 'class' => 'nc-st-assigned'],
+                'priority' => null,
+                'tags' => ['User ID: ' . (int)($ap['user_id'] ?? 0)],
+                'unread' => true,
+                'url' => notification_assignment_url($ap),
+                'url_label' => 'View Project',
+                'mark' => null,
+            ]);
+        }
+    } else {
+        // Supervisors: completion/cancellation review requests
+        if ($is_supervisor) {
+            foreach ($review_requests as $rr) {
+                // Resolve source for reports not found in road_transportation_reports
+                // (e.g. CIMM reports live in cimm_verification_reports).
+                if (empty($rr['report_code'])) {
+                    $rr = resolve_progress_notification_source($rr);
+                }
+                $nc_push([
+                    'id' => 'rq' . $rr['id'],
+                    'ts' => $rr['created_at'],
+                    'kind' => 'review',
+                    'icon' => 'fa-clipboard-check',
+                    'color' => '#f59e0b',
+                    'title' => $rr['message'],
+                    'desc' => ($rr['report_title'] ?? '') . (!empty($rr['report_category']) ? ' — Module: ' . ucfirst($rr['report_category']) : ''),
+                    'sub' => '',
+                    'report_id' => $rr['report_code'] ?? ('#' . $rr['report_id']),
+                    'status' => ['label' => ucfirst($rr['type'] ?? 'request'), 'class' => ($rr['type'] ?? '') === 'completion' ? 'nc-st-completed' : 'nc-st-cancelled'],
+                    'priority' => null,
+                    'tags' => ['Review'],
+                    'unread' => true,
+                    'url' => notification_progress_focus_url($rr),
+                    'url_label' => 'View Report',
+                    'mark' => ['url' => '', 'data' => ['action' => 'mark_read', 'type' => 'review', 'id' => (int)$rr['id']]],
+                ]);
+            }
+
+            // Supervisor action confirmations (Complete/Cancel results)
+            foreach ($supervisor_actions as $sa) {
+                // Resolve source for reports not found in road_transportation_reports.
+                if (empty($sa['report_code'])) {
+                    $sa = resolve_progress_notification_source($sa);
+                }
+                $nc_push([
+                    'id' => 'sa' . $sa['id'],
+                    'ts' => $sa['created_at'],
+                    'kind' => 'action',
+                    'icon' => 'fa-check-circle',
+                    'color' => '#10b981',
+                    'title' => $sa['message'],
+                    'desc' => ($sa['report_title'] ?? '') . (!empty($sa['report_category']) ? ' — Module: ' . ucfirst($sa['report_category']) : ''),
+                    'sub' => '',
+                    'report_id' => $sa['report_code'] ?? ('#' . $sa['report_id']),
+                    'status' => ['label' => ($sa['type'] === 'complete_report') ? 'Completed' : 'Cancelled', 'class' => ($sa['type'] === 'complete_report') ? 'nc-st-completed' : 'nc-st-cancelled'],
+                    'priority' => null,
+                    'tags' => ['Action Result'],
+                    'unread' => true,
+                    'url' => notification_progress_focus_url($sa),
+                    'url_label' => 'View Report',
+                    'mark' => ['url' => '', 'data' => ['action' => 'mark_read', 'type' => 'report_outcome', 'id' => (int)$sa['id']]],
+                ]);
+            }
+        }
+
+        // My report status updates
+        foreach ($report_updates as $report) {
+            $is_approved = ($report['status'] === 'approved' || $report['status'] === 'completed');
+            $ts = $is_approved ? ($report['approved_at'] ?? $report['updated_at']) : ($report['rejected_at'] ?? $report['updated_at']);
+            $nc_push([
+                'id' => 'ru' . $report['id'],
+                'ts' => $ts,
+                'kind' => $is_approved ? 'approved' : 'rejected',
+                'icon' => $is_approved ? 'fa-check-circle' : 'fa-times-circle',
+                'color' => $is_approved ? '#10b981' : '#ef4444',
+                'title' => 'Report ' . ($is_approved ? 'approved' : 'rejected') . ' · ' . $report['report_id'],
+                'desc' => ($report['title'] ?? '') . ' was ' . ($is_approved ? 'approved' : 'rejected') . '.',
+                'sub' => !empty($report['location']) ? 'Location: ' . $report['location'] : '',
+                'report_id' => (string)$report['report_id'],
+                'status' => ['label' => $is_approved ? 'Completed' : 'Cancelled', 'class' => $is_approved ? 'nc-st-completed' : 'nc-st-cancelled'],
+                'priority' => null,
+                'tags' => ['Submitted ' . date('M d, Y', strtotime($report['created_at']))],
+                'unread' => true,
+                'url' => '',
+                'url_label' => '',
+                'mark' => null,
+            ]);
+        }
+
+        // Review request outcomes (approve/reject) — targeted to the officer by email
+        foreach ($request_outcomes as $ro) {
+            $is_approved = ($ro['type'] === 'approve_request');
+            $nc_push([
+                'id' => 'ro' . $ro['id'],
+                'ts' => $ro['created_at'],
+                'kind' => 'request_outcome',
+                'icon' => $is_approved ? 'fa-check-circle' : 'fa-times-circle',
+                'color' => $is_approved ? '#10b981' : '#ef4444',
+                'title' => 'Request ' . ($is_approved ? 'approved' : 'rejected') . ' · ' . ($ro['report_code'] ?? ('#' . $ro['report_id'])),
+                'desc' => $ro['message'] ?? '',
+                'sub' => '',
+                'report_id' => (string)($ro['report_code'] ?? ('#' . $ro['report_id'])),
+                'status' => ['label' => $is_approved ? 'Approved' : 'Rejected', 'class' => $is_approved ? 'nc-st-completed' : 'nc-st-cancelled'],
+                'priority' => null,
+                'tags' => [$is_approved ? 'Approved' : 'Rejected'],
+                'unread' => true,
+                'url' => '../lgu/officer_archive.php?focus_report_id=' . (int)($ro['report_id'] ?? 0),
+                'url_label' => 'View Report',
+                'mark' => ['url' => '', 'data' => ['action' => 'mark_read', 'type' => 'report_outcome', 'id' => (int)$ro['id']]],
+            ]);
+        }
+
+        // My assigned projects
+        foreach ($assigned_projects as $ap) {
+            $desc = $ap['report_title'] ?? '';
+            if (!empty($ap['notes'])) $desc .= ($desc ? ' — ' : '') . 'Notes: ' . $ap['notes'];
+            $nc_push([
+                'id' => 'asg' . $ap['id'],
+                'ts' => $ap['assigned_at'],
+                'kind' => 'assignment',
+                'icon' => 'fa-user',
+                'color' => '#3b82f6',
+                'title' => 'Project assigned · ' . ($ap['report_code'] ?? ('#' . $ap['report_id'])),
+                'desc' => $desc ?: 'A project has been assigned to you.',
+                'sub' => '',
+                'report_id' => $ap['report_code'] ?? ('#' . $ap['report_id']),
+                'status' => ['label' => 'Assigned', 'class' => 'nc-st-assigned'],
+                'priority' => null,
+                'tags' => ['Assigned ' . date('M d, Y', strtotime($ap['assigned_at']))],
+                'unread' => true,
+                'url' => notification_assignment_url($ap),
+                'url_label' => 'View Project',
+                'mark' => null,
+            ]);
+        }
+
+        // My change request status updates
+        foreach ($staff_updates as $su) {
+            $ok = ($su['status'] === 'approved');
+            $nc_push([
+                'id' => 'su' . $su['id'],
+                'ts' => $su['created_at'],
+                'kind' => 'change',
+                'icon' => $ok ? 'fa-check-circle' : 'fa-times-circle',
+                'color' => $ok ? '#10b981' : '#ef4444',
+                'title' => 'Change request ' . ($ok ? 'approved' : 'rejected'),
+                'desc' => $su['admin_notes'] ?: 'No additional notes from the admin.',
+                'sub' => '',
+                'report_id' => '',
+                'status' => ['label' => $ok ? 'Approved' : 'Rejected', 'class' => $ok ? 'nc-st-completed' : 'nc-st-cancelled'],
+                'priority' => null,
+                'tags' => ['Change Request'],
+                'unread' => true,
+                'url' => '',
+                'url_label' => '',
+                'mark' => null,
+            ]);
+        }
+    }
+
+    usort($nc_feed, function ($a, $b) { return strtotime($b['ts']) - strtotime($a['ts']); });
+
+    $nc_groups = ['today' => [], 'yesterday' => [], 'week' => [], 'older' => []];
+    foreach ($nc_feed as $item) {
+        $nc_groups[nc_group_key($item['ts'], $nc_today, $nc_yesterday)][] = $item;
+    }
+    $nc_total = count($nc_feed);
+    ?>
+
     <div class="main-content">
-        <!-- Dashboard Header -->
-        <div class="dashboard-header">
-            <div class="welcome-section">
-                <div class="welcome-text">
-                    <h1><i class="fas fa-bell"></i> Notifications</h1>
-                    <p><?php echo $is_admin ? 'Reports from other departments and staff change requests' : 'Updates on your submitted reports and change requests'; ?></p>
+        <!-- Compact header -->
+        <div class="nc-header">
+            <div class="nc-header-top">
+                <div class="nc-title">
+                    <div class="nc-title-icon"><i class="fas fa-bell"></i></div>
+                    <h1>Notifications</h1>
+                    <span class="nc-unread-badge" id="ncUnreadBadge" <?php echo $nc_total ? '' : 'style="display:none;"'; ?>><?php echo $nc_total; ?></span>
                 </div>
-                <div style="display: flex; gap: 10px; align-items: center;">
-                    <?php if ($is_admin): ?>
-                    <button class="btn-sm btn-approve" onclick="markAllRead()" <?php echo $total_notifications === 0 ? 'disabled' : ''; ?>>
+                <div class="nc-header-actions">
+                    <button class="nc-btn nc-btn-primary" id="ncMarkAll" onclick="ncMarkAllRead()" <?php echo $nc_total ? '' : 'disabled'; ?>>
                         <i class="fas fa-check-double"></i> Mark All as Read
                     </button>
+                </div>
+            </div>
+            <p class="nc-header-sub"><?php echo $is_admin ? 'Reports from other departments and staff change requests' : 'Updates on your submitted reports and change requests'; ?></p>
+            <div class="nc-toolbar">
+                <select id="ncFilter" class="nc-filter" onchange="ncApplyFilters()">
+                    <option value="all">All</option>
+                    <option value="unread">Unread</option>
+                    <?php if ($is_trans_supervisor): ?>
+                        <option value="change_request">Change Requests</option>
+                        <option value="report_update">Report Updates</option>
+                    <?php else: ?>
+                        <option value="assigned">Assigned reports</option>
+                        <option value="report_update">Report Updates</option>
+                        <option value="request_outcome">Request Outcomes</option>
+                        <option value="change_request">Change Requests</option>
                     <?php endif; ?>
-                    <div class="date-time">
-                        <div id="currentDate"></div>
-                        <div id="currentTime"></div>
+                </select>
+                <input type="text" id="ncSearch" class="nc-search" placeholder="Search notifications..." oninput="ncApplyFilters()">
+            </div>
+        </div>
+
+        <?php if ($nc_total === 0): ?>
+            <!-- Empty state -->
+            <div class="nc-empty">
+                <i class="fas fa-bell"></i>
+                <h2>You're all caught up!</h2>
+                <p>No new notifications.</p>
+                <button class="nc-btn" onclick="location.reload()"><i class="fas fa-rotate-right"></i> Refresh</button>
+            </div>
+        <?php else: ?>
+            <div class="nc-empty nc-noresults" id="ncNoResults" style="display:none;">
+                <i class="fas fa-filter"></i>
+                <h2>No matching notifications</h2>
+                <p>Try a different filter or search term.</p>
+            </div>
+
+            <?php foreach (['today', 'yesterday', 'week', 'older'] as $gk): ?>
+                <?php if (!empty($nc_groups[$gk])): ?>
+                    <div class="nc-group-wrap">
+                        <div class="nc-group">
+                            <span><?php echo nc_group_label($gk); ?></span>
+                            <span class="nc-group-count"><?php echo count($nc_groups[$gk]); ?></span>
+                        </div>
+                        <?php foreach ($nc_groups[$gk] as $item): ?>
+                            <?php
+                                $search_text = strtolower(trim(implode(' ', array_filter([$item['title'], $item['desc'], $item['sub'], $item['report_id']]))));
+                                $mark_payload = $item['mark'] ? json_encode($item['mark']['data']) : '';
+                            ?>
+                            <div class="nc-card unread" data-kind="<?php echo $item['kind']; ?>" data-unread="true" data-search="<?php echo htmlspecialchars($search_text); ?>">
+                                <div class="nc-icon" style="background: <?php echo $item['color']; ?>;"><i class="fas <?php echo $item['icon']; ?>"></i></div>
+                                <div class="nc-body">
+                                    <div class="nc-title-row">
+                                        <div>
+                                            <div class="nc-card-title"><?php echo htmlspecialchars($item['title']); ?></div>
+                                            <div class="nc-time"><?php echo nc_time_ago($item['ts']); ?></div>
+                                        </div>
+                                        <div class="nc-actions">
+                                            <?php if ($item['url']): ?>
+                                                <a class="nc-btn nc-btn-primary" href="<?php echo $item['url']; ?>" target="_parent"><i class="fas fa-external-link-alt"></i> <?php echo $item['url_label']; ?></a>
+                                            <?php endif; ?>
+                                            <?php if ($item['mark']): ?>
+                                                <button class="nc-btn nc-mark" data-mark-url="<?php echo $item['mark']['url']; ?>" data-mark-payload='<?php echo $mark_payload; ?>' onclick="ncMarkRead(this)"><i class="fas fa-check"></i> Mark as read</button>
+                                            <?php endif; ?>
+                                            <button class="nc-dismiss" title="Dismiss" onclick="ncDismiss(this)"><i class="fas fa-xmark"></i></button>
+                                        </div>
+                                    </div>
+                                    <div class="nc-desc"><?php echo htmlspecialchars($item['desc']); ?></div>
+                                    <?php if ($item['sub']): ?><div class="nc-sub"><?php echo htmlspecialchars($item['sub']); ?></div><?php endif; ?>
+                                    <div class="nc-meta">
+                                        <?php if ($item['report_id'] !== ''): ?><span class="nc-tag nc-report-tag"># <?php echo htmlspecialchars($item['report_id']); ?></span><?php endif; ?>
+                                        <?php if ($item['status']): ?><span class="nc-tag <?php echo $item['status']['class']; ?>"><?php echo $item['status']['label']; ?></span><?php endif; ?>
+                                        <?php if ($item['priority']): ?>
+                                            <span class="nc-tag <?php echo $item['priority']['class']; ?>"><?php echo strtolower($item['priority']['label']) === 'high' ? '<i class="fas fa-exclamation-triangle"></i> ' : ''; ?><?php echo $item['priority']['label']; ?></span>
+                                        <?php endif; ?>
+                                        <?php foreach ($item['tags'] as $t): ?><span class="nc-tag nc-report-tag"><?php echo htmlspecialchars($t); ?></span><?php endforeach; ?>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
                     </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Statistics -->
-        <div class="quick-stats">
-            <?php if ($is_admin): ?>
-            <div class="stat-card">
-                <div class="stat-icon" style="color: #f59e0b;">
-                    <i class="fas fa-file-alt"></i>
-                </div>
-                <div class="stat-number"><?php echo count($pending_reports); ?></div>
-                <div class="stat-label">Pending Reports</div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-icon" style="color: #8b5cf6;">
-                    <i class="fas fa-user-edit"></i>
-                </div>
-                <div class="stat-number"><?php echo count($pending_changes); ?></div>
-                <div class="stat-label">Change Requests</div>
-            </div>
-            <?php else: ?>
-            <div class="stat-card">
-                <div class="stat-icon" style="color: #f59e0b;">
-                    <i class="fas fa-file-alt"></i>
-                </div>
-                <div class="stat-number"><?php echo count($report_updates); ?></div>
-                <div class="stat-label">Report Updates</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon t-text-success">
-                    <i class="fas fa-user-edit"></i>
-                </div>
-                <div class="stat-number"><?php echo count($staff_updates); ?></div>
-                <div class="stat-label">Change Request Updates</div>
-            </div>
-            <?php endif; ?>
-            <div class="stat-card">
-                <div class="stat-icon t-text-success">
-                    <i class="fas fa-bell"></i>
-                </div>
-                <div class="stat-number"><?php echo $total_notifications; ?></div>
-                <div class="stat-label">Total Notifications</div>
-            </div>
-        </div>
-
-        <div class="workflow-container">
-            <?php if ($is_admin): ?>
-            <!-- Pending Reports -->
-            <div class="workflow-card">
-                <div class="workflow-header">
-                    <h3 class="workflow-title">
-                        <i class="fas fa-file-alt" style="color: #f59e0b;"></i>
-                        <span>Pending Reports from Departments</span>
-                        <span class="workflow-badge"><?php echo count($pending_reports); ?></span>
-                    </h3>
-                </div>
-                
-                <div class="workflow-content">
-                    <?php if (empty($pending_reports)): ?>
-                        <div class="empty-state">
-                            <i class="fas fa-check-circle"></i>
-                            <p>No pending reports</p>
-                        </div>
-                    <?php else: ?>
-                        <?php foreach ($pending_reports as $report): ?>
-                            <?php $source_badge = notification_source_badge($report); ?>
-                            <div class="notification-item" id="report-<?php echo $report['id']; ?>">
-                                <div class="notification-header">
-                                    <div class="notification-title"><?php echo htmlspecialchars($report['title']); ?></div>
-                                    <div class="notification-time"><?php echo date('M d, Y H:i', strtotime($report['created_at'])); ?></div>
-                                </div>
-                                <div class="notification-body">
-                                    <?php echo htmlspecialchars(substr($report['description'], 0, 150)); ?><?php echo strlen($report['description']) > 150 ? '...' : ''; ?>
-                                </div>
-                                <div class="notification-meta">
-                                    <span class="notification-tag"><i class="fas fa-hashtag"></i> <?php echo htmlspecialchars($report['report_id']); ?></span>
-                                    <span class="priority-badge priority-<?php echo $report['priority']; ?>"><?php echo ucfirst($report['priority']); ?></span>
-                                    <span class="department-badge"><?php echo ucfirst(htmlspecialchars($report['department'])); ?></span>
-                                    <span class="source-badge <?php echo $source_badge['class']; ?>"><?php echo $source_badge['icon']; ?> <?php echo htmlspecialchars($source_badge['label']); ?></span>
-                                    <?php if ($report['location']): ?>
-                                        <span class="notification-tag"><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($report['location']); ?></span>
-                                    <?php endif; ?>
-                                    <?php if ($report['reporter_name']): ?>
-                                        <span class="notification-tag"><i class="fas fa-user"></i> <?php echo htmlspecialchars($report['reporter_name']); ?></span>
-                                    <?php endif; ?>
-                                </div>
-                                <div style="margin-top: 10px;">
-                                    <div class="action-buttons">
-                                        <a href="<?php echo notification_pending_report_focus_url($report); ?>" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> View</a>
-                                    </div>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
-            </div>
-
-            <!-- Pending Change Requests -->
-            <div class="workflow-card">
-                <div class="workflow-header">
-                    <h3 class="workflow-title">
-                        <i class="fas fa-user-edit" style="color: #8b5cf6;"></i>
-                        <span>Staff Change Requests</span>
-                        <span class="workflow-badge"><?php echo count($pending_changes); ?></span>
-                    </h3>
-                </div>
-                
-                <div class="workflow-content">
-                    <?php if (empty($pending_changes)): ?>
-                        <div class="empty-state">
-                            <i class="fas fa-check-circle"></i>
-                            <p>No pending change requests</p>
-                        </div>
-                    <?php else: ?>
-                        <?php foreach ($pending_changes as $cr): 
-                            $req_data = json_decode($cr['requested_data'], true);
-                            $changes_list = [];
-                            if (!empty($req_data['email'])) $changes_list[] = 'Email: ' . $req_data['email'];
-                            if (!empty($req_data['address'])) $changes_list[] = 'Address: ' . $req_data['address'];
-                            if (!empty($req_data['civil_status'])) $changes_list[] = 'Status: ' . ucfirst($req_data['civil_status']);
-                            if (!empty($req_data['birthday'])) $changes_list[] = 'Birthday: ' . $req_data['birthday'];
-                            if (!empty($req_data['new_password'])) $changes_list[] = 'Password change requested';
-                            if (!empty($req_data['id_file_path'])) $changes_list[] = 'New ID photo uploaded';
-                        ?>
-                            <div class="notification-item">
-                                <div class="notification-header">
-                                    <div class="notification-title"><?php echo htmlspecialchars($cr['user_name']); ?></div>
-                                    <div class="notification-time"><?php echo date('M d, Y H:i', strtotime($cr['created_at'])); ?></div>
-                                </div>
-                                <div class="notification-body">
-                                    Requesting information update:
-                                    <?php echo !empty($changes_list) ? '<br><small>' . implode(' &bull; ', $changes_list) . '</small>' : ''; ?>
-                                </div>
-                                <div class="notification-meta">
-                                    <?php if (!empty($cr['reason'])): ?>
-                                        <span class="notification-tag"><i class="fas fa-comment"></i> <?php echo htmlspecialchars($cr['reason']); ?></span>
-                                    <?php endif; ?>
-                                </div>
-                                <div style="margin-top: 10px;">
-                                    <div class="action-buttons">
-                                        <a href="../admin/account_approvals.php?cr_id=<?php echo (int)$cr['id']; ?>" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> Review</a>
-                                    </div>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
-            </div>
-            <!-- Admin: Progress Update Notifications -->
-            <div class="workflow-card">
-                <div class="workflow-header">
-                    <h3 class="workflow-title">
-                        <i class="fas fa-clock" style="color: #10b981;"></i>
-                        <span>Progress Updates</span>
-                        <span class="workflow-badge"><?php echo count($progress_notifications); ?></span>
-                    </h3>
-                </div>
-                <div class="workflow-content">
-                    <?php if (empty($progress_notifications)): ?>
-                        <div class="empty-state">
-                            <i class="fas fa-check-circle"></i>
-                            <p>No progress updates yet</p>
-                        </div>
-                    <?php else: ?>
-                        <?php foreach ($progress_notifications as $pn): ?>
-                            <div class="notification-item">
-                                <div class="notification-header">
-                                    <div class="notification-title">
-                                        <span class="t-text-success"><i class="fas fa-clipboard-list"></i> <?php echo htmlspecialchars($pn['message']); ?></span>
-                                    </div>
-                                    <div class="notification-time"><?php echo date('M d, Y H:i', strtotime($pn['created_at'])); ?></div>
-                                </div>
-                                <div class="notification-body">
-                                    <small>Report: <strong><?php echo htmlspecialchars($pn['report_code'] ?? '#' . $pn['report_id']); ?></strong></small>
-                                    <?php if (!empty($pn['report_title'])): ?>
-                                        &mdash; <?php echo htmlspecialchars($pn['report_title']); ?>
-                                    <?php endif; ?>
-                                </div>
-                                <div style="margin-top: 10px;">
-                                    <div class="action-buttons">
-                                        <a href="<?php echo notification_progress_focus_url($pn); ?>" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> View Report</a>
-                                    </div>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
-            </div>
-
-            <!-- Admin: Assigned Projects -->
-            <div class="workflow-card">
-                <div class="workflow-header">
-                    <h3 class="workflow-title">
-                        <i class="fas fa-tasks" style="color: #8b5cf6;"></i>
-                        <span>Assigned Projects</span>
-                        <span class="workflow-badge"><?php echo count($assigned_projects); ?></span>
-                    </h3>
-                </div>
-
-                <div class="workflow-content">
-                    <?php if (empty($assigned_projects)): ?>
-                        <div class="empty-state">
-                            <i class="fas fa-tasks"></i>
-                            <p>No assigned projects yet</p>
-                        </div>
-                    <?php else: ?>
-                        <?php foreach ($assigned_projects as $ap): ?>
-                            <div class="notification-item">
-                                <div class="notification-header">
-                                    <div class="notification-title">
-                                        <span class="t-text-success"><i class="fas fa-clipboard-check"></i> Project Assigned</span>
-                                    </div>
-                                    <div class="notification-time"><?php echo date('M d, Y H:i', strtotime($ap['assigned_at'])); ?></div>
-                                </div>
-                                <div class="notification-body">
-                                    <small>Project: <strong><?php echo htmlspecialchars($ap['report_code'] ?? '#' . $ap['report_id']); ?></strong></small>
-                                    <?php if (!empty($ap['report_title'])): ?>
-                                        &mdash; <?php echo htmlspecialchars($ap['report_title']); ?>
-                                    <?php endif; ?>
-                                    <?php if (!empty($ap['notes'])): ?>
-                                        <br><small class="t-text-secondary">Notes: <?php echo htmlspecialchars($ap['notes']); ?></small>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="notification-meta">
-                                    <span class="notification-tag"><i class="fas fa-user"></i> User ID: <?php echo (int)$ap['user_id']; ?></span>
-                                    <span class="notification-tag"><i class="fas fa-calendar"></i> Assigned <?php echo date('M d, Y', strtotime($ap['assigned_at'])); ?></span>
-                                </div>
-                                <div style="margin-top: 10px;">
-                                    <div class="action-buttons">
-                                        <a href="<?php echo notification_assignment_url($ap); ?>" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> View Project</a>
-                                    </div>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
-            </div>
-            <?php else: ?>
-            <!-- Staff: My Report Status Updates -->
-            <div class="workflow-card">
-                <div class="workflow-header">
-                    <h3 class="workflow-title">
-                        <i class="fas fa-file-alt" style="color: #f59e0b;"></i>
-                        <span>Report Updates</span>
-                        <span class="workflow-badge"><?php echo count($report_updates); ?></span>
-                    </h3>
-                </div>
-                
-                <div class="workflow-content">
-                    <?php if (empty($report_updates)): ?>
-                        <div class="empty-state">
-                            <i class="fas fa-check-circle"></i>
-                            <p>No report updates yet. Submit a report and wait for admin review.</p>
-                        </div>
-                    <?php else: ?>
-                        <?php foreach ($report_updates as $report): 
-                            $is_approved = ($report['status'] === 'approved' || $report['status'] === 'completed');
-                            $action_time = $is_approved ? ($report['approved_at'] ?? $report['updated_at']) : ($report['rejected_at'] ?? $report['updated_at']);
-                        ?>
-                            <div class="notification-item">
-                                <div class="notification-header">
-                                    <div class="notification-title">
-                                        <?php if ($is_approved): ?>
-                                            <span class="t-text-success"><i class="fas fa-check-circle"></i> Approved</span>
-                                        <?php else: ?>
-                                            <span class="t-text-danger"><i class="fas fa-times-circle"></i> Rejected</span>
-                                        <?php endif; ?>
-                                    </div>
-                                    <div class="notification-time"><?php echo date('M d, Y H:i', strtotime($action_time)); ?></div>
-                                </div>
-                                <div class="notification-body">
-                                    <strong><?php echo htmlspecialchars($report['title']); ?></strong> was <strong><?php echo $is_approved ? 'approved' : 'rejected'; ?></strong>.
-                                    <?php if ($report['location']): ?>
-                                        <br><small class="t-text-secondary">Location: <?php echo htmlspecialchars($report['location']); ?></small>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="notification-meta">
-                                    <span class="notification-tag"><i class="fas fa-hashtag"></i> <?php echo htmlspecialchars($report['report_id']); ?></span>
-                                    <span class="notification-tag"><i class="fas fa-calendar"></i> Submitted <?php echo date('M d, Y', strtotime($report['created_at'])); ?></span>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
-            </div>
-
-            <!-- Staff: My Assigned Projects -->
-            <div class="workflow-card">
-                <div class="workflow-header">
-                    <h3 class="workflow-title">
-                        <i class="fas fa-tasks" style="color: #8b5cf6;"></i>
-                        <span>My Assigned Projects</span>
-                        <span class="workflow-badge"><?php echo count($assigned_projects); ?></span>
-                    </h3>
-                </div>
-
-                <div class="workflow-content">
-                    <?php if (empty($assigned_projects)): ?>
-                        <div class="empty-state">
-                            <i class="fas fa-tasks"></i>
-                            <p>No assigned projects yet</p>
-                        </div>
-                    <?php else: ?>
-                        <?php foreach ($assigned_projects as $ap): ?>
-                            <div class="notification-item">
-                                <div class="notification-header">
-                                    <div class="notification-title">
-                                        <span class="t-text-success"><i class="fas fa-clipboard-check"></i> Project Assigned</span>
-                                    </div>
-                                    <div class="notification-time"><?php echo date('M d, Y H:i', strtotime($ap['assigned_at'])); ?></div>
-                                </div>
-                                <div class="notification-body">
-                                    <small>Project: <strong><?php echo htmlspecialchars($ap['report_code'] ?? '#' . $ap['report_id']); ?></strong></small>
-                                    <?php if (!empty($ap['report_title'])): ?>
-                                        &mdash; <?php echo htmlspecialchars($ap['report_title']); ?>
-                                    <?php endif; ?>
-                                    <?php if (!empty($ap['notes'])): ?>
-                                        <br><small class="t-text-secondary">Notes: <?php echo htmlspecialchars($ap['notes']); ?></small>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="notification-meta">
-                                    <span class="notification-tag"><i class="fas fa-calendar"></i> Assigned <?php echo date('M d, Y', strtotime($ap['assigned_at'])); ?></span>
-                                </div>
-                                <div style="margin-top: 10px;">
-                                    <div class="action-buttons">
-                                        <a href="<?php echo notification_assignment_url($ap); ?>" class="btn-sm btn-view" target="_parent"><i class="fas fa-eye"></i> View Project</a>
-                                    </div>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
-            </div>
-
-            <!-- Staff: My Change Request Status -->
-            <div class="workflow-card">
-                <div class="workflow-header">
-                    <h3 class="workflow-title">
-                        <i class="fas fa-user-edit" style="color: #10b981;"></i>
-                        <span>Change Request Updates</span>
-                        <span class="workflow-badge"><?php echo count($staff_updates); ?></span>
-                    </h3>
-                </div>
-                
-                <div class="workflow-content">
-                    <?php if (empty($staff_updates)): ?>
-                        <div class="empty-state">
-                            <i class="fas fa-check-circle"></i>
-                            <p>No updates yet. Submit a change request to see updates here.</p>
-                        </div>
-                    <?php else: ?>
-                        <?php foreach ($staff_updates as $update): ?>
-                            <div class="notification-item">
-                                <div class="notification-header">
-                                    <div class="notification-title">
-                                        <?php if ($update['status'] === 'approved'): ?>
-                                            <span class="t-text-success"><i class="fas fa-check-circle"></i> Approved</span>
-                                        <?php else: ?>
-                                            <span class="t-text-danger"><i class="fas fa-times-circle"></i> Rejected</span>
-                                        <?php endif; ?>
-                                    </div>
-                                    <div class="notification-time"><?php echo date('M d, Y H:i', strtotime($update['reviewed_at'] ?? $update['created_at'])); ?></div>
-                                </div>
-                                <div class="notification-body">
-                                    Your change request was <strong><?php echo $update['status']; ?></strong>.
-                                    <?php if (!empty($update['admin_notes'])): ?>
-                                        <br><small class="t-text-secondary">Admin note: <?php echo htmlspecialchars($update['admin_notes']); ?></small>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="notification-meta">
-                                    <span class="notification-tag"><i class="fas fa-calendar"></i> Submitted <?php echo date('M d, Y', strtotime($update['created_at'])); ?></span>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
-            </div>
-            <?php endif; ?>
-        </div>
+                <?php endif; ?>
+            <?php endforeach; ?>
+        <?php endif; ?>
     </div>
 
     <script>
-        function updateDateTime() {
-            const now = new Date();
-            const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-            const timeOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
-            
-            document.getElementById('currentDate').textContent = now.toLocaleDateString('en-US', dateOptions);
-            document.getElementById('currentTime').textContent = now.toLocaleTimeString('en-US', timeOptions);
+        const NC_IS_ADMIN = <?php echo $is_admin ? 'true' : 'false'; ?>;
+        const NC_IS_TRANS_SUPERVISOR = <?php echo $is_trans_supervisor ? 'true' : 'false'; ?>;
+        const NC_IS_TRANS_OFFICER = <?php echo $is_trans_officer ? 'true' : 'false'; ?>;
+        // Role-specific filter maps so each filter shows exactly the kinds of
+        // notifications that role can receive. Non-transportation roles keep
+        // the existing definitions.
+        let NC_FILTERS;
+        if (NC_IS_TRANS_SUPERVISOR) {
+            NC_FILTERS = {
+                all: ['review', 'action', 'approved', 'rejected', 'assignment', 'change', 'request_outcome'],
+                unread: null,
+                report_update: ['review', 'action', 'approved', 'rejected'],
+                change_request: ['change']
+            };
+        } else if (NC_IS_TRANS_OFFICER) {
+            NC_FILTERS = {
+                all: ['assignment', 'approved', 'rejected', 'change', 'request_outcome'],
+                unread: null,
+                assigned: ['assignment'],
+                report_update: ['approved', 'rejected'],
+                request_outcome: ['request_outcome'],
+                change_request: ['change']
+            };
+        } else {
+            NC_FILTERS = {
+                all: ['report', 'progress', 'assignment', 'approved', 'rejected', 'review', 'change', 'request_outcome'],
+                unread: null,
+                assigned: ['assignment'],
+                report_update: ['report', 'progress', 'approved', 'rejected', 'review'],
+                request_outcome: ['request_outcome'],
+                change_request: ['change']
+            };
         }
-        
-        updateDateTime();
-        setInterval(updateDateTime, 1000);
 
-        function markAllRead() {
-            if (confirm('Mark all notifications as read?')) {
-                const formData = new FormData();
-                formData.append('action', 'mark_all_read');
-                
-                fetch('', { method: 'POST', body: formData })
-                .then(response => response.json())
-                .then(result => {
-                    if (result.success) {
-                        location.reload();
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                });
+        function ncRefreshBadge() {
+            var n = document.querySelectorAll('.nc-card[data-unread="true"]').length;
+            var badge = document.getElementById('ncUnreadBadge');
+            var btn = document.getElementById('ncMarkAll');
+            if (badge) { badge.textContent = n; badge.style.display = n ? '' : 'none'; }
+            if (btn) btn.disabled = n === 0;
+        }
+
+        // Keep the sidebar notification badge in sync when a single
+        // notification is marked as read: decrement it immediately instead of
+        // waiting for the next page reload. Hidden entirely at zero.
+        function ncRefreshSidebarBadge() {
+            var badge = document.querySelector('.nav-link .notification-badge');
+            if (!badge) return;
+            var n = parseInt(badge.textContent, 10) || 0;
+            n = Math.max(0, n - 1);
+            if (n === 0) {
+                badge.remove();
+            } else {
+                badge.textContent = n;
+                badge.setAttribute('aria-label', n + ' unread notifications');
             }
         }
-    </script>
-    
 
+        function ncApplyFilters() {
+            var f = document.getElementById('ncFilter').value;
+            var q = document.getElementById('ncSearch').value.toLowerCase();
+            var kinds = NC_FILTERS[f];
+            var totalVisible = 0;
+            document.querySelectorAll('.nc-card').forEach(function (card) {
+                var visible = true;
+                if (kinds && kinds.indexOf(card.dataset.kind) === -1) visible = false;
+                if (visible && f === 'unread' && card.dataset.unread !== 'true') visible = false;
+                if (visible && q && card.dataset.search.indexOf(q) === -1) visible = false;
+                card.classList.toggle('hidden', !visible);
+                if (visible) totalVisible++;
+            });
+            document.querySelectorAll('.nc-group-wrap').forEach(function (w) {
+                w.style.display = w.querySelectorAll('.nc-card:not(.hidden)').length ? '' : 'none';
+            });
+            var nr = document.getElementById('ncNoResults');
+            if (nr) nr.style.display = totalVisible ? 'none' : '';
+        }
+
+        function ncMarkRead(btn) {
+            var card = btn.closest('.nc-card');
+            var url = btn.dataset.markUrl || '';
+            var payload = btn.dataset.markPayload || '';
+            if (payload) {
+                fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: payload
+                }).catch(function () {});
+            }
+            card.dataset.unread = 'false';
+            card.classList.remove('unread');
+            card.classList.add('read');
+            btn.remove();
+            ncRefreshBadge();
+            ncRefreshSidebarBadge();
+            ncApplyFilters();
+        }
+
+        function ncMarkAllRead() {
+            fetch('', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'action=mark_all_read'
+            }).catch(function () {});
+            document.querySelectorAll('.nc-card').forEach(function (card) {
+                card.dataset.unread = 'false';
+                card.classList.remove('unread');
+                card.classList.add('read');
+            });
+            document.querySelectorAll('.nc-mark').forEach(function (b) { b.remove(); });
+            ncRefreshBadge();
+            ncApplyFilters();
+            // Reset the sidebar notification badge as well.
+            var sidebarBadge = document.querySelector('.nav-link .notification-badge');
+            if (sidebarBadge) sidebarBadge.remove();
+        }
+
+        function ncDismiss(el) {
+            var card = el.closest('.nc-card');
+            card.style.transition = 'opacity .2s ease, transform .2s ease';
+            card.style.opacity = '0';
+            card.style.transform = 'translateX(12px)';
+            setTimeout(function () {
+                card.remove();
+                ncRefreshBadge();
+                ncApplyFilters();
+            }, 200);
+        }
+
+        ncRefreshBadge();
+    </script>
 </body>
 </html>

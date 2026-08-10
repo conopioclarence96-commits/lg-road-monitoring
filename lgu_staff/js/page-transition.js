@@ -3,8 +3,31 @@
  * Fades the page content out on navigation, fades in on load.
  */
 (function() {
-    // On fresh page load: fade in
+    var loader = null;
+
+    function ensureLoader() {
+        if (loader) return;
+        loader = document.createElement('div');
+        loader.className = 'page-loader';
+        loader.innerHTML = '<div class="loader-spinner"></div><div class="loader-text">Loading</div>';
+        // Append to <html> so body.fade-out (opacity 0) doesn't hide the overlay
+        document.documentElement.appendChild(loader);
+    }
+
+    function showLoader() {
+        ensureLoader();
+        // Force reflow so the opacity transition plays
+        void loader.offsetWidth;
+        loader.classList.add('active');
+    }
+
+    function hideLoader() {
+        if (loader) loader.classList.remove('active');
+    }
+
+    // On fresh page load: hide loader, fade content in
     window.addEventListener('pageshow', function() {
+        hideLoader();
         document.body.classList.remove('fade-out');
         document.body.classList.add('fade-in');
         setTimeout(function() {
@@ -13,6 +36,9 @@
     });
 
     document.addEventListener('DOMContentLoaded', function() {
+        ensureLoader();
+        hideLoader();
+
         // Fade in on initial load
         document.body.classList.remove('fade-out');
         document.body.classList.add('fade-in');
@@ -41,11 +67,12 @@
 
             e.preventDefault();
 
-            // Fade out then navigate
+            // Fade out, show loader, then navigate
             document.body.classList.add('fade-out');
+            showLoader();
             setTimeout(function() {
                 window.location.href = href;
-            }, 300);
+            }, 350);
         });
     });
 })();

@@ -46,6 +46,17 @@ if ($check2 && $check2->num_rows === 0) {
     $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN report_source ENUM('local','external') DEFAULT 'local' AFTER report_category");
 }
 
+// Ensure engineer and budget_allocation columns exist in road_transportation_reports
+// (CIMM syncs these for road reports via the verify webhook).
+$check_engineer = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'engineer'");
+if ($check_engineer && $check_engineer->num_rows === 0) {
+    $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN engineer VARCHAR(150) NULL DEFAULT NULL");
+}
+$check_budget = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'budget_allocation'");
+if ($check_budget && $check_budget->num_rows === 0) {
+    $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN budget_allocation DECIMAL(15,2) NULL DEFAULT NULL");
+}
+
 // Ensure reporter_phone / image_path exist — getCitizenReports() below
 // selects them, and without this guard a DB that predates those columns
 // (e.g. a fresh/older local install) throws "Unknown column" and takes
@@ -81,6 +92,16 @@ if ($check_arch && $check_arch->num_rows === 0) {
 $check_arch2 = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE 'report_source'");
 if ($check_arch2 && $check_arch2->num_rows === 0) {
     $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN report_source ENUM('local','external') DEFAULT 'local' AFTER report_category");
+}
+
+// Ensure archive table mirrors the engineer/budget_allocation columns
+$check_arch_engineer = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE 'engineer'");
+if ($check_arch_engineer && $check_arch_engineer->num_rows === 0) {
+    $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN engineer VARCHAR(150) NULL DEFAULT NULL");
+}
+$check_arch_budget = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE 'budget_allocation'");
+if ($check_arch_budget && $check_arch_budget->num_rows === 0) {
+    $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN budget_allocation DECIMAL(15,2) NULL DEFAULT NULL");
 }
 
 // Ensure reports table exists (from reports.sql)
@@ -341,7 +362,8 @@ function rgmap_map_cimm_row_for_display(array $row): array {
         'start_date'    => $row['starting_date'] ?? null,
         'end_date'      => $row['estimated_end_date'] ?? null,
         'priority'      => strtolower((string)($row['priority'] ?? 'medium')),
-        'budget'        => $row['budget'] ?? null,
+        'budget'        => $row['budget_allocation'] ?? $row['budget'] ?? null,
+        'budget_allocation' => $row['budget_allocation'] ?? null,
         'status'        => $status,
         'approval_status'      => $row['approval_status'] ?? null,
         'verification_status'  => $verification,
@@ -364,7 +386,12 @@ function rgmap_map_cimm_row_for_display(array $row): array {
 // Function to get CIMM reports by filter (live data from CIMM via RGMAO sync)
 function getCimmReports($filter = 'all') {
     $pdo = rgmap_verification_pdo();
-    $rows = rgmap_fetch_cimm_verification_reports($pdo, ['limit' => 500]);
+    $rows = rgmap_fetch_cimm_verification_reports($pdo, [
+        'limit' => 500,
+        'infrastructure' => 'Roads',
+        'verification_status' => 'Pending Review',
+        'approval_status' => 'Approved'
+    ]);
 
     $mapped = array_map('rgmap_map_cimm_row_for_display', $rows);
 
@@ -554,7 +581,7 @@ function archive_cimm_rejected_report($conn, $cimm_req_id) {
         $pdo = rgmap_verification_pdo();
         rgmap_ensure_cimm_verification_table($pdo);
         
-        $stmt = $pdo->prepare("SELECT * FROM cimm_verification_reports WHERE id = ?");
+        $stmt = $pdo->prepare("SELECT * FROM cimm_verification_reports WHERE cimm_req_id = ?");
         $stmt->execute([$cimm_req_id]);
         $cimm_report = $stmt->fetch(PDO::FETCH_ASSOC);
         
@@ -567,24 +594,26 @@ function archive_cimm_rejected_report($conn, $cimm_req_id) {
         
         // Map CIMM columns to road_transportation_reports_archive columns
         $insert_fields = [
-            'report_id' => $cimm_report['reference_code'] ?? 'CIMM-' . $cimm_req_id,
-            'title' => $cimm_report['infrastructure'] ?? 'CIMM Report',
-            'report_type' => 'infrastructure_issue',
+            'report_id'       => $cimm_report['reference_code'] ?? 'CIMM-' . $cimm_req_id,
+            'title'           => $cimm_report['infrastructure'] ?? 'CIMM Report',
+            'report_type'     => 'infrastructure_issue',
             'report_category' => 'road',
-            'report_source' => 'cimm',
-            'department' => 'engineering',
-            'priority' => $cimm_report['priority'] ?? 'medium',
-            'status' => 'rejected',
-            'archived_from' => 'cimm_verification_reports',
-            'created_date' => $cimm_report['submitted_at'] ?? date('Y-m-d'),
-            'description' => $cimm_report['issue'] ?? '',
-            'location' => $cimm_report['location'] ?? '',
-            'latitude' => $cimm_report['coord_lat'] ?? null,
-            'longitude' => $cimm_report['coord_lng'] ?? null,
-            'created_at' => $cimm_report['submitted_at'] ?? NOW(),
-            'updated_at' => NOW(),
-            'rejected_at' => NOW(),
-            'approved_at' => null
+            'report_source'   => 'external',
+            'department'      => 'engineering',
+            'priority'        => $cimm_report['priority'] ?? 'medium',
+            'status'          => 'rejected',
+            'archived_from'   => 'cimm_verification_reports',
+            'created_date'    => (!empty($cimm_report['submitted_at'])) ? date('Y-m-d', strtotime($cimm_report['submitted_at'])) : date('Y-m-d'),
+            'description'     => $cimm_report['issue'] ?? '',
+            'location'        => $cimm_report['location'] ?? '',
+            'latitude'        => $cimm_report['coord_lat'] ?? null,
+            'longitude'       => $cimm_report['coord_lng'] ?? null,
+            'created_at'      => $cimm_report['submitted_at'] ?? date('Y-m-d H:i:s'),
+            'updated_at'      => date('Y-m-d H:i:s'),
+            'rejected_at'     => date('Y-m-d H:i:s'),
+            'approved_at'     => null,
+            'engineer'        => $cimm_report['engineer'] ?? null,
+            'budget_allocation' => $cimm_report['budget_allocation'] ?? null,
         ];
         
         // Build INSERT query dynamically
@@ -597,8 +626,10 @@ function archive_cimm_rejected_report($conn, $cimm_req_id) {
         $stmt = $conn->prepare($insert);
         $stmt->execute(array_values($insert_fields));
         
-        // Delete from cimm_verification_reports
-        $delete = $conn->prepare("DELETE FROM cimm_verification_reports WHERE id = ?");
+        // Delete from cimm_verification_reports (matched by cimm_req_id, the
+        // unique CIMM request identifier — the same key rgmap_update_verification_status
+        // uses, and what the Reject form posts).
+        $delete = $conn->prepare("DELETE FROM cimm_verification_reports WHERE cimm_req_id = ?");
         $delete->execute([$cimm_req_id]);
         
         $conn->commit();
@@ -694,7 +725,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $audit_id = 'VR-' . date('Y-m-d-His');
             $title = ucfirst($action) . ' Report #' . $report_id;
             $audit_type = 'compliance'; // verification actions logged under compliance
-            $auditor = $_SESSION['username'] ?? 'Unknown';
+            $auditor = $_SESSION['email'] ?? 'Unknown';
             $description = "Report #$report_id from $source table has been " . $action . "ed by $auditor";
             
             $audit_stmt->bind_param('ssssss', $audit_id, $title, $audit_type, $audit_status, $auditor, $description);
@@ -736,17 +767,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && in_array
         }
     } else {
         $reason = trim($_POST['rejection_reason'] ?? '');
-        $ok = rgmap_update_verification_status($pdo, $cimm_req_id, 'Rejected', $reason ?: 'Rejected by admin', $_SESSION['user_id'] ?? null);
-        if ($ok) {
-            // Archive the rejected CIMM report
-            $archived = archive_cimm_rejected_report($conn, $cimm_req_id);
-            if ($archived) {
-                $_SESSION['verification_message'] = 'CIMM report #' . $cimm_req_id . ' rejected and moved to archive.';
-            } else {
-                $_SESSION['verification_message'] = 'CIMM report #' . $cimm_req_id . ' rejected, but archiving failed.';
-            }
+        // Move the rejected CIMM report to the archive (status 'rejected') and
+        // remove it from this page. The source row is deleted by archiving, so
+        // updating its verification_status first is unnecessary — and 'Rejected'
+        // is not an accepted upstream value, so gating on that update would
+        // prevent the rejection from ever happening. The archived copy carries
+        // status 'rejected'.
+        $archived = archive_cimm_rejected_report($conn, $cimm_req_id);
+        if ($archived) {
+            $_SESSION['verification_message'] = 'CIMM report #' . $cimm_req_id . ' rejected and moved to archive.';
         } else {
-            $_SESSION['verification_message'] = 'Failed to reject CIMM report #' . $cimm_req_id . '.';
+            $_SESSION['verification_message'] = 'CIMM report #' . $cimm_req_id . ' rejected, but archiving failed.';
         }
     }
 
@@ -4919,7 +4950,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         <label class="form-label">Source System</label>
                         <select class="filter-select" id="sourceFilter" onchange="filterReports()">
                             <option value="all" <?php echo $source_filter === 'all' ? 'selected' : ''; ?>>All Sources</option>
+                            <?php if (!$is_road_supervisor): ?>
                             <option value="transport" <?php echo $source_filter === 'transport' ? 'selected' : ''; ?>>Citizen Reports</option>
+                            <?php endif; ?>
                             <option value="cimm" <?php echo $source_filter === 'cimm' ? 'selected' : ''; ?>>CIMM Reports</option>
                             <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>Infrastructure Projects</option>
                         </select>
@@ -5143,6 +5176,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                             <?php if (!empty($report['rejected_at'])): ?>
                                             <div class="detail-item">
                                                 <strong>Rejected At:</strong> <?php echo htmlspecialchars($report['rejected_at']); ?>
+                                            </div>
+                                            <?php endif; ?>
+                                            <?php if (!empty($report['engineer'])): ?>
+                                            <div class="detail-item">
+                                                <strong>CIMM Assigned Engineer:</strong> 
+                                                <span class="lgu-status-badge t-badge t-badge-info"><?php echo htmlspecialchars($report['engineer']); ?></span>
+                                            </div>
+                                            <?php endif; ?>
+                                            <?php if (!empty($report['budget_allocation']) && $report['budget_allocation'] !== '0.00'): ?>
+                                            <div class="detail-item">
+                                                <strong>CIMM Budget Allocation:</strong> 
+                                                <span class="t-text-success">₱ <?php echo number_format((float)$report['budget_allocation'], 2); ?></span>
                                             </div>
                                             <?php endif; ?>
                                         </div>
@@ -5380,7 +5425,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     <button class="dept-action-btn" onclick="viewCimmReport(<?php echo $row['id']; ?>)">
                                         <i class="fas fa-eye"></i>
                                     </button>
-                                    <?php if ($row['verification_status'] === 'Verified'): ?>
                                     <form method="POST" class="dept-action-form" onsubmit="return confirm('Are you sure you want to approve this CIMM report?');">
                                         <input type="hidden" name="cimm_req_id" value="<?php echo (int)$row['cimm_req_id']; ?>">
                                         <button type="submit" name="action" value="approve_cimm" class="dept-verify-btn" title="Approve report">
@@ -5394,7 +5438,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                             <i class="fas fa-times"></i>
                                         </button>
                                     </form>
-                                    <?php endif; ?>
                                 </div>
                             </td>
                             <td><?php echo htmlspecialchars($row['rep_number']); ?></td>
@@ -5642,7 +5685,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 if (infraPanel) infraPanel.style.display = '';
                 if (citizenPanel) citizenPanel.style.display = 'none';
             } else if (source === 'transport') {
-                if (allReportsPanel) allReportsPanel.style.display = '';
+                // Citizen Reports filter: show ONLY the Citizen Reports panel.
+                // The LGU Monitoring panel (staff transport reports), CIMM
+                // panel, and Infrastructure panel are all hidden so only
+                // citizen-submitted reports are shown. CIMM / IPMS integration
+                // code is untouched.
+                if (allReportsPanel) allReportsPanel.style.display = 'none';
                 if (cimmPanel) cimmPanel.style.display = 'none';
                 if (infraPanel) infraPanel.style.display = 'none';
                 if (citizenPanel) citizenPanel.style.display = '';
@@ -6024,7 +6072,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if (r.rejected_at) {
                 sourceGrid += lguInfoItem('thumbs-down', 'Rejected At', formatDate(r.rejected_at));
             }
+            if (r.report_category === 'road') {
+                if (r.engineer) {
+                    sourceGrid += lguInfoItem('hard-hat', 'CIMM Engineer', r.engineer);
+                }
+                if (r.budget_allocation) {
+                    sourceGrid += lguInfoItem('money-bill-wave', 'CIMM Budget Allocation', '₱ ' + Number(r.budget_allocation).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+                }
+            }
             document.getElementById('lgu-source-grid').innerHTML = sourceGrid;
+
+            // Report Creator Information — Road Supervisor portal only.
+            var creatorSection = document.getElementById('lgu-creator-section');
+            if (creatorSection) {
+                if (r.creator_full_name) {
+                    var creatorGrid = '';
+                    creatorGrid += lguInfoItem('user', 'Full Name', r.creator_full_name);
+                    creatorGrid += lguInfoItem('phone', 'Contact Number', r.creator_phone);
+                    creatorGrid += lguInfoItem('envelope', 'Email', r.creator_email);
+                    document.getElementById('lgu-creator-grid').innerHTML = creatorGrid;
+                    creatorSection.style.display = '';
+                } else {
+                    creatorSection.style.display = 'none';
+                }
+            }
 
             // Location
             var locationGrid = '';
@@ -6033,6 +6104,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 locVal += '<br><a href="https://www.google.com/maps?q=' + r.latitude + ',' + r.longitude + '" target="_blank" style="color:#3762c8;font-size:12px;text-decoration:none;"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map</a>';
             }
             locationGrid += '<div class="lgu-info-item lgu-info-value-full"><div class="lgu-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="lgu-info-label">Location</div><div class="lgu-info-value">' + locVal + '</div></div></div>';
+            <?php if ($is_road_supervisor): ?>
+            locationGrid += lguInfoItem('map-pin', 'District', r.detected_district);
+            <?php endif; ?>
             document.getElementById('lgu-location-grid').innerHTML = locationGrid;
 
             // Description
@@ -6156,6 +6230,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             projectGrid += cimmInfoItem('calendar-alt', 'Start Date', formatDate(r.start_date));
             projectGrid += cimmInfoItem('calendar-check', 'End Date', formatDate(r.end_date));
             projectGrid += cimmInfoItem('wallet', 'Budget', formatCurrency(r.budget));
+            if (r.budget_allocation) {
+                projectGrid += cimmInfoItem('wallet', 'Budget Allocation', formatCurrency(r.budget_allocation));
+            }
             document.getElementById('cimm-project-grid').innerHTML = projectGrid;
 
             // Reporter & Engineer
@@ -6563,12 +6640,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     location: <?php echo json_encode($lr['location']); ?>,
                     latitude: <?php echo json_encode($lr['latitude'] ?? null); ?>,
                     longitude: <?php echo json_encode($lr['longitude'] ?? null); ?>,
+                    detected_district: <?php echo json_encode($lr['detected_district'] ?? null); ?>,
                     description: <?php echo json_encode($lr['description']); ?>,
                     attachments: <?php echo json_encode($lr['attachments'] ?? null); ?>,
                     created_at: <?php echo json_encode($lr['created_at']); ?>,
                     updated_at: <?php echo json_encode($lr['updated_at']); ?>,
                     approved_at: <?php echo json_encode($lr['approved_at']); ?>,
-                    rejected_at: <?php echo json_encode($lr['rejected_at']); ?>
+                    rejected_at: <?php echo json_encode($lr['rejected_at']); ?>,
+                    engineer: <?php echo json_encode($lr['engineer'] ?? null); ?>,
+                    budget_allocation: <?php echo json_encode($lr['budget_allocation'] ?? null); ?>
+                    <?php if ($is_road_supervisor): ?>,
+                    creator_full_name: <?php echo json_encode($lr['creator_full_name'] ?? null); ?>,
+                    creator_phone: <?php echo json_encode($lr['creator_phone'] ?? null); ?>,
+                    creator_email: <?php echo json_encode($lr['creator_email'] ?? null); ?>
+                    <?php endif; ?>
                 };
             } catch(e) {
                 console.error('Error adding LGU report to map:', e);
@@ -7024,6 +7109,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 <div class="lgu-modal-section">
                     <div class="lgu-modal-section-title"><i class="fas fa-building"></i> Source &amp; Department</div>
                     <div class="lgu-info-grid" id="lgu-source-grid"></div>
+                </div>
+                <!-- Report Creator (Road Supervisor portal only) -->
+                <div class="lgu-modal-section" id="lgu-creator-section" style="display:none;">
+                    <div class="lgu-modal-section-title"><i class="fas fa-user-circle"></i> Report Creator Information</div>
+                    <div class="lgu-info-grid" id="lgu-creator-grid"></div>
                 </div>
                 <!-- Location -->
                 <div class="lgu-modal-section">

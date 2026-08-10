@@ -1,8 +1,12 @@
 <?php
 /**
- * IPMS road projects poller — pulls the live "upcoming/ongoing road
- * projects" feed from IPMS so the public dashboard can show citizens which
- * roads are about to be, or currently being, worked on.
+ * IPMS road projects poller — pulls the live road-projects feed from IPMS
+ * so the public dashboard can show citizens which roads are about to be,
+ * currently being, or have already been worked on (and which were
+ * cancelled). IPMS now sends the full public lifecycle per project — new,
+ * ongoing, completed, cancelled — via a status_bucket field, so a project
+ * finishing or getting cancelled no longer means it drops out of this feed;
+ * it just changes bucket.
  *
  * This mirrors the shape of cimm-reports-pull.php (same folder): a small
  * cron-friendly script that authenticates outbound to a partner system,
@@ -160,9 +164,12 @@ try {
         }
     }
 
-    // Reconcile: IPMS's feed is always the current live "upcoming" scope, so
-    // anything cached here but absent from this pull (e.g. a project moved
-    // to completed/cancelled) should drop off the dashboard too.
+    // Reconcile: IPMS's feed is always the current live full-lifecycle scope
+    // (new/ongoing/completed/cancelled), so a project moving between those
+    // buckets just updates in place via the upsert above. Anything cached
+    // here but absent from this pull is truly gone from IPMS's road-project
+    // scope (deleted, or recategorized away from Roads and Bridges) and
+    // should drop off the dashboard too.
     $pruned = rgmap_prune_ipms_road_projects($pdo, $seenIds);
 
     echo json_encode([

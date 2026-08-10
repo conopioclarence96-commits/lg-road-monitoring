@@ -32,6 +32,21 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
+// Force password change before accessing any protected page. Users with
+// must_change_password = 1 may only access change_password.php until they
+// replace their temporary password.
+if ($conn && isset($_SESSION['user_id'])) {
+    $mcp = $conn->prepare("SELECT must_change_password FROM users WHERE id = ?");
+    $mcp->bind_param("i", $_SESSION['user_id']);
+    $mcp->execute();
+    $mcp_row = $mcp->get_result()->fetch_assoc();
+    $mcp->close();
+    if ($mcp_row && !empty($mcp_row['must_change_password'])) {
+        header('Location: /lg-road-monitoring/lgu_staff/change_password.php');
+        exit();
+    }
+}
+
 // Get user info
 function getSidebarUserInfo() {
     global $conn;
@@ -67,61 +82,97 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
     global $conn;
     $count = 0;
     if ($conn) {
-        if ($user_role === 'system_admin') {
-            try {
-                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'pending'");
+        // Only count unread report_notifications that reference a report
+        // that still exists in one of the live tables.
+        try {
+            // Email of the logged-in user — used to match notifications that
+            // are targeted to an individual (request outcomes, own action
+            // results) rather than to a whole role.
+            $email = '';
+            if ($user_id > 0) {
+                $estmt = $conn->prepare("SELECT email FROM users WHERE id = ?");
+                $estmt->bind_param("i", $user_id);
+                $estmt->execute();
+                $erow = $estmt->get_result()->fetch_assoc();
+                $estmt->close();
+                $email = $erow['email'] ?? '';
+            }
+
+            if (in_array($user_role, ['road_ops_supervisor', 'trans_ops_supervisor'], true)) {
+                // Supervisors: count only the unread notifications that
+                // actually appear in their notifications feed — review requests
+                // routed to their role plus results targeted to their email.
+                // (The generic count below would include notifications meant
+                // for other roles or broadcast progress updates, inflating the
+                // badge.)
+                if ($user_role === 'trans_ops_supervisor') {
+                    // Transportation supervisors only ever receive notifications
+                    // for transportation reports, so the existence check is
+                    // narrowed to transportation rows — never CIMM, road or
+                    // maintenance reports.
+                    $exists = "SELECT 1 FROM road_transportation_reports
+                               WHERE id = rn.report_id
+                                 AND report_category = 'transportation'
+                                 AND report_type != 'infrastructure_issue'";
+                } else {
+                    $exists = "SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
+                               UNION ALL
+                               SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
+                               UNION ALL
+                               SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id";
+                }
+                $stmt = $conn->prepare("
+                    SELECT COUNT(*) as count FROM report_notifications rn
+                    WHERE rn.is_read = 0
+                      AND (
+                          (rn.recipient_role = ? AND rn.type IN ('completion', 'cancellation'))
+                          OR (rn.recipient_email = ? AND rn.type IN ('approve_request', 'reject_request', 'complete_report', 'cancel_report'))
+                      )
+                      AND EXISTS (" . $exists . " LIMIT 1)
+                ");
+                $stmt->bind_param("ss", $user_role, $email);
                 $stmt->execute();
                 $count += $stmt->get_result()->fetch_assoc()['count'];
                 $stmt->close();
-            } catch (Exception $e) {}
-            try {
-                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM users WHERE account_status = 'pending'");
+            } elseif ($user_role === 'trans_monitoring_officer') {
+                // Transportation monitoring officers: their unread notifications
+                // are the review-request outcomes (approve/reject) routed to
+                // their email — and only ever for transportation reports.
+                $stmt = $conn->prepare("
+                    SELECT COUNT(*) as count FROM report_notifications rn
+                    WHERE rn.is_read = 0
+                      AND rn.recipient_email = ?
+                      AND rn.type IN ('approve_request', 'reject_request')
+                      AND EXISTS (
+                          SELECT 1 FROM road_transportation_reports
+                          WHERE id = rn.report_id
+                            AND report_category = 'transportation'
+                            AND report_type != 'infrastructure_issue'
+                          LIMIT 1
+                      )
+                ");
+                $stmt->bind_param("s", $email);
                 $stmt->execute();
                 $count += $stmt->get_result()->fetch_assoc()['count'];
                 $stmt->close();
-            } catch (Exception $e) {}
-            try {
-                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM change_requests WHERE status = 'pending'");
+            } else {
+                $stmt = $conn->prepare("
+                    SELECT COUNT(*) as count FROM report_notifications rn
+                    WHERE rn.is_read = 0
+                      AND EXISTS (
+                          SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
+                          UNION ALL
+                          SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
+                          UNION ALL
+                          SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id
+                          LIMIT 1
+                      )
+                ");
                 $stmt->execute();
                 $count += $stmt->get_result()->fetch_assoc()['count'];
                 $stmt->close();
-            } catch (Exception $e) {}
-            try {
-                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM report_notifications WHERE is_read = 0");
-                $stmt->execute();
-                $count += $stmt->get_result()->fetch_assoc()['count'];
-                $stmt->close();
-            } catch (Exception $e) {}
-            try {
-                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM report_assignments WHERE user_id = ? AND status = 'active'");
-                $stmt->bind_param("i", $user_id);
-                $stmt->execute();
-                $count += $stmt->get_result()->fetch_assoc()['count'];
-                $stmt->close();
-            } catch (Exception $e) {}
-        } elseif (is_staff_role($user_role) && $user_id > 0) {
-            try {
-                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM change_requests WHERE user_id = ? AND status != 'pending'");
-                $stmt->bind_param("i", $user_id);
-                $stmt->execute();
-                $count += $stmt->get_result()->fetch_assoc()['count'];
-                $stmt->close();
-            } catch (Exception $e) {}
-            try {
-                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE created_by = ? AND status IN ('completed', 'cancelled')");
-                $stmt->bind_param("i", $user_id);
-                $stmt->execute();
-                $count += $stmt->get_result()->fetch_assoc()['count'];
-                $stmt->close();
-            } catch (Exception $e) {}
-            try {
-                $stmt = $conn->prepare("SELECT COUNT(*) as count FROM report_assignments WHERE user_id = ? AND status = 'active'");
-                $stmt->bind_param("i", $user_id);
-                $stmt->execute();
-                $count += $stmt->get_result()->fetch_assoc()['count'];
-                $stmt->close();
-            } catch (Exception $e) {}
-        }
+            }
+        } catch (Exception $e) {}
     }
     return $count;
 }
@@ -145,6 +196,7 @@ $nav_items = [
         ['href' => $nav_base . 'pages/admin/manage_accounts.php', 'icon' => 'users', 'title' => 'Manage Accounts', 'roles' => ['system_admin']],
         ['href' => $nav_base . 'pages/admin/account_approvals.php', 'icon' => 'clipboard-check', 'title' => 'Account Approvals', 'roles' => ['system_admin']],
         ['href' => $nav_base . 'pages/admin/create_staff_account.php', 'icon' => 'user-plus', 'title' => 'Create Staff Account', 'roles' => ['system_admin']],
+        ['href' => $nav_base . 'pages/admin/send_registration_link.php', 'icon' => 'envelope-open-text', 'title' => 'Send Registration Link', 'roles' => ['system_admin']],
     ],
     'monitoring' => [
         ['href' => $nav_base . 'pages/shared/road_transportation_monitoring.php', 'icon' => 'map-marked-alt', 'title' => 'Road Monitoring', 'roles' => ['system_admin','road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer']],
@@ -160,7 +212,8 @@ $nav_items = [
     ],
     'system' => [
         ['href' => $nav_base . 'pages/shared/notifications.php', 'icon' => 'bell', 'title' => 'Notifications', 'roles' => ['system_admin', 'lgu_staff']],
-        ['href' => $nav_base . 'pages/admin/archive.php', 'icon' => 'archive', 'title' => 'Archive', 'roles' => ['system_admin']],
+        ['href' => $nav_base . 'pages/admin/archive.php', 'icon' => 'archive', 'title' => 'Archive', 'roles' => ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor', 'trans_monitoring_officer']],
+        ['href' => $nav_base . 'pages/lgu/officer_archive.php', 'icon' => 'archive', 'title' => 'Archive', 'roles' => ['road_monitoring_officer']],
         ['href' => $nav_base . 'pages/shared/settings.php', 'icon' => 'cog', 'title' => 'Settings', 'roles' => ['system_admin', 'lgu_staff']],
     ]
 ];

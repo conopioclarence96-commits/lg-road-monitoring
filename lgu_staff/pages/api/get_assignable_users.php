@@ -60,9 +60,34 @@ try {
     
     while ($row = $result->fetch_assoc()) {
         // Get count of active assignments for this user
+        // Only count currently active/in-progress assignments: the report must
+        // still exist in its live table (not archived) and not be in a terminal
+        // state (completed / cancelled / rejected).
         $active_count = 0;
         try {
-            $count_stmt = $conn->prepare("SELECT COUNT(*) as active_count FROM report_assignments WHERE user_id = ? AND status = 'active'");
+            $count_stmt = $conn->prepare("
+                SELECT COUNT(*) AS active_count
+                FROM report_assignments ra
+                LEFT JOIN road_transportation_reports r
+                    ON ra.report_id = r.id AND ra.report_type = 'road_transportation_reports'
+                LEFT JOIN cimm_verification_reports c
+                    ON ra.report_id = c.id AND ra.report_type = 'cimm_verification_reports'
+                LEFT JOIN road_maintenance_reports m
+                    ON ra.report_id = m.id AND ra.report_type = 'road_maintenance_reports'
+                WHERE ra.user_id = ? AND ra.status = 'active'
+                  AND (
+                    (ra.report_type = 'road_transportation_reports'
+                        AND r.id IS NOT NULL
+                        AND r.status NOT IN ('completed','cancelled','rejected'))
+                    OR (ra.report_type = 'cimm_verification_reports'
+                        AND c.id IS NOT NULL
+                        AND c.approval_status <> 'Rejected'
+                        AND COALESCE(c.resolution_status,'') NOT IN ('Completed','Cancelled','Rejected'))
+                    OR (ra.report_type = 'road_maintenance_reports'
+                        AND m.id IS NOT NULL
+                        AND m.status NOT IN ('completed','cancelled','rejected'))
+                  )
+            ");
             $count_stmt->bind_param("i", $row['id']);
             $count_stmt->execute();
             $count_result = $count_stmt->get_result();

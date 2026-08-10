@@ -468,20 +468,6 @@ if ($conn) {
             margin-bottom: 15px;
         }
 
-        .sync-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 4px 12px;
-            background: rgba(76,175,80,0.1);
-            color: #4CAF50;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 500;
-        }
-
-        .sync-badge i { font-size: 10px; }
-
         .toast {
             position: fixed;
             top: 20px;
@@ -662,12 +648,7 @@ if ($conn) {
                     <p>View completed projects with before &amp; after photos (View Only)</p>
                     <?php endif; ?>
                 </div>
-                <div class="header-actions">
-                    <span class="sync-badge"><i class="fas fa-sync-alt"></i> Syncs to Landing Page</span>
-                    <a href="../../../index.php#projects" target="_blank" class="btn-action">
-                        <i class="fas fa-external-link-alt"></i> View on Landing Page
-                    </a>
-                </div>
+                <div class="header-actions"></div>
             </div>
         </div>
 

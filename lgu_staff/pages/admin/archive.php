@@ -3,10 +3,15 @@ require_once '../../includes/session_config.php';
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'system_admin') {
+$archive_allowed_roles = ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor', 'trans_monitoring_officer'];
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', $archive_allowed_roles, true)) {
     header('Location: ../../login.php');
     exit();
 }
+
+$user_role = $_SESSION['role'] ?? '';
+$is_trans_role = in_array($user_role, ['trans_ops_supervisor', 'trans_monitoring_officer'], true);
+$is_trans_officer = ($user_role === 'trans_monitoring_officer');
 
 $conn->query("CREATE TABLE IF NOT EXISTS road_transportation_reports_archive LIKE road_transportation_reports");
 
@@ -27,15 +32,25 @@ $source_filter = $_GET['source'] ?? 'all';
 $sort_order = $_GET['sort'] ?? 'latest';
 $id_search = trim($_GET['id'] ?? '');
 
+// Trans roles may only ever query the Road & Transportation (LGU Monitoring)
+// and Citizen sources. Normalize any tampered source parameter (CIMM /
+// Infrastructure) to 'all' BEFORE the filter switch below, so the per-source
+// WHERE clause can never be built for the excluded sources.
+if ($is_trans_role && ($source_filter === 'cimm' || $source_filter === 'infrastructure')) {
+    $source_filter = 'all';
+}
+
 // Source system classification. Every archived report is assigned to exactly
 // one source bucket using the existing archive columns.
+//   - cimm           : report_source = external (CIMM rows also carry a
+//                       report_type of 'infrastructure_issue', so this is the
+//                       distinguishing marker and takes precedence)
 //   - infrastructure : report_type in (infrastructure_issue, maintenance, maintenance_request)
-//   - cimm           : report_source = external
 //   - lgu            : report_source = local AND created_by != 0  (LGU Monitoring)
 //   - citizen        : everything else (created_by = 0 / public submissions)
 $source_case = "CASE
-        WHEN report_type IN ('infrastructure_issue','maintenance','maintenance_request') THEN 'infrastructure'
         WHEN report_source = 'external' THEN 'cimm'
+        WHEN report_type IN ('infrastructure_issue','maintenance','maintenance_request') THEN 'infrastructure'
         WHEN report_source = 'local' AND COALESCE(created_by, 0) != 0 THEN 'lgu'
         ELSE 'citizen'
     END";
@@ -52,32 +67,70 @@ switch ($source_filter) {
         $source_where = "report_source = 'external'";
         break;
     case 'infrastructure':
-        $source_where = "report_type IN ('infrastructure_issue','maintenance','maintenance_request')";
+        $source_where = "report_type IN ('infrastructure_issue','maintenance','maintenance_request') AND (report_source IS NULL OR report_source != 'external')";
         break;
     default:
         $source_where = '';
         break;
 }
 
+// Trans roles (trans_ops_supervisor, trans_monitoring_officer) may only see
+// the Road & Transportation (LGU Monitoring) and Citizen archives. CIMM and
+// Infrastructure reports are always excluded for them — both in the dropdown
+// and, critically, in the query itself (so tampering with the source filter
+// cannot surface those reports).
+$trans_source_restrict = '';
+if ($is_trans_role) {
+    $trans_source_restrict = "report_type NOT IN ('infrastructure_issue','maintenance','maintenance_request') AND (report_source IS NULL OR report_source != 'external')";
+}
+
+// trans_monitoring_officer may only see the archived reports that were
+// assigned to them (mirrors the officer archive's assignment join).
+$trans_officer_restrict = '';
+if ($is_trans_officer) {
+    $trans_officer_restrict = "EXISTS (
+        SELECT 1 FROM report_assignments ra
+        WHERE ra.user_id = " . (int)$_SESSION['user_id'] . " AND ra.status = 'active'
+          AND (road_transportation_reports_archive.id = ra.report_id
+               OR (
+                   road_transportation_reports_archive.report_id IS NOT NULL
+                   AND road_transportation_reports_archive.report_id != ''
+                   AND road_transportation_reports_archive.report_id = (SELECT r.report_id FROM road_transportation_reports r WHERE r.id = ra.report_id LIMIT 1)
+               ))
+    )";
+}
+
 // Build WHERE clause
 $where_clauses = [];
 
-// Status filter. The archive only ever contains completed / rejected / cancelled
-// reports, so every selection (including "All Status") is restricted to those
-// three statuses — any other status can never appear here.
+// Status filter. The archive's classic entries are completed / rejected /
+// cancelled reports, but the Road Supervisor portal can also archive a report
+// while keeping its current status (approved / in-progress / pending), so the
+// "All Status" view shows every status rather than only terminal ones.
 if ($status_filter === 'completed') {
     $where_clauses[] = "status = 'completed'";
 } elseif ($status_filter === 'rejected') {
     $where_clauses[] = "status = 'rejected'";
 } elseif ($status_filter === 'cancelled') {
     $where_clauses[] = "status = 'cancelled'";
-} else {
-    // All Status
-    $where_clauses[] = "status IN ('completed','rejected','cancelled')";
+} elseif ($status_filter === 'approved') {
+    $where_clauses[] = "status = 'approved'";
+} elseif ($status_filter === 'in-progress') {
+    $where_clauses[] = "status = 'in-progress'";
+} elseif ($status_filter === 'pending') {
+    $where_clauses[] = "status = 'pending'";
 }
 
 if ($source_where !== '') {
     $where_clauses[] = $source_where;
+}
+
+if ($trans_source_restrict !== '') {
+    $where_clauses[] = $trans_source_restrict;
+}
+
+if ($trans_officer_restrict !== '') {
+    $where_clauses[] = $trans_officer_restrict;
 }
 
 // ID search filter
@@ -108,6 +161,14 @@ $sql = "SELECT *, $source_case AS source_system FROM road_transportation_reports
 $archives = $conn->query($sql);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    // trans_monitoring_officer is a view-only archive viewer: they may never
+    // restore or permanently delete archived reports, regardless of the POST
+    // parameters they send.
+    if ($is_trans_officer && in_array($_POST['action'], ['restore', 'delete_forever'], true)) {
+        $_SESSION['archive_message'] = 'You are not authorized to restore or delete archived reports.';
+        header('Location: archive.php');
+        exit();
+    }
     if ($_POST['action'] === 'restore' && isset($_POST['archive_id'])) {
         $archive_id = (int) $_POST['archive_id'];
         $arch = $conn->prepare("SELECT * FROM road_transportation_reports_archive WHERE id = ?");
@@ -146,16 +207,75 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         // happened instead of staying hidden with a terminal status.
         $restore_status = (!empty($row['previous_status'])) ? $row['previous_status'] : $row['status'];
 
-        // A completed transportation report is brought back as an ACTIVE report
-        // ('in-progress') so it reappears in Recent Submissions on
-        // road_transportation_monitoring.php and report_management.php instead
-        // of staying finished.
+        // A completed or cancelled transportation/maintenance report is
+        // restored as 'approved' first so it returns to report_management.php
+        // as an Approved report. It only moves to 'in-progress' once a progress
+        // update is uploaded (handled in progress_update_api.php on the first
+        // update).
         if ($module === 'transport' && $restore_status === 'completed') {
-            $restore_status = 'in-progress';
+            $restore_status = 'approved';
+        }
+
+        // A cancelled transportation or maintenance report is brought back as
+        // 'approved' first so it returns to report_management.php as an approved
+        // project instead of staying cancelled and hidden; it can move to
+        // in-progress afterwards through the normal flow.
+        if (in_array($module, ['transport', 'maintenance'], true) && strtolower((string)($row['status'] ?? '')) === 'cancelled') {
+            $restore_status = 'approved';
+        }
+
+        // A rejected CITIZEN report (transportation + local + created_by = 0) is
+        // restored to 'pending' so it returns to the Pending Citizen Reports
+        // section on verification_monitoring.php with its Approve/Reject buttons
+        // available again — instead of coming back permanently rejected (the
+        // buttons only render for 'pending' reports).
+        if ($module === 'transport'
+            && $restore_status === 'rejected'
+            && (int)($row['created_by'] ?? 0) === 0
+            && ($row['report_source'] ?? '') === 'local'
+            && strtolower((string)($row['report_category'] ?? '')) === 'transportation') {
+            $restore_status = 'pending';
+        }
+
+        // A rejected CIMM report is restored to 'Pending Review' (with
+        // approval_status 'Approved') so it returns to the Pending Dept/CIMM
+        // section on verification_monitoring.php with its Approve/Reject buttons
+        // available again — that panel only lists reports whose
+        // verification_status is 'Pending Review'.
+        if ($module === 'cimm' && strtolower((string)$restore_status) === 'rejected') {
+            $restore_status = 'Pending Review';
+        }
+
+        // A completed CIMM report is restored as 'Approved' first so it returns
+        // to report_management.php, road_transportation_monitoring.php and the
+        // active project list (all of which list CIMM reports whose
+        // verification_status is 'Approved' or 'In Progress') instead of staying
+        // finished and hidden. It only moves to 'In Progress' once a progress
+        // update is uploaded.
+        if ($module === 'cimm' && strtolower((string)$restore_status) === 'completed') {
+            $restore_status = 'Approved';
+        }
+
+        // A cancelled CIMM report is restored as 'Approved' first so it returns
+        // to report_management.php, road_transportation_monitoring.php and the
+        // active project list instead of staying cancelled and hidden; it can
+        // move to In Progress afterwards through the normal flow.
+        if ($module === 'cimm' && strtolower((string)($row['status'] ?? '')) === 'cancelled') {
+            $restore_status = 'Approved';
         }
 
         // CIMM reports: map the archived row back into cimm_verification_reports.
         if ($module === 'cimm') {
+            // Reconstruct the CIMM request id (reference_code is formatted
+            // 'REQ-<id>') so the Approve/Reject buttons post a valid
+            // cimm_req_id after restore.
+            $cimm_req_id = null;
+            $ref_code = (string)($row['report_id'] ?? '');
+            if (preg_match('/^REQ-(.+)$/i', $ref_code, $m)) {
+                $cimm_req_id = $m[1];
+            } elseif ($ref_code !== '') {
+                $cimm_req_id = $ref_code;
+            }
             $cimm_fields = [
                 'reference_code' => $row['report_id'],
                 'infrastructure' => $row['title'],
@@ -168,7 +288,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 'submitted_at' => $row['created_at'],
                 'verified_at' => ($row['completed_at'] ?? null) ?: ($row['rejected_at'] ?? null),
                 'verification_status' => $restore_status,
+                'approval_status' => 'Approved',
+                'cimm_req_id' => $cimm_req_id,
             ];
+
+            // The Complete/Reject flows (and the Resolve flow) file a COPY into
+            // the archive while the live CIMM row stays in place, so the report
+            // may already exist here. In that case reopen it in place (restore
+            // its status/data, clear the terminal timestamps) instead of
+            // inserting a duplicate, then drop the archive copy.
+            $existing = null;
+            if ($cimm_req_id !== null && $cimm_req_id !== '') {
+                $dup = $conn->prepare("SELECT id FROM cimm_verification_reports WHERE cimm_req_id = ?");
+                $dup->bind_param("s", $cimm_req_id);
+                $dup->execute();
+                $existing = $dup->get_result()->fetch_assoc() ?? null;
+                $dup->close();
+            }
+
+            if ($existing) {
+                $upd = $conn->prepare("UPDATE cimm_verification_reports SET verification_status = ?, approval_status = 'Approved', resolved_at = NULL, updated_at = NOW() WHERE id = ?");
+                $upd->bind_param("si", $restore_status, $existing['id']);
+                $upd->execute();
+                if ($upd->affected_rows >= 0) {
+                    $delete = $conn->prepare("DELETE FROM road_transportation_reports_archive WHERE id = ?");
+                    $delete->bind_param('i', $archive_id);
+                    $delete->execute();
+                    $_SESSION['archive_message'] = 'Report restored successfully.';
+                } else {
+                    $_SESSION['archive_message'] = 'Restore failed – the report may already exist.';
+                }
+                header('Location: archive.php');
+                exit();
+            }
+
             $cols = '`' . implode('`, `', array_keys($cimm_fields)) . '`';
             $place = implode(', ', array_fill(0, count($cimm_fields), '?'));
             $stmt = $conn->prepare("INSERT INTO cimm_verification_reports ($cols) VALUES ($place)");
@@ -436,6 +589,316 @@ if (isset($_SESSION['archive_message'])) {
             margin-top: 10px; cursor: pointer;
         }
 
+        /* View Archive Modal (btn-view viewport — mirrors report_management rm modal) */
+        .rm-modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+
+        .rm-modal-overlay.active {
+            display: flex;
+        }
+
+        .rm-modal-content {
+            background: #f0f4fa;
+            border-radius: 16px;
+            max-width: 860px;
+            width: 100%;
+            max-height: calc(100vh - 40px);
+            position: relative;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            margin: auto;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            border: 1px solid #c8d0e0;
+        }
+
+        .rm-modal-header {
+            background: white;
+            border-radius: 16px 16px 0 0;
+            padding: 24px 28px 18px;
+            border-bottom: 2px solid rgba(55, 98, 200, 0.15);
+            flex-shrink: 0;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        .rm-modal-header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .rm-modal-title-area {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .rm-modal-report-id {
+            font-size: 13px;
+            color: #3762c8;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            margin-bottom: 4px;
+        }
+
+        .rm-modal-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1e3c72;
+            margin: 0 0 10px 0;
+            line-height: 1.3;
+        }
+
+        .rm-modal-badges {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .rm-modal-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            color: #666;
+            cursor: pointer;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.3s;
+            flex-shrink: 0;
+            margin-left: 15px;
+        }
+
+        .rm-modal-close:hover {
+            background: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+        }
+
+        .rm-modal-body {
+            overflow-y: auto;
+            flex: 1;
+            min-height: 0;
+            padding: 24px 28px;
+        }
+
+        .rm-modal-body::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .rm-modal-body::-webkit-scrollbar-track {
+            background: rgba(55, 98, 200, 0.08);
+            border-radius: 4px;
+        }
+
+        .rm-modal-body::-webkit-scrollbar-thumb {
+            background: rgba(55, 98, 200, 0.2);
+            border-radius: 4px;
+        }
+
+        .rm-modal-body::-webkit-scrollbar-thumb:hover {
+            background: rgba(55, 98, 200, 0.35);
+        }
+
+        .rm-modal-section {
+            background: white;
+            border-radius: 12px;
+            padding: 18px 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            border: 1px solid rgba(55, 98, 200, 0.1);
+        }
+
+        .rm-modal-section-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #1e3c72;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 14px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(55, 98, 200, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .rm-modal-section-title i {
+            color: #3762c8;
+            font-size: 15px;
+        }
+
+        .rm-info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .rm-info-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 6px 0;
+        }
+
+        .rm-info-icon {
+            width: 28px;
+            height: 28px;
+            background: rgba(55, 98, 200, 0.1);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #3762c8;
+            font-size: 13px;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .rm-info-label {
+            font-size: 11px;
+            color: #6b7280;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-bottom: 2px;
+        }
+
+        .rm-info-value {
+            font-size: 14px;
+            color: #1f2937;
+            font-weight: 500;
+            line-height: 1.4;
+            word-break: break-word;
+        }
+
+        .rm-info-value-full {
+            grid-column: 1 / -1;
+        }
+
+        .rm-description-text {
+            font-size: 14px;
+            color: #374151;
+            line-height: 1.7;
+            padding: 8px 0;
+            white-space: pre-wrap;
+        }
+
+        .rm-modal-footer {
+            background: white;
+            border-radius: 0 0 16px 16px;
+            padding: 16px 28px;
+            border-top: 1px solid rgba(55, 98, 200, 0.1);
+            flex-shrink: 0;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .rm-modal-btn-close {
+            padding: 10px 24px;
+            background: rgba(55, 98, 200, 0.1);
+            color: #3762c8;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .rm-modal-btn-close:hover {
+            background: rgba(55, 98, 200, 0.2);
+        }
+
+        @media (max-width: 640px) {
+            .rm-info-grid {
+                grid-template-columns: 1fr;
+            }
+            .rm-modal-header {
+                padding: 18px 16px;
+            }
+            .rm-modal-body {
+                padding: 16px;
+            }
+            .rm-modal-content {
+                max-width: 100%;
+                border-radius: 0;
+            }
+            .rm-modal-overlay {
+                padding: 0;
+            }
+        }
+
+        /* View Archive Modal Dark Mode */
+        body.dark-mode .rm-modal-content {
+            background: #1a1d24 !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode .rm-modal-header {
+            background: #1a1d24 !important;
+            border-bottom-color: #2d323b !important;
+        }
+        body.dark-mode .rm-modal-title {
+            color: #60a5fa !important;
+        }
+        body.dark-mode .rm-modal-report-id {
+            color: #60a5fa !important;
+        }
+        body.dark-mode .rm-modal-close {
+            color: #9ca3af !important;
+        }
+        body.dark-mode .rm-modal-section {
+            background: #22262e !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode .rm-modal-section-title {
+            color: #60a5fa !important;
+            border-bottom-color: #2d323b !important;
+        }
+        body.dark-mode .rm-info-icon {
+            background: rgba(55,98,200,0.15) !important;
+        }
+        body.dark-mode .rm-info-label {
+            color: #9ca3af !important;
+        }
+        body.dark-mode .rm-info-value {
+            color: #e4e6ea !important;
+        }
+        body.dark-mode .rm-description-text {
+            color: #c0c8d8 !important;
+        }
+        body.dark-mode .rm-modal-footer {
+            background: #1a1d24 !important;
+            border-top-color: #2d323b !important;
+        }
+        body.dark-mode .rm-modal-btn-close {
+            background: rgba(55,98,200,0.15) !important;
+            color: #60a5fa !important;
+        }
+        body.dark-mode .rm-modal-body::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05) !important;
+        }
+        body.dark-mode .rm-modal-body::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.15) !important;
+        }
+
         /* Dark mode */
         body.dark-mode { background: #1a1d23; }
         body.dark-mode .archive-header,
@@ -572,6 +1035,38 @@ if (isset($_SESSION['archive_message'])) {
             background: rgba(55,98,200,0.15);
             color: #3762c8;
         }
+        .status-badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+        .status-completed {
+            background: rgba(34,197,94,0.15);
+            color: #22c55e;
+        }
+        .status-approved {
+            background: rgba(34,197,94,0.15);
+            color: #22c55e;
+        }
+        .status-pending {
+            background: rgba(251,191,36,0.15);
+            color: #f59e0b;
+        }
+        .status-in-progress {
+            background: rgba(59,130,246,0.15);
+            color: #3b82f6;
+        }
+        .status-rejected {
+            background: rgba(249,115,22,0.15);
+            color: #f97316;
+        }
+        .status-cancelled {
+            background: rgba(239,68,68,0.15);
+            color: #ef4444;
+        }
 
         @media (max-width: 768px) {
             .main-content { margin-left: 0; }
@@ -597,6 +1092,9 @@ if (isset($_SESSION['archive_message'])) {
                     <label class="form-label">Status Filter</label>
                     <select class="filter-select" id="statusFilter" onchange="filterReports()">
                         <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
+                        <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending</option>
+                        <option value="approved" <?php echo $status_filter === 'approved' ? 'selected' : ''; ?>>Approved</option>
+                        <option value="in-progress" <?php echo $status_filter === 'in-progress' ? 'selected' : ''; ?>>In Progress</option>
                         <option value="completed" <?php echo $status_filter === 'completed' ? 'selected' : ''; ?>>Completed</option>
                         <option value="rejected" <?php echo $status_filter === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
                         <option value="cancelled" <?php echo $status_filter === 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
@@ -608,8 +1106,10 @@ if (isset($_SESSION['archive_message'])) {
                         <option value="all" <?php echo $source_filter === 'all' ? 'selected' : ''; ?>>All Systems</option>
                         <option value="lgu" <?php echo $source_filter === 'lgu' ? 'selected' : ''; ?>>Road & Transportation (LGU Monitoring)</option>
                         <option value="citizen" <?php echo $source_filter === 'citizen' ? 'selected' : ''; ?>>Citizen</option>
+                        <?php if (!$is_trans_role): ?>
                         <option value="cimm" <?php echo $source_filter === 'cimm' ? 'selected' : ''; ?>>CIMM</option>
                         <option value="infrastructure" <?php echo $source_filter === 'infrastructure' ? 'selected' : ''; ?>>Infrastructure</option>
+                        <?php endif; ?>
                     </select>
                 </div>
                 <div>
@@ -654,6 +1154,9 @@ if (isset($_SESSION['archive_message'])) {
                             <div class="archive-meta">
                                 <span class="meta-item"><i class="fas fa-tag"></i> <?php echo htmlspecialchars($row['report_type']); ?></span>
                                 <span class="meta-item"><i class="fas fa-building"></i> <?php echo htmlspecialchars($row['department']); ?></span>
+                                <span class="meta-item"><i class="fas fa-flag"></i>
+                                    <span class="status-badge status-<?php echo htmlspecialchars(strtolower($row['status'])); ?>"><?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $row['status']))); ?></span>
+                                </span>
                                 <span class="meta-item"><i class="fas fa-calendar"></i> <?php echo htmlspecialchars($row['created_at']); ?></span>
                                 <span class="meta-item"><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($row['location'] ?? 'N/A'); ?></span>
                                 <span class="meta-item"><i class="fas fa-sitemap"></i>
@@ -664,6 +1167,7 @@ if (isset($_SESSION['archive_message'])) {
                                 <button type="button" class="btn-view" onclick="viewArchive(<?php echo $row['id']; ?>)">
                                     <i class="fas fa-eye"></i> View
                                 </button>
+                                <?php if (!$is_trans_officer): ?>
                                 <form method="POST" style="display: inline-flex;" onsubmit="return confirm('Restore this report back to active table?');">
                                     <input type="hidden" name="archive_id" value="<?php echo $row['id']; ?>">
                                     <button type="submit" name="action" value="restore" class="btn-restore">
@@ -676,6 +1180,7 @@ if (isset($_SESSION['archive_message'])) {
                                         <i class="fas fa-trash"></i> Delete Forever
                                     </button>
                                 </form>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -689,14 +1194,56 @@ if (isset($_SESSION['archive_message'])) {
         </div>
     </div>
 
-    <!-- View Modal -->
-    <div class="modal-overlay" id="viewModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2><i class="fas fa-file-alt"></i> <span id="modalTitle">Report Details</span></h2>
-                <button type="button" class="modal-close" onclick="closeViewModal()">&times;</button>
+    <!-- View Archive Modal (btn-view viewport) -->
+    <div class="rm-modal-overlay" id="viewModal" onclick="if(event.target===this)closeViewModal()">
+        <div class="rm-modal-content">
+            <div class="rm-modal-header">
+                <div class="rm-modal-header-top">
+                    <div class="rm-modal-title-area">
+                        <div class="rm-modal-report-id" id="rm-report-id">—</div>
+                        <h3 class="rm-modal-title" id="rm-title">—</h3>
+                        <div class="rm-modal-badges" id="rm-badges"></div>
+                    </div>
+                    <button type="button" class="rm-modal-close" onclick="closeViewModal()">&times;</button>
+                </div>
             </div>
-            <div class="modal-body" id="modalBody"></div>
+            <div class="rm-modal-body">
+                <!-- Report Information -->
+                <div class="rm-modal-section">
+                    <div class="rm-modal-section-title"><i class="fas fa-info-circle"></i> Report Information</div>
+                    <div class="rm-info-grid" id="rm-report-grid"></div>
+                </div>
+                <!-- Source & Department -->
+                <div class="rm-modal-section">
+                    <div class="rm-modal-section-title"><i class="fas fa-building"></i> Source &amp; Department</div>
+                    <div class="rm-info-grid" id="rm-source-grid"></div>
+                </div>
+                <!-- Location -->
+                <div class="rm-modal-section">
+                    <div class="rm-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location</div>
+                    <div class="rm-info-grid" id="rm-location-grid"></div>
+                </div>
+                <!-- Description -->
+                <div class="rm-modal-section">
+                    <div class="rm-modal-section-title"><i class="fas fa-align-left"></i> Description</div>
+                    <div class="rm-description-text" id="rm-description">—</div>
+                </div>
+                <!-- Attachments -->
+                <div class="rm-modal-section">
+                    <div class="rm-modal-section-title"><i class="fas fa-paperclip"></i> Attachments</div>
+                    <div id="rm-attachments"></div>
+                </div>
+                <!-- Timeline -->
+                <div class="rm-modal-section">
+                    <div class="rm-modal-section-title"><i class="fas fa-clock"></i> Timeline &amp; Updates</div>
+                    <div class="rm-info-grid" id="rm-timeline-grid"></div>
+                </div>
+            </div>
+            <div class="rm-modal-footer">
+                <button type="button" class="rm-modal-btn-close" onclick="closeViewModal()">
+                    <i class="fas fa-times"></i> Close
+                </button>
+            </div>
         </div>
     </div>
 
@@ -722,77 +1269,156 @@ if (isset($_SESSION['archive_message'])) {
             echo json_encode($rows);
         ?>;
 
+        // View Archive Modal helpers (mirrors report_management rm modal)
+        function formatDate(dateStr) {
+            if (!dateStr) return '—';
+            var d = new Date(dateStr);
+            if (isNaN(d.getTime())) return dateStr;
+            var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+        }
+
+        function rmBadge(text, bg, color) {
+            return '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:' + bg + ';color:' + color + ';">' + text + '</span>';
+        }
+
+        function rmInfoItem(icon, label, value) {
+            var displayVal = (value && value !== '—' && value !== null) ? value : '—';
+            return '<div class="rm-info-item"><div class="rm-info-icon"><i class="fas fa-' + icon + '"></i></div><div><div class="rm-info-label">' + label + '</div><div class="rm-info-value">' + displayVal + '</div></div></div>';
+        }
+
         function viewArchive(id) {
             var row = archiveData.find(function(r) { return r.id == id; });
             if (!row) return;
 
-            document.getElementById('modalTitle').textContent = row.title || 'Report Details';
-
-            var html = '';
-            var fields = [
-                { label: 'Report ID', value: row.report_id },
-                { label: 'Title', value: row.title },
-                { label: 'Report Type', value: row.report_type },
-                { label: 'Department', value: row.department },
-                { label: 'Priority', value: row.priority },
-                { label: 'Status', value: row.status },
-                { label: 'Location', value: row.location },
-                { label: 'Description', value: row.description },
-                { label: 'Created Date', value: row.created_date },
-                { label: 'Due Date', value: row.due_date },
-                { label: 'Latitude', value: row.latitude },
-                { label: 'Longitude', value: row.longitude },
-                { label: 'Created At', value: row.created_at },
-                { label: 'Updated At', value: row.updated_at },
-                { label: 'Approved At', value: row.approved_at },
-                { label: 'Rejected At', value: row.rejected_at }
-            ];
+            var statusStyles = {
+                'pending':    {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
+                'approved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
+                'completed':  {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
+                'resolved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
+                'cancelled':  {bg:'rgba(220,53,69,0.15)',  color:'#ef4444'},
+                'rejected':   {bg:'rgba(249,115,22,0.15)', color:'#f97316'},
+                'in-progress':{bg:'rgba(59,130,246,0.15)', color:'#3b82f6'}
+            };
+            var pStyles = {
+                'high':   {bg:'rgba(220,53,69,0.15)', color:'#ef4444'},
+                'medium': {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
+                'low':    {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'}
+            };
 
             var sourceLabels = { 'lgu': 'LGU Monitoring', 'citizen': 'Citizen', 'cimm': 'CIMM', 'infrastructure': 'Infrastructure' };
-            var sourceIcons = { 'lgu': 'fa-users', 'citizen': 'fa-user', 'cimm': 'fa-handshake', 'infrastructure': 'fa-hard-hat' };
+
+            // Header
+            document.getElementById('rm-report-id').textContent = 'Report #' + (row.report_id || '—');
+            document.getElementById('rm-title').textContent = row.title || '—';
+
+            var st = (row.status || 'pending').toLowerCase();
+            var ss = statusStyles[st] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
+            var pp = (row.priority || 'medium').toLowerCase();
+            var ps = pStyles[pp] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
+
+            var badgesHtml = rmBadge(row.status || '—', ss.bg, ss.color);
+            badgesHtml += rmBadge(row.priority || '—', ps.bg, ps.color);
             var src = row.source_system || 'citizen';
             var sourceLabel = sourceLabels[src] || src;
-            var sourceIcon = sourceIcons[src] || 'fa-file-archive';
+            if (sourceLabel !== '—') {
+                badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(55,98,200,0.12);color:#3762c8;">' + sourceLabel + '</span>';
+            }
+            document.getElementById('rm-badges').innerHTML = badgesHtml;
 
-            html += '<div class="detail-row"><span class="detail-label">Source System</span><span class="detail-value"><i class="fas ' + sourceIcon + '"></i> ' + sourceLabel + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Report ID</span><span class="detail-value">' + (row.report_id || 'N/A') + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Title</span><span class="detail-value">' + esc(row.title) + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Report Type</span><span class="detail-value">' + esc(row.report_type) + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Department</span><span class="detail-value">' + esc(row.department) + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Priority</span><span class="detail-value">' + esc(row.priority) + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">' + esc(row.status) + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Location</span><span class="detail-value">' + esc(row.location || 'N/A') + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Description</span><span class="detail-value">' + esc(row.description || 'N/A') + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Created Date</span><span class="detail-value">' + esc(row.created_date || 'N/A') + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Due Date</span><span class="detail-value">' + esc(row.due_date || 'N/A') + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Latitude</span><span class="detail-value">' + esc(row.latitude || 'N/A') + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Longitude</span><span class="detail-value">' + esc(row.longitude || 'N/A') + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Created At</span><span class="detail-value">' + esc(row.created_at || 'N/A') + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Updated At</span><span class="detail-value">' + esc(row.updated_at || 'N/A') + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Approved At</span><span class="detail-value">' + esc(row.approved_at || 'N/A') + '</span></div>';
-            html += '<div class="detail-row"><span class="detail-label">Rejected At</span><span class="detail-value">' + esc(row.rejected_at || 'N/A') + '</span></div>';
+            // Report Information
+            var reportGrid = '';
+            reportGrid += rmInfoItem('folder', 'Report Type', row.report_type);
+            reportGrid += rmInfoItem('calendar-alt', 'Created Date', row.created_date);
+            reportGrid += rmInfoItem('calendar-check', 'Due Date', row.due_date);
+            reportGrid += rmInfoItem('tag', 'Source System', sourceLabel);
+            if (row.estimation) {
+                reportGrid += rmInfoItem('dollar-sign', 'Estimation', row.estimation ? '₱' + parseFloat(row.estimation).toLocaleString('en-PH', {minimumFractionDigits:2}) : '—');
+            }
+            if (row.assigned_to) {
+                reportGrid += rmInfoItem('user-cog', 'Assigned To', row.assigned_to);
+            }
+            document.getElementById('rm-report-grid').innerHTML = reportGrid;
 
+            // Source & Department
+            var sourceGrid = '';
+            sourceGrid += rmInfoItem('building', 'Department', row.department);
+            sourceGrid += rmInfoItem('history', 'Archived From', row.archived_from);
+            if (row.previous_status) {
+                sourceGrid += rmInfoItem('undo', 'Previous Status', row.previous_status);
+            }
+            if (row.approved_at) {
+                sourceGrid += rmInfoItem('thumbs-up', 'Approved At', formatDate(row.approved_at));
+            }
+            if (row.rejected_at) {
+                sourceGrid += rmInfoItem('thumbs-down', 'Rejected At', formatDate(row.rejected_at));
+            }
+            document.getElementById('rm-source-grid').innerHTML = sourceGrid;
+
+            // Location
+            var locationGrid = '';
+            var locVal = row.location || '—';
+            if (row.latitude && row.longitude && row.latitude != 0 && row.longitude != 0) {
+                locVal += '<br><a href="https://www.openstreetmap.org/?mlat=' + row.latitude + '&mlon=' + row.longitude + '&zoom=15" target="_blank" style="color:#3762c8;font-size:12px;text-decoration:none;"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map (' + row.latitude + ', ' + row.longitude + ')</a>';
+            }
+            locationGrid += '<div class="rm-info-item rm-info-value-full"><div class="rm-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="rm-info-label">Location</div><div class="rm-info-value">' + locVal + '</div></div></div>';
+            document.getElementById('rm-location-grid').innerHTML = locationGrid;
+
+            // Description
+            document.getElementById('rm-description').textContent = row.description || 'No description provided.';
+
+            // Attachments
+            var images = [];
+            var seenPaths = new Set();
+            if (row.image_path && row.image_path !== '0' && row.image_path !== 'null') {
+                images.push('../../' + row.image_path);
+                seenPaths.add(row.image_path);
+            }
             if (row.attachments) {
                 try {
                     var attachments = JSON.parse(row.attachments);
-                    if (Array.isArray(attachments) && attachments.length) {
-                        html += '<div class="detail-row"><span class="detail-label">Attachments</span><span class="detail-value">';
+                    if (Array.isArray(attachments)) {
                         attachments.forEach(function(a) {
-                            if (a.type === 'image' && a.file_path) {
-                                html += '<img src="../../' + a.file_path + '" class="modal-image" onclick="window.open(this.src,\'_blank\')" title="Click to view full size" style="max-width:100%;max-height:300px;border-radius:8px;margin-top:8px;cursor:pointer;" />';
+                            if ((a.type === 'image' || !a.type) && a.file_path && !seenPaths.has(a.file_path)) {
+                                images.push('../../' + a.file_path);
+                                seenPaths.add(a.file_path);
                             }
                         });
-                        html += '</span></div>';
                     }
                 } catch(e) {}
             }
+            var attachHtml = '';
+            if (images.length > 0) {
+                attachHtml = '<div style="display:flex;gap:12px;flex-wrap:wrap;">';
+                images.forEach(function(path) {
+                    attachHtml += '<div style="border-radius:8px;overflow:hidden;max-width:200px;"><img src="' + path + '" alt="Archived Photo" style="width:100%;height:auto;cursor:pointer;" onclick="window.open(this.src,\'_blank\')" loading="lazy" onerror="this.style.display=\'none\'"></div>';
+                });
+                attachHtml += '</div>';
+            } else {
+                attachHtml = '<div style="padding:8px 0;color:#9ca3af;font-size:14px;">No attachments.</div>';
+            }
+            document.getElementById('rm-attachments').innerHTML = attachHtml;
 
-            document.getElementById('modalBody').innerHTML = html;
+            // Timeline
+            var timelineGrid = '';
+            timelineGrid += rmInfoItem('calendar-check', 'Created', formatDate(row.created_at));
+            if (row.approved_at) {
+                timelineGrid += rmInfoItem('thumbs-up', 'Approved', formatDate(row.approved_at));
+            }
+            if (row.rejected_at) {
+                timelineGrid += rmInfoItem('thumbs-down', 'Rejected', formatDate(row.rejected_at));
+            }
+            if (row.updated_at) {
+                timelineGrid += rmInfoItem('edit', 'Last Updated', formatDate(row.updated_at));
+            }
+            document.getElementById('rm-timeline-grid').innerHTML = timelineGrid;
+
             document.getElementById('viewModal').classList.add('active');
         }
 
         function closeViewModal() {
             document.getElementById('viewModal').classList.remove('active');
+            document.body.style.overflow = '';
         }
 
         function esc(str) {
@@ -832,7 +1458,7 @@ if (isset($_SESSION['archive_message'])) {
         }
 
         function closeModalAndRefresh() {
-            closeModal('viewModal');
+            closeViewModal();
             location.reload();
         }
     </script>

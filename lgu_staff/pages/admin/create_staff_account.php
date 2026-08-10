@@ -30,7 +30,6 @@ $error_message = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
 
-    $username = trim($_POST['username'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $first_name = trim($_POST['first_name'] ?? '');
     $middle_name = trim($_POST['middle_name'] ?? '');
@@ -38,10 +37,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $birthday = trim($_POST['birthday'] ?? '');
     $address = trim($_POST['address'] ?? '');
     $civil_status = trim($_POST['civil_status'] ?? '');
+    $phone_number = trim($_POST['phone_number'] ?? '');
     $department = trim($_POST['department'] ?? '');
 
-    if (empty($username) || empty($email) || empty($first_name) || empty($last_name)) {
-        echo json_encode(['success' => false, 'message' => 'Username, email, first name, and last name are required.']);
+    if (empty($email) || empty($first_name) || empty($last_name)) {
+        echo json_encode(['success' => false, 'message' => 'Email, first name, and last name are required.']);
         exit;
     }
 
@@ -50,13 +50,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // Check for duplicate username or email
-    $check = $conn->prepare("SELECT id FROM users WHERE username = ? OR email = ?");
-    $check->bind_param("ss", $username, $email);
+    // The email address is the user's username throughout the system.
+    $username = $email;
+
+    // Check for duplicate email
+    $check = $conn->prepare("SELECT id FROM users WHERE email = ?");
+    $check->bind_param("s", $email);
     $check->execute();
     if ($check->get_result()->num_rows > 0) {
         $check->close();
-        echo json_encode(['success' => false, 'message' => 'Username or email already exists.']);
+        echo json_encode(['success' => false, 'message' => 'Email address already exists.']);
         exit;
     }
     $check->close();
@@ -65,11 +68,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $full_name = trim($first_name . ' ' . $middle_name . ' ' . $last_name);
     $full_name = preg_replace('/\s+/', ' ', $full_name);
 
-    // Generate a random password
-    $raw_password = bin2hex(random_bytes(6));
+    // Generate a secure random temporary password
+    $raw_password = generate_secure_temporary_password(12);
     $hashed_password = password_hash($raw_password, PASSWORD_DEFAULT);
 
-    $role = 'lgu_staff';
+    $allowed_roles = ['system_admin', 'road_monitoring_officer', 'road_ops_supervisor', 'trans_monitoring_officer', 'trans_ops_supervisor', 'lgu_staff'];
+    $role = $_POST['role'] ?? 'lgu_staff';
+    if (!in_array($role, $allowed_roles, true)) {
+        $role = 'lgu_staff';
+    }
 
     // Handle ID file upload
     $id_file_path = null;
@@ -89,8 +96,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    $stmt = $conn->prepare("INSERT INTO users (username, email, password, full_name, role, department, address, birthday, civil_status, id_file_path, account_status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1)");
-    $stmt->bind_param("ssssssssss", $username, $email, $hashed_password, $full_name, $role, $department, $address, $birthday, $civil_status, $id_file_path);
+    $stmt = $conn->prepare("INSERT INTO users (username, email, password, full_name, role, department, address, birthday, civil_status, phone_number, id_file_path, account_status, is_active, must_change_password, temporary_password_created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, NULLIF(?, ''), ?, 'verified', 1, 1, NOW())");
+    $stmt->bind_param("sssssssssss", $username, $email, $hashed_password, $full_name, $role, $department, $address, $birthday, $civil_status, $phone_number, $id_file_path);
 
     if ($stmt->execute()) {
         $new_user_id = $stmt->insert_id;
@@ -98,18 +105,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Audit log
         $log = $conn->prepare("INSERT INTO audit_logs (user_id, action, details, ip_address, user_agent, created_at) VALUES (?, 'Staff Account Created', ?, ?, ?, NOW())");
-        $details = "Created account for $full_name ($username) with role $role";
+        $details = "Created account for $full_name ($email) with role $role";
         $ip = $_SERVER['REMOTE_ADDR'] ?? 'Unknown';
         $ua = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
         $log->bind_param("isss", $_SESSION['user_id'], $details, $ip, $ua);
         $log->execute();
         $log->close();
 
+        // Send the welcome email with the temporary password and login link.
+        // The login link carries a login-only token (no registration offered).
+        $emailSent = false;
+        $emailMessage = '';
+        $loginUrl = '';
+        try {
+            $tokens = create_user_login_tokens($email, false);
+            if ($tokens) {
+                $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+                $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+                $scriptDir = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'])), '/');
+                $loginUrl = $scheme . '://' . $host . dirname(dirname($scriptDir)) . '/login.php?login_token=' . $tokens['login_token'];
+                $firstName = trim(explode(' ', $full_name)[0]);
+
+                $response = send_staff_account_email($email, $firstName, $raw_password, $loginUrl);
+                $emailSent = !empty($response) && !isset($response['errors']);
+                $emailMessage = $emailSent ? 'Credentials emailed to the staff member.' : 'Account created, but the notification email could not be sent.';
+            } else {
+                $emailMessage = 'Account created, but the access token could not be created.';
+            }
+        } catch (Exception $e) {
+            error_log("Staff account email error: " . $e->getMessage());
+            $emailMessage = 'Account created, but the notification email could not be sent.';
+        }
+
         echo json_encode([
             'success' => true,
-            'message' => 'Staff account created successfully.',
+            'message' => 'Staff account created successfully. ' . $emailMessage,
             'password' => $raw_password,
-            'username' => $username
+            'email' => $email,
+            'login_url' => $loginUrl
         ]);
         exit;
     } else {
@@ -510,10 +543,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <form id="createForm" onsubmit="return handleCreate(event)" enctype="multipart/form-data">
                     <div class="form-grid">
                         <div class="form-group">
-                            <label for="username">Username *</label>
-                            <input type="text" id="username" name="username" required placeholder="e.g. juan.delacruz">
-                        </div>
-                        <div class="form-group">
                             <label for="email">Email Address *</label>
                             <input type="email" id="email" name="email" required placeholder="e.g. juan@lgu.gov.ph">
                         </div>
@@ -532,8 +561,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                         <div class="form-group">
                             <label for="role">Role</label>
-                            <select id="role" name="role" class="locked-select">
-                                <option value="lgu_staff" selected>LGU Staff</option>
+                            <select id="role" name="role">
+                                <option value="lgu_staff">LGU Staff</option>
+                                <option value="system_admin">Admin</option>
+                                <option value="road_monitoring_officer">Road Monitoring Officer</option>
+                                <option value="road_ops_supervisor">Road Ops Supervisor</option>
+                                <option value="trans_monitoring_officer">Trans Monitoring Officer</option>
+                                <option value="trans_ops_supervisor">Trans Ops Supervisor</option>
                             </select>
                         </div>
                     </div>
@@ -578,6 +612,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <option value="divorced">Divorced</option>
                                 <option value="widowed">Widowed</option>
                             </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="phone_number">Contact Number</label>
+                            <input type="tel" id="phone_number" name="phone_number" placeholder="e.g. 09171234567" maxlength="20" pattern="[0-9+\-\s()]+" title="Enter a valid contact number">
                         </div>
                         <div class="form-group full-width">
                             <label for="id_file">Upload Valid ID (Optional)</label>
@@ -646,12 +684,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="icon"><i class="fas fa-check-circle"></i></div>
                             <div class="content">
                                 <h4>Account Created Successfully</h4>
-                                <p>Username: <strong>${result.username}</strong></p>
-                                <p>Temporary password (share this with the staff member):</p>
+                                <p>Email Address: <strong>${result.email}</strong></p>
+                                <p>Credentials have been emailed to the staff member. A secure temporary password is also shown below:</p>
                                 <div class="password-display">
                                     <span id="generatedPassword">${result.password}</span>
                                     <button type="button" onclick="copyPassword()">Copy</button>
                                 </div>
+                                ${result.login_url ? `
+                                <p style="margin-top:12px;">Login link (one-time magic link with token):</p>
+                                <div class="password-display">
+                                    <span id="generatedUrl">${result.login_url}</span>
+                                    <button type="button" onclick="copyUrl()">Copy</button>
+                                </div>` : ''}
                             </div>
                         </div>
                     `;
@@ -694,6 +738,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         function copyPassword() {
             const password = document.getElementById('generatedPassword').textContent;
             navigator.clipboard.writeText(password).then(() => {
+                const btn = event.target;
+                btn.textContent = 'Copied!';
+                setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+            });
+        }
+
+        function copyUrl() {
+            const url = document.getElementById('generatedUrl').textContent;
+            navigator.clipboard.writeText(url).then(() => {
                 const btn = event.target;
                 btn.textContent = 'Copied!';
                 setTimeout(() => { btn.textContent = 'Copy'; }, 1500);

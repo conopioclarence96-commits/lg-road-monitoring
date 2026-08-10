@@ -72,6 +72,17 @@ function rgmap_cimm_ensure_schema(mysqli $conn): void {
     $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_pushed_at TIMESTAMP NULL DEFAULT NULL");
     $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_verified_at TIMESTAMP NULL DEFAULT NULL");
     $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_verified_by VARCHAR(150) DEFAULT NULL");
+    $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS engineer VARCHAR(150) NULL DEFAULT NULL");
+    $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS budget_allocation DECIMAL(15,2) NULL DEFAULT NULL");
+
+    // Ensure report_category exists so the verify webhook can gate engineer/
+    // budget_allocation updates to road reports only (added by
+    // road_transportation_monitoring.php normally, but this endpoint can be
+    // called directly by CIMM without that page loading first).
+    $colCheck = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'report_category'");
+    if ($colCheck && $colCheck->num_rows === 0) {
+        $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN report_category VARCHAR(20) DEFAULT NULL AFTER report_type");
+    }
 
     // Read-only mirror of the CIMM-native report this row was auto-converted
     // into on verify — kept in sync (engineer/budget/dates/status) every time
@@ -141,14 +152,18 @@ function rgmap_cimm_fetch_report(mysqli $conn, int $id): ?array {
         $attachments[] = $baseUrl . '/' . ltrim((string)$row['image_path'], '/');
     }
 
-    return [
+    // Engineer and budget allocation are only relevant for Road reports
+    // (report_category = 'road'). Transportation reports do not carry these
+    // fields, so they are omitted from the push payload entirely for them.
+    $reportCategory = $row['report_category'] ?? null;
+    $payload = [
         'source_system'    => 'rgmap',
         'event'            => 'upsert',
         'rgmap_report_pk'  => (int)$row['id'],
         'rgmap_report_id'  => (string)$row['report_id'],
         'title'            => (string)$row['title'],
         'report_type'      => (string)$row['report_type'],
-        'report_category'  => $row['report_category'] ?? null,
+        'report_category'  => $reportCategory,
         'department'       => (string)$row['department'],
         'priority'         => $row['priority'] ?? null,
         'status'           => (string)$row['status'],
@@ -165,6 +180,16 @@ function rgmap_cimm_fetch_report(mysqli $conn, int $id): ?array {
         'submitted_at'     => $row['created_at'] ?? null,
         'portal_url'       => $baseUrl . '/pages/shared/road_transportation_monitoring.php',
     ];
+
+    // Only attach engineer and budget_allocation for road reports.
+    // CIMM expects these fields only on road infrastructure reports;
+    // transportation reports must not carry them.
+    if ($reportCategory === 'road') {
+        $payload['engineer']         = $row['engineer'] ?? null;
+        $payload['budget_allocation'] = $row['budget_allocation'] ?? null;
+    }
+
+    return $payload;
 }
 
 /**
