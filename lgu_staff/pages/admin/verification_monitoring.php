@@ -242,23 +242,23 @@ function getAllReports($conn, $status_filter = 'all', $source_filter = 'all', $t
     if ($source_filter === 'transport') {
         $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}" : " WHERE {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}";
         $source_case = "CASE WHEN report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
-        $q = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at, cimm_engineer_name, cimm_budget, cimm_starting_date, cimm_estimated_end_date, cimm_status, cimm_district, detected_district FROM road_transportation_reports{$where})";
+        $q = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at, cimm_engineer_name, cimm_budget, cimm_starting_date, cimm_estimated_end_date, cimm_status, cimm_district FROM road_transportation_reports{$where})";
         $parts[] = $q;
     } elseif ($source_filter === 'maintenance') {
         if (!$transport_only) {
-            $q = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at, NULL as cimm_engineer_name, NULL as cimm_budget, NULL as cimm_starting_date, NULL as cimm_estimated_end_date, NULL as cimm_status, NULL as cimm_district, NULL as detected_district FROM road_maintenance_reports{$maintenance_where})";
+            $q = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at, NULL as cimm_engineer_name, NULL as cimm_budget, NULL as cimm_starting_date, NULL as cimm_estimated_end_date, NULL as cimm_status, NULL as cimm_district FROM road_maintenance_reports{$maintenance_where})";
             $parts[] = $q;
         }
     } else {
         $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}" : " WHERE {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}";
         $source_case = "CASE WHEN report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
-        $parts[] = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, cimm_sync_status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at, cimm_engineer_name, cimm_budget, cimm_starting_date, cimm_estimated_end_date, cimm_status, cimm_district, detected_district FROM road_transportation_reports{$where})";
+        $parts[] = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, cimm_sync_status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at, cimm_engineer_name, cimm_budget, cimm_starting_date, cimm_estimated_end_date, cimm_status, cimm_district FROM road_transportation_reports{$where})";
         if (!$transport_only) {
-            $parts[] = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, NULL as cimm_sync_status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at, NULL as cimm_engineer_name, NULL as cimm_budget, NULL as cimm_starting_date, NULL as cimm_estimated_end_date, NULL as cimm_status, NULL as cimm_district, NULL as detected_district FROM road_maintenance_reports{$maintenance_where})";
+            $parts[] = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, NULL as cimm_sync_status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at, NULL as cimm_engineer_name, NULL as cimm_budget, NULL as cimm_starting_date, NULL as cimm_estimated_end_date, NULL as cimm_status, NULL as cimm_district FROM road_maintenance_reports{$maintenance_where})";
         }
     }
     if (empty($parts)) {
-        $query = "(SELECT 'transport' as source, 0 as id, '' as report_id, '' as title, '' as report_type, '' as report_category, '' as report_source, '' as department, '' as priority, '' as status, NULL as created_date, NULL as due_date, '' as description, '' as location, NULL as attachments, NULL as latitude, NULL as longitude, NULL as created_at, NULL as updated_at, NULL as approved_at, NULL as rejected_at, NULL as cimm_sync_status, NULL as cimm_engineer_name, NULL as cimm_budget, NULL as cimm_starting_date, NULL as cimm_estimated_end_date, NULL as cimm_status, NULL as cimm_district, NULL as detected_district FROM road_transportation_reports WHERE 1 = 0)";
+        $query = "(SELECT 'transport' as source, 0 as id, '' as report_id, '' as title, '' as report_type, '' as report_category, '' as report_source, '' as department, '' as priority, '' as status, NULL as created_date, NULL as due_date, '' as description, '' as location, NULL as attachments, NULL as latitude, NULL as longitude, NULL as created_at, NULL as updated_at, NULL as approved_at, NULL as rejected_at, NULL as cimm_sync_status, NULL as cimm_engineer_name, NULL as cimm_budget, NULL as cimm_starting_date, NULL as cimm_estimated_end_date, NULL as cimm_status, NULL as cimm_district FROM road_transportation_reports WHERE 1 = 0)";
     } else {
         $query = implode(' UNION ALL ', $parts) . " ORDER BY created_at DESC";
     }
@@ -5197,22 +5197,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 <td><?php echo htmlspecialchars(strlen($report['title'] ?? '') > 35 ? substr($report['title'], 0, 35) . '...' : ($report['title'] ?? '')); ?></td>
                                 <td><?php echo htmlspecialchars($lgu_type_labels[$report['report_type']] ?? ucfirst($report['report_type'])); ?></td>
                                 <td><?php echo htmlspecialchars($lgu_source_labels[$report['source']] ?? $report['department'] ?? '—'); ?></td>
-                                <?php
-                                    // District — prefer CIMM's resolved district (synced back once
-                                    // the report becomes a CIMM report); fall back to this system's
-                                    // own GIS-detected district from when the report was submitted,
-                                    // so a district shows even before CIMM has ever synced one back.
-                                    $lgu_district = !empty($report['cimm_district']) ? $report['cimm_district'] : ($report['detected_district'] ?? '');
-                                ?>
-                                <td><?php echo $lgu_district !== '' ? htmlspecialchars($lgu_district) : '—'; ?></td>
+                                <td><?php echo htmlspecialchars($report['cimm_district'] ?? '') !== '' ? htmlspecialchars($report['cimm_district']) : '—'; ?></td>
                                 <td><span class="lgu-status-badge <?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'] ?? 'medium')); ?></span></td>
                                 <td><?php echo htmlspecialchars($report['cimm_engineer_name'] ?? '') !== '' ? htmlspecialchars($report['cimm_engineer_name']) : '—'; ?></td>
                                 <td><?php echo !empty($report['cimm_budget']) ? '₱' . number_format((float)$report['cimm_budget'], 2) : '—'; ?></td>
                                 <td>
-                                    <?php if (!empty($report['cimm_status'])):
-                                        $cimmStatusDisplay = rgmap_cimm_status_display($report['cimm_status']);
+                                    <?php
+                                    // Once CIMM has verified this report and turned it into a real
+                                    // CIMM report, cimm_status carries CIMM's own resolution status
+                                    // (the same value that decides whether a report shows on CIMM's
+                                    // Pending / Current / Archive Reports pages) — show that instead
+                                    // of this system's local workflow status, so the two systems
+                                    // never disagree about where a report actually stands. Only
+                                    // reports CIMM hasn't verified yet (no cimm_status) fall back to
+                                    // the local "Awaiting Ext." / RGMAP-native status below.
+                                    //
+                                    // Label + routing mirrored exactly from CIMM's own
+                                    // reportStatusBadge() / resolveRepPage() so this page never
+                                    // shows a status CIMM itself wouldn't recognize.
+                                    $cimmStatusRaw = trim((string)($report['cimm_status'] ?? ''));
+                                    if ($cimmStatusRaw !== ''):
+                                        $cimmLabelMap = [
+                                            'Pending Admin Approval' => 'Pending Approval',
+                                            'Approved'               => 'Validated',
+                                        ];
+                                        $cimmDisplayLabel = $cimmLabelMap[$cimmStatusRaw] ?? $cimmStatusRaw;
+
+                                        $cimmStatusLc = strtolower($cimmStatusRaw);
+                                        if ($cimmStatusLc === 'completed' || $cimmStatusLc === 'archived') {
+                                            $cimmStatusClass = 'completed';   // Archive Reports
+                                        } elseif ($cimmStatusLc === 'cancelled') {
+                                            $cimmStatusClass = 'cancelled';
+                                        } elseif ($cimmStatusLc === 'pending' || $cimmStatusLc === 'awaiting engineer') {
+                                            $cimmStatusClass = 'pending';     // Pending Reports
+                                        } else {
+                                            $cimmStatusClass = 'approved';    // Current Reports
+                                        }
                                     ?>
-                                    <span class="lgu-status-badge <?php echo htmlspecialchars($cimmStatusDisplay['class']); ?>"><?php echo htmlspecialchars($cimmStatusDisplay['label']); ?></span>
+                                    <span class="lgu-status-badge <?php echo $cimmStatusClass; ?>" title="CIMM report status"><?php echo htmlspecialchars($cimmDisplayLabel); ?></span>
                                     <?php elseif ($pending_ext_verify): ?>
                                     <span class="lgu-status-badge t-badge t-badge-pending">Awaiting Ext.</span>
                                     <?php else: ?>
@@ -7218,32 +7240,6 @@ function canVerifyReport($category, $source) {
     // by the external Engineering Office (CIMM) and cannot be directly
     // approved by local admin staff
     return !($category === 'road' && $source === 'local');
-}
-
-/**
- * Once a report has actually been converted into a CIMM report (i.e. it has
- * a cimm_status value synced back — see rgmap_cimm_ensure_schema()), the LGU
- * Monitoring table's Status column should track CIMM's own resolution
- * status (the same vocabulary shown on CIMM's Pending/Current/Archive
- * Reports pages), not this system's own "Awaiting Ext." / local pending
- * state — that stopped being accurate the moment CIMM took over ownership
- * of the report (assigning an engineer, budget, etc.).
- *
- * @return array{label:string,class:string}
- */
-function rgmap_cimm_status_display(string $cimmStatus): array {
-    $map = [
-        'Pending Admin Approval' => ['Pending Approval', 'pending'],
-        'Approved'               => ['Validated', 'approved'],
-        'Pending'                => ['Pending', 'pending'],
-        'Scheduled'              => ['Scheduled', 'pending'],
-        'In Progress'            => ['In Progress', 'in-progress'],
-        'Pending Completion'     => ['Pending Completion', 'in-progress'],
-        'Completed'              => ['Completed', 'completed'],
-        'Cancelled'              => ['Cancelled', 'cancelled'],
-    ];
-    [$label, $cls] = $map[$cimmStatus] ?? [$cimmStatus, 'pending'];
-    return ['label' => $label, 'class' => $cls];
 }
 
 function getActivityTitle($activity) {
