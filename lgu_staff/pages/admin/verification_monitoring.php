@@ -5212,29 +5212,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     // reports CIMM hasn't verified yet (no cimm_status) fall back to
                                     // the local "Awaiting Ext." / RGMAP-native status below.
                                     //
-                                    // Label + routing mirrored exactly from CIMM's own
-                                    // reportStatusBadge() / resolveRepPage() so this page never
-                                    // shows a status CIMM itself wouldn't recognize.
+                                    // Label + colors copied 1:1 from CIMM's own status badges on
+                                    // current_reports.php / pending_reports.php / archive_reports.php
+                                    // (.scheduled-st, .pending-st, .pending-accept-st,
+                                    // .pending-admin-st, .validated-st, .on-going, .completed,
+                                    // .cancelled-st) — inline styles rather than shared CSS classes
+                                    // since this is a different codebase and can't rely on those
+                                    // class names existing here.
                                     $cimmStatusRaw = trim((string)($report['cimm_status'] ?? ''));
                                     if ($cimmStatusRaw !== ''):
-                                        $cimmLabelMap = [
-                                            'Pending Admin Approval' => 'Pending Approval',
-                                            'Approved'               => 'Validated',
-                                        ];
-                                        $cimmDisplayLabel = $cimmLabelMap[$cimmStatusRaw] ?? $cimmStatusRaw;
-
                                         $cimmStatusLc = strtolower($cimmStatusRaw);
-                                        if ($cimmStatusLc === 'completed' || $cimmStatusLc === 'archived') {
-                                            $cimmStatusClass = 'completed';   // Archive Reports
-                                        } elseif ($cimmStatusLc === 'cancelled') {
-                                            $cimmStatusClass = 'cancelled';
-                                        } elseif ($cimmStatusLc === 'pending' || $cimmStatusLc === 'awaiting engineer') {
-                                            $cimmStatusClass = 'pending';     // Pending Reports
-                                        } else {
-                                            $cimmStatusClass = 'approved';    // Current Reports
-                                        }
+                                        // [label, background, color, border]
+                                        $cimmStatusStyles = [
+                                            'pending'                => ['Scheduled',         '#e3f2fd',              '#1565c0', '1.5px solid rgba(21,101,192,.3)'],
+                                            'scheduled'              => ['Scheduled',         '#e3f2fd',              '#1565c0', '1.5px solid rgba(21,101,192,.3)'],
+                                            'awaiting engineer'      => ['Awaiting Engineer',  '#ffe0b2',              '#e65100', 'none'],
+                                            ''                       => ['Awaiting Engineer',  '#ffe0b2',              '#e65100', 'none'],
+                                            'pending acceptance'     => ['Pending Acceptance', 'rgba(99,102,241,.12)', '#4338ca', '1px solid rgba(99,102,241,.28)'],
+                                            'pending admin approval' => ['Pending Approval',   'rgba(139,92,246,.12)', '#4c1d95', '1px solid rgba(139,92,246,.28)'],
+                                            'approved'               => ['Validated',          'rgba(46,125,50,.12)',  '#1b5e20', '1px solid rgba(46,125,50,.28)'],
+                                            'in progress'            => ['In Progress',        '#fff59d',              '#f57f17', 'none'],
+                                            'pending completion'     => ['Pending Completion', '#fff59d',              '#f57f17', 'none'],
+                                            'completed'              => ['Completed',          'rgba(46,125,50,.12)',  '#1b5e20', '1px solid rgba(46,125,50,.28)'],
+                                            'archived'               => ['Archived',           'rgba(46,125,50,.12)',  '#1b5e20', '1px solid rgba(46,125,50,.28)'],
+                                            'cancelled'              => ['Cancelled',          '#ffcdd2',              '#b71c1c', 'none'],
+                                            'rejected'               => ['Rejected',           '#ffcdd2',              '#b71c1c', 'none'],
+                                        ];
+                                        [$cimmDisplayLabel, $cimmBg, $cimmFg, $cimmBorder] = $cimmStatusStyles[$cimmStatusLc]
+                                            ?? [$cimmStatusRaw, '#fff59d', '#f57f17', 'none'];
                                     ?>
-                                    <span class="lgu-status-badge <?php echo $cimmStatusClass; ?>" title="CIMM report status"><?php echo htmlspecialchars($cimmDisplayLabel); ?></span>
+                                    <span class="lgu-status-badge" title="CIMM report status" style="background:<?php echo $cimmBg; ?>;color:<?php echo $cimmFg; ?>;border:<?php echo $cimmBorder; ?>;"><?php echo htmlspecialchars($cimmDisplayLabel); ?></span>
                                     <?php elseif ($pending_ext_verify): ?>
                                     <span class="lgu-status-badge t-badge t-badge-pending">Awaiting Ext.</span>
                                     <?php else: ?>
