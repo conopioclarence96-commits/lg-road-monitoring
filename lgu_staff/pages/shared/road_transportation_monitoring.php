@@ -2493,6 +2493,10 @@ annotate_report_assignment_status($conn, $recent_reports);
     </div>
 
     <script>
+        // Road Supervisor portal only: appends "(Near <landmark>)" to the
+        // detected report location using the nearest TomTom point of interest.
+        const IS_ROAD_SUPERVISOR = <?php echo $is_road_supervisor ? 'true' : 'false'; ?>;
+
         // Quezon City center
         const QC_CENTER = [14.651417, 121.04917];
         const map = L.map('map').setView(QC_CENTER, 13);
@@ -2648,7 +2652,7 @@ annotate_report_assignment_status($conn, $recent_reports);
         // ====================================================================
         // REVERSE GEOCODING + FORM AUTOFILL ENGINE
         // ====================================================================
-        function populateGISLocationInfo(lat, lng, districtProps, addressData) {
+        function populateGISLocationInfo(lat, lng, districtProps, addressData, nearbyPoi) {
             const infoPanel = document.getElementById('gis-location-info');
             const detailsEl = document.getElementById('gis-location-details');
             const loadingBadge = document.getElementById('gis-loading-badge');
@@ -2665,6 +2669,9 @@ annotate_report_assignment_status($conn, $recent_reports);
                 document.getElementById('pin-district').value = '';
                 html += '<span class="gis-field-tag" style="background:rgba(220,53,69,0.1);color:#721c24;"><span class="gis-tag-label">District:</span> Not detected</span>';
             }
+
+            // Nearest landmark (Road Supervisor portal only), e.g. "Near Lenie Sari-Sari Store"
+            const poiName = nearbyPoi && (nearbyPoi.poi || {}).name ? nearbyPoi.poi.name : '';
 
             // Barangay from reverse geocoding
             let barangay = '';
@@ -2688,6 +2695,9 @@ annotate_report_assignment_status($conn, $recent_reports);
             document.getElementById('pin-barangay').value = barangay;
             document.getElementById('pin-street').value = street;
             var addressParts = [fullAddress, barangay, municipality, 'Quezon City'].filter(Boolean);
+            if (poiName) {
+                addressParts.push('(Near ' + poiName + ')');
+            }
             document.getElementById('pin-address').value = addressParts.join(', ');
 
             if (barangay) {
@@ -2699,9 +2709,12 @@ annotate_report_assignment_status($conn, $recent_reports);
             if (municipality) {
                 html += '<span class="gis-field-tag"><span class="gis-tag-label">Municipality:</span> ' + municipality + '</span>';
             }
+            if (poiName) {
+                html += '<span class="gis-field-tag" style="background:rgba(55,98,200,0.08);"><span class="gis-tag-label">Near:</span> ' + poiName + '</span>';
+            }
             if (!fullAddress && !barangay && !street) {
                 html += '<span style="font-size:11px;color:#999;">Address details unavailable for this pin location.</span>';
-                document.getElementById('pin-address').value = lat.toFixed(5) + ', ' + lng.toFixed(5) + ', Quezon City';
+                document.getElementById('pin-address').value = lat.toFixed(5) + ', ' + lng.toFixed(5) + ', Quezon City' + (poiName ? ', (Near ' + poiName + ')' : '');
             }
 
             detailsEl.innerHTML = html;
@@ -2732,14 +2745,24 @@ annotate_report_assignment_status($conn, $recent_reports);
             // Step 1: District detection (instant, local data)
             const districtProps = detectDistrict(lat, lng);
 
+            // Async lookups: reverse geocode + nearest landmark (Road Supervisor
+            // portal only). Each resolves independently and re-renders the panel,
+            // so the final render includes whatever data has arrived.
+            let geocodeData = null;
+            let nearbyPoi = null;
+
+            function finalizeGISLocationInfo() {
+                populateGISLocationInfo(lat, lng, districtProps, geocodeData, nearbyPoi);
+            }
+
             // Step 2: Reverse geocode via TomTom (async)
             TomTomServices.reverseGeocodeOrbis(lat, lng).then(data => {
-                const result = data.data?.results?.[0];
-                populateGISLocationInfo(lat, lng, districtProps, result || null);
+                geocodeData = data.data?.results?.[0] || null;
+                finalizeGISLocationInfo();
 
                 // Also update the marker popup with formatted address
-                if (pinMarker && result) {
-                    const addr = result.address || {};
+                if (pinMarker && geocodeData) {
+                    const addr = geocodeData.address || {};
                     const parts = [
                         addr.street && addr.houseNumber ? addr.houseNumber + ' ' + addr.street : addr.street || '',
                         addr.municipality || '',
@@ -2752,8 +2775,24 @@ annotate_report_assignment_status($conn, $recent_reports);
                 }
             }).catch(() => {
                 // Geocode failed, still show district if detected
-                populateGISLocationInfo(lat, lng, districtProps, null);
+                geocodeData = null;
+                finalizeGISLocationInfo();
             });
+
+            // Step 3 (Road Supervisor portal only): nearest landmark/POI so the
+            // report location reads like "…Quezon City, (Near <landmark>)".
+            if (IS_ROAD_SUPERVISOR) {
+                TomTomServices.nearbySearch(lat, lng, { limit: 10, radius: 500 }).then(data => {
+                    const results = data.data?.results || [];
+                    nearbyPoi = results.find(function(r) {
+                        return r.type === 'POI' && r.poi && r.poi.name;
+                    }) || null;
+                    finalizeGISLocationInfo();
+                }).catch(() => {
+                    nearbyPoi = null;
+                    finalizeGISLocationInfo();
+                });
+            }
         }
 
         // Restrict map panning with a padded bounding box of QC
