@@ -2887,8 +2887,10 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             document.getElementById('crOtpStatus').style.display = 'none';
 
             TomTomServices?.reverseGeocode(lat, lng).then(data => {
-                if (data?.success && data?.data?.address?.freeformAddress) {
-                    document.getElementById('crAddress').value = data.data.address.freeformAddress;
+                const addr = data?.data?.addresses?.[0]?.address?.freeformAddress
+                    || data?.data?.address?.freeformAddress;
+                if (addr) {
+                    document.getElementById('crAddress').value = addr;
                 }
             }).catch(() => {});
 
@@ -2901,6 +2903,13 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 }
                 document.getElementById('crLat').value = pos.lat.toFixed(6);
                 document.getElementById('crLng').value = pos.lng.toFixed(6);
+                TomTomServices?.reverseGeocode(pos.lat, pos.lng).then(data => {
+                    const addr = data?.data?.addresses?.[0]?.address?.freeformAddress
+                        || data?.data?.address?.freeformAddress;
+                    if (addr) {
+                        document.getElementById('crAddress').value = addr;
+                    }
+                }).catch(() => {});
             });
         }
 
