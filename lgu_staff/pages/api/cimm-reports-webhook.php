@@ -159,8 +159,6 @@ try {
             portal_url = VALUES(portal_url),
             payload_json = VALUES(payload_json),
             last_event = VALUES(last_event),
-            engineer = VALUES(engineer),
-            budget_allocation = VALUES(budget_allocation),
             synced_at = CURRENT_TIMESTAMP
     ");
 
