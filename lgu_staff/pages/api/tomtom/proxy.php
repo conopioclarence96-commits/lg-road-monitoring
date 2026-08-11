@@ -7,7 +7,7 @@ require_once __DIR__ . '/../../../includes/tomtom/autoload.php';
 $service = $_GET['service'] ?? '';
 
 if (!isset($_SESSION['user_id'])) {
-    $publicServices = ['reverse_geocode'];
+    $publicServices = ['reverse_geocode', 'poi_search'];
     if (!in_array($service, $publicServices)) {
         json_error('Unauthorized', 401);
     }

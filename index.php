@@ -1504,6 +1504,20 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         .citizen-report-map.has-pin {
             border-color: var(--accent-color);
         }
+        .citizen-report-map-wrap {
+            position: relative;
+        }
+        .citizen-report-map-wrap .gis-map-search-box {
+            position: absolute;
+            top: 10px;
+            left: 54px;
+            right: 10px;
+            z-index: 1000;
+        }
+        .citizen-report-map-wrap .gis-search-input {
+            flex: 1;
+            width: auto;
+        }
         .citizen-report-hint {
             text-align: center;
             color: var(--qc-shades-400);
@@ -1863,9 +1877,16 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="citizen-report-map" id="citizenMap"></div>
+                    <div class="citizen-report-map-wrap">
+                        <div class="gis-map-search-box">
+                            <input type="text" id="citizenMapSearchInput" placeholder="Search for a location..." class="gis-search-input">
+                            <button class="gis-map-btn gis-search-btn" onclick="citizenMapSearch()" title="Search"><i class="fas fa-search"></i></button>
+                            <div id="citizenMapSearchResults" class="gis-search-results"></div>
+                        </div>
+                        <div class="citizen-report-map" id="citizenMap"></div>
+                    </div>
                     <p class="citizen-report-hint">
-                        <i class="fas fa-mouse-pointer"></i> Click on the map to pin the exact location of the issue
+                        <i class="fas fa-mouse-pointer"></i> Search for a location or click on the map to pin the exact location of the issue
                         <br><small class="text-muted">Map is restricted to Quezon City area</small>
                     </p>
 
@@ -2848,7 +2869,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             citizenMap = L.map('citizenMap', {
                 maxBounds: bounds.pad(0.05),
                 maxBoundsViscosity: 1.0
-            }).fitBounds(bounds);
+            }).setView([14.651417, 121.04917], 14);
 
             L.tileLayer('https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
                 attribution: '&copy; TomTom',
@@ -2912,6 +2933,47 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 }).catch(() => {});
             });
         }
+
+        function citizenMapSearch() {
+            const q = document.getElementById('citizenMapSearchInput').value.trim();
+            if (!q) return;
+            const resultsDiv = document.getElementById('citizenMapSearchResults');
+            TomTomServices.poiSearch(q, { limit: 8 }).then(data => {
+                if (!data.success || !data.data || !data.data.results) {
+                    resultsDiv.style.display = 'none';
+                    return;
+                }
+                const results = data.data.results;
+                resultsDiv.innerHTML = results.map(r => {
+                    const pos = r.position || {};
+                    return '<div class="gis-search-result-item" onclick="citizenMapSelectResult(' + (pos.lat || 0) + ',' + (pos.lon || 0) + ')">' +
+                        '<i class="fas fa-map-pin" style="color:#3762c8;margin-right:6px;"></i>' + (r.poi?.name || r.address?.freeformAddress || 'Unknown') +
+                        '<small>' + (r.address?.freeformAddress || '') + '</small></div>';
+                }).join('');
+                resultsDiv.style.display = 'block';
+            });
+        }
+
+        function citizenMapSelectResult(lat, lng) {
+            document.getElementById('citizenMapSearchResults').style.display = 'none';
+            if (!isInsideQC(lat, lng)) {
+                showCrStatus('Selected location is outside Quezon City.', 'error');
+                return;
+            }
+            citizenMap.setView([lat, lng], 15);
+            placeCitizenPin(lat, lng);
+        }
+
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.citizen-report-map-wrap')) {
+                const results = document.getElementById('citizenMapSearchResults');
+                if (results) results.style.display = 'none';
+            }
+        });
+
+        document.getElementById('citizenMapSearchInput')?.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') citizenMapSearch();
+        });
 
         document.getElementById('crPhotos').addEventListener('change', function(e) {
             const files = Array.from(e.target.files);
@@ -3233,6 +3295,10 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         function resetCitizenForm() {
             document.getElementById('citizenReportForm').reset();
             document.getElementById('crOtpStatus').style.display = 'none';
+            const searchInput = document.getElementById('citizenMapSearchInput');
+            if (searchInput) searchInput.value = '';
+            const searchResults = document.getElementById('citizenMapSearchResults');
+            if (searchResults) searchResults.style.display = 'none';
             document.getElementById('submitReportBtn').disabled = true;
             document.getElementById('verifyOtpBtn').disabled = true;
             document.getElementById('sendOtpBtn').disabled = false;
