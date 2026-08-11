@@ -133,14 +133,56 @@ function getEnhancedStats() {
                 if ($r) $stats['active'] = (int)$r->fetch_assoc()['c'];
                 $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE {$shown_where} AND status IN ('approved','in-progress') AND severity = 'critical' AND (created_by = 0 OR (created_by != 0 AND report_source = 'local'))");
                 if ($r) $stats['critical'] = (int)$r->fetch_assoc()['c'];
-                $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE status='completed' AND report_category = 'transportation' AND MONTH(updated_at)=MONTH(CURDATE()) AND YEAR(updated_at)=YEAR(CURDATE())");
+                $r = $conn->query("SELECT COUNT(*) as c FROM (
+                    SELECT report_id FROM road_transportation_reports
+                    WHERE status='completed'
+                      AND MONTH(COALESCE(completed_at, updated_at))=MONTH(CURDATE())
+                      AND YEAR(COALESCE(completed_at, updated_at))=YEAR(CURDATE())
+                      AND report_category = 'transportation'
+                    UNION
+                    SELECT report_id FROM road_transportation_reports_archive
+                    WHERE status='completed'
+                      AND MONTH(COALESCE(completed_at, updated_at))=MONTH(CURDATE())
+                      AND YEAR(COALESCE(completed_at, updated_at))=YEAR(CURDATE())
+                      AND report_category = 'transportation'
+                ) AS resolved_this_month");
                 if ($r) $stats['resolved_month'] = (int)$r->fetch_assoc()['c'];
                 return $stats;
             } elseif ($is_transport_supervisor) {
-                // Transportation Monitoring Officers keep the original behavior:
-                // they see only Transportation reports but counted the same way
-                // as every other role.
-                $cat_filter = " AND report_category = 'transportation'";
+                // Transportation Monitoring Officers: the dashboard cards mirror
+                // the transportation reports actually shown in this page's Recent
+                // Submissions list (same WHERE as getRecentSubmissions() with
+                // $transport_only): finalized transportation reports that are not
+                // infrastructure issues.
+                $officer_where = "report_type != 'infrastructure_issue'
+                    AND status IN ('approved','in-progress','completed')
+                    AND (created_by IS NULL OR created_by = 0
+                         OR cimm_sync_status IS NULL OR cimm_sync_status <> 'pushed'
+                         OR (report_category = 'transportation' AND report_source = 'local' AND created_by != 0))
+                    AND report_category = 'transportation'";
+                $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE {$officer_where}");
+                if ($r) $stats['total'] = (int)$r->fetch_assoc()['c'];
+                $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE {$officer_where} AND status IN ('approved','in-progress')");
+                if ($r) $stats['active'] = (int)$r->fetch_assoc()['c'];
+                $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE {$officer_where} AND (severity IN ('high','critical') OR priority IN ('high','critical'))");
+                if ($r) $stats['critical'] = (int)$r->fetch_assoc()['c'];
+                $r = $conn->query("SELECT COUNT(*) as c FROM (
+                    SELECT report_id FROM road_transportation_reports
+                    WHERE report_type != 'infrastructure_issue'
+                      AND status='completed'
+                      AND MONTH(COALESCE(completed_at, updated_at))=MONTH(CURDATE())
+                      AND YEAR(COALESCE(completed_at, updated_at))=YEAR(CURDATE())
+                      AND report_category = 'transportation'
+                    UNION
+                    SELECT report_id FROM road_transportation_reports_archive
+                    WHERE report_type != 'infrastructure_issue'
+                      AND status='completed'
+                      AND MONTH(COALESCE(completed_at, updated_at))=MONTH(CURDATE())
+                      AND YEAR(COALESCE(completed_at, updated_at))=YEAR(CURDATE())
+                      AND report_category = 'transportation'
+                ) AS resolved_this_month");
+                if ($r) $stats['resolved_month'] = (int)$r->fetch_assoc()['c'];
+                return $stats;
             } elseif ($is_road_only_role) {
                 $cat_filter = " AND report_category = 'road'";
             } else {
@@ -152,7 +194,17 @@ function getEnhancedStats() {
             if ($r) $stats['active'] = (int)$r->fetch_assoc()['c'];
             $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE priority IN ('high','critical') AND status != 'completed'{$cat_filter}");
             if ($r) $stats['critical'] = (int)$r->fetch_assoc()['c'];
-            $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE status='completed' AND MONTH(updated_at)=MONTH(CURDATE()) AND YEAR(updated_at)=YEAR(CURDATE()){$cat_filter}");
+            $r = $conn->query("SELECT COUNT(*) as c FROM (
+                SELECT report_id FROM road_transportation_reports
+                WHERE status='completed'
+                  AND MONTH(COALESCE(completed_at, updated_at))=MONTH(CURDATE())
+                  AND YEAR(COALESCE(completed_at, updated_at))=YEAR(CURDATE()){$cat_filter}
+                UNION
+                SELECT report_id FROM road_transportation_reports_archive
+                WHERE status='completed'
+                  AND MONTH(COALESCE(completed_at, updated_at))=MONTH(CURDATE())
+                  AND YEAR(COALESCE(completed_at, updated_at))=YEAR(CURDATE()){$cat_filter}
+            ) AS resolved_this_month");
             if ($r) $stats['resolved_month'] = (int)$r->fetch_assoc()['c'];
         } catch (Exception $e) { error_log("Enhanced stats error: ".$e->getMessage()); }
     }
@@ -2156,13 +2208,11 @@ annotate_report_assignment_status($conn, $recent_reports);
                             <input type="text" id="mapSearchInput" placeholder="Search places..." style="padding:5px 10px;border:1px solid rgba(55,98,200,0.3);border-radius:6px;font-size:12px;width:160px;">
                             <button class="map-fullscreen-btn" onclick="doMapSearch()" title="Search"><i class="fas fa-search"></i></button>
                         </div>
-                    </div>
-                    <div class="map-toolbar-right">
                         <div class="dropdown" style="position:relative;display:inline-block;">
                             <button class="map-fullscreen-btn" onclick="toggleToolsDropdown()" id="toolsDropdownBtn">
                                 <i class="fas fa-tools"></i> Tools
                             </button>
-                            <div id="toolsDropdownMenu" class="t-card" style="display:none;position:absolute;top:100%;right:0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.15);z-index:1000;min-width:200px;padding:8px 0;margin-top:4px;">
+                            <div id="toolsDropdownMenu" class="t-card" style="display:none;position:absolute;top:100%;right:0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.15);z-index:1200;min-width:200px;padding:8px 0;margin-top:4px;">
                                 <button class="tools-dropdown-item" onclick="showRoutePlanner()"><i class="fas fa-route"></i> Route Planner</button>
                                 <button class="tools-dropdown-item" onclick="toggleSatelliteLayer()"><i class="fas fa-satellite"></i> Satellite View</button>
                                 <button class="tools-dropdown-item" onclick="toggleTrafficIncidentsLayer()" id="toggleIncidentsBtn"><i class="fas fa-exclamation-triangle"></i> Traffic Incidents</button>
@@ -2171,6 +2221,8 @@ annotate_report_assignment_status($conn, $recent_reports);
                                 <button class="tools-dropdown-item" onclick="showGeofencingTool()"><i class="fas fa-draw-polygon"></i> Geofence Check</button>
                             </div>
                         </div>
+                    </div>
+                    <div class="map-toolbar-right">
                         <button class="map-fullscreen-btn" id="toggleTrafficBtn" onclick="toggleTrafficLayer()">
                             <i class="fas fa-car"></i> Traffic
                         </button>
@@ -2360,32 +2412,6 @@ annotate_report_assignment_status($conn, $recent_reports);
             </div>
         </div>
 
-        <!-- Road Status List -->
-        <div class="info-card">
-            <h3 class="info-card-title">
-                <i class="fas fa-road"></i>
-                Major Road Status
-            </h3>
-            <div class="road-status-list">
-                <?php foreach ($roads as $road): ?>
-                <div class="road-item">
-                    <div class="road-status status-<?php 
-                        echo $road['status'] == 'completed' ? 'clear' : 
-                             ($road['status'] == 'in-progress' ? 'moderate' : 'heavy'); 
-                    ?>"></div>
-                    <div class="road-info">
-                        <div class="road-name"><?php echo htmlspecialchars($road['name']); ?></div>
-                        <div class="road-condition"><?php echo htmlspecialchars($road['condition']); ?></div>
-                        <div class="traffic-indicator">
-                            <i class="fas fa-car"></i>
-                            <span><?php echo htmlspecialchars($road['traffic']); ?></span>
-                        </div>
-                    </div>
-                </div>
-                <?php endforeach; ?>
-            </div>
-        </div>
-
         <!-- Recent Reports Table -->
         <div class="reports-table-section">
             <div class="table-header">
@@ -2537,7 +2563,7 @@ annotate_report_assignment_status($conn, $recent_reports);
 
         // Quezon City center
         const QC_CENTER = [14.651417, 121.04917];
-        const map = L.map('map').setView(QC_CENTER, 13);
+        const map = L.map('map').setView(QC_CENTER, 14);
 
         L.tileLayer('https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
             attribution: '© TomTom'
@@ -2569,7 +2595,6 @@ annotate_report_assignment_status($conn, $recent_reports);
             fillOpacity: 0.08,
             fillColor: '#3762c8'
         }).addTo(map) : null;
-        if (QC_POLYGON) map.fitBounds(QC_POLYGON.getBounds());
 
         // Point-in-polygon check using ray casting (handles MultiPolygon and holes)
         function isInsideQCBounds(lat, lng) {
@@ -2843,7 +2868,7 @@ annotate_report_assignment_status($conn, $recent_reports);
         map.on('moveend', function() {
             const center = map.getCenter();
             if (!QC_BBOX.contains(center)) {
-                map.setView(QC_CENTER, 13);
+                map.setView(QC_CENTER, 14);
                 showNotification('Map view restricted to Quezon City area', 'info');
             }
         });

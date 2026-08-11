@@ -427,7 +427,17 @@ foreach ($nav_items as $section => $items) {
                         <li role="listitem">
                             <a href="<?php echo $item['href']; ?>" class="nav-link<?php echo $is_active; ?>"<?php echo $aria_current; ?>>
                                 <i class="fas fa-<?php echo $item['icon']; ?>" aria-hidden="true"></i>
-                                <?php echo htmlspecialchars($item['title']); ?>
+                                <?php
+                                $display_title = $item['title'];
+                                if ($item['title'] === 'Road Monitoring') {
+                                    if (in_array($user_role, ['trans_ops_supervisor', 'trans_monitoring_officer'], true)) {
+                                        $display_title = 'Transportation Monitoring';
+                                    } elseif ($user_role === 'system_admin') {
+                                        $display_title = 'Transportation and Road Monitoring';
+                                    }
+                                }
+                                echo htmlspecialchars($display_title);
+                                ?>
                                 <?php if ($notification_count > 0 && $item['icon'] === 'bell'): ?>
                                     <span class="notification-badge" role="status" aria-label="<?php echo $notification_count; ?> unread notifications"><?php echo $notification_count; ?></span>
                                 <?php endif; ?>

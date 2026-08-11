@@ -447,6 +447,99 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
+// AJAX: return the progress updates for an archived report so the existing
+// export flow (progress-updates-common.js -> exportUpdatesToExcel) can produce
+// the same per-report export inside the View modal. It reads directly from the
+// report_updates table because an archived report may no longer exist in the
+// live tables that progress_update_api.php's get_updates action checks.
+if (isset($_GET['ajax']) && $_GET['ajax'] === 'export_updates') {
+    header('Content-Type: application/json; charset=utf-8');
+    $arch_id = intval($_GET['id'] ?? 0);
+    if ($arch_id <= 0) {
+        echo json_encode(['success' => false, 'message' => 'Invalid archive ID.']);
+        exit;
+    }
+    $arch_stmt = $conn->prepare("SELECT * FROM road_transportation_reports_archive WHERE id = ?");
+    $arch_stmt->bind_param('i', $arch_id);
+    $arch_stmt->execute();
+    $arch_row = $arch_stmt->get_result()->fetch_assoc();
+    if (!$arch_row) {
+        echo json_encode(['success' => false, 'message' => 'Archived report not found.']);
+        exit;
+    }
+
+    // Resolve the numeric report id that report_updates is keyed by.
+    //   - CIMM archives carry the original CIMM numeric id inside the reference
+    //     code (REQ-<id> / CIMM-<id>); otherwise match by reference_code.
+    //   - Copied archives keep the live report, so look it up by its display
+    //     report_id first.
+    //   - Moved archives preserve the live id as the archive row's own id, so
+    //     fall back to that when the live report no longer exists.
+    $updates_report_id = null;
+    $ref_code = (string)($arch_row['report_id'] ?? '');
+    $is_cimm = (($arch_row['report_source'] ?? '') === 'external'
+        || stripos($ref_code, 'REQ-') === 0
+        || stripos($ref_code, 'CIMM-') === 0);
+
+    if ($is_cimm) {
+        if (preg_match('/^(REQ|CIMM)-(\d+)$/i', $ref_code, $m)) {
+            $updates_report_id = (int)$m[2];
+        } elseif (is_numeric($ref_code)) {
+            $updates_report_id = (int)$ref_code;
+        } else {
+            $cimm_stmt = $conn->prepare("SELECT id FROM cimm_verification_reports WHERE reference_code = ? LIMIT 1");
+            $cimm_stmt->bind_param('s', $ref_code);
+            $cimm_stmt->execute();
+            $cimm_row = $cimm_stmt->get_result()->fetch_assoc();
+            if ($cimm_row) $updates_report_id = (int)$cimm_row['id'];
+        }
+    } else {
+        if ($ref_code !== '') {
+            foreach (['road_transportation_reports', 'road_maintenance_reports'] as $t) {
+                $stmt = $conn->prepare("SELECT id FROM $t WHERE report_id = ? LIMIT 1");
+                $stmt->bind_param('s', $ref_code);
+                $stmt->execute();
+                $r = $stmt->get_result()->fetch_assoc();
+                $stmt->close();
+                if ($r) { $updates_report_id = (int)$r['id']; break; }
+            }
+        }
+        if ($updates_report_id === null) {
+            $updates_report_id = (int)$arch_row['id'];
+        }
+    }
+
+    if ($updates_report_id === null || $updates_report_id <= 0) {
+        echo json_encode(['success' => false, 'message' => 'No export is available for this archived report.']);
+        exit;
+    }
+
+    // Pull the progress updates (same shape progress_update_api.php returns).
+    $updates = [];
+    $q = "SELECT u.*, COALESCE(us.full_name, 'LGU Staff') AS admin_name
+          FROM report_updates u
+          LEFT JOIN users us ON u.user_id = us.id
+          WHERE u.report_id = ?
+          ORDER BY u.created_at ASC";
+    $stmt = $conn->prepare($q);
+    $stmt->bind_param('i', $updates_report_id);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($upd = $res->fetch_assoc()) {
+        $upd['created_at_formatted'] = date('M d, Y h:i A', strtotime($upd['created_at']));
+        $media = [];
+        $m_stmt = $conn->prepare("SELECT id, file_path, file_type FROM report_update_media WHERE update_id = ? ORDER BY id ASC");
+        $m_stmt->bind_param('i', $upd['id']);
+        $m_stmt->execute();
+        $m_res = $m_stmt->get_result();
+        while ($m = $m_res->fetch_assoc()) $media[] = $m;
+        $upd['media'] = $media;
+        $updates[] = $upd;
+    }
+    echo json_encode(['success' => true, 'updates' => $updates]);
+    exit;
+}
+
 $message = '';
 if (isset($_SESSION['archive_message'])) {
     $message = $_SESSION['archive_message'];
@@ -827,6 +920,28 @@ if (isset($_SESSION['archive_message'])) {
             background: rgba(55, 98, 200, 0.2);
         }
 
+        .rm-modal-btn-export {
+            padding: 10px 24px;
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-right: 10px;
+            transition: all 0.2s;
+        }
+
+        .rm-modal-btn-export:hover {
+            background: linear-gradient(135deg, #2f55b0, #172c55);
+            box-shadow: 0 4px 12px rgba(55, 98, 200, 0.3);
+        }
+
         @media (max-width: 640px) {
             .rm-info-grid {
                 grid-template-columns: 1fr;
@@ -891,6 +1006,13 @@ if (isset($_SESSION['archive_message'])) {
         body.dark-mode .rm-modal-btn-close {
             background: rgba(55,98,200,0.15) !important;
             color: #60a5fa !important;
+        }
+        body.dark-mode .rm-modal-btn-export {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8) !important;
+            color: #fff !important;
+        }
+        body.dark-mode .rm-modal-btn-export:hover {
+            background: linear-gradient(135deg, #2563eb, #1e40af) !important;
         }
         body.dark-mode .rm-modal-body::-webkit-scrollbar-track {
             background: rgba(255,255,255,0.05) !important;
@@ -1240,12 +1362,18 @@ if (isset($_SESSION['archive_message'])) {
                 </div>
             </div>
             <div class="rm-modal-footer">
+                <button type="button" class="rm-modal-btn-export" onclick="exportArchivedReport()">
+                    <i class="fas fa-file-export"></i> Export
+                </button>
                 <button type="button" class="rm-modal-btn-close" onclick="closeViewModal()">
                     <i class="fas fa-times"></i> Close
                 </button>
             </div>
         </div>
     </div>
+
+    <!-- Hidden timeline container used by the existing progress-updates export -->
+    <div id="updatesTimeline" style="display:none;"></div>
 
     <?php if ($message): ?>
     <script>
@@ -1259,6 +1387,11 @@ if (isset($_SESSION['archive_message'])) {
     </script>
     <?php endif; ?>
 
+    <!-- Shared progress-updates scripts: provide the existing report export
+         (exportUpdatesToExcel) and timeline rendering used by report_management.php -->
+    <script src="../../js/progress-updates.js"></script>
+    <script src="../../js/progress-updates-common.js"></script>
+
     <script>
         var archiveData = <?php
             $archives->data_seek(0);
@@ -1268,6 +1401,8 @@ if (isset($_SESSION['archive_message'])) {
             }
             echo json_encode($rows);
         ?>;
+
+        var currentArchiveRow = null;
 
         // View Archive Modal helpers (mirrors report_management rm modal)
         function formatDate(dateStr) {
@@ -1290,6 +1425,7 @@ if (isset($_SESSION['archive_message'])) {
         function viewArchive(id) {
             var row = archiveData.find(function(r) { return r.id == id; });
             if (!row) return;
+            currentArchiveRow = row;
 
             var statusStyles = {
                 'pending':    {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
@@ -1455,6 +1591,53 @@ if (isset($_SESSION['archive_message'])) {
             url.searchParams.delete('sort');
             url.searchParams.delete('id');
             window.location.href = url.toString();
+        }
+
+        function showNotification(message, type) {
+            type = type || 'info';
+            var notification = document.createElement('div');
+            notification.className = 'notification ' + type;
+            notification.innerHTML = '<i class="fas fa-' + (type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle') + '"></i> ' + message;
+            notification.style.cssText = 'position:fixed;top:20px;right:20px;padding:15px 20px;background:' + (type === 'success' ? '#10b981' : type === 'error' ? '#dc3545' : '#3762c8') + ';color:white;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:10000;animation:slideIn 0.3s ease;';
+            document.body.appendChild(notification);
+            setTimeout(function() {
+                notification.style.opacity = '0';
+                notification.style.transition = 'opacity 0.3s ease';
+                setTimeout(function() { notification.remove(); }, 300);
+            }, 3000);
+        }
+
+        // Reuse the existing progress-updates export (exportUpdatesToExcel in
+        // progress-updates-common.js) for the archived report currently open in
+        // the View modal. The updates for THIS report are fetched from this page
+        // itself (see the ?ajax=export_updates handler) and rendered into the
+        // hidden timeline container so the existing export reads them — the same
+        // timeline structure and .doc output used on report_management.php.
+        function exportArchivedReport() {
+            if (!currentArchiveRow) {
+                showNotification('No archived report is selected to export.', 'error');
+                return;
+            }
+            var archiveId = currentArchiveRow.id;
+            fetch('?ajax=export_updates&id=' + archiveId)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data && data.success) {
+                        if (!data.updates || data.updates.length === 0) {
+                            showNotification('This archived report has no progress updates available to export.', 'error');
+                            return;
+                        }
+                        currentUpdatesReportId = currentArchiveRow.report_id || currentArchiveRow.id;
+                        renderTimeline(data.updates);
+                        exportUpdatesToExcel();
+                    } else {
+                        showNotification((data && data.message) ? data.message : 'No export is available for this archived report.', 'error');
+                    }
+                })
+                .catch(function(e) {
+                    console.error('Archive export error', e);
+                    showNotification('Failed to prepare the export for this archived report.', 'error');
+                });
         }
 
         function closeModalAndRefresh() {

@@ -76,12 +76,14 @@ function rgmap_archive_report($conn, $table, $report_id, $status) {
 
         // Capture the report's status BEFORE applying the terminal status so it
         // can be restored exactly where its last action happened.
-        $prev_stmt = $conn->prepare("SELECT status FROM $table WHERE id = ?");
+        $prev_stmt = $conn->prepare("SELECT status, report_id FROM $table WHERE id = ?");
         $prev_stmt->bind_param("i", $report_id);
         $prev_stmt->execute();
         $prev_row = $prev_stmt->get_result()->fetch_assoc();
-        $previous_status = ($prev_row && isset($prev_row['status'])) ? $prev_row['status'] : null;
         $prev_stmt->close();
+        if (!$prev_row) { throw new Exception("Report not found in $table"); }
+        $previous_status = $prev_row['status'] ?? null;
+        $live_report_code = $prev_row['report_id'] ?? null;
 
         // Mark the live row with the terminal status first so the archived copy
         // below carries that status while preserving all other columns.
@@ -93,19 +95,75 @@ function rgmap_archive_report($conn, $table, $report_id, $status) {
         $col_res = $conn->query("SHOW COLUMNS FROM $table");
         if ($col_res) { while ($col_row = $col_res->fetch_assoc()) { $fields[] = "`{$col_row['Field']}`"; } }
         if (empty($fields)) { throw new Exception("No columns found for table $table"); }
+
+        // The archive may already hold this same report (same report_id) when a
+        // previously archived report was restored or re-synced back into the
+        // live table. Refresh that existing archival copy from the live row and
+        // drop the live row so Archive still moves the report out of Recent
+        // Submissions instead of dying on the archive's UNIQUE report_id key.
+        if ($live_report_code !== null && $live_report_code !== '') {
+            $rid = $conn->prepare("SELECT id FROM road_transportation_reports_archive WHERE report_id = ? LIMIT 1");
+            $rid->bind_param("s", $live_report_code);
+            $rid->execute();
+            $existing = $rid->get_result()->fetch_assoc();
+            $rid->close();
+            if ($existing) {
+                $arch_id = (int)$existing['id'];
+                $set_parts = ["a.status = ?", "a.previous_status = a.status", "a.archived_from = ?", "a.updated_at = NOW()"];
+                foreach ($fields as $f) {
+                    if ($f === '`id`') continue;
+                    $set_parts[] = "a.$f = l.$f";
+                }
+                $upd = "UPDATE road_transportation_reports_archive a
+                        JOIN $table l ON l.report_id = a.report_id
+                        SET " . implode(', ', $set_parts) . "
+                        WHERE a.id = ?";
+                $stmt = $conn->prepare($upd);
+                $stmt->bind_param("ssi", $status, $table, $arch_id);
+                $stmt->execute();
+
+                $stmt = $conn->prepare("DELETE FROM $table WHERE id = ?");
+                $stmt->bind_param("i", $report_id);
+                $stmt->execute();
+                $conn->commit();
+                return true;
+            }
+        }
+
         $cols = implode(', ', $fields);
 
-        $stmt = $conn->prepare("INSERT INTO road_transportation_reports_archive ($cols) SELECT $cols FROM $table WHERE id = ?");
-        $stmt->bind_param("i", $report_id);
-        $stmt->execute();
+        // A different report may already occupy this numeric id in the archive
+        // (transport and maintenance rows share one archive id space), so the
+        // id-preserving INSERT below would collide. In that case drop the id
+        // and let the archive auto-generate a fresh primary key.
+        $id_chk = $conn->prepare("SELECT id FROM road_transportation_reports_archive WHERE id = ? LIMIT 1");
+        $id_chk->bind_param("i", $report_id);
+        $id_chk->execute();
+        $id_exists = $id_chk->get_result()->fetch_assoc();
+        $id_chk->close();
+
+        if ($id_exists) {
+            $no_id = [];
+            foreach ($fields as $f) { if ($f === '`id`') continue; $no_id[] = $f; }
+            $cols2 = implode(', ', $no_id);
+            $stmt = $conn->prepare("INSERT INTO road_transportation_reports_archive ($cols2) SELECT $cols2 FROM $table WHERE id = ?");
+            $stmt->bind_param("i", $report_id);
+            $stmt->execute();
+            $arch_insert_id = $conn->insert_id;
+        } else {
+            $stmt = $conn->prepare("INSERT INTO road_transportation_reports_archive ($cols) SELECT $cols FROM $table WHERE id = ?");
+            $stmt->bind_param("i", $report_id);
+            $stmt->execute();
+            $arch_insert_id = $report_id;
+        }
 
         if ($previous_status !== null) {
             $ps = $conn->prepare("UPDATE road_transportation_reports_archive SET previous_status = ?, archived_from = ? WHERE id = ?");
-            $ps->bind_param("ssi", $previous_status, $table, $report_id);
+            $ps->bind_param("ssi", $previous_status, $table, $arch_insert_id);
             $ps->execute();
         } else {
             $ps = $conn->prepare("UPDATE road_transportation_reports_archive SET archived_from = ? WHERE id = ?");
-            $ps->bind_param("si", $table, $report_id);
+            $ps->bind_param("si", $table, $arch_insert_id);
             $ps->execute();
         }
 
@@ -115,8 +173,8 @@ function rgmap_archive_report($conn, $table, $report_id, $status) {
 
         $conn->commit();
         return true;
-    } catch (Exception $e) {
-        if ($conn->inTransaction()) $conn->rollback();
+    } catch (Throwable $e) {
+        try { $conn->rollback(); } catch (Throwable $rollback_error) { /* No active transaction */ }
         error_log("rgmap_archive_report failed: " . $e->getMessage());
         return false;
     }
@@ -179,7 +237,7 @@ function rgmap_archive_cimm_report($conn, $cimm_req_id, $status) {
         $conn->commit();
         return true;
     } catch (Exception $e) {
-        if ($conn->inTransaction()) $conn->rollback();
+        try { $conn->rollback(); } catch (Throwable $rollback_error) { /* No active transaction */ }
         error_log("rgmap_archive_cimm_report failed: " . $e->getMessage());
         return false;
     }
@@ -234,7 +292,7 @@ function rgmap_archive_report_copy($conn, $table, $report_id, $status) {
         $conn->commit();
         return true;
     } catch (Exception $e) {
-        if ($conn->inTransaction()) $conn->rollback();
+        try { $conn->rollback(); } catch (Throwable $rollback_error) { /* No active transaction */ }
         error_log("rgmap_archive_report_copy failed: " . $e->getMessage());
         return false;
     }
@@ -458,7 +516,7 @@ function rgmap_archive_copy_cimm_report($conn, $cimm_req_id, $status) {
         $conn->commit();
         return true;
     } catch (Exception $e) {
-        if ($conn->inTransaction()) $conn->rollback();
+        try { $conn->rollback(); } catch (Throwable $rollback_error) { /* No active transaction */ }
         error_log("rgmap_archive_copy_cimm_report failed: " . $e->getMessage());
         return false;
     }
