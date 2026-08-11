@@ -79,6 +79,23 @@ if ($check_imgpath && $check_imgpath->num_rows === 0) {
 require_once __DIR__ . '/../api/rgmap_cimm_sync.php';
 rgmap_cimm_ensure_schema($conn);
 
+// ── Backfill: self-heal CIMM verification rows that were written while the
+//    webhook's parameter-count bug was live (see git history on
+//    cimm-reports-webhook.php / rgmap_apply_cimm_report_payload() in
+//    cimm_verification_data.php) — those rows are missing their district,
+//    and any linked road_transportation_reports row never got its
+//    cimm_status/cimm_district columns populated either, which is what kept
+//    showing the stale "Pushed" badge instead of CIMM's real, current
+//    status. Re-fetches each affected report fresh from CIMM and replays it
+//    through the now-fixed write path. Capped and best-effort — a CIMM
+//    outage here must never break this page load; any remainder is picked
+//    up on the next one. ──────────────────────────────────────────────────
+try {
+    rgmap_backfill_stale_cimm_reports(rgmap_verification_pdo(), $conn, 5);
+} catch (\Throwable $e) {
+    error_log('CIMM verification backfill failed: ' . $e->getMessage());
+}
+
 // Ensure the archive table exists — normally created lazily by archive.php,
 // but this page also queries it below (delete/archive action) and reads its
 // columns, so it must exist before landing here first.

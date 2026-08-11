@@ -272,6 +272,290 @@ function cimm_resolution_status_to_display(?string $resolutionStatus, ?string $a
 }
 
 /**
+ * Apply one CIMM report payload (the same shape cimm_rgmap_fetch_report()
+ * in the CIMM repo produces) into cimm_verification_reports, and — if the
+ * payload carries rgmap_report_pk (meaning this CIMM report started life as
+ * one of THIS system's own road_transportation_reports rows) — also keep
+ * that row's cimm_engineer_name/cimm_budget/cimm_status/cimm_district etc.
+ * current.
+ *
+ * This is the single write path shared by:
+ *   - cimm-reports-webhook.php   (live push from CIMM, one report at a time)
+ *   - cimm-reports-pull.php      (cron catch-up, replays into the webhook)
+ *   - rgmap_backfill_stale_cimm_reports() (verification_monitoring.php's
+ *     capped auto-heal for rows that predate this function, or that never
+ *     wrote correctly because of the parameter-count bug this replaces —
+ *     see git history on cimm-reports-webhook.php)
+ *
+ * @return array{id:int,cimm_req_id:int,reference:string}
+ */
+function rgmap_apply_cimm_report_payload(PDO $pdo, ?mysqli $conn, array $data): array {
+    $cimmReqId = (int)($data['cimm_req_id'] ?? 0);
+    if ($cimmReqId <= 0) {
+        throw new \InvalidArgumentException('cimm_req_id is required');
+    }
+
+    rgmap_ensure_cimm_verification_table($pdo);
+
+    $reference = (string)($data['reference'] ?? ('REQ-' . str_pad((string)$cimmReqId, 3, '0', STR_PAD_LEFT)));
+    $cimmRepId = isset($data['cimm_rep_id']) ? (int)$data['cimm_rep_id'] : null;
+    if ($cimmRepId !== null && $cimmRepId <= 0) {
+        $cimmRepId = null;
+    }
+
+    $evidenceJson = json_encode($data['evidence_urls'] ?? [], JSON_UNESCAPED_SLASHES);
+    $aiJson = json_encode($data['ai'] ?? [], JSON_UNESCAPED_SLASHES);
+    $payloadJson = json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    $event = (string)($data['event'] ?? $_SERVER['HTTP_X_CIMM_EVENT'] ?? 'upsert');
+
+    $stmt = $pdo->prepare("
+        INSERT INTO cimm_verification_reports (
+            cimm_req_id, cimm_rep_id, reference_code, report_reference,
+            infrastructure, location, issue, reporter_name, contact_number, email,
+            district, coord_lat, coord_lng, cprf_facility_id, cprf_facility_name,
+            approval_status, rejection_reason, resolution_status, resolution_note, resolved_at,
+            priority, engineer, budget, starting_date, estimated_end_date, submitted_at,
+            evidence_json, ai_json, portal_url, payload_json, last_event
+        ) VALUES (
+            ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?
+        )
+        ON DUPLICATE KEY UPDATE
+            cimm_rep_id = VALUES(cimm_rep_id),
+            reference_code = VALUES(reference_code),
+            report_reference = VALUES(report_reference),
+            infrastructure = VALUES(infrastructure),
+            location = VALUES(location),
+            issue = VALUES(issue),
+            reporter_name = VALUES(reporter_name),
+            contact_number = VALUES(contact_number),
+            email = VALUES(email),
+            district = VALUES(district),
+            coord_lat = VALUES(coord_lat),
+            coord_lng = VALUES(coord_lng),
+            cprf_facility_id = VALUES(cprf_facility_id),
+            cprf_facility_name = VALUES(cprf_facility_name),
+            approval_status = VALUES(approval_status),
+            rejection_reason = VALUES(rejection_reason),
+            resolution_status = VALUES(resolution_status),
+            resolution_note = VALUES(resolution_note),
+            resolved_at = VALUES(resolved_at),
+            priority = VALUES(priority),
+            engineer = VALUES(engineer),
+            budget = VALUES(budget),
+            starting_date = VALUES(starting_date),
+            estimated_end_date = VALUES(estimated_end_date),
+            submitted_at = VALUES(submitted_at),
+            evidence_json = VALUES(evidence_json),
+            ai_json = VALUES(ai_json),
+            portal_url = VALUES(portal_url),
+            payload_json = VALUES(payload_json),
+            last_event = VALUES(last_event),
+            synced_at = CURRENT_TIMESTAMP
+    ");
+
+    // 31 placeholders above, 31 values below — keep these in lockstep. A past
+    // mismatch here (two stray trailing values with no matching placeholder)
+    // made every call throw "Invalid parameter number" under
+    // ATTR_EMULATE_PREPARES=false, silently failing every push AND every
+    // pull-replay — see git history on the old inline version of this code
+    // in cimm-reports-webhook.php for the fix.
+    $stmt->execute([
+        $cimmReqId,
+        $cimmRepId,
+        $reference,
+        $data['report_reference'] ?? null,
+        (string)($data['infrastructure'] ?? 'Unknown'),
+        (string)($data['location'] ?? ''),
+        (string)($data['issue'] ?? ''),
+        $data['reporter_name'] ?? null,
+        (string)($data['contact_number'] ?? ''),
+        $data['email'] ?? null,
+        $data['district'] ?? null,
+        $data['coord_lat'] ?? null,
+        $data['coord_lng'] ?? null,
+        $data['cprf_facility_id'] ?? null,
+        $data['cprf_facility_name'] ?? null,
+        (string)($data['approval_status'] ?? 'Pending'),
+        $data['rejection_reason'] ?? null,
+        $data['resolution_status'] ?? null,
+        $data['resolution_note'] ?? null,
+        $data['resolved_at'] ?? null,
+        $data['priority'] ?? null,
+        $data['engineer'] ?? null,
+        $data['budget'] ?? null,
+        $data['starting_date'] ?? null,
+        $data['estimated_end_date'] ?? null,
+        (string)($data['submitted_at'] ?? date('Y-m-d H:i:s')),
+        $evidenceJson,
+        $aiJson,
+        $data['portal_url'] ?? null,
+        $payloadJson,
+        $event,
+    ]);
+
+    $localIdStmt = $pdo->prepare('SELECT id FROM cimm_verification_reports WHERE cimm_req_id = ? LIMIT 1');
+    $localIdStmt->execute([$cimmReqId]);
+    $localId = (int)($localIdStmt->fetchColumn() ?: 0);
+
+    // ── If this CIMM report originated from one of THIS system's own
+    //    road_transportation_reports rows, also keep that specific row
+    //    current — not just the cimm_verification_reports mirror above —
+    //    so staff looking at the report they originally submitted see the
+    //    latest engineer/budget/dates/status/district without having to go
+    //    find it in a different panel. ──────────────────────────────────
+    $rgmapReportPk = isset($data['rgmap_report_pk']) ? (int)$data['rgmap_report_pk'] : 0;
+    if ($rgmapReportPk > 0 && $conn instanceof mysqli) {
+        require_once __DIR__ . '/rgmap_cimm_sync.php';
+        rgmap_cimm_ensure_schema($conn);
+
+        $cimmEngineerName = $data['engineer'] ?? null;
+        $cimmBudget = isset($data['budget']) ? (float)$data['budget'] : null;
+        $cimmStartingDate = $data['starting_date'] ?? null;
+        $cimmEstimatedEndDate = $data['estimated_end_date'] ?? null;
+        $cimmStatus = $data['resolution_status'] ?? null;
+        $cimmReportUrl = $data['portal_url'] ?? null;
+        $cimmDistrict = $data['district'] ?? null;
+
+        $updStmt = $conn->prepare(
+            "UPDATE road_transportation_reports
+             SET cimm_engineer_name = ?, cimm_budget = ?, cimm_starting_date = ?,
+                 cimm_estimated_end_date = ?, cimm_status = ?, cimm_report_url = ?,
+                 cimm_district = ?
+             WHERE id = ?"
+        );
+        if ($updStmt) {
+            $updStmt->bind_param(
+                'sdsssssi',
+                $cimmEngineerName, $cimmBudget, $cimmStartingDate,
+                $cimmEstimatedEndDate, $cimmStatus, $cimmReportUrl, $cimmDistrict, $rgmapReportPk
+            );
+            $updStmt->execute();
+            $updStmt->close();
+        }
+    }
+
+    return ['id' => $localId, 'cimm_req_id' => $cimmReqId, 'reference' => $reference];
+}
+
+/**
+ * Capped, idempotent, best-effort auto-heal for rows in
+ * cimm_verification_reports that are missing a district (the visible
+ * symptom of the webhook parameter-count bug fixed in
+ * rgmap_apply_cimm_report_payload() above — rows written while that bug was
+ * live either never landed at all, or in some cases landed via an older
+ * code path without today's full column set). Also covers rows whose
+ * linked road_transportation_reports.cimm_status was never populated for
+ * the same reason, which is what made the "LGU Monitoring Reports" panel
+ * keep showing the stale "Pushed" badge instead of CIMM's real status.
+ *
+ * Re-fetches each affected report fresh from CIMM's export API (the same
+ * endpoint cimm-reports-pull.php uses) and replays it through
+ * rgmap_apply_cimm_report_payload() — the now-fixed write path — so old
+ * data self-corrects the next time this page loads, without requiring
+ * anyone to manually run the pull cron. Capped per page load (matching the
+ * codebase's existing backfill convention — see the district backfill in
+ * the CIMM repo's road_monitoring.php) so a large backlog can't turn one
+ * page view into a slow batch job; any remainder is picked up on the next
+ * load. Safe to call on every request — a report with nothing stale is a
+ * cheap no-op query and this does nothing further.
+ *
+ * @return array{attempted:int,fixed:int,failed:int}
+ */
+function rgmap_backfill_stale_cimm_reports(PDO $pdo, ?mysqli $conn, int $limit = 5): array {
+    rgmap_ensure_cimm_verification_table($pdo);
+
+    $stmt = $pdo->prepare(
+        "SELECT cimm_req_id FROM cimm_verification_reports
+         WHERE district IS NULL OR district = ''
+         ORDER BY id ASC LIMIT " . max(1, $limit)
+    );
+    $stmt->execute();
+    $staleReqIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+    $result = ['attempted' => 0, 'fixed' => 0, 'failed' => 0];
+    if (empty($staleReqIds)) {
+        return $result;
+    }
+
+    $cfg = cimm_verification_export_config();
+    foreach ($staleReqIds as $reqId) {
+        $reqId = (int)$reqId;
+        if ($reqId <= 0) {
+            continue;
+        }
+        $result['attempted']++;
+
+        $url = $cfg['export_url'] . '?key=' . rawurlencode($cfg['api_key']) . '&req_id=' . $reqId;
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 10,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_SSL_VERIFYPEER => !$cfg['is_local'],
+            CURLOPT_SSL_VERIFYHOST => $cfg['is_local'] ? 0 : 2,
+            CURLOPT_HTTPHEADER => ['Accept: application/json'],
+        ]);
+        $resp = curl_exec($ch);
+        $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode < 200 || $httpCode >= 300 || !is_string($resp)) {
+            $result['failed']++;
+            continue;
+        }
+        $decoded = json_decode($resp, true);
+        $reports = is_array($decoded) ? ($decoded['reports'] ?? []) : [];
+        $payload = is_array($reports) && !empty($reports) ? $reports[0] : null;
+        if (!is_array($payload)) {
+            $result['failed']++;
+            continue;
+        }
+
+        try {
+            rgmap_apply_cimm_report_payload($pdo, $conn, $payload);
+            $result['fixed']++;
+        } catch (\Throwable $e) {
+            error_log('rgmap_backfill_stale_cimm_reports failed for req ' . $reqId . ': ' . $e->getMessage());
+            $result['failed']++;
+        }
+    }
+
+    return $result;
+}
+
+/**
+ * Same local/live URL-guessing convention used throughout this codebase
+ * (see rgmap_road_reports_config() in the CIMM repo, and the inline
+ * version of this in cimm-reports-pull.php) for reaching CIMM's export API.
+ *
+ * @return array{export_url:string,api_key:string,is_local:bool}
+ */
+function cimm_verification_export_config(): array {
+    static $cfg = null;
+    if ($cfg !== null) {
+        return $cfg;
+    }
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $hostOnly = explode(':', $host)[0];
+    $isLocal = in_array($hostOnly, ['localhost', '127.0.0.1', '::1'], true);
+    $defaultExportUrl = $isLocal
+        ? (($_SERVER['REQUEST_SCHEME'] ?? 'http') . '://' . $host . '/LGU/lgu-portal/public/api/cimm-reports-export.php')
+        : 'https://cimm.infragovservices.com/lgu-portal/public/api/cimm-reports-export.php';
+
+    $cfg = [
+        'export_url' => getenv('CIMM_REPORTS_EXPORT_URL') ?: $defaultExportUrl,
+        'api_key'    => getenv('CIMM_RGMAP_API_KEY') ?: 'CIMM_RGMAP_SHARED_KEY_2026',
+        'is_local'   => $isLocal,
+    ];
+    return $cfg;
+}
+
+/**
  * Update the RGMAO-side verification decision on a synced CIMM report.
  * Not yet wired to a UI action, but available for a future
  * Verify / Flag / Dismiss control on the CIMM reports panel.
