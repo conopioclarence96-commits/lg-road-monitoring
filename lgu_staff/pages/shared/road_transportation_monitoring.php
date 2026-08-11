@@ -757,6 +757,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $upload_dir = __DIR__ . '/../../uploads/report_images';
                 $upload_dir = str_replace('\\', '/', $upload_dir);
                 
+                $has_photo = false;
+                if (!empty($_FILES['photos']) && is_array($_FILES['photos']['name'])) {
+                    foreach ($_FILES['photos']['name'] as $i => $_n) {
+                        if (($_FILES['photos']['error'][$i] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
+                            $has_photo = true;
+                            break;
+                        }
+                    }
+                }
+                if (!$has_photo) {
+                    echo json_encode(['success' => false, 'message' => 'Please upload at least one photo before submitting.']);
+                    exit;
+                }
+                
                 if (!empty($_FILES['photos']) && is_array($_FILES['photos']['name'])) {
                     $file_count = count($_FILES['photos']['name']);
                     for ($i = 0; $i < $file_count; $i++) {
@@ -2309,7 +2323,7 @@ annotate_report_assignment_status($conn, $recent_reports);
                         </select>
                         <label>Description</label>
                         <textarea id="description" name="description" rows="3" required placeholder="Describe the issue..."></textarea>
-                        <label>Upload Photos (Optional)</label>
+                        <label>Upload Photos</label>
                         <button type="button" id="add-photos-btn" class="t-gradient-primary" style="padding:8px 16px;border:none;border-radius:6px;cursor:pointer;font-size:13px;"><i class="fas fa-camera"></i> Add Photos</button>
                         <input type="file" id="report-images" name="photos[]" multiple accept="image/jpeg,image/jpg,image/png" style="display:none;" />
                         <small class="t-text-secondary" style="font-size: 12px; display: block; margin-top: 4px;">Max size: 5MB each. Formats: JPG, PNG.</small>
@@ -3428,6 +3442,10 @@ annotate_report_assignment_status($conn, $recent_reports);
 
         form.addEventListener('submit', function(e) {
             e.preventDefault();
+            if (selectedFiles.length === 0) {
+                showNotification('Please upload at least one photo before submitting.', 'error');
+                return;
+            }
             const dt = new DataTransfer();
             selectedFiles.forEach(f => dt.items.add(f));
             imageInput.files = dt.files;

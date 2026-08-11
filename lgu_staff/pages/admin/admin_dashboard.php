@@ -56,26 +56,6 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'system_admin') {
     exit();
 }
 
-// Get verified users inactive for 2+ weeks
-$inactive_2weeks_users = [];
-try {
-    $inactive_stmt = $conn->prepare("
-        SELECT id, username, email, full_name, role, department, last_login, created_at, updated_at
-        FROM users 
-        WHERE account_status = 'verified' 
-        AND is_active = 1
-        AND last_login IS NOT NULL 
-        AND last_login < DATE_SUB(NOW(), INTERVAL 14 DAY)
-        ORDER BY last_login ASC
-    ");
-    $inactive_stmt->execute();
-    $inactive_2weeks_users = $inactive_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-    $inactive_stmt->close();
-} catch (Exception $e) {
-    error_log("Inactive users query error: " . $e->getMessage());
-    $inactive_2weeks_users = [];
-}
-
 // Get dashboard statistics
 $stats = [];
 try {
@@ -785,78 +765,6 @@ try {
                 <canvas id="reportsTrendChart"></canvas>
             </div>
         </div>
-
-        <div class="workflow-container">
-            <!-- Inactive Users (2+ Weeks) -->
-            <div class="workflow-card">
-                <div class="workflow-header">
-                    <h3 class="workflow-title">
-                        <i class="fas fa-user-slash"></i>
-                        <span>Inactive Users (2+ Weeks)</span>
-                        <span class="workflow-badge"><?php echo count($inactive_2weeks_users); ?></span>
-                    </h3>
-                </div>
-                
-                <div class="workflow-content">
-                    <div class="table-container">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Email</th>
-                                    <th>Role</th>
-                                    <th>Department</th>
-                                    <th>Last Login</th>
-                                    <th>Registered</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php if (empty($inactive_2weeks_users)): ?>
-                                    <tr>
-                                        <td colspan="7" style="text-align: center;" class="t-text-secondary">No inactive users found</td>
-                                    </tr>
-                                <?php else: ?>
-                                    <?php foreach ($inactive_2weeks_users as $user): ?>
-                                        <tr id="inactive-row-<?php echo $user['id']; ?>">
-                                            <td><?php echo htmlspecialchars($user['full_name']); ?></td>
-                                            <td><?php echo htmlspecialchars($user['email']); ?></td>
-                                            <td><?php echo htmlspecialchars($user['role']); ?></td>
-                                            <td><?php echo htmlspecialchars($user['department'] ?? 'N/A'); ?></td>
-                                            <td><?php echo $user['last_login'] ? date('M d, Y', strtotime($user['last_login'])) : 'Never'; ?></td>
-                                            <td><?php echo date('M d, Y', strtotime($user['created_at'])); ?></td>
-                                            <td>
-                                                <button class="btn-sm btn-deactivate" onclick="confirmDeactivate(<?php echo $user['id']; ?>, '<?php echo htmlspecialchars(addslashes($user['full_name'])); ?>')">
-                                                    <i class="fas fa-user-slash"></i> Deactivate
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Deactivate Confirmation Modal -->
-    <div id="deactivateModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title" style="color:#dc2626;"><i class="fas fa-exclamation-triangle"></i> Confirm Deactivation</h3>
-                <span class="close" onclick="closeDeactivateModal()">&times;</span>
-            </div>
-            <p id="deactivateModalBody">Are you sure you want to deactivate this account?</p>
-            <p style="font-size: 13px; color: #64748b; margin-bottom: 20px;">The user will no longer be able to log in or access the system.</p>
-            <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                <button type="button" class="btn-sm btn-deactivate" id="deactivateConfirmBtn" onclick="executeDeactivate()">
-                    <i class="fas fa-user-slash"></i> Deactivate Account
-                </button>
-                <button type="button" class="btn-sm btn-manage" onclick="closeDeactivateModal()">Cancel</button>
-            </div>
-        </div>
     </div>
 
     <script>
@@ -1146,62 +1054,9 @@ try {
             });
         }, 5000);
 
-        // Deactivate Account - Modal and AJAX
-        let pendingDeactivateUserId = null;
-
-        function confirmDeactivate(userId, userName) {
-            pendingDeactivateUserId = userId;
-            document.getElementById('deactivateModalBody').innerHTML =
-                'Are you sure you want to deactivate the account for <strong>' + userName + '</strong>?';
-            document.getElementById('deactivateModal').style.display = 'flex';
-        }
-
-        function closeDeactivateModal() {
-            document.getElementById('deactivateModal').style.display = 'none';
-            pendingDeactivateUserId = null;
-        }
-
-        function executeDeactivate() {
-            if (!pendingDeactivateUserId) return;
-
-            const btn = document.getElementById('deactivateConfirmBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deactivating...';
-
-            const formData = new FormData();
-            formData.append('action', 'deactivate_user');
-            formData.append('user_id', pendingDeactivateUserId);
-            formData.append('remarks', 'Deactivated by admin from Admin Dashboard (inactive users)');
-
-            fetch('manage_accounts.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(result => {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-user-slash"></i> Deactivate Account';
-                if (result.success) {
-                    closeDeactivateModal();
-                    const row = document.getElementById('inactive-row-' + pendingDeactivateUserId);
-                    if (row) {
-                        row.style.transition = 'opacity 0.3s';
-                        row.style.opacity = '0';
-                        setTimeout(() => row.remove(), 300);
-                    }
-                } else {
-                    alert(result.message || 'Failed to deactivate account.');
-                }
-            })
-            .catch(error => {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-user-slash"></i> Deactivate Account';
-                console.error('Error:', error);
-                alert('An error occurred. Please try again.');
-            });
-        }
     </script>
     
+ 
 
 </body>
 </html>

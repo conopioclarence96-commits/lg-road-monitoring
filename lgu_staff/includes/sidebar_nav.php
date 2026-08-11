@@ -359,6 +359,8 @@ $nav_items = [
     'main' => [
         ['href' => $nav_base . 'pages/lgu/lgu_staff_dashboard.php', 'icon' => 'tachometer-alt', 'title' => 'Staff Dashboard', 'roles' => ['lgu_staff']],   
         ['href' => $nav_base . 'pages/admin/admin_dashboard.php', 'icon' => 'tachometer-alt', 'title' => 'Admin Dashboard', 'roles' => ['system_admin']],
+    ],
+    'managing_accounts' => [
         ['href' => $nav_base . 'pages/admin/manage_accounts.php', 'icon' => 'users', 'title' => 'Manage Accounts', 'roles' => ['system_admin']],
         ['href' => $nav_base . 'pages/admin/account_approvals.php', 'icon' => 'clipboard-check', 'title' => 'Account Approvals', 'roles' => ['system_admin']],
         ['href' => $nav_base . 'pages/admin/create_staff_account.php', 'icon' => 'user-plus', 'title' => 'Create Staff Account', 'roles' => ['system_admin']],
@@ -416,8 +418,18 @@ foreach ($nav_items as $section => $items) {
     <nav class="sidebar-menu" aria-label="Main navigation">
         <?php foreach ($filtered_items as $section => $items): ?>
             <?php if (!empty($items)): ?>
-                <div class="menu-label" id="menu-label-<?php echo $section; ?>"><?php echo ucfirst($section); ?></div>
-                <ul role="list" aria-labelledby="menu-label-<?php echo $section; ?>">
+                <?php
+                $is_managing_accounts = ($section === 'managing_accounts');
+                $section_label = $is_managing_accounts ? 'Accounts' : ucfirst($section);
+                $accounts_active = false;
+                if ($is_managing_accounts) {
+                    foreach ($items as $item) {
+                        if ($current_page === basename($item['href'])) { $accounts_active = true; break; }
+                    }
+                }
+                ?>
+                <div class="menu-label<?php echo $is_managing_accounts ? ' managing-accounts-toggle' : ''; ?>" id="<?php echo $is_managing_accounts ? 'managingAccountsToggle' : 'menu-label-' . $section; ?>"<?php if ($is_managing_accounts): ?> role="button" tabindex="0" aria-expanded="<?php echo $accounts_active ? 'true' : 'false'; ?>" onclick="toggleManagingAccounts()"<?php endif; ?>><?php echo $section_label; ?><?php if ($is_managing_accounts): ?> <i class="fas fa-chevron-down managing-accounts-chevron" aria-hidden="true"></i><?php endif; ?></div>
+                <ul role="list" aria-labelledby="<?php echo $is_managing_accounts ? 'managingAccountsToggle' : 'menu-label-' . $section; ?>"<?php if ($is_managing_accounts): ?> id="managingAccountsSubmenu" class="managing-accounts-submenu" style="display:<?php echo $accounts_active ? 'block' : 'none'; ?>;"<?php endif; ?>>
                     <?php foreach ($items as $item): ?>
                         <?php
                         $href_file = basename($item['href']);
@@ -461,6 +473,15 @@ foreach ($nav_items as $section => $items) {
 
 
 <script>
+function toggleManagingAccounts() {
+    var toggle = document.getElementById('managingAccountsToggle');
+    var submenu = document.getElementById('managingAccountsSubmenu');
+    if (!toggle || !submenu) return;
+    var isHidden = submenu.style.display === 'none';
+    submenu.style.display = isHidden ? 'block' : 'none';
+    toggle.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     var logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
@@ -468,6 +489,16 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             if (!confirm('Are you sure you want to log out?')) return;
             window.location.href = logoutBtn.href;
+        });
+    }
+
+    var maToggle = document.getElementById('managingAccountsToggle');
+    if (maToggle) {
+        maToggle.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggleManagingAccounts();
+            }
         });
     }
 
