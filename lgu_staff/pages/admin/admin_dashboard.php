@@ -69,6 +69,11 @@ try {
     $stmt->execute();
     $stats['approved_users'] = $stmt->get_result()->fetch_assoc()['count'];
     
+    // Total users
+    $stmt = $conn->prepare("SELECT COUNT(*) as count FROM users");
+    $stmt->execute();
+    $stats['total_users'] = $stmt->get_result()->fetch_assoc()['count'];
+    
     // Active reports
     $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status IN ('pending', 'in-progress')");
     $stmt->execute();
@@ -89,6 +94,7 @@ try {
     $stats = [
         'pending_users' => 0,
         'approved_users' => 0,
+        'total_users' => 0,
         'active_reports' => 0,
         'deactivated_users' => 0,
         'inactive_2weeks' => 0
@@ -173,9 +179,11 @@ $quick_insights = [
     'new_reports_today' => 0,
     'total_reports' => 0,
     'pending_reports' => 0,
+    'approved_reports' => 0,
     'in_progress_reports' => 0,
     'completed_reports' => 0,
     'cancelled_reports' => 0,
+    'rejected_reports' => 0,
     'high_priority' => 0,
     'waiting_verification' => 0,
     'waiting_assignment' => 0,
@@ -203,9 +211,15 @@ try {
     $qstmt->close();
 
     // In progress reports
-    $qstmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status IN ('in-progress', 'approved')");
+    $qstmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'in-progress'");
     $qstmt->execute();
     $quick_insights['in_progress_reports'] = (int)$qstmt->get_result()->fetch_assoc()['count'];
+    $qstmt->close();
+
+    // Approved reports
+    $qstmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'approved'");
+    $qstmt->execute();
+    $quick_insights['approved_reports'] = (int)$qstmt->get_result()->fetch_assoc()['count'];
     $qstmt->close();
 
     // Completed reports
@@ -220,8 +234,14 @@ try {
     $quick_insights['cancelled_reports'] = (int)$qstmt->get_result()->fetch_assoc()['count'];
     $qstmt->close();
 
+    // Rejected reports
+    $qstmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'rejected'");
+    $qstmt->execute();
+    $quick_insights['rejected_reports'] = (int)$qstmt->get_result()->fetch_assoc()['count'];
+    $qstmt->close();
+
     // High priority reports
-    $qstmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE priority = 'high' AND status NOT IN ('completed', 'cancelled')");
+    $qstmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE priority = 'high' AND status NOT IN ('completed', 'cancelled', 'rejected')");
     $qstmt->execute();
     $quick_insights['high_priority'] = (int)$qstmt->get_result()->fetch_assoc()['count'];
     $qstmt->close();
@@ -343,8 +363,20 @@ try {
         .date-time { text-align: right; color: #64748b; font-size: 13px; }
 
         /* Summary Cards */
-        .summary-row {
-            display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-bottom: 24px;
+        .summary-row { margin-bottom: 24px; }
+        .summary-section { margin-bottom: 24px; }
+        .summary-section:last-child { margin-bottom: 0; }
+        .summary-section-label {
+            display: flex; align-items: center; gap: 10px;
+            font-size: 12px; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 0.6px; color: #64748b; margin-bottom: 12px;
+        }
+        .summary-section-label i { font-size: 12px; color: #3b82f6; }
+        .summary-section-label::after {
+            content: ''; flex: 1; height: 1px; background: #e2e8f0;
+        }
+        .summary-section-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
         }
         .summary-card {
             background: white; border-radius: 12px; padding: 18px 20px;
@@ -359,6 +391,8 @@ try {
         .summary-card.rose::before { background: #f43f5e; }
         .summary-card.violet::before { background: #8b5cf6; }
         .summary-card.cyan::before { background: #06b6d4; }
+        .summary-card.green::before { background: #16a34a; }
+        .summary-card.red::before { background: #ef4444; }
         .summary-card .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
         .summary-card .card-icon {
             width: 36px; height: 36px; border-radius: 8px;
@@ -370,6 +404,8 @@ try {
         .summary-card.rose .card-icon { background: #fff1f2; color: #f43f5e; }
         .summary-card.violet .card-icon { background: #f5f3ff; color: #8b5cf6; }
         .summary-card.cyan .card-icon { background: #ecfeff; color: #06b6d4; }
+        .summary-card.green .card-icon { background: #f0fdf4; color: #16a34a; }
+        .summary-card.red .card-icon { background: #fef2f2; color: #ef4444; }
         .summary-card .card-value { font-size: 28px; font-weight: 700; color: #1e293b; }
         .summary-card .card-label { font-size: 12px; color: #64748b; font-weight: 500; }
 
@@ -474,7 +510,7 @@ try {
 
         /* Responsive */
         @media (max-width: 1400px) {
-            .summary-row { grid-template-columns: repeat(3, 1fr); }
+            .summary-section-grid { grid-template-columns: repeat(3, 1fr); }
         }
         @media (max-width: 1100px) {
             .main-grid { grid-template-columns: 1fr; }
@@ -483,7 +519,7 @@ try {
         }
         @media (max-width: 768px) {
             .main-content { margin-left: 0; padding: 16px; }
-            .summary-row { grid-template-columns: repeat(2, 1fr); }
+            .summary-section-grid { grid-template-columns: repeat(2, 1fr); }
         }
 
         /* Workflow Card (Inactive Users) */
@@ -517,12 +553,17 @@ try {
         .dark-mode .badge-lgu           { background: rgba(4, 120, 87, 0.28); color: #6ee7b7; }
 
         /* Dark mode summary cards */
+        .dark-mode .summary-section-label { color: #94a3b8; }
+        .dark-mode .summary-section-label i { color: #60a5fa; }
+        .dark-mode .summary-section-label::after { background: #334155; }
         .dark-mode .summary-card.blue { background: rgba(96, 165, 250, 0.12); border-color: rgba(96, 165, 250, 0.35); }
         .dark-mode .summary-card.amber { background: rgba(251, 191, 36, 0.12); border-color: rgba(251, 191, 36, 0.35); }
         .dark-mode .summary-card.emerald { background: rgba(52, 211, 153, 0.12); border-color: rgba(52, 211, 153, 0.35); }
         .dark-mode .summary-card.rose { background: rgba(248, 113, 113, 0.12); border-color: rgba(248, 113, 113, 0.35); }
         .dark-mode .summary-card.violet { background: rgba(167, 139, 250, 0.12); border-color: rgba(167, 139, 250, 0.35); }
         .dark-mode .summary-card.cyan { background: rgba(56, 189, 248, 0.12); border-color: rgba(56, 189, 248, 0.35); }
+        .dark-mode .summary-card.green { background: rgba(34, 197, 94, 0.12); border-color: rgba(34, 197, 94, 0.35); }
+        .dark-mode .summary-card.red { background: rgba(239, 68, 68, 0.12); border-color: rgba(239, 68, 68, 0.35); }
 
         .dark-mode .summary-card.blue::before { background: #60a5fa; }
         .dark-mode .summary-card.amber::before { background: #fbbf24; }
@@ -530,6 +571,8 @@ try {
         .dark-mode .summary-card.rose::before { background: #f87171; }
         .dark-mode .summary-card.violet::before { background: #a78bfa; }
         .dark-mode .summary-card.cyan::before { background: #38bdf8; }
+        .dark-mode .summary-card.green::before { background: #4ade80; }
+        .dark-mode .summary-card.red::before { background: #f87171; }
 
         .dark-mode .summary-card.blue .card-icon { background: rgba(96, 165, 250, 0.18); color: #60a5fa; }
         .dark-mode .summary-card.amber .card-icon { background: rgba(251, 191, 36, 0.18); color: #fbbf24; }
@@ -537,6 +580,8 @@ try {
         .dark-mode .summary-card.rose .card-icon { background: rgba(248, 113, 113, 0.18); color: #f87171; }
         .dark-mode .summary-card.violet .card-icon { background: rgba(167, 139, 250, 0.18); color: #a78bfa; }
         .dark-mode .summary-card.cyan .card-icon { background: rgba(56, 189, 248, 0.18); color: #38bdf8; }
+        .dark-mode .summary-card.green .card-icon { background: rgba(34, 197, 94, 0.18); color: #4ade80; }
+        .dark-mode .summary-card.red .card-icon { background: rgba(239, 68, 68, 0.18); color: #f87171; }
 
         .dark-mode .summary-card.blue .card-value { color: #93c5fd; }
         .dark-mode .summary-card.amber .card-value { color: #fcd34d; }
@@ -544,6 +589,8 @@ try {
         .dark-mode .summary-card.rose .card-value { color: #fca5a5; }
         .dark-mode .summary-card.violet .card-value { color: #c4b5fd; }
         .dark-mode .summary-card.cyan .card-value { color: #7dd3fc; }
+        .dark-mode .summary-card.green .card-value { color: #86efac; }
+        .dark-mode .summary-card.red .card-value { color: #fca5a5; }
 
         .dark-mode .summary-card.blue .card-label { color: #bfdbfe; }
         .dark-mode .summary-card.amber .card-label { color: #fde68a; }
@@ -551,6 +598,8 @@ try {
         .dark-mode .summary-card.rose .card-label { color: #fecaca; }
         .dark-mode .summary-card.violet .card-label { color: #ddd6fe; }
         .dark-mode .summary-card.cyan .card-label { color: #bae6fd; }
+        .dark-mode .summary-card.green .card-label { color: #bbf7d0; }
+        .dark-mode .summary-card.red .card-label { color: #fecaca; }
         <?php endif; ?>
     </style>
 </head>
@@ -573,47 +622,99 @@ try {
 
         <!-- Summary Cards -->
         <div class="summary-row">
-            <div class="summary-card blue">
-                <div class="card-top">
-                    <div class="card-icon"><i class="fas fa-file-alt"></i></div>
+            <div class="summary-section">
+                <div class="summary-section-label"><i class="fas fa-file-alt"></i> Reports</div>
+                <div class="summary-section-grid">
+                    <div class="summary-card blue">
+                        <div class="card-top">
+                            <div class="card-icon"><i class="fas fa-file-alt"></i></div>
+                        </div>
+                        <div class="card-value"><?php echo $quick_insights['total_reports']; ?></div>
+                        <div class="card-label">Total Reports</div>
+                    </div>
+                    <div class="summary-card amber">
+                        <div class="card-top">
+                            <div class="card-icon"><i class="fas fa-clock"></i></div>
+                        </div>
+                        <div class="card-value"><?php echo $quick_insights['pending_reports']; ?></div>
+                        <div class="card-label">Pending</div>
+                    </div>
+                    <div class="summary-card green">
+                        <div class="card-top">
+                            <div class="card-icon"><i class="fas fa-thumbs-up"></i></div>
+                        </div>
+                        <div class="card-value"><?php echo $quick_insights['approved_reports']; ?></div>
+                        <div class="card-label">Approved</div>
+                    </div>
+                    <div class="summary-card emerald">
+                        <div class="card-top">
+                            <div class="card-icon"><i class="fas fa-spinner"></i></div>
+                        </div>
+                        <div class="card-value"><?php echo $quick_insights['in_progress_reports']; ?></div>
+                        <div class="card-label">In Progress</div>
+                    </div>
+                    <div class="summary-card rose">
+                        <div class="card-top">
+                            <div class="card-icon"><i class="fas fa-check-circle"></i></div>
+                        </div>
+                        <div class="card-value"><?php echo $quick_insights['completed_reports']; ?></div>
+                        <div class="card-label">Completed</div>
+                    </div>
+                    <div class="summary-card red">
+                        <div class="card-top">
+                            <div class="card-icon"><i class="fas fa-times-circle"></i></div>
+                        </div>
+                        <div class="card-value"><?php echo $quick_insights['rejected_reports']; ?></div>
+                        <div class="card-label">Rejected</div>
+                    </div>
+                    <div class="summary-card violet">
+                        <div class="card-top">
+                            <div class="card-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                        </div>
+                        <div class="card-value"><?php echo $quick_insights['high_priority']; ?></div>
+                        <div class="card-label">High Priority</div>
+                    </div>
                 </div>
-                <div class="card-value"><?php echo $quick_insights['total_reports']; ?></div>
-                <div class="card-label">Total Reports</div>
             </div>
-            <div class="summary-card amber">
-                <div class="card-top">
-                    <div class="card-icon"><i class="fas fa-clock"></i></div>
+            <div class="summary-section">
+                <div class="summary-section-label"><i class="fas fa-users"></i> Accounts</div>
+                <div class="summary-section-grid">
+                    <div class="summary-card cyan">
+                        <div class="card-top">
+                            <div class="card-icon"><i class="fas fa-users"></i></div>
+                        </div>
+                        <div class="card-value"><?php echo $stats['total_users']; ?></div>
+                        <div class="card-label">Total Users</div>
+                    </div>
+                    <div class="summary-card green">
+                        <div class="card-top">
+                            <div class="card-icon"><i class="fas fa-user-check"></i></div>
+                        </div>
+                        <div class="card-value"><?php echo $stats['approved_users']; ?></div>
+                        <div class="card-label">Verified Accounts</div>
+                    </div>
+                    <div class="summary-card amber">
+                        <div class="card-top">
+                            <div class="card-icon"><i class="fas fa-user-clock"></i></div>
+                        </div>
+                        <div class="card-value"><?php echo $stats['pending_users']; ?></div>
+                        <div class="card-label">Pending Approvals</div>
+                    </div>
+                    <div class="summary-card red">
+                        <div class="card-top">
+                            <div class="card-icon"><i class="fas fa-user-slash"></i></div>
+                        </div>
+                        <div class="card-value"><?php echo $stats['deactivated_users']; ?></div>
+                        <div class="card-label">Deactivated Accounts</div>
+                    </div>
+                    <div class="summary-card violet">
+                        <div class="card-top">
+                            <div class="card-icon"><i class="fas fa-user-minus"></i></div>
+                        </div>
+                        <div class="card-value"><?php echo $stats['inactive_2weeks']; ?></div>
+                        <div class="card-label">Inactive Users</div>
+                    </div>
                 </div>
-                <div class="card-value"><?php echo $quick_insights['pending_reports']; ?></div>
-                <div class="card-label">Pending</div>
-            </div>
-            <div class="summary-card emerald">
-                <div class="card-top">
-                    <div class="card-icon"><i class="fas fa-spinner"></i></div>
-                </div>
-                <div class="card-value"><?php echo $quick_insights['in_progress_reports']; ?></div>
-                <div class="card-label">In Progress</div>
-            </div>
-            <div class="summary-card rose">
-                <div class="card-top">
-                    <div class="card-icon"><i class="fas fa-check-circle"></i></div>
-                </div>
-                <div class="card-value"><?php echo $quick_insights['completed_reports']; ?></div>
-                <div class="card-label">Completed</div>
-            </div>
-            <div class="summary-card violet">
-                <div class="card-top">
-                    <div class="card-icon"><i class="fas fa-exclamation-triangle"></i></div>
-                </div>
-                <div class="card-value"><?php echo $quick_insights['high_priority']; ?></div>
-                <div class="card-label">High Priority</div>
-            </div>
-            <div class="summary-card cyan">
-                <div class="card-top">
-                    <div class="card-icon"><i class="fas fa-users"></i></div>
-                </div>
-                <div class="card-value"><?php echo $stats['approved_users']; ?></div>
-                <div class="card-label">Total Users</div>
             </div>
         </div>
 
