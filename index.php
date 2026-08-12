@@ -1787,6 +1787,201 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 height: 80px;
             }
         }
+
+        /* Dark mode is controlled by the accessibility panel (html.dark-mode),
+           matching the rest of the public pages. Default is light mode. */
+        html.dark-mode body {
+            background: #121212;
+            color: #e0e0e0;
+        }
+
+        /* Hero — keep the cityhall background visible in dark mode (darker
+           overlay so it still reads as dark mode). Higher specificity than the
+           shared a11y_css .hero override so the image is not flattened away. */
+        html.dark-mode section.hero {
+            background:
+                linear-gradient(115deg, rgba(8, 20, 30, 0.92) 0%, rgba(11, 42, 62, 0.88) 55%, rgba(17, 82, 114, 0.82) 100%),
+                url('assets/img/cityhall.jpeg') center/cover no-repeat !important;
+        }
+
+        /* Navbar */
+        html.dark-mode .qc-brand-text strong { color: #e4e6ea; }
+        html.dark-mode .qc-brand-text small { color: #93c5fd; }
+        html.dark-mode .qc-nav-links .nav-link { color: #c8cdd4; }
+        html.dark-mode .qc-nav-links .nav-link:hover,
+        html.dark-mode .qc-nav-links .nav-link.active {
+            color: #fff;
+            background-color: rgba(33, 161, 214, 0.18);
+        }
+        html.dark-mode .qc-services-dropdown .dropdown-toggle,
+        html.dark-mode .qc-programs-dropdown .dropdown-toggle {
+            color: #e4e6ea;
+            border-color: rgba(255, 255, 255, 0.35);
+        }
+        html.dark-mode .qc-services-dropdown .dropdown-toggle:hover,
+        html.dark-mode .qc-services-dropdown .dropdown-toggle:focus,
+        html.dark-mode .qc-programs-dropdown .dropdown-toggle:hover,
+        html.dark-mode .qc-programs-dropdown .dropdown-toggle:focus {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+        html.dark-mode .qc-search-input {
+            color: #e4e6ea;
+            border-color: rgba(255, 255, 255, 0.35);
+        }
+        html.dark-mode .qc-search-input:focus {
+            background: #1e2229;
+            border-color: #93c5fd;
+            box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.15);
+        }
+        html.dark-mode .qc-search-input::placeholder { color: #7f8b99; }
+        html.dark-mode .qc-search-results {
+            background: #1e2229;
+            border-color: #2d323b;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+        }
+        html.dark-mode .qc-search-item { color: #e4e6ea; }
+        html.dark-mode .qc-search-item:hover { background: #26313c; color: #fff; }
+        html.dark-mode .qc-search-item small { color: #7f8b99; }
+        html.dark-mode .qc-search-group-title,
+        html.dark-mode .qc-search-empty,
+        html.dark-mode .qc-search-loading { color: #9ca3af; }
+        html.dark-mode .hamburger-btn {
+            border-color: rgba(255, 255, 255, 0.3) !important;
+            background: rgba(255, 255, 255, 0.08) !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35) !important;
+        }
+        html.dark-mode .hamburger-btn .bar { background: #fff !important; }
+
+        /* Cards & badges */
+        html.dark-mode .update-card .card-header { background: #1e1e1e; }
+        html.dark-mode .badge-maintenance { background: #4a3f13; color: #fde68a; }
+        html.dark-mode .badge-advisory { background: #123044; color: #93c5fd; }
+        html.dark-mode .badge-closure { background: #3f1d1d; color: #fca5a5; }
+        html.dark-mode .stat-icon,
+        html.dark-mode .service-icon,
+        html.dark-mode .contact-icon { background: #26313c; }
+        html.dark-mode .stat-icon i,
+        html.dark-mode .service-icon i,
+        html.dark-mode .contact-icon i { color: #93c5fd; }
+        html.dark-mode .before-after-card,
+        html.dark-mode .road-project-card { background: #1e1e1e; border-color: #333; }
+        html.dark-mode .before-after-meta span,
+        html.dark-mode .rp-meta,
+        html.dark-mode .rp-progress-label { color: #9ca3af; }
+        html.dark-mode .rp-progress-track { background: #2d323b; }
+        html.dark-mode .before-after-empty,
+        html.dark-mode .road-projects-empty { color: #9ca3af; }
+        html.dark-mode .before-after-empty i,
+        html.dark-mode .road-projects-empty i { color: #374151; }
+        html.dark-mode .btn-outline-dark { color: #c8cdd4; border-color: #6b7280; }
+        html.dark-mode .btn-outline-dark:hover,
+        html.dark-mode .btn-check:checked + .btn-outline-dark { background: #343a40; color: #fff; border-color: #343a40; }
+        html.dark-mode .btn-outline-secondary { color: #a6adb5; border-color: #6b7280; }
+        html.dark-mode .btn-outline-secondary:hover,
+        html.dark-mode .btn-check:checked + .btn-outline-secondary { background: #6b7280; color: #fff; border-color: #6b7280; }
+
+        /* GIS toolbar, search & dropdowns */
+        html.dark-mode .gis-map-toolbar {
+            background: #1e2229;
+            border-color: #2d323b;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+        }
+        html.dark-mode .gis-map-legend { color: #9ca3af; }
+        html.dark-mode .gis-map-btn {
+            border-color: rgba(147, 197, 253, 0.35);
+            background: rgba(147, 197, 253, 0.08);
+            color: #93c5fd;
+        }
+        html.dark-mode .gis-map-btn:hover {
+            background: var(--qc-primary-800);
+            border-color: var(--qc-primary-800);
+            color: #fff;
+        }
+        html.dark-mode .gis-map-btn.active-toggle {
+            background: rgba(147, 197, 253, 0.15);
+            color: #93c5fd;
+        }
+        html.dark-mode .gis-search-input {
+            background: #171a1f;
+            border-color: rgba(147, 197, 253, 0.35);
+            color: #e4e6ea;
+        }
+        html.dark-mode .gis-search-input:focus { box-shadow: 0 0 0 2px rgba(33, 161, 214, 0.25); }
+        html.dark-mode .gis-search-results,
+        html.dark-mode .gis-dropdown-menu { background: #1e2229; border-color: #2d323b; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); }
+        html.dark-mode .gis-search-result-item { border-bottom-color: #2d323b; color: #e4e6ea; }
+        html.dark-mode .gis-search-result-item:hover,
+        html.dark-mode .gis-dropdown-item:hover { background: #26313c; color: #fff; }
+        html.dark-mode .gis-search-result-item small { color: #7f8b99; }
+        html.dark-mode .gis-dropdown-item { color: #e4e6ea; }
+
+        /* Leaflet maps */
+        html.dark-mode .leaflet-container { background: #171a1f; }
+        html.dark-mode .leaflet-tile-pane { filter: brightness(0.6) contrast(1.15) grayscale(0.2); }
+        html.dark-mode .leaflet-bar { border-color: #2d323b; }
+        html.dark-mode .leaflet-control-zoom a {
+            background: #1e2229; color: #e4e6ea; border-color: #2d323b;
+        }
+        html.dark-mode .leaflet-control-zoom a:hover { background: #2d323b; }
+        html.dark-mode .leaflet-control-attribution {
+            background: rgba(30, 34, 41, 0.85); color: #9ca3af;
+        }
+        html.dark-mode .leaflet-control-attribution a { color: #93c5fd; }
+        html.dark-mode .leaflet-popup-content-wrapper,
+        html.dark-mode .leaflet-popup-tip { background: #22262e; color: #e4e6ea; }
+        html.dark-mode .leaflet-popup-content-wrapper a { color: #93c5fd; }
+
+        /* Citizen report form (modal) */
+        html.dark-mode .modal-content { border-color: #2d323b; }
+        html.dark-mode .citizen-report-hint { color: #9ca3af; }
+        html.dark-mode .cr-verification-box { background: #171a1f; border-color: #333; }
+        html.dark-mode .cr-form-group select,
+        html.dark-mode .cr-form-group input,
+        html.dark-mode .cr-form-group textarea,
+        html.dark-mode .cr-otp-row input {
+            background: #171a1f; color: #e4e6ea; border-color: #444;
+        }
+        html.dark-mode .cr-form-group select:focus,
+        html.dark-mode .cr-form-group input:focus,
+        html.dark-mode .cr-form-group textarea:focus {
+            border-color: #90caf9;
+            box-shadow: 0 0 0 3px rgba(144, 202, 249, 0.2);
+        }
+        html.dark-mode .cr-form-group label { color: #cbd5e1; }
+        html.dark-mode .cr-btn-outline { border-color: #90caf9; color: #90caf9; }
+        html.dark-mode .cr-btn-outline:hover { background: #90caf9; color: #000; }
+        html.dark-mode .cr-status.success { background: #13251a; color: #6ee7b7; border-color: #1f4d33; }
+        html.dark-mode .cr-status.error { background: #2a1416; color: #fda4af; border-color: #5c2228; }
+        html.dark-mode .cr-status.info { background: #0e2430; color: #7dd3fc; border-color: #1f4a5e; }
+        html.dark-mode .file-upload-label { background: #171a1f; border-color: #444; }
+        html.dark-mode .file-upload-label:hover { background: #1f232b; }
+        html.dark-mode .file-upload-hint { color: #7f8b99; }
+        html.dark-mode .file-count { color: #9ca3af; }
+        html.dark-mode .photo-preview-item { border-color: #444; }
+
+        /* Misc */
+        html.dark-mode .alert-success { background: #13251a; color: #6ee7b7; border-color: #1f4d33; }
+        html.dark-mode .alert-danger { background: #2a1416; color: #fda4af; border-color: #5c2228; }
+        html.dark-mode .alert-info { background: #0e2430; color: #7dd3fc; border-color: #1f4a5e; }
+        html.dark-mode .alert-primary { background: #122a44; color: #93c5fd; border-color: #1e3a5f; }
+        html.dark-mode .alert-secondary { background: #262a30; color: #c8cdd4; border-color: #3a3f47; }
+        html.dark-mode .alert-dark { background: #2a2d33; color: #e4e6ea; border-color: #3a3f47; }
+        html.dark-mode .alert-light { background: #1e2229; color: #e4e6ea; border-color: #2d323b; }
+        html.dark-mode .alert-link { color: inherit; font-weight: 700; }
+        html.dark-mode .alert-warning {
+            background: #3a3418; color: #fde68a; border-color: #4a411f;
+        }
+        html.dark-mode .alert-warning h5 { color: #fde68a; }
+        html.dark-mode .terms-scroll {
+            background: #171a1f !important;
+            border-color: #444 !important;
+            color: #cbd5e1 !important;
+        }
+        html.dark-mode .modal-body h6 { color: #90caf9 !important; }
+        html.dark-mode .restricted-card { background: #1e2229; }
+        html.dark-mode .restricted-card p { color: #9ca3af; }
+        html.dark-mode .restricted-card h2 { color: #e4e6ea; }
     </style>
     <?php include __DIR__ . '/includes/a11y_css.php'; ?>
     <?php include __DIR__ . '/includes/hamburger_menu_css.php'; ?>
