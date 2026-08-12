@@ -218,10 +218,11 @@ function getEnhancedStats() {
 // Function to get recent submissions from all report sources managed by
 // report_management.php. Only finalized reports are included:
 //   - LGU Monitoring / Citizen reports (road_transportation_reports) that are
-//     APPROVED or have been VERIFIED by CIMM; LGU ROAD reports that are still
-//     Awaiting CIMM Verification are excluded, while LGU Transportation
-//     reports (report_category='transportation') do not require CIMM
-//     verification and appear once approved
+//     APPROVED or have been VERIFIED by CIMM. LGU ROAD reports appear once
+//     approved/in-progress/completed (matching report_management.php's LGU
+//     panel), and LGU Transportation reports
+//     (report_category='transportation') do not require CIMM verification and
+//     appear once approved
 //   - Infrastructure Projects (road_maintenance_reports) that are APPROVED or
 //     COMPLETED
 //   - CIMM reports whose verification_status is 'Verified'
@@ -268,15 +269,15 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
     try {
         // 1. LGU Monitoring (Road & Transportation Monitoring) + Citizen reports.
         //    Staff-created rows are LGU monitoring; created_by 0/NULL are Citizen.
-        //    LGU ROAD rows still Awaiting CIMM Verification ('pushed') are excluded;
-        //    LGU Transportation reports (report_category='transportation') do not
-        //    require CIMM verification and appear once they are finalized.
+        //    LGU staff-created reports (Road AND Transportation, report_source =
+        //    'local') appear once they are finalized regardless of CIMM sync
+        //    state, matching report_management.php's LGU panel.
         $reports = array_merge($reports, $fetch(
             "SELECT t.id, t.report_id, t.title, t.report_type, t.report_category,
                     CASE WHEN t.created_by IS NULL OR t.created_by = 0 THEN 'citizen' ELSE 'lgu' END AS source,
                     t.status, t.priority, t.severity, t.created_at, t.description,
                     t.latitude, t.longitude, t.location, t.reporter_name, t.attachments, t.image_path,
-                    t.cimm_sync_status, t.cimm_verified_at, t.cimm_verified_by,
+                    t.cimm_status, t.cimm_sync_status, t.cimm_verified_at, t.cimm_verified_by,
                     u.full_name AS creator_full_name, u.phone_number AS creator_phone, u.email AS creator_email,
                     NULL AS approval_status, NULL AS verification_status,
                     'road_transportation_reports' AS _source_table
@@ -286,7 +287,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                AND t.status IN ('approved', 'in-progress', 'completed')
                AND (t.created_by IS NULL OR t.created_by = 0
                     OR t.cimm_sync_status IS NULL OR t.cimm_sync_status <> 'pushed'
-                    OR (t.report_category = 'transportation' AND t.report_source = 'local' AND t.created_by != 0))
+                    OR (t.report_category IN ('transportation', 'road') AND t.report_source = 'local' AND t.created_by != 0))
                    $transport_category_filter{$road_category_filter}",
             $status_filter, $type_filter, $limit
         ));
@@ -2559,7 +2560,11 @@ annotate_report_assignment_status($conn, $recent_reports);
                                         <span class="cimm-verify-badge cimm-verify-badge-none">—</span>
                                     <?php endif; ?>
                                 <?php else: ?>
-                                    <?php if (strtolower($rr['cimm_sync_status'] ?? '') === 'verified'): ?>
+                                    <?php if (($rr['source'] ?? '') === 'lgu' && ($rr['report_category'] ?? '') === 'road' && strtolower(trim((string)($rr['cimm_status'] ?? ''))) === 'scheduled'): ?>
+                                        <span class="cimm-verify-badge cimm-verify-badge-verified" title="Approved by CIMM">
+                                            <i class="fas fa-check-circle"></i> Approved
+                                        </span>
+                                    <?php elseif (strtolower($rr['cimm_sync_status'] ?? '') === 'verified'): ?>
                                         <span class="cimm-verify-badge cimm-verify-badge-verified" title="Approved by CIMM">
                                             <i class="fas fa-check-circle"></i> Approved
                                         </span>

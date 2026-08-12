@@ -412,16 +412,39 @@ if ($method === 'GET') {
 
         try {
             if ($source === 'cimm') {
-                // Update cimm_verification_reports table
-                $stmt = $conn->prepare("UPDATE cimm_verification_reports SET verification_status = ? WHERE id = ?");
-                $stmt->bind_param("si", $status, $report_id);
+                // Update cimm_verification_reports table. When the status is set
+                // to Completed (the report_management.php Complete flow), stamp
+                // the same 7-day auto-archive marker used by the supervisor
+                // portal's Complete button (complete_status) so the existing
+                // sweep (rgmap_auto_archive_completed) moves the report to the
+                // archive after 7 days. CIMM reports have no completed_at
+                // column, so auto_archive_at doubles as the completion marker.
+                rgmap_ensure_auto_archive_column();
+                if (strtolower($status) === 'completed') {
+                    $stmt = $conn->prepare("UPDATE cimm_verification_reports SET verification_status = ?, auto_archive_at = COALESCE(auto_archive_at, DATE_ADD(NOW(), INTERVAL 7 DAY)) WHERE id = ?");
+                    $stmt->bind_param("si", $status, $report_id);
+                } else {
+                    $stmt = $conn->prepare("UPDATE cimm_verification_reports SET verification_status = ? WHERE id = ?");
+                    $stmt->bind_param("si", $status, $report_id);
+                }
                 $stmt->execute();
                 log_audit_action($user_id, "Updated CIMM report status", "Report ID: {$report_id}, Status: {$status}");
                 json_response(['success' => true, 'message' => 'Status updated successfully']);
             } else {
-                // Update road_transportation_reports table
-                $stmt = $conn->prepare("UPDATE road_transportation_reports SET status = ? WHERE id = ?");
-                $stmt->bind_param("si", $status, $report_id);
+                // Update road_transportation_reports table. When the status is
+                // set to completed (the report_management.php Complete flow),
+                // stamp the same 7-day auto-archive marker used by the
+                // supervisor portal's Complete button (complete_status) so the
+                // existing sweep (rgmap_auto_archive_completed) moves the
+                // report to the archive after 7 days.
+                rgmap_ensure_auto_archive_column();
+                if (strtolower($status) === 'completed') {
+                    $stmt = $conn->prepare("UPDATE road_transportation_reports SET status = ?, completed_at = COALESCE(completed_at, NOW()), auto_archive_at = COALESCE(auto_archive_at, DATE_ADD(NOW(), INTERVAL 7 DAY)) WHERE id = ?");
+                    $stmt->bind_param("si", $status, $report_id);
+                } else {
+                    $stmt = $conn->prepare("UPDATE road_transportation_reports SET status = ? WHERE id = ?");
+                    $stmt->bind_param("si", $status, $report_id);
+                }
                 $stmt->execute();
                 log_audit_action($user_id, "Updated report status", "Report ID: {$report_id}, Status: {$status}");
                 json_response(['success' => true, 'message' => 'Status updated successfully']);

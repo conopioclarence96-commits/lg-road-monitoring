@@ -77,7 +77,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
                     CASE WHEN t.created_by IS NULL OR t.created_by = 0 THEN 'citizen' ELSE 'lgu' END AS source,
                     t.status, t.priority, t.severity, t.created_at, t.description,
                     t.latitude, t.longitude, t.location, t.reporter_name, t.attachments, t.image_path,
-                    t.cimm_sync_status, t.cimm_verified_at, t.cimm_verified_by,
+                    t.cimm_status, t.cimm_sync_status, t.cimm_verified_at, t.cimm_verified_by,
                     u.full_name AS creator_full_name, u.phone_number AS creator_phone, u.email AS creator_email,
                     'road_transportation_reports' AS _source_table
              FROM road_transportation_reports t
@@ -86,7 +86,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
                AND t.status IN ('approved', 'in-progress', 'completed')
                AND (t.created_by IS NULL OR t.created_by = 0
                     OR t.cimm_sync_status IS NULL OR t.cimm_sync_status <> 'pushed'
-                    OR (t.report_category = 'transportation' AND t.report_source = 'local' AND t.created_by != 0)){$transport_category_filter}{$road_category_filter}",
+                    OR (t.report_category IN ('transportation', 'road') AND t.report_source = 'local' AND t.created_by != 0)){$transport_category_filter}{$road_category_filter}",
             $status_filter
         ));
 
@@ -199,6 +199,7 @@ try {
             'priority' => $rr['priority'] ?? 'low',
             'created_at' => $rr['created_at'],
             'cimm_sync_status' => $rr['cimm_sync_status'] ?? '',
+            'cimm_status' => $rr['cimm_status'] ?? '',
             'cimm_verified_at' => $rr['cimm_verified_at'] ?? '',
             'cimm_verified_by' => $rr['cimm_verified_by'] ?? '',
             'approval_status' => $rr['approval_status'] ?? '',

@@ -3,6 +3,10 @@ require_once '../../includes/session_config.php';
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 require_once __DIR__ . '/../../pages/api/cimm_verification_data.php';
+// Archive helpers (rgmap_archive_report, rgmap_auto_archive_completed, ...) —
+// shared with progress_update_api.php. Required so the 7-day auto-archive
+// sweep runs on this page for completed LGU reports.
+require_once __DIR__ . '/../api/progress_archive_helpers.php';
 
 // Session timeout configuration
 $session_timeout = 30 * 60; // 30 minutes in seconds
@@ -29,6 +33,16 @@ if (!is_logged_in() || !in_array($_SESSION['role'] ?? '', $allowed_roles)) {
     }
     header('Location: ../../login.php');
     exit();
+}
+
+// Auto-archive sweep: move any completed report whose 7-day retention window
+// (measured from completed_at) has passed into the archive. Runs once per page
+// load; it only touches reports carrying auto_archive_at, so completed LGU
+// reports stay visible in the LGU Monitoring panel until the deadline passes.
+try {
+    rgmap_auto_archive_completed($conn);
+} catch (Exception $e) {
+    error_log('report_management.php auto-archive sweep: ' . $e->getMessage());
 }
 
 // Get user information
@@ -466,8 +480,22 @@ function handle_delete_report() {
             return;
         }
         
+        // Determine the correct source table from the report type, mirroring the
+        // type-based routing the rest of the page uses. Transportation types and
+        // Road LGU issue types (debris, cracks, erosion, ...) all live in
+        // road_transportation_reports; only pure maintenance types fall through
+        // to road_maintenance_reports.
         $transport_types = ['potholes', 'road_damage', 'shoulder_damage', 'traffic_jam', 'accident', 'congestion', 'traffic_light_outage', 'vehicle_breakdown', 'traffic_sign_issue', 'transportation', 'infrastructure_issue', 'road_closure', 'parking_violation', 'public_transport_issue'];
-        $table = in_array($report_type, $transport_types) ? 'road_transportation_reports' : 'road_maintenance_reports';
+        $road_types = ['debris', 'cracks', 'erosion', 'flooding', 'marking_fade'];
+        $table = (in_array($report_type, $transport_types, true) || in_array($report_type, $road_types, true)) ? 'road_transportation_reports' : 'road_maintenance_reports';
+
+        // The Delete button sends the row's source table explicitly (same
+        // mechanism Edit uses), so honor it whenever it is valid.
+        $report_table = sanitize_input($_POST['report_table'] ?? '');
+        if (in_array($report_table, ['road_transportation_reports', 'road_maintenance_reports'], true)) {
+            $table = $report_table;
+        }
+
         $stmt = $conn->prepare("SELECT title, location FROM {$table} WHERE id = ?");
         $stmt->bind_param("i", $report_id);
         $stmt->execute();
@@ -908,7 +936,7 @@ function getCimmReportsForManagement($status_filter = 'all') {
     $pdo = rgmap_verification_pdo();
 
     $opts = [
-        'verification_status' => ['Approved', 'In Progress'],
+        'verification_status' => ['Approved', 'In Progress', 'Completed'],
         'infrastructure' => 'Roads'
     ];
     $rows = rgmap_fetch_cimm_verification_reports($pdo, $opts);
@@ -919,7 +947,8 @@ function getCimmReportsForManagement($status_filter = 'all') {
     // shown in report management. Rejected CIMM reports map to the 'cancelled'
     // status here, so excluding both 'pending' and 'cancelled' covers pending,
     // cancelled and rejected reports; only Approved, In Progress and Completed
-    // CIMM reports appear in this panel.
+    // CIMM reports appear in this panel. Completed reports stay for their
+    // 7-day retention window and are then moved by the auto-archive sweep.
     $mapped = array_values(array_filter($mapped, function ($r) {
         return !in_array(strtolower($r['status'] ?? ''), ['pending', 'cancelled'], true);
     }));
@@ -1192,9 +1221,12 @@ $_GET['source'] = $source_filter;
 $is_road_supervisor = ($user_role === 'road_ops_supervisor');
 
 // Get data
-// The Transportation Operations Supervisor keeps Completed reports visible in
-// report_management.php (with an on-demand Archive button) instead of having
-// them auto-archived, so the shared get_reports() is asked to include them.
+// Completed LGU Monitoring reports (Road + Transportation) stay visible in this
+// page for their 7-day retention window (with an on-demand Archive button)
+// instead of being auto-archived immediately. The shared get_reports() is asked
+// to include them for the Transportation Operations Supervisor (which also keeps
+// their completed Citizen reports visible, as before); completed reports for the
+// other roles are appended to the LGU panel separately below.
 $reports = get_reports($status_filter, $source_filter, $per_page, $offset, $is_road_supervisor, ($user_role === 'trans_ops_supervisor'));
 $stats = get_report_stats();
 $csrf_token = generate_csrf_token();
@@ -1239,6 +1271,33 @@ foreach ($reports as $report) {
         // Only include verified citizen reports where created_by = 0
         if (($report['created_by'] ?? 0) == 0 && !in_array(strtolower($report['status'] ?? ''), $citizen_unverified_statuses)) {
             $citizen_reports[] = $report;
+        }
+    }
+}
+
+// Completed LGU Monitoring reports (Road + Transportation) keep the same
+// completed-report behavior as the supervisor portal: they stay visible in the
+// LGU panel for the 7-day retention window, then the auto-archive sweep moves
+// them to the archive. They are fetched separately so the Citizen and
+// Infrastructure panels — and their role visibility — are completely unaffected.
+if ($status_filter === 'all' || $status_filter === 'completed') {
+    if ($source_filter === 'all' || $source_filter === 'lgu_reports') {
+        $completed_lgu_sql = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, engineer, budget_allocation, cimm_engineer_name, cimm_budget, estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, 'lgu_reports' as source_system FROM road_transportation_reports WHERE report_source = 'local' AND created_by != 0 AND status = 'completed'";
+        if ($is_road_supervisor) {
+            $completed_lgu_sql .= " AND report_category = 'road'";
+        }
+        $completed_lgu_sql .= " ORDER BY created_at DESC LIMIT {$per_page}";
+        $completed_lgu_res = $conn->query($completed_lgu_sql);
+        if ($completed_lgu_res) {
+            $existing_lgu_ids = [];
+            foreach ($lgu_reports_list as $lr) {
+                $existing_lgu_ids[] = (int)$lr['id'];
+            }
+            while ($r = $completed_lgu_res->fetch_assoc()) {
+                if (!in_array((int)$r['id'], $existing_lgu_ids, true)) {
+                    $lgu_reports_list[] = $r;
+                }
+            }
         }
     }
 }
@@ -3442,9 +3501,12 @@ if ($focus_id > 0) {
                     <tbody>
                         <?php
                         $hasLgu = false;
+                        $lgu_transport_types = ['potholes', 'road_damage', 'shoulder_damage', 'traffic_jam', 'accident', 'congestion', 'traffic_light_outage', 'vehicle_breakdown', 'traffic_sign_issue', 'transportation', 'infrastructure_issue', 'road_closure', 'parking_violation', 'public_transport_issue'];
+                        $lgu_road_types = ['debris', 'cracks', 'erosion', 'flooding', 'marking_fade'];
                         if (!empty($lgu_reports_list)):
                             foreach ($lgu_reports_list as $report):
                                 $hasLgu = true;
+                                $lgu_delete_table = (in_array($report['report_type'], $lgu_transport_types, true) || in_array($report['report_type'], $lgu_road_types, true)) ? 'road_transportation_reports' : 'road_maintenance_reports';
                         ?>
                         <tr data-id="<?php echo (int)$report['id']; ?>" data-source="lgu_reports">
                             <td>
@@ -3457,17 +3519,12 @@ if ($focus_id > 0) {
                                         <i class="fas fa-pencil"></i>
                                     </button>
                                     <?php endif; ?>
-                                    <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                    <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', '<?php echo $lgu_delete_table; ?>')">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                     <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'lgu')">
                                         <i class="fas fa-clock"></i>
                                     </button>
-                                    <?php if ($is_transport_supervisor && (($report['status'] ?? '') === 'completed')): ?>
-                                    <button class="rm-archive-btn" onclick="archiveReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')" title="Archive">
-                                        <i class="fas fa-archive"></i>
-                                    </button>
-                                    <?php endif; ?>
                                 </div>
                             </td>
                             <td><?php echo htmlspecialchars($report['report_id'] ?? '—'); ?></td>
@@ -4386,6 +4443,7 @@ if ($focus_id > 0) {
             document.getElementById('deleteConfirmBtn').classList.remove('enabled');
             _pendingDeleteReport = null;
             _pendingDeleteType = null;
+            _pendingDeleteTable = null;
             _pendingDeleteCimmIdx = null;
         }
 
@@ -4400,7 +4458,8 @@ if ($focus_id > 0) {
                     '<input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">' +
                     '<input type="hidden" name="action" value="delete_report">' +
                     '<input type="hidden" name="report_id" value="' + id + '">' +
-                    '<input type="hidden" name="report_type" value="' + type + '">';
+                    '<input type="hidden" name="report_type" value="' + type + '">' +
+                    (_pendingDeleteTable ? '<input type="hidden" name="report_table" value="' + _pendingDeleteTable + '">' : '');
                 document.body.appendChild(form);
                 form.submit();
             } else if (_pendingDeleteCimmIdx !== null) {
@@ -5354,17 +5413,11 @@ if ($focus_id > 0) {
                     if (typeof loadUpdates === 'function') {
                         loadUpdates(currentUpdatesReportId, currentUpdatesReportType);
                     }
-                    // File a completed copy of the report into the archive.
-                    // Purely additive — the live report is not moved or deleted.
-                    var archiveFormData = new FormData();
-                    archiveFormData.append('action', 'complete_archive');
-                    archiveFormData.append('report_id', currentUpdatesReportId);
-                    archiveFormData.append('report_type', currentUpdatesReportType);
-                    archiveFormData.append('source', currentUpdatesReportSource);
-                    fetch('../api/progress_update_api.php', {
-                        method: 'POST',
-                        body: archiveFormData
-                    }).catch(function(e) { console.error('Archive copy failed', e); });
+                    // Completed LGU and CIMM reports now stay in place for the
+                    // 7-day retention window: the server stamps auto_archive_at
+                    // on completion and the auto-archive sweep moves the report
+                    // to the archive afterwards, so no immediate archive copy
+                    // is filed.
                 } else {
                     showNotification(data.message || 'Failed to update status', 'error');
                 }
@@ -5591,10 +5644,12 @@ if ($focus_id > 0) {
 
         var _pendingDeleteReport = null;
         var _pendingDeleteType = null;
+        var _pendingDeleteTable = null;
 
-        function deleteReport(id, type) {
+        function deleteReport(id, type, table) {
             _pendingDeleteReport = id;
             _pendingDeleteType = type;
+            _pendingDeleteTable = table || '';
             _pendingDeleteCimmIdx = null;
             document.getElementById('deleteConfirmTitle').textContent = 'Delete Report';
             document.getElementById('deleteConfirmMsg').textContent = 'Are you sure you want to delete this report? It will be moved to the archive.';
@@ -6215,6 +6270,7 @@ if ($focus_id > 0) {
             _pendingDeleteCimmIdx = idx;
             _pendingDeleteReport = null;
             _pendingDeleteType = null;
+            _pendingDeleteTable = null;
             document.getElementById('deleteConfirmTitle').textContent = 'Delete CIMM Report';
             document.getElementById('deleteConfirmMsg').textContent = 'Are you sure you want to delete CIMM report "' + (r.report_id || '') + '"? This cannot be undone.';
             document.getElementById('deleteConfirmInput').value = '';
