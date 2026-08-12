@@ -6,14 +6,20 @@
  * cancelled). IPMS now sends the full public lifecycle per project — new,
  * ongoing, completed, cancelled — via a status_bucket field, so a project
  * finishing or getting cancelled no longer means it drops out of this feed;
- * it just changes bucket.
+ * it just changes bucket. Each road object also carries `budget` (number)
+ * and `assigned_engineers` (array of names, possibly empty) as of the most
+ * recent feed update.
  *
  * This mirrors the shape of cimm-reports-pull.php (same folder): a small
  * cron-friendly script that authenticates outbound to a partner system,
  * fetches JSON, and syncs it into our own DB. Unlike the CIMM pull, there is
  * no "replay into a webhook" step — this data is cached directly via
  * ipms_road_projects_data.php, since IPMS has no inbound push side and this
- * feed is read-only for us (we never write back to IPMS).
+ * feed is read-only for us (we never write back to IPMS). Per-field mapping
+ * (including budget/assigned_engineers) lives entirely in
+ * rgmap_upsert_ipms_road_project() over there — this file just forwards
+ * whatever IPMS sends for each road, unchanged, so new additive fields from
+ * IPMS never require a change here, only in the data-access layer.
  *
  * Run on a cron (hourly is plenty — IPMS says this data doesn't change
  * minute to minute):
