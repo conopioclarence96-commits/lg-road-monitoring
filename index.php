@@ -2087,6 +2087,13 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         <?php echo !empty($proj['end_date']) ? htmlspecialchars(date('M Y', strtotime($proj['end_date']))) : '—'; ?>
                     </div>
                     <?php endif; ?>
+                    <?php if (!empty($proj['budget'])): ?>
+                    <div class="rp-meta"><i class="fas fa-money-bill-wave"></i> &#8369;<?php echo number_format((float)$proj['budget'], 0); ?></div>
+                    <?php endif; ?>
+                    <div class="rp-meta">
+                        <i class="fas fa-user-hard-hat"></i>
+                        <?php echo !empty($proj['assigned_engineers']) ? htmlspecialchars(implode(', ', $proj['assigned_engineers'])) : 'Unassigned'; ?>
+                    </div>
                     <div class="rp-progress-track">
                         <div class="rp-progress-fill" style="width: <?php echo $progress; ?>%;"></div>
                     </div>
@@ -2472,6 +2479,8 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 'road_status' => $p['road_status'],
                 'polyline' => $p['polyline_coordinates'],
                 'scope_bucket' => $p['scope_bucket'],
+                'budget' => $p['budget'],
+                'assigned_engineers' => $p['assigned_engineers'],
             ];
         }, $ipms_road_projects), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
 
@@ -2592,10 +2601,16 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                     weight: 5,
                     opacity: 0.85
                 });
+                const budgetLine = proj.budget ? ('&#8369;' + Number(proj.budget).toLocaleString('en-US', { maximumFractionDigits: 0 }) + '<br>') : '';
+                const engineersLabel = (Array.isArray(proj.assigned_engineers) && proj.assigned_engineers.length > 0)
+                    ? proj.assigned_engineers.map(escapeRoadProjectHtml).join(', ')
+                    : 'Unassigned';
                 line.bindPopup(
                     '<strong>' + escapeRoadProjectHtml(proj.project_name) + '</strong><br>' +
                     escapeRoadProjectHtml(proj.road_type) + ' &middot; ' + escapeRoadProjectHtml(proj.road_status) + '<br>' +
-                    proj.progress_percent + '% complete'
+                    proj.progress_percent + '% complete<br>' +
+                    budgetLine +
+                    '<i class="fas fa-user-hard-hat"></i> ' + engineersLabel
                 );
                 line.addTo(roadProjectBucketGroups[bucket]);
                 roadProjectLayers[proj.project_id] = { layer: line, bucket: bucket };
