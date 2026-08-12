@@ -27,6 +27,16 @@ if ($report_id <= 0 || empty($report_type)) {
 $transport_types = ['potholes', 'road_damage', 'shoulder_damage', 'traffic_jam', 'accident', 'congestion', 'traffic_light_outage', 'vehicle_breakdown', 'traffic_sign_issue', 'transportation', 'infrastructure_issue', 'road_closure', 'parking_violation', 'public_transport_issue'];
 $table = in_array($report_type, $transport_types) ? 'road_transportation_reports' : 'road_maintenance_reports';
 
+// Optional explicit table from the caller. Road Operations Supervisor reports
+// (debris / erosion / flooding / ...) live in road_transportation_reports but
+// their report_type is not in $transport_types, so the type-based guess alone
+// would point at road_maintenance_reports and fail. Honor a validated table
+// param whenever the caller knows the real source table.
+$explicit_table = sanitize_input($_GET['table'] ?? '');
+if (in_array($explicit_table, ['road_transportation_reports', 'road_maintenance_reports'], true)) {
+    $table = $explicit_table;
+}
+
 try {
     // Check if estimation column exists
     $estimation_column_exists = false;

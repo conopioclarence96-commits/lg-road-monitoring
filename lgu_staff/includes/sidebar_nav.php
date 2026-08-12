@@ -261,6 +261,84 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
             }
         }
 
+        // Road Monitoring Officers: the sidebar badge must show exactly the
+        // same count as their Notifications page too. For this role that page
+        // counts every card in the feed — report status updates (ru), review-
+        // request outcomes (ro, is_read = 0 only), active project assignments
+        // (asg) and change-request updates (su) — with each panel capped at 20,
+        // so the count is capped the same way to stay in sync. Cards dismissed
+        // with the X button are dropped from the feed, so they are excluded
+        // here as well.
+        if ($user_role === 'road_monitoring_officer') {
+            try {
+                $dismissed = [];
+                foreach (($_SESSION['nc_dismissed'][(int)$user_id] ?? []) as $k) {
+                    $dismissed[(string)$k] = true;
+                }
+
+                // Report status updates (my completed/cancelled reports).
+                $stmt = $conn->prepare("
+                    SELECT id FROM road_transportation_reports
+                    WHERE created_by = ? AND status IN ('completed', 'cancelled')
+                    LIMIT 20
+                ");
+                $stmt->bind_param("i", $user_id);
+                $stmt->execute();
+                $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                $stmt->close();
+                foreach ($rows as $r) { if (!isset($dismissed['ru' . $r['id']])) $count++; }
+
+                // Review-request outcomes (approve/reject) routed to my email.
+                if ($email !== '') {
+                    $ro_exists = "SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
+                                  UNION ALL
+                                  SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
+                                  UNION ALL
+                                  SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id";
+                    $stmt = $conn->prepare("
+                        SELECT rn.id FROM report_notifications rn
+                        WHERE rn.recipient_email = ? AND rn.type IN ('approve_request','reject_request')
+                          AND rn.is_read = 0
+                          AND EXISTS (" . $ro_exists . " LIMIT 1)
+                        LIMIT 20
+                    ");
+                    $stmt->bind_param("s", $email);
+                    $stmt->execute();
+                    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                    $stmt->close();
+                    foreach ($rows as $r) { if (!isset($dismissed['ro' . $r['id']])) $count++; }
+                }
+
+                // My active project assignments.
+                $stmt = $conn->prepare("
+                    SELECT id FROM report_assignments
+                    WHERE user_id = ? AND status = 'active'
+                    LIMIT 20
+                ");
+                $stmt->bind_param("i", $user_id);
+                $stmt->execute();
+                $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                $stmt->close();
+                foreach ($rows as $r) { if (!isset($dismissed['asg' . $r['id']])) $count++; }
+
+                // My change-request status updates.
+                $stmt = $conn->prepare("
+                    SELECT id FROM change_requests
+                    WHERE user_id = ? AND status != 'pending'
+                    LIMIT 20
+                ");
+                $stmt->bind_param("i", $user_id);
+                $stmt->execute();
+                $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                $stmt->close();
+                foreach ($rows as $r) { if (!isset($dismissed['su' . $r['id']])) $count++; }
+
+                return $count;
+            } catch (Exception $e) {
+                return $count;
+            }
+        }
+
         // Only count unread report_notifications that reference a report
         // that still exists in one of the live tables.
         try {
@@ -288,18 +366,36 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
                                SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id";
                 }
                 $stmt = $conn->prepare("
-                    SELECT COUNT(*) as count FROM report_notifications rn
+                    SELECT rn.id FROM report_notifications rn
                     WHERE rn.is_read = 0
                       AND (
                           (rn.recipient_role = ? AND rn.type IN ('completion', 'cancellation'))
                           OR (rn.recipient_email = ? AND rn.type IN ('approve_request', 'reject_request', 'complete_report', 'cancel_report'))
                       )
                       AND EXISTS (" . $exists . " LIMIT 1)
+                    LIMIT 50
                 ");
                 $stmt->bind_param("ss", $user_role, $email);
                 $stmt->execute();
-                $count += $stmt->get_result()->fetch_assoc()['count'];
+                $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                 $stmt->close();
+
+                // Cards this Road Operations Supervisor dismissed with the X
+                // button stay hidden on the Notifications page for this session,
+                // so exclude the same feed ids here to keep the sidebar badge in
+                // sync.
+                $dismissed = [];
+                foreach (($_SESSION['nc_dismissed'][(int)$user_id] ?? []) as $k) {
+                    $dismissed[(string)$k] = true;
+                }
+                foreach ($rows as $row) {
+                    $id = $row['id'];
+                    if (!isset($dismissed['rq' . $id])
+                        && !isset($dismissed['sa' . $id])
+                        && !isset($dismissed['ro' . $id])) {
+                        $count++;
+                    }
+                }
             } elseif ($user_role === 'trans_monitoring_officer') {
                 // Transportation monitoring officers: their unread notifications
                 // are the review-request outcomes (approve/reject) routed to

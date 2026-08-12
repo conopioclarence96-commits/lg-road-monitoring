@@ -951,6 +951,20 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
         .dark-mode .asg-foot { border-color: #334155; }
         .dark-mode .dsh-badge { background: #312e81; color: #c7d2fe; }
         .dark-mode .db-empty { color: #64748b; }
+        <?php if ($is_road_supervisor || $is_road_monitoring_officer): ?>
+        /* Readable db-badge text in dark mode for Road Operations Supervisors and Road Monitoring Officers only */
+        .dark-mode .db-st-pending   { background: rgba(180, 83, 9, 0.22); color: #fcd34d; }
+        .dark-mode .db-st-active,
+        .dark-mode .db-st-assigned  { background: rgba(30, 64, 175, 0.35); color: #93c5fd; }
+        .dark-mode .db-st-progress  { background: rgba(194, 65, 12, 0.25); color: #fdba74; }
+        .dark-mode .db-st-completed,
+        .dark-mode .db-st-approved  { background: rgba(4, 120, 87, 0.28); color: #6ee7b7; }
+        .dark-mode .db-st-cancelled,
+        .dark-mode .db-st-rejected  { background: rgba(185, 28, 28, 0.28); color: #fca5a5; }
+        .dark-mode .db-pr-high      { background: rgba(220, 38, 38, 0.28); color: #fca5a5; }
+        .dark-mode .db-pr-medium    { background: rgba(194, 65, 12, 0.25); color: #fdba74; }
+        .dark-mode .db-pr-low       { background: rgba(5, 150, 105, 0.28); color: #6ee7b7; }
+        <?php endif; ?>
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
@@ -1022,6 +1036,33 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
         return $count;
     }
 
+    // Road Monitoring Officers and Road Operations Supervisors: dashboard
+    // assignments may only include reports that actually appear on
+    // road_transportation_monitoring.php. That page's Recent Submissions for
+    // road roles lists finalized reports only (status approved /
+    // in-progress / completed), hides LGU road reports that were pushed to
+    // CIMM while still awaiting verification, and shows CIMM reports only once
+    // they are Roads and finalized (Approved / In Progress / Completed).
+    // Assigned reports that do not appear there must not appear in the road
+    // roles' dashboard assignment panels either.
+    function road_monitoring_visibility_sql(): string {
+        return " AND (
+            (ra.report_type = 'road_transportation_reports'
+             AND r.report_category = 'road'
+             AND r.status IN ('approved','in-progress','completed')
+             AND (r.report_type = 'infrastructure_issue'
+                  OR r.created_by IS NULL OR r.created_by = 0
+                  OR r.cimm_sync_status IS NULL OR r.cimm_sync_status <> 'pushed'))
+            OR
+            (ra.report_type = 'road_maintenance_reports'
+             AND m.status IN ('approved','in-progress','completed'))
+            OR
+            (ra.report_type = 'cimm_verification_reports'
+             AND c.verification_status IN ('Approved','In Progress','Completed')
+             AND c.infrastructure = 'Roads')
+        )";
+    }
+
     function getMyAssignments($conn, $user_id, $road_only = false, $transport_only = false) {
         $rows = [];
         if (!$conn || $user_id <= 0) {
@@ -1031,6 +1072,9 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
         $road_only_filter = $road_only
             ? " AND (ra.report_type <> 'road_transportation_reports' OR r.report_category = 'road')"
             : '';
+        // Road Monitoring Officers: assignments must also match what the
+        // monitoring page actually shows (see road_monitoring_visibility_sql).
+        $road_visibility_filter = $road_only ? road_monitoring_visibility_sql() : '';
         // Transportation Monitoring Officers: only assignments to transportation
         // reports that actually appear on their monitoring page (status
         // approved / in-progress / completed) are shown. Pending reports are
@@ -1062,7 +1106,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                 ON ra.report_id = c.id AND ra.report_type = 'cimm_verification_reports'
             LEFT JOIN road_maintenance_reports m
                 ON ra.report_id = m.id AND ra.report_type = 'road_maintenance_reports'
-            WHERE ra.user_id = ? AND ra.status = 'active'" . $road_only_filter . $transport_only_filter . "
+            WHERE ra.user_id = ? AND ra.status = 'active'" . $road_only_filter . $transport_only_filter . $road_visibility_filter . "
             ORDER BY ra.assigned_at DESC
             LIMIT 12
         ";
@@ -1084,7 +1128,11 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                 FROM report_assignments ra
                 LEFT JOIN road_transportation_reports r
                     ON ra.report_id = r.id AND ra.report_type = 'road_transportation_reports'
-                WHERE ra.user_id = ? AND ra.status = 'active'" . $road_only_filter . $transport_only_filter . "
+                LEFT JOIN cimm_verification_reports c
+                    ON ra.report_id = c.id AND ra.report_type = 'cimm_verification_reports'
+                LEFT JOIN road_maintenance_reports m
+                    ON ra.report_id = m.id AND ra.report_type = 'road_maintenance_reports'
+                WHERE ra.user_id = ? AND ra.status = 'active'" . $road_only_filter . $transport_only_filter . $road_visibility_filter . "
             ");
             $cstmt->bind_param("i", $user_id);
             $cstmt->execute();
@@ -1130,9 +1178,28 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
     // Reports that Road Operations Supervisors assigned to monitoring officers
     // in report_management.php (the road supervisor portal). Only active
     // assignments made by a user with the road_ops_supervisor role qualify.
-    function getSupervisorAssignedReports($conn) {
+    // When $user_id is given, only assignments for that officer are returned
+    // (used by Road Monitoring Officers on their own dashboard). When
+    // $apply_visibility is true (both road roles), only assignments whose
+    // reports actually appear on road_transportation_monitoring.php are
+    // returned.
+    function getSupervisorAssignedReports($conn, $user_id = null, $apply_visibility = false) {
         $rows = [];
         if (!$conn) return $rows;
+
+        $assignee_filter = '';
+        $visibility_filter = '';
+        $params = [];
+        if ($user_id) {
+            $assignee_filter = " AND ra.user_id = ?";
+            $params[] = (int)$user_id;
+        }
+        // Road Monitoring Officers and Road Operations Supervisors: only
+        // assignments for reports that actually appear on
+        // road_transportation_monitoring.php.
+        if ($apply_visibility) {
+            $visibility_filter = road_monitoring_visibility_sql();
+        }
 
         $query = "
             SELECT ra.id AS assignment_id, ra.report_id, ra.report_type, ra.user_id,
@@ -1158,13 +1225,16 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                 ON ra.report_id = c.id AND ra.report_type = 'cimm_verification_reports'
             WHERE au.role = 'road_ops_supervisor'
               AND ra.status = 'active'
-              AND (ra.report_type <> 'road_transportation_reports' OR r.report_category = 'road')
+              AND (ra.report_type <> 'road_transportation_reports' OR r.report_category = 'road')" . $assignee_filter . $visibility_filter . "
             ORDER BY ra.assigned_at DESC
             LIMIT 12
         ";
 
         try {
             $stmt = $conn->prepare($query);
+            if ($params) {
+                $stmt->bind_param(str_repeat('i', count($params)), ...$params);
+            }
             $stmt->execute();
             $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
             $stmt->close();
@@ -1590,7 +1660,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
     $my_assign = getMyAssignments($conn, $user_id, $is_road_monitoring_officer, $is_transport_monitoring_officer);
     $my_assign_count = $my_assign['count'];
     $my_assign_items = $my_assign['items'];
-    $sup_assigned_reports = $is_road_supervisor ? getSupervisorAssignedReports($conn) : [];
+    $sup_assigned_reports = ($is_road_supervisor || $is_road_monitoring_officer) ? getSupervisorAssignedReports($conn, $is_road_monitoring_officer ? $user_id : null, true) : [];
     $awaiting_transport_reports = $is_trans_ops_supervisor ? getAwaitingTransportationReports($conn) : [];
     $high_priority = getHighPriorityCount($conn, $is_road_monitoring_officer, $is_supervisor, $user_role);
     $awaiting_assign = getAwaitingAssignmentCount($conn, $is_supervisor, $user_role);
@@ -1681,7 +1751,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
         </div>
 
         <!-- Main grid: chart + notifications -->
-        <div class="db-grid-main<?php echo ($is_supervisor || $is_transport_monitoring_officer) ? ' db-grid-full' : ''; ?>">
+        <div class="db-grid-main<?php echo ($is_supervisor || $is_transport_monitoring_officer || $is_road_monitoring_officer) ? ' db-grid-full' : ''; ?>">
             <div class="dash-section" style="--ds:#3762c8;">
                 <div class="dsh-header">
                     <div class="dsh-left">
@@ -1702,7 +1772,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                 </div>
             </div>
 
-            <?php if (!$is_supervisor && !$is_transport_monitoring_officer): ?>
+            <?php if (!$is_supervisor && !$is_transport_monitoring_officer && !$is_road_monitoring_officer): ?>
                 <div class="dash-section" style="--ds:#8b5cf6;">
                     <div class="dsh-header">
                         <div class="dsh-left">
@@ -1867,7 +1937,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                         <span class="qa-icon"><i class="fas fa-map-location-dot"></i></span>
                         <span class="qa-label">View Map</span>
                     </a>
-                    <?php if (!$is_supervisor && !$is_transport_monitoring_officer): ?>
+            <?php if (!$is_supervisor && !$is_transport_monitoring_officer && !$is_road_monitoring_officer): ?>
                         <a class="qa-btn" style="--qa:#8b5cf6;" href="../shared/notifications.php">
                             <span class="qa-icon"><i class="fas fa-clipboard-list"></i></span>
                             <span class="qa-label">My Assigned Reports</span>
@@ -1938,24 +2008,26 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
             </div>
         <?php endif; ?>
 
-        <?php if ($is_road_supervisor): ?>
+        <?php if ($is_road_supervisor || $is_road_monitoring_officer): ?>
             <!-- Reports Assigned by Road Supervisors -->
             <div class="dash-section" style="--ds:#7c3aed;">
                 <div class="dsh-header">
                     <div class="dsh-left">
                         <span class="dsh-icon"><i class="fas fa-user-check"></i></span>
                         <div>
-                            <h3>Awaiting for assignments</h3>
-                            <p>Reports road supervisors assigned to monitoring officers</p>
+                            <h3><?php echo $is_road_monitoring_officer ? 'My assignments' : 'Awaiting for assignments'; ?></h3>
+                            <p><?php echo $is_road_monitoring_officer ? 'Reports your road supervisor assigned to you' : 'Reports road supervisors assigned to monitoring officers'; ?></p>
                         </div>
                         <span class="dsh-badge"><?php echo count($sup_assigned_reports); ?></span>
                     </div>
+                    <?php if (!$is_road_monitoring_officer): ?>
                     <a class="dsh-link" href="../admin/report_management.php">Report Management <i class="fas fa-arrow-right"></i></a>
+                    <?php endif; ?>
                 </div>
                 <?php if (empty($sup_assigned_reports)): ?>
                     <div class="db-empty">
                         <i class="fas fa-user-check"></i>
-                        <p>No reports have been assigned to officers yet.</p>
+                        <p><?php echo $is_road_monitoring_officer ? 'No reports have been assigned to you yet.' : 'No reports have been assigned to officers yet.'; ?></p>
                     </div>
                 <?php else: ?>
                     <div class="asg-grid">

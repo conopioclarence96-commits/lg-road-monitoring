@@ -41,6 +41,13 @@ $user_email = $_SESSION['email'] ?? '';
 $is_trans_supervisor = ($user_role === 'trans_ops_supervisor');
 $is_trans_officer = ($user_role === 'trans_monitoring_officer');
 $is_trans_role = $is_trans_supervisor || $is_trans_officer;
+// Road Operations Supervisors may dismiss cards too (their completion/
+// cancellation review requests and action results) so they stay hidden after
+// a refresh, just like the transportation roles.
+$is_road_supervisor = ($user_role === 'road_ops_supervisor');
+// Road Monitoring Officers may dismiss cards as well (report status updates,
+// request outcomes, assignments, change-request updates).
+$is_road_officer = ($user_role === 'road_monitoring_officer');
 $trans_exists = "SELECT 1 FROM road_transportation_reports
                  WHERE id = rn.report_id
                    AND report_category = 'transportation'
@@ -313,9 +320,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'dismiss') {
         // The X button: persist hiding this one card (by its feed id) for the
-        // current user's session. Transportation roles only; nothing is deleted.
+        // current user's session. Transportation roles, Road Operations
+        // Supervisors and Road Monitoring Officers; nothing is deleted.
         $key = trim((string)($_POST['id'] ?? ''));
-        if ($is_trans_role && $key !== '' && $user_id > 0) {
+        if (($is_trans_role || $is_road_supervisor || $is_road_officer) && $key !== '' && $user_id > 0) {
             $set = nc_dismissed_set();
             if (!in_array($key, $set, true)) {
                 $_SESSION['nc_dismissed'][(int)$user_id][] = $key;
@@ -1352,9 +1360,10 @@ function notification_assignment_url(array $ap): string {
         }
     }
 
-    // Transportation roles: drop cards the user dismissed via the X button so
-    // they stay hidden after a refresh. Empty for every other role, so no-op.
-    $nc_dismissed = $is_trans_role ? nc_dismissed_set() : [];
+    // Transportation roles, Road Operations Supervisors and Road Monitoring
+    // Officers: drop cards the user dismissed via the X button so they stay
+    // hidden after a refresh. Empty for every other role, so no-op.
+    $nc_dismissed = ($is_trans_role || $is_road_supervisor || $is_road_officer) ? nc_dismissed_set() : [];
     if ($nc_dismissed) {
         $nc_feed = array_values(array_filter($nc_feed, function ($item) use ($nc_dismissed) {
             return !in_array($item['id'], $nc_dismissed, true);
@@ -1476,6 +1485,8 @@ function notification_assignment_url(array $ap): string {
         const NC_IS_ADMIN = <?php echo $is_admin ? 'true' : 'false'; ?>;
         const NC_IS_TRANS_SUPERVISOR = <?php echo $is_trans_supervisor ? 'true' : 'false'; ?>;
         const NC_IS_TRANS_OFFICER = <?php echo $is_trans_officer ? 'true' : 'false'; ?>;
+        const NC_IS_ROAD_SUPERVISOR = <?php echo $is_road_supervisor ? 'true' : 'false'; ?>;
+        const NC_IS_ROAD_OFFICER = <?php echo $is_road_officer ? 'true' : 'false'; ?>;
         // Role-specific filter maps so each filter shows exactly the kinds of
         // notifications that role can receive. Non-transportation roles keep
         // the existing definitions.
@@ -1642,7 +1653,7 @@ function notification_assignment_url(array $ap): string {
                 card.remove();
                 ncRefreshBadge();
                 ncApplyFilters();
-                if (wasUnread && (NC_IS_TRANS_SUPERVISOR || NC_IS_TRANS_OFFICER)) ncRefreshSidebarBadge();
+                if (wasUnread && (NC_IS_TRANS_SUPERVISOR || NC_IS_TRANS_OFFICER || NC_IS_ROAD_SUPERVISOR || NC_IS_ROAD_OFFICER)) ncRefreshSidebarBadge();
             }, 200);
         }
 

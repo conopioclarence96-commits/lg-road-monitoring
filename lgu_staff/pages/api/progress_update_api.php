@@ -745,25 +745,25 @@ if ($method === 'GET') {
             ];
             $message = "{$request_label} — " . implode(' | ', $details);
 
-            // Transportation requests only: a trans monitoring officer re-submitting
-            // the same completion/cancellation request (double-click, page refresh,
-            // or reopening the monitoring page) must not spawn a duplicate
-            // notification for the trans_ops_supervisor. The request is uniquely
-            // identified by report ID + request type + requesting officer, and is
-            // only blocked while the previous request is still pending review
-            // (unread). Road requests keep their existing behavior untouched.
-            if ($recipient_role === 'trans_ops_supervisor') {
-                $dup = fetch_one(
-                    "SELECT id FROM report_notifications
-                     WHERE report_id = ? AND type = ? AND recipient_role = ? AND recipient_email = ? AND is_read = 0
-                     ORDER BY id DESC LIMIT 1",
-                    [$report_id, $request_type, $recipient_role, $user_id],
-                    "isss"
-                );
-                if ($dup) {
-                    log_audit_action($user_id, "Duplicate {$request_label} blocked", "Report ID: {$report_id}, Category: {$category}");
-                    json_response(['success' => true, 'message' => "{$request_label} already submitted for review. The report status is unchanged."]);
-                }
+            // Road and transportation requests both guard against duplicates: a
+            // monitoring officer re-submitting the same completion/cancellation
+            // request (double-click, page refresh, or reopening the monitoring
+            // page) must not spawn a duplicate notification for the matching
+            // supervisor (road_ops_supervisor for road projects,
+            // trans_ops_supervisor for transportation projects). The request is
+            // uniquely identified by report ID + request type + requesting
+            // officer, and is only blocked while the previous request is still
+            // pending review (unread).
+            $dup = fetch_one(
+                "SELECT id FROM report_notifications
+                 WHERE report_id = ? AND type = ? AND recipient_role = ? AND recipient_email = ? AND is_read = 0
+                 ORDER BY id DESC LIMIT 1",
+                [$report_id, $request_type, $recipient_role, $user_id],
+                "isss"
+            );
+            if ($dup) {
+                log_audit_action($user_id, "Duplicate {$request_label} blocked", "Report ID: {$report_id}, Category: {$category}");
+                json_response(['success' => true, 'message' => "{$request_label} already submitted for review. The report status is unchanged."]);
             }
 
             // Role-targeted notification (visible only to the matching supervisor

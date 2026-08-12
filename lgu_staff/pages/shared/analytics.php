@@ -199,6 +199,12 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        <?php if (in_array($user_role, ['road_monitoring_officer', 'road_ops_supervisor'], true) && !empty($_SESSION['darkmode'])): ?>
+        body.dark-mode {
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+        }
+        <?php endif; ?>
         @media print {
             body > aside.sidebar,
             body > nav,

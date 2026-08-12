@@ -3449,7 +3449,7 @@ if ($focus_id > 0) {
                         <tr data-id="<?php echo (int)$report['id']; ?>" data-source="lgu_reports">
                             <td>
                                 <div class="rm-action-group">
-                                    <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                    <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'road_transportation_reports')">
                                         <i class="fas fa-eye"></i>
                                     </button>
                                     <?php if ($is_road_supervisor || $is_transport_supervisor): ?>
@@ -4492,8 +4492,10 @@ if ($focus_id > 0) {
             document.body.style.overflow = 'hidden';
         }
 
-        function viewReport(id, type) {
-            fetch(`../api/get_report_details.php?id=${id}&type=${encodeURIComponent(type)}`)
+        function viewReport(id, type, table) {
+            var url = `../api/get_report_details.php?id=${id}&type=${encodeURIComponent(type)}`;
+            if (table) url += `&table=${encodeURIComponent(table)}`;
+            fetch(url)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -5486,7 +5488,7 @@ if ($focus_id > 0) {
                 showNotification('Only the Road/Transportation Operations Supervisors can edit reports.', 'error');
                 return;
             }
-            fetch(`../api/get_report_details.php?id=${id}&type=${encodeURIComponent(type)}&_=${Date.now()}`)
+            fetch(`../api/get_report_details.php?id=${id}&type=${encodeURIComponent(type)}&table=${encodeURIComponent(table)}&_=${Date.now()}`)
                 .then(response => {
                     if (!response.ok) {
                         return response.text().then(text => {

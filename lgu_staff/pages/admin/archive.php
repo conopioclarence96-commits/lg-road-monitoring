@@ -3,7 +3,7 @@ require_once '../../includes/session_config.php';
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 
-$archive_allowed_roles = ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor', 'trans_monitoring_officer'];
+$archive_allowed_roles = ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor', 'trans_monitoring_officer', 'road_monitoring_officer'];
 if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', $archive_allowed_roles, true)) {
     header('Location: ../../login.php');
     exit();
@@ -12,6 +12,8 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', $archive_
 $user_role = $_SESSION['role'] ?? '';
 $is_trans_role = in_array($user_role, ['trans_ops_supervisor', 'trans_monitoring_officer'], true);
 $is_trans_officer = ($user_role === 'trans_monitoring_officer');
+$is_road_supervisor = ($user_role === 'road_ops_supervisor');
+$is_road_officer = ($user_role === 'road_monitoring_officer');
 
 $conn->query("CREATE TABLE IF NOT EXISTS road_transportation_reports_archive LIKE road_transportation_reports");
 
@@ -161,10 +163,10 @@ $sql = "SELECT *, $source_case AS source_system FROM road_transportation_reports
 $archives = $conn->query($sql);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
-    // trans_monitoring_officer is a view-only archive viewer: they may never
-    // restore or permanently delete archived reports, regardless of the POST
-    // parameters they send.
-    if ($is_trans_officer && in_array($_POST['action'], ['restore', 'delete_forever'], true)) {
+    // trans_monitoring_officer and road_monitoring_officer are view-only
+    // archive viewers: they may never restore or permanently delete archived
+    // reports, regardless of the POST parameters they send.
+    if (($is_trans_officer || $is_road_officer) && in_array($_POST['action'], ['restore', 'delete_forever'], true)) {
         $_SESSION['archive_message'] = 'You are not authorized to restore or delete archived reports.';
         header('Location: archive.php');
         exit();
@@ -627,6 +629,13 @@ if (isset($_SESSION['archive_message'])) {
             cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.3s ease;
         }
         .btn-delete-forever:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(220,53,69,0.3); }
+        .btn-export {
+            padding: 8px 16px; background: linear-gradient(135deg,#17a2b8,#0d6efd);
+            color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 500;
+            cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+            text-decoration: none; transition: all 0.3s ease;
+        }
+        .btn-export:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(23,162,184,0.3); }
         .notification {
             position: fixed; top: 20px; right: 20px; padding: 15px 20px; border-radius: 8px;
             color: white; font-weight: 500; z-index: 10000; animation: slideIn 0.3s ease;
@@ -1289,7 +1298,7 @@ if (isset($_SESSION['archive_message'])) {
                                 <button type="button" class="btn-view" onclick="viewArchive(<?php echo $row['id']; ?>)">
                                     <i class="fas fa-eye"></i> View
                                 </button>
-                                <?php if (!$is_trans_officer): ?>
+                                <?php if (!$is_trans_officer && !$is_road_officer): ?>
                                 <form method="POST" style="display: inline-flex;" onsubmit="return confirm('Restore this report back to active table?');">
                                     <input type="hidden" name="archive_id" value="<?php echo $row['id']; ?>">
                                     <button type="submit" name="action" value="restore" class="btn-restore">
@@ -1302,6 +1311,11 @@ if (isset($_SESSION['archive_message'])) {
                                         <i class="fas fa-trash"></i> Delete Forever
                                     </button>
                                 </form>
+                                <?php if ($is_road_supervisor): ?>
+                                <a class="btn-export" href="../api/export_archive_word.php?id=<?php echo (int)$row['id']; ?>" title="Export this archived report as a Word document">
+                                    <i class="fas fa-file-word"></i> Export
+                                </a>
+                                <?php endif; ?>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -1362,9 +1376,11 @@ if (isset($_SESSION['archive_message'])) {
                 </div>
             </div>
             <div class="rm-modal-footer">
+                <?php if (!$is_road_officer): ?>
                 <button type="button" class="rm-modal-btn-export" onclick="exportArchivedReport()">
                     <i class="fas fa-file-export"></i> Export
                 </button>
+                <?php endif; ?>
                 <button type="button" class="rm-modal-btn-close" onclick="closeViewModal()">
                     <i class="fas fa-times"></i> Close
                 </button>

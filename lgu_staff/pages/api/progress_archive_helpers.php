@@ -443,11 +443,33 @@ function rgmap_notify_supervisor_action($conn, $report_id, $action, $supervisor_
         $notif_type   = ($action === 'complete') ? 'complete_report' : 'cancel_report';
         $message      = "You {$action_label} report {$report_label}. The report is now marked as {$action_label}.";
 
+        // Road Operations Supervisors only: a complete/cancel result must never
+        // stack duplicates in notification.php. Retire every older identical
+        // result notification (mark it read, keeping the newest), then skip the
+        // insert entirely when one already exists for this report/type — even
+        // if it was already read. Transportation report behavior is unchanged
+        // (unread-only dedup).
+        $is_road_supervisor = ($supervisor['role'] === 'road_ops_supervisor');
+        if ($is_road_supervisor) {
+            $max = $conn->prepare("SELECT COALESCE(MAX(id), 0) AS mid FROM report_notifications WHERE report_id = ? AND type = ? AND recipient_email = ?");
+            $max->bind_param("iss", $report_id, $notif_type, $supervisor['email']);
+            $max->execute();
+            $mid = (int)$max->get_result()->fetch_assoc()['mid'];
+            $max->close();
+            if ($mid > 0) {
+                $retire = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE report_id = ? AND type = ? AND recipient_email = ? AND is_read = 0 AND id != ?");
+                $retire->bind_param("issi", $report_id, $notif_type, $supervisor['email'], $mid);
+                $retire->execute();
+                $retire->close();
+            }
+        }
+
         // Transportation reports only: skip when an identical result notification
         // is already pending (unread) for the acting supervisor, so reprocessing
-        // the same report does not stack duplicate confirmations.
-        if (rgmap_is_transportation_report($conn, $report_id)) {
-            $dup = $conn->prepare("SELECT id FROM report_notifications WHERE report_id = ? AND type = ? AND recipient_email = ? AND is_read = 0 ORDER BY id DESC LIMIT 1");
+        // the same report does not stack duplicate confirmations. Road
+        // supervisors skip on ANY existing identical notification (handled above).
+        if ($is_road_supervisor || rgmap_is_transportation_report($conn, $report_id)) {
+            $dup = $conn->prepare("SELECT id FROM report_notifications WHERE report_id = ? AND type = ? AND recipient_email = ?" . ($is_road_supervisor ? '' : ' AND is_read = 0') . " ORDER BY id DESC LIMIT 1");
             $dup->bind_param("iss", $report_id, $notif_type, $supervisor['email']);
             $dup->execute();
             $dup_row = $dup->get_result()->fetch_assoc();

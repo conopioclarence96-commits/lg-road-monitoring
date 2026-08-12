@@ -101,6 +101,10 @@ $is_officer_role = in_array($_SESSION['role'] ?? '', ['road_monitoring_officer',
 // hidden from the Type dropdown (their reports still appear under All Types).
 $is_road_supervisor = ($_SESSION['role'] ?? '') === 'road_ops_supervisor';
 
+// Road Monitoring Officers see the assigned officer's name in the Assignment
+// column of the Recent Submissions table (same as the supervisors do).
+$is_road_monitoring_officer = ($_SESSION['role'] ?? '') === 'road_monitoring_officer';
+
 // Function to get enhanced dashboard stats
 function getEnhancedStats() {
     global $conn, $is_transport_supervisor, $is_road_only_role;
@@ -2155,6 +2159,23 @@ annotate_report_assignment_status($conn, $recent_reports);
             border-color: #3a3f4a;
         }
         body.dark-mode #addUpdateModal .file-preview-item { background: #2a2e36; border-color: #3a3f4a; }
+        <?php if ($is_road_only_role): ?>
+        body.dark-mode .badge-pending,
+        body.dark-mode .badge-medium,
+        body.dark-mode .cimm-verify-badge-pending { background: rgba(133, 100, 4, 0.25); color: #fde68a; }
+        body.dark-mode .badge-in-progress { background: rgba(0, 64, 133, 0.35); color: #93c5fd; }
+        body.dark-mode .badge-approved,
+        body.dark-mode .badge-completed,
+        body.dark-mode .cimm-verify-badge-verified { background: rgba(21, 87, 36, 0.30); color: #86efac; }
+        body.dark-mode .badge-cancelled,
+        body.dark-mode .badge-high,
+        body.dark-mode .badge-critical { background: rgba(114, 28, 36, 0.30); color: #fca5a5; }
+        body.dark-mode .badge-low,
+        body.dark-mode .badge-source,
+        body.dark-mode .assignment-unassigned { background: rgba(56, 61, 65, 0.30); color: #cbd5e1; }
+        body.dark-mode .badge-source { border-color: #2d323b; }
+        body.dark-mode .assignment-assigned { background: rgba(6, 95, 70, 0.30); color: #6ee7b7; }
+        <?php endif; ?>
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
@@ -2439,7 +2460,7 @@ annotate_report_assignment_status($conn, $recent_reports);
                     </select>
                     <select class="filter-select" id="typeFilter" onchange="filterReportsBySource()">
                         <option value="all">All Types</option>
-                        <?php if (!$is_road_supervisor): ?>
+                        <?php if (!$is_road_supervisor && !$is_road_monitoring_officer): ?>
                         <option value="citizen">Citizen Reports</option>
                         <?php endif; ?>
                         <?php if (!$is_transport_supervisor): ?>
@@ -2521,7 +2542,7 @@ annotate_report_assignment_status($conn, $recent_reports);
                             <td><?php echo htmlspecialchars($rr['title'] ?? 'Untitled'); ?></td>
                             <td><?php echo htmlspecialchars($rr_source_label); ?></td>
                             <td><span class="badge badge-<?php echo strtolower(str_replace(' ', '-', $rr['status'] ?? 'pending')); ?>"><?php echo ucfirst(str_replace('-',' ',$rr['status'] ?? 'pending')); ?></span></td>
-                            <td><?php if (($is_road_supervisor || $is_transport_supervisor) && ($rr['assignment_status'] ?? 'unassigned') === 'assigned' && !empty($rr['assignment_officer'])): ?>
+                            <td><?php if (($is_road_supervisor || $is_transport_supervisor || $is_road_monitoring_officer) && ($rr['assignment_status'] ?? 'unassigned') === 'assigned' && !empty($rr['assignment_officer'])): ?>
                                 <span class="badge assignment-badge assignment-assigned"><?php echo htmlspecialchars($rr['assignment_officer']); ?></span>
                             <?php else: ?>
                                 <span class="badge assignment-badge assignment-<?php echo ($rr['assignment_status'] ?? 'unassigned') === 'assigned' ? 'assigned' : 'unassigned'; ?>"><?php echo ($rr['assignment_status'] ?? 'unassigned') === 'assigned' ? 'Assigned' : 'Unassigned'; ?></span>
@@ -4736,6 +4757,7 @@ annotate_report_assignment_status($conn, $recent_reports);
     if (sessionRoleTag) currentUserRole = sessionRoleTag.getAttribute('data-role') || '';
     const isRoadSupervisor = (currentUserRole === 'road_ops_supervisor');
     const isTransportSupervisor = (currentUserRole === 'trans_ops_supervisor' || currentUserRole === 'trans_monitoring_officer');
+    const isRoadOfficer = (currentUserRole === 'road_monitoring_officer');
 
     function loadMoreReports() {
         if (isLoadingMore || !hasMoreReports) return;
@@ -4820,7 +4842,7 @@ annotate_report_assignment_status($conn, $recent_reports);
             <td>${escapeHtml(report.source_label)}</td>
             <td><span class="badge badge-${report.status.toLowerCase().replace(' ', '-')}">${escapeHtml(ucfirst(report.status.replace('-', ' ')))}</span></td>
             <td>${report.assignment_status === 'assigned'
-                ? ((isRoadSupervisor || isTransportSupervisor) && report.assignment_officer
+                ? ((isRoadSupervisor || isTransportSupervisor || isRoadOfficer) && report.assignment_officer
                     ? `<span class="badge assignment-badge assignment-assigned">${escapeHtml(report.assignment_officer)}</span>`
                     : `<span class="badge assignment-badge assignment-assigned">Assigned</span>`)
                 : `<span class="badge assignment-badge assignment-unassigned">Unassigned</span>`}</td>
