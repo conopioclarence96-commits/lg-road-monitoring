@@ -349,6 +349,7 @@ try {
         .summary-card {
             background: white; border-radius: 12px; padding: 18px 20px;
             border: 1px solid #e2e8f0; position: relative; overflow: hidden;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
         .summary-card::before {
             content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
@@ -551,6 +552,34 @@ try {
         .dark-mode .summary-card.rose .card-label { color: #fecaca; }
         .dark-mode .summary-card.violet .card-label { color: #ddd6fe; }
         .dark-mode .summary-card.cyan .card-label { color: #bae6fd; }
+
+        /* Moving cards on hover (System Admin only) - mirrors stat-card:hover on monitoring page */
+        .summary-card { cursor: pointer; }
+        .summary-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.10);
+        }
+        .dark-mode .summary-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.45); }
+
+        /* Data source tooltip (System Admin only) - styled like Chart.js tooltips */
+        .ds-tooltip {
+            position: fixed; z-index: 9999; pointer-events: none;
+            background: rgba(15, 23, 42, 0.92); color: #f1f5f9;
+            padding: 6px 10px; border-radius: 6px;
+            font-size: 12px; font-weight: 600; line-height: 1.4;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+            white-space: nowrap; max-width: 340px;
+            opacity: 0; visibility: hidden;
+            transform: translateY(4px);
+            transition: opacity 0.12s ease, transform 0.12s ease;
+        }
+        .ds-tooltip.show { opacity: 1; visibility: visible; transform: translateY(0); }
+        .ds-tooltip .tip-dot {
+            display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+            margin-right: 6px; vertical-align: middle;
+        }
+        .ds-tooltip .tip-label { color: #f1f5f9; }
+        .ds-tooltip .tip-value { color: #93c5fd; font-weight: 700; }
         <?php endif; ?>
     </style>
 </head>
@@ -573,42 +602,42 @@ try {
 
         <!-- Summary Cards -->
         <div class="summary-row">
-            <div class="summary-card blue">
+            <div class="summary-card blue" data-source="road_transportation_reports">
                 <div class="card-top">
                     <div class="card-icon"><i class="fas fa-file-alt"></i></div>
                 </div>
                 <div class="card-value"><?php echo $quick_insights['total_reports']; ?></div>
                 <div class="card-label">Total Reports</div>
             </div>
-            <div class="summary-card amber">
+            <div class="summary-card amber" data-source="road_transportation_reports">
                 <div class="card-top">
                     <div class="card-icon"><i class="fas fa-clock"></i></div>
                 </div>
                 <div class="card-value"><?php echo $quick_insights['pending_reports']; ?></div>
                 <div class="card-label">Pending</div>
             </div>
-            <div class="summary-card emerald">
+            <div class="summary-card emerald" data-source="road_transportation_reports">
                 <div class="card-top">
                     <div class="card-icon"><i class="fas fa-spinner"></i></div>
                 </div>
                 <div class="card-value"><?php echo $quick_insights['in_progress_reports']; ?></div>
                 <div class="card-label">In Progress</div>
             </div>
-            <div class="summary-card rose">
+            <div class="summary-card rose" data-source="road_transportation_reports">
                 <div class="card-top">
                     <div class="card-icon"><i class="fas fa-check-circle"></i></div>
                 </div>
                 <div class="card-value"><?php echo $quick_insights['completed_reports']; ?></div>
                 <div class="card-label">Completed</div>
             </div>
-            <div class="summary-card violet">
+            <div class="summary-card violet" data-source="road_transportation_reports">
                 <div class="card-top">
                     <div class="card-icon"><i class="fas fa-exclamation-triangle"></i></div>
                 </div>
                 <div class="card-value"><?php echo $quick_insights['high_priority']; ?></div>
                 <div class="card-label">High Priority</div>
             </div>
-            <div class="summary-card cyan">
+            <div class="summary-card cyan" data-source="users">
                 <div class="card-top">
                     <div class="card-icon"><i class="fas fa-users"></i></div>
                 </div>
@@ -622,7 +651,7 @@ try {
             <!-- Left Column (70%) -->
             <div class="left-col">
                 <!-- Reports Submitted Last 30 Days -->
-                <div class="card">
+                <div class="card" data-source="road_transportation_reports">
                     <div class="card-header">
                         <h3 class="card-title"><i class="fas fa-chart-line"></i> Reports Submitted (Last 30 Days)</h3>
                     </div>
@@ -633,7 +662,7 @@ try {
 
                 <!-- Charts Row -->
                 <div class="chart-grid">
-                    <div class="card" style="margin-bottom:0;">
+                    <div class="card" style="margin-bottom:0;" data-source="road_transportation_reports">
                         <div class="card-header">
                             <h3 class="card-title"><i class="fas fa-chart-bar"></i> Reports by Status</h3>
                         </div>
@@ -641,7 +670,7 @@ try {
                             <canvas id="reportsByStatusChart"></canvas>
                         </div>
                     </div>
-                    <div class="card" style="margin-bottom:0;">
+                    <div class="card" style="margin-bottom:0;" data-source="users">
                         <div class="card-header">
                             <h3 class="card-title"><i class="fas fa-chart-pie"></i> User Accounts</h3>
                         </div>
@@ -652,7 +681,7 @@ try {
                 </div>
 
                 <!-- Latest Uploaded Reports Table -->
-                <div class="card">
+                <div class="card" data-source="road_transportation_reports, users">
                     <div class="card-header">
                         <h3 class="card-title"><i class="fas fa-file-alt"></i> Latest Uploaded Reports</h3>
                         <a href="report_management.php" class="btn-sm btn-primary">View All</a>
@@ -695,7 +724,7 @@ try {
             <!-- Right Column (30%) -->
             <div class="right-col">
                 <!-- Recent Activity -->
-                <div class="card">
+                <div class="card" data-source="audit_logs, users">
                     <div class="card-header">
                         <h3 class="card-title"><i class="fas fa-history"></i> Recent Activity</h3>
                     </div>
@@ -723,7 +752,7 @@ try {
                 </div>
 
                 <!-- Pending Approvals -->
-                <div class="card">
+                <div class="card" data-source="users">
                     <div class="card-header">
                         <h3 class="card-title"><i class="fas fa-user-clock"></i> Pending Approvals</h3>
                         <span class="badge badge-pending"><?php echo $stats['pending_users']; ?></span>
@@ -756,7 +785,7 @@ try {
                 </div>
 
                 <!-- High Priority Reports -->
-                <div class="card">
+                <div class="card" data-source="road_transportation_reports">
                     <div class="card-header">
                         <h3 class="card-title"><i class="fas fa-exclamation-triangle"></i> High Priority</h3>
                         <span class="badge badge-high"><?php echo $quick_insights['high_priority']; ?></span>
@@ -792,7 +821,7 @@ try {
 
         <!-- Bottom Section: Charts -->
         <div class="chart-grid">
-            <div class="card" style="margin-bottom:0;">
+            <div class="card" style="margin-bottom:0;" data-source="road_transportation_reports">
                 <div class="card-header">
                     <h3 class="card-title"><i class="fas fa-chart-pie"></i> Reports by Source</h3>
                 </div>
@@ -800,7 +829,7 @@ try {
                     <canvas id="reportsBySourceChart"></canvas>
                 </div>
             </div>
-            <div class="card" style="margin-bottom:0;">
+            <div class="card" style="margin-bottom:0;" data-source="road_transportation_reports">
                 <div class="card-header">
                     <h3 class="card-title"><i class="fas fa-road"></i> Reports by Category</h3>
                 </div>
@@ -809,7 +838,7 @@ try {
                 </div>
             </div>
         </div>
-        <div class="card">
+        <div class="card" data-source="road_transportation_reports">
             <div class="card-header">
                 <h3 class="card-title"><i class="fas fa-calendar-alt"></i> Monthly Trend</h3>
             </div>
@@ -1039,7 +1068,7 @@ try {
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: true,
+                maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
                 scales: {
                     y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 11 } }, grid: { color: 'rgba(0,0,0,0.05)' } },
@@ -1106,6 +1135,57 @@ try {
                 alert.style.display = 'none';
             });
         }, 5000);
+
+        <?php if (($_SESSION['role'] ?? '') === 'system_admin'): ?>
+        // Chart-style pop-up label only on summary-row cards (System Admin only)
+        (function () {
+            const tooltip = document.createElement('div');
+            tooltip.className = 'ds-tooltip';
+            tooltip.setAttribute('role', 'tooltip');
+            document.body.appendChild(tooltip);
+
+            const dotColors = {
+                blue: '#3b82f6', amber: '#f59e0b', emerald: '#10b981',
+                rose: '#f43f5e', violet: '#8b5cf6', cyan: '#06b6d4'
+            };
+
+            function getCardColor(el) {
+                if (el.classList.contains('summary-card')) {
+                    for (const c of ['blue', 'amber', 'emerald', 'rose', 'violet', 'cyan']) {
+                        if (el.classList.contains(c)) return dotColors[c];
+                    }
+                }
+                const icon = el.querySelector('.card-title i');
+                return icon ? getComputedStyle(icon).color : '#3b82f6';
+            }
+
+            function positionTooltip(e) {
+                const pad = 14;
+                let x = e.clientX + pad;
+                let y = e.clientY + pad;
+                const tw = tooltip.offsetWidth;
+                const th = tooltip.offsetHeight;
+                if (x + tw > window.innerWidth - 8) x = e.clientX - tw - pad;
+                if (y + th > window.innerHeight - 8) y = e.clientY - th - pad;
+                tooltip.style.left = x + 'px';
+                tooltip.style.top = y + 'px';
+            }
+
+            document.querySelectorAll('.summary-row .summary-card[data-source]').forEach(el => {
+                el.addEventListener('mouseenter', (e) => {
+                    const valueEl = el.querySelector('.card-value');
+                    const labelEl = el.querySelector('.card-label');
+                    const dot = '<span class="tip-dot" style="background:' + getCardColor(el) + '"></span>';
+                    tooltip.innerHTML = dot + '<span class="tip-label">' + labelEl.textContent.trim() +
+                        ': </span><span class="tip-value">' + valueEl.textContent.trim() + '</span>';
+                    tooltip.classList.add('show');
+                    positionTooltip(e);
+                });
+                el.addEventListener('mousemove', positionTooltip);
+                el.addEventListener('mouseleave', () => tooltip.classList.remove('show'));
+            });
+        })();
+        <?php endif; ?>
 
     </script>
     

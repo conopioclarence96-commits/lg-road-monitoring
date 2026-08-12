@@ -2180,6 +2180,26 @@ annotate_report_assignment_status($conn, $recent_reports);
         body.dark-mode .assignment-unassigned { background: rgba(56, 61, 65, 0.30); color: #cbd5e1; }
         body.dark-mode .badge-source { border-color: #2d323b; }
         body.dark-mode .assignment-assigned { background: rgba(6, 95, 70, 0.30); color: #6ee7b7; }
+
+        /* Chart-style pop-up label on stat cards (system_admin only) */
+        .ds-tooltip {
+            position: fixed; z-index: 9999; pointer-events: none;
+            background: rgba(15, 23, 42, 0.92); color: #f1f5f9;
+            padding: 6px 10px; border-radius: 6px;
+            font-size: 12px; font-weight: 600; line-height: 1.4;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+            white-space: nowrap; max-width: 340px;
+            opacity: 0; visibility: hidden;
+            transform: translateY(4px);
+            transition: opacity 0.12s ease, transform 0.12s ease;
+        }
+        .ds-tooltip.show { opacity: 1; visibility: visible; transform: translateY(0); }
+        .ds-tooltip .tip-dot {
+            display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+            margin-right: 6px; vertical-align: middle;
+        }
+        .ds-tooltip .tip-label { color: #f1f5f9; }
+        .ds-tooltip .tip-value { color: #93c5fd; font-weight: 700; }
         <?php endif; ?>
     </style>
 </head>
@@ -5132,5 +5152,55 @@ annotate_report_assignment_status($conn, $recent_reports);
     <!-- Session timeout data -->
     <script id="sessionTimeoutData" data-timeout="<?php echo $session_timeout; ?>" data-role="<?php echo htmlspecialchars($_SESSION['role'] ?? ''); ?>"></script>
     <script src="../../js/session-timeout.js"></script>
+
+    <?php if ($is_system_admin): ?>
+    <script>
+        // Chart-style pop-up label on stats-row cards (system_admin only) - follows cursor like Chart.js tooltips
+        (function () {
+            const tooltip = document.createElement('div');
+            tooltip.className = 'ds-tooltip';
+            tooltip.setAttribute('role', 'tooltip');
+            document.body.appendChild(tooltip);
+
+            const dotColors = { blue: '#3762c8', orange: '#f59e0b', red: '#ef4444', green: '#10b981' };
+
+            function getCardColor(el) {
+                const icon = el.querySelector('.stat-icon');
+                if (icon) {
+                    for (const c of ['blue', 'orange', 'red', 'green']) {
+                        if (icon.classList.contains(c)) return dotColors[c];
+                    }
+                }
+                return '#3762c8';
+            }
+
+            function positionTooltip(e) {
+                const pad = 14;
+                let x = e.clientX + pad;
+                let y = e.clientY + pad;
+                const tw = tooltip.offsetWidth;
+                const th = tooltip.offsetHeight;
+                if (x + tw > window.innerWidth - 8) x = e.clientX - tw - pad;
+                if (y + th > window.innerHeight - 8) y = e.clientY - th - pad;
+                tooltip.style.left = x + 'px';
+                tooltip.style.top = y + 'px';
+            }
+
+            document.querySelectorAll('.stats-row .stat-card').forEach(el => {
+                el.addEventListener('mouseenter', (e) => {
+                    const valueEl = el.querySelector('.stat-number');
+                    const labelEl = el.querySelector('.stat-label');
+                    const dot = '<span class="tip-dot" style="background:' + getCardColor(el) + '"></span>';
+                    tooltip.innerHTML = dot + '<span class="tip-label">' + labelEl.textContent.trim() +
+                        ': </span><span class="tip-value">' + valueEl.textContent.trim() + '</span>';
+                    tooltip.classList.add('show');
+                    positionTooltip(e);
+                });
+                el.addEventListener('mousemove', positionTooltip);
+                el.addEventListener('mouseleave', () => tooltip.classList.remove('show'));
+            });
+        })();
+    </script>
+    <?php endif; ?>
 </body>
 </html>
