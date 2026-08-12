@@ -11,6 +11,9 @@ if (!is_logged_in()) {
 $user_id = $_SESSION['user_id'];
 $user_role = $_SESSION['role'] ?? 'citizen';
 
+// Font color overrides below apply to the system admin only.
+$is_system_admin = ($user_role === 'system_admin');
+
 $page = max(1, intval($_GET['page'] ?? 1));
 $per_page = 25;
 $offset = ($page - 1) * $per_page;
@@ -144,6 +147,28 @@ function getActionColor($action) {
     <link rel="stylesheet" href="../../css/enhanced-reports.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
+    <style>
+        <?php if ($is_system_admin): ?>
+        /* Match the admin portal font colors (system_admin only) */
+        .page-header h1 { color: #1e3c72; }
+        .panel-title { color: #1e3c72; }
+        body.dark-mode .page-header h1 { color: #e4e6ea !important; }
+        body.dark-mode .page-header p { color: #9ca3af !important; }
+        body.dark-mode .panel-title { color: #e4e6ea !important; }
+        body.dark-mode .header-actions span { color: #9ca3af !important; }
+        body.dark-mode .panel-header span { color: #9ca3af !important; }
+        body.dark-mode .filter-bar label { color: #9ca3af !important; }
+        body.dark-mode .filter-bar select,
+        body.dark-mode .filter-bar input { color: #e4e6ea !important; }
+        body.dark-mode .timeline-time { color: #9ca3af !important; }
+        body.dark-mode .timeline-title { color: #e4e6ea !important; }
+        body.dark-mode .timeline-title span { color: #9ca3af !important; }
+        body.dark-mode .timeline-desc { color: #9ca3af !important; }
+        body.dark-mode .panel-body > div { color: #9ca3af !important; }
+        body.dark-mode .pagination a,
+        body.dark-mode .pagination span { color: #9ca3af !important; }
+        <?php endif; ?>
+    </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
     <?php include '../../includes/sidebar_nav.php'; ?>

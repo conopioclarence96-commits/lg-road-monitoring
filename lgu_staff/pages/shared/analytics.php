@@ -11,6 +11,9 @@ if (!is_logged_in()) {
 $user_id = $_SESSION['user_id'];
 $user_role = $_SESSION['role'] ?? 'citizen';
 
+// Font color overrides below apply to the system admin only.
+$is_system_admin = ($user_role === 'system_admin');
+
 $period = sanitize_input($_GET['period'] ?? '30');
 
 // Date range applied to every card, chart and table on the page.
@@ -204,6 +207,21 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
             --text-primary: #f8fafc;
             --text-secondary: #cbd5e1;
         }
+        <?php endif; ?>
+        <?php if ($is_system_admin): ?>
+        /* Match the admin portal font colors (system_admin only) */
+        .page-header h1 { color: #1e3c72; }
+        .stat-card .stat-value { color: #1e3c72; }
+        .panel-title { color: #1e3c72; }
+        body.dark-mode .page-header h1 { color: #e4e6ea !important; }
+        body.dark-mode .page-header p { color: #9ca3af !important; }
+        body.dark-mode .stat-card .stat-value { color: #e4e6ea !important; }
+        body.dark-mode .stat-card .stat-label { color: #9ca3af !important; }
+        body.dark-mode .chart-card h4 { color: #9ca3af !important; }
+        body.dark-mode .panel-title { color: #e4e6ea !important; }
+        body.dark-mode .panel-body .data-table th { color: #9ca3af !important; }
+        body.dark-mode .panel-body .data-table td { color: #e4e6ea !important; }
+        body.dark-mode .stat-card .stat-trend { color: #9ca3af !important; }
         <?php endif; ?>
         @media print {
             body > aside.sidebar,

@@ -417,6 +417,41 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
                 $stmt->execute();
                 $count += $stmt->get_result()->fetch_assoc()['count'];
                 $stmt->close();
+            } elseif ($user_role === 'system_admin') {
+                // System admins can hide individual feed cards with the X button
+                // on their Notifications page; progress-update cards ('pn<id>')
+                // are the only admin feed cards backed by report_notifications
+                // rows, so subtract the dismissed ones to keep the sidebar badge
+                // from reappearing after a refresh.
+                $dismissed_pn = [];
+                foreach (($_SESSION['nc_dismissed'][(int)$user_id] ?? []) as $k) {
+                    if (preg_match('/^pn(\d+)$/', (string)$k, $m)) $dismissed_pn[] = (int)$m[1];
+                }
+                $dismissed_read = 0;
+                if ($dismissed_pn) {
+                    $in = implode(',', array_fill(0, count($dismissed_pn), '?'));
+                    $types = str_repeat('i', count($dismissed_pn));
+                    $stmt = $conn->prepare("SELECT COUNT(*) as c FROM report_notifications WHERE id IN ($in) AND is_read = 0");
+                    $stmt->bind_param($types, ...$dismissed_pn);
+                    $stmt->execute();
+                    $dismissed_read = (int)$stmt->get_result()->fetch_assoc()['c'];
+                    $stmt->close();
+                }
+                $stmt = $conn->prepare("
+                    SELECT COUNT(*) as count FROM report_notifications rn
+                    WHERE rn.is_read = 0
+                      AND EXISTS (
+                          SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
+                          UNION ALL
+                          SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
+                          UNION ALL
+                          SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id
+                          LIMIT 1
+                      )
+                ");
+                $stmt->execute();
+                $count += max(0, (int)$stmt->get_result()->fetch_assoc()['count'] - $dismissed_read);
+                $stmt->close();
             } else {
                 $stmt = $conn->prepare("
                     SELECT COUNT(*) as count FROM report_notifications rn

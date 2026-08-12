@@ -500,6 +500,58 @@ try {
         .workflow-title i { color: #f43f5e; }
         .workflow-badge { background: #f43f5e; color: white; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
         .workflow-content { max-height: 360px; overflow-y: auto; }
+
+        <?php if (($_SESSION['role'] ?? '') === 'system_admin'): ?>
+        /* Readable badge text in dark mode for System Admin only */
+        .dark-mode .badge-pending       { background: rgba(180, 83, 9, 0.22); color: #fcd34d; }
+        .dark-mode .badge-in-progress   { background: rgba(30, 64, 175, 0.35); color: #93c5fd; }
+        .dark-mode .badge-completed     { background: rgba(4, 120, 87, 0.28); color: #6ee7b7; }
+        .dark-mode .badge-cancelled     { background: rgba(185, 28, 28, 0.28); color: #fca5a5; }
+        .dark-mode .badge-approved      { background: rgba(4, 120, 87, 0.28); color: #6ee7b7; }
+        .dark-mode .badge-high          { background: rgba(220, 38, 38, 0.28); color: #fca5a5; }
+        .dark-mode .badge-medium        { background: rgba(194, 65, 12, 0.25); color: #fdba74; }
+        .dark-mode .badge-low           { background: rgba(5, 150, 105, 0.28); color: #6ee7b7; }
+        .dark-mode .badge-citizen       { background: rgba(30, 64, 175, 0.35); color: #93c5fd; }
+        .dark-mode .badge-cimm          { background: rgba(180, 83, 9, 0.22); color: #fcd34d; }
+        .dark-mode .badge-infrastructure { background: rgba(67, 56, 202, 0.3); color: #c7d2fe; }
+        .dark-mode .badge-lgu           { background: rgba(4, 120, 87, 0.28); color: #6ee7b7; }
+
+        /* Dark mode summary cards */
+        .dark-mode .summary-card.blue { background: rgba(96, 165, 250, 0.12); border-color: rgba(96, 165, 250, 0.35); }
+        .dark-mode .summary-card.amber { background: rgba(251, 191, 36, 0.12); border-color: rgba(251, 191, 36, 0.35); }
+        .dark-mode .summary-card.emerald { background: rgba(52, 211, 153, 0.12); border-color: rgba(52, 211, 153, 0.35); }
+        .dark-mode .summary-card.rose { background: rgba(248, 113, 113, 0.12); border-color: rgba(248, 113, 113, 0.35); }
+        .dark-mode .summary-card.violet { background: rgba(167, 139, 250, 0.12); border-color: rgba(167, 139, 250, 0.35); }
+        .dark-mode .summary-card.cyan { background: rgba(56, 189, 248, 0.12); border-color: rgba(56, 189, 248, 0.35); }
+
+        .dark-mode .summary-card.blue::before { background: #60a5fa; }
+        .dark-mode .summary-card.amber::before { background: #fbbf24; }
+        .dark-mode .summary-card.emerald::before { background: #34d399; }
+        .dark-mode .summary-card.rose::before { background: #f87171; }
+        .dark-mode .summary-card.violet::before { background: #a78bfa; }
+        .dark-mode .summary-card.cyan::before { background: #38bdf8; }
+
+        .dark-mode .summary-card.blue .card-icon { background: rgba(96, 165, 250, 0.18); color: #60a5fa; }
+        .dark-mode .summary-card.amber .card-icon { background: rgba(251, 191, 36, 0.18); color: #fbbf24; }
+        .dark-mode .summary-card.emerald .card-icon { background: rgba(52, 211, 153, 0.18); color: #34d399; }
+        .dark-mode .summary-card.rose .card-icon { background: rgba(248, 113, 113, 0.18); color: #f87171; }
+        .dark-mode .summary-card.violet .card-icon { background: rgba(167, 139, 250, 0.18); color: #a78bfa; }
+        .dark-mode .summary-card.cyan .card-icon { background: rgba(56, 189, 248, 0.18); color: #38bdf8; }
+
+        .dark-mode .summary-card.blue .card-value { color: #93c5fd; }
+        .dark-mode .summary-card.amber .card-value { color: #fcd34d; }
+        .dark-mode .summary-card.emerald .card-value { color: #6ee7b7; }
+        .dark-mode .summary-card.rose .card-value { color: #fca5a5; }
+        .dark-mode .summary-card.violet .card-value { color: #c4b5fd; }
+        .dark-mode .summary-card.cyan .card-value { color: #7dd3fc; }
+
+        .dark-mode .summary-card.blue .card-label { color: #bfdbfe; }
+        .dark-mode .summary-card.amber .card-label { color: #fde68a; }
+        .dark-mode .summary-card.emerald .card-label { color: #a7f3d0; }
+        .dark-mode .summary-card.rose .card-label { color: #fecaca; }
+        .dark-mode .summary-card.violet .card-label { color: #ddd6fe; }
+        .dark-mode .summary-card.cyan .card-label { color: #bae6fd; }
+        <?php endif; ?>
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
@@ -585,7 +637,7 @@ try {
                         <div class="card-header">
                             <h3 class="card-title"><i class="fas fa-chart-bar"></i> Reports by Status</h3>
                         </div>
-                        <div class="chart-container">
+                        <div class="chart-container" style="height: 200px; max-width: 320px; margin: 0 auto;">
                             <canvas id="reportsByStatusChart"></canvas>
                         </div>
                     </div>
@@ -593,7 +645,7 @@ try {
                         <div class="card-header">
                             <h3 class="card-title"><i class="fas fa-chart-pie"></i> User Accounts</h3>
                         </div>
-                        <div class="chart-container" style="height: 220px; max-width: 320px; margin: 0 auto;">
+                        <div class="chart-container" style="height: 240px; max-width: 320px; margin: 0 auto;">
                             <canvas id="userAccountsChart"></canvas>
                         </div>
                     </div>
@@ -744,7 +796,7 @@ try {
                 <div class="card-header">
                     <h3 class="card-title"><i class="fas fa-chart-pie"></i> Reports by Source</h3>
                 </div>
-                <div class="chart-container">
+                <div class="chart-container" style="height: 240px; max-width: 320px; margin: 0 auto;">
                     <canvas id="reportsBySourceChart"></canvas>
                 </div>
             </div>
@@ -752,7 +804,7 @@ try {
                 <div class="card-header">
                     <h3 class="card-title"><i class="fas fa-road"></i> Reports by Category</h3>
                 </div>
-                <div class="chart-container">
+                <div class="chart-container" style="height: 240px; max-width: 320px; margin: 0 auto;">
                     <canvas id="reportsByCategoryChart"></canvas>
                 </div>
             </div>
@@ -822,14 +874,15 @@ try {
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: true,
+                maintainAspectRatio: false,
                 plugins: {
                     legend: {
                         position: 'bottom',
                         labels: {
-                            padding: 12,
+                            padding: 6,
                             usePointStyle: true,
-                            font: { size: 11 },
+                            boxWidth: 10,
+                            font: { size: 10 },
                             generateLabels: function(chart) {
                                 const data = chart.data;
                                 return data.labels.map((label, i) => ({
@@ -890,7 +943,7 @@ try {
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: true,
+                maintainAspectRatio: false,
                 plugins: {
                     legend: { display: false }
                 },
@@ -1013,7 +1066,7 @@ try {
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: true,
+                maintainAspectRatio: false,
                 plugins: {
                     legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true, font: { size: 11 } } }
                 },
@@ -1038,7 +1091,7 @@ try {
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: true,
+                maintainAspectRatio: false,
                 plugins: {
                     legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true, font: { size: 11 } } }
                 },

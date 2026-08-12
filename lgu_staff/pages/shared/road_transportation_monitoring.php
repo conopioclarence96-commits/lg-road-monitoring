@@ -105,6 +105,9 @@ $is_road_supervisor = ($_SESSION['role'] ?? '') === 'road_ops_supervisor';
 // column of the Recent Submissions table (same as the supervisors do).
 $is_road_monitoring_officer = ($_SESSION['role'] ?? '') === 'road_monitoring_officer';
 
+// System Admin: dark-mode readable status badges only for this role.
+$is_system_admin = ($_SESSION['role'] ?? '') === 'system_admin';
+
 // Function to get enhanced dashboard stats
 function getEnhancedStats() {
     global $conn, $is_transport_supervisor, $is_road_only_role;
@@ -2160,7 +2163,8 @@ annotate_report_assignment_status($conn, $recent_reports);
             border-color: #3a3f4a;
         }
         body.dark-mode #addUpdateModal .file-preview-item { background: #2a2e36; border-color: #3a3f4a; }
-        <?php if ($is_road_only_role): ?>
+        /* Dark-mode readable status badges (system_admin only) */
+        <?php if ($is_system_admin): ?>
         body.dark-mode .badge-pending,
         body.dark-mode .badge-medium,
         body.dark-mode .cimm-verify-badge-pending { background: rgba(133, 100, 4, 0.25); color: #fde68a; }

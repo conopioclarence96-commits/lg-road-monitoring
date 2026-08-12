@@ -320,10 +320,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'dismiss') {
         // The X button: persist hiding this one card (by its feed id) for the
-        // current user's session. Transportation roles, Road Operations
-        // Supervisors and Road Monitoring Officers; nothing is deleted.
+        // current user's session. System admins, transportation roles, Road
+        // Operations Supervisors and Road Monitoring Officers; nothing is deleted.
         $key = trim((string)($_POST['id'] ?? ''));
-        if (($is_trans_role || $is_road_supervisor || $is_road_officer) && $key !== '' && $user_id > 0) {
+        if (($user_role === 'system_admin' || $is_trans_role || $is_road_supervisor || $is_road_officer) && $key !== '' && $user_id > 0) {
             $set = nc_dismissed_set();
             if (!in_array($key, $set, true)) {
                 $_SESSION['nc_dismissed'][(int)$user_id][] = $key;
@@ -1042,6 +1042,22 @@ function notification_assignment_url(array $ap): string {
         .dark-mode .nc-empty > i { color: #475569; }
         .dark-mode .nc-dismiss { color: #64748b; }
 
+        <?php if ($is_admin): ?>
+        /* Dark-mode readable status/priority badges (system_admin only) */
+        .dark-mode .nc-st-pending { background: rgba(180, 83, 9, 0.22); color: #fde68a; }
+        .dark-mode .nc-st-assigned { background: rgba(29, 78, 216, 0.25); color: #93c5fd; }
+        .dark-mode .nc-st-progress { background: rgba(194, 65, 12, 0.22); color: #fdba74; }
+        .dark-mode .nc-st-completed,
+        .dark-mode .nc-st-approved { background: rgba(4, 120, 87, 0.25); color: #86efac; }
+        .dark-mode .nc-st-cancelled,
+        .dark-mode .nc-st-rejected { background: rgba(185, 28, 28, 0.25); color: #fca5a5; }
+        .dark-mode .nc-st-review { background: rgba(67, 56, 202, 0.25); color: #c7d2fe; }
+        .dark-mode .nc-pr-high { background: rgba(220, 38, 38, 0.22); color: #fca5a5; }
+        .dark-mode .nc-pr-critical { background: rgba(185, 28, 28, 0.30); color: #fecaca; }
+        .dark-mode .nc-pr-medium { background: rgba(194, 65, 12, 0.22); color: #fdba74; }
+        .dark-mode .nc-pr-low { background: rgba(5, 150, 105, 0.22); color: #86efac; }
+        <?php endif; ?>
+
         @media (max-width: 640px) {
             .main-content { padding: 18px 14px 50px; }
             .nc-actions { width: 100%; justify-content: flex-start; }
@@ -1360,10 +1376,10 @@ function notification_assignment_url(array $ap): string {
         }
     }
 
-    // Transportation roles, Road Operations Supervisors and Road Monitoring
-    // Officers: drop cards the user dismissed via the X button so they stay
-    // hidden after a refresh. Empty for every other role, so no-op.
-    $nc_dismissed = ($is_trans_role || $is_road_supervisor || $is_road_officer) ? nc_dismissed_set() : [];
+    // System admins, transportation roles, Road Operations Supervisors and Road
+    // Monitoring Officers: drop cards the user dismissed via the X button so
+    // they stay hidden after a refresh. Empty for every other role, so no-op.
+    $nc_dismissed = ($is_admin || $is_trans_role || $is_road_supervisor || $is_road_officer) ? nc_dismissed_set() : [];
     if ($nc_dismissed) {
         $nc_feed = array_values(array_filter($nc_feed, function ($item) use ($nc_dismissed) {
             return !in_array($item['id'], $nc_dismissed, true);
@@ -1653,7 +1669,8 @@ function notification_assignment_url(array $ap): string {
                 card.remove();
                 ncRefreshBadge();
                 ncApplyFilters();
-                if (wasUnread && (NC_IS_TRANS_SUPERVISOR || NC_IS_TRANS_OFFICER || NC_IS_ROAD_SUPERVISOR || NC_IS_ROAD_OFFICER)) ncRefreshSidebarBadge();
+                var adminPn = NC_IS_ADMIN && /^pn\d+$/.test(cardId || '');
+                if (wasUnread && (NC_IS_TRANS_SUPERVISOR || NC_IS_TRANS_OFFICER || NC_IS_ROAD_SUPERVISOR || NC_IS_ROAD_OFFICER || adminPn)) ncRefreshSidebarBadge();
             }, 200);
         }
 

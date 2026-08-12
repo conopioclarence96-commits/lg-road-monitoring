@@ -445,6 +445,17 @@ try {
             color: #991b1b;
         }
 
+        /* Dark-mode only fix for the status badges on this system_admin page */
+        body.dark-mode .status-badge.ok {
+            background: var(--color-success-bg) !important;
+            color: var(--color-success) !important;
+        }
+
+        body.dark-mode .status-badge.danger {
+            background: var(--color-danger-bg) !important;
+            color: var(--color-danger) !important;
+        }
+
         .row-btn {
             display: inline-flex;
             align-items: center;
