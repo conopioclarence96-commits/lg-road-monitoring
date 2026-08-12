@@ -24,7 +24,7 @@ if ($report_id <= 0 || empty($report_type)) {
     json_response(['success' => false, 'error' => 'Invalid report parameters']);
 }
 
-$transport_types = ['potholes', 'road_damage', 'shoulder_damage', 'traffic_jam', 'accident', 'congestion', 'traffic_light_outage', 'vehicle_breakdown', 'traffic_sign_issue', 'transportation', 'infrastructure_issue', 'road_closure', 'parking_violation', 'public_transport_issue'];
+$transport_types = ['potholes', 'road_damage', 'debris', 'shoulder_damage', 'traffic_jam', 'accident', 'congestion', 'traffic_light_outage', 'vehicle_breakdown', 'traffic_sign_issue', 'transportation', 'infrastructure_issue', 'road_closure', 'parking_violation', 'public_transport_issue'];
 $table = in_array($report_type, $transport_types) ? 'road_transportation_reports' : 'road_maintenance_reports';
 
 // Optional explicit table from the caller. Road Operations Supervisor reports
@@ -87,7 +87,7 @@ try {
         $query = "SELECT id, report_id, report_type, title, department, priority, status, created_date, due_date, description,
                     location, latitude, longitude, reporter_name, reporter_email, severity, reported_date, resolved_date, assigned_to,
                     resolution_notes as notes, estimation, attachments, created_by, created_at, updated_at, image_path,
-                    report_category, report_source, reporter_phone
+                    report_category, report_source, reporter_phone, cimm_engineer_name, cimm_budget
                     {$extra_cols} {$cimm_extra_cols}
                     FROM road_transportation_reports WHERE id = ?";
         

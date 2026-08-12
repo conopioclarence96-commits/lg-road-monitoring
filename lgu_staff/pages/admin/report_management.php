@@ -194,8 +194,8 @@ function handle_update_report() {
     global $conn, $user_id;
 
     // Edit / Save Changes is restricted to the Road and Transportation
-    // Operations Supervisors.
-    if (!in_array($_SESSION['role'] ?? '', ['road_ops_supervisor', 'trans_ops_supervisor'], true)) {
+    // Operations Supervisors (and the system admin).
+    if (!in_array($_SESSION['role'] ?? '', ['road_ops_supervisor', 'trans_ops_supervisor', 'system_admin'], true)) {
         if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
             header('Content-Type: application/json');
             echo json_encode(['success' => false, 'message' => 'You are not authorized to edit reports. Only the Road/Transportation Operations Supervisors may do this.']);
@@ -956,9 +956,9 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
     // Get transportation reports (Citizen Reports + Infrastructure Issues from transport table)
     $lgu_active_statuses = $include_completed ? "'approved', 'in-progress', 'completed'" : "'approved', 'in-progress'";
     if ($transport_estimation_exists) {
-        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' WHEN report_source = 'local' AND created_by != 0 AND status IN ({$lgu_active_statuses}) THEN 'lgu_reports' WHEN report_source = 'local' AND created_by != 0 THEN 'hidden' ELSE 'transport' END as source_system FROM road_transportation_reports";
+        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, engineer, budget_allocation, cimm_engineer_name, cimm_budget, estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' WHEN report_source = 'local' AND created_by != 0 AND status IN ({$lgu_active_statuses}) THEN 'lgu_reports' WHEN report_source = 'local' AND created_by != 0 THEN 'hidden' ELSE 'transport' END as source_system FROM road_transportation_reports";
     } else {
-        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, 0 as estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' WHEN report_source = 'local' AND created_by != 0 AND status IN ({$lgu_active_statuses}) THEN 'lgu_reports' WHEN report_source = 'local' AND created_by != 0 THEN 'hidden' ELSE 'transport' END as source_system FROM road_transportation_reports";
+        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, engineer, budget_allocation, cimm_engineer_name, cimm_budget, 0 as estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' WHEN report_source = 'local' AND created_by != 0 AND status IN ({$lgu_active_statuses}) THEN 'lgu_reports' WHEN report_source = 'local' AND created_by != 0 THEN 'hidden' ELSE 'transport' END as source_system FROM road_transportation_reports";
     }
     $transport_params = [];
     
@@ -3452,7 +3452,7 @@ if ($focus_id > 0) {
                                     <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'road_transportation_reports')">
                                         <i class="fas fa-eye"></i>
                                     </button>
-                                    <?php if ($is_road_supervisor || $is_transport_supervisor): ?>
+                                    <?php if ($is_road_supervisor || $is_transport_supervisor || $user_role === 'system_admin'): ?>
                                     <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'road_transportation_reports')">
                                         <i class="fas fa-pencil"></i>
                                     </button>
@@ -3497,15 +3497,17 @@ if ($focus_id > 0) {
                             <?php endif; ?>
                             <?php if ($is_road_supervisor || $user_role === 'system_admin'): ?>
                             <td>
-                                <?php if (!empty($report['engineer']) && ($report['report_category'] ?? '') === 'road'): ?>
-                                <span class="rm-badge lgu" title="CIMM Assigned Engineer"><?php echo htmlspecialchars($report['engineer']); ?></span>
+                                <?php $lgu_engineer = (trim((string)($report['cimm_engineer_name'] ?? '')) !== '') ? $report['cimm_engineer_name'] : ($report['engineer'] ?? ''); ?>
+                                <?php if (!empty($lgu_engineer) && ($report['report_category'] ?? '') === 'road'): ?>
+                                <span class="rm-badge lgu" title="CIMM Assigned Engineer"><?php echo htmlspecialchars($lgu_engineer); ?></span>
                                 <?php else: ?>
                                 <span class="t-text-muted">—</span>
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <?php if (!empty($report['budget_allocation']) && ($report['report_category'] ?? '') === 'road'): ?>
-                                <span class="t-text-success" title="CIMM Budget Allocation">₱ <?php echo number_format((float)$report['budget_allocation'], 2); ?></span>
+                                <?php $lgu_budget = (!empty($report['cimm_budget']) && (float)$report['cimm_budget'] > 0) ? $report['cimm_budget'] : ($report['budget_allocation'] ?? null); ?>
+                                <?php if (!empty($lgu_budget) && (float)$lgu_budget > 0 && ($report['report_category'] ?? '') === 'road'): ?>
+                                <span class="t-text-success" title="CIMM Budget Allocation">₱ <?php echo number_format((float)$lgu_budget, 2); ?></span>
                                 <?php else: ?>
                                 <span class="t-text-muted">—</span>
                                 <?php endif; ?>
@@ -4576,11 +4578,15 @@ if ($focus_id > 0) {
                             sourceGrid += rmInfoItem('thumbs-down', 'Rejected At', formatDate(r.rejected_at));
                         }
                         if (r.report_category === 'road') {
-                            if (r.engineer) {
-                                sourceGrid += rmInfoItem('hard-hat', 'CIMM Engineer', r.engineer);
+                            var engName = r.cimm_engineer_name || r.engineer || '';
+                            if (engName) {
+                                sourceGrid += rmInfoItem('hard-hat', 'CIMM Engineer', engName);
                             }
-                            if (r.budget_allocation) {
-                                sourceGrid += rmInfoItem('money-bill-wave', 'CIMM Budget Allocation', '₱ ' + Number(r.budget_allocation).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+                            var budgetRaw = (r.cimm_budget && Number(r.cimm_budget) > 0)
+                                ? r.cimm_budget
+                                : (r.budget_allocation && Number(r.budget_allocation) > 0 ? r.budget_allocation : 0);
+                            if (budgetRaw) {
+                                sourceGrid += rmInfoItem('money-bill-wave', 'CIMM Budget Allocation', '₱ ' + Number(budgetRaw).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
                             }
                         }
                         document.getElementById('rm-source-grid').innerHTML = sourceGrid;
@@ -5484,7 +5490,7 @@ if ($focus_id > 0) {
             var role = '';
             var tag = document.getElementById('sessionTimeoutData');
             if (tag) role = tag.getAttribute('data-role') || '';
-            if (role !== 'road_ops_supervisor' && role !== 'trans_ops_supervisor') {
+            if (role !== 'road_ops_supervisor' && role !== 'trans_ops_supervisor' && role !== 'system_admin') {
                 showNotification('Only the Road/Transportation Operations Supervisors can edit reports.', 'error');
                 return;
             }

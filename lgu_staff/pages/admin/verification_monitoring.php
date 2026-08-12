@@ -691,13 +691,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         // Check verification rules: block approve for road+local reports
         // unless they have been verified by CIMM (cimm_sync_status = 'verified')
+        // or are Scheduled LGU monitoring reports (cimm_status = 'Scheduled')
         if (in_array($action, ['approve', 'cimm_approve']) && in_array($source, ['transport', 'lgu', 'external'])) {
-            $check = $conn->prepare("SELECT report_category, report_source, cimm_sync_status FROM road_transportation_reports WHERE id = ?");
+            $check = $conn->prepare("SELECT report_category, report_source, cimm_sync_status, cimm_status FROM road_transportation_reports WHERE id = ?");
             $check->bind_param('i', $report_id);
             $check->execute();
             $r = $check->get_result()->fetch_assoc();
-            // Only block if not verified by CIMM AND cannot be verified locally
-            if ($r && ($r['cimm_sync_status'] ?? '') !== 'verified' && !canVerifyReport($r['report_category'], $r['report_source'])) {
+            // Only block if not verified by CIMM, not a Scheduled LGU monitoring report,
+            // AND cannot be verified locally
+            $cimmVerified = (($r['cimm_sync_status'] ?? '') === 'verified')
+                || strtolower(trim((string)($r['cimm_status'] ?? ''))) === 'scheduled';
+            if ($r && !$cimmVerified && !canVerifyReport($r['report_category'], $r['report_source'])) {
                 $_SESSION['verification_message'] = 'Road reports created by your LGU cannot be approved here. They must be verified by the external Engineering Office.';
                 header('Location: ../admin/verification_monitoring.php');
                 exit();
@@ -849,8 +853,39 @@ $sql_reports = getSqlReports($conn);
 // Citizen-submitted reports
 $citizen_reports = getCitizenReports($conn);
 
-// Infrastructure-specific reports
-$infra_reports = getInfraReports($conn, $is_road_supervisor);
+// Infrastructure project records come from the read-only ipms_road_projects
+// mirror (see lgu_staff/pages/api/ipms_road_projects_data.php), not the empty
+// road_maintenance_reports source previously used here.
+require_once __DIR__ . '/../api/ipms_road_projects_data.php';
+$ipms_projects_raw = [];
+try {
+    $ipms_projects_raw = rgmap_fetch_ipms_road_projects(rgmap_ipms_pdo());
+} catch (Exception $e) {
+    error_log("IPMS road projects fetch failed: " . $e->getMessage());
+}
+$infra_reports = [];
+foreach ($ipms_projects_raw as $proj) {
+    $infra_reports[] = [
+        'id'               => (int)$proj['project_id'],
+        'source'           => 'maintenance',
+        'report_id'        => (string)$proj['project_id'],
+        'title'            => trim((string)($proj['project_name'] ?? '')),
+        'report_type'      => trim((string)($proj['road_type'] ?? '')),
+        'department'       => '—',
+        'priority'         => '—',
+        'status'           => (string)($proj['project_status'] ?? ''),
+        'location'         => trim((string)($proj['road_name'] ?? '')),
+        'description'      => null,
+        'created_date'     => null,
+        'created_at'       => $proj['created_at'] ?? null,
+        'due_date'         => $proj['end_date'] ?? null,
+        'reporter_name'    => null,
+        'estimated_cost'   => null,
+        'actual_cost'      => null,
+        'maintenance_team' => null,
+        'attachments'      => null,
+    ];
+}
 
 // Deep-link focus: ?source= + ?id= (or the notifications-specific
 // ?focus_report_id=, see below) from a notification "View" button. The
@@ -5049,11 +5084,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 $report_category = $report['report_category'] ?? null;
                                 $report_source = $report['report_source'] ?? null;
                                 $can_verify = canVerifyReport($report_category, $report_source);
-                                // Reports not yet verified by CIMM show as awaiting external verification
-                                // If CIMM verified and status is pending, show check button for final approval
-                                $pending_ext_verify = ($report['cimm_sync_status'] ?? '') !== 'verified' && !$can_verify && $report['status'] === 'pending';
-                                // Transportation reports can be approved directly; road reports require CIMM verification
-                                $ready_for_approval = ($report_category === 'transportation') ? true : (($report['cimm_sync_status'] ?? '') === 'verified' && $report['status'] === 'pending');
+                                // Reports not yet scheduled/verified by CIMM show as awaiting external verification.
+                                // Once CIMM has scheduled a report (cimm_status = 'scheduled') and its local
+                                // status is pending, show the check/X buttons for final approval.
+                                $pending_ext_verify = strtolower(trim((string)($report['cimm_status'] ?? ''))) !== 'scheduled' && ($report['cimm_sync_status'] ?? '') !== 'verified' && !$can_verify && $report['status'] === 'pending';
+                                // Transportation reports can be approved directly; road reports show the
+                                // check/X buttons once CIMM has scheduled them (cimm_status = 'scheduled').
+                                $ready_for_approval = ($report_category === 'transportation') ? true : (strtolower(trim((string)($report['cimm_status'] ?? ''))) === 'scheduled' && $report['status'] === 'pending');
 
                                 $lgu_type_labels = [
                                     'traffic_jam' => 'Traffic Jam',
@@ -5172,6 +5209,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                              alt="Report Image" 
                                                              style="max-width:300px;max-height:300px;border-radius:8px;border:1px solid rgba(55,98,200,0.3);cursor:pointer;" 
                                                              onclick="window.open(this.src, '_blank')" 
+                                                             onerror="this.style.display='none'" 
                                                              title="Click to view full size" />
                                                     <?php endif; endforeach; ?>
                                                 </div>
@@ -5571,7 +5609,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <div>
                         <div class="infra-reports-title-group">
                             <h2 class="infra-reports-title">Infrastructure Projects</h2>
-                            <span class="infra-reports-badge in-progress"><?php echo $infra_reports ? $infra_reports->num_rows : 0; ?> Reports</span>
+                            <span class="infra-reports-badge in-progress"><?php echo is_array($infra_reports) ? count($infra_reports) : 0; ?> Reports</span>
                         </div>
                         <p class="infra-reports-subtitle">Infrastructure maintenance and infrastructure issue reports</p>
                     </div>
@@ -5606,8 +5644,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <tbody>
                         <?php
                         $hasInfraReports = false;
-                        if ($infra_reports && $infra_reports->num_rows > 0):
-                            while ($irow = $infra_reports->fetch_assoc()):
+                        if (!empty($infra_reports)):
+                            foreach ($infra_reports as $irow):
                                 $hasInfraReports = true;
                                 $istatus_class = '';
                                 if ($irow['status'] === 'approved') $istatus_class = 'approved';
@@ -5660,11 +5698,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <td><?php echo htmlspecialchars($irow['location'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars(ucfirst($irow['department'])); ?></td>
                             <td><span class="infra-status-badge <?php echo htmlspecialchars($irow['priority']); ?>"><?php echo ucfirst(htmlspecialchars($irow['priority'])); ?></span></td>
-                            <td><span class="infra-status-badge <?php echo $istatus_class; ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $irow['status']))); ?></span></td>
+                            <td><span class="infra-status-badge <?php echo $istatus_class; ?>"><?php echo ucfirst(htmlspecialchars(str_replace(['-', '_'], ' ', $irow['status']))); ?></span></td>
                             <td><?php echo $irow['created_at'] ? date('M d, Y', strtotime($irow['created_at'])) : '—'; ?></td>
                         </tr>
                         <?php
-                            endwhile;
+                            endforeach;
                         endif;
                         ?>
 
@@ -6176,7 +6214,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if (images.length > 0) {
                 attachHtml = '<div style="display:flex;gap:12px;flex-wrap:wrap;">';
                 images.forEach(function(path) {
-                    attachHtml += '<div style="border-radius:8px;overflow:hidden;max-width:200px;"><img src="../../' + path + '" alt="Report Photo" style="width:100%;height:auto;cursor:pointer;" onclick="openLightbox(this.src)" loading="lazy"></div>';
+                    attachHtml += '<div style="border-radius:8px;overflow:hidden;max-width:200px;"><img src="../../' + path + '" alt="Report Photo" style="width:100%;height:auto;cursor:pointer;" onclick="openLightbox(this.src)" loading="lazy" onerror="this.closest(\'div\').style.display=\'none\'"></div>';
                 });
                 attachHtml += '</div>';
             } else {
@@ -6414,9 +6452,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         // Infra Reports data map (populated from PHP)
         var infraDataMap = {};
         <?php
-        if ($infra_reports && method_exists($infra_reports, 'data_seek') && $infra_reports->num_rows > 0):
-            $infra_reports->data_seek(0);
-            while ($ir = $infra_reports->fetch_assoc()):
+        if (!empty($infra_reports)):
+            foreach ($infra_reports as $ir):
         ?>
         (function() {
             try {
@@ -6445,7 +6482,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
         })();
         <?php
-            endwhile;
+            endforeach;
         endif;
         ?>
 
@@ -6579,7 +6616,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if (images.length > 0) {
                 attachHtml = '<div class="citizen-photo-gallery">';
                 images.forEach(function(path) {
-                    attachHtml += '<div class="citizen-photo-item"><img src="../../' + path + '" alt="Report Photo" onclick="openLightbox(this.src)" loading="lazy"></div>';
+                    attachHtml += '<div class="citizen-photo-item"><img src="../../' + path + '" alt="Report Photo" onclick="openLightbox(this.src)" loading="lazy" onerror="this.closest(\'.citizen-photo-item\').style.display=\'none\'"></div>';
                 });
                 attachHtml += '</div>';
             } else {
@@ -6843,7 +6880,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if (images.length > 0) {
                 attachHtml = '<div class="citizen-photo-gallery">';
                 images.forEach(function(path) {
-                    attachHtml += '<div class="citizen-photo-item"><img src="../../' + path + '" alt="Report Photo" onclick="openLightbox(this.src)" loading="lazy"></div>';
+                    attachHtml += '<div class="citizen-photo-item"><img src="../../' + path + '" alt="Report Photo" onclick="openLightbox(this.src)" loading="lazy" onerror="this.closest(\'.citizen-photo-item\').style.display=\'none\'"></div>';
                 });
                 attachHtml += '</div>';
             } else {
