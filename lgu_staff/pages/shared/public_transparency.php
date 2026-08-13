@@ -941,7 +941,7 @@ if ($conn) {
     }
 
     // ─── Form Submit ──────────────────────────────────────
-    document.getElementById('projectFormEl').addEventListener('submit', function(e) {
+    function onProjectFormSubmit(e) {
         e.preventDefault();
 
         const title = document.getElementById('projectTitle').value.trim();
@@ -987,7 +987,12 @@ if ($conn) {
                 btnSave.disabled = false;
                 showToast('Network error', 'error');
             });
-    });
+    }
+
+    const projectFormEl = document.getElementById('projectFormEl');
+    if (projectFormEl) {
+        projectFormEl.addEventListener('submit', onProjectFormSubmit);
+    }
 
     // ─── Edit ─────────────────────────────────────────────
     function editProject(project) {
