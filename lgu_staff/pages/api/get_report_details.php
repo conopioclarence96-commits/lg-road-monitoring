@@ -33,7 +33,7 @@ $table = in_array($report_type, $transport_types) ? 'road_transportation_reports
 // would point at road_maintenance_reports and fail. Honor a validated table
 // param whenever the caller knows the real source table.
 $explicit_table = sanitize_input($_GET['table'] ?? '');
-if (in_array($explicit_table, ['road_transportation_reports', 'road_maintenance_reports'], true)) {
+if (in_array($explicit_table, ['road_transportation_reports', 'road_maintenance_reports', 'cimm_verification_reports'], true)) {
     $table = $explicit_table;
 }
 
@@ -83,7 +83,14 @@ try {
     } catch (Exception $e) { $completed_at_exists = false; }
     if ($completed_at_exists) $extra_cols .= ', completed_at';
     
-    if ($table === 'road_transportation_reports') {
+    if ($table === 'cimm_verification_reports') {
+        $query = "SELECT id, reference_code AS report_id, infrastructure AS title, issue AS description,
+                    location, coord_lat AS latitude, coord_lng AS longitude, priority,
+                    verification_status AS status, approval_status, reporter_name,
+                    COALESCE(submitted_at, verified_at, synced_at) AS created_at, verified_at,
+                    engineer, budget_allocation, 'cimm' AS source, 'road' AS report_category
+                    FROM cimm_verification_reports WHERE id = ?";
+    } elseif ($table === 'road_transportation_reports') {
         $query = "SELECT id, report_id, report_type, title, department, priority, status, created_date, due_date, description,
                     location, latitude, longitude, reporter_name, reporter_email, severity, reported_date, resolved_date, assigned_to,
                     resolution_notes as notes, estimation, attachments, created_by, created_at, updated_at, image_path,

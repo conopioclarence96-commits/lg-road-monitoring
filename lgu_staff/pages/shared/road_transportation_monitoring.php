@@ -281,6 +281,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                     t.status, t.priority, t.severity, t.created_at, t.description,
                     t.latitude, t.longitude, t.location, t.reporter_name, t.attachments, t.image_path,
                     t.cimm_status, t.cimm_sync_status, t.cimm_verified_at, t.cimm_verified_by,
+                    t.engineer, t.budget_allocation, t.cimm_engineer_name, t.cimm_budget,
                     u.full_name AS creator_full_name, u.phone_number AS creator_phone, u.email AS creator_email,
                     NULL AS approval_status, NULL AS verification_status,
                     'road_transportation_reports' AS _source_table
@@ -322,6 +323,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                         status, priority, severity, created_at, description,
                         latitude, longitude, location, reporter_name, attachments, image_path,
                         cimm_sync_status, cimm_verified_at, cimm_verified_by,
+                        engineer, budget_allocation, cimm_engineer_name, cimm_budget,
                         'road_transportation_reports' AS _source_table
                  FROM road_transportation_reports
                  WHERE report_type = 'infrastructure_issue'
@@ -344,6 +346,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                             location, reporter_name, NULL AS attachments, NULL AS image_path,
                             'verified' AS cimm_sync_status, verified_at AS cimm_verified_at,
                             NULL AS cimm_verified_by, approval_status,
+                            engineer, budget_allocation,
                             'cimm_verification_reports' AS _source_table
                      FROM cimm_verification_reports
                      WHERE verification_status IN ('Approved', 'In Progress', 'Completed')
@@ -2555,6 +2558,8 @@ annotate_report_assignment_status($conn, $recent_reports);
                             'cimm_verified_by' => $rr['cimm_verified_by'] ?? '',
                             'approval_status' => $rr['approval_status'] ?? '',
                             'verification_status' => $rr['verification_status'] ?? '',
+                            'engineer' => $rr['engineer'] ?? ($rr['cimm_engineer_name'] ?? ''),
+                            'budget_allocation' => $rr['budget_allocation'] ?? ($rr['cimm_budget'] ?? ''),
                         ];
                         if ($is_road_supervisor) {
                             // Report Creator Information — Road Supervisor portal only.
@@ -4157,8 +4162,10 @@ annotate_report_assignment_status($conn, $recent_reports);
             }
             var src = String(currentUpdatesReportSource || existing.source || '').toLowerCase();
             var type = currentUpdatesReportType || existing.report_type || 'transportation';
-            var table = (src === 'infrastructure' || src === 'maintenance') ? 'road_maintenance_reports' : 'road_transportation_reports';
-            if (!currentUpdatesReportId || src === 'cimm' || src === 'external') {
+            var table = 'road_transportation_reports';
+            if (src === 'infrastructure' || src === 'maintenance') table = 'road_maintenance_reports';
+            else if (src === 'cimm' || src === 'external') table = 'cimm_verification_reports';
+            if (!currentUpdatesReportId) {
                 currentUpdatesReportDetails = existing;
                 return Promise.resolve();
             }
@@ -4201,6 +4208,14 @@ annotate_report_assignment_status($conn, $recent_reports);
                     if (!s) return '';
                     return s.replace(/[-_]/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
                 }
+                function fmtBudget(val) {
+                    if (val === null || val === undefined || String(val).trim() === '' || String(val).toLowerCase() === 'null') {
+                        return '';
+                    }
+                    var n = parseFloat(val);
+                    if (!isFinite(n)) return '';
+                    return '₱ ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                }
                 function fmtDate(val) {
                     var s = pretty(val);
                     if (!s) return '';
@@ -4222,7 +4237,9 @@ annotate_report_assignment_status($conn, $recent_reports);
                         buf = [];
                     }
                     pairs.forEach(function(p) {
-                        if (!p || !pretty(p[1])) return;
+                        if (!p) return;
+                        var always = (p[2] === 'always');
+                        if (!always && !pretty(p[1])) return;
                         if (p[2] === 'full') {
                             flush();
                             html += '<tr><td class="lbl">' + esc(p[0]) + '</td><td colspan="3">' + esc(p[1]).replace(/\r\n|\r|\n/g, '<br>') + '</td></tr>';
@@ -4255,6 +4272,12 @@ annotate_report_assignment_status($conn, $recent_reports);
                     ['Type', labelize(d.report_type)],
                     ['Department', labelize(d.department)],
                     ['Assignment', assignment],
+                    ['Engineer', pretty(d.engineer || d.cimm_engineer_name)],
+                    ['Budget Allocation', fmtBudget(
+                        (d.budget_allocation !== null && d.budget_allocation !== undefined && d.budget_allocation !== '')
+                            ? d.budget_allocation
+                            : d.cimm_budget
+                    ), 'always'],
                     ['Reported By', pretty(d.reporter_name)],
                     ['Created', fmtDate(d.created_at || d.created_date || d.submitted_at)],
                     ['CIMM Verification', cimmVerify],

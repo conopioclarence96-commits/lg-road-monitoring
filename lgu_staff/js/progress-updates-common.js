@@ -22,11 +22,13 @@ function ensureExportReportDetails() {
     var id = (typeof currentUpdatesReportId !== 'undefined') ? currentUpdatesReportId : null;
     var type = (typeof currentUpdatesReportType !== 'undefined') ? currentUpdatesReportType : '';
     var src = (typeof currentUpdatesReportSource !== 'undefined') ? String(currentUpdatesReportSource || '').toLowerCase() : '';
-    if (!id || src === 'cimm' || src === 'external') {
+    if (!id) {
         if (existing && Object.keys(existing).length) currentUpdatesReportDetails = existing;
         return Promise.resolve();
     }
-    var table = (src === 'infrastructure' || src === 'maintenance') ? 'road_maintenance_reports' : 'road_transportation_reports';
+    var table = 'road_transportation_reports';
+    if (src === 'infrastructure' || src === 'maintenance') table = 'road_maintenance_reports';
+    else if (src === 'cimm' || src === 'external') table = 'cimm_verification_reports';
     var url = '../api/get_report_details.php?id=' + encodeURIComponent(id)
         + '&type=' + encodeURIComponent(type || 'transportation')
         + '&table=' + encodeURIComponent(table);
@@ -51,7 +53,9 @@ function ensureExportReportDetails() {
                     longitude: report.longitude || existing.longitude,
                     report_type: report.report_type || existing.report_type,
                     report_category: report.report_category || existing.report_category,
-                    created_at: report.created_at || existing.created_at
+                    created_at: report.created_at || existing.created_at,
+                    engineer: report.engineer || existing.engineer || existing.cimm_engineer_name,
+                    budget_allocation: report.budget_allocation || existing.budget_allocation || existing.cimm_budget
                 });
             } else if (Object.keys(existing).length) {
                 currentUpdatesReportDetails = existing;
@@ -165,6 +169,15 @@ function prettyExportValue(val) {
     return s;
 }
 
+function formatExportBudget(val) {
+    if (val === null || val === undefined || String(val).trim() === '' || String(val).toLowerCase() === 'null') {
+        return '';
+    }
+    var n = parseFloat(val);
+    if (!isFinite(n)) return '';
+    return '₱ ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 function prettyExportLabel(val) {
     var s = prettyExportValue(val);
     if (!s) return '';
@@ -205,7 +218,9 @@ function buildCompactPairRows(pairs) {
         buf = [];
     }
     pairs.forEach(function(p) {
-        if (!p || !prettyExportValue(p[1])) return;
+        if (!p) return;
+        var always = (p[2] === 'always');
+        if (!always && !prettyExportValue(p[1])) return;
         if (p[2] === 'full') {
             flush();
             html += '<tr><td class="lbl">' + escDoc(p[0]) + '</td><td colspan="3">' + escDoc(p[1]).replace(/\r\n|\r|\n/g, '<br>') + '</td></tr>';
@@ -284,6 +299,12 @@ function buildExportDetailsTable(d) {
         ['Type', prettyExportLabel(d.report_type)],
         ['Department', prettyExportLabel(d.department)],
         ['Assignment', assignment],
+        ['Engineer', prettyExportValue(d.engineer || d.cimm_engineer_name)],
+        ['Budget Allocation', formatExportBudget(
+            (d.budget_allocation !== null && d.budget_allocation !== undefined && d.budget_allocation !== '')
+                ? d.budget_allocation
+                : d.cimm_budget
+        ), 'always'],
         ['Reported By', prettyExportValue(d.reporter_name)],
         ['Created', formatExportDate(d.created_at || d.created_date || d.submitted_at)],
         ['CIMM Verification', cimmVerify],

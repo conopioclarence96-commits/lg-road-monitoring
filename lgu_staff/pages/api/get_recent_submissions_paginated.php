@@ -78,6 +78,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
                     t.status, t.priority, t.severity, t.created_at, t.description,
                     t.latitude, t.longitude, t.location, t.reporter_name, t.attachments, t.image_path,
                     t.cimm_status, t.cimm_sync_status, t.cimm_verified_at, t.cimm_verified_by,
+                    t.engineer, t.budget_allocation, t.cimm_engineer_name, t.cimm_budget,
                     u.full_name AS creator_full_name, u.phone_number AS creator_phone, u.email AS creator_email,
                     'road_transportation_reports' AS _source_table
              FROM road_transportation_reports t
@@ -113,6 +114,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
                     status, priority, severity, created_at, description,
                     latitude, longitude, location, reporter_name, attachments, image_path,
                     cimm_sync_status, cimm_verified_at, cimm_verified_by,
+                    engineer, budget_allocation, cimm_engineer_name, cimm_budget,
                     'road_transportation_reports' AS _source_table
              FROM road_transportation_reports
              WHERE report_type = 'infrastructure_issue'
@@ -137,6 +139,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
                             location, reporter_name, NULL AS attachments, NULL AS image_path,
                             'approved' AS cimm_sync_status, verified_at AS cimm_verified_at,
                             NULL AS cimm_verified_by, approval_status,
+                            engineer, budget_allocation,
                             'cimm_verification_reports' AS _source_table
                      FROM cimm_verification_reports
                      WHERE verification_status IN ('Approved', 'In Progress', 'Completed')
@@ -226,6 +229,8 @@ try {
                 'attachments' => $rr['attachments'],
                 'image_path' => $rr['image_path'],
                 'report_category' => $rr['report_category'] ?? '',
+                'engineer' => $rr['engineer'] ?? ($rr['cimm_engineer_name'] ?? ''),
+                'budget_allocation' => $rr['budget_allocation'] ?? ($rr['cimm_budget'] ?? ''),
             ] + ($is_road_supervisor ? [
                 'creator_full_name' => $rr['creator_full_name'] ?? '',
                 'creator_phone' => $rr['creator_phone'] ?? '',
