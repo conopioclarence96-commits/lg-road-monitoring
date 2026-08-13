@@ -854,28 +854,28 @@ try {
                                 <input type="hidden" name="action" value="update_profile">
                                 <div class="form-grid-2">
                                     <div class="form-group">
-                                        <label>Full Name</label>
-                                        <input type="text" name="full_name" class="form-control" value="<?php echo htmlspecialchars($user_data['full_name'] ?? ''); ?>" required>
+                                        <label for="full_name">Full Name</label>
+                                        <input type="text" name="full_name" id="full_name" class="form-control" value="<?php echo htmlspecialchars($user_data['full_name'] ?? ''); ?>" required>
                                     </div>
                                     <div class="form-group">
-                                        <label>Email</label>
-                                        <input type="email" name="email" class="form-control" value="<?php echo htmlspecialchars($user_data['email'] ?? ''); ?>" required>
+                                        <label for="email">Email</label>
+                                        <input type="email" name="email" id="email" class="form-control" autocomplete="email" value="<?php echo htmlspecialchars($user_data['email'] ?? ''); ?>" required>
                                     </div>
                                     <div class="form-group">
                                         <label for="roleAdmin">Role</label>
                                         <input type="text" name="role" id="roleAdmin" class="form-control" value="<?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $user_data['role'] ?? ''))); ?>" disabled>
                                     </div>
                                     <div class="form-group">
-                                        <label>Address</label>
-                                        <input type="text" name="address" class="form-control" value="<?php echo htmlspecialchars($user_data['address'] ?? ''); ?>">
+                                        <label for="address">Address</label>
+                                        <input type="text" name="address" id="address" class="form-control" autocomplete="street-address" value="<?php echo htmlspecialchars($user_data['address'] ?? ''); ?>">
                                     </div>
                                     <div class="form-group">
-                                        <label>Birthday</label>
-                                        <input type="date" name="birthday" class="form-control" value="<?php echo htmlspecialchars($user_data['birthday'] ?? ''); ?>">
+                                        <label for="birthday">Birthday</label>
+                                        <input type="date" name="birthday" id="birthday" class="form-control" value="<?php echo htmlspecialchars($user_data['birthday'] ?? ''); ?>">
                                     </div>
                                     <div class="form-group">
-                                        <label>Civil Status</label>
-                                        <select name="civil_status" class="form-control">
+                                        <label for="civil_status">Civil Status</label>
+                                        <select name="civil_status" id="civil_status" class="form-control">
                                             <option value="">Select status</option>
                                             <option value="single" <?php echo ($user_data['civil_status'] ?? '') === 'single' ? 'selected' : ''; ?>>Single</option>
                                             <option value="married" <?php echo ($user_data['civil_status'] ?? '') === 'married' ? 'selected' : ''; ?>>Married</option>
@@ -884,12 +884,12 @@ try {
                                         </select>
                                     </div>
                                     <div class="form-group">
-                                        <label>Contact Number</label>
-                                        <input type="tel" name="phone_number" class="form-control" maxlength="20" pattern="[0-9+\-\s()]+" title="Enter a valid contact number" value="<?php echo htmlspecialchars($user_data['phone_number'] ?? ''); ?>">
+                                        <label for="phone_number">Contact Number</label>
+                                        <input type="tel" name="phone_number" id="phone_number" class="form-control" maxlength="20" pattern="[0-9+\-\s()]+" title="Enter a valid contact number" value="<?php echo htmlspecialchars($user_data['phone_number'] ?? ''); ?>">
                                     </div>
                                     <div class="form-group">
-                                        <label><i class="fas fa-id-card"></i> Upload ID</label>
-                                        <input type="file" name="id_file" accept="image/*,.pdf" class="form-control" style="padding:8px;">
+                                        <label for="id_file"><i class="fas fa-id-card"></i> Upload ID</label>
+                                        <input type="file" name="id_file" id="id_file" accept="image/*,.pdf" class="form-control" style="padding:8px;">
                                     </div>
                                 </div>
                                 <div class="form-actions">
@@ -917,28 +917,28 @@ try {
 
                                 <div class="form-grid-2">
                                     <div class="form-group">
-                                        <label>Full Name</label>
-                                        <input type="text" name="full_name" class="form-control" value="<?php echo htmlspecialchars($user_data['full_name'] ?? ''); ?>">
+                                        <label for="staffFullName">Full Name</label>
+                                        <input type="text" name="full_name" id="staffFullName" class="form-control" value="<?php echo htmlspecialchars($user_data['full_name'] ?? ''); ?>">
                                     </div>
                                     <div class="form-group">
-                                        <label>Email</label>
-                                        <input type="email" name="email" class="form-control" value="<?php echo htmlspecialchars($user_data['email'] ?? ''); ?>">
+                                        <label for="staffEmail">Email</label>
+                                        <input type="email" name="email" id="staffEmail" class="form-control" autocomplete="email" value="<?php echo htmlspecialchars($user_data['email'] ?? ''); ?>">
                                     </div>
                                     <div class="form-group">
                                         <label for="roleStaff">Role</label>
                                         <input type="text" name="role" id="roleStaff" class="form-control" value="<?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $user_data['role'] ?? ''))); ?>" disabled>
                                     </div>
                                     <div class="form-group">
-                                        <label>Address</label>
-                                        <input type="text" name="address" class="form-control" value="<?php echo htmlspecialchars($user_data['address'] ?? ''); ?>">
+                                        <label for="staffAddress">Address</label>
+                                        <input type="text" name="address" id="staffAddress" class="form-control" autocomplete="street-address" value="<?php echo htmlspecialchars($user_data['address'] ?? ''); ?>">
                                     </div>
                                     <div class="form-group">
-                                        <label>Birthday</label>
-                                        <input type="date" name="birthday" class="form-control" value="<?php echo htmlspecialchars($user_data['birthday'] ?? ''); ?>">
+                                        <label for="staffBirthday">Birthday</label>
+                                        <input type="date" name="birthday" id="staffBirthday" class="form-control" value="<?php echo htmlspecialchars($user_data['birthday'] ?? ''); ?>">
                                     </div>
                                     <div class="form-group">
-                                        <label>Civil Status</label>
-                                        <select name="civil_status" class="form-control">
+                                        <label for="staffCivilStatus">Civil Status</label>
+                                        <select name="civil_status" id="staffCivilStatus" class="form-control">
                                             <option value="">Select status</option>
                                             <option value="single" <?php echo ($user_data['civil_status'] ?? '') === 'single' ? 'selected' : ''; ?>>Single</option>
                                             <option value="married" <?php echo ($user_data['civil_status'] ?? '') === 'married' ? 'selected' : ''; ?>>Married</option>
@@ -947,12 +947,12 @@ try {
                                         </select>
                                     </div>
                                     <div class="form-group">
-                                        <label>Contact Number</label>
-                                        <input type="tel" name="phone_number" class="form-control" maxlength="20" pattern="[0-9+\-\s()]+" title="Enter a valid contact number" value="<?php echo htmlspecialchars($user_data['phone_number'] ?? ''); ?>">
+                                        <label for="staffPhoneNumber">Contact Number</label>
+                                        <input type="tel" name="phone_number" id="staffPhoneNumber" class="form-control" maxlength="20" pattern="[0-9+\-\s()]+" title="Enter a valid contact number" value="<?php echo htmlspecialchars($user_data['phone_number'] ?? ''); ?>">
                                     </div>
                                     <div class="form-group">
-                                        <label>Upload ID</label>
-                                        <input type="file" name="id_file" accept="image/*,.pdf" class="form-control" style="padding:8px;">
+                                        <label for="staffIdFile">Upload ID</label>
+                                        <input type="file" name="id_file" id="staffIdFile" accept="image/*,.pdf" class="form-control" style="padding:8px;">
                                         <?php if (!empty($user_data['id_file_path'])): ?>
                                             <div class="t-text-link" style="font-size:12px;margin-top:4px;">
                                                 <i class="fas fa-paperclip"></i> <?php echo htmlspecialchars(basename($user_data['id_file_path'])); ?>
@@ -961,8 +961,8 @@ try {
                                     </div>
                                 </div>
                                 <div class="form-group">
-                                    <label>Reason for Change</label>
-                                    <textarea name="reason" class="form-control" rows="3" placeholder="Explain why you need to update your information..." style="resize:vertical;"></textarea>
+                                    <label for="reason">Reason for Change</label>
+                                    <textarea name="reason" id="reason" class="form-control" rows="3" placeholder="Explain why you need to update your information..." style="resize:vertical;"></textarea>
                                 </div>
                                 <div class="form-actions">
                                     <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Request Change</button>
