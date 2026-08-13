@@ -246,7 +246,7 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
                 <p>Comprehensive data analysis and reporting insights</p>
             </div>
             <div class="header-actions print-hide">
-                <select onchange="window.location='?period='+this.value" style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--card-bg);color:var(--text-primary);font-size:13px;">
+                <select id="period-select" name="period" onchange="window.location='?period='+this.value" style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--card-bg);color:var(--text-primary);font-size:13px;">
                     <option value="7" <?php echo $period === '7' ? 'selected' : ''; ?>>Last 7 days</option>
                     <option value="30" <?php echo $period === '30' ? 'selected' : ''; ?>>Last 30 days</option>
                     <option value="90" <?php echo $period === '90' ? 'selected' : ''; ?>>Last 90 days</option>
