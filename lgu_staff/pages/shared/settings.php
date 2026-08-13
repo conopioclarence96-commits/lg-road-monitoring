@@ -862,8 +862,8 @@ try {
                                         <input type="email" name="email" class="form-control" value="<?php echo htmlspecialchars($user_data['email'] ?? ''); ?>" required>
                                     </div>
                                     <div class="form-group">
-                                        <label>Role</label>
-                                        <input type="text" class="form-control" value="<?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $user_data['role'] ?? ''))); ?>" disabled>
+                                        <label for="roleAdmin">Role</label>
+                                        <input type="text" name="role" id="roleAdmin" class="form-control" value="<?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $user_data['role'] ?? ''))); ?>" disabled>
                                     </div>
                                     <div class="form-group">
                                         <label>Address</label>
@@ -925,8 +925,8 @@ try {
                                         <input type="email" name="email" class="form-control" value="<?php echo htmlspecialchars($user_data['email'] ?? ''); ?>">
                                     </div>
                                     <div class="form-group">
-                                        <label>Role</label>
-                                        <input type="text" class="form-control" value="<?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $user_data['role'] ?? ''))); ?>" disabled>
+                                        <label for="roleStaff">Role</label>
+                                        <input type="text" name="role" id="roleStaff" class="form-control" value="<?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $user_data['role'] ?? ''))); ?>" disabled>
                                     </div>
                                     <div class="form-group">
                                         <label>Address</label>

@@ -1239,7 +1239,7 @@ if (isset($_SESSION['archive_message'])) {
         <div class="filters-section" style="margin-bottom:24px;">
             <div class="filter-group">
                 <div>
-                    <label class="form-label">Status Filter</label>
+                    <label class="form-label" for="statusFilter">Status Filter</label>
                     <select class="filter-select" id="statusFilter" onchange="filterReports()">
                         <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
                         <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending</option>
@@ -1251,7 +1251,7 @@ if (isset($_SESSION['archive_message'])) {
                     </select>
                 </div>
                 <div>
-                    <label class="form-label">Source System</label>
+                    <label class="form-label" for="sourceFilter">Source System</label>
                     <select class="filter-select" id="sourceFilter" onchange="filterReports()">
                         <option value="all" <?php echo $source_filter === 'all' ? 'selected' : ''; ?>>All Systems</option>
                         <option value="lgu" <?php echo $source_filter === 'lgu' ? 'selected' : ''; ?>>Road & Transportation (LGU Monitoring)</option>
@@ -1263,20 +1263,19 @@ if (isset($_SESSION['archive_message'])) {
                     </select>
                 </div>
                 <div>
-                    <label class="form-label">Sort Order</label>
+                    <label class="form-label" for="sortFilter">Sort Order</label>
                     <select class="filter-select" id="sortFilter" onchange="filterReports()">
                         <option value="latest" <?php echo $sort_order === 'latest' ? 'selected' : ''; ?>>Newest to Oldest</option>
                         <option value="earliest" <?php echo $sort_order === 'earliest' ? 'selected' : ''; ?>>Oldest to Newest</option>
                     </select>
                 </div>
                 <div>
-                    <label class="form-label">Search ID</label>
+                    <label class="form-label" for="idSearch">Search ID</label>
                     <input type="text" class="filter-select" id="idSearch" placeholder="Enter report ID..." value="<?php echo htmlspecialchars($id_search); ?>" onkeyup="if(event.key === 'Enter') filterReports()">
                 </div>
                 <div>
-                    <label class="form-label">&nbsp;</label>
                     <div>
-                        <button class="btn-secondary-custom" onclick="resetFilters()">
+                        <button type="button" class="btn-secondary-custom" onclick="resetFilters()">
                             <i class="fas fa-arrow-rotate-left"></i> Reset
                         </button>
                     </div>
