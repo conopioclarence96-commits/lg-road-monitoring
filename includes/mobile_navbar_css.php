@@ -41,6 +41,7 @@
             right: auto;
             transform: none;
             display: flex;
+            flex-wrap: wrap;
             width: 100%;
             justify-content: center;
             gap: 8px;
@@ -63,6 +64,7 @@
 
         .qc-navbar .qc-search-input {
             width: 100%;
+            min-width: 140px;
             padding: 7px 34px 7px 10px;
             font-size: 0.8rem;
         }
