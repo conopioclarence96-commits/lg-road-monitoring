@@ -2389,11 +2389,11 @@ annotate_report_assignment_status($conn, $recent_reports);
                 <!-- Route Planner Panel -->
                 <div id="routePlannerPanel" class="tomtom-panel">
                     <h5><i class="fas fa-route"></i> Route Planner</h5>
-                    <label>Start Location</label>
+                    <label for="routeFrom">Start Location</label>
                     <input type="text" id="routeFrom" placeholder="Click map or type address..." onclick="routeFromClick()">
-                    <label>Destination</label>
+                    <label for="routeTo">Destination</label>
                     <input type="text" id="routeTo" placeholder="Click map or type address..." onclick="routeToClick()">
-                    <label>Travel Mode</label>
+                    <label for="routeMode">Travel Mode</label>
                     <select id="routeMode">
                         <option value="car">Car</option>
                         <option value="truck">Truck</option>
