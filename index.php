@@ -2005,7 +2005,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             .qc-brand-text small { font-size: 0.6rem; letter-spacing: 0.4px; }
 
             /* Hero */
-            .hero { padding: 120px 0 74px; }
+            .hero { padding: 150px 0 74px; }
             .hero h1 { font-size: 1.72rem; margin-bottom: 12px; }
             .hero p.lead { font-size: 0.97rem; margin-bottom: 24px; }
             .hero-buttons { flex-direction: column; align-items: stretch; }
@@ -2112,6 +2112,93 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             <?php include __DIR__ . '/includes/navbar_quicklinks.php'; ?>
         </div>
     </nav>
+
+    <style>
+        /* Mobile quick-links row (index.php only) — keeps Services, Programs and
+           Search visible on the navbar with icons on small screens instead of
+           hiding them behind the hamburger menu. */
+        @media (max-width: 991.98px) {
+            section[id] { scroll-margin-top: 130px; }
+
+            .qc-navbar .container-fluid {
+                flex-wrap: wrap;
+                padding-left: 14px;
+            }
+
+            /* Bring the quick-links back out of display:none and stack them
+               as a full-width row under the brand. */
+            .qc-navbar .qc-nav-center {
+                position: static;
+                top: auto;
+                right: auto;
+                transform: none;
+                display: flex;
+                width: 100%;
+                justify-content: center;
+                gap: 8px;
+                margin-top: 6px;
+                padding-bottom: 4px;
+            }
+
+            .qc-navbar .qc-services-dropdown .dropdown-toggle,
+            .qc-navbar .qc-programs-dropdown .dropdown-toggle {
+                font-size: 0.78rem;
+                padding: 6px 10px;
+                gap: 6px;
+                border-radius: 7px;
+            }
+
+            .qc-navbar .qc-nav-search {
+                flex: 1;
+                min-width: 0;
+            }
+
+            .qc-navbar .qc-search-input {
+                width: 100%;
+                padding: 7px 34px 7px 10px;
+                font-size: 0.8rem;
+            }
+
+            .qc-navbar .qc-search-btn { right: 8px; }
+
+            /* Keep the live-search results inside the phone screen */
+            .qc-navbar .qc-search-results {
+                min-width: 0;
+                width: calc(100vw - 24px);
+                max-width: 420px;
+            }
+
+            /* Never let the dropdown menus overflow the phone screen */
+            .qc-services-dropdown .dropdown-menu,
+            .qc-programs-dropdown .dropdown-menu {
+                min-width: 0;
+                max-width: calc(100vw - 20px);
+            }
+        }
+
+        /* Small phones: Services & Programs as two side-by-side buttons,
+           Search on its own full-width row. */
+        @media (max-width: 575.98px) {
+            section[id] { scroll-margin-top: 160px; }
+
+            .qc-navbar .qc-nav-center { justify-content: stretch; }
+
+            .qc-navbar .qc-services-dropdown,
+            .qc-navbar .qc-programs-dropdown { flex: 1; }
+
+            .qc-navbar .qc-services-dropdown .dropdown-toggle,
+            .qc-navbar .qc-programs-dropdown .dropdown-toggle {
+                width: 100%;
+                justify-content: center;
+                font-size: 0.85rem;
+            }
+
+            .qc-navbar .qc-nav-search {
+                flex-basis: 100%;
+                margin-top: 4px;
+            }
+        }
+    </style>
 
     <?php include __DIR__ . '/includes/hamburger_menu.php'; ?>
 
