@@ -103,6 +103,14 @@
         section[id] { scroll-margin-top: 160px; }
         .hero-bar { padding-top: 150px; }
 
+        /* Drop the hamburger a bit so it no longer overlaps the brand's
+           second line ("Department") on phones. */
+        .hamburger-btn {
+            top: 22px !important;
+            width: 40px !important;
+            height: 40px !important;
+        }
+
         .qc-navbar .qc-nav-center { justify-content: stretch; }
 
         .qc-navbar .qc-services-dropdown,
