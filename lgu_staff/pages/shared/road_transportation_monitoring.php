@@ -2543,6 +2543,7 @@ annotate_report_assignment_status($conn, $recent_reports);
                             'status' => $rr['status'],
                             'assignment_status' => $rr['assignment_status'] ?? 'unassigned',
                             'assignment_officer' => $rr['assignment_officer'] ?? '',
+                            'assigned_by' => $rr['assigned_by'] ?? '',
                             'priority' => $rr['priority'],
                             'severity' => $rr['severity'],
                             'created_at' => $rr['created_at'],
@@ -2573,10 +2574,14 @@ annotate_report_assignment_status($conn, $recent_reports);
                             <td><?php echo htmlspecialchars($rr['title'] ?? 'Untitled'); ?></td>
                             <td><?php echo htmlspecialchars($rr_source_label); ?></td>
                             <td><span class="badge badge-<?php echo strtolower(str_replace(' ', '-', $rr['status'] ?? 'pending')); ?>"><?php echo ucfirst(str_replace('-',' ',$rr['status'] ?? 'pending')); ?></span></td>
-                            <td><?php if (($is_road_supervisor || $is_transport_supervisor || $is_road_monitoring_officer) && ($rr['assignment_status'] ?? 'unassigned') === 'assigned' && !empty($rr['assignment_officer'])): ?>
-                                <span class="badge assignment-badge assignment-assigned"><?php echo htmlspecialchars($rr['assignment_officer']); ?></span>
+                            <td><?php if (($rr['assignment_status'] ?? 'unassigned') === 'assigned'): ?>
+                                <?php if (!empty($rr['assignment_officer'])): ?>
+                                    <span class="badge assignment-badge assignment-assigned"><?php echo htmlspecialchars($rr['assignment_officer']); ?></span>
+                                <?php else: ?>
+                                    <span class="badge assignment-badge assignment-assigned">Assigned</span>
+                                <?php endif; ?>
                             <?php else: ?>
-                                <span class="badge assignment-badge assignment-<?php echo ($rr['assignment_status'] ?? 'unassigned') === 'assigned' ? 'assigned' : 'unassigned'; ?>"><?php echo ($rr['assignment_status'] ?? 'unassigned') === 'assigned' ? 'Assigned' : 'Unassigned'; ?></span>
+                                <span class="badge assignment-badge assignment-unassigned">Unassigned</span>
                             <?php endif; ?></td>
                             <td><span class="badge badge-<?php echo strtolower($rr['priority'] ?? 'low'); ?>"><?php echo ucfirst($rr['priority'] ?? 'low'); ?></span></td>
                             <td><?php echo date('M d, Y H:i', strtotime($rr['created_at'] ?? 'now')); ?></td>
@@ -2607,7 +2612,7 @@ annotate_report_assignment_status($conn, $recent_reports);
                                 <button class="table-action-btn" title="View Details" onclick="viewReportDetails(<?php echo $rr['id']; ?>, '<?php echo $rr['source']; ?>')"><i class="fas fa-eye"></i></button>
                                 <button class="table-action-btn view-map" onclick="focusReportOnMap(<?php echo $rr['id']; ?>)"><i class="fas fa-map-pin"></i> Map</button>
                                 <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(<?php echo $rr['id']; ?>, '<?php echo $rr['report_type']; ?>', '<?php echo $rr['source']; ?>', '<?php echo htmlspecialchars($rr['status'] ?? '', ENT_QUOTES); ?>')"><i class="fas fa-clock"></i> Updates</button>
-                                <?php if (strtolower((string)($rr['status'] ?? '')) === 'completed'): ?>
+                                <?php if (strtolower((string)($rr['status'] ?? '')) === 'completed' && in_array($_SESSION['role'] ?? '', ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor'], true)): ?>
                                 <button class="table-action-btn" title="Archive" style="background:linear-gradient(135deg,#6b7280,#4b5563);color:#fff;margin-left:4px;" onclick="archiveReport(<?php echo $rr['id']; ?>, '<?php echo $rr['source']; ?>')"><i class="fas fa-archive"></i> Archive</button>
                                 <?php endif; ?>
                             </td>
@@ -3223,7 +3228,12 @@ annotate_report_assignment_status($conn, $recent_reports);
             reportGrid += rmInfoItem('exclamation-circle', 'Severity', r.severity);
             reportGrid += rmInfoItem('calendar-alt', 'Created Date', formatDate(r.created_at));
             if (r.assignment_status) {
-                reportGrid += rmInfoItem('user-check', 'Assignment', (r.assignment_status === 'assigned') ? 'Assigned' : 'Unassigned');
+                if (r.assignment_status === 'assigned') {
+                    reportGrid += rmInfoItem('user-check', 'Assigned To', r.assignment_officer || '—');
+                    reportGrid += rmInfoItem('user-tag', 'Assigned By', r.assigned_by || '—');
+                } else {
+                    reportGrid += rmInfoItem('user-check', 'Assignment', 'Unassigned');
+                }
             }
             document.getElementById('rm-report-grid').innerHTML = reportGrid;
 
@@ -4879,7 +4889,9 @@ annotate_report_assignment_status($conn, $recent_reports);
     if (sessionRoleTag) currentUserRole = sessionRoleTag.getAttribute('data-role') || '';
     const isRoadSupervisor = (currentUserRole === 'road_ops_supervisor');
     const isTransportSupervisor = (currentUserRole === 'trans_ops_supervisor' || currentUserRole === 'trans_monitoring_officer');
+    const isTransportMonitoringOfficer = (currentUserRole === 'trans_monitoring_officer');
     const isRoadOfficer = (currentUserRole === 'road_monitoring_officer');
+    const canArchiveCompleted = (currentUserRole === 'system_admin' || currentUserRole === 'road_ops_supervisor' || currentUserRole === 'trans_ops_supervisor');
 
     function loadMoreReports() {
         if (isLoadingMore || !hasMoreReports) return;
@@ -4964,7 +4976,7 @@ annotate_report_assignment_status($conn, $recent_reports);
             <td>${escapeHtml(report.source_label)}</td>
             <td><span class="badge badge-${report.status.toLowerCase().replace(' ', '-')}">${escapeHtml(ucfirst(report.status.replace('-', ' ')))}</span></td>
             <td>${report.assignment_status === 'assigned'
-                ? ((isRoadSupervisor || isTransportSupervisor || isRoadOfficer) && report.assignment_officer
+                ? (report.assignment_officer
                     ? `<span class="badge assignment-badge assignment-assigned">${escapeHtml(report.assignment_officer)}</span>`
                     : `<span class="badge assignment-badge assignment-assigned">Assigned</span>`)
                 : `<span class="badge assignment-badge assignment-unassigned">Unassigned</span>`}</td>
@@ -4988,7 +5000,7 @@ annotate_report_assignment_status($conn, $recent_reports);
                 <button class="table-action-btn" title="View Details" onclick="viewReportDetails(${report.id}, '${report.source}')"><i class="fas fa-eye"></i></button>
                 <button class="table-action-btn view-map" onclick="focusReportOnMap(${report.id})"><i class="fas fa-map-pin"></i> Map</button>
                 <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(${report.id}, '${report.report_type}', '${report.source}', '${(report.status || '').replace(/'/g, "\\'")}')"><i class="fas fa-clock"></i> Updates</button>
-                ${(report.status || '').toLowerCase() === 'completed' ?
+                ${(report.status || '').toLowerCase() === 'completed' && canArchiveCompleted ?
                     `<button class="table-action-btn" title="Archive" style="background:linear-gradient(135deg,#6b7280,#4b5563);color:#fff;margin-left:4px;" onclick="archiveReport(${report.id}, '${report.source}')"><i class="fas fa-archive"></i> Archive</button>` : ''}
             </td>
         `;

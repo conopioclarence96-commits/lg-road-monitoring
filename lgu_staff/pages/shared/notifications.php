@@ -138,6 +138,69 @@ function nc_dismissed_set() {
     return $_SESSION['nc_dismissed'][(int)$user_id] ?? [];
 }
 
+// System admins persist which feed cards "Mark All as Read" recorded as read.
+// The admin feed cards (pending reports rep, pending change requests cr,
+// progress notifications pn, assigned projects asg) have no per-user read
+// flag, so their ids are stored as marker rows (type 'admin_read',
+// recipient_email = admin email, card id in message) which survive page
+// refreshes and logout/login just like the transportation officer's
+// 'always_on_read' markers. The markers reference report_id 0 so every
+// existing query (which filters by type and by report existence) ignores them.
+function nc_admin_read_db() {
+    global $conn, $user_email;
+    $keys = [];
+    if ($user_email === '') return $keys;
+    try {
+        $stmt = $conn->prepare("SELECT message FROM report_notifications WHERE type = 'admin_read' AND recipient_email = ?");
+        $stmt->bind_param("s", $user_email);
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        foreach ($rows as $r) $keys[] = (string)$r['message'];
+    } catch (Exception $e) {
+        error_log("nc_admin_read_db error: " . $e->getMessage());
+    }
+    return $keys;
+}
+
+// Insert the admin read-marker rows for the given card ids. Only ever inserts;
+// never deletes or touches real notifications, and every existing query filters
+// report_notifications by specific types so these markers stay invisible.
+function nc_admin_read_persist_db($keys) {
+    global $conn, $user_email;
+    if ($user_email === '') return;
+    $keys = array_values(array_unique(array_filter($keys, function ($k) {
+        return is_string($k) && preg_match('/^(rep|cr|pn|asg)\d+$/', $k);
+    })));
+    if (!$keys) return;
+    foreach ($keys as $key) {
+        try {
+            $chk = $conn->prepare("SELECT id FROM report_notifications WHERE type = 'admin_read' AND recipient_email = ? AND message = ? LIMIT 1");
+            $chk->bind_param("ss", $user_email, $key);
+            $chk->execute();
+            $exists = $chk->get_result()->fetch_assoc();
+            $chk->close();
+            if (!$exists) {
+                $ins = $conn->prepare("INSERT INTO report_notifications (report_id, type, message, recipient_email, is_read) VALUES (0, 'admin_read', ?, ?, 1)");
+                $ins->bind_param("ss", $key, $user_email);
+                $ins->execute();
+                $ins->close();
+            }
+        } catch (Exception $e) {
+            error_log("nc_admin_read_persist_db error: " . $e->getMessage());
+        }
+    }
+}
+
+// The admin's full read-set: session card ids merged with the persisted markers
+// so a fresh login keeps the same read state.
+function nc_admin_read_set() {
+    global $user_id;
+    $set = $_SESSION['nc_admin_read'][(int)$user_id] ?? [];
+    $set = array_values(array_unique(array_merge($set, nc_admin_read_db())));
+    return $set;
+}
+
 // Handle mark as read
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
@@ -265,6 +328,67 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Trans officers persist these always-on keys in report_notifications
             // so they survive logout/login (no-op for other roles).
             nc_read_persist_db($keys);
+        }
+        if ($user_role === 'system_admin' && $user_id > 0) {
+            // System admins: their feed cards (pending reports, pending change
+            // requests, progress notifications, assigned projects) have no
+            // per-user read flag, so record their feed ids as read. They stay
+            // visible in the list but render as read and no longer count toward
+            // the unread badge — and the ids persist in report_notifications
+            // so the badge stays at 0 after a page refresh. New cards get new
+            // ids, so they still count once they arrive.
+            $admin_read = nc_admin_read_set();
+            $keys = [];
+            try {
+                $q = $conn->prepare("SELECT id FROM road_transportation_reports WHERE status = 'pending'");
+                $q->execute();
+                $res = $q->get_result();
+                while (($row = $res->fetch_assoc())) $keys[] = 'rep' . (int)$row['id'];
+                $q->close();
+
+                // Pending CIMM reports appear in the admin feed as 'rep<id>'
+                // cards too (resolved from cimm_verification_reports).
+                $cimmPdo = rgmap_verification_pdo();
+                $cimmRows = rgmap_fetch_cimm_verification_reports($cimmPdo, ['limit' => 500]);
+                $cimmPendingStatus = ['Pending', 'Pending Review'];
+                foreach ($cimmRows as $crow) {
+                    $verification = (string)($crow['verification_status'] ?? 'Pending Review');
+                    if (!in_array($verification, $cimmPendingStatus, true) && (string)($crow['approval_status'] ?? 'Pending') !== 'Pending') {
+                        continue;
+                    }
+                    $keys[] = 'rep' . (int)($crow['id'] ?? $crow['cimm_req_id'] ?? 0);
+                }
+
+                $q = $conn->prepare("SELECT id FROM change_requests WHERE status = 'pending'");
+                $q->execute();
+                $res = $q->get_result();
+                while (($row = $res->fetch_assoc())) $keys[] = 'cr' . (int)$row['id'];
+                $q->close();
+
+                $q = $conn->prepare("SELECT id FROM report_notifications WHERE is_read = 0 AND EXISTS (
+                        SELECT 1 FROM road_transportation_reports WHERE id = report_notifications.report_id
+                        UNION ALL
+                        SELECT 1 FROM road_maintenance_reports WHERE id = report_notifications.report_id
+                        UNION ALL
+                        SELECT 1 FROM cimm_verification_reports WHERE id = report_notifications.report_id
+                        LIMIT 1
+                    )");
+                $q->execute();
+                $res = $q->get_result();
+                while (($row = $res->fetch_assoc())) $keys[] = 'pn' . (int)$row['id'];
+                $q->close();
+
+                $q = $conn->prepare("SELECT id FROM report_assignments WHERE user_id = ? AND status = 'active'");
+                $q->bind_param("i", $user_id);
+                $q->execute();
+                $res = $q->get_result();
+                while (($row = $res->fetch_assoc())) $keys[] = 'asg' . (int)$row['id'];
+                $q->close();
+            } catch (Exception $e) {
+                error_log("mark_all_read admin read-set error: " . $e->getMessage());
+            }
+            $_SESSION['nc_admin_read'][(int)$user_id] = array_values(array_unique(array_merge($admin_read, $keys)));
+            nc_admin_read_persist_db($keys);
         }
         echo json_encode(['success' => true]);
         exit;
@@ -1108,6 +1232,11 @@ function notification_assignment_url(array $ap): string {
     $nc_push = function ($item) use (&$nc_feed) { $nc_feed[] = $item; };
 
     if ($is_admin) {
+        // System admins: the read-set recorded by "Mark All as Read" (persisted
+        // in report_notifications) renders already-read cards as read so they
+        // stay visible but stop counting toward the badge after a refresh.
+        $nc_admin_read = nc_admin_read_set();
+
         // Pending reports from departments
         foreach ($pending_reports as $report) {
             $src = notification_source_badge($report);
@@ -1125,7 +1254,7 @@ function notification_assignment_url(array $ap): string {
                 'status' => ['label' => 'Pending', 'class' => 'nc-st-pending'],
                 'priority' => nc_priority($report['priority'] ?? ''),
                 'tags' => array_values(array_filter([$src['label'], !empty($report['department']) ? $report['department'] : null])),
-                'unread' => true,
+                'unread' => !in_array('rep' . (int)$report['id'], $nc_admin_read, true),
                 'url' => notification_pending_report_focus_url($report),
                 'url_label' => 'View Report',
                 'mark' => ['url' => '', 'data' => ['action' => 'mark_read', 'type' => 'report', 'id' => (int)$report['id']]],
@@ -1155,7 +1284,7 @@ function notification_assignment_url(array $ap): string {
                 'status' => ['label' => 'Pending', 'class' => 'nc-st-pending'],
                 'priority' => null,
                 'tags' => ['Change Request'],
-                'unread' => true,
+                'unread' => !in_array('cr' . (int)$cr['id'], $nc_admin_read, true),
                 'url' => '../admin/account_approvals.php?cr_id=' . (int)$cr['id'],
                 'url_label' => 'Review',
                 'mark' => ['url' => '', 'data' => ['action' => 'mark_read_change', 'id' => (int)$cr['id']]],
@@ -1178,7 +1307,7 @@ function notification_assignment_url(array $ap): string {
                 'status' => ['label' => 'In Progress', 'class' => 'nc-st-progress'],
                 'priority' => null,
                 'tags' => [$src['label']],
-                'unread' => true,
+                'unread' => !in_array('pn' . (int)$pn['id'], $nc_admin_read, true),
                 'url' => notification_progress_focus_url($pn),
                 'url_label' => 'View Report',
                 'mark' => null,
@@ -1202,7 +1331,7 @@ function notification_assignment_url(array $ap): string {
                 'status' => ['label' => 'Assigned', 'class' => 'nc-st-assigned'],
                 'priority' => null,
                 'tags' => ['User ID: ' . (int)($ap['user_id'] ?? 0)],
-                'unread' => true,
+                'unread' => !in_array('asg' . (int)$ap['id'], $nc_admin_read, true),
                 'url' => notification_assignment_url($ap),
                 'url_label' => 'View Project',
                 'mark' => null,
@@ -1394,7 +1523,7 @@ function notification_assignment_url(array $ap): string {
     }
     // Unread badge counts only unread cards; read cards stay in the list. For
     // every other role every card is still unread, so this equals the total.
-    $nc_total = $is_trans_role
+    $nc_total = ($is_trans_role || $is_admin)
         ? count(array_filter($nc_feed, function ($item) { return $item['unread']; }))
         : count($nc_feed);
     ?>

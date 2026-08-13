@@ -422,19 +422,35 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
                 // on their Notifications page; progress-update cards ('pn<id>')
                 // are the only admin feed cards backed by report_notifications
                 // rows, so subtract the dismissed ones to keep the sidebar badge
-                // from reappearing after a refresh.
-                $dismissed_pn = [];
+                // from reappearing after a refresh. "Mark All as Read" persists
+                // the pn ids in report_notifications marker rows (type
+                // 'admin_read'), so subtract those too — the badge must stay at
+                // 0 after a refresh while new notifications still count.
+                $excluded_pn = [];
                 foreach (($_SESSION['nc_dismissed'][(int)$user_id] ?? []) as $k) {
-                    if (preg_match('/^pn(\d+)$/', (string)$k, $m)) $dismissed_pn[] = (int)$m[1];
+                    if (preg_match('/^pn(\d+)$/', (string)$k, $m)) $excluded_pn[] = (int)$m[1];
                 }
-                $dismissed_read = 0;
-                if ($dismissed_pn) {
-                    $in = implode(',', array_fill(0, count($dismissed_pn), '?'));
-                    $types = str_repeat('i', count($dismissed_pn));
+                if ($email !== '') {
+                    try {
+                        $stmt = $conn->prepare("SELECT message FROM report_notifications WHERE type = 'admin_read' AND recipient_email = ?");
+                        $stmt->bind_param("s", $email);
+                        $stmt->execute();
+                        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                        $stmt->close();
+                        foreach ($rows as $r) {
+                            if (preg_match('/^pn(\d+)$/', (string)$r['message'], $m)) $excluded_pn[] = (int)$m[1];
+                        }
+                    } catch (Exception $e) {}
+                }
+                $excluded_pn = array_values(array_unique($excluded_pn));
+                $excluded_read = 0;
+                if ($excluded_pn) {
+                    $in = implode(',', array_fill(0, count($excluded_pn), '?'));
+                    $types = str_repeat('i', count($excluded_pn));
                     $stmt = $conn->prepare("SELECT COUNT(*) as c FROM report_notifications WHERE id IN ($in) AND is_read = 0");
-                    $stmt->bind_param($types, ...$dismissed_pn);
+                    $stmt->bind_param($types, ...$excluded_pn);
                     $stmt->execute();
-                    $dismissed_read = (int)$stmt->get_result()->fetch_assoc()['c'];
+                    $excluded_read = (int)$stmt->get_result()->fetch_assoc()['c'];
                     $stmt->close();
                 }
                 $stmt = $conn->prepare("
@@ -450,7 +466,7 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
                       )
                 ");
                 $stmt->execute();
-                $count += max(0, (int)$stmt->get_result()->fetch_assoc()['count'] - $dismissed_read);
+                $count += max(0, (int)$stmt->get_result()->fetch_assoc()['count'] - $excluded_read);
                 $stmt->close();
             } else {
                 $stmt = $conn->prepare("

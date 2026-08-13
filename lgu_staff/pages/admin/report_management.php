@@ -3523,9 +3523,6 @@ if ($focus_id > 0) {
                                     <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', '<?php echo $lgu_delete_table; ?>')">
                                         <i class="fas fa-trash"></i>
                                     </button>
-                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'lgu')">
-                                        <i class="fas fa-clock"></i>
-                                    </button>
                                 </div>
                             </td>
                             <td><?php echo htmlspecialchars($report['report_id'] ?? '—'); ?></td>
@@ -3669,9 +3666,6 @@ if ($focus_id > 0) {
                                     <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-trash"></i>
                                     </button>
-                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'citizen')">
-                                        <i class="fas fa-clock"></i>
-                                    </button>
                                     <?php if ($is_transport_supervisor && (($report['status'] ?? '') === 'completed')): ?>
                                     <button class="rm-archive-btn" onclick="archiveReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')" title="Archive">
                                         <i class="fas fa-archive"></i>
@@ -3799,9 +3793,6 @@ if ($focus_id > 0) {
                                     <button class="rm-delete-btn" onclick="deleteCimmReport(<?php echo $cimmIdx; ?>)">
                                         <i class="fas fa-trash"></i>
                                     </button>
-                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$row['id']; ?>, '<?php echo htmlspecialchars($row['report_type'], ENT_QUOTES); ?>', 'cimm')">
-                                        <i class="fas fa-clock"></i>
-                                    </button>
                                 </div>
                             </td>
                             <td><?php echo htmlspecialchars($row['report_id'] ?? '—'); ?></td>
@@ -3901,9 +3892,6 @@ if ($focus_id > 0) {
                                     <?php endif; ?>
                                     <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-trash"></i>
-                                    </button>
-                                    <button class="rm-action-btn t-badge t-badge-approved" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'infrastructure')">
-                                        <i class="fas fa-clock"></i>
                                     </button>
                                 </div>
                             </td>
@@ -4045,11 +4033,13 @@ if ($focus_id > 0) {
                                 </select>
                             </div>
                         </div>
+                        <?php if ($user_role !== 'system_admin'): ?>
                         <div style="margin-top: 15px;">
                             <button type="button" class="btn-action" onclick="openAssignUserModal()">
                                 <i class="fas fa-user-plus"></i> Assign Staff to Project
                             </button>
                         </div>
+                        <?php endif; ?>
                         <div style="margin-top: 15px;">
                             <label class="form-label">Assigned Staff</label>
                             <div id="assignedUsersListRegular" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px;">
@@ -4155,11 +4145,13 @@ if ($focus_id > 0) {
                                 </select>
                             </div>
                         </div>
+                        <?php if ($user_role !== 'system_admin'): ?>
                         <div style="margin-top: 15px;">
                             <button type="button" class="btn-action" onclick="openAssignUserModal()">
                                 <i class="fas fa-user-plus"></i> Assign Staff to Project
                             </button>
                         </div>
+                        <?php endif; ?>
                         <div style="margin-top: 15px;">
                             <label class="form-label">Assigned Staff</label>
                             <div id="assignedUsersListCimm" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px;">
@@ -4752,6 +4744,12 @@ if ($focus_id > 0) {
             // Try to get values from both modals, use whichever has a valid reportId
             let reportId = document.getElementById('editCimmReportId')?.value || document.getElementById('editReportId')?.value;
             let reportType = document.getElementById('editCimmReportTable')?.value || document.getElementById('editReportTable')?.value;
+
+            // System Admin may only view assigned staff — no Remove button.
+            let role = '';
+            let roleTag = document.getElementById('sessionTimeoutData');
+            if (roleTag) role = roleTag.getAttribute('data-role') || '';
+            const canRemoveStaff = (role !== 'system_admin');
             
             // Determine which container to use based on which modal is open
             const cimmModal = document.getElementById('editCimmModal');
@@ -4826,12 +4824,14 @@ if ($focus_id > 0) {
                                                 ${escapeHtml(assignment.role.replace('_', ' ').toUpperCase())}
                                             </div>
                                         </div>
+                                        ${canRemoveStaff ? `
                                         <button type="button" onclick="removeAssignment(${assignment.id}, '${escapeHtml(assignment.full_name)}')" 
                                                 style="padding: 6px 12px; background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; display: flex; align-items: center; gap: 6px; transition: all 0.2s; box-shadow: 0 2px 4px rgba(220, 53, 69, 0.2);"
                                                 onmouseover="this.style.boxShadow='0 4px 8px rgba(220, 53, 69, 0.3)'; this.style.transform='translateY(-1px)';"
                                                 onmouseout="this.style.boxShadow='0 2px 4px rgba(220, 53, 69, 0.2)'; this.style.transform='translateY(0)';">
                                             <i class="fas fa-user-minus"></i> Remove
                                         </button>
+                                        ` : ''}
                                     `;
                                     console.log('User div created, appending to container');
                                     container.appendChild(userDiv);

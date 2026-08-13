@@ -194,32 +194,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    if ($action === 'save_restrictions') {
-        $settings = [
-            'landing_page_private' => $_POST['landing_page_private'] ?? '0',
-            'hide_hero' => $_POST['hide_hero'] ?? '0',
-            'hide_updates' => $_POST['hide_updates'] ?? '0',
-            'hide_stats' => $_POST['hide_stats'] ?? '0',
-            'hide_about' => $_POST['hide_about'] ?? '0',
-            'hide_contact' => $_POST['hide_contact'] ?? '0',
-            'disable_signup' => $_POST['disable_signup'] ?? '0',
-            'hide_contact_form' => $_POST['hide_contact_form'] ?? '0',
-            'disable_search' => $_POST['disable_search'] ?? '0',
-            'custom_message' => sanitize_input($_POST['custom_message'] ?? ''),
-            'redirect_url' => sanitize_input($_POST['redirect_url'] ?? ''),
-        ];
-
-        foreach ($settings as $key => $value) {
-            $stmt = $conn->prepare("INSERT INTO site_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
-            $stmt->bind_param("sss", $key, $value, $value);
-            $stmt->execute();
-            $stmt->close();
-        }
-
-        log_audit_action($user_id, 'Restrictions Updated', 'Updated landing page access control settings');
-        $success_msg = 'Access restrictions applied successfully.';
-    }
-
     if ($action === 'upload_avatar') {
         if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
             $upload_dir = '../../uploads/profile_pictures';
@@ -318,6 +292,7 @@ if ($result) {
         $settings[$row['setting_key']] = $row['setting_value'];
     }
 }
+
 
 // Get activity log with user info — filtered by current user only
 $activity_log = [];
@@ -804,11 +779,6 @@ try {
                 <button class="tab-btn active" data-tab="account">
                     <i class="fas fa-user-shield"></i> Account
                 </button>
-                <?php if ($user_data['role'] === 'system_admin'): ?>
-                <button class="tab-btn" data-tab="access">
-                    <i class="fas fa-lock"></i> Access Control
-                </button>
-                <?php endif; ?>
                 <button class="tab-btn" data-tab="activity">
                     <i class="fas fa-history"></i> Activity Log
                 </button>
@@ -1112,100 +1082,7 @@ try {
                 </div>
             </div>
 
-            <?php if ($user_data['role'] === 'system_admin'): ?>
-            <!-- Tab 2: Access Control -->
-            <div class="tab-content" id="tab-access">
-                <form method="POST">
-                    <input type="hidden" name="action" value="save_restrictions">
-
-                    <div class="form-section">
-                        <h3><i class="fas fa-globe"></i> Landing Page Visibility</h3>
-
-                        <div class="toggle-group">
-                            <div class="toggle-label">
-                                Private Landing Page
-                                <small>Entire landing page viewable only to logged-in users/admins</small>
-                            </div>
-                            <label class="switch">
-                                <input type="checkbox" name="landing_page_private" value="1" <?php echo ($settings['landing_page_private'] ?? '0') === '1' ? 'checked' : ''; ?>>
-                                <span class="slider"></span>
-                            </label>
-                        </div>
-
-                        <div id="sectionToggles">
-                            <div class="checkbox-group" style="margin-top:10px; padding-left:10px;">
-                                <div class="checkbox-item">
-                                    <input type="checkbox" name="hide_hero" value="1" id="hide_hero" <?php echo ($settings['hide_hero'] ?? '0') === '1' ? 'checked' : ''; ?>>
-                                    <label for="hide_hero">Hide Hero Section</label>
-                                </div>
-                                <div class="checkbox-item">
-                                    <input type="checkbox" name="hide_updates" value="1" id="hide_updates" <?php echo ($settings['hide_updates'] ?? '0') === '1' ? 'checked' : ''; ?>>
-                                    <label for="hide_updates">Hide Road Updates Section</label>
-                                </div>
-                                <div class="checkbox-item">
-                                    <input type="checkbox" name="hide_stats" value="1" id="hide_stats" <?php echo ($settings['hide_stats'] ?? '0') === '1' ? 'checked' : ''; ?>>
-                                    <label for="hide_stats">Hide Statistics Section</label>
-                                </div>
-                                <div class="checkbox-item">
-                                    <input type="checkbox" name="hide_about" value="1" id="hide_about" <?php echo ($settings['hide_about'] ?? '0') === '1' ? 'checked' : ''; ?>>
-                                    <label for="hide_about">Hide About Section</label>
-                                </div>
-                                <div class="checkbox-item">
-                                    <input type="checkbox" name="hide_contact" value="1" id="hide_contact" <?php echo ($settings['hide_contact'] ?? '0') === '1' ? 'checked' : ''; ?>>
-                                    <label for="hide_contact">Hide Contact Section</label>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="form-section">
-                        <h3><i class="fas fa-ban"></i> Feature Restrictions</h3>
-                        <div class="checkbox-group">
-                            <div class="checkbox-item">
-                                <input type="checkbox" name="disable_signup" value="1" id="disable_signup" <?php echo ($settings['disable_signup'] ?? '0') === '1' ? 'checked' : ''; ?>>
-                                <label for="disable_signup">Disable "Sign Up" Button</label>
-                            </div>
-                            <div class="checkbox-item">
-                                <input type="checkbox" name="hide_contact_form" value="1" id="hide_contact_form" <?php echo ($settings['hide_contact_form'] ?? '0') === '1' ? 'checked' : ''; ?>>
-                                <label for="hide_contact_form">Hide Contact Form</label>
-                            </div>
-                            <div class="checkbox-item">
-                                <input type="checkbox" name="disable_search" value="1" id="disable_search" <?php echo ($settings['disable_search'] ?? '0') === '1' ? 'checked' : ''; ?>>
-                                <label for="disable_search">Disable Search Functionality</label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="form-section">
-                        <h3><i class="fas fa-exclamation-triangle"></i> Custom Redirect / Message</h3>
-                        <div class="private-banner">
-                            <i class="fas fa-info-circle"></i>
-                            This message or redirect will be shown to restricted users who attempt to access blocked areas.
-                        </div>
-                        <div class="row" style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
-                            <div class="form-group">
-                                <label>Custom Message</label>
-                                <textarea name="custom_message" class="form-control" placeholder="e.g., This page is under maintenance. Please check back later."><?php echo htmlspecialchars($settings['custom_message'] ?? ''); ?></textarea>
-                                <small style="color:#888; font-size:12px;">Displayed to users when a section is restricted</small>
-                            </div>
-                            <div class="form-group">
-                                <label>Redirect URL</label>
-                                <input type="url" name="redirect_url" class="form-control" placeholder="e.g., https://example.com/maintenance" value="<?php echo htmlspecialchars($settings['redirect_url'] ?? ''); ?>">
-                                <small style="color:#888; font-size:12px;">Users will be redirected here if they access a restricted area</small>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="form-actions">
-                        <button type="submit" class="btn btn-success" style="font-size:15px; padding:12px 32px;">
-                            <i class="fas fa-shield-alt"></i> Apply Restrictions
-                        </button>
-                    </div>
-                </form>
-            </div>
-            <?php endif; ?>
-
-            <!-- Tab 3: Activity Log -->
+            <!-- Activity Log -->
             <div class="tab-content" id="tab-activity">
                 <div class="form-section">
                     <h3><i class="fas fa-history"></i> System Activity Log</h3>
@@ -1312,23 +1189,6 @@ try {
                 }
             });
         });
-
-        // Toggle section visibility when "Private Landing Page" is checked
-        const privateToggle = document.querySelector('input[name="landing_page_private"]');
-        const sectionToggles = document.getElementById('sectionToggles');
-        function toggleSectionVisibility() {
-            if (privateToggle.checked) {
-                sectionToggles.style.opacity = '0.5';
-                sectionToggles.querySelectorAll('input').forEach(cb => cb.disabled = true);
-            } else {
-                sectionToggles.style.opacity = '1';
-                sectionToggles.querySelectorAll('input').forEach(cb => cb.disabled = false);
-            }
-        }
-        if (privateToggle) {
-            privateToggle.addEventListener('change', toggleSectionVisibility);
-            toggleSectionVisibility();
-        }
 
         // Activity Log filter
         function filterActivityLog() {

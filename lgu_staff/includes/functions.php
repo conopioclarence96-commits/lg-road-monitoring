@@ -628,14 +628,18 @@ function annotate_report_assignment_status($conn, array &$reports) {
     $assigned = [];
     try {
         $res = $conn->query(
-            "SELECT ra.report_id, ra.report_type, u.full_name AS officer_name
+            "SELECT ra.report_id, ra.report_type, u.full_name AS officer_name, ab.full_name AS assigner_name
              FROM report_assignments ra
              LEFT JOIN users u ON u.id = ra.user_id
+             LEFT JOIN users ab ON ab.id = ra.assigned_by
              WHERE ra.status = 'active'"
         );
         if ($res) {
             while ($row = $res->fetch_assoc()) {
-                $assigned[$row['report_type'] . ':' . $row['report_id']] = $row['officer_name'] ?? '';
+                $assigned[$row['report_type'] . ':' . $row['report_id']] = [
+                    'officer' => $row['officer_name'] ?? '',
+                    'assigner' => $row['assigner_name'] ?? '',
+                ];
             }
         }
     } catch (Exception $e) {
@@ -645,7 +649,8 @@ function annotate_report_assignment_status($conn, array &$reports) {
         $table = $rr['_source_table'] ?? 'road_transportation_reports';
         $key = $table . ':' . ($rr['id'] ?? 0);
         $rr['assignment_status'] = isset($assigned[$key]) ? 'assigned' : 'unassigned';
-        $rr['assignment_officer'] = $assigned[$key] ?? '';
+        $rr['assignment_officer'] = $assigned[$key]['officer'] ?? '';
+        $rr['assigned_by'] = $assigned[$key]['assigner'] ?? '';
         unset($rr['_source_table']);
     }
     unset($rr);

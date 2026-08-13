@@ -28,8 +28,8 @@ $params = [];
 $types = '';
 
 if ($action_filter) {
-    $where[] = "a.action LIKE ?";
-    $params[] = "%{$action_filter}%";
+    $where[] = "a.action = ?";
+    $params[] = $action_filter;
     $types .= "s";
 }
 
@@ -40,14 +40,14 @@ if ($user_filter > 0) {
 }
 
 if ($date_from) {
-    $where[] = "DATE(a.created_at) >= ?";
-    $params[] = $date_from;
+    $where[] = "a.created_at >= ?";
+    $params[] = $date_from . ' 00:00:00';
     $types .= "s";
 }
 
 if ($date_to) {
-    $where[] = "DATE(a.created_at) <= ?";
-    $params[] = $date_to;
+    $where[] = "a.created_at <= ?";
+    $params[] = $date_to . ' 23:59:59';
     $types .= "s";
 }
 
@@ -180,6 +180,9 @@ function getActionColor($action) {
                 <p>Comprehensive system activity log with filtering and search</p>
             </div>
             <div class="header-actions">
+                <a class="btn btn-outline" href="../api/export_audit_trail.php" style="text-decoration:none;">
+                    <i class="fas fa-file-export"></i> Export
+                </a>
                 <button class="btn btn-outline" onclick="location.reload()">
                     <i class="fas fa-sync-alt"></i> Refresh
                 </button>
