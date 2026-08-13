@@ -1182,6 +1182,11 @@ function notification_assignment_url(array $ap): string {
         .dark-mode .nc-pr-low { background: rgba(5, 150, 105, 0.22); color: #86efac; }
         <?php endif; ?>
 
+        @media (max-width: 768px) {
+            .nc-toolbar { flex-wrap: nowrap; }
+            .nc-filter, .nc-search { flex: 1 1 0; min-width: 0; }
+        }
+
         @media (max-width: 640px) {
             .main-content { padding: 18px 14px 50px; }
             .nc-actions { width: 100%; justify-content: flex-start; }

@@ -3392,18 +3392,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 gap: 12px;
             }
 
-            .dept-reports-search {
-                flex-direction: column;
-            }
-
             .infra-reports-header {
                 flex-direction: column;
                 align-items: flex-start;
                 gap: 12px;
-            }
-
-            .infra-reports-search {
-                flex-direction: column;
             }
 
             .citizen-reports-header {
@@ -3412,8 +3404,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 gap: 12px;
             }
 
+            .lgu-reports-search,
+            .dept-reports-search,
+            .infra-reports-search,
             .citizen-reports-search {
-                flex-direction: column;
+                flex-direction: row;
             }
         }
 

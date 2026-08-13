@@ -3173,7 +3173,7 @@ if ($focus_id > 0) {
 
         @media (max-width: 768px) {
             .rm-panel-header { flex-direction: column; align-items: flex-start; gap: 12px; }
-            .rm-panel-search { flex-direction: column; }
+            .rm-panel-search { flex-direction: row; }
         }
 
         .delete-confirm-overlay {

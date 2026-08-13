@@ -618,6 +618,95 @@ foreach ($nav_items as $section => $items) {
     </nav>
 </aside>
 
+<?php if ($user_role === 'system_admin'): ?>
+<!-- System Admin mobile hamburger menu toggle -->
+<button type="button" class="admin-menu-toggle" id="adminMenuToggle" aria-label="Open navigation menu" aria-controls="sidebar" aria-expanded="false">
+    <i class="fas fa-bars" aria-hidden="true"></i>
+</button>
+<div class="admin-sidebar-backdrop" id="adminSidebarBackdrop"></div>
+<style>
+    .admin-menu-toggle {
+        display: none;
+        position: fixed;
+        top: 14px;
+        left: 14px;
+        z-index: 1100;
+        width: 42px;
+        height: 42px;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #2952b3 0%, #1a2f6b 100%);
+        color: #ffffff;
+        font-size: 18px;
+        cursor: pointer;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+        transition: background 0.2s ease, transform 0.2s ease;
+    }
+    .admin-menu-toggle:hover { background: #1e3a7a; }
+    .admin-menu-toggle:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+
+    .admin-sidebar-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 950;
+        background: rgba(15, 23, 42, 0.55);
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+    .admin-sidebar-backdrop.show { opacity: 1; visibility: visible; }
+
+    @media (max-width: 768px) {
+        .admin-menu-toggle { display: flex; }
+        .main-content { padding-top: 76px !important; }
+    }
+</style>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var toggle = document.getElementById('adminMenuToggle');
+    var backdrop = document.getElementById('adminSidebarBackdrop');
+    var sidebar = document.getElementById('sidebar');
+    if (!toggle || !sidebar) return;
+
+    function setSidebar(open) {
+        sidebar.classList.toggle('open', open);
+        if (backdrop) backdrop.classList.toggle('show', open);
+        toggle.classList.toggle('active', open);
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        toggle.setAttribute('aria-label', open ? 'Close navigation menu' : 'Open navigation menu');
+        var icon = toggle.querySelector('i');
+        if (icon) icon.className = open ? 'fas fa-times' : 'fas fa-bars';
+        document.body.style.overflow = open ? 'hidden' : '';
+    }
+
+    toggle.addEventListener('click', function() {
+        setSidebar(!sidebar.classList.contains('open'));
+    });
+
+    if (backdrop) {
+        backdrop.addEventListener('click', function() {
+            setSidebar(false);
+        });
+    }
+
+    sidebar.querySelectorAll('.nav-link').forEach(function(link) {
+        link.addEventListener('click', function() {
+            if (sidebar.classList.contains('open')) setSidebar(false);
+        });
+    });
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && sidebar.classList.contains('open')) setSidebar(false);
+    });
+
+    window.addEventListener('resize', function() {
+        if (window.innerWidth > 768 && sidebar.classList.contains('open')) setSidebar(false);
+    });
+});
+</script>
+<?php endif; ?>
 
 <script>
 function toggleManagingAccounts() {

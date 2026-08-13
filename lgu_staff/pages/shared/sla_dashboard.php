@@ -120,7 +120,7 @@ log_audit_action($user_id, "Viewed SLA dashboard", "Tracked reports: " . count($
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
     <?php include '../../includes/sidebar_nav.php'; ?>
 
-    <div style="margin-left: 250px; padding: 28px; position: relative; z-index: 1;">
+    <div class="main-content" style="padding: 28px; position: relative; z-index: 1;">
         <div class="page-header">
             <div>
                 <h1><i class="fas fa-gavel"></i> SLA Compliance Dashboard</h1>

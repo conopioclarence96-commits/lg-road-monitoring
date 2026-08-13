@@ -239,7 +239,7 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
     <?php include '../../includes/sidebar_nav.php'; ?>
 
-    <div class="analytics-main" style="margin-left: 250px; padding: 28px; position: relative; z-index: 1;">
+    <div class="analytics-main main-content" style="padding: 28px; position: relative; z-index: 1;">
         <div class="page-header">
             <div>
                 <h1><i class="fas fa-chart-pie"></i> Analytics Dashboard</h1>
