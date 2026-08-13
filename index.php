@@ -2159,7 +2159,18 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 font-size: 0.8rem;
             }
 
-            .qc-navbar .qc-search-btn { right: 8px; }
+            .qc-navbar .qc-search-btn {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 30px;
+                height: 30px;
+                padding: 0;
+                right: 4px;
+                top: 50%;
+                transform: translateY(-50%);
+                border-radius: 8px;
+            }
 
             /* Keep the live-search results inside the phone screen */
             .qc-navbar .qc-search-results {
