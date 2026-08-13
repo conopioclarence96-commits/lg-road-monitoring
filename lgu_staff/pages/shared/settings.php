@@ -986,21 +986,21 @@ try {
                                 <input type="hidden" name="action" value="change_password">
                                 <div class="form-grid-3">
                                     <div class="form-group">
-                                        <label>Current Password</label>
+                                        <label for="currentPassword">Current Password</label>
                                         <div class="password-wrapper">
                                             <input type="password" name="current_password" id="currentPassword" class="form-control" placeholder="Enter current password" required>
                                             <button type="button" class="password-toggle" onclick="togglePassword('currentPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
                                         </div>
                                     </div>
                                     <div class="form-group">
-                                        <label>New Password</label>
+                                        <label for="newPassword">New Password</label>
                                         <div class="password-wrapper">
                                             <input type="password" name="new_password" id="newPassword" class="form-control" placeholder="Min. 8 characters" required minlength="8">
                                             <button type="button" class="password-toggle" onclick="togglePassword('newPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
                                         </div>
                                     </div>
                                     <div class="form-group">
-                                        <label>Confirm New Password</label>
+                                        <label for="confirmPassword">Confirm New Password</label>
                                         <div class="password-wrapper">
                                             <input type="password" name="confirm_password" id="confirmPassword" class="form-control" placeholder="Repeat new password" required minlength="8">
                                             <button type="button" class="password-toggle" onclick="togglePassword('confirmPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
@@ -1016,21 +1016,21 @@ try {
                                 <input type="hidden" name="action" value="request_password_change">
                                 <div class="form-grid-3">
                                     <div class="form-group">
-                                        <label>Current Password</label>
+                                        <label for="staffCurrentPassword">Current Password</label>
                                         <div class="password-wrapper">
                                             <input type="password" name="current_password" id="staffCurrentPassword" class="form-control" placeholder="Enter current password" required>
                                             <button type="button" class="password-toggle" onclick="togglePassword('staffCurrentPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
                                         </div>
                                     </div>
                                     <div class="form-group">
-                                        <label>New Password</label>
+                                        <label for="staffNewPassword">New Password</label>
                                         <div class="password-wrapper">
                                             <input type="password" name="new_password" id="staffNewPassword" class="form-control" placeholder="Min. 8 characters" required minlength="8">
                                             <button type="button" class="password-toggle" onclick="togglePassword('staffNewPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
                                         </div>
                                     </div>
                                     <div class="form-group">
-                                        <label>Confirm New Password</label>
+                                        <label for="staffConfirmPassword">Confirm New Password</label>
                                         <div class="password-wrapper">
                                             <input type="password" name="confirm_password" id="staffConfirmPassword" class="form-control" placeholder="Repeat new password" required minlength="8">
                                             <button type="button" class="password-toggle" onclick="togglePassword('staffConfirmPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
