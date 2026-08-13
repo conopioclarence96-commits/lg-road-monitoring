@@ -2,11 +2,6 @@
 
 function exportUpdatesToExcel() {
     const timelineEntries = document.querySelectorAll('.timeline-entry');
-    if (timelineEntries.length === 0) {
-        showNotification('No updates to export', 'error');
-        return;
-    }
-
     showNotification('Preparing document...', 'info');
     ensureExportReportDetails().then(function() {
         processImagesAndExport(timelineEntries);
@@ -290,7 +285,10 @@ function buildExportDetailsTable(d) {
     }
 
     var description = prettyExportValue(d.description || d.issue);
-    var rows = buildCompactPairRows([
+    var cat = String(d.report_category || '').toLowerCase();
+    var type = String(d.report_type || (typeof currentUpdatesReportType !== 'undefined' ? currentUpdatesReportType : '') || '').toLowerCase();
+    var isTransportation = (cat === 'transportation') || (cat !== 'road' && type === 'transportation');
+    var detailPairs = [
         ['Source', sourceLabel],
         ['Status', prettyExportLabel(d.status || currentUpdatesReportStatus)],
         ['Priority', prettyExportLabel(d.priority)],
@@ -300,11 +298,15 @@ function buildExportDetailsTable(d) {
         ['Department', prettyExportLabel(d.department)],
         ['Assignment', assignment],
         ['Engineer', prettyExportValue(d.engineer || d.cimm_engineer_name)],
-        ['Budget Allocation', formatExportBudget(
+    ];
+    if (!isTransportation) {
+        detailPairs.push(['Budget Allocation', formatExportBudget(
             (d.budget_allocation !== null && d.budget_allocation !== undefined && d.budget_allocation !== '')
                 ? d.budget_allocation
                 : d.cimm_budget
-        ), 'always'],
+        ), 'always']);
+    }
+    detailPairs = detailPairs.concat([
         ['Reported By', prettyExportValue(d.reporter_name)],
         ['Created', formatExportDate(d.created_at || d.created_date || d.submitted_at)],
         ['CIMM Verification', cimmVerify],
@@ -317,6 +319,7 @@ function buildExportDetailsTable(d) {
         ['Coordinates', coords, 'full'],
         ['Description', description, 'full']
     ]);
+    var rows = buildCompactPairRows(detailPairs);
 
     if (!rows) return '';
     return `
@@ -383,6 +386,10 @@ function generateDocument(updates, firstDate, lastDate) {
 
             <h2>Progress Timeline</h2>
         `;
+
+        if (!updates.length) {
+            htmlContent += `<p class="image-count">No progress updates yet.</p>`;
+        }
 
         updates.forEach(function(update) {
             htmlContent += `

@@ -4264,6 +4264,7 @@ if ($focus_id > 0) {
                     <div style="display: flex; gap: 8px;">
                         <button class="btn-success-custom" onclick="completeReport()">Complete</button>
                         <button class="btn-danger-custom" onclick="cancelReport()">Cancel</button>
+                        <button type="button" class="btn-action" id="exportWordBtn" onclick="exportUpdatesToExcel()"><i class="fas fa-file-word"></i> Export as Word</button>
                     </div>
                     <div style="display: flex; gap: 8px;">
                         <button class="btn-action" id="addUpdateBtn" onclick="showAddUpdateModal()">+ Add Update</button>
@@ -5415,9 +5416,18 @@ if ($focus_id > 0) {
             .then(function(data) {
                 if (data.success) {
                     showNotification('Report completed successfully', 'success');
-                    // Hide action buttons, show export button
-                    document.getElementById('actionButtons').style.display = 'none';
-                    document.getElementById('exportButtons').style.display = 'flex';
+                    var completeBtn = document.getElementById('completeBtn');
+                    var cancelBtn = document.querySelector('#actionButtons .btn-danger-custom');
+                    var addUpdateBtn = document.getElementById('addUpdateBtn');
+                    if (completeBtn) completeBtn.style.display = 'none';
+                    if (cancelBtn) cancelBtn.style.display = 'none';
+                    if (addUpdateBtn) addUpdateBtn.style.display = 'none';
+                    var actionButtons = document.getElementById('actionButtons');
+                    var exportWordBtn = document.getElementById('exportWordBtn');
+                    if (actionButtons) actionButtons.style.display = 'flex';
+                    if (exportWordBtn) exportWordBtn.style.display = 'inline-flex';
+                    var exportButtons = document.getElementById('exportButtons');
+                    if (exportButtons) exportButtons.style.display = 'none';
                     // Reload updates timeline
                     if (typeof loadUpdates === 'function') {
                         loadUpdates(currentUpdatesReportId, currentUpdatesReportType);

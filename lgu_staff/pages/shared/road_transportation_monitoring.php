@@ -3603,13 +3603,19 @@ annotate_report_assignment_status($conn, $recent_reports);
         function applyUpdatesFooterMode() {
             var actionButtons = document.getElementById('actionButtons');
             var exportButtons = document.getElementById('exportButtons');
+            var exportWordBtn = document.getElementById('exportWordBtn');
+            var completeBtn = document.getElementById('completeBtn');
+            var cancelBtn = document.getElementById('cancelBtn');
+            var addUpdateBtn = document.getElementById('addUpdateBtn');
+            if (actionButtons) actionButtons.style.display = 'flex';
+            if (exportWordBtn) exportWordBtn.style.display = 'inline-flex';
+            if (exportButtons) exportButtons.style.display = 'none';
             if (isTerminalUpdatesStatus()) {
-                if (actionButtons) actionButtons.style.display = 'none';
-                if (exportButtons) exportButtons.style.display = 'flex';
+                if (completeBtn) completeBtn.style.display = 'none';
+                if (cancelBtn) cancelBtn.style.display = 'none';
+                if (addUpdateBtn) addUpdateBtn.style.display = 'none';
                 return true;
             }
-            if (actionButtons) actionButtons.style.display = 'flex';
-            if (exportButtons) exportButtons.style.display = 'none';
             return false;
         }
 
@@ -4141,10 +4147,6 @@ annotate_report_assignment_status($conn, $recent_reports);
         // progress-updates-common.js cache cannot drop Report Details.
         function exportUpdatesToExcel() {
             var timelineEntries = document.querySelectorAll('.timeline-entry');
-            if (timelineEntries.length === 0) {
-                showNotification('No updates to export', 'error');
-                return;
-            }
             showNotification('Preparing document...', 'info');
             ensureExportReportDetails().then(function() {
                 processImagesAndExport(timelineEntries);
@@ -4263,7 +4265,10 @@ annotate_report_assignment_status($conn, $recent_reports);
                 var coords = (lat && lng && lat !== '0' && lng !== '0') ? (lat + ', ' + lng) : '';
                 var cimmVerify = labelize(d.approval_status || d.cimm_sync_status || d.verification_status);
                 var description = pretty(d.description || d.issue);
-                var detailsRows = pairRows([
+                var cat = String(d.report_category || '').toLowerCase();
+                var type = String(d.report_type || currentUpdatesReportType || '').toLowerCase();
+                var isTransportation = (cat === 'transportation') || (cat !== 'road' && type === 'transportation');
+                var detailPairs = [
                     ['Source', sourceLabel],
                     ['Status', labelize(d.status || currentUpdatesReportStatus)],
                     ['Priority', labelize(d.priority)],
@@ -4273,11 +4278,15 @@ annotate_report_assignment_status($conn, $recent_reports);
                     ['Department', labelize(d.department)],
                     ['Assignment', assignment],
                     ['Engineer', pretty(d.engineer || d.cimm_engineer_name)],
-                    ['Budget Allocation', fmtBudget(
+                ];
+                if (!isTransportation) {
+                    detailPairs.push(['Budget Allocation', fmtBudget(
                         (d.budget_allocation !== null && d.budget_allocation !== undefined && d.budget_allocation !== '')
                             ? d.budget_allocation
                             : d.cimm_budget
-                    ), 'always'],
+                    ), 'always']);
+                }
+                var detailsRows = pairRows(detailPairs.concat([
                     ['Reported By', pretty(d.reporter_name)],
                     ['Created', fmtDate(d.created_at || d.created_date || d.submitted_at)],
                     ['CIMM Verification', cimmVerify],
@@ -4289,7 +4298,7 @@ annotate_report_assignment_status($conn, $recent_reports);
                     ['Location', pretty(d.location), 'full'],
                     ['Coordinates', coords, 'full'],
                     ['Description', description, 'full']
-                ]);
+                ]));
                 var displayId = pretty(d.report_id) || String(currentUpdatesReportId || '');
                 var displayTitle = pretty(d.title);
                 var exportedOn = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -4335,6 +4344,9 @@ annotate_report_assignment_status($conn, $recent_reports);
                     </table>
                     <h2>Progress Timeline</h2>
                 `;
+                if (!updates.length) {
+                    htmlContent += `<p class="image-count">No progress updates yet.</p>`;
+                }
                 updates.forEach(function(update) {
                     htmlContent += `
                     <div class="update-entry">
@@ -5137,11 +5149,11 @@ annotate_report_assignment_status($conn, $recent_reports);
                         <button type="button" class="btn-danger-custom" id="cancelBtn">Request Cancellation</button>
                         <?php elseif ($is_road_supervisor): ?>
                         <button type="button" class="btn-success-custom" id="completeBtn">Complete</button>
-                        <button type="button" class="btn-action" id="exportWordBtn" onclick="exportUpdatesToExcel()"><i class="fas fa-file-word"></i> Export as Word</button>
                         <?php else: ?>
                         <button type="button" class="btn-success-custom" id="completeBtn">Complete</button>
                         <button type="button" class="btn-danger-custom" id="cancelBtn">Cancel</button>
                         <?php endif; ?>
+                        <button type="button" class="btn-action" id="exportWordBtn" onclick="exportUpdatesToExcel()"><i class="fas fa-file-word"></i> Export as Word</button>
                     </div>
                     <div style="display: flex; gap: 8px;">
                         <button type="button" class="btn-action" id="addUpdateBtn" onclick="showAddUpdateModal()">+ Add Update</button>
