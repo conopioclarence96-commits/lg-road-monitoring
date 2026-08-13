@@ -2412,7 +2412,7 @@ annotate_report_assignment_status($conn, $recent_reports);
                 <div id="reachableRangePanel" class="tomtom-panel">
                     <h5><i class="fas fa-circle"></i> Reachable Range</h5>
                     <p class="t-text-secondary" style="font-size:12px;">Click on the map to set the center point, then calculate.</p>
-                    <label>Time Budget (minutes)</label>
+                    <label for="rangeTimeBudget">Time Budget (minutes)</label>
                     <input type="number" id="rangeTimeBudget" value="30" min="1" max="120">
                     <div style="display:flex;gap:8px;">
                         <button class="btn-action btn-sm" onclick="calcReachableRange()"><i class="fas fa-calculator"></i> Calculate</button>
