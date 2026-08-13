@@ -4999,13 +4999,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <div class="filters-section" style="margin-bottom:0; box-shadow:none; border:none; border-radius:0;">
                 <div class="filter-group">
                     <div>
-                        <label class="form-label">Status Filter</label>
+                        <label class="form-label" for="statusFilter">Status Filter</label>
                         <select class="filter-select" id="statusFilter" onchange="filterReports()">
                             <option value="pending" selected>Pending</option>
                         </select>
                     </div>
                     <div>
-                        <label class="form-label">Source System</label>
+                        <label class="form-label" for="sourceFilter">Source System</label>
                         <select class="filter-select" id="sourceFilter" onchange="filterReports()">
                             <option value="all" <?php echo $source_filter === 'all' ? 'selected' : ''; ?>>All Sources</option>
                             <?php if ($is_road_supervisor): ?>
@@ -5019,9 +5019,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         </select>
                     </div>
                     <div>
-                        <label class="form-label">&nbsp;</label>
+                        <span class="form-label" aria-hidden="true">&nbsp;</span>
                         <div>
-                            <button class="btn-secondary-custom" onclick="resetFilters()">
+                            <button class="btn-secondary-custom" type="button" onclick="resetFilters()">
                                 <i class="fas fa-arrow-clockwise"></i> Reset
                             </button>
                         </div>
