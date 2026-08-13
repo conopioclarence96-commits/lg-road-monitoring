@@ -103,10 +103,11 @@
         section[id] { scroll-margin-top: 160px; }
         .hero-bar { padding-top: 150px; }
 
-        /* Drop the hamburger a bit so it no longer overlaps the brand's
-           second line ("Department") on phones. */
+        /* Drop the hamburger so it lines up with the quick-links row
+           (next to the Programs button) on phones instead of covering
+           the brand's second line. */
         .hamburger-btn {
-            top: 22px !important;
+            top: 60px !important;
             width: 40px !important;
             height: 40px !important;
         }
