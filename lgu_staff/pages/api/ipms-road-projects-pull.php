@@ -142,6 +142,18 @@ if ($httpCode < 200 || $httpCode >= 300 || !is_array($decoded) || empty($decoded
 
 $roads = $decoded['roads'];
 
+// Optional debug dump: writes raw response and decoded roads to uploads for
+// quick inspection when troubleshooting missing projects. Enable with
+// ?debug=1 or set IPMS_PULL_DEBUG=1 in .env.
+$doDebug = (isset($_GET['debug']) && $_GET['debug'] == '1') || rgmap_ipms_env('IPMS_PULL_DEBUG') === '1';
+if ($doDebug) {
+    $dumpDir = __DIR__ . '/../../../uploads';
+    if (!is_dir($dumpDir)) @mkdir($dumpDir, 0755, true);
+    $time = gmdate('Ymd_His');
+    @file_put_contents($dumpDir . "/ipms_pull_raw_{$time}.json", (string)$response);
+    @file_put_contents($dumpDir . "/ipms_pull_decoded_{$time}.json", json_encode($decoded, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+}
+
 try {
     $pdo = rgmap_ipms_pdo();
     rgmap_ensure_ipms_road_projects_table($pdo);
@@ -187,6 +199,7 @@ try {
         'failed' => $failed,
         'pruned' => $pruned,
         'errors' => $errors,
+        'fetched_project_ids' => $seenIds,
     ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 } catch (\Throwable $e) {
     error_log('IPMS road projects pull error: ' . $e->getMessage());
