@@ -2321,7 +2321,7 @@ annotate_report_assignment_status($conn, $recent_reports);
                             <div id="gis-location-details" style="font-size:12px;color:#555;line-height:1.7;"></div>
                         </div>
                         
-                        <label>Issue type</label>
+                        <label for="issue-type">Issue type</label>
                         <?php if ($is_transport_supervisor): ?>
                         <select id="issue-type" name="issue_type" required onchange="updateSpecificTypes()">
                             <option value="transportation" selected>Transportation</option>
@@ -2334,7 +2334,7 @@ annotate_report_assignment_status($conn, $recent_reports);
                         </select>
                         <?php endif; ?>
                         
-                        <label id="specific-type-label" style="display: none; margin-top: 10px;">Specific Issue Type</label>
+                        <label id="specific-type-label" for="specific-type" style="display: none; margin-top: 10px;">Specific Issue Type</label>
                         <select id="specific-type" name="specific_type" style="display: none;" required>
                             <!-- Transportation specific types -->
                             <optgroup id="transportation-options" label="Transportation Issues" style="display: none;">
@@ -2363,16 +2363,16 @@ annotate_report_assignment_status($conn, $recent_reports);
                             </optgroup>
                             <?php endif; ?>
                         </select>
-                        <label>Severity</label>
+                        <label for="severity">Severity</label>
                         <select id="severity" name="severity" required>
                             <option value="low">Low</option>
                             <option value="medium" selected>Medium</option>
                             <option value="high">High</option>
                             <option value="severe">Severe</option>
                         </select>
-                        <label>Description</label>
+                        <label for="description">Description</label>
                         <textarea id="description" name="description" rows="3" required placeholder="Describe the issue..."></textarea>
-                        <label>Upload Photos</label>
+                        <label for="report-images">Upload Photos</label>
                         <button type="button" id="add-photos-btn" class="t-gradient-primary" style="padding:8px 16px;border:none;border-radius:6px;cursor:pointer;font-size:13px;"><i class="fas fa-camera"></i> Add Photos</button>
                         <input type="file" id="report-images" name="photos[]" multiple accept="image/jpeg,image/jpg,image/png" style="display:none;" />
                         <small class="t-text-secondary" style="font-size: 12px; display: block; margin-top: 4px;">Max size: 5MB each. Formats: JPG, PNG.</small>
