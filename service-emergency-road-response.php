@@ -222,6 +222,8 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
         </div>
     </nav>
 
+    <?php include __DIR__ . '/includes/mobile_navbar_css.php'; ?>
+
     <?php include __DIR__ . '/includes/hamburger_menu.php'; ?>
 
     <div class="hero-bar">
