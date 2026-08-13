@@ -679,6 +679,7 @@ document.addEventListener('DOMContentLoaded', function() {
         var icon = toggle.querySelector('i');
         if (icon) icon.className = open ? 'fas fa-times' : 'fas fa-bars';
         document.body.style.overflow = open ? 'hidden' : '';
+        document.documentElement.style.overflow = open ? 'hidden' : '';
     }
 
     toggle.addEventListener('click', function() {
