@@ -627,7 +627,7 @@ foreach ($nav_items as $section => $items) {
 <style>
     .admin-menu-toggle {
         display: none;
-        position: fixed;
+        position: fixed !important;
         top: 14px;
         left: 14px;
         z-index: 1100;
@@ -704,6 +704,29 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('resize', function() {
         if (window.innerWidth > 768 && sidebar.classList.contains('open')) setSidebar(false);
     });
+
+    // Safety net: if the browser fails to honour position:fixed (e.g. some
+    // mobile browsers inside a transformed/scroll container), the hamburger
+    // would slide down with the page. Detect the drift and re-pin it to the
+    // top-left of the visible area on every scroll/resize.
+    function keepTogglePinned() {
+        if (window.getComputedStyle(toggle).position !== 'fixed') return;
+        var rect = toggle.getBoundingClientRect();
+        if (Math.abs(rect.top - 14) < 1) {
+            toggle.style.top = '';
+            toggle.style.position = '';
+            toggle.style.left = '';
+            return;
+        }
+        var scrollEl = document.scrollingElement || document.documentElement;
+        toggle.style.position = 'absolute';
+        toggle.style.top = (scrollEl.scrollTop + 14) + 'px';
+        toggle.style.left = '14px';
+    }
+    window.addEventListener('scroll', keepTogglePinned, { passive: true });
+    window.addEventListener('resize', keepTogglePinned);
+    window.addEventListener('orientationchange', keepTogglePinned);
+    keepTogglePinned();
 });
 </script>
 <?php endif; ?>
