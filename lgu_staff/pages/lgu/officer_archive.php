@@ -24,7 +24,8 @@ $conn->query("CREATE TABLE IF NOT EXISTS road_transportation_reports_archive LIK
 foreach (['report_category' => "ENUM('road','transportation') DEFAULT NULL AFTER report_type",
          'report_source' => "VARCHAR(50) DEFAULT NULL AFTER report_category",
          'previous_status' => "VARCHAR(50) DEFAULT NULL",
-         'archived_from' => "VARCHAR(100) DEFAULT NULL"] as $col => $def) {
+         'archived_from' => "VARCHAR(100) DEFAULT NULL",
+         'source_pk' => "INT NULL DEFAULT NULL"] as $col => $def) {
     $chk = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE '$col'");
     if ($chk && $chk->num_rows === 0) {
         $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN $col $def");

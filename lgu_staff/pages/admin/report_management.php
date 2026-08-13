@@ -460,7 +460,8 @@ function ensure_archive_table() {
     // (so it can be brought back with its previous status) and the exact live
     // table it was moved out of (so it lands back in the same module).
     foreach (['previous_status' => "VARCHAR(50) DEFAULT NULL",
-              'archived_from' => "VARCHAR(100) DEFAULT NULL"] as $col => $def) {
+              'archived_from' => "VARCHAR(100) DEFAULT NULL",
+              'source_pk' => "INT NULL DEFAULT NULL"] as $col => $def) {
         $chk = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE '$col'");
         if ($chk && $chk->num_rows === 0) {
             $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN $col $def");

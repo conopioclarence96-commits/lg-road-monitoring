@@ -2,6 +2,7 @@
 require_once '../../includes/session_config.php';
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
+require_once __DIR__ . '/../api/progress_archive_helpers.php';
 
 $archive_allowed_roles = ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor', 'trans_monitoring_officer', 'road_monitoring_officer'];
 if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', $archive_allowed_roles, true)) {
@@ -16,12 +17,14 @@ $is_road_supervisor = ($user_role === 'road_ops_supervisor');
 $is_road_officer = ($user_role === 'road_monitoring_officer');
 
 $conn->query("CREATE TABLE IF NOT EXISTS road_transportation_reports_archive LIKE road_transportation_reports");
+rgmap_archive_ensure_table();
 
 // Ensure archive table has the same columns as the source table
 foreach (['report_category' => "ENUM('road','transportation') DEFAULT NULL AFTER report_type",
            'report_source' => "ENUM('local','external') DEFAULT 'local' AFTER report_category",
            'previous_status' => "VARCHAR(50) DEFAULT NULL",
-           'archived_from' => "VARCHAR(100) DEFAULT NULL"] as $col => $def) {
+           'archived_from' => "VARCHAR(100) DEFAULT NULL",
+           'source_pk' => "INT NULL DEFAULT NULL"] as $col => $def) {
     $chk = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE '$col'");
     if ($chk && $chk->num_rows === 0) {
         $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN $col $def");
@@ -204,26 +207,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $module = 'transport';
         }
 
-        // Restore to its previous (pre-archive) status when it was recorded,
-        // so the report reappears in the active list where its last action
-        // happened instead of staying hidden with a terminal status.
-        $restore_status = (!empty($row['previous_status'])) ? $row['previous_status'] : $row['status'];
-
-        // A completed or cancelled transportation/maintenance report is
-        // restored as 'approved' first so it returns to report_management.php
-        // as an Approved report. It only moves to 'in-progress' once a progress
-        // update is uploaded (handled in progress_update_api.php on the first
-        // update).
-        if ($module === 'transport' && $restore_status === 'completed') {
-            $restore_status = 'approved';
-        }
-
-        // A cancelled transportation or maintenance report is brought back as
-        // 'approved' first so it returns to report_management.php as an approved
-        // project instead of staying cancelled and hidden; it can move to
-        // in-progress afterwards through the normal flow.
-        if (in_array($module, ['transport', 'maintenance'], true) && strtolower((string)($row['status'] ?? '')) === 'cancelled') {
-            $restore_status = 'approved';
+        // Keep the archived status as-is (Completed stays Completed, Cancelled
+        // stays Cancelled). previous_status is only a fallback when status is empty.
+        $restore_status = (string)($row['status'] ?? '');
+        if ($restore_status === '' && !empty($row['previous_status'])) {
+            $restore_status = (string)$row['previous_status'];
         }
 
         // A rejected CITIZEN report (transportation + local + created_by = 0) is
@@ -232,38 +220,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         // available again — instead of coming back permanently rejected (the
         // buttons only render for 'pending' reports).
         if ($module === 'transport'
-            && $restore_status === 'rejected'
+            && strtolower($restore_status) === 'rejected'
             && (int)($row['created_by'] ?? 0) === 0
             && ($row['report_source'] ?? '') === 'local'
             && strtolower((string)($row['report_category'] ?? '')) === 'transportation') {
             $restore_status = 'pending';
         }
 
-        // A rejected CIMM report is restored to 'Pending Review' (with
-        // approval_status 'Approved') so it returns to the Pending Dept/CIMM
-        // section on verification_monitoring.php with its Approve/Reject buttons
-        // available again — that panel only lists reports whose
-        // verification_status is 'Pending Review'.
-        if ($module === 'cimm' && strtolower((string)$restore_status) === 'rejected') {
-            $restore_status = 'Pending Review';
+        // CIMM stores title-case verification_status. Map the lowercase archive
+        // status back. Rejected still returns to Pending Review so Approve/Reject
+        // buttons work on verification_monitoring.php.
+        if ($module === 'cimm') {
+            $cimm_status_map = [
+                'completed' => 'Completed',
+                'cancelled' => 'Cancelled',
+                'rejected' => 'Pending Review',
+                'approved' => 'Approved',
+                'pending' => 'Pending Review',
+                'in-progress' => 'In Progress',
+                'in progress' => 'In Progress',
+                'pending review' => 'Pending Review',
+                'verified' => 'Verified',
+            ];
+            $cimm_key = strtolower(trim($restore_status));
+            if (isset($cimm_status_map[$cimm_key])) {
+                $restore_status = $cimm_status_map[$cimm_key];
+            } elseif (!empty($row['previous_status'])) {
+                $restore_status = (string)$row['previous_status'];
+            }
         }
 
-        // A completed CIMM report is restored as 'Approved' first so it returns
-        // to report_management.php, road_transportation_monitoring.php and the
-        // active project list (all of which list CIMM reports whose
-        // verification_status is 'Approved' or 'In Progress') instead of staying
-        // finished and hidden. It only moves to 'In Progress' once a progress
-        // update is uploaded.
-        if ($module === 'cimm' && strtolower((string)$restore_status) === 'completed') {
-            $restore_status = 'Approved';
-        }
-
-        // A cancelled CIMM report is restored as 'Approved' first so it returns
-        // to report_management.php, road_transportation_monitoring.php and the
-        // active project list instead of staying cancelled and hidden; it can
-        // move to In Progress afterwards through the normal flow.
-        if ($module === 'cimm' && strtolower((string)($row['status'] ?? '')) === 'cancelled') {
-            $restore_status = 'Approved';
+        $original_pk = (int)($row['source_pk'] ?? 0);
+        // LGU/Citizen/maintenance move-archives usually keep the live id as
+        // archive.id. CIMM archives do not — only source_pk is the local CIMM PK.
+        if ($original_pk <= 0 && $module !== 'cimm') {
+            $original_pk = (int)($row['id'] ?? 0);
         }
 
         // CIMM reports: map the archived row back into cimm_verification_reports.
@@ -309,7 +300,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
 
             if ($existing) {
-                $upd = $conn->prepare("UPDATE cimm_verification_reports SET verification_status = ?, approval_status = 'Approved', resolved_at = NULL, updated_at = NOW() WHERE id = ?");
+                if (strtolower($restore_status) === 'pending review') {
+                    $upd = $conn->prepare("UPDATE cimm_verification_reports SET verification_status = ?, approval_status = 'Approved', resolved_at = NULL, updated_at = NOW() WHERE id = ?");
+                } else {
+                    $upd = $conn->prepare("UPDATE cimm_verification_reports SET verification_status = ?, updated_at = NOW() WHERE id = ?");
+                }
                 $upd->bind_param("si", $restore_status, $existing['id']);
                 $upd->execute();
                 if ($upd->affected_rows >= 0) {
@@ -324,6 +319,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 exit();
             }
 
+            $insert_with_id = ($original_pk > 0 && rgmap_pk_is_free($conn, 'cimm_verification_reports', $original_pk));
+            if ($insert_with_id) {
+                $cimm_fields = ['id' => $original_pk] + $cimm_fields;
+            }
+
             $cols = '`' . implode('`, `', array_keys($cimm_fields)) . '`';
             $place = implode(', ', array_fill(0, count($cimm_fields), '?'));
             $stmt = $conn->prepare("INSERT INTO cimm_verification_reports ($cols) VALUES ($place)");
@@ -335,6 +335,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 exit();
             }
             if ($stmt->affected_rows > 0) {
+                $new_id = $insert_with_id ? $original_pk : (int)$conn->insert_id;
+                if ($original_pk > 0) {
+                    rgmap_remap_report_fk($conn, $original_pk, $new_id);
+                }
                 $delete = $conn->prepare("DELETE FROM road_transportation_reports_archive WHERE id = ?");
                 $delete->bind_param('i', $archive_id);
                 $delete->execute();
@@ -349,14 +353,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $target_table = ($module === 'maintenance') ? 'road_maintenance_reports' : 'road_transportation_reports';
 
         // Build the column list from only the columns the target table actually
-        // has, and drop the auto-increment id so a restored row always gets a
-        // fresh id (avoids collisions with rows already present).
+        // has. Prefer restoring with the original live id so report_updates
+        // (keyed by that INT PK) stay attached.
         $dest_cols = [];
         $col_res = $conn->query("SHOW COLUMNS FROM $target_table");
         if ($col_res) { while ($c = $col_res->fetch_assoc()) { $dest_cols[$c['Field']] = true; } }
         $fields = [];
         foreach ($row as $field => $value) {
-            if ($field === 'id') continue;
+            if ($field === 'id' || $field === 'source_pk' || $field === 'source_system') continue;
             if (isset($dest_cols[$field])) $fields[] = $field;
         }
         if (empty($fields)) {
@@ -365,10 +369,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             exit();
         }
 
+        $insert_with_id = ($original_pk > 0 && rgmap_pk_is_free($conn, $target_table, $original_pk));
+        if ($insert_with_id) {
+            array_unshift($fields, 'id');
+        }
+
         $cols = implode(', ', array_map(function ($f) { return "`$f`"; }, $fields));
         $place = implode(', ', array_fill(0, count($fields), '?'));
         $values = [];
         foreach ($fields as $field) {
+            if ($field === 'id') {
+                $values[] = $original_pk;
+                continue;
+            }
             $value = $row[$field];
             if ($field === 'status') {
                 $value = $restore_status;
@@ -427,6 +440,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             exit();
         }
         if ($stmt->affected_rows > 0) {
+            $new_id = $insert_with_id ? $original_pk : (int)$conn->insert_id;
+            if ($original_pk > 0) {
+                rgmap_remap_report_fk($conn, $original_pk, $new_id);
+            }
             $delete = $conn->prepare("DELETE FROM road_transportation_reports_archive WHERE id = ?");
             $delete->bind_param('i', $archive_id);
             $delete->execute();
@@ -483,7 +500,9 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'export_updates') {
         || stripos($ref_code, 'REQ-') === 0
         || stripos($ref_code, 'CIMM-') === 0);
 
-    if ($is_cimm) {
+    if (!empty($arch_row['source_pk'])) {
+        $updates_report_id = (int)$arch_row['source_pk'];
+    } elseif ($is_cimm) {
         if (preg_match('/^(REQ|CIMM)-(\d+)$/i', $ref_code, $m)) {
             $updates_report_id = (int)$m[2];
         } elseif (is_numeric($ref_code)) {
