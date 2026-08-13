@@ -1424,8 +1424,8 @@ if (isset($_SESSION['archive_message'])) {
 
     <!-- Shared progress-updates scripts: provide the existing report export
          (exportUpdatesToExcel) and timeline rendering used by report_management.php -->
-    <script src="../../js/progress-updates.js"></script>
-    <script src="../../js/progress-updates-common.js"></script>
+    <script src="../../js/progress-updates.js?v=<?php echo filemtime(__DIR__ . '/../../js/progress-updates.js'); ?>"></script>
+    <script src="../../js/progress-updates-common.js?v=<?php echo filemtime(__DIR__ . '/../../js/progress-updates-common.js'); ?>"></script>
 
     <script>
         var archiveData = <?php
@@ -1663,6 +1663,7 @@ if (isset($_SESSION['archive_message'])) {
                             return;
                         }
                         currentUpdatesReportId = currentArchiveRow.report_id || currentArchiveRow.id;
+                        currentUpdatesReportDetails = currentArchiveRow;
                         renderTimeline(data.updates);
                         exportUpdatesToExcel();
                     } else {

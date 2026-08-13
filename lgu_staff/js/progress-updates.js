@@ -1,8 +1,10 @@
 /* Progress Updates Management */
 
-let currentUpdatesReportId = null;
-let currentUpdatesReportType = null;
-let currentUpdatesReportSource = null;
+var currentUpdatesReportId = null;
+var currentUpdatesReportType = null;
+var currentUpdatesReportSource = null;
+var currentUpdatesReportStatus = null;
+var currentUpdatesReportDetails = null;
 
 function loadUpdates(reportId, reportType) {
     currentUpdatesReportId = reportId;

@@ -1028,8 +1028,8 @@ annotate_report_assignment_status($conn, $recent_reports);
     <link rel="stylesheet" href="../../css/progress-updates.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="../../js/progress-updates.js"></script>
-    <script src="../../js/progress-updates-common.js"></script>
+    <script src="../../js/progress-updates.js?v=<?php echo filemtime(__DIR__ . '/../../js/progress-updates.js'); ?>"></script>
+    <script src="../../js/progress-updates-common.js?v=<?php echo filemtime(__DIR__ . '/../../js/progress-updates-common.js'); ?>"></script>
     <script src="../../js/tomtom-services.js?v=<?php echo filemtime(__DIR__ . '/../../js/tomtom-services.js'); ?>"></script>
     <script>
         const TOMTOM_API_KEY = '<?php echo TOMTOM_API_KEY; ?>';
@@ -2539,6 +2539,7 @@ annotate_report_assignment_status($conn, $recent_reports);
                             'report_category' => $rr['report_category'],
                             'status' => $rr['status'],
                             'assignment_status' => $rr['assignment_status'] ?? 'unassigned',
+                            'assignment_officer' => $rr['assignment_officer'] ?? '',
                             'priority' => $rr['priority'],
                             'severity' => $rr['severity'],
                             'created_at' => $rr['created_at'],
@@ -2600,7 +2601,7 @@ annotate_report_assignment_status($conn, $recent_reports);
                             <td style="white-space:nowrap;">
                                 <button class="table-action-btn" title="View Details" onclick="viewReportDetails(<?php echo $rr['id']; ?>, '<?php echo $rr['source']; ?>')"><i class="fas fa-eye"></i></button>
                                 <button class="table-action-btn view-map" onclick="focusReportOnMap(<?php echo $rr['id']; ?>)"><i class="fas fa-map-pin"></i> Map</button>
-                                <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(<?php echo $rr['id']; ?>, '<?php echo $rr['report_type']; ?>', '<?php echo $rr['source']; ?>')"><i class="fas fa-clock"></i> Updates</button>
+                                <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(<?php echo $rr['id']; ?>, '<?php echo $rr['report_type']; ?>', '<?php echo $rr['source']; ?>', '<?php echo htmlspecialchars($rr['status'] ?? '', ENT_QUOTES); ?>')"><i class="fas fa-clock"></i> Updates</button>
                                 <?php if (strtolower((string)($rr['status'] ?? '')) === 'completed'): ?>
                                 <button class="table-action-btn" title="Archive" style="background:linear-gradient(135deg,#6b7280,#4b5563);color:#fff;margin-left:4px;" onclick="archiveReport(<?php echo $rr['id']; ?>, '<?php echo $rr['source']; ?>')"><i class="fas fa-archive"></i> Archive</button>
                                 <?php endif; ?>
@@ -3589,15 +3590,44 @@ annotate_report_assignment_status($conn, $recent_reports);
             document.getElementById('lightboxOverlay').classList.remove('show');
         }
 
-        function viewReportUpdates(id, type, source) {
+        function isTerminalUpdatesStatus() {
+            var s = String(currentUpdatesReportStatus || '').toLowerCase().replace(/_/g, ' ').trim();
+            return s === 'completed' || s === 'cancelled' || s === 'canceled';
+        }
+
+        function applyUpdatesFooterMode() {
+            var actionButtons = document.getElementById('actionButtons');
+            var exportButtons = document.getElementById('exportButtons');
+            if (isTerminalUpdatesStatus()) {
+                if (actionButtons) actionButtons.style.display = 'none';
+                if (exportButtons) exportButtons.style.display = 'flex';
+                return true;
+            }
+            if (actionButtons) actionButtons.style.display = 'flex';
+            if (exportButtons) exportButtons.style.display = 'none';
+            return false;
+        }
+
+        function viewReportUpdates(id, type, source, status) {
             currentUpdatesReportId = id;
             currentUpdatesReportType = type;
             currentUpdatesReportSource = source;
-            document.getElementById('updateReportInfo').textContent = 'Report #' + id;
+            currentUpdatesReportStatus = status || '';
+            currentUpdatesReportDetails = null;
+            try {
+                var row = document.querySelector('#recentReportsTable .report-table-row[data-id="' + id + '"]');
+                if (row && row.dataset.details) {
+                    currentUpdatesReportDetails = JSON.parse(row.dataset.details);
+                }
+            } catch (e) {}
+            var infoId = (currentUpdatesReportDetails && currentUpdatesReportDetails.report_id) ? currentUpdatesReportDetails.report_id : id;
+            var infoTitle = (currentUpdatesReportDetails && currentUpdatesReportDetails.title) ? ' — ' + currentUpdatesReportDetails.title : '';
+            document.getElementById('updateReportInfo').textContent = 'Report #' + infoId + infoTitle;
             openModal('updatesModal');
             if (typeof loadUpdates === 'function') {
                 loadUpdates(id, type);
             }
+            if (applyUpdatesFooterMode()) return;
             // Check if user can add updates and show/hide the Add Update button accordingly
             checkUpdatePermission();
             // Check if the Request Completion / Request Cancellation buttons may
@@ -3611,6 +3641,11 @@ annotate_report_assignment_status($conn, $recent_reports);
             var completeBtn = document.getElementById('completeBtn');
             var cancelBtn = document.getElementById('cancelBtn');
             if (!completeBtn) return;
+            if (isTerminalUpdatesStatus()) {
+                completeBtn.style.display = 'none';
+                if (cancelBtn) cancelBtn.style.display = 'none';
+                return;
+            }
             var role = '';
             var tag = document.getElementById('sessionTimeoutData');
             if (tag) role = tag.getAttribute('data-role') || '';
@@ -3654,6 +3689,10 @@ annotate_report_assignment_status($conn, $recent_reports);
             // confirms an active assignment for this report.
             var btn = document.getElementById('addUpdateBtn');
             if (!btn) return;
+            if (isTerminalUpdatesStatus()) {
+                btn.style.display = 'none';
+                return;
+            }
             var role = '';
             var tag = document.getElementById('sessionTimeoutData');
             if (tag) role = tag.getAttribute('data-role') || '';
@@ -4093,198 +4132,216 @@ annotate_report_assignment_status($conn, $recent_reports);
             });
         }
 
+        // Self-contained Word export — lives on this page so a stale
+        // progress-updates-common.js cache cannot drop Report Details.
         function exportUpdatesToExcel() {
-            // Get all timeline entries
-            const timelineEntries = document.querySelectorAll('.timeline-entry');
+            var timelineEntries = document.querySelectorAll('.timeline-entry');
             if (timelineEntries.length === 0) {
                 showNotification('No updates to export', 'error');
                 return;
             }
-
             showNotification('Preparing document...', 'info');
-
-            // Process images first
-            processImagesAndExport(timelineEntries);
+            ensureExportReportDetails().then(function() {
+                processImagesAndExport(timelineEntries);
+            });
         }
 
-        function processImagesAndExport(timelineEntries) {
-            const updates = [];
-            let firstDate = null;
-            let lastDate = null;
-            let imageLoadPromises = [];
-            
-            timelineEntries.forEach(function(entry) {
-                const dateText = entry.querySelector('.time')?.textContent.trim() || '';
-                const title = entry.querySelector('.timeline-title')?.textContent.trim() || '';
-                const description = entry.querySelector('.timeline-desc')?.textContent.trim() || '';
-                const author = entry.querySelector('.admin-badge')?.textContent.trim() || '';
-                
-                // Extract images
-                const images = [];
-                const mediaItems = entry.querySelectorAll('.timeline-media-item');
-                mediaItems.forEach(function(media) {
-                    const img = media.querySelector('img');
-                    if (img && img.src) {
-                        // Create promise to load and resize image
-                        const imagePromise = resizeImage(img.src, 200);
-                        imageLoadPromises.push(imagePromise);
-                        images.push(imagePromise);
+        function ensureExportReportDetails() {
+            var existing = {};
+            try {
+                var row = document.querySelector('#recentReportsTable .report-table-row[data-id="' + currentUpdatesReportId + '"]');
+                if (row && row.dataset.details) existing = JSON.parse(row.dataset.details) || {};
+            } catch (e) {}
+            if (currentUpdatesReportDetails && typeof currentUpdatesReportDetails === 'object') {
+                existing = Object.assign({}, existing, currentUpdatesReportDetails);
+            }
+            var src = String(currentUpdatesReportSource || existing.source || '').toLowerCase();
+            var type = currentUpdatesReportType || existing.report_type || 'transportation';
+            var table = (src === 'infrastructure' || src === 'maintenance') ? 'road_maintenance_reports' : 'road_transportation_reports';
+            if (!currentUpdatesReportId || src === 'cimm' || src === 'external') {
+                currentUpdatesReportDetails = existing;
+                return Promise.resolve();
+            }
+            var url = '../api/get_report_details.php?id=' + encodeURIComponent(currentUpdatesReportId)
+                + '&type=' + encodeURIComponent(type)
+                + '&table=' + encodeURIComponent(table);
+            return fetch(url)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data && data.success && data.report) {
+                        currentUpdatesReportDetails = Object.assign({}, existing, data.report, {
+                            source: existing.source || src || currentUpdatesReportSource
+                        });
+                    } else {
+                        currentUpdatesReportDetails = existing;
                     }
-                });
-                
-                updates.push({
-                    date: dateText,
-                    title: title,
-                    description: description,
-                    author: author,
-                    images: images
-                });
-                
-                // Track dates for summary
-                if (!firstDate) firstDate = dateText;
-                lastDate = dateText;
-            });
-
-            // Wait for all images to be resized
-            Promise.all(imageLoadPromises)
-                .then(function(resizedImages) {
-                    // Replace image promises with resized base64 strings
-                    let imageIndex = 0;
-                    updates.forEach(function(update) {
-                        for (let i = 0; i < update.images.length; i++) {
-                            update.images[i] = resizedImages[imageIndex++];
-                        }
-                    });
-                    
-                    // Now generate the document
-                    generateDocument(updates, firstDate, lastDate);
                 })
-                .catch(function(error) {
-                    console.error('Image processing error:', error);
-                    // Fall back to document without images
-                    generateDocument(updates, firstDate, lastDate);
+                .catch(function() {
+                    currentUpdatesReportDetails = existing;
                 });
-        }
-
-        function resizeImage(imageSrc, maxWidth) {
-            return new Promise(function(resolve, reject) {
-                const img = new Image();
-                img.crossOrigin = 'Anonymous';
-                img.onload = function() {
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    
-                    // Calculate new dimensions
-                    const ratio = maxWidth / img.width;
-                    const newHeight = img.height * ratio;
-                    
-                    canvas.width = maxWidth;
-                    canvas.height = newHeight;
-                    
-                    // Draw resized image
-                    ctx.drawImage(img, 0, 0, maxWidth, newHeight);
-                    
-                    // Convert to base64
-                    resolve(canvas.toDataURL('image/jpeg', 0.8));
-                };
-                img.onerror = function() {
-                    resolve(null); // Return null if image fails to load
-                };
-                img.src = imageSrc;
-            });
         }
 
         function generateDocument(updates, firstDate, lastDate) {
             try {
-                // Calculate summary
-                const totalUpdates = updates.length;
-                const timeTaken = firstDate && lastDate ? calculateDaysBetween(firstDate, lastDate) : 0;
+                var totalUpdates = updates.length;
+                var timeTaken = firstDate && lastDate ? calculateDaysBetween(firstDate, lastDate) : 0;
+                var d = currentUpdatesReportDetails || {};
+                function esc(val) {
+                    var s = (val == null) ? '' : String(val);
+                    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                }
+                function pretty(val) {
+                    if (val === null || val === undefined) return '';
+                    var s = String(val).trim();
+                    if (!s || s === '—' || s === '-' || s.toLowerCase() === 'null') return '';
+                    return s;
+                }
+                function labelize(val) {
+                    var s = pretty(val);
+                    if (!s) return '';
+                    return s.replace(/[-_]/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+                }
+                function fmtDate(val) {
+                    var s = pretty(val);
+                    if (!s) return '';
+                    var dt = new Date(s);
+                    if (isNaN(dt.getTime())) return s;
+                    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                }
+                function pairRows(pairs) {
+                    var html = '';
+                    var buf = [];
+                    function flush() {
+                        if (!buf.length) return;
+                        html += '<tr>';
+                        buf.forEach(function(p) {
+                            html += '<td class="lbl">' + esc(p[0]) + '</td><td>' + esc(p[1]).replace(/\r\n|\r|\n/g, '<br>') + '</td>';
+                        });
+                        if (buf.length === 1) html += '<td class="lbl"></td><td></td>';
+                        html += '</tr>';
+                        buf = [];
+                    }
+                    pairs.forEach(function(p) {
+                        if (!p || !pretty(p[1])) return;
+                        if (p[2] === 'full') {
+                            flush();
+                            html += '<tr><td class="lbl">' + esc(p[0]) + '</td><td colspan="3">' + esc(p[1]).replace(/\r\n|\r|\n/g, '<br>') + '</td></tr>';
+                            return;
+                        }
+                        buf.push(p);
+                        if (buf.length === 2) flush();
+                    });
+                    flush();
+                    return html;
+                }
+                var sourceLabels = { lgu: 'LGU Monitoring', citizen: 'Citizen', cimm: 'CIMM', infrastructure: 'Infrastructure Projects', external: 'CIMM', maintenance: 'Maintenance' };
+                var sourceRaw = pretty(d.source || d.source_system || d.report_source || currentUpdatesReportSource);
+                var sourceLabel = sourceLabels[(sourceRaw || '').toLowerCase()] || labelize(sourceRaw);
+                var assignment = pretty(d.assignment_officer) || pretty(d.assigned_to) || '';
+                if (!assignment && pretty(d.assignment_status)) {
+                    assignment = (String(d.assignment_status).toLowerCase() === 'assigned') ? 'Assigned' : 'Unassigned';
+                }
+                var lat = pretty(d.latitude || d.coord_lat);
+                var lng = pretty(d.longitude || d.coord_lng);
+                var coords = (lat && lng && lat !== '0' && lng !== '0') ? (lat + ', ' + lng) : '';
+                var cimmVerify = labelize(d.approval_status || d.cimm_sync_status || d.verification_status);
+                var description = pretty(d.description || d.issue);
+                var detailsRows = pairRows([
+                    ['Source', sourceLabel],
+                    ['Status', labelize(d.status || currentUpdatesReportStatus)],
+                    ['Priority', labelize(d.priority)],
+                    ['Severity', labelize(d.severity)],
+                    ['Category', labelize(d.report_category)],
+                    ['Type', labelize(d.report_type)],
+                    ['Department', labelize(d.department)],
+                    ['Assignment', assignment],
+                    ['Reported By', pretty(d.reporter_name)],
+                    ['Created', fmtDate(d.created_at || d.created_date || d.submitted_at)],
+                    ['CIMM Verification', cimmVerify],
+                    ['Verified By', pretty(d.cimm_verified_by)],
+                    ['Verified At', fmtDate(d.cimm_verified_at)],
+                    ['Creator', pretty(d.creator_full_name)],
+                    ['Contact', pretty(d.creator_phone)],
+                    ['Email', pretty(d.creator_email)],
+                    ['Location', pretty(d.location), 'full'],
+                    ['Coordinates', coords, 'full'],
+                    ['Description', description, 'full']
+                ]);
+                var displayId = pretty(d.report_id) || String(currentUpdatesReportId || '');
+                var displayTitle = pretty(d.title);
+                var exportedOn = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-                // Create HTML document content
-                let htmlContent = `
+                var htmlContent = `
                 <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'>
                 <head>
                 <meta charset="utf-8">
                 <title>Progress Updates Report</title>
                 <style>
-                    body { font-family: 'Calibri', Arial, sans-serif; font-size: 11pt; line-height: 1.5; }
-                    h1 { color: #2E74B5; font-size: 18pt; text-align: center; margin-bottom: 20px; }
-                    h2 { color: #2E74B5; font-size: 14pt; margin-top: 20px; margin-bottom: 10px; border-bottom: 2px solid #2E74B5; padding-bottom: 5px; }
-                    .report-info { text-align: center; color: #666; margin-bottom: 30px; }
-                    .summary-table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
-                    .summary-table td { border: 1px solid #ddd; padding: 8px 12px; }
-                    .summary-table td:first-child { background-color: #f8f9fa; font-weight: bold; width: 150px; }
-                    .update-entry { margin-bottom: 25px; padding: 15px; background-color: #f8f9fa; border-left: 4px solid #2E74B5; }
-                    .update-header { color: #2E74B5; font-weight: bold; font-size: 12pt; margin-bottom: 5px; }
-                    .update-author { color: #666; font-style: italic; font-size: 10pt; margin-bottom: 10px; }
-                    .update-description { margin-bottom: 10px; }
-                    .update-images { margin-top: 10px; }
-                    .update-images img { width: 200px; height: auto; margin: 5px; border: 1px solid #ddd; }
-                    .image-count { color: #666; font-style: italic; font-size: 10pt; }
+                    body { font-family: 'Calibri', Arial, sans-serif; font-size: 10pt; line-height: 1.25; margin: 12px 16px; }
+                    h1 { color: #2E74B5; font-size: 16pt; text-align: center; margin: 0 0 4px 0; }
+                    h2 { color: #2E74B5; font-size: 12pt; margin: 12px 0 6px 0; border-bottom: 1px solid #2E74B5; padding-bottom: 3px; }
+                    .report-info { text-align: center; color: #666; margin: 0; font-size: 9pt; }
+                    .report-title { text-align: center; font-size: 12pt; font-weight: bold; color: #1f2937; margin: 2px 0 8px 0; }
+                    .details-table, .summary-table { border-collapse: collapse; width: 100%; margin: 0 0 8px 0; font-size: 10pt; }
+                    .details-table td, .summary-table td { border: 1px solid #d0d7de; padding: 3px 8px; vertical-align: top; }
+                    .details-table td.lbl, .summary-table td.lbl { background-color: #f3f6f9; font-weight: bold; width: 16%; color: #334155; white-space: nowrap; }
+                    .update-entry { margin: 0 0 8px 0; padding: 8px 10px; background-color: #f8f9fa; border-left: 3px solid #2E74B5; }
+                    .update-header { color: #2E74B5; font-weight: bold; font-size: 10.5pt; margin: 0 0 2px 0; }
+                    .update-author { color: #666; font-style: italic; font-size: 9pt; margin: 0 0 4px 0; }
+                    .update-description { margin: 0; }
+                    .update-images { margin-top: 6px; }
+                    .update-images img { width: 160px; height: auto; margin: 3px; border: 1px solid #ddd; }
+                    .image-count { color: #666; font-style: italic; font-size: 9pt; }
                 </style>
                 </head>
                 <body>
                     <h1>Progress Updates Report</h1>
-                    <p class="report-info">Report #${currentUpdatesReportId}</p>
-                    
+                    <p class="report-info">Report #${esc(displayId)} &nbsp;&middot;&nbsp; Exported ${esc(exportedOn)}</p>
+                    ${displayTitle ? `<p class="report-title">${esc(displayTitle)}</p>` : '<div style="height:6px;"></div>'}
+                    ${detailsRows ? `<h2>Report Details</h2><table class="details-table">${detailsRows}</table>` : ''}
                     <h2>Project Summary</h2>
                     <table class="summary-table">
-                        <tr><td>Start Date</td><td>${firstDate || 'N/A'}</td></tr>
-                        <tr><td>End Date</td><td>${lastDate || 'N/A'}</td></tr>
-                        <tr><td>Total Updates</td><td>${totalUpdates}</td></tr>
-                        <tr><td>Duration</td><td>${timeTaken} days</td></tr>
+                        <tr>
+                            <td class="lbl">Start</td><td>${esc(firstDate || 'N/A')}</td>
+                            <td class="lbl">End</td><td>${esc(lastDate || 'N/A')}</td>
+                        </tr>
+                        <tr>
+                            <td class="lbl">Updates</td><td>${totalUpdates}</td>
+                            <td class="lbl">Duration</td><td>${timeTaken} days</td>
+                        </tr>
                     </table>
-                    
                     <h2>Progress Timeline</h2>
                 `;
-
-                // Add each update
                 updates.forEach(function(update) {
                     htmlContent += `
                     <div class="update-entry">
-                        <div class="update-header">${update.date} - ${update.title || 'Update'}</div>
-                        <div class="update-author">By: ${update.author}</div>
-                        <div class="update-description">${update.description || 'No description'}</div>
+                        <div class="update-header">${esc(update.date)} - ${esc(update.title || 'Update')}</div>
+                        <div class="update-author">By: ${esc(update.author)}</div>
+                        <div class="update-description">${esc(update.description || 'No description').replace(/\r\n|\r|\n/g, '<br>')}</div>
                         <div class="update-images">
                     `;
-                    
                     if (update.images.length > 0) {
                         update.images.forEach(function(imgData) {
-                            if (imgData) {
-                                htmlContent += `<img src="${imgData}" alt="Update image" />`;
-                            }
+                            if (imgData) htmlContent += `<img src="${imgData}" alt="Update image" />`;
                         });
                     } else {
                         htmlContent += `<div class="image-count">No images attached</div>`;
                     }
-                    
-                    htmlContent += `
-                        </div>
-                    </div>
-                    `;
+                    htmlContent += `</div></div>`;
                 });
+                htmlContent += `</body></html>`;
 
-                htmlContent += `
-                </body>
-                </html>
-                `;
-
-                // Create blob and download
-                const blob = new Blob(['\ufeff', htmlContent], {
-                    type: 'application/msword'
-                });
-                
-                const fileName = 'progress_updates_report_' + currentUpdatesReportId + '_' + new Date().toISOString().slice(0,10) + '.doc';
-                const link = document.createElement('a');
+                var blob = new Blob(['\ufeff', htmlContent], { type: 'application/msword' });
+                var fileLabel = pretty(d.report_id) || String(currentUpdatesReportId || 'Report');
+                var fileName = ('Report ' + fileLabel).replace(/[<>:"/\\|?*\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120) + '.doc';
+                var link = document.createElement('a');
                 link.href = URL.createObjectURL(blob);
                 link.download = fileName;
                 link.style.display = 'none';
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-                
                 showNotification('Document exported successfully', 'success');
-
             } catch (error) {
                 console.error('Export error:', error);
                 showNotification('Failed to export document', 'error');
@@ -4293,11 +4350,10 @@ annotate_report_assignment_status($conn, $recent_reports);
 
         function calculateDaysBetween(dateStr1, dateStr2) {
             try {
-                const date1 = new Date(dateStr1);
-                const date2 = new Date(dateStr2);
-                const diffTime = Math.abs(date2 - date1);
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                return diffDays;
+                var date1 = new Date(dateStr1);
+                var date2 = new Date(dateStr2);
+                var diffTime = Math.abs(date2 - date1);
+                return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             } catch (e) {
                 return 0;
             }
@@ -4896,7 +4952,7 @@ annotate_report_assignment_status($conn, $recent_reports);
             <td style="white-space:nowrap;">
                 <button class="table-action-btn" title="View Details" onclick="viewReportDetails(${report.id}, '${report.source}')"><i class="fas fa-eye"></i></button>
                 <button class="table-action-btn view-map" onclick="focusReportOnMap(${report.id})"><i class="fas fa-map-pin"></i> Map</button>
-                <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(${report.id}, '${report.report_type}', '${report.source}')"><i class="fas fa-clock"></i> Updates</button>
+                <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(${report.id}, '${report.report_type}', '${report.source}', '${(report.status || '').replace(/'/g, "\\'")}')"><i class="fas fa-clock"></i> Updates</button>
                 ${(report.status || '').toLowerCase() === 'completed' ?
                     `<button class="table-action-btn" title="Archive" style="background:linear-gradient(135deg,#6b7280,#4b5563);color:#fff;margin-left:4px;" onclick="archiveReport(${report.id}, '${report.source}')"><i class="fas fa-archive"></i> Archive</button>` : ''}
             </td>
@@ -5073,7 +5129,7 @@ annotate_report_assignment_status($conn, $recent_reports);
                     <button type="button" class="btn-action" onclick="exportUpdatesToExcel()">
                         <i class="fas fa-file-excel"></i> Export
                     </button>
-                    <button type="button" class="btn-secondary-custom" onclick="closeModalAndRefresh('updatesModal')">Close</button>
+                    <button type="button" class="btn-secondary-custom" onclick="closeModal('updatesModal')">Close</button>
                 </div>
             </div>
         </div>

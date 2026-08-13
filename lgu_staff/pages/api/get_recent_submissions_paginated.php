@@ -214,6 +214,7 @@ try {
                 'report_type' => $rr['report_type'],
                 'status' => $rr['status'],
                 'assignment_status' => $rr['assignment_status'] ?? 'unassigned',
+                'assignment_officer' => $rr['assignment_officer'] ?? '',
                 'priority' => $rr['priority'],
                 'severity' => $rr['severity'],
                 'created_at' => $rr['created_at'],

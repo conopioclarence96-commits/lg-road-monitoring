@@ -1499,8 +1499,8 @@ if ($focus_id > 0) {
     <link rel="stylesheet" href="../../css/progress-updates.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="../../js/progress-updates.js"></script>
-    <script src="../../js/progress-updates-common.js"></script>
+    <script src="../../js/progress-updates.js?v=<?php echo filemtime(__DIR__ . '/../../js/progress-updates.js'); ?>"></script>
+    <script src="../../js/progress-updates-common.js?v=<?php echo filemtime(__DIR__ . '/../../js/progress-updates-common.js'); ?>"></script>
     <style>
         body {
             background: #f7f5f0;
@@ -5101,7 +5101,26 @@ if ($focus_id > 0) {
             currentUpdatesReportId = id;
             currentUpdatesReportType = type;
             currentUpdatesReportSource = source;
-            document.getElementById('updateReportInfo').textContent = 'Report #' + id;
+            currentUpdatesReportDetails = { id: id, source: source, report_type: type };
+            var row = document.querySelector('tr[data-id="' + id + '"]');
+            if (row) {
+                var ths = row.closest('table') ? row.closest('table').querySelectorAll('thead th') : [];
+                row.querySelectorAll('td').forEach(function(cell, idx) {
+                    var label = ((ths[idx] && ths[idx].textContent) || '').trim().toLowerCase();
+                    var text = (cell.textContent || '').trim();
+                    if (!text || text === '—' || label === 'action' || idx === 0) return;
+                    if (label.indexOf('report') !== -1) currentUpdatesReportDetails.report_id = text;
+                    else if (label === 'title') currentUpdatesReportDetails.title = text;
+                    else if (label === 'type') currentUpdatesReportDetails.report_type = text;
+                    else if (label === 'location') currentUpdatesReportDetails.location = text;
+                    else if (label === 'department') currentUpdatesReportDetails.department = text;
+                    else if (label === 'priority') currentUpdatesReportDetails.priority = text;
+                    else if (label === 'status') currentUpdatesReportDetails.status = text;
+                    else if (label === 'created') currentUpdatesReportDetails.created_at = text;
+                    else if (label === 'assignment') currentUpdatesReportDetails.assignment_officer = text;
+                });
+            }
+            document.getElementById('updateReportInfo').textContent = 'Report #' + (currentUpdatesReportDetails.report_id || id);
             openModal('updatesModal');
             if (typeof loadUpdates === 'function') {
                 loadUpdates(id, type);
