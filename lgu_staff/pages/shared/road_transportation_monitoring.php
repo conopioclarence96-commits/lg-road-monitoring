@@ -5197,20 +5197,20 @@ annotate_report_assignment_status($conn, $recent_reports);
                     <input type="hidden" name="report_type" id="addUpdateReportType" value="">
                     <input type="hidden" name="source" id="addUpdateSource" value="">
                     <div class="form-group">
-                        <label class="form-label">Title *</label>
+                        <label class="form-label" for="addUpdateTitle">Title *</label>
                         <input type="text" name="title" id="addUpdateTitle" class="form-control" placeholder="e.g., Inspection completed" required>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Description *</label>
+                        <label class="form-label" for="addUpdateDescription">Description *</label>
                         <textarea name="description" id="addUpdateDescription" class="form-control" rows="4" placeholder="Describe the progress made..." required></textarea>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Photos / Video</label>
+                        <label class="form-label" for="addUpdateMedia">Photos / Video</label>
                         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
                             <button type="button" id="addUpdatePhotosBtn" style="padding:8px 16px;background:#3762c8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;display:inline-flex;align-items:center;gap:6px;"><i class="fas fa-camera"></i> Add Photos</button>
                             <small class="t-text-secondary" style="font-size:11px;">Accepted: JPG, PNG, GIF, WebP, MP4, WebM</small>
                         </div>
-                        <input type="file" name="media[]" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm" multiple style="display:none;">
+                        <input type="file" name="media[]" id="addUpdateMedia" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm" multiple style="display:none;">
                         <div class="file-previews" id="updateFilePreviews"></div>
                     </div>
                     <div id="existingUpdateMediaSection" style="display:none;">
