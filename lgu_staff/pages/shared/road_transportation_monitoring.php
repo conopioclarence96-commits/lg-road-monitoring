@@ -197,9 +197,9 @@ function getEnhancedStats() {
             }
             $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE 1=1{$cat_filter}");
             if ($r) $stats['total'] = (int)$r->fetch_assoc()['c'];
-            $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE status IN ('pending','in-progress'){$cat_filter}");
+            $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE status IN ('approved','in-progress'){$cat_filter}");
             if ($r) $stats['active'] = (int)$r->fetch_assoc()['c'];
-            $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE priority IN ('high','critical') AND status != 'completed'{$cat_filter}");
+            $r = $conn->query("SELECT COUNT(*) as c FROM road_transportation_reports WHERE severity IN ('high','critical') AND status != 'completed'{$cat_filter}");
             if ($r) $stats['critical'] = (int)$r->fetch_assoc()['c'];
             $r = $conn->query("SELECT COUNT(*) as c FROM (
                 SELECT report_id FROM road_transportation_reports
@@ -3603,6 +3603,8 @@ annotate_report_assignment_status($conn, $recent_reports);
             // Check if the Request Completion / Request Cancellation buttons may
             // be shown (officers only get them for reports assigned to them).
             checkRequestPermission();
+            // Fetch report status to determine if Complete/Cancel buttons should be hidden
+            fetchReportStatus(id, source);
         }
 
         function checkRequestPermission() {

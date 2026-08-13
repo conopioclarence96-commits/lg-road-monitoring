@@ -658,7 +658,7 @@ function rgmap_auto_archive_completed($conn) {
         // CIMM reports have no completed_at column; their auto_archive_at is
         // stamped at the moment they are completed, so it doubles as the
         // completion timestamp for the 7-day window.
-        $stmt = $conn->prepare("SELECT id FROM cimm_verification_reports WHERE verification_status = 'Completed' AND auto_archive_at IS NOT NULL AND auto_archive_at <= (NOW() - INTERVAL 7 DAY)");
+        $stmt = $conn->prepare("SELECT id FROM cimm_verification_reports WHERE verification_status = 'Completed' AND auto_archive_at IS NOT NULL AND auto_archive_at <= NOW()");
         $stmt->execute();
         $res = $stmt->get_result();
         $stmt->close();

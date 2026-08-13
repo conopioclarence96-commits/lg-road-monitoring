@@ -3429,7 +3429,7 @@ if ($focus_id > 0) {
                         <option value="transport" <?php echo $source_filter === 'transport' ? 'selected' : ''; ?>>Citizen Reports</option>
                         <option value="lgu_reports" <?php echo $source_filter === 'lgu_reports' ? 'selected' : ''; ?>>LGU Monitoring Reports</option>
                         <?php if (!$is_transport_supervisor): ?>
-                        <option value="cimm" <?php echo $source_filter === 'cimm' ? 'selected' : ''; ?>>CIMM Reports</option>
+                        <option value="lgu" <?php echo $source_filter === 'cimm' ? 'selected' : ''; ?>>CIMM Reports</option>
                         <?php endif; ?>
                         <?php if (!$is_transport_supervisor && !$is_road_supervisor): ?>
                         <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>Infrastructure Projects</option>
@@ -4292,7 +4292,7 @@ if ($focus_id > 0) {
                     <input type="hidden" name="action" id="addUpdateAction" value="create_update">
                     <input type="hidden" name="update_id" id="addUpdateId" value="">
                     <input type="hidden" name="report_id" id="addUpdateReportId" value="">
-                    <input type="hidden" name="report_type" id="addUpdateReportType" value="">
+                    <input type="hidden" name="report_type" id="addUpdateReportType" value=""><input type="hidden" name="source" id="addUpdateSource" value="lgu">
                     <div class="form-group">
                         <label class="form-label">Title *</label>
                         <input type="text" name="title" id="addUpdateTitle" class="form-control" placeholder="e.g., Inspection completed" required>
@@ -5152,6 +5152,7 @@ if ($focus_id > 0) {
             document.getElementById('addUpdateReportType').value = currentUpdatesReportType;
             document.getElementById('addUpdateTitle').value = '';
             document.getElementById('addUpdateDescription').value = '';
+            document.getElementById('addUpdateSource').value = currentUpdatesReportSource;
             document.getElementById('updateFilePreviews').innerHTML = '';
             document.getElementById('existingUpdateMediaSection').style.display = 'none';
             document.getElementById('existingUpdateMedia').innerHTML = '';
@@ -5309,21 +5310,9 @@ if ($focus_id > 0) {
             var tag = document.getElementById('sessionTimeoutData');
             if (tag) role = tag.getAttribute('data-role') || '';
             if (role !== 'road_ops_supervisor') { callback(true); return; }
-
-            fetch('../api/progress_update_api.php?action=can_complete_report&report_id=' + encodeURIComponent(reportId) + '&report_type=' + encodeURIComponent(reportType) + '&source=' + encodeURIComponent(source))
-                .then(function(r) { return r.json(); })
-                .then(function(data) {
-                    if (!(data && data.success)) {
-                        showNotification(data && data.message ? data.message : 'Unable to verify completion eligibility', 'error');
-                        callback(false); return;
-                    }
-                    if (!data.can_complete) {
-                        showNotification(data.message || 'Cannot complete: an officer must be assigned or progress updates must be added first', 'error');
-                        callback(false); return;
-                    }
-                    callback(true);
-                })
-                .catch(function() { showNotification('Unable to verify completion eligibility', 'error'); callback(false); });
+            // Road Operations Supervisor uses the same completion flow as Admin:
+            // bypass the can_complete_report gate and complete directly.
+            callback(true);
         }
 
         function completeReport() {
