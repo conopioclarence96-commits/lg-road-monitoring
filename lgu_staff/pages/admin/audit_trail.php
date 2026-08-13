@@ -199,8 +199,8 @@ function getActionColor($action) {
             <div class="panel-body">
                 <form method="GET" class="filter-bar">
                     <div>
-                        <label style="font-size: 11px; color: var(--text-secondary); font-weight: 500; display: block; margin-bottom: 4px;">Action</label>
-                        <select name="action">
+                        <label for="action" style="font-size: 11px; color: var(--text-secondary); font-weight: 500; display: block; margin-bottom: 4px;">Action</label>
+                        <select name="action" id="action">
                             <option value="">All Actions</option>
                             <?php foreach ($actions_list as $a): ?>
                             <option value="<?php echo htmlspecialchars($a['action']); ?>" <?php echo $action_filter === $a['action'] ? 'selected' : ''; ?>>
@@ -210,8 +210,8 @@ function getActionColor($action) {
                         </select>
                     </div>
                     <div>
-                        <label style="font-size: 11px; color: var(--text-secondary); font-weight: 500; display: block; margin-bottom: 4px;">User</label>
-                        <select name="user_id">
+                        <label for="user_id" style="font-size: 11px; color: var(--text-secondary); font-weight: 500; display: block; margin-bottom: 4px;">User</label>
+                        <select name="user_id" id="user_id">
                             <option value="">All Users</option>
                             <?php foreach ($users as $u): ?>
                             <option value="<?php echo $u['id']; ?>" <?php echo $user_filter === intval($u['id']) ? 'selected' : ''; ?>>
@@ -221,12 +221,12 @@ function getActionColor($action) {
                         </select>
                     </div>
                     <div>
-                        <label style="font-size: 11px; color: var(--text-secondary); font-weight: 500; display: block; margin-bottom: 4px;">From</label>
-                        <input type="date" name="date_from" value="<?php echo htmlspecialchars($date_from); ?>">
+                        <label for="date_from" style="font-size: 11px; color: var(--text-secondary); font-weight: 500; display: block; margin-bottom: 4px;">From</label>
+                        <input type="date" name="date_from" id="date_from" value="<?php echo htmlspecialchars($date_from); ?>">
                     </div>
                     <div>
-                        <label style="font-size: 11px; color: var(--text-secondary); font-weight: 500; display: block; margin-bottom: 4px;">To</label>
-                        <input type="date" name="date_to" value="<?php echo htmlspecialchars($date_to); ?>">
+                        <label for="date_to" style="font-size: 11px; color: var(--text-secondary); font-weight: 500; display: block; margin-bottom: 4px;">To</label>
+                        <input type="date" name="date_to" id="date_to" value="<?php echo htmlspecialchars($date_to); ?>">
                     </div>
                     <div style="align-self: flex-end;">
                         <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> Apply</button>
