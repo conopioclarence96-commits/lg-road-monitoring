@@ -1398,7 +1398,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
         .road-projects-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
             gap: 20px;
         }
 
@@ -1982,6 +1982,82 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         html.dark-mode .restricted-card { background: #1e2229; }
         html.dark-mode .restricted-card p { color: #9ca3af; }
         html.dark-mode .restricted-card h2 { color: #e4e6ea; }
+
+        /* ============================================================
+           LANDING PAGE MOBILE RESPONSIVENESS (scoped to index.php)
+           ============================================================ */
+
+        /* Stop fixed-width map/legend elements from causing horizontal scroll */
+        @media (max-width: 767.98px) {
+            body { overflow-x: hidden; }
+            .gis-map-legend { flex-wrap: wrap; gap: 6px 10px; }
+            #roadProjectsMap { height: 340px; }
+        }
+
+        /* Small phones & narrow viewports */
+        @media (max-width: 575.98px) {
+            /* Navbar brand — compact, keeps clear of the hamburger button */
+            .qc-navbar { padding: 0.4rem 0; }
+            .qc-navbar .container-fluid { padding-right: 64px; padding-left: 14px; }
+            .qc-brand { gap: 9px; }
+            .qc-brand img { height: 38px; }
+            .qc-brand-text strong { font-size: 0.9rem; line-height: 1.15; }
+            .qc-brand-text small { font-size: 0.6rem; letter-spacing: 0.4px; }
+
+            /* Hero */
+            .hero { padding: 120px 0 74px; }
+            .hero h1 { font-size: 1.72rem; margin-bottom: 12px; }
+            .hero p.lead { font-size: 0.97rem; margin-bottom: 24px; }
+            .hero-buttons { flex-direction: column; align-items: stretch; }
+            .hero-buttons .btn-hero {
+                width: 100%;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            /* Sections & cards */
+            .section { padding: 48px 0 40px; }
+            .section-subtitle { font-size: 0.95rem; margin-bottom: 36px; }
+            .update-card .card-header { padding: 14px 96px 12px 16px; }
+
+            /* Statistics — keep numbers from overflowing 2-col layout */
+            .stat-card { padding: 22px 10px; }
+            .stat-number { font-size: 1.75rem; }
+            .stat-icon { width: 54px; height: 54px; font-size: 1.35rem; }
+
+            /* Road projects — map toolbar stacks vertically */
+            .gis-map-toolbar { flex-direction: column; align-items: stretch; padding: 10px; }
+            .gis-toolbar-left, .gis-toolbar-right { width: 100%; }
+            .gis-toolbar-right { justify-content: flex-start; }
+            .gis-map-search-box { flex: 1; }
+            .gis-search-input { flex: 1; width: auto; min-width: 0; }
+            .gis-toolbar-right .gis-map-btn { flex: 1 1 auto; justify-content: center; }
+            .gis-toolbar-right .gis-dropdown { flex: 1 1 auto; }
+            .gis-toolbar-right .gis-dropdown .gis-map-btn { width: 100%; }
+
+            /* Road project cards & before/after info */
+            .road-project-card { padding: 16px; }
+            .before-after-info { padding: 16px; }
+
+            /* Footer */
+            .footer-contact-row { gap: 10px; font-size: 13px; }
+            .contact-separator { display: none; }
+
+            /* Citizen report modal */
+            .modal-body { padding: 18px; }
+            .cr-verification-box { padding: 14px; }
+            .cr-btn { padding: 10px 16px; }
+        }
+
+        /* Very small phones (<= 360px) */
+        @media (max-width: 359.98px) {
+            .hero h1 { font-size: 1.5rem; }
+            .qc-brand img { height: 34px; }
+            .qc-brand-text strong { font-size: 0.8rem; }
+            .qc-brand-text small { font-size: 0.55rem; }
+            .stat-number { font-size: 1.55rem; }
+        }
     </style>
     <?php include __DIR__ . '/includes/a11y_css.php'; ?>
     <?php include __DIR__ . '/includes/hamburger_menu_css.php'; ?>
