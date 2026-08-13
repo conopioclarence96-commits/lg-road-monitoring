@@ -103,15 +103,6 @@
         section[id] { scroll-margin-top: 160px; }
         .hero-bar { padding-top: 150px; }
 
-        /* Drop the hamburger so it lines up with the quick-links row
-           (next to the Programs button) on phones instead of covering
-           the brand's second line. */
-        .hamburger-btn {
-            top: 60px !important;
-            width: 40px !important;
-            height: 40px !important;
-        }
-
         .qc-navbar .qc-nav-center { justify-content: stretch; }
 
         .qc-navbar .qc-services-dropdown,
@@ -128,5 +119,22 @@
             flex-basis: 100%;
             margin-top: 4px;
         }
+    }
+
+    /* Hamburger alignment: sit vertically centered beside the Programs
+       button (the quick-links row) instead of covering the brand text.
+       Values measured against the rendered layout at each breakpoint. */
+    @media (max-width: 991.98px) {
+        .hamburger-btn { top: 58px !important; }
+    }
+    @media (max-width: 575.98px) {
+        .hamburger-btn {
+            top: 49px !important;
+            width: 40px !important;
+            height: 40px !important;
+        }
+    }
+    @media (max-width: 359.98px) {
+        .hamburger-btn { top: 89px !important; }
     }
 </style>
