@@ -123,12 +123,18 @@ function rgmap_upsert_ipms_road_project(PDO $pdo, array $road): bool {
     // single engineer, and tolerate it being absent/malformed on older feed
     // responses by falling back to an empty list.
     $assignedEngineers = [];
-    if (is_array($road['assigned_engineers'] ?? null)) {
-        foreach ($road['assigned_engineers'] as $name) {
+    $ae = $road['assigned_engineers'] ?? null;
+    if (is_array($ae)) {
+        foreach ($ae as $name) {
             $name = trim((string)$name);
             if ($name !== '') {
                 $assignedEngineers[] = $name;
             }
+        }
+    } elseif (is_string($ae) && trim($ae) !== '') {
+        // Tolerate a comma-separated string from older partners
+        foreach (array_map('trim', explode(',', $ae)) as $name) {
+            if ($name !== '') $assignedEngineers[] = $name;
         }
     }
 
