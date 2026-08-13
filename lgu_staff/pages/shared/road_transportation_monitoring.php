@@ -2425,9 +2425,9 @@ annotate_report_assignment_status($conn, $recent_reports);
                 <div id="geofencingPanel" class="tomtom-panel">
                     <h5><i class="fas fa-draw-polygon"></i> Geofence Check</h5>
                     <p class="t-text-secondary" style="font-size:12px;">Enter coordinates to check if a location is within any geofence.</p>
-                    <label>Latitude</label>
+                    <label for="geofenceLat">Latitude</label>
                     <input type="number" id="geofenceLat" step="any" placeholder="e.g., 14.65">
-                    <label>Longitude</label>
+                    <label for="geofenceLng">Longitude</label>
                     <input type="number" id="geofenceLng" step="any" placeholder="e.g., 121.05">
                     <div style="display:flex;gap:8px;">
                         <button class="btn-action btn-sm" onclick="checkGeofence()"><i class="fas fa-check"></i> Check</button>
