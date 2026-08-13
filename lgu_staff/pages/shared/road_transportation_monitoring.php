@@ -5215,8 +5215,8 @@ annotate_report_assignment_status($conn, $recent_reports);
                     </div>
                     <div id="existingUpdateMediaSection" style="display:none;">
                         <div class="form-group">
-                            <label class="form-label">Current media (check to remove)</label>
-                            <div id="existingUpdateMedia" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;"></div>
+                            <label class="form-label" id="existingUpdateMediaLabel">Current media (check to remove)</label>
+                            <div id="existingUpdateMedia" role="group" aria-labelledby="existingUpdateMediaLabel" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;"></div>
                         </div>
                     </div>
                 </div>
