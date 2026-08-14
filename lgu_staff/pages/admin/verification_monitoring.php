@@ -3,6 +3,7 @@ require_once '../../includes/session_config.php';
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 require_once __DIR__ . '/../../api/cimm_verification_data.php';
+require_once __DIR__ . '/../api/ipms_road_projects_data.php';
 
 // Session timeout configuration
 $session_timeout = 30 * 60; // 30 minutes in seconds
@@ -379,6 +380,8 @@ function rgmap_map_cimm_row_for_display(array $row): array {
         'infrastructure'=> $row['infrastructure'] ?? '',
         'location'      => $row['location'] ?? '',
         'issue_notes'   => $row['issue'] ?? '',
+        'latitude'      => $row['coord_lat'] ?? null,
+        'longitude'     => $row['coord_lng'] ?? null,
         'engineer'      => $row['engineer'] ?? '—',
         'reported_by'   => $row['reporter_name'] ?? '—',
         'report_type'   => 'staff', // see gap #2 above
@@ -671,6 +674,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $source = $_POST['source'];
         $action = $_POST['action'];
         $table = in_array($source, ['transport', 'lgu', 'external']) ? 'road_transportation_reports' : 'road_maintenance_reports';
+
+        // Infrastructure Projects (read-only IPMS mirror): approve/reject reflects
+        // the action on the local mirror row so the panel updates immediately.
+        if ($source === 'infra' && in_array($action, ['approve', 'reject'])) {
+            $new_status = ($action === 'approve') ? 'approved' : 'cancelled';
+            $infra_pdo = rgmap_ipms_pdo();
+            $infra_upd = $infra_pdo->prepare("UPDATE ipms_road_projects SET project_status = ? WHERE project_id = ?");
+            $infra_upd->execute([$new_status, $report_id]);
+
+            $audit_query = "INSERT INTO audit_trails (audit_id, title, audit_type, status, auditor, description, created_at)
+                            VALUES (?, ?, ?, ?, ?, ?, NOW())";
+            $audit_stmt = $conn->prepare($audit_query);
+            $audit_id = 'VR-' . date('Y-m-d-His');
+            $title = ucfirst($action) . ' Infrastructure Project #' . $report_id;
+            $audit_type = 'compliance';
+            $auditor = $_SESSION['email'] ?? 'Unknown';
+            $description = "Infrastructure project #$report_id has been " . $action . "d by $auditor";
+            $audit_status = ($action === 'approve') ? 'approved' : 'rejected';
+            $audit_stmt->bind_param('ssssss', $audit_id, $title, $audit_type, $audit_status, $auditor, $description);
+            $audit_stmt->execute();
+
+            $_SESSION['verification_message'] = 'Infrastructure project ' . ($action === 'approve' ? 'approved' : 'rejected') . ' successfully.';
+            header('Location: ../admin/verification_monitoring.php');
+            exit();
+        }
         
         // Archive report then remove from active table
         if ($action === 'delete') {
@@ -871,16 +899,34 @@ try {
 }
 $infra_reports = [];
 foreach ($ipms_projects_raw as $proj) {
+    // The panel only surfaces actionable projects — hide ones that have
+    // already been completed / turned over.
+    $proj_scope = $proj['scope_bucket'] ?? $proj['status_bucket'] ?? '';
+    if ($proj_scope === 'completed') {
+        continue;
+    }
+    // Assigned engineers are decoded back into an array by the fetcher;
+    // join them into a single display string.
+    $infra_engineers = $proj['assigned_engineers'] ?? [];
+    $infra_engineer  = is_array($infra_engineers)
+        ? implode(', ', array_filter(array_map('trim', array_map('strval', $infra_engineers)), fn($n) => $n !== ''))
+        : trim((string)$infra_engineers);
+
     $infra_reports[] = [
         'id'               => (int)$proj['project_id'],
         'source'           => 'maintenance',
         'report_id'        => (string)$proj['project_id'],
         'title'            => trim((string)($proj['project_name'] ?? '')),
+        'infrastructure'   => trim((string)($proj['road_type'] ?? '')),
         'report_type'      => trim((string)($proj['road_type'] ?? '')),
         'department'       => '—',
         'priority'         => '—',
         'status'           => (string)($proj['project_status'] ?? ''),
-        'location'         => trim((string)($proj['road_name'] ?? '')),
+        // Barangays covered are decoded into an array by the fetcher; join
+        // them into a single display string. Falls back to the road name.
+        'location'         => (is_array($proj['barangays_covered'] ?? null) && count($proj['barangays_covered']))
+            ? implode(', ', array_filter(array_map('trim', array_map('strval', $proj['barangays_covered'])), fn($b) => $b !== ''))
+            : trim((string)($proj['road_name'] ?? '')),
         'description'      => null,
         'created_date'     => null,
         'created_at'       => $proj['created_at'] ?? null,
@@ -890,6 +936,12 @@ foreach ($ipms_projects_raw as $proj) {
         'actual_cost'      => null,
         'maintenance_team' => null,
         'attachments'      => null,
+        'issue_notes'      => trim((string)($proj['road_status'] ?? '')),
+        'engineer'         => $infra_engineer,
+        'start_date'       => $proj['start_date'] ?? null,
+        'end_date'         => $proj['end_date'] ?? null,
+        'budget'           => $proj['budget'] ?? null,
+        'polyline'         => $proj['polyline_coordinates'] ?? null,
     ];
 }
 
@@ -1150,6 +1202,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="../../css/theme-tokens.css">
     <link rel="stylesheet" href="../../css/theme-utilities.css">
     <link rel="stylesheet" href="../../css/sidebar.css?v=3">
@@ -4371,6 +4424,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             background: rgba(249, 115, 22, 0.2);
         }
 
+        .infra-view-map-btn,
+        .cimm-view-map-btn,
+        .citizen-view-map-btn,
+        .lgu-view-map-btn {
+            margin-left: auto;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            background: rgba(249, 115, 22, 0.1);
+            color: #f97316;
+            border: 1px solid rgba(249, 115, 22, 0.3);
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .infra-view-map-btn:hover,
+        .cimm-view-map-btn:hover,
+        .citizen-view-map-btn:hover,
+        .lgu-view-map-btn:hover {
+            background: rgba(249, 115, 22, 0.2);
+        }
+
+        .road-map-container {
+            display: none;
+            margin-top: 12px;
+            height: 320px;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid rgba(249, 115, 22, 0.15);
+        }
+
+        .road-map-container.road-map-visible {
+            display: block;
+        }
+
         @media (max-width: 640px) {
             .infra-info-grid {
                 grid-template-columns: 1fr;
@@ -5621,7 +5714,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <div class="infra-reports-search">
                 <div class="infra-search-wrapper">
                     <i class="fas fa-search"></i>
-                    <input type="text" class="infra-search-input" id="infraSearchInput" placeholder="Search by Report #, Title, Type, Location, Department...">
+                    <input type="text" class="infra-search-input" id="infraSearchInput" placeholder="Search by Rep #, Infrastructure, Location, Engineer, Priority...">
                 </div>
                 <button class="infra-sort-btn" onclick="toggleInfraSort()">
                     <i class="fas fa-sort"></i> Sort
@@ -5633,14 +5726,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <thead>
                         <tr>
                             <th>Action</th>
-                            <th>Report #</th>
-                            <th>Title</th>
-                            <th>Type</th>
+                            <th>Rep #</th>
+                            <th>Infrastructure</th>
                             <th>Location</th>
-                            <th>Department</th>
+                            <th>Issue / Notes</th>
+                            <th>Engineer</th>
+                            <th>Reported By</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
                             <th>Priority</th>
+                            <th>Budget</th>
                             <th>Status</th>
-                            <th>Created Date</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -5666,18 +5762,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     <button class="infra-action-btn" onclick="viewInfraReport(<?php echo $irow['id']; ?>, '<?php echo htmlspecialchars($irow['source'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-eye"></i>
                                     </button>
-                                    <?php if ($irow['status'] === 'pending'): ?>
-                                    <form method="POST" class="infra-action-form" onsubmit="return confirm('Are you sure you want to verify this infrastructure report?');">
+                                    <?php if (!in_array($irow['status'], ['approved', 'cancelled'], true)): ?>
+                                    <form method="POST" class="infra-action-form" onsubmit="return confirm('Are you sure you want to approve this infrastructure project?');">
                                         <input type="hidden" name="report_id" value="<?php echo (int)$irow['id']; ?>">
-                                        <input type="hidden" name="source" value="<?php echo htmlspecialchars($irow['source'], ENT_QUOTES); ?>">
-                                        <button type="submit" name="action" value="approve" class="infra-verify-btn" title="Verify report">
+                                        <input type="hidden" name="source" value="infra">
+                                        <button type="submit" name="action" value="approve" class="infra-verify-btn" title="Approve infrastructure project">
                                             <i class="fas fa-check"></i>
                                         </button>
                                     </form>
-                                    <form method="POST" class="infra-action-form" onsubmit="return confirm('Are you sure you want to reject this infrastructure report?');">
+                                    <form method="POST" class="infra-action-form" onsubmit="return confirm('Are you sure you want to reject this infrastructure project?');">
                                         <input type="hidden" name="report_id" value="<?php echo (int)$irow['id']; ?>">
-                                        <input type="hidden" name="source" value="<?php echo htmlspecialchars($irow['source'], ENT_QUOTES); ?>">
-                                        <button type="submit" name="action" value="reject" class="infra-reject-btn" title="Reject report">
+                                        <input type="hidden" name="source" value="infra">
+                                        <button type="submit" name="action" value="reject" class="infra-reject-btn" title="Reject infrastructure project">
                                             <i class="fas fa-times"></i>
                                         </button>
                                     </form>
@@ -5685,23 +5781,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 </div>
                             </td>
                             <td><?php echo htmlspecialchars($irow['report_id']); ?></td>
-                            <td><?php echo htmlspecialchars(strlen($irow['title'] ?? '') > 35 ? substr($irow['title'], 0, 35) . '...' : ($irow['title'] ?? '')); ?></td>
-                            <td><?php
-                                $type_labels = [
-                                    'infrastructure_issue' => 'Infrastructure Issue',
-                                    'routine' => 'Routine Maintenance',
-                                    'emergency' => 'Emergency Repair',
-                                    'preventive' => 'Preventive Maintenance',
-                                    'corrective' => 'Corrective Maintenance',
-                                    'scheduled' => 'Scheduled Maintenance'
-                                ];
-                                echo htmlspecialchars($type_labels[$irow['report_type']] ?? ucfirst($irow['report_type']));
-                            ?></td>
+                            <td><?php echo htmlspecialchars($irow['infrastructure'] ?: '—'); ?></td>
                             <td><?php echo htmlspecialchars($irow['location'] ?? '—'); ?></td>
-                            <td><?php echo htmlspecialchars(ucfirst($irow['department'])); ?></td>
-                            <td><span class="infra-status-badge <?php echo htmlspecialchars($irow['priority']); ?>"><?php echo ucfirst(htmlspecialchars($irow['priority'])); ?></span></td>
+                            <td><?php echo htmlspecialchars(strlen($irow['issue_notes'] ?? '') > 40 ? substr($irow['issue_notes'], 0, 40) . '...' : ($irow['issue_notes'] ?? '—')); ?></td>
+                            <td><?php echo htmlspecialchars($irow['engineer'] ?: '—'); ?></td>
+                            <td><?php echo htmlspecialchars($irow['reporter_name'] ?? '—'); ?></td>
+                            <td><?php echo $irow['start_date'] ? date('M d, Y', strtotime($irow['start_date'])) : '—'; ?></td>
+                            <td><?php echo $irow['end_date'] ? date('M d, Y', strtotime($irow['end_date'])) : '—'; ?></td>
+                            <td><span class="infra-status-badge <?php echo in_array(strtolower((string)$irow['priority']), ['high', 'medium', 'low', 'critical'], true) ? htmlspecialchars(strtolower((string)$irow['priority'])) : ''; ?>"><?php echo ucfirst(htmlspecialchars($irow['priority'])); ?></span></td>
+                            <td><?php echo $irow['budget'] ? '₱' . number_format((float)$irow['budget'], 2) : '—'; ?></td>
                             <td><span class="infra-status-badge <?php echo $istatus_class; ?>"><?php echo ucfirst(htmlspecialchars(str_replace(['-', '_'], ' ', $irow['status']))); ?></span></td>
-                            <td><?php echo $irow['created_at'] ? date('M d, Y', strtotime($irow['created_at'])) : '—'; ?></td>
                         </tr>
                         <?php
                             endforeach;
@@ -5710,7 +5799,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
                         <?php if (!$hasInfraReports): ?>
                         <tr>
-                            <td colspan="9">
+                            <td colspan="12">
                                 <div class="infra-empty-state">
                                     <div class="infra-empty-icon">
                                         <i class="fas fa-hard-hat"></i>
@@ -6208,6 +6297,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <?php endif; ?>
             document.getElementById('lgu-location-grid').innerHTML = locationGrid;
 
+            // View Map button: only shown when the report has a saved
+            // coordinate point (latitude / longitude).
+            currentLguPoint = (r.latitude != null && r.longitude != null)
+                ? [[parseFloat(r.latitude), parseFloat(r.longitude)]]
+                : null;
+            var lguMapBtn = document.getElementById('lgu-view-map-btn');
+            if (lguMapBtn) lguMapBtn.style.display = currentLguPoint ? '' : 'none';
+            var lguMapContainer = document.getElementById('lgu-map-container');
+            if (lguMapContainer) lguMapContainer.classList.remove('road-map-visible');
+
             // Description
             document.getElementById('lgu-description').textContent = r.description || 'No description provided.';
 
@@ -6344,6 +6443,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             var locationGrid = '';
             locationGrid += '<div class="cimm-info-item cimm-info-value-full"><div class="cimm-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="cimm-info-label">Location</div><div class="cimm-info-value">' + (r.location || '—') + '</div></div></div>';
             document.getElementById('cimm-location-grid').innerHTML = locationGrid;
+
+            // View Map button: only shown when the report has a saved
+            // coordinate point (coord_lat / coord_lng).
+            currentCimmPoint = (r.latitude != null && r.longitude != null)
+                ? [[parseFloat(r.latitude), parseFloat(r.longitude)]]
+                : null;
+            var cimmMapBtn = document.getElementById('cimm-view-map-btn');
+            if (cimmMapBtn) cimmMapBtn.style.display = currentCimmPoint ? '' : 'none';
+            var cimmMapContainer = document.getElementById('cimm-map-container');
+            if (cimmMapContainer) cimmMapContainer.classList.remove('road-map-visible');
 
             // Issue / Notes
             document.getElementById('cimm-issue').textContent = r.issue_notes || 'No notes provided.';
@@ -6489,8 +6598,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     reporter_name: <?php echo json_encode($ir['reporter_name'] ?? '—'); ?>,
                     estimated_cost: <?php echo json_encode($ir['estimated_cost'] ?? null); ?>,
                     actual_cost: <?php echo json_encode($ir['actual_cost'] ?? null); ?>,
-                    maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
-                    attachments: <?php echo json_encode($ir['attachments'] ?? null); ?>
+maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
+                    attachments: <?php echo json_encode($ir['attachments'] ?? null); ?>,
+                    polyline: <?php echo json_encode($ir['polyline'] ?? null); ?>
                 };
             } catch(e) {
                 console.error('Error adding infra report to map:', e);
@@ -6500,6 +6610,87 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             endforeach;
         endif;
         ?>
+
+        // View Map — draws the report's saved location onto a Leaflet map with
+        // TomTom tiles, instead of showing raw data. Infrastructure Projects
+        // carry a polyline path (ipms_road_projects.polyline_json); CIMM reports
+        // carry a single coordinate point (coord_lat / coord_lng).
+        const TOMTOM_API_KEY = '<?php echo TOMTOM_API_KEY; ?>';
+        let currentInfraPolyline = null;
+        let currentCimmPoint = null;
+        let currentCitizenPoint = null;
+        let currentLguPoint = null;
+        let roadMapInstances = {};
+
+        // Shared map renderer for the Infrastructure and CIMM report modals.
+        // When asLine is true the points are drawn as a polyline path; otherwise
+        // the first point is drawn as a marker.
+        function openRoadPathMap(containerId, points, asLine) {
+            var container = document.getElementById(containerId);
+            if (!container) return;
+
+            if (!Array.isArray(points) || points.length < 1) {
+                alert('No map data available for this report.');
+                return;
+            }
+            if (typeof L === 'undefined') {
+                alert('Map library failed to load.');
+                return;
+            }
+
+            // Make the container visible first so Leaflet measures the correct
+            // size when the map is created (display:none containers report 0x0).
+            container.classList.add('road-map-visible');
+
+            var map = roadMapInstances[containerId];
+            if (!map) {
+                map = L.map(containerId, { zoomControl: true })
+                    .setView([14.6760, 121.0437], 12);
+                L.tileLayer('https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
+                    attribution: '© TomTom',
+                    maxZoom: 18
+                }).addTo(map);
+                roadMapInstances[containerId] = map;
+            }
+
+            // Remove any path/marker drawn for a previously-viewed report.
+            map.eachLayer(function(layer) {
+                if (layer instanceof L.Polyline || layer instanceof L.CircleMarker || layer instanceof L.Marker) {
+                    map.removeLayer(layer);
+                }
+            });
+
+            if (asLine && points.length >= 2) {
+                L.polyline(points, { color: '#f97316', weight: 5, opacity: 0.9 }).addTo(map);
+                map.fitBounds(L.latLngBounds(points).pad(0.25));
+            } else {
+                var pt = points[0];
+                L.circleMarker(pt, { radius: 8, color: '#f97316', fillColor: '#f97316', fillOpacity: 0.85, weight: 2 }).addTo(map);
+                map.setView(pt, 14);
+            }
+
+            // The modal animates open, which can leave the map with a stale
+            // size; force a refresh once the transition has finished.
+            setTimeout(function() {
+                if (map) map.invalidateSize();
+            }, 250);
+        }
+
+        function openInfraMap() {
+            openRoadPathMap('infra-map-container', currentInfraPolyline, true);
+        }
+
+        function openCimmMap() {
+            openRoadPathMap('cimm-map-container', currentCimmPoint, false);
+        }
+
+        function openCitizenMap() {
+            openRoadPathMap('cm-map-container', currentCitizenPoint, false);
+        }
+
+        function openLguMap() {
+            openRoadPathMap('lgu-map-container', currentLguPoint, false);
+        }
 
         // Infra Reports search functionality
         document.getElementById('infraSearchInput')?.addEventListener('input', function() {
@@ -6609,6 +6800,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             var locationGrid = '';
             locationGrid += '<div class="infra-info-item infra-info-value-full"><div class="infra-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="infra-info-label">Location</div><div class="infra-info-value">' + (r.location || '—') + '</div></div></div>';
             document.getElementById('infra-location-grid').innerHTML = locationGrid;
+
+            // View Map button: only shown when the project has a saved road
+            // path (polyline_json). Stores the drawn path for the map.
+            currentInfraPolyline = (Array.isArray(r.polyline) && r.polyline.length >= 2)
+                ? r.polyline.map(function(pt) { return [pt[0], pt[1]]; })
+                : null;
+            var mapBtn = document.getElementById('infra-view-map-btn');
+            if (mapBtn) mapBtn.style.display = currentInfraPolyline ? '' : 'none';
+            var mapContainer = document.getElementById('infra-map-container');
+            if (mapContainer) mapContainer.classList.remove('road-map-visible');
 
             // Description
             document.getElementById('infra-description').textContent = r.description || 'No description provided.';
@@ -6898,6 +7099,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             locationGrid += '<div class="citizen-info-item citizen-info-value-full"><div class="citizen-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="citizen-info-label">Location</div><div class="citizen-info-value">' + locVal + '</div></div></div>';
             document.getElementById('cm-location-grid').innerHTML = locationGrid;
 
+            // View Map button: only shown when the report has a saved
+            // coordinate point (latitude / longitude).
+            currentCitizenPoint = (r.latitude != null && r.longitude != null)
+                ? [[parseFloat(r.latitude), parseFloat(r.longitude)]]
+                : null;
+            var cmMapBtn = document.getElementById('cm-view-map-btn');
+            if (cmMapBtn) cmMapBtn.style.display = currentCitizenPoint ? '' : 'none';
+            var cmMapContainer = document.getElementById('cm-map-container');
+            if (cmMapContainer) cmMapContainer.classList.remove('road-map-visible');
+
             // Description
             document.getElementById('cm-description').textContent = r.description || 'No description provided.';
 
@@ -7078,8 +7289,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 </div>
                 <!-- Location -->
                 <div class="citizen-modal-section" id="cm-section-location">
-                    <div class="citizen-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location</div>
+                    <div class="citizen-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location
+                        <button type="button" id="cm-view-map-btn" class="citizen-view-map-btn" style="display:none;" onclick="openCitizenMap()">
+                            <i class="fas fa-map-marked-alt"></i> View Map
+                        </button>
+                    </div>
                     <div class="citizen-info-grid" id="cm-location-grid"></div>
+                    <div class="road-map-container" id="cm-map-container"></div>
                 </div>
                 <!-- Description -->
                 <div class="citizen-modal-section" id="cm-section-description">
@@ -7131,8 +7347,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 </div>
                 <!-- Location -->
                 <div class="cimm-modal-section">
-                    <div class="cimm-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location</div>
+                    <div class="cimm-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location
+                        <button type="button" id="cimm-view-map-btn" class="cimm-view-map-btn" style="display:none;" onclick="openCimmMap()">
+                            <i class="fas fa-map-marked-alt"></i> View Map
+                        </button>
+                    </div>
                     <div class="cimm-info-grid" id="cimm-location-grid"></div>
+                    <div class="road-map-container" id="cimm-map-container"></div>
                 </div>
                 <!-- Issue / Notes -->
                 <div class="cimm-modal-section">
@@ -7184,8 +7405,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 </div>
                 <!-- Location -->
                 <div class="infra-modal-section">
-                    <div class="infra-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location</div>
+                    <div class="infra-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location
+                        <button type="button" id="infra-view-map-btn" class="infra-view-map-btn" style="display:none;" onclick="openInfraMap()">
+                            <i class="fas fa-map-marked-alt"></i> View Map
+                        </button>
+                    </div>
                     <div class="infra-info-grid" id="infra-location-grid"></div>
+                    <div class="road-map-container" id="infra-map-container"></div>
                 </div>
                 <!-- Description -->
                 <div class="infra-modal-section">
@@ -7242,8 +7468,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 </div>
                 <!-- Location -->
                 <div class="lgu-modal-section">
-                    <div class="lgu-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location</div>
+                    <div class="lgu-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location
+                        <button type="button" id="lgu-view-map-btn" class="lgu-view-map-btn" style="display:none;" onclick="openLguMap()">
+                            <i class="fas fa-map-marked-alt"></i> View Map
+                        </button>
+                    </div>
                     <div class="lgu-info-grid" id="lgu-location-grid"></div>
+                    <div class="road-map-container" id="lgu-map-container"></div>
                 </div>
                 <!-- Description -->
                 <div class="lgu-modal-section">
@@ -7287,6 +7518,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
     <!-- Session timeout data -->
     <script id="sessionTimeoutData" data-timeout="<?php echo $session_timeout; ?>"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="../../js/session-timeout.js"></script>
 </body>
 </html>

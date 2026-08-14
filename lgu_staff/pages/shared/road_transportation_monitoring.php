@@ -1716,6 +1716,40 @@ annotate_report_assignment_status($conn, $recent_reports);
             font-size: 15px;
         }
 
+        .rm-view-map-btn {
+            margin-left: auto;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            background: rgba(249, 115, 22, 0.1);
+            color: #f97316;
+            border: 1px solid rgba(249, 115, 22, 0.3);
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .rm-view-map-btn:hover {
+            background: rgba(249, 115, 22, 0.2);
+        }
+
+        .road-map-container {
+            display: none;
+            margin-top: 12px;
+            height: 320px;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid rgba(249, 115, 22, 0.15);
+        }
+
+        .road-map-container.road-map-visible {
+            display: block;
+        }
+
         .rm-info-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -3207,6 +3241,59 @@ annotate_report_assignment_status($conn, $recent_reports);
         }
 
         // View Report Details Modal
+        let currentRmPoint = null;
+        let roadMapInstances = {};
+
+        function openRoadPathMap(containerId, points, asLine) {
+            var container = document.getElementById(containerId);
+            if (!container || !points || points.length === 0) return;
+            if (typeof L === 'undefined') {
+                alert('Map library failed to load.');
+                return;
+            }
+
+            // Make the container visible first so Leaflet measures the correct
+            // size when the map is created (display:none containers report 0x0).
+            container.classList.add('road-map-visible');
+
+            var map = roadMapInstances[containerId];
+            if (!map) {
+                map = L.map(containerId, { zoomControl: true })
+                    .setView([14.6760, 121.0437], 12);
+                L.tileLayer('https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
+                    attribution: '© TomTom',
+                    maxZoom: 18
+                }).addTo(map);
+                roadMapInstances[containerId] = map;
+            }
+
+            // Remove any path/marker drawn for a previously-viewed report.
+            map.eachLayer(function(layer) {
+                if (layer instanceof L.Polyline || layer instanceof L.CircleMarker || layer instanceof L.Marker) {
+                    map.removeLayer(layer);
+                }
+            });
+
+            if (asLine && points.length >= 2) {
+                L.polyline(points, { color: '#f97316', weight: 5, opacity: 0.9 }).addTo(map);
+                map.fitBounds(L.latLngBounds(points).pad(0.25));
+            } else {
+                var pt = points[0];
+                L.circleMarker(pt, { radius: 8, color: '#f97316', fillColor: '#f97316', fillOpacity: 0.85, weight: 2 }).addTo(map);
+                map.setView(pt, 14);
+            }
+
+            // The modal animates open, which can leave the map with a stale
+            // size; force a refresh once the transition has finished.
+            setTimeout(function() {
+                if (map) map.invalidateSize();
+            }, 250);
+        }
+
+        function openRmMap() {
+            openRoadPathMap('rm-map-container', currentRmPoint, false);
+        }
+
         function viewReportDetails(id, source) {
             const row = document.querySelector(`#recentReportsTable .report-table-row[data-id="${id}"]`);
             if (!row || !row.dataset.details) {
@@ -3310,6 +3397,16 @@ annotate_report_assignment_status($conn, $recent_reports);
             }
             locationGrid += '<div class="rm-info-item rm-info-value-full"><div class="rm-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="rm-info-label">Location</div><div class="rm-info-value">' + locVal + '</div></div></div>';
             document.getElementById('rm-location-grid').innerHTML = locationGrid;
+
+            // View Map button: only shown when the report has a saved
+            // coordinate point (latitude / longitude).
+            currentRmPoint = (r.latitude && r.longitude && r.latitude != 0 && r.longitude != 0)
+                ? [[parseFloat(r.latitude), parseFloat(r.longitude)]]
+                : null;
+            var rmMapBtn = document.getElementById('rm-view-map-btn');
+            if (rmMapBtn) rmMapBtn.style.display = currentRmPoint ? '' : 'none';
+            var rmMapContainer = document.getElementById('rm-map-container');
+            if (rmMapContainer) rmMapContainer.classList.remove('road-map-visible');
 
             // Description
             document.getElementById('rm-description').textContent = r.description || 'No description provided.';
@@ -5322,8 +5419,13 @@ annotate_report_assignment_status($conn, $recent_reports);
                 </div>
                 <!-- Location -->
                 <div class="rm-modal-section">
-                    <div class="rm-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location</div>
+                    <div class="rm-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location
+                        <button type="button" id="rm-view-map-btn" class="rm-view-map-btn" style="display:none;" onclick="openRmMap()">
+                            <i class="fas fa-map-marked-alt"></i> View Map
+                        </button>
+                    </div>
                     <div class="rm-info-grid" id="rm-location-grid"></div>
+                    <div class="road-map-container" id="rm-map-container"></div>
                 </div>
                 <!-- Description -->
                 <div class="rm-modal-section">
