@@ -17,6 +17,7 @@ $is_road_supervisor = ($user_role === 'road_ops_supervisor');
 $is_road_officer = ($user_role === 'road_monitoring_officer');
 
 $conn->query("CREATE TABLE IF NOT EXISTS road_transportation_reports_archive LIKE road_transportation_reports");
+rgmap_ensure_restored_from_archive_column();
 rgmap_archive_ensure_table();
 
 // Ensure archive table has the same columns as the source table
@@ -283,6 +284,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 'verification_status' => $restore_status,
                 'approval_status' => 'Approved',
                 'cimm_req_id' => $cimm_req_id,
+                // Mirrors the transport/maintenance restore behaviour: a
+                // CANCELLED report restored from the Archive is marked so the
+                // report_management CIMM panel shows it again (so it can later
+                // be reopened to Approved/In Progress), while normally-cancelled
+                // CIMM reports keep the 0 flag and stay hidden. Non-cancelled
+                // restores never get the marker.
+                'restored_from_archive' => (strtolower($restore_status) === 'cancelled') ? 1 : 0,
             ];
 
             // The Complete/Reject flows (and the Resolve flow) file a COPY into
@@ -300,12 +308,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
 
             if ($existing) {
+                $rfa = (strtolower($restore_status) === 'cancelled') ? 1 : 0;
                 if (strtolower($restore_status) === 'pending review') {
-                    $upd = $conn->prepare("UPDATE cimm_verification_reports SET verification_status = ?, approval_status = 'Approved', resolved_at = NULL, updated_at = NOW() WHERE id = ?");
+                    $upd = $conn->prepare("UPDATE cimm_verification_reports SET verification_status = ?, approval_status = 'Approved', resolved_at = NULL, updated_at = NOW(), restored_from_archive = ? WHERE id = ?");
                 } else {
-                    $upd = $conn->prepare("UPDATE cimm_verification_reports SET verification_status = ?, updated_at = NOW() WHERE id = ?");
+                    $upd = $conn->prepare("UPDATE cimm_verification_reports SET verification_status = ?, updated_at = NOW(), restored_from_archive = ? WHERE id = ?");
                 }
-                $upd->bind_param("si", $restore_status, $existing['id']);
+                $upd->bind_param("sii", $restore_status, $rfa, $existing['id']);
                 $upd->execute();
                 if ($upd->affected_rows >= 0) {
                     $delete = $conn->prepare("DELETE FROM road_transportation_reports_archive WHERE id = ?");
@@ -386,6 +395,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             if ($field === 'status') {
                 $value = $restore_status;
             }
+            // Mark cancelled reports that are coming back from the Archive so
+            // the monitoring panels can show them again (a normally-cancelled
+            // report keeps restored_from_archive = 0 and stays hidden).
+            if ($field === 'restored_from_archive') {
+                $value = (strtolower($restore_status) === 'cancelled') ? 1 : 0;
+            }
             // If the report is no longer terminal, clear the terminal timestamps
             // so the restored row looks like the report it was before archiving.
             // A rejected report keeps its rejected_at; a cancelled one keeps
@@ -414,6 +429,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             if ($restore_status !== 'completed') {
                 $sql .= ", completed_at = NULL";
             }
+            // Mark the restored-cancelled report so the monitoring panels show
+            // it again; a normally-cancelled report keeps the 0 flag and stays
+            // hidden.
+            $sql .= ", restored_from_archive = " . ((strtolower($restore_status) === 'cancelled') ? 1 : 0);
             $sql .= " WHERE id = ?";
             $upd = $conn->prepare($sql);
             $upd->bind_param("si", $restore_status, $existing_id);
@@ -1329,11 +1348,6 @@ if (isset($_SESSION['archive_message'])) {
                                         <i class="fas fa-trash"></i> Delete Forever
                                     </button>
                                 </form>
-                                <?php if ($is_road_supervisor): ?>
-                                <a class="btn-export" href="../api/export_archive_word.php?id=<?php echo (int)$row['id']; ?>" title="Export this archived report as a Word document">
-                                    <i class="fas fa-file-word"></i> Export
-                                </a>
-                                <?php endif; ?>
                                 <?php endif; ?>
                             </div>
                         </div>

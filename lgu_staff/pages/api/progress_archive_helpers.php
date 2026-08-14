@@ -67,6 +67,23 @@ function rgmap_archive_ensure_table() {
     } catch (Exception $e) { error_log('rgmap_archive_ensure_table source_pk: ' . $e->getMessage()); }
 }
 
+// Ensure the restored_from_archive marker column exists on every live report
+// table. It is set to 1 only when a CANCELLED report is restored from the
+// Archive (see archive.php), so report_management.php and
+// road_transportation_monitoring.php can make restored-cancelled projects
+// visible again on the panels they returned to — while normally-cancelled
+// reports (flag 0) keep their existing invisible behavior unchanged.
+function rgmap_ensure_restored_from_archive_column() {
+    global $conn;
+    foreach (['road_transportation_reports', 'road_maintenance_reports', 'cimm_verification_reports'] as $t) {
+        try {
+            $conn->query("ALTER TABLE $t ADD COLUMN IF NOT EXISTS restored_from_archive TINYINT(1) NOT NULL DEFAULT 0");
+        } catch (Exception $e) {
+            error_log("restored_from_archive add ($t): " . $e->getMessage());
+        }
+    }
+}
+
 // True when $id is not already used as the primary key of $table.
 function rgmap_pk_is_free($conn, $table, $id) {
     $id = (int)$id;
@@ -261,7 +278,22 @@ function rgmap_archive_cimm_report($conn, $cimm_req_id, $status) {
         $now = date('Y-m-d H:i:s');
         $conn->begin_transaction();
 
-        $timestamp_key = ($status === 'cancelled') ? 'rejected_at' : 'completed_at';
+        // Normalise the free-text CIMM status/priority down to values the
+        // archive enum columns accept. CIMM stores title-case and non-enum
+        // values ('Pending Review', 'Verified', 'Critical', ...) that would
+        // otherwise trigger "Data truncated for column ..." and roll back the
+        // whole archive — which surfaced as a broken Archive button.
+        $archive_priority = strtolower(trim((string)($cimm_report['priority'] ?? 'medium')));
+        if (!in_array($archive_priority, ['high', 'medium', 'low'], true)) {
+            $archive_priority = ($archive_priority === 'critical') ? 'high' : 'medium';
+        }
+        $valid_archive_statuses = ['pending', 'in-progress', 'completed', 'cancelled', 'approved', 'rejected'];
+        $archive_status = strtolower(trim((string)$status));
+        if (!in_array($archive_status, $valid_archive_statuses, true)) {
+            $archive_status = in_array($archive_status, ['approved', 'verified'], true) ? 'approved' : 'completed';
+        }
+
+        $timestamp_key = ($archive_status === 'cancelled') ? 'rejected_at' : 'completed_at';
         $insert_fields = [
             'report_id' => $cimm_report['reference_code'] ?? ('CIMM-' . $cimm_req_id),
             'title' => $cimm_report['infrastructure'] ?? 'CIMM Report',
@@ -269,8 +301,8 @@ function rgmap_archive_cimm_report($conn, $cimm_req_id, $status) {
             'report_category' => 'road',
             'report_source' => 'external',
             'department' => 'engineering',
-            'priority' => $cimm_report['priority'] ?? 'medium',
-            'status' => $status,
+            'priority' => $archive_priority,
+            'status' => $archive_status,
             'previous_status' => $cimm_report['verification_status'] ?? null,
             'archived_from' => 'cimm_verification_reports',
             'source_pk' => (int)$cimm_req_id,

@@ -3709,6 +3709,13 @@ annotate_report_assignment_status($conn, $recent_reports);
             if (tag) role = tag.getAttribute('data-role') || '';
             var isOfficer = (role === 'road_monitoring_officer' || role === 'trans_monitoring_officer');
 
+            // Admins have no Complete/Cancel access - hide both buttons.
+            if (role === 'system_admin') {
+                completeBtn.style.display = 'none';
+                if (cancelBtn) cancelBtn.style.display = 'none';
+                return;
+            }
+
             // Non-officers use the direct Complete/Cancel path (no restriction).
             if (!isOfficer) {
                 completeBtn.style.display = 'inline-flex';
@@ -5363,6 +5370,9 @@ annotate_report_assignment_status($conn, $recent_reports);
                         <button type="button" class="btn-danger-custom" id="cancelBtn">Request Cancellation</button>
                         <?php elseif ($is_road_supervisor): ?>
                         <button type="button" class="btn-success-custom" id="completeBtn">Complete</button>
+                        <button type="button" class="btn-danger-custom" id="cancelBtn">Cancel</button>
+                        <?php elseif ($is_system_admin): ?>
+                        <?php // Admin has no Complete/Cancel access - buttons are not rendered. ?>
                         <?php else: ?>
                         <button type="button" class="btn-success-custom" id="completeBtn">Complete</button>
                         <button type="button" class="btn-danger-custom" id="cancelBtn">Cancel</button>

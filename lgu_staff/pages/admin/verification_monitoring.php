@@ -6157,7 +6157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
             // Source & Department
             var sourceGrid = '';
-            var sourceLabel = r.source === 'lgu' ? 'LGU Staff' : r.source === 'external' ? 'External (CIMM)' : r.source === 'transport' ? 'Transportation' : r.source === 'maintenance' ? 'Maintenance' : r.source;
+            var sourceLabel = r.source === 'lgu' ? 'LGU Monitoring' : r.source === 'external' ? 'External (CIMM)' : r.source === 'transport' ? 'Transportation' : r.source === 'maintenance' ? 'Maintenance' : r.source;
             sourceGrid += lguInfoItem('server', 'Source', sourceLabel);
             sourceGrid += lguInfoItem('building', 'Department', r.department);
             if (r.created_by_name) {

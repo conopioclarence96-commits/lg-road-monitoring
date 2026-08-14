@@ -8,6 +8,10 @@ require_once __DIR__ . '/../../pages/api/cimm_verification_data.php';
 // sweep runs on this page for completed LGU reports.
 require_once __DIR__ . '/../api/progress_archive_helpers.php';
 
+// Ensure the restored_from_archive marker column exists so restored-cancelled
+// reports can be shown again on the panels (normally-cancelled stay hidden).
+rgmap_ensure_restored_from_archive_column();
+
 // Session timeout configuration
 $session_timeout = 30 * 60; // 30 minutes in seconds
 
@@ -924,6 +928,7 @@ function mapCimmToReportManagement(array $row): array {
         'department'    => 'cimm',
         'created_date'  => $row['starting_date'] ?? date('Y-m-d'),
         'created_at'    => $row['submitted_at'] ?? $row['created_at'] ?? date('Y-m-d H:i:s'),
+        'restored_from_archive' => (int)($row['restored_from_archive'] ?? 0),
         'updated_at'    => $row['verified_at'] ?? $row['synced_at'] ?? null,
         'attachments'   => null,
         'image_path'    => null,
@@ -936,22 +941,33 @@ function mapCimmToReportManagement(array $row): array {
 function getCimmReportsForManagement($status_filter = 'all') {
     $pdo = rgmap_verification_pdo();
 
+    // 'Cancelled' is included so a CANCELLED report that was restored from the
+    // Archive (restored_from_archive = 1) can come back to this panel and be
+    // reopened to Approved/In Progress via Edit. Normally-cancelled CIMM
+    // reports keep the 0 flag and stay excluded below, so they do not return.
     $opts = [
-        'verification_status' => ['Approved', 'In Progress', 'Completed'],
+        'verification_status' => ['Approved', 'In Progress', 'Completed', 'Cancelled'],
         'infrastructure' => 'Roads'
     ];
     $rows = rgmap_fetch_cimm_verification_reports($pdo, $opts);
 
     $mapped = array_map('mapCimmToReportManagement', $rows);
 
-    // CIMM reports that are still pending, cancelled or rejected are not
-    // shown in report management. Rejected CIMM reports map to the 'cancelled'
-    // status here, so excluding both 'pending' and 'cancelled' covers pending,
-    // cancelled and rejected reports; only Approved, In Progress and Completed
-    // CIMM reports appear in this panel. Completed reports stay for their
-    // 7-day retention window and are then moved by the auto-archive sweep.
+    // CIMM reports that are still pending or rejected are not shown in report
+    // management. Rejected CIMM reports map to the 'cancelled' status here, so
+    // excluding 'pending' keeps pending and rejected reports out. 'cancelled'
+    // is only kept when the row carries restored_from_archive = 1 — i.e. it is
+    // a CANCELLED report that was restored from the Archive and should be
+    // visible again so it can be reopened to Approved / In Progress through
+    // Edit. Only Approved, In Progress, Completed and restored-cancelled CIMM
+    // reports appear in this panel. Completed reports stay for their 7-day
+    // retention window and are then moved by the auto-archive sweep.
     $mapped = array_values(array_filter($mapped, function ($r) {
-        return !in_array(strtolower($r['status'] ?? ''), ['pending', 'cancelled'], true);
+        $status = strtolower($r['status'] ?? '');
+        if ($status === 'cancelled') {
+            return (int)($r['restored_from_archive'] ?? 0) === 1;
+        }
+        return !in_array($status, ['pending'], true);
     }));
 
     if ($status_filter !== 'all') {
@@ -985,18 +1001,23 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
     
     // Get transportation reports (Citizen Reports + Infrastructure Issues from transport table)
     $lgu_active_statuses = $include_completed ? "'approved', 'in-progress', 'completed'" : "'approved', 'in-progress'";
+    // A report restored from the Archive with status 'cancelled' carries
+    // restored_from_archive = 1, so it stays visible on the LGU Monitoring /
+    // Citizen panels it returned to. Normally-cancelled reports (flag 0) keep
+    // the existing behaviour and stay excluded.
+    $restored_cancelled = "(status = 'cancelled' AND restored_from_archive = 1)";
     if ($transport_estimation_exists) {
-        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, engineer, budget_allocation, cimm_engineer_name, cimm_budget, estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' WHEN report_source = 'local' AND created_by != 0 AND status IN ({$lgu_active_statuses}) THEN 'lgu_reports' WHEN report_source = 'local' AND created_by != 0 THEN 'hidden' ELSE 'transport' END as source_system FROM road_transportation_reports";
+        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, engineer, budget_allocation, cimm_engineer_name, cimm_budget, estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, restored_from_archive, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' WHEN report_source = 'local' AND created_by != 0 AND (status IN ({$lgu_active_statuses}) OR {$restored_cancelled}) THEN 'lgu_reports' WHEN report_source = 'local' AND created_by != 0 THEN 'hidden' ELSE 'transport' END as source_system FROM road_transportation_reports";
     } else {
-        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, engineer, budget_allocation, cimm_engineer_name, cimm_budget, 0 as estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' WHEN report_source = 'local' AND created_by != 0 AND status IN ({$lgu_active_statuses}) THEN 'lgu_reports' WHEN report_source = 'local' AND created_by != 0 THEN 'hidden' ELSE 'transport' END as source_system FROM road_transportation_reports";
+        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, engineer, budget_allocation, cimm_engineer_name, cimm_budget, 0 as estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, restored_from_archive, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' WHEN report_source = 'local' AND created_by != 0 AND (status IN ({$lgu_active_statuses}) OR {$restored_cancelled}) THEN 'lgu_reports' WHEN report_source = 'local' AND created_by != 0 THEN 'hidden' ELSE 'transport' END as source_system FROM road_transportation_reports";
     }
     $transport_params = [];
     
     // Get maintenance reports (Infrastructure Projects)
     if ($maintenance_estimation_exists) {
-        $maintenance_query = "SELECT id, report_id, title, description, location, priority, status, maintenance_team as assigned_to, estimation, department, created_date, created_at, updated_at, approved_at, NULL as attachments, NULL as image_path, 'maintenance' as report_type, 'maintenance' as source_system FROM road_maintenance_reports";
+        $maintenance_query = "SELECT id, report_id, title, description, location, priority, status, maintenance_team as assigned_to, estimation, department, created_date, created_at, updated_at, approved_at, NULL as attachments, NULL as image_path, 'maintenance' as report_type, 'maintenance' as source_system, restored_from_archive FROM road_maintenance_reports";
     } else {
-        $maintenance_query = "SELECT id, report_id, title, description, location, priority, status, maintenance_team as assigned_to, 0 as estimation, department, created_date, created_at, updated_at, approved_at, NULL as attachments, NULL as image_path, 'maintenance' as report_type, 'maintenance' as source_system FROM road_maintenance_reports";
+        $maintenance_query = "SELECT id, report_id, title, description, location, priority, status, maintenance_team as assigned_to, 0 as estimation, department, created_date, created_at, updated_at, approved_at, NULL as attachments, NULL as image_path, 'maintenance' as report_type, 'maintenance' as source_system, restored_from_archive FROM road_maintenance_reports";
     }
     $maintenance_params = [];
     
@@ -1041,7 +1062,7 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
             $transport_query .= " AND {$road_cond}";
         }
         if ($is_lgu_filter) {
-            $transport_query .= " AND report_source = 'local' AND created_by != 0 AND status IN ({$lgu_active_statuses})";
+            $transport_query .= " AND report_source = 'local' AND created_by != 0 AND (status IN ({$lgu_active_statuses}) OR {$restored_cancelled})";
         } else {
             // 'transport' (Citizen Reports) filter: only citizen-submitted
             // reports. LGU staff-created reports (created_by != 0) must never
@@ -1107,9 +1128,15 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
     // Pending, Rejected and Cancelled reports are excluded from every list;
     // only the Transportation Operations Supervisor can keep Completed reports
     // visible here (so they can be archived on demand instead of auto-moved).
+    // The single exception is a CANCELLED report restored from the Archive
+    // (restored_from_archive = 1): it stays visible on the panel it returned
+    // to. Normally-cancelled reports (flag 0) remain excluded.
     $active_statuses = $include_completed ? ['approved', 'in-progress', 'completed'] : ['approved', 'in-progress'];
     $all_reports = array_values(array_filter($all_reports, function ($r) use ($active_statuses) {
-        return in_array(($r['status'] ?? ''), $active_statuses, true);
+        $status = $r['status'] ?? '';
+        if (in_array($status, $active_statuses, true)) return true;
+        if ($status === 'cancelled' && (int)($r['restored_from_archive'] ?? 0) === 1) return true;
+        return false;
     }));
 
     usort($all_reports, function($a, $b) {
@@ -3520,9 +3547,15 @@ if ($focus_id > 0) {
                                         <i class="fas fa-pencil"></i>
                                     </button>
                                     <?php endif; ?>
+                                    <?php if (($report['status'] ?? '') === 'completed'): ?>
+                                    <button class="rm-archive-btn" onclick="archiveReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['source_system'] ?? 'transport', ENT_QUOTES); ?>')" title="Archive">
+                                        <i class="fas fa-archive"></i>
+                                    </button>
+                                    <?php else: ?>
                                     <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', '<?php echo $lgu_delete_table; ?>')">
                                         <i class="fas fa-trash"></i>
                                     </button>
+                                    <?php endif; ?>
                                 </div>
                             </td>
                             <td><?php echo htmlspecialchars($report['report_id'] ?? '—'); ?></td>
@@ -3658,17 +3691,18 @@ if ($focus_id > 0) {
                                     <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-eye"></i>
                                     </button>
-                                    <?php if ($is_road_supervisor || $is_transport_supervisor): ?>
+                                    <?php if ($is_road_supervisor || $is_transport_supervisor || $user_role === 'system_admin'): ?>
                                     <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'road_transportation_reports')">
                                         <i class="fas fa-pencil"></i>
                                     </button>
                                     <?php endif; ?>
+                                    <?php if (($report['status'] ?? '') === 'completed'): ?>
+                                    <button class="rm-archive-btn" onclick="archiveReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['source_system'] ?? 'transport', ENT_QUOTES); ?>')" title="Archive">
+                                        <i class="fas fa-archive"></i>
+                                    </button>
+                                    <?php else: ?>
                                     <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-trash"></i>
-                                    </button>
-                                    <?php if ($is_transport_supervisor && (($report['status'] ?? '') === 'completed')): ?>
-                                    <button class="rm-archive-btn" onclick="archiveReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')" title="Archive">
-                                        <i class="fas fa-archive"></i>
                                     </button>
                                     <?php endif; ?>
                                 </div>
@@ -3790,9 +3824,15 @@ if ($focus_id > 0) {
                                     <button class="rm-edit-btn" onclick="editCimmReport(<?php echo $cimmIdx; ?>)">
                                         <i class="fas fa-pencil"></i>
                                     </button>
+                                    <?php if (($row['status'] ?? '') === 'completed'): ?>
+                                    <button class="rm-archive-btn" onclick="archiveReport(<?php echo (int)$row['id']; ?>, 'cimm')" title="Archive">
+                                        <i class="fas fa-archive"></i>
+                                    </button>
+                                    <?php else: ?>
                                     <button class="rm-delete-btn" onclick="deleteCimmReport(<?php echo $cimmIdx; ?>)">
                                         <i class="fas fa-trash"></i>
                                     </button>
+                                    <?php endif; ?>
                                 </div>
                             </td>
                             <td><?php echo htmlspecialchars($row['report_id'] ?? '—'); ?></td>
@@ -3890,9 +3930,15 @@ if ($focus_id > 0) {
                                         <i class="fas fa-pencil"></i>
                                     </button>
                                     <?php endif; ?>
+                                    <?php if (($report['status'] ?? '') === 'completed'): ?>
+                                    <button class="rm-archive-btn" onclick="archiveReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['source_system'] ?? 'maintenance', ENT_QUOTES); ?>')" title="Archive">
+                                        <i class="fas fa-archive"></i>
+                                    </button>
+                                    <?php else: ?>
                                     <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-trash"></i>
                                     </button>
+                                    <?php endif; ?>
                                 </div>
                             </td>
                             <td><?php echo htmlspecialchars($report['report_id'] ?? '—'); ?></td>
@@ -5688,17 +5734,31 @@ if ($focus_id > 0) {
             setTimeout(function() { document.getElementById('deleteConfirmInput').focus(); }, 100);
         }
 
-        function archiveReport(id, type) {
-            if (!confirm('Archive this completed report? It will be moved to the archive and removed from this page.')) return;
-            var form = document.createElement('form');
-            form.method = 'POST';
-            form.innerHTML =
-                '<input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">' +
-                '<input type="hidden" name="action" value="archive_report">' +
-                '<input type="hidden" name="report_id" value="' + id + '">' +
-                '<input type="hidden" name="report_type" value="' + type + '">';
-            document.body.appendChild(form);
-            form.submit();
+        function archiveReport(id, source) {
+            if (!id) return;
+            if (!confirm('Archive this completed project? It will be moved out of report management into the Archive, keeping its current status.')) return;
+
+            var fd = new FormData();
+            fd.append('action', 'archive_report');
+            fd.append('report_id', id);
+            fd.append('source', source || '');
+
+            fetch('../api/progress_update_api.php', {
+                method: 'POST',
+                body: fd
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    setTimeout(function() { location.reload(); }, 700);
+                } else {
+                    showNotification(data.message || 'Failed to archive the project', 'error');
+                }
+            })
+            .catch(function() {
+                showNotification('Network error', 'error');
+            });
         }
 
         function refreshReceivedReports() {
