@@ -1459,6 +1459,31 @@ annotate_report_assignment_status($conn, $recent_reports);
             font-size: 12px; cursor: pointer; transition: all 0.2s;
         }
         .map-fullscreen-btn:hover { background: #3762c8; color: #fff; }
+        .incident-map-pin {
+            color: #fff;
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            border: 2px solid #fff;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+        }
+        .incident-map-pin.cat-accident {
+            background: #dc2626;
+            animation: accident-pin-pulse 1.8s ease-out infinite;
+        }
+        .incident-map-pin.cat-closed { background: #111827; }
+        .incident-map-pin.cat-jam { background: #f59e0b; }
+        .incident-map-pin.cat-works { background: #ca8a04; }
+        .incident-map-pin.cat-other { background: #6b7280; }
+        @keyframes accident-pin-pulse {
+            0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.55); }
+            70% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+        }
 
         .reports-table-section {
             background: #f0f4fa;
@@ -2266,6 +2291,10 @@ annotate_report_assignment_status($conn, $recent_reports);
                             <span class="map-legend-item"><span class="map-legend-dot t-bg-danger"></span> High</span>
                             <span class="map-legend-item"><span class="map-legend-dot t-bg-warning"></span> Medium</span>
                             <span class="map-legend-item"><span class="map-legend-dot" style="background:#6c757d;"></span> Low</span>
+                            <span class="map-legend-item"><span class="map-legend-dot" style="background:#dc2626;"></span> Accident</span>
+                            <span class="map-legend-item"><span class="map-legend-dot" style="background:#111827;"></span> Closed</span>
+                            <span class="map-legend-item"><span class="map-legend-dot" style="background:#f59e0b;"></span> Jam</span>
+                            <span class="map-legend-item"><span class="map-legend-dot" style="background:#ca8a04;"></span> Works</span>
                         </div>
                         <div class="map-search-box" style="display:flex;align-items:center;gap:6px;margin-left:8px;">
                             <input type="text" id="mapSearchInput" placeholder="Search places..." style="padding:5px 10px;border:1px solid rgba(55,98,200,0.3);border-radius:6px;font-size:12px;width:160px;">
@@ -2286,6 +2315,9 @@ annotate_report_assignment_status($conn, $recent_reports);
                         </div>
                     </div>
                     <div class="map-toolbar-right">
+                        <button class="map-fullscreen-btn" id="toggleAccidentsBtn" onclick="toggleAccidentPins()" style="background:rgba(220,38,38,0.1);color:#dc2626;border-color:rgba(220,38,38,0.3);">
+                            <i class="fas fa-exclamation-triangle"></i> Incidents
+                        </button>
                         <button class="map-fullscreen-btn" id="toggleTrafficBtn" onclick="toggleTrafficLayer()">
                             <i class="fas fa-car"></i> Traffic
                         </button>
@@ -3342,6 +3374,7 @@ annotate_report_assignment_status($conn, $recent_reports);
             if (autoRefreshInterval) clearInterval(autoRefreshInterval);
             autoRefreshInterval = setInterval(() => {
                 loadMarkers(activeFilter);
+                if (typeof window.loadAccidentPins === 'function') window.loadAccidentPins(true);
             }, 30000);
         }
 
@@ -4466,6 +4499,8 @@ annotate_report_assignment_status($conn, $recent_reports);
 
     let routeFromPoint = null, routeToPoint = null;
     let routeLayer = null, satelliteLayer = null, incidentsLayer = null;
+    let accidentsLayer = null;
+    let accidentsVisible = true;
     let evMarkersLayer = null, rangeLayer = null;
     let toolsDropdownOpen = false;
     let mapClickHandler = null;
@@ -4710,6 +4745,174 @@ annotate_report_assignment_status($conn, $recent_reports);
         showNotification('Satellite view enabled', 'success');
     }
 
+    // ===== TOMTOM INCIDENT HELPERS =====
+    const INCIDENT_CATEGORY_LABELS = {
+        0: 'Unknown', 1: 'Accident', 2: 'Fog', 3: 'Dangerous Conditions',
+        4: 'Rain', 5: 'Ice', 6: 'Jam', 7: 'Lane Closed', 8: 'Road Closed',
+        9: 'Road Works', 10: 'Wind', 11: 'Flooding', 14: 'Broken Down Vehicle'
+    };
+
+    function collectTomTomIncidents(payload) {
+        if (!payload) return [];
+        if (Array.isArray(payload.incidents)) return payload.incidents;
+        if (payload.tm && Array.isArray(payload.tm.poi)) return payload.tm.poi;
+        if (payload.data) return collectTomTomIncidents(payload.data);
+        return [];
+    }
+
+    function incidentLatLng(inc) {
+        const geom = inc.geometry || {};
+        let coords = geom.coordinates;
+        if (Array.isArray(coords) && coords.length) {
+            if (typeof coords[0] === 'number') {
+                return [coords[1], coords[0]];
+            }
+            if (Array.isArray(coords[0]) && typeof coords[0][0] === 'number') {
+                const mid = coords[Math.floor(coords.length / 2)];
+                return [mid[1], mid[0]];
+            }
+            if (Array.isArray(coords[0]) && Array.isArray(coords[0][0])) {
+                const ring = coords[0];
+                const mid = ring[Math.floor(ring.length / 2)];
+                return [mid[1], mid[0]];
+            }
+        }
+        if (inc.p && inc.p.x != null && inc.p.y != null) return [inc.p.y, inc.p.x];
+        const point = geom.point || inc.properties?.geometryCoordinates;
+        if (point) {
+            const lat = point.lat || point.latitude;
+            const lng = point.lon || point.lng || point.longitude;
+            if (lat != null && lng != null) return [lat, lng];
+        }
+        return null;
+    }
+
+    function incidentCategory(inc) {
+        const props = inc.properties || inc;
+        const cat = props.iconCategory ?? props.ic;
+        if (cat === 1 || cat === '1' || String(cat).toLowerCase() === 'accident') return 1;
+        const events = props.events || [];
+        for (let i = 0; i < events.length; i++) {
+            if (events[i].iconCategory === 1 || /accident/i.test(events[i].description || '')) return 1;
+        }
+        const n = parseInt(cat, 10);
+        return isNaN(n) ? 0 : n;
+    }
+
+    function incidentPopupHtml(inc) {
+        const props = inc.properties || inc;
+        const cat = incidentCategory(inc);
+        const events = props.events || [];
+        const desc = events.map(function(e) { return e.description; }).filter(Boolean).join(' — ')
+            || INCIDENT_CATEGORY_LABELS[cat]
+            || 'Traffic incident';
+        const from = props.from || '';
+        const to = props.to || '';
+        const delayMin = props.delay ? Math.round(props.delay / 60) : null;
+        let html = '<b>' + escapeHtml(desc) + '</b>';
+        html += '<br><small>' + escapeHtml(INCIDENT_CATEGORY_LABELS[cat] || 'Incident') + '</small>';
+        if (from || to) {
+            html += '<br><small>' + escapeHtml([from, to].filter(Boolean).join(' → ')) + '</small>';
+        }
+        if (delayMin) html += '<br><small>Delay: ' + delayMin + ' min</small>';
+        return html;
+    }
+
+    function incidentStyle(cat) {
+        if (cat === 1) return { color: '#dc2626', css: 'cat-accident', icon: 'car-crash' };
+        if (cat === 8 || cat === 7) return { color: '#111827', css: 'cat-closed', icon: 'ban' };
+        if (cat === 6) return { color: '#f59e0b', css: 'cat-jam', icon: 'traffic-light' };
+        if (cat === 9) return { color: '#ca8a04', css: 'cat-works', icon: 'helmet-safety' };
+        return { color: '#6b7280', css: 'cat-other', icon: 'exclamation' };
+    }
+
+    function incidentLineLatLngs(inc) {
+        const geom = inc.geometry || {};
+        const coords = geom.coordinates;
+        if (geom.type === 'LineString' && Array.isArray(coords) && coords.length) {
+            return coords.map(function(c) { return [c[1], c[0]]; });
+        }
+        return null;
+    }
+
+    // Live TomTom incidents: closures, jams, roadworks, and accidents when present
+    function loadAccidentPins(silent) {
+        if (!accidentsVisible) return;
+        const center = QC_CENTER;
+        TomTomServices.trafficIncidents(center[0], center[1], 15).then(data => {
+            if (!accidentsVisible) return;
+            if (accidentsLayer) {
+                map.removeLayer(accidentsLayer);
+                accidentsLayer = null;
+            }
+            if (!data.success) {
+                if (!silent) showNotification(data.error || 'Could not load traffic incidents', 'error');
+                return;
+            }
+            const incidents = collectTomTomIncidents(data.data || data);
+            accidentsLayer = L.layerGroup().addTo(map);
+            let count = 0;
+            incidents.forEach(inc => {
+                const pos = incidentLatLng(inc);
+                if (!pos || pos[0] == null || pos[1] == null) return;
+                if (typeof isInsideQCBounds === 'function' && !isInsideQCBounds(pos[0], pos[1])) return;
+                const cat = incidentCategory(inc);
+                const style = incidentStyle(cat);
+                const popup = incidentPopupHtml(inc);
+                const line = incidentLineLatLngs(inc);
+                if (line && line.length > 1) {
+                    L.polyline(line, { color: style.color, weight: 5, opacity: 0.85 })
+                        .bindPopup(popup)
+                        .addTo(accidentsLayer);
+                }
+                const icon = L.divIcon({
+                    html: '<div class="incident-map-pin ' + style.css + '"><i class="fas fa-' + style.icon + '"></i></div>',
+                    className: '',
+                    iconSize: [28, 28],
+                    iconAnchor: [14, 14]
+                });
+                L.marker(pos, { icon, zIndexOffset: 600 })
+                    .bindPopup(popup)
+                    .addTo(accidentsLayer);
+                count++;
+            });
+            if (!silent) {
+                showNotification(count ? (count + ' live incident' + (count === 1 ? '' : 's') + ' on the map') : 'No live traffic incidents in Quezon City', 'info');
+            }
+        });
+    }
+    window.loadAccidentPins = loadAccidentPins;
+
+    function setAccidentToggleStyle(on) {
+        const btn = document.getElementById('toggleAccidentsBtn');
+        if (!btn) return;
+        if (on) {
+            btn.style.background = 'rgba(220,38,38,0.1)';
+            btn.style.color = '#dc2626';
+            btn.style.borderColor = 'rgba(220,38,38,0.3)';
+        } else {
+            btn.style.background = '#6c757d';
+            btn.style.color = '#fff';
+            btn.style.borderColor = '#6c757d';
+        }
+    }
+
+    function toggleAccidentPins() {
+        accidentsVisible = !accidentsVisible;
+        setAccidentToggleStyle(accidentsVisible);
+        if (!accidentsVisible) {
+            if (accidentsLayer) {
+                map.removeLayer(accidentsLayer);
+                accidentsLayer = null;
+            }
+            showNotification('Incident pins hidden', 'info');
+            return;
+        }
+        loadAccidentPins(false);
+    }
+
+    loadAccidentPins(true);
+
     // ===== TRAFFIC INCIDENTS =====
     function toggleTrafficIncidentsLayer() {
         const btn = document.getElementById('toggleIncidentsBtn');
@@ -4721,32 +4924,27 @@ annotate_report_assignment_status($conn, $recent_reports);
             return;
         }
 
-        // Fetch incident data and show markers
         const center = map.getCenter();
         TomTomServices.trafficIncidents(center.lat, center.lng, 15).then(data => {
-            if (data.success && data.data && data.data.incidents) {
+            const incidents = collectTomTomIncidents(data.success ? (data.data || data) : null);
+            if (data.success && incidents.length) {
                 incidentsLayer = L.layerGroup().addTo(map);
-                data.data.incidents.forEach(inc => {
-                    const pos = inc.geometry?.point || inc.properties?.geometryCoordinates;
-                    if (pos) {
-                        const icon = L.divIcon({
-                            html: '<div style="background:#ef4444;color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);"><i class="fas fa-exclamation"></i></div>',
-                            className: '', iconSize: [24, 24]
-                        });
-                        const ev = inc.properties || inc.event;
-                        L.marker([pos.lat || pos.latitude, pos.lon || pos.longitude], { icon })
-                            .bindPopup(`<b>${ev?.type || 'Traffic Incident'}</b><br>${ev?.description || ev?.iconCategory || ''}`)
-                            .addTo(incidentsLayer);
-                    }
+                let count = 0;
+                incidents.forEach(inc => {
+                    const pos = incidentLatLng(inc);
+                    if (!pos) return;
+                    const icon = L.divIcon({
+                        html: '<div style="background:#ef4444;color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);"><i class="fas fa-exclamation"></i></div>',
+                        className: '', iconSize: [24, 24], iconAnchor: [12, 12]
+                    });
+                    L.marker(pos, { icon })
+                        .bindPopup(incidentPopupHtml(inc))
+                        .addTo(incidentsLayer);
+                    count++;
                 });
                 btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Hide Incidents';
-                if (data.data.incidents.length === 0) {
-                    showNotification('No traffic incidents in this area', 'info');
-                } else {
-                    showNotification(data.data.incidents.length + ' traffic incidents found', 'info');
-                }
+                showNotification(count ? (count + ' traffic incidents found') : 'No traffic incidents in this area', count ? 'info' : 'info');
             } else {
-                // Use extended tiles as fallback
                 incidentsLayer = L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/incidents/absolute/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
                     attribution: '© TomTom Incidents', opacity: 0.7
                 }).addTo(map);
