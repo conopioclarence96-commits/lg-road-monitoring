@@ -25,6 +25,7 @@ if (!isset($conn)) {
 if (!function_exists('is_logged_in')) {
     require_once __DIR__ . '/functions.php';
 }
+require_once __DIR__ . '/notification_badge.php';
 
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
@@ -418,56 +419,15 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
                 $count += $stmt->get_result()->fetch_assoc()['count'];
                 $stmt->close();
             } elseif ($user_role === 'system_admin') {
-                // System admins can hide individual feed cards with the X button
-                // on their Notifications page; progress-update cards ('pn<id>')
-                // are the only admin feed cards backed by report_notifications
-                // rows, so subtract the dismissed ones to keep the sidebar badge
-                // from reappearing after a refresh. "Mark All as Read" persists
-                // the pn ids in report_notifications marker rows (type
-                // 'admin_read'), so subtract those too — the badge must stay at
-                // 0 after a refresh while new notifications still count.
-                $excluded_pn = [];
-                foreach (($_SESSION['nc_dismissed'][(int)$user_id] ?? []) as $k) {
-                    if (preg_match('/^pn(\d+)$/', (string)$k, $m)) $excluded_pn[] = (int)$m[1];
-                }
-                if ($email !== '') {
-                    try {
-                        $stmt = $conn->prepare("SELECT message FROM report_notifications WHERE type = 'admin_read' AND recipient_email = ?");
-                        $stmt->bind_param("s", $email);
-                        $stmt->execute();
-                        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-                        $stmt->close();
-                        foreach ($rows as $r) {
-                            if (preg_match('/^pn(\d+)$/', (string)$r['message'], $m)) $excluded_pn[] = (int)$m[1];
-                        }
-                    } catch (Exception $e) {}
-                }
-                $excluded_pn = array_values(array_unique($excluded_pn));
-                $excluded_read = 0;
-                if ($excluded_pn) {
-                    $in = implode(',', array_fill(0, count($excluded_pn), '?'));
-                    $types = str_repeat('i', count($excluded_pn));
-                    $stmt = $conn->prepare("SELECT COUNT(*) as c FROM report_notifications WHERE id IN ($in) AND is_read = 0");
-                    $stmt->bind_param($types, ...$excluded_pn);
-                    $stmt->execute();
-                    $excluded_read = (int)$stmt->get_result()->fetch_assoc()['c'];
-                    $stmt->close();
-                }
-                $stmt = $conn->prepare("
-                    SELECT COUNT(*) as count FROM report_notifications rn
-                    WHERE rn.is_read = 0
-                      AND EXISTS (
-                          SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
-                          UNION ALL
-                          SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
-                          UNION ALL
-                          SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id
-                          LIMIT 1
-                      )
-                ");
-                $stmt->execute();
-                $count += max(0, (int)$stmt->get_result()->fetch_assoc()['count'] - $excluded_read);
-                $stmt->close();
+                // System admins: the badge mirrors the persistent admin feed
+                // (see pages/shared/notifications.php). Every card the admin
+                // sees is stored as a report_notifications snapshot (type
+                // 'admin_keep'); a card counts as unread when it is neither in
+                // the admin's read set (session + 'admin_read' markers) nor
+                // dismissed with the X button. Live pending items that have not
+                // been snapshotted yet count too, so a brand-new report or
+                // change request bumps the badge immediately.
+                return nc_admin_unread_count($conn, $user_id, $email);
             } else {
                 $stmt = $conn->prepare("
                     SELECT COUNT(*) as count FROM report_notifications rn
@@ -747,3 +707,46 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+
+<?php if ($user_role === 'system_admin'): ?>
+<script>
+// Keep the admin sidebar notification badge in sync while the page is open.
+// New notifications (pending reports, change requests, progress updates,
+// assignments) and mark-as-read actions are picked up on a short interval so
+// the badge updates without a manual refresh.
+function ncSyncSidebarBadge(count) {
+    var link = document.querySelector('.sidebar-menu .nav-link[href*="notifications.php"]');
+    if (!link) return;
+    var badge = link.querySelector('.notification-badge');
+    if (count > 0) {
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'notification-badge';
+            badge.setAttribute('role', 'status');
+            link.appendChild(badge);
+        }
+        badge.textContent = count;
+        badge.setAttribute('aria-label', count + ' unread notifications');
+    } else if (badge) {
+        badge.remove();
+    }
+}
+
+function ncPollSidebarBadge() {
+    fetch('../../pages/api/notifications_unread_count.php', {
+        headers: { 'Accept': 'application/json' },
+        credentials: 'same-origin'
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+        if (d && typeof d.count === 'number') ncSyncSidebarBadge(d.count);
+    })
+    .catch(function () {});
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    ncPollSidebarBadge();
+    setInterval(ncPollSidebarBadge, 30000);
+});
+</script>
+<?php endif; ?>

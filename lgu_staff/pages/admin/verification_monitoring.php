@@ -259,11 +259,11 @@ function getAllReports($conn, $status_filter = 'all', $source_filter = 'all', $t
     if ($source_filter === 'transport') {
         $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}" : " WHERE {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}";
         $source_case = "CASE WHEN report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
-        $q = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, detected_district, created_at, updated_at, approved_at, rejected_at, cimm_engineer_name, cimm_budget, cimm_starting_date, cimm_estimated_end_date, cimm_status, cimm_district FROM road_transportation_reports{$where})";
+        $q = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, detected_district, created_at, updated_at, approved_at, rejected_at, cimm_engineer_name, cimm_budget, cimm_starting_date, cimm_estimated_end_date, cimm_status, cimm_district, created_by FROM road_transportation_reports{$where})";
         $parts[] = $q;
     } elseif ($source_filter === 'maintenance') {
         if (!$transport_only) {
-            $q = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, NULL as detected_district, created_at, updated_at, approved_at, rejected_at, NULL as cimm_engineer_name, NULL as cimm_budget, NULL as cimm_starting_date, NULL as cimm_estimated_end_date, NULL as cimm_status, NULL as cimm_district FROM road_maintenance_reports{$maintenance_where})";
+            $q = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, NULL as detected_district, created_at, updated_at, approved_at, rejected_at, NULL as cimm_engineer_name, NULL as cimm_budget, NULL as cimm_starting_date, NULL as cimm_estimated_end_date, NULL as cimm_status, NULL as cimm_district, NULL as created_by FROM road_maintenance_reports{$maintenance_where})";
             $parts[] = $q;
         }
     } elseif ($source_filter === 'lgu_reports') {
@@ -271,17 +271,17 @@ function getAllReports($conn, $status_filter = 'all', $source_filter = 'all', $t
         // LGU monitoring reports — no maintenance/infrastructure rows.
         $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}" : " WHERE {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}";
         $source_case = "CASE WHEN report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
-        $parts[] = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, cimm_sync_status, created_date, due_date, description, location, attachments, latitude, longitude, detected_district, created_at, updated_at, approved_at, rejected_at, cimm_engineer_name, cimm_budget, cimm_starting_date, cimm_estimated_end_date, cimm_status, cimm_district FROM road_transportation_reports{$where})";
+        $parts[] = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, cimm_sync_status, created_date, due_date, description, location, attachments, latitude, longitude, detected_district, created_at, updated_at, approved_at, rejected_at, cimm_engineer_name, cimm_budget, cimm_starting_date, cimm_estimated_end_date, cimm_status, cimm_district, created_by FROM road_transportation_reports{$where})";
     } else {
         $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}" : " WHERE {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}";
         $source_case = "CASE WHEN report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
-        $parts[] = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, cimm_sync_status, created_date, due_date, description, location, attachments, latitude, longitude, detected_district, created_at, updated_at, approved_at, rejected_at, cimm_engineer_name, cimm_budget, cimm_starting_date, cimm_estimated_end_date, cimm_status, cimm_district FROM road_transportation_reports{$where})";
+        $parts[] = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, cimm_sync_status, created_date, due_date, description, location, attachments, latitude, longitude, detected_district, created_at, updated_at, approved_at, rejected_at, cimm_engineer_name, cimm_budget, cimm_starting_date, cimm_estimated_end_date, cimm_status, cimm_district, created_by FROM road_transportation_reports{$where})";
         if (!$transport_only) {
-            $parts[] = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, NULL as cimm_sync_status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, NULL as detected_district, created_at, updated_at, approved_at, rejected_at, NULL as cimm_engineer_name, NULL as cimm_budget, NULL as cimm_starting_date, NULL as cimm_estimated_end_date, NULL as cimm_status, NULL as cimm_district FROM road_maintenance_reports{$maintenance_where})";
+            $parts[] = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, NULL as cimm_sync_status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, NULL as detected_district, created_at, updated_at, approved_at, rejected_at, NULL as cimm_engineer_name, NULL as cimm_budget, NULL as cimm_starting_date, NULL as cimm_estimated_end_date, NULL as cimm_status, NULL as cimm_district, NULL as created_by FROM road_maintenance_reports{$maintenance_where})";
         }
     }
     if (empty($parts)) {
-        $query = "(SELECT 'transport' as source, 0 as id, '' as report_id, '' as title, '' as report_type, '' as report_category, '' as report_source, '' as department, '' as priority, '' as status, NULL as created_date, NULL as due_date, '' as description, '' as location, NULL as attachments, NULL as latitude, NULL as longitude, NULL as detected_district, NULL as created_at, NULL as updated_at, NULL as approved_at, NULL as rejected_at, NULL as cimm_sync_status, NULL as cimm_engineer_name, NULL as cimm_budget, NULL as cimm_starting_date, NULL as cimm_estimated_end_date, NULL as cimm_status, NULL as cimm_district FROM road_transportation_reports WHERE 1 = 0)";
+        $query = "(SELECT 'transport' as source, 0 as id, '' as report_id, '' as title, '' as report_type, '' as report_category, '' as report_source, '' as department, '' as priority, '' as status, NULL as created_date, NULL as due_date, '' as description, '' as location, NULL as attachments, NULL as latitude, NULL as longitude, NULL as detected_district, NULL as created_at, NULL as updated_at, NULL as approved_at, NULL as rejected_at, NULL as cimm_sync_status, NULL as cimm_engineer_name, NULL as cimm_budget, NULL as cimm_starting_date, NULL as cimm_estimated_end_date, NULL as cimm_status, NULL as cimm_district, NULL as created_by FROM road_transportation_reports WHERE 1 = 0)";
     } else {
         $query = implode(' UNION ALL ', $parts) . " ORDER BY created_at DESC";
     }
@@ -5003,9 +5003,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         <label class="form-label" for="sourceFilter">Source System</label>
                         <select class="filter-select" id="sourceFilter" onchange="filterReports()">
                             <option value="all" <?php echo $source_filter === 'all' ? 'selected' : ''; ?>>All Sources</option>
-                            <?php if ($is_road_supervisor): ?>
                             <option value="lgu_reports" <?php echo $source_filter === 'lgu_reports' ? 'selected' : ''; ?>>LGU Monitoring Reports</option>
-                            <?php endif; ?>
                             <?php if (!$is_road_supervisor): ?>
                             <option value="transport" <?php echo $source_filter === 'transport' ? 'selected' : ''; ?>>Citizen Reports</option>
                             <?php endif; ?>
@@ -6162,6 +6160,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             var sourceLabel = r.source === 'lgu' ? 'LGU Staff' : r.source === 'external' ? 'External (CIMM)' : r.source === 'transport' ? 'Transportation' : r.source === 'maintenance' ? 'Maintenance' : r.source;
             sourceGrid += lguInfoItem('server', 'Source', sourceLabel);
             sourceGrid += lguInfoItem('building', 'Department', r.department);
+            if (r.created_by_name) {
+                sourceGrid += lguInfoItem('user', 'Created By', r.created_by_name);
+            }
             if (r.approved_at) {
                 sourceGrid += lguInfoItem('thumbs-up', 'Approved At', formatDate(r.approved_at));
             }
@@ -6175,6 +6176,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 if (r.budget_allocation) {
                     sourceGrid += lguInfoItem('money-bill-wave', 'CIMM Budget Allocation', '₱ ' + Number(r.budget_allocation).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
                 }
+                sourceGrid += lguInfoItem('calendar-plus', 'CIMM Starting Date', formatDate(r.cimm_starting_date));
+                sourceGrid += lguInfoItem('calendar-check', 'CIMM Estimated End Date', formatDate(r.cimm_estimated_end_date));
             }
             document.getElementById('lgu-source-grid').innerHTML = sourceGrid;
 
@@ -6716,7 +6719,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         // LGU Reports data map
         var lguDataMap = {};
         <?php
+        // Resolve the staff member who created each report (users.full_name joined
+        // to road_transportation_reports.created_by) so the View modal can show
+        // "Created By". A single lookup covers every row in the panel.
+        $creator_map = [];
         if ($all_reports && method_exists($all_reports, 'data_seek') && $all_reports->num_rows > 0):
+            $creator_ids = [];
+            $all_reports->data_seek(0);
+            while ($__cref = $all_reports->fetch_assoc()) {
+                $__cb = (int)($__cref['created_by'] ?? 0);
+                if ($__cb > 0) $creator_ids[$__cb] = true;
+            }
+            if ($creator_ids) {
+                try {
+                    $__in = implode(',', array_map('intval', array_keys($creator_ids)));
+                    $__res = $conn->query("SELECT id, full_name FROM users WHERE id IN ({$__in})");
+                    if ($__res) {
+                        while ($__u = $__res->fetch_assoc()) {
+                            $creator_map[(int)$__u['id']] = $__u;
+                        }
+                    }
+                } catch (Exception $e) {
+                    error_log("LGU creator lookup error: " . $e->getMessage());
+                }
+            }
             $all_reports->data_seek(0);
             while ($lr = $all_reports->fetch_assoc()):
         ?>
@@ -6742,8 +6768,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     updated_at: <?php echo json_encode($lr['updated_at']); ?>,
                     approved_at: <?php echo json_encode($lr['approved_at']); ?>,
                     rejected_at: <?php echo json_encode($lr['rejected_at']); ?>,
+                    created_by: <?php echo (int)($lr['created_by'] ?? 0); ?>,
+                    created_by_name: <?php echo json_encode(($creator_map[(int)($lr['created_by'] ?? 0)] ?? [])['full_name'] ?? null); ?>,
                     engineer: <?php echo json_encode($lr['engineer'] ?? null); ?>,
-                    budget_allocation: <?php echo json_encode($lr['budget_allocation'] ?? null); ?>
+                    budget_allocation: <?php echo json_encode($lr['budget_allocation'] ?? null); ?>,
+                    cimm_starting_date: <?php echo json_encode($lr['cimm_starting_date'] ?? null); ?>,
+                    cimm_estimated_end_date: <?php echo json_encode($lr['cimm_estimated_end_date'] ?? null); ?>
                     <?php if ($is_road_supervisor): ?>,
                     creator_full_name: <?php echo json_encode($lr['creator_full_name'] ?? null); ?>,
                     creator_phone: <?php echo json_encode($lr['creator_phone'] ?? null); ?>,

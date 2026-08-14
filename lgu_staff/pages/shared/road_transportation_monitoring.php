@@ -2552,6 +2552,7 @@ annotate_report_assignment_status($conn, $recent_reports);
                             'longitude' => $rr['longitude'],
                             'location' => $rr['location'],
                             'reporter_name' => $rr['reporter_name'],
+                            'created_by_name' => $rr['creator_full_name'] ?? '',
                             'attachments' => $rr['attachments'],
                             'image_path' => $rr['image_path'],
                             'cimm_sync_status' => $rr['cimm_sync_status'] ?? '',
@@ -3240,6 +3241,9 @@ annotate_report_assignment_status($conn, $recent_reports);
             // Source & Assignment
             var sourceGrid = '';
             sourceGrid += rmInfoItem('server', 'Source', r.source);
+            if (r.created_by_name) {
+                sourceGrid += rmInfoItem('user', 'Created By', r.created_by_name);
+            }
             if (r.reporter_name) {
                 sourceGrid += rmInfoItem('user', 'Reported By', r.reporter_name);
             }

@@ -126,6 +126,37 @@ try {
         if (!isset($report['estimation'])) {
             $report['estimation'] = 0;
         }
+
+        // Resolve the staff member who created the report (users.full_name joined
+        // to created_by) so the View modal can show "Created By".
+        $report['created_by_name'] = null;
+        $creator_id = (int)($report['created_by'] ?? 0);
+        if ($creator_id > 0) {
+            try {
+                $creator_stmt = $conn->prepare("SELECT full_name FROM users WHERE id = ?");
+                $creator_stmt->bind_param("i", $creator_id);
+                $creator_stmt->execute();
+                $creator_res = $creator_stmt->get_result();
+                if ($creator_res && ($creator_row = $creator_res->fetch_assoc())) {
+                    $report['created_by_name'] = $creator_row['full_name'];
+                }
+            } catch (Exception $e) {
+                error_log("created_by lookup error: " . $e->getMessage());
+            }
+        }
+
+        // Canonical source key so every View modal (report_management.php,
+        // road_transportation_monitoring.php, ...) displays the same label.
+        $report['source'] = 'citizen';
+        if ($table === 'cimm_verification_reports') {
+            $report['source'] = 'cimm';
+        } elseif ($table === 'road_maintenance_reports') {
+            $report['source'] = 'infrastructure';
+        } elseif (($report['report_type'] ?? '') === 'infrastructure_issue') {
+            $report['source'] = 'infrastructure';
+        } elseif ($creator_id > 0) {
+            $report['source'] = 'lgu';
+        }
         
         // Format dates
         $report['created_at'] = isset($report['created_at']) ? format_datetime($report['created_at']) : null;

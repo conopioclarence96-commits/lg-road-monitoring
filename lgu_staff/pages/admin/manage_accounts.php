@@ -37,6 +37,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $userId = $_POST['user_id'] ?? null;
     $remarks = $_POST['remarks'] ?? '';
 
+    // Lightweight endpoint: return the freshest last_activity for verified accounts
+    // so the page can keep the activity indicators accurate without a full reload.
+    if ($action === 'get_activity') {
+        $activity = [];
+        try {
+            $act_stmt = $conn->prepare("
+                SELECT id, last_activity
+                FROM users
+                WHERE role IN ('lgu_staff', 'citizen', 'road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer') AND account_status = 'verified'
+            ");
+            $act_stmt->execute();
+            $act_res = $act_stmt->get_result();
+            while ($row = $act_res->fetch_assoc()) {
+                $activity[$row['id']] = !empty($row['last_activity']) ? date('c', strtotime($row['last_activity'])) : null;
+            }
+            $act_stmt->close();
+        } catch (Exception $e) {
+            error_log("get_activity error: " . $e->getMessage());
+        }
+        echo json_encode(['success' => true, 'activity' => $activity]);
+        exit;
+    }
+
     if (!$action || !$userId) {
         echo json_encode(['success' => false, 'message' => 'Invalid request']);
         exit;
@@ -120,7 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Get verified accounts only
 $stmt = $conn->prepare("
-    SELECT id, username, email, full_name, role, department, address, birthday, civil_status, phone_number, is_active, created_at, updated_at, approved_at, rejected_at, id_file_path 
+    SELECT id, username, email, full_name, role, department, address, birthday, civil_status, phone_number, is_active, last_activity, created_at, updated_at, approved_at, rejected_at, id_file_path 
     FROM users 
     WHERE role IN ('lgu_staff', 'citizen', 'road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer') AND account_status = 'verified'
     ORDER BY created_at DESC
@@ -199,6 +222,45 @@ try {
     // Log error for debugging
     error_log("Audit log query error: " . $e->getMessage());
     $audit_log = [];
+}
+
+// Format a timestamp into a human-friendly relative "last active" string.
+// Used as a server-side fallback for the Verified Accounts activity indicator.
+function formatLastActive($timestamp) {
+    if (empty($timestamp) || $timestamp === '0000-00-00 00:00:00') {
+        return 'Never active';
+    }
+    $ts = strtotime($timestamp);
+    if (!$ts) {
+        return 'Never active';
+    }
+    $diff = max(0, time() - $ts);
+
+    if ($diff < 60) {
+        return 'Active just now';
+    }
+    $mins = floor($diff / 60);
+    if ($mins < 60) {
+        return 'Active ' . $mins . ' min' . ($mins > 1 ? 's' : '') . ' ago';
+    }
+    $hours = floor($mins / 60);
+    if ($hours < 24) {
+        return 'Active ' . $hours . ' hour' . ($hours > 1 ? 's' : '') . ' ago';
+    }
+    $days = floor($hours / 24);
+    if ($days < 7) {
+        return 'Active ' . $days . ' day' . ($days > 1 ? 's' : '') . ' ago';
+    }
+    $weeks = floor($days / 7);
+    if ($weeks < 5) {
+        return 'Active ' . $weeks . ' week' . ($weeks > 1 ? 's' : '') . ' ago';
+    }
+    $months = floor($days / 30);
+    if ($months < 12) {
+        return 'Active ' . $months . ' month' . ($months > 1 ? 's' : '') . ' ago';
+    }
+    $years = floor($days / 365);
+    return 'Active ' . $years . ' year' . ($years > 1 ? 's' : '') . ' ago';
 }
 ?>
 
@@ -454,6 +516,46 @@ try {
         .status-deactivated {
             background: #6c757d;
             color: white;
+        }
+
+        .activity-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+            line-height: 1.2;
+        }
+
+        .activity-indicator .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            background: currentColor;
+        }
+
+        .activity-recent {
+            background: var(--color-success-bg);
+            color: var(--color-success-text);
+        }
+
+        .activity-moderate {
+            background: var(--color-warning-bg);
+            color: var(--color-warning-text);
+        }
+
+        .activity-idle {
+            background: var(--color-info-bg);
+            color: var(--color-info-text);
+        }
+
+        .activity-never {
+            background: var(--bg-input-readonly);
+            color: var(--text-secondary);
         }
 
         .action-buttons {
@@ -830,6 +932,7 @@ try {
                                     <th>Department</th>
                                     <th>Status</th>
                                     <th>Active</th>
+                                    <th>Last Active</th>
                                     <th>Registered</th>
                                     <th>Actions</th>
                                 </tr>
@@ -837,7 +940,7 @@ try {
                             <tbody>
                                 <?php if (empty($users)): ?>
                                     <tr>
-                                        <td colspan="8" style="text-align: center;" class="t-text-secondary">No verified accounts found</td>
+                                        <td colspan="9" style="text-align: center;" class="t-text-secondary">No verified accounts found</td>
                                     </tr>
                                 <?php else: ?>
                                     <?php foreach ($users as $user): ?>
@@ -852,6 +955,12 @@ try {
                                             <td>
                                                 <span class="status-badge status-<?php echo $user['is_active'] ? 'verified' : 'inactive'; ?>">
                                                     <?php echo $user['is_active'] ? 'Yes' : 'No'; ?>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="activity-indicator activity-recent" data-user-id="<?php echo $user['id']; ?>" data-last-active="<?php echo !empty($user['last_activity']) ? date('c', strtotime($user['last_activity'])) : ''; ?>" title="<?php echo !empty($user['last_activity']) ? date('M d, Y h:i A', strtotime($user['last_activity'])) : 'No activity recorded'; ?>">
+                                                    <span class="dot"></span>
+                                                    <span class="activity-text"><?php echo formatLastActive($user['last_activity']); ?></span>
                                                 </span>
                                             </td>
                                             <td><?php echo date('M d, Y', strtotime($user['created_at'])); ?></td>
@@ -1201,6 +1310,93 @@ try {
         
         updateDateTime();
         setInterval(updateDateTime, 1000);
+
+        function lastActiveDiff(iso) {
+            if (!iso) return null;
+            const last = new Date(iso);
+            if (isNaN(last.getTime())) return null;
+            return Math.max(0, Date.now() - last.getTime());
+        }
+
+        function formatLastActiveJS(ms) {
+            if (ms === null) return 'Never active';
+            const sec = Math.floor(ms / 1000);
+            if (sec < 60) return 'Active just now';
+            const min = Math.floor(sec / 60);
+            if (min < 60) return 'Active ' + min + ' min' + (min > 1 ? 's' : '') + ' ago';
+            const hr = Math.floor(min / 60);
+            if (hr < 24) return 'Active ' + hr + ' hour' + (hr > 1 ? 's' : '') + ' ago';
+            const day = Math.floor(hr / 24);
+            if (day < 7) return 'Active ' + day + ' day' + (day > 1 ? 's' : '') + ' ago';
+            const wk = Math.floor(day / 7);
+            if (wk < 5) return 'Active ' + wk + ' week' + (wk > 1 ? 's' : '') + ' ago';
+            const mo = Math.floor(day / 30);
+            if (mo < 12) return 'Active ' + mo + ' month' + (mo > 1 ? 's' : '') + ' ago';
+            const yr = Math.floor(day / 365);
+            return 'Active ' + yr + ' year' + (yr > 1 ? 's' : '') + ' ago';
+        }
+
+        function lastActiveClass(ms) {
+            if (ms === null) return 'activity-never';
+            const hr = ms / 3600000;
+            if (hr < 1) return 'activity-recent';
+            if (hr < 24) return 'activity-moderate';
+            return 'activity-idle';
+        }
+
+        function updateActivityIndicators() {
+            document.querySelectorAll('[data-last-active]').forEach(function(el) {
+                const ms = lastActiveDiff(el.getAttribute('data-last-active') || '');
+                const textEl = el.querySelector('.activity-text');
+                if (textEl) textEl.textContent = formatLastActiveJS(ms);
+                el.classList.remove('activity-recent', 'activity-moderate', 'activity-idle', 'activity-never');
+                el.classList.add(lastActiveClass(ms));
+            });
+        }
+
+        function formatAbsoluteTitle(iso) {
+            if (!iso) return 'No activity recorded';
+            const d = new Date(iso);
+            if (isNaN(d.getTime())) return 'No activity recorded';
+            const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            const pad = n => (n < 10 ? '0' : '') + n;
+            return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear() + ' ' +
+                   pad(d.getHours()) + ':' + pad(d.getMinutes());
+        }
+
+        function refreshActivityData() {
+            const formData = new FormData();
+            formData.append('action', 'get_activity');
+            fetch('', { method: 'POST', body: formData })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data || !data.success || !data.activity) return;
+                    const activity = data.activity;
+                    document.querySelectorAll('[data-last-active]').forEach(function(el) {
+                        const uid = el.getAttribute('data-user-id');
+                        if (uid && Object.prototype.hasOwnProperty.call(activity, uid)) {
+                            const iso = activity[uid] || '';
+                            if (el.getAttribute('data-last-active') !== iso) {
+                                el.setAttribute('data-last-active', iso);
+                                el.title = formatAbsoluteTitle(iso);
+                                const ms = lastActiveDiff(iso);
+                                const textEl = el.querySelector('.activity-text');
+                                if (textEl) textEl.textContent = formatLastActiveJS(ms);
+                                el.classList.remove('activity-recent', 'activity-moderate', 'activity-idle', 'activity-never');
+                                el.classList.add(lastActiveClass(ms));
+                            }
+                        }
+                    });
+                })
+                .catch(function() {
+                    // Silently ignore transient network failures; next poll will retry
+                });
+        }
+
+        updateActivityIndicators();
+        setInterval(updateActivityIndicators, 30000);
+        refreshActivityData();
+        setInterval(refreshActivityData, 30000);
 
         // Deactivate Account - Modal and AJAX
         let pendingDeactivateUserId = null;

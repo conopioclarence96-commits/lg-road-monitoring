@@ -201,6 +201,71 @@ function nc_admin_read_set() {
     return $set;
 }
 
+// Admin feed snapshots. Every card the admin ever sees (pending reports,
+// pending change requests, progress updates, assigned projects) is persisted
+// as a marker row (type 'admin_keep', report_id 0) the first time it appears,
+// and the feed is then rendered from these snapshots instead of live data. So
+// approving/rejecting/viewing/acting on a request never removes its
+// notification from the list. The snapshots reference report_id 0 and carry
+// their own created_at, keeping them invisible to the real notification
+// queries and immune to report-archive cleanup.
+function nc_admin_snapshot_keys() {
+    global $conn, $user_email;
+    $keys = [];
+    if ($user_email === '') return $keys;
+    try {
+        $stmt = $conn->prepare("SELECT message FROM report_notifications WHERE type = 'admin_keep' AND recipient_email = ?");
+        $stmt->bind_param("s", $user_email);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        while (($row = $res->fetch_assoc())) {
+            $msg = json_decode((string)$row['message'], true);
+            if (is_array($msg) && isset($msg['id'])) $keys[$msg['id']] = true;
+        }
+        $stmt->close();
+    } catch (Exception $e) {
+        error_log("nc_admin_snapshot_keys error: " . $e->getMessage());
+    }
+    return $keys;
+}
+
+function nc_admin_snapshot_save($payload) {
+    global $conn, $user_email;
+    if ($user_email === '' || empty($payload['id'])) return;
+    try {
+        $json = json_encode($payload);
+        $ts = !empty($payload['ts']) ? $payload['ts'] : date('Y-m-d H:i:s');
+        $stmt = $conn->prepare("INSERT INTO report_notifications (report_id, type, message, recipient_email, is_read, created_at) VALUES (0, 'admin_keep', ?, ?, 1, ?)");
+        $stmt->bind_param("sss", $json, $user_email, $ts);
+        $stmt->execute();
+        $stmt->close();
+    } catch (Exception $e) {
+        error_log("nc_admin_snapshot_save error: " . $e->getMessage());
+    }
+}
+
+// The admin's complete feed: every 'admin_keep' snapshot for this admin,
+// oldest first (the page re-sorts by time afterwards).
+function nc_admin_snapshot_feed() {
+    global $conn, $user_email;
+    $feed = [];
+    if ($user_email === '') return $feed;
+    try {
+        $stmt = $conn->prepare("SELECT message FROM report_notifications WHERE type = 'admin_keep' AND recipient_email = ? ORDER BY created_at ASC, id ASC");
+        $stmt->bind_param("s", $user_email);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        while (($row = $res->fetch_assoc())) {
+            $msg = json_decode((string)$row['message'], true);
+            if (is_array($msg) && isset($msg['id'])) $feed[] = $msg;
+        }
+        $stmt->close();
+    } catch (Exception $e) {
+        error_log("nc_admin_snapshot_feed error: " . $e->getMessage());
+    }
+    return $feed;
+}
+
 // Handle mark as read
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
@@ -217,6 +282,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $check_stmt = $conn->prepare("
                 SELECT rn.id FROM report_notifications rn
                 WHERE rn.id = ?
+                  AND rn.type IN ('progress_update','approve_request','reject_request','complete_report','cancel_report','completion','cancellation')
                   AND NOT EXISTS (
                       SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
                       UNION ALL
@@ -248,6 +314,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param("i", $id);
             $stmt->execute();
             $stmt->close();
+        }
+
+        // System admins: record the exact feed card as read so the sidebar badge
+        // (which reads the same 'admin_read' markers) drops immediately and the
+        // card stays read after a refresh.
+        if ($user_role === 'system_admin' && $type === 'report' && $id > 0) {
+            $key = 'rep' . (int)$id;
+            $admin_read = nc_admin_read_set();
+            if (!in_array($key, $admin_read, true)) {
+                $_SESSION['nc_admin_read'][(int)$user_id][] = $key;
+            }
+            nc_admin_read_persist_db([$key]);
         }
 
         if ($type === 'project_assignment') {
@@ -387,6 +465,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } catch (Exception $e) {
                 error_log("mark_all_read admin read-set error: " . $e->getMessage());
             }
+            // Snapshotted feed cards (approved/rejected/elsewhere cards kept by
+            // 'admin_keep' markers) are no longer in the live queries above, so
+            // include every snapshot id in the read set to keep "Mark All as
+            // Read" effective for the whole list.
+            $snap_keys = nc_admin_snapshot_keys();
+            if ($snap_keys) {
+                $keys = array_merge($keys, array_keys($snap_keys));
+            }
             $_SESSION['nc_admin_read'][(int)$user_id] = array_values(array_unique(array_merge($admin_read, $keys)));
             nc_admin_read_persist_db($keys);
         }
@@ -401,6 +487,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param("i", $id);
             $stmt->execute();
             $stmt->close();
+        }
+        // System admins: record this change-request card as read too, keeping
+        // the sidebar badge and the persistent read state in sync.
+        if ($user_role === 'system_admin' && $id > 0) {
+            $key = 'cr' . (int)$id;
+            $admin_read = nc_admin_read_set();
+            if (!in_array($key, $admin_read, true)) {
+                $_SESSION['nc_admin_read'][(int)$user_id][] = $key;
+            }
+            nc_admin_read_persist_db([$key]);
         }
         echo json_encode(['success' => true]);
         exit;
@@ -1242,11 +1338,23 @@ function notification_assignment_url(array $ap): string {
         // stay visible but stop counting toward the badge after a refresh.
         $nc_admin_read = nc_admin_read_set();
 
+        // Every card below is persisted the first time it is seen as an
+        // 'admin_keep' snapshot, and the feed is rendered from those snapshots
+        // rather than live data. Approving/rejecting/viewing/acting on a
+        // request therefore never removes its notification from the list.
+        $snap_keys = nc_admin_snapshot_keys();
+        $persist_card = function ($payload) use (&$snap_keys) {
+            if (!isset($snap_keys[$payload['id']])) {
+                nc_admin_snapshot_save($payload);
+                $snap_keys[$payload['id']] = true;
+            }
+        };
+
         // Pending reports from departments
         foreach ($pending_reports as $report) {
             $src = notification_source_badge($report);
             $sub = trim(($report['location'] ?? '') . '  •  ' . ($report['reporter_name'] ?? ''));
-            $nc_push([
+            $persist_card([
                 'id' => 'rep' . $report['id'],
                 'ts' => $report['created_at'],
                 'kind' => 'report',
@@ -1276,7 +1384,7 @@ function notification_assignment_url(array $ap): string {
             if (!empty($req_data['birthday'])) $changes_list[] = 'Birthday: ' . $req_data['birthday'];
             if (!empty($req_data['new_password'])) $changes_list[] = 'Password change requested';
             if (!empty($req_data['id_file_path'])) $changes_list[] = 'New ID photo uploaded';
-            $nc_push([
+            $persist_card([
                 'id' => 'cr' . $cr['id'],
                 'ts' => $cr['created_at'],
                 'kind' => 'change',
@@ -1299,7 +1407,7 @@ function notification_assignment_url(array $ap): string {
         // Progress update notifications
         foreach ($progress_notifications as $pn) {
             $src = notification_source_badge($pn);
-            $nc_push([
+            $persist_card([
                 'id' => 'pn' . $pn['id'],
                 'ts' => $pn['created_at'],
                 'kind' => 'progress',
@@ -1323,7 +1431,7 @@ function notification_assignment_url(array $ap): string {
         foreach ($assigned_projects as $ap) {
             $desc = $ap['report_title'] ?? '';
             if (!empty($ap['notes'])) $desc .= ($desc ? ' — ' : '') . 'Notes: ' . $ap['notes'];
-            $nc_push([
+            $persist_card([
                 'id' => 'asg' . $ap['id'],
                 'ts' => $ap['assigned_at'],
                 'kind' => 'assignment',
@@ -1341,6 +1449,13 @@ function notification_assignment_url(array $ap): string {
                 'url_label' => 'View Project',
                 'mark' => null,
             ]);
+        }
+
+        // Render the full feed from the persisted snapshots: every card the
+        // admin has ever seen stays visible, with the current read state.
+        foreach (nc_admin_snapshot_feed() as $payload) {
+            $payload['unread'] = !in_array($payload['id'], $nc_admin_read, true);
+            $nc_push($payload);
         }
     } else {
         // Transportation roles: always-on cards (assignments, report status

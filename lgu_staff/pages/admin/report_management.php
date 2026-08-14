@@ -3429,7 +3429,7 @@ if ($focus_id > 0) {
                         <option value="transport" <?php echo $source_filter === 'transport' ? 'selected' : ''; ?>>Citizen Reports</option>
                         <option value="lgu_reports" <?php echo $source_filter === 'lgu_reports' ? 'selected' : ''; ?>>LGU Monitoring Reports</option>
                         <?php if (!$is_transport_supervisor): ?>
-                        <option value="lgu" <?php echo $source_filter === 'cimm' ? 'selected' : ''; ?>>CIMM Reports</option>
+                        <option value="cimm" <?php echo $source_filter === 'cimm' ? 'selected' : ''; ?>>CIMM Reports</option>
                         <?php endif; ?>
                         <?php if (!$is_transport_supervisor && !$is_road_supervisor): ?>
                         <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>Infrastructure Projects</option>
@@ -4615,11 +4615,20 @@ if ($focus_id > 0) {
 
                         // Source & Department
                         var sourceGrid = '';
-                        var sourceLabel = (r.source_system === 'cimm') ? 'CIMM' : (r.source_system === 'maintenance') ? 'Maintenance' : (r.source_system === 'lgu_reports') ? 'LGU Staff' : (r.source_system === 'transport') ? 'Citizen' : (r.report_source === 'local') ? 'LGU Staff' : 'Citizen';
+                        var sourceLabels = {
+                            'lgu': 'LGU Monitoring',
+                            'citizen': 'Citizen',
+                            'cimm': 'CIMM',
+                            'infrastructure': 'Infrastructure Projects'
+                        };
+                        var sourceLabel = sourceLabels[r.source] || (r.report_source === 'local' ? 'LGU Monitoring' : 'Citizen');
                         sourceGrid += rmInfoItem('server', 'Source', sourceLabel);
                         sourceGrid += rmInfoItem('building', 'Department', r.department);
                         if (r.assigned_to) {
                             sourceGrid += rmInfoItem('user-cog', 'Assigned To', r.assigned_to);
+                        }
+                        if (r.created_by_name) {
+                            sourceGrid += rmInfoItem('user', 'Created By', r.created_by_name);
                         }
                         if (r.reporter_name) {
                             sourceGrid += rmInfoItem('user', 'Reported By', r.reporter_name);

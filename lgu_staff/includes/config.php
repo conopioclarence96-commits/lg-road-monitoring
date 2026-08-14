@@ -41,6 +41,20 @@ try {
     } catch (Exception $e) {
         // Column may already exist, ignore
     }
+
+    // Ensure last_activity column exists (tracks live user activity, not just logins)
+    try {
+        $conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_activity TIMESTAMP NULL AFTER last_login");
+    } catch (Exception $e) {
+        // Column may already exist, ignore
+    }
+
+    // Backfill last_activity from last_login for accounts with no activity tracked yet
+    try {
+        $conn->query("UPDATE users SET last_activity = last_login WHERE last_activity IS NULL AND last_login IS NOT NULL");
+    } catch (Exception $e) {
+        // Best-effort backfill, ignore
+    }
     
     // Ensure report_updates table exists
     try {
@@ -328,6 +342,26 @@ define('FROM_NAME', APP_NAME);
 // password and must_change_password = 1, so they may only reach change_password.php
 // until they set their own password. config.php is required before any output on
 // every page, so this runs early enough for a clean redirect.
+
+// Track live user activity: persist a lightweight last_activity timestamp in the
+// DB on each page load, throttled to once per minute per session to avoid
+// excessive writes. Runs for every authenticated request (regular pages and AJAX).
+if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['user_id'])) {
+    try {
+        $la_now = time();
+        if (!isset($_SESSION['last_db_activity']) || ($la_now - $_SESSION['last_db_activity']) >= 60) {
+            $la_stmt = $conn->prepare("UPDATE users SET last_activity = NOW() WHERE id = ?");
+            $la_stmt->bind_param("i", $_SESSION['user_id']);
+            $la_stmt->execute();
+            $la_stmt->close();
+            $_SESSION['last_db_activity'] = $la_now;
+        }
+    } catch (Exception $e) {
+        // Non-fatal; activity tracking is best-effort
+        error_log("last_activity update: " . $e->getMessage());
+    }
+}
+
 if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['user_id'])) {
     $mcp_page = basename($_SERVER['PHP_SELF'] ?? '');
     if ($mcp_page !== 'change_password.php' && $mcp_page !== 'logout.php') {

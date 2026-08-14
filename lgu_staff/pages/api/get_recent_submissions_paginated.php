@@ -228,6 +228,7 @@ try {
                 'longitude' => $rr['longitude'],
                 'location' => $rr['location'],
                 'reporter_name' => $rr['reporter_name'],
+                'created_by_name' => $rr['creator_full_name'] ?? '',
                 'attachments' => $rr['attachments'],
                 'image_path' => $rr['image_path'],
                 'report_category' => $rr['report_category'] ?? '',
