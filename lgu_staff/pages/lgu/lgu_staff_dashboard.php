@@ -1243,6 +1243,13 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
         }
 
         foreach ($rows as &$ra) {
+            // Skip assignments whose report no longer exists in any table
+            // (e.g. archived/deleted). The supervisor's visibility filter
+            // already excludes these; without it (Road Monitoring Officer),
+            // this keeps stale cards out of the list.
+            if (empty($ra['transport_code']) && empty($ra['maintenance_code']) && empty($ra['cimm_code'])) {
+                continue;
+            }
             if ($ra['report_type'] === 'road_maintenance_reports') {
                 $ra['report_code'] = $ra['maintenance_code'];
                 $ra['report_title'] = $ra['maintenance_title'];
@@ -1660,7 +1667,18 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
     $my_assign = getMyAssignments($conn, $user_id, $is_road_monitoring_officer, $is_transport_monitoring_officer);
     $my_assign_count = $my_assign['count'];
     $my_assign_items = $my_assign['items'];
-    $sup_assigned_reports = ($is_road_supervisor || $is_road_monitoring_officer) ? getSupervisorAssignedReports($conn, $is_road_monitoring_officer ? $user_id : null, true) : [];
+    $sup_assigned_reports = ($is_road_supervisor || $is_road_monitoring_officer)
+        ? getSupervisorAssignedReports(
+            $conn,
+            $is_road_monitoring_officer ? $user_id : null,
+            // Road Monitoring Officers see every report assigned to them by a
+            // Road Operations Supervisor, even when the report has not (yet)
+            // surfaced on the monitoring page (e.g. pushed to CIMM). The Road
+            // Operations Supervisor's "Awaiting for assignments" panel keeps
+            // the visibility filter unchanged.
+            !$is_road_monitoring_officer
+        )
+        : [];
     $awaiting_transport_reports = $is_trans_ops_supervisor ? getAwaitingTransportationReports($conn) : [];
     $high_priority = getHighPriorityCount($conn, $is_road_monitoring_officer, $is_supervisor, $user_role);
     $awaiting_assign = getAwaitingAssignmentCount($conn, $is_supervisor, $user_role);
