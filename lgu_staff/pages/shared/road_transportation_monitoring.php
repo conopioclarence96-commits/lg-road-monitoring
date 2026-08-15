@@ -3536,6 +3536,16 @@ annotate_report_assignment_status($conn, $recent_reports);
             openRoadPathMap('rm-map-container', currentRmPoint, false);
         }
 
+        function rmFormatDate(dateStr) {
+            if (!dateStr) return '—';
+            var d = new Date(dateStr);
+            if (isNaN(d.getTime())) return dateStr;
+            var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+        }
+
+        // View Report Details Modal — same data source, fields, and layout as
+        // report_management.php's View button (get_report_details.php).
         function viewReportDetails(id, source) {
             const row = document.querySelector(`#recentReportsTable .report-table-row[data-id="${id}"]`);
             if (!row || !row.dataset.details) {
@@ -3547,159 +3557,230 @@ annotate_report_assignment_status($conn, $recent_reports);
                 showNotification('Could not parse report details.', 'error');
                 return;
             }
-            const r = data;
 
-            var statusStyles = {
-                'pending':    {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
-                'approved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
-                'completed':  {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
-                'resolved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
-                'cancelled':  {bg:'rgba(220,53,69,0.15)',  color:'#ef4444'},
-                'rejected':   {bg:'rgba(220,53,69,0.15)',  color:'#ef4444'},
-                'in-progress':{bg:'rgba(59,130,246,0.15)', color:'#3b82f6'},
-                'verified':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'}
-            };
-            var pStyles = {
-                'high':   {bg:'rgba(220,53,69,0.15)', color:'#ef4444'},
-                'critical':{bg:'rgba(220,53,69,0.15)', color:'#dc2626'},
-                'medium': {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
-                'low':    {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'}
-            };
-
-            // Header
-            document.getElementById('rm-report-id').textContent = 'Report #' + (r.report_id || '—');
-            document.getElementById('rm-title').textContent = r.title || '—';
-
-            var st = (r.status || 'pending').toLowerCase();
-            var ss = statusStyles[st] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
-            var pp = (r.priority || 'medium').toLowerCase();
-            var ps = pStyles[pp] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
-
-            var badgesHtml = rmBadge(r.status || '—', ss.bg, ss.color);
-            badgesHtml += rmBadge(r.priority || '—', ps.bg, ps.color);
-            var reportType = r.report_type || '—';
-            if (reportType !== '—') {
-                badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(55,98,200,0.12);color:#3762c8;">' + reportType + '</span>';
+            var reportType = data.report_type || '';
+            var table = 'road_transportation_reports';
+            if (source === 'cimm') {
+                table = 'cimm_verification_reports';
+            } else if (source === 'infrastructure') {
+                table = (reportType === 'infrastructure_issue') ? 'road_transportation_reports' : 'road_maintenance_reports';
             }
-            document.getElementById('rm-badges').innerHTML = badgesHtml;
+            // Use the row's embedded source table when provided (e.g. Road
+            // Operations Supervisor report types that live in the transport
+            // table but are not in get_report_details.php's type guess list).
+            if (data.table) table = data.table;
 
-            // Report Information
-            var reportGrid = '';
-            reportGrid += rmInfoItem('folder', 'Report Type', r.report_type);
-            reportGrid += rmInfoItem('tag', 'Category', r.report_category);
-            reportGrid += rmInfoItem('exclamation-circle', 'Severity', r.severity);
-            reportGrid += rmInfoItem('calendar-alt', 'Created Date', formatDate(r.created_at));
-            if (r.assignment_status) {
-                if (r.assignment_status === 'assigned') {
-                    reportGrid += rmInfoItem('user-check', 'Assigned To', r.assignment_officer || '—');
-                    reportGrid += rmInfoItem('user-tag', 'Assigned By', r.assigned_by || '—');
-                } else {
-                    reportGrid += rmInfoItem('user-check', 'Assignment', 'Unassigned');
-                }
-            }
-            document.getElementById('rm-report-grid').innerHTML = reportGrid;
+            var url = '../api/get_report_details.php?id=' + id + '&type=' + encodeURIComponent(reportType);
+            if (table) url += '&table=' + encodeURIComponent(table);
 
-            // Source & Assignment
-            var sourceGrid = '';
-            sourceGrid += rmInfoItem('server', 'Source', r.source);
-            if (r.created_by_name) {
-                sourceGrid += rmInfoItem('user', 'Created By', r.created_by_name);
-            }
-            if (r.reporter_name) {
-                sourceGrid += rmInfoItem('user', 'Reported By', r.reporter_name);
-            }
-            if (r.approval_status) {
-                sourceGrid += rmInfoItem('clipboard-check', 'Approval Status', r.approval_status);
-            }
-            if (r.verification_status) {
-                sourceGrid += rmInfoItem('shield-alt', 'Verification', r.verification_status);
-            }
-            document.getElementById('rm-source-grid').innerHTML = sourceGrid;
-
-            // Report Creator Information — Road Supervisor portal only.
-            var creatorSection = document.getElementById('rm-creator-section');
-            if (creatorSection) {
-                if (IS_ROAD_SUPERVISOR && r.creator_full_name) {
-                    var creatorGrid = '';
-                    creatorGrid += rmInfoItem('user', 'Full Name', r.creator_full_name);
-                    creatorGrid += rmInfoItem('phone', 'Contact Number', r.creator_phone);
-                    creatorGrid += rmInfoItem('envelope', 'Email', r.creator_email);
-                    document.getElementById('rm-creator-grid').innerHTML = creatorGrid;
-                    creatorSection.style.display = '';
-                } else {
-                    creatorSection.style.display = 'none';
-                }
-            }
-
-            // Location
-            var locationGrid = '';
-            var locVal = r.location || '—';
-            if (r.latitude && r.longitude && r.latitude != 0 && r.longitude != 0) {
-                locVal += '<br><a href="https://www.openstreetmap.org/?mlat=' + r.latitude + '&mlon=' + r.longitude + '&zoom=15" target="_blank" style="color:#3762c8;font-size:12px;text-decoration:none;"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map</a>';
-            }
-            locationGrid += '<div class="rm-info-item rm-info-value-full"><div class="rm-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="rm-info-label">Location</div><div class="rm-info-value">' + locVal + '</div></div></div>';
-            document.getElementById('rm-location-grid').innerHTML = locationGrid;
-
-            // View Map button: only shown when the report has a saved
-            // coordinate point (latitude / longitude).
-            currentRmPoint = (r.latitude && r.longitude && r.latitude != 0 && r.longitude != 0)
-                ? [[parseFloat(r.latitude), parseFloat(r.longitude)]]
-                : null;
-            var rmMapBtn = document.getElementById('rm-view-map-btn');
-            if (rmMapBtn) rmMapBtn.style.display = currentRmPoint ? '' : 'none';
-            var rmMapContainer = document.getElementById('rm-map-container');
-            if (rmMapContainer) rmMapContainer.classList.remove('road-map-visible');
-
-            // Description
-            document.getElementById('rm-description').textContent = r.description || 'No description provided.';
-
-            // Attachments
-            var images = [];
-            var seenPaths = new Set();
-            if (r.image_path) {
-                const paths = Array.isArray(r.image_path) ? r.image_path : [r.image_path];
-                paths.forEach(function(p) {
-                    if (p && !seenPaths.has(p)) {
-                        images.push('../../' + p);
-                        seenPaths.add(p);
+            fetch(url)
+                .then(response => response.json())
+                .then(resp => {
+                    if (!resp.success) {
+                        showNotification('Failed to load report details', 'error');
+                        return;
                     }
-                });
-            }
-            if (r.attachments) {
-                try {
-                    const atts = typeof r.attachments === 'string' ? JSON.parse(r.attachments) : r.attachments;
-                    if (Array.isArray(atts)) {
-                        atts.forEach(function(a) {
-                            const path = a.file_path || a.path || a.url || (typeof a === 'string' ? a : '');
-                            if (path && !seenPaths.has(path)) {
-                                images.push('../../' + path);
-                                seenPaths.add(path);
+                    const r = resp.report;
+
+                    var typeLabels = {
+                        'traffic_jam': 'Traffic Jam',
+                        'accident': 'Accident',
+                        'road_damage': 'Road Damage',
+                        'flooding': 'Flooding',
+                        'potholes': 'Potholes',
+                        'road_closure': 'Road Closure',
+                        'infrastructure_issue': 'Infrastructure Issue',
+                        'street_light': 'Street Light',
+                        'maintenance': 'Maintenance',
+                        'other': 'Other'
+                    };
+
+                    var statusStyles = {
+                        'pending':    {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
+                        'approved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
+                        'completed':  {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
+                        'cancelled':  {bg:'rgba(220,53,69,0.15)',  color:'#ef4444'},
+                        'in-progress':{bg:'rgba(59,130,246,0.15)', color:'#3b82f6'},
+                        'resolved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'}
+                    };
+                    var pStyles = {
+                        'high':   {bg:'rgba(220,53,69,0.15)', color:'#ef4444'},
+                        'medium': {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
+                        'low':    {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'}
+                    };
+
+                    // Header
+                    document.getElementById('rm-report-id').textContent = 'Report #' + (r.report_id || '—');
+                    document.getElementById('rm-title').textContent = r.title || '—';
+
+                    var st = (r.status || 'pending').toLowerCase();
+                    var ss = statusStyles[st] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
+                    var pp = (r.priority || 'medium').toLowerCase();
+                    var ps = pStyles[pp] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
+
+                    var badgesHtml = rmBadge(r.status || '—', ss.bg, ss.color);
+                    badgesHtml += rmBadge(r.priority || '—', ps.bg, ps.color);
+                    var reportTypeLabel = typeLabels[r.report_type] || r.report_type || '—';
+                    if (reportTypeLabel !== '—') {
+                        badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(55,98,200,0.12);color:#3762c8;">' + reportTypeLabel + '</span>';
+                    }
+                    document.getElementById('rm-badges').innerHTML = badgesHtml;
+
+                    // Report Information
+                    var reportGrid = '';
+                    reportGrid += rmInfoItem('folder', 'Report Type', reportTypeLabel);
+                    reportGrid += rmInfoItem('calendar-alt', 'Created Date', rmFormatDate(r.created_at));
+                    reportGrid += rmInfoItem('sync-alt', 'Last Updated', rmFormatDate(r.updated_at));
+                    if (r.due_date) {
+                        reportGrid += rmInfoItem('clock', 'Due Date', rmFormatDate(r.due_date));
+                    }
+                    if (r.severity) {
+                        reportGrid += rmInfoItem('exclamation-circle', 'Severity', r.severity);
+                    }
+                    document.getElementById('rm-report-grid').innerHTML = reportGrid;
+
+                    // Source & Department
+                    var sourceGrid = '';
+                    var sourceLabels = {
+                        'lgu': 'LGU Monitoring',
+                        'citizen': 'Citizen',
+                        'cimm': 'CIMM',
+                        'infrastructure': 'Infrastructure Projects'
+                    };
+                    var sourceLabel = sourceLabels[r.source] || (r.report_source === 'local' ? 'LGU Monitoring' : 'Citizen');
+                    sourceGrid += rmInfoItem('server', 'Source', sourceLabel);
+                    sourceGrid += rmInfoItem('building', 'Department', r.department);
+                    if (r.assigned_to) {
+                        sourceGrid += rmInfoItem('user-cog', 'Assigned To', r.assigned_to);
+                    }
+                    if (r.created_by_name) {
+                        sourceGrid += rmInfoItem('user', 'Created By', r.created_by_name);
+                    }
+                    if (r.reporter_name) {
+                        sourceGrid += rmInfoItem('user', 'Reported By', r.reporter_name);
+                    }
+                    if (r.approved_at) {
+                        sourceGrid += rmInfoItem('thumbs-up', 'Approved At', rmFormatDate(r.approved_at));
+                    }
+                    if (r.rejected_at) {
+                        sourceGrid += rmInfoItem('thumbs-down', 'Rejected At', rmFormatDate(r.rejected_at));
+                    }
+                    if (r.report_category === 'road') {
+                        var engName = r.cimm_engineer_name || r.engineer || '';
+                        if (engName) {
+                            sourceGrid += rmInfoItem('hard-hat', 'CIMM Engineer', engName);
+                        }
+                        var budgetRaw = (r.cimm_budget && Number(r.cimm_budget) > 0)
+                            ? r.cimm_budget
+                            : (r.budget_allocation && Number(r.budget_allocation) > 0 ? r.budget_allocation : 0);
+                        if (budgetRaw) {
+                            sourceGrid += rmInfoItem('money-bill-wave', 'CIMM Budget Allocation', '₱ ' + Number(budgetRaw).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+                        }
+                    }
+                    document.getElementById('rm-source-grid').innerHTML = sourceGrid;
+
+                    // Report Creator Information — Road Supervisor portal only.
+                    var creatorSection = document.getElementById('rm-creator-section');
+                    if (creatorSection) {
+                        if (IS_ROAD_SUPERVISOR && (r.creator_full_name || data.creator_full_name)) {
+                            var creatorGrid = '';
+                            creatorGrid += rmInfoItem('user', 'Full Name', r.creator_full_name || data.creator_full_name);
+                            creatorGrid += rmInfoItem('phone', 'Contact Number', r.creator_phone || data.creator_phone);
+                            creatorGrid += rmInfoItem('envelope', 'Email', r.creator_email || data.creator_email);
+                            document.getElementById('rm-creator-grid').innerHTML = creatorGrid;
+                            creatorSection.style.display = '';
+                        } else {
+                            creatorSection.style.display = 'none';
+                        }
+                    }
+
+                    // Location
+                    var locationGrid = '';
+                    var locVal = r.location || '—';
+                    if (r.latitude && r.longitude && r.latitude != 0 && r.longitude != 0) {
+                        locVal += '<br><a href="https://www.openstreetmap.org/?mlat=' + r.latitude + '&mlon=' + r.longitude + '&zoom=15" target="_blank" style="color:#3762c8;font-size:12px;text-decoration:none;"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map</a>';
+                    }
+                    locationGrid += '<div class="rm-info-item rm-info-value-full"><div class="rm-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="rm-info-label">Location</div><div class="rm-info-value">' + locVal + '</div></div></div>';
+                    document.getElementById('rm-location-grid').innerHTML = locationGrid;
+
+                    // View Map button: only shown when the report has a saved
+                    // coordinate point (latitude / longitude).
+                    currentRmPoint = (r.latitude && r.longitude && r.latitude != 0 && r.longitude != 0)
+                        ? [[parseFloat(r.latitude), parseFloat(r.longitude)]]
+                        : null;
+                    var rmMapBtn = document.getElementById('rm-view-map-btn');
+                    if (rmMapBtn) rmMapBtn.style.display = currentRmPoint ? '' : 'none';
+                    var rmMapContainer = document.getElementById('rm-map-container');
+                    if (rmMapContainer) rmMapContainer.classList.remove('road-map-visible');
+
+                    // Description
+                    document.getElementById('rm-description').textContent = r.description || 'No description provided.';
+
+                    // Attachments
+                    var images = [];
+                    var seenPaths = new Set();
+                    if (r.image_path && r.image_path !== '0' && r.image_path !== 'null') {
+                        images.push('../../' + r.image_path);
+                        seenPaths.add(r.image_path);
+                    }
+                    if (r.attachments && typeof r.attachments === 'string') {
+                        try {
+                            var parsed = JSON.parse(r.attachments);
+                            if (Array.isArray(parsed)) {
+                                parsed.forEach(function(a) {
+                                    var p = a.file_path || a.file || '';
+                                    if (p && (a.type === 'image' || !a.type) && !seenPaths.has(p)) {
+                                        images.push('../../' + p);
+                                        seenPaths.add(p);
+                                    }
+                                });
+                            }
+                        } catch(e) {}
+                    }
+                    if (r.update_media && Array.isArray(r.update_media)) {
+                        r.update_media.forEach(function(m) {
+                            var p = m.file_path || '';
+                            if (p && !seenPaths.has(p) && m.file_type !== 'video') {
+                                images.push('../../' + p);
+                                seenPaths.add(p);
                             }
                         });
                     }
-                } catch(e) {}
-            }
-            var attachHtml = '';
-            if (images.length > 0) {
-                attachHtml = '<div style="display:flex;gap:12px;flex-wrap:wrap;">';
-                images.forEach(function(path) {
-                    attachHtml += '<div style="border-radius:8px;overflow:hidden;max-width:200px;"><img src="' + path + '" alt="Report Photo" style="width:100%;height:auto;cursor:pointer;" onclick="openLightbox(this.src)" loading="lazy" onerror="this.style.display=\'none\'"></div>';
+                    var attachHtml = '';
+                    if (images.length > 0) {
+                        attachHtml = '<div style="display:flex;gap:12px;flex-wrap:wrap;">';
+                        images.forEach(function(path) {
+                            attachHtml += '<div style="border-radius:8px;overflow:hidden;max-width:200px;"><img src="' + path + '" alt="Report Photo" style="width:100%;height:auto;cursor:pointer;" onclick="openLightbox(this.src)" loading="lazy" onerror="this.style.display=\'none\'"></div>';
+                        });
+                        attachHtml += '</div>';
+                    } else {
+                        attachHtml = '<div style="padding:8px 0;color:#9ca3af;font-size:14px;">No attachments.</div>';
+                    }
+                    document.getElementById('rm-attachments').innerHTML = attachHtml;
+
+                    // Timeline
+                    var timelineGrid = '';
+                    timelineGrid += rmInfoItem('calendar-check', 'Created', rmFormatDate(r.created_at));
+                    if (r.approved_at) {
+                        timelineGrid += rmInfoItem('thumbs-up', 'Approved', rmFormatDate(r.approved_at));
+                    }
+                    if (r.rejected_at) {
+                        timelineGrid += rmInfoItem('thumbs-down', 'Rejected', rmFormatDate(r.rejected_at));
+                    }
+                    if (r.completed_at) {
+                        timelineGrid += rmInfoItem('check-circle', 'Completed', rmFormatDate(r.completed_at));
+                    }
+                    if (r.updated_at) {
+                        timelineGrid += rmInfoItem('edit', 'Last Updated', rmFormatDate(r.updated_at));
+                    }
+                    document.getElementById('rm-timeline-grid').innerHTML = timelineGrid;
+
+                    openViewDetailsModal();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showNotification('Error loading report details', 'error');
                 });
-                attachHtml += '</div>';
-            } else {
-                attachHtml = '<div style="padding:8px 0;color:#9ca3af;font-size:14px;">No attachments.</div>';
-            }
-            document.getElementById('rm-attachments').innerHTML = attachHtml;
-
-            // Timeline
-            var timelineGrid = '';
-            timelineGrid += rmInfoItem('calendar-check', 'Created', formatDate(r.created_at));
-            if (r.cimm_verified_at) {
-                timelineGrid += rmInfoItem('check-circle', 'CIMM Verified', formatDate(r.cimm_verified_at));
-            }
-            document.getElementById('rm-timeline-grid').innerHTML = timelineGrid;
-
-            openViewDetailsModal();
         }
 
         function openLightbox(src) {

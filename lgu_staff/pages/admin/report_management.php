@@ -754,6 +754,10 @@ function handle_delete_cimm_report() {
 
                 $now = date('Y-m-d H:i:s');
                 $reference_code = $row['reference_code'] ?? ('CIMM-' . $report_id);
+                // Preserve ALL original CIMM information so a later restore
+                // brings the report back exactly as it was — start/end dates,
+                // engineer, budget and the rest are stored in the archive's
+                // cimm_* columns.
                 $insert_fields = [
                     'report_id'       => $reference_code,
                     'title'           => $row['infrastructure'] ?? 'CIMM Report',
@@ -765,11 +769,14 @@ function handle_delete_cimm_report() {
                     'status'          => 'cancelled',
                     'previous_status' => $row['verification_status'] ?? null,
                     'archived_from'   => 'cimm_verification_reports',
+                    'source_pk'       => (int)$report_id,
                     'created_date'    => (!empty($row['submitted_at'])) ? date('Y-m-d', strtotime($row['submitted_at'])) : date('Y-m-d'),
                     'description'     => $row['issue'] ?? '',
                     'location'        => $row['location'] ?? '',
                     'latitude'        => $row['coord_lat'] ?? null,
                     'longitude'       => $row['coord_lng'] ?? null,
+                    'reporter_name'   => $row['reporter_name'] ?? null,
+                    'district'        => $row['district'] ?? null,
                     'created_at'      => $row['submitted_at'] ?? $now,
                     'updated_at'      => $now,
                     'rejected_at'     => $now,
@@ -777,6 +784,12 @@ function handle_delete_cimm_report() {
                     'approved_at'     => null,
                     'engineer'        => $row['engineer'] ?? null,
                     'budget_allocation' => $row['budget_allocation'] ?? null,
+                    'cimm_engineer_name'   => $row['engineer'] ?? null,
+                    'cimm_budget'          => $row['budget'] ?? $row['budget_allocation'] ?? null,
+                    'cimm_starting_date'   => $row['starting_date'] ?? null,
+                    'cimm_estimated_end_date' => $row['estimated_end_date'] ?? null,
+                    'cimm_status'          => $row['verification_status'] ?? null,
+                    'cimm_district'        => $row['district'] ?? null,
                 ];
 
                 $fields = array_keys($insert_fields);
@@ -916,6 +929,8 @@ function mapCimmToReportManagement(array $row): array {
         'title'         => $row['infrastructure'] ?? 'CIMM Report',
         'description'   => $row['issue'] ?? '',
         'location'      => $row['location'] ?? '',
+        'start_date'    => $row['starting_date'] ?? null,
+        'end_date'      => $row['estimated_end_date'] ?? null,
         'latitude'      => $row['coord_lat'] ?? null,
         'longitude'     => $row['coord_lng'] ?? null,
         'priority'      => strtolower((string)($row['priority'] ?? 'medium')),
@@ -1310,7 +1325,10 @@ foreach ($reports as $report) {
 // Infrastructure panels — and their role visibility — are completely unaffected.
 if ($status_filter === 'all' || $status_filter === 'completed') {
     if ($source_filter === 'all' || $source_filter === 'lgu_reports') {
-        $completed_lgu_sql = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, engineer, budget_allocation, cimm_engineer_name, cimm_budget, estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, 'lgu_reports' as source_system FROM road_transportation_reports WHERE report_source = 'local' AND created_by != 0 AND status = 'completed'";
+        // Infrastructure projects (report_type = infrastructure_issue) are
+        // excluded here — they belong to the Infrastructure panel, where a
+        // dedicated completed-infrastructure append below keeps them visible.
+        $completed_lgu_sql = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, engineer, budget_allocation, cimm_engineer_name, cimm_budget, estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, 'lgu_reports' as source_system FROM road_transportation_reports WHERE report_source = 'local' AND created_by != 0 AND report_type != 'infrastructure_issue' AND status = 'completed'";
         if ($is_road_supervisor) {
             $completed_lgu_sql .= " AND report_category = 'road'";
         }
@@ -1325,6 +1343,35 @@ if ($status_filter === 'all' || $status_filter === 'completed') {
                 if (!in_array((int)$r['id'], $existing_lgu_ids, true)) {
                     $lgu_reports_list[] = $r;
                 }
+            }
+        }
+    }
+}
+
+// Completed Infrastructure Projects (report_type = infrastructure_issue) keep
+// the same completed-report behavior: they stay visible in the Infrastructure
+// panel for the 7-day retention window, then the auto-archive sweep moves them
+// to the archive. This mirrors the completed-LGU append above so a restored
+// completed IPMS Infrastructure Project returns to report_management.php (and
+// to the Infrastructure panel it came from), keeping its Completed status. They
+// are fetched separately so the LGU panel append never claims them.
+if (($status_filter === 'all' || $status_filter === 'completed')
+    && !$is_transport_supervisor
+    && ($source_filter === 'all' || $source_filter === 'maintenance')) {
+    $completed_infra_sql = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, engineer, budget_allocation, cimm_engineer_name, cimm_budget, estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, 'maintenance' as source_system FROM road_transportation_reports WHERE report_type = 'infrastructure_issue' AND status = 'completed'";
+    if ($is_road_supervisor) {
+        $completed_infra_sql .= " AND report_category = 'road'";
+    }
+    $completed_infra_sql .= " ORDER BY created_at DESC LIMIT {$per_page}";
+    $completed_infra_res = $conn->query($completed_infra_sql);
+    if ($completed_infra_res) {
+        $existing_infra_ids = [];
+        foreach ($infra_reports_list as $ir) {
+            $existing_infra_ids[] = (int)$ir['id'];
+        }
+        while ($r = $completed_infra_res->fetch_assoc()) {
+            if (!in_array((int)$r['id'], $existing_infra_ids, true)) {
+                $infra_reports_list[] = $r;
             }
         }
     }
@@ -3719,7 +3766,7 @@ if ($focus_id > 0) {
                         <?php if (!$is_transport_supervisor): ?>
                         <option value="cimm" <?php echo $source_filter === 'cimm' ? 'selected' : ''; ?>>CIMM Reports</option>
                         <?php endif; ?>
-                        <?php if (!$is_transport_supervisor && !$is_road_supervisor): ?>
+                        <?php if (!$is_transport_supervisor): ?>
                         <option value="maintenance" <?php echo $source_filter === 'maintenance' ? 'selected' : ''; ?>>Infrastructure Projects</option>
                         <?php endif; ?>
                     </select>
@@ -4130,8 +4177,8 @@ if ($focus_id > 0) {
         </div>
         <?php endif; ?>
 
-        <!-- Infrastructure Projects Panel (hidden for Road Operations Supervisors) -->
-        <?php if (!$is_transport_supervisor && !$is_road_supervisor): ?>
+        <!-- Infrastructure Projects Panel (visible to Road Operations Supervisors) -->
+        <?php if (!$is_transport_supervisor): ?>
         <div class="rm-panel" id="infraReportsPanel">
             <div class="rm-panel-header">
                 <div class="rm-panel-header-left">
@@ -4186,11 +4233,10 @@ if ($focus_id > 0) {
                                     <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
                                         <i class="fas fa-eye"></i>
                                     </button>
-                                    <?php if ($is_road_supervisor): ?>
-                                    <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'road_maintenance_reports')">
+                                    <?php $infra_edit_table = (($report['report_type'] ?? '') === 'infrastructure_issue') ? 'road_transportation_reports' : 'road_maintenance_reports'; ?>
+                                    <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', '<?php echo $infra_edit_table; ?>')" title="Edit">
                                         <i class="fas fa-pencil"></i>
                                     </button>
-                                    <?php endif; ?>
                                     <?php if (($report['status'] ?? '') === 'completed'): ?>
                                     <button class="rm-archive-btn" onclick="archiveReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['source_system'] ?? 'maintenance', ENT_QUOTES); ?>')" title="Archive">
                                         <i class="fas fa-archive"></i>

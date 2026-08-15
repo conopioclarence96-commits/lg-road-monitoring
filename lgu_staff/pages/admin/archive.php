@@ -279,6 +279,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 'coord_lng' => $row['longitude'],
                 'priority' => $row['priority'],
                 'reporter_name' => $row['reporter_name'],
+                'district' => $row['cimm_district'] ?? $row['district'],
+                'starting_date' => $row['cimm_starting_date'] ?? $row['created_date'],
+                'estimated_end_date' => $row['cimm_estimated_end_date'] ?? $row['due_date'],
+                'engineer' => $row['cimm_engineer_name'] ?? $row['engineer'],
+                'budget_allocation' => $row['budget_allocation'] ?? $row['cimm_budget'],
+                'budget' => $row['cimm_budget'] ?? $row['budget_allocation'],
                 'submitted_at' => $row['created_at'],
                 'verified_at' => ($row['completed_at'] ?? null) ?: ($row['rejected_at'] ?? null),
                 'verification_status' => $restore_status,
@@ -309,12 +315,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
             if ($existing) {
                 $rfa = (strtolower($restore_status) === 'cancelled') ? 1 : 0;
-                if (strtolower($restore_status) === 'pending review') {
-                    $upd = $conn->prepare("UPDATE cimm_verification_reports SET verification_status = ?, approval_status = 'Approved', resolved_at = NULL, updated_at = NOW(), restored_from_archive = ? WHERE id = ?");
-                } else {
-                    $upd = $conn->prepare("UPDATE cimm_verification_reports SET verification_status = ?, updated_at = NOW(), restored_from_archive = ? WHERE id = ?");
-                }
-                $upd->bind_param("sii", $restore_status, $rfa, $existing['id']);
+                // Restore ALL original information (start/end dates, engineer,
+                // budget, etc.) from the archived copy, not just the status, so
+                // a reopened/re-completed CIMM report keeps everything it had.
+                $upd = $conn->prepare(
+                    "UPDATE cimm_verification_reports SET
+                        infrastructure = ?, issue = ?, location = ?, coord_lat = ?, coord_lng = ?,
+                        priority = ?, reporter_name = ?, district = ?, starting_date = ?, estimated_end_date = ?,
+                        engineer = ?, budget_allocation = ?, budget = ?, submitted_at = ?, verified_at = ?,
+                        verification_status = ?, approval_status = 'Approved', resolved_at = NULL,
+                        updated_at = NOW(), restored_from_archive = ? WHERE id = ?"
+                );
+                $b_alloc = $row['budget_allocation'] ?? $row['cimm_budget'] ?? null;
+                $b = $row['cimm_budget'] ?? $row['budget_allocation'] ?? null;
+                $v_district = $row['cimm_district'] ?? $row['district'];
+                $v_start = $row['cimm_starting_date'] ?? $row['created_date'];
+                $v_end = $row['cimm_estimated_end_date'] ?? $row['due_date'];
+                $v_engineer = $row['cimm_engineer_name'] ?? $row['engineer'];
+                $v_verified_at = ($row['completed_at'] ?? null) ?: ($row['rejected_at'] ?? null);
+                $upd->bind_param(
+                    "sssddssssssddsssii",
+                    $row['title'],
+                    $row['description'],
+                    $row['location'],
+                    $row['latitude'],
+                    $row['longitude'],
+                    $row['priority'],
+                    $row['reporter_name'],
+                    $v_district,
+                    $v_start,
+                    $v_end,
+                    $v_engineer,
+                    $b_alloc,
+                    $b,
+                    $row['created_at'],
+                    $v_verified_at,
+                    $restore_status,
+                    $rfa,
+                    $existing['id']
+                );
                 $upd->execute();
                 if ($upd->affected_rows >= 0) {
                     $delete = $conn->prepare("DELETE FROM road_transportation_reports_archive WHERE id = ?");

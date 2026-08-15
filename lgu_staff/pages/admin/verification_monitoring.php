@@ -618,7 +618,10 @@ function archive_cimm_rejected_report($conn, $cimm_req_id) {
         
         $conn->begin_transaction();
         
-        // Map CIMM columns to road_transportation_reports_archive columns
+        // Map CIMM columns to road_transportation_reports_archive columns. Preserve
+        // ALL original CIMM information so a later restore brings the report
+        // back exactly as it was — start/end dates, engineer, budget and the
+        // rest are stored in the archive's cimm_* columns.
         $insert_fields = [
             'report_id'       => $cimm_report['reference_code'] ?? 'CIMM-' . $cimm_req_id,
             'title'           => $cimm_report['infrastructure'] ?? 'CIMM Report',
@@ -629,17 +632,26 @@ function archive_cimm_rejected_report($conn, $cimm_req_id) {
             'priority'        => $cimm_report['priority'] ?? 'medium',
             'status'          => 'rejected',
             'archived_from'   => 'cimm_verification_reports',
+            'source_pk'       => (int)$cimm_req_id,
             'created_date'    => (!empty($cimm_report['submitted_at'])) ? date('Y-m-d', strtotime($cimm_report['submitted_at'])) : date('Y-m-d'),
             'description'     => $cimm_report['issue'] ?? '',
             'location'        => $cimm_report['location'] ?? '',
             'latitude'        => $cimm_report['coord_lat'] ?? null,
             'longitude'       => $cimm_report['coord_lng'] ?? null,
+            'reporter_name'   => $cimm_report['reporter_name'] ?? null,
+            'district'        => $cimm_report['district'] ?? null,
             'created_at'      => $cimm_report['submitted_at'] ?? date('Y-m-d H:i:s'),
             'updated_at'      => date('Y-m-d H:i:s'),
             'rejected_at'     => date('Y-m-d H:i:s'),
             'approved_at'     => null,
             'engineer'        => $cimm_report['engineer'] ?? null,
             'budget_allocation' => $cimm_report['budget_allocation'] ?? null,
+            'cimm_engineer_name'   => $cimm_report['engineer'] ?? null,
+            'cimm_budget'          => $cimm_report['budget'] ?? $cimm_report['budget_allocation'] ?? null,
+            'cimm_starting_date'   => $cimm_report['starting_date'] ?? null,
+            'cimm_estimated_end_date' => $cimm_report['estimated_end_date'] ?? null,
+            'cimm_status'          => $cimm_report['verification_status'] ?? null,
+            'cimm_district'        => $cimm_report['district'] ?? null,
         ];
         
         // Build INSERT query dynamically
@@ -678,10 +690,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Infrastructure Projects (read-only IPMS mirror): approve/reject reflects
         // the action on the local mirror row so the panel updates immediately.
         if ($source === 'infra' && in_array($action, ['approve', 'reject'])) {
-            $new_status = ($action === 'approve') ? 'approved' : 'cancelled';
             $infra_pdo = rgmap_ipms_pdo();
-            $infra_upd = $infra_pdo->prepare("UPDATE ipms_road_projects SET project_status = ? WHERE project_id = ?");
-            $infra_upd->execute([$new_status, $report_id]);
+
+            if ($action === 'approve') {
+                // ✓ Verify/Approve: mark the mirror project approved (hiding it
+                // from this panel) and move it into report management as an
+                // active Infrastructure Project report.
+                $infra_upd = $infra_pdo->prepare("UPDATE ipms_road_projects SET project_status = 'approved' WHERE project_id = ?");
+                $infra_upd->execute([$report_id]);
+
+                $proj = $infra_pdo->prepare("SELECT * FROM ipms_road_projects WHERE project_id = ?");
+                $proj->execute([$report_id]);
+                $proj = $proj->fetch();
+
+                if ($proj) {
+                    $barangays = json_decode((string)($proj['barangays_json'] ?? '[]'), true) ?: [];
+                    $engs      = json_decode((string)($proj['assigned_engineers_json'] ?? '[]'), true) ?: [];
+                    $loc       = count($barangays)
+                        ? implode(', ', array_filter(array_map('trim', array_map('strval', $barangays)), fn($b) => $b !== ''))
+                        : trim((string)($proj['road_name'] ?? ''));
+                    $engineer  = implode(', ', array_filter(array_map('trim', array_map('strval', $engs)), fn($e) => $e !== ''));
+                    $ipmsReportId = 'IPMS-' . $report_id;
+                    $desc      = trim((string)($proj['road_status'] ?? '')) ?: 'Approved infrastructure project.';
+                    $creatorId = (int)($_SESSION['user_id'] ?? 0);
+
+                    $ins = $conn->prepare("INSERT INTO road_transportation_reports
+                        (report_id, report_type, report_category, report_source, title, department, priority, status,
+                         created_date, due_date, description, location, latitude, longitude, created_by,
+                         created_at, updated_at, approved_at, engineer, budget_allocation,
+                         cimm_starting_date, cimm_estimated_end_date)
+                        VALUES (?, 'infrastructure_issue', 'road', 'local', ?, 'Engineering', 'medium', 'approved',
+                         CURDATE(), ?, ?, ?, NULL, NULL, ?, NOW(), NOW(), NOW(), ?, ?, ?, ?)");
+                    $ins->bind_param(
+                        'sssssisdss',
+                        $ipmsReportId, $proj['project_name'], $proj['end_date'], $desc, $loc,
+                        $creatorId, $engineer, $proj['budget'], $proj['start_date'], $proj['end_date']
+                    );
+                    $ins->execute();
+                }
+
+                $vm_message = 'Infrastructure project approved and moved to report management.';
+            } else {
+                // X Reject: follow the existing reject flow — mark the mirror
+                // project cancelled. Rejected projects are not moved to report
+                // management.
+                $infra_upd = $infra_pdo->prepare("UPDATE ipms_road_projects SET project_status = 'cancelled' WHERE project_id = ?");
+                $infra_upd->execute([$report_id]);
+                $vm_message = 'Infrastructure project rejected.';
+            }
 
             $audit_query = "INSERT INTO audit_trails (audit_id, title, audit_type, status, auditor, description, created_at)
                             VALUES (?, ?, ?, ?, ?, ?, NOW())";
@@ -695,7 +751,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $audit_stmt->bind_param('ssssss', $audit_id, $title, $audit_type, $audit_status, $auditor, $description);
             $audit_stmt->execute();
 
-            $_SESSION['verification_message'] = 'Infrastructure project ' . ($action === 'approve' ? 'approved' : 'rejected') . ' successfully.';
+            $_SESSION['verification_message'] = $vm_message;
             header('Location: ../admin/verification_monitoring.php');
             exit();
         }
@@ -903,6 +959,11 @@ foreach ($ipms_projects_raw as $proj) {
     // already been completed / turned over.
     $proj_scope = $proj['scope_bucket'] ?? $proj['status_bucket'] ?? '';
     if ($proj_scope === 'completed') {
+        continue;
+    }
+    // Approved projects have been moved to report management, so they no
+    // longer belong in this verification panel.
+    if (in_array((string)($proj['project_status'] ?? ''), ['approved'], true)) {
         continue;
     }
     // Assigned engineers are decoded back into an array by the fetcher;

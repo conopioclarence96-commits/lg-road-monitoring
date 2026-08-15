@@ -293,31 +293,42 @@ function rgmap_archive_cimm_report($conn, $cimm_req_id, $status) {
             $archive_status = in_array($archive_status, ['approved', 'verified'], true) ? 'approved' : 'completed';
         }
 
-        $timestamp_key = ($archive_status === 'cancelled') ? 'rejected_at' : 'completed_at';
-        $insert_fields = [
-            'report_id' => $cimm_report['reference_code'] ?? ('CIMM-' . $cimm_req_id),
-            'title' => $cimm_report['infrastructure'] ?? 'CIMM Report',
-            'report_type' => 'infrastructure_issue',
-            'report_category' => 'road',
-            'report_source' => 'external',
-            'department' => 'engineering',
-            'priority' => $archive_priority,
-            'status' => $archive_status,
-            'previous_status' => $cimm_report['verification_status'] ?? null,
-            'archived_from' => 'cimm_verification_reports',
-            'source_pk' => (int)$cimm_req_id,
-            'created_date' => (!empty($cimm_report['submitted_at'])) ? date('Y-m-d', strtotime($cimm_report['submitted_at'])) : date('Y-m-d'),
-            'description' => $cimm_report['issue'] ?? '',
-            'location' => $cimm_report['location'] ?? '',
-            'latitude' => $cimm_report['coord_lat'] ?? null,
-            'longitude' => $cimm_report['coord_lng'] ?? null,
-            'created_at' => $cimm_report['submitted_at'] ?? $now,
-            'updated_at' => $now,
-            $timestamp_key => $now,
-            'approved_at' => null,
-            'engineer' => $cimm_report['engineer'] ?? null,
-            'budget_allocation' => $cimm_report['budget_allocation'] ?? null,
-        ];
+$timestamp_key = ($archive_status === 'cancelled') ? 'rejected_at' : 'completed_at';
+            // Preserve ALL original CIMM information so a later restore brings
+            // the report back exactly as it was — start/end dates, engineer,
+            // budget and the rest are stored in the archive's cimm_* columns.
+            $insert_fields = [
+                'report_id' => $cimm_report['reference_code'] ?? ('CIMM-' . $cimm_req_id),
+                'title' => $cimm_report['infrastructure'] ?? 'CIMM Report',
+                'report_type' => 'infrastructure_issue',
+                'report_category' => 'road',
+                'report_source' => 'external',
+                'department' => 'engineering',
+                'priority' => $archive_priority,
+                'status' => $archive_status,
+                'previous_status' => $cimm_report['verification_status'] ?? null,
+                'archived_from' => 'cimm_verification_reports',
+                'source_pk' => (int)$cimm_req_id,
+                'created_date' => (!empty($cimm_report['submitted_at'])) ? date('Y-m-d', strtotime($cimm_report['submitted_at'])) : date('Y-m-d'),
+                'description' => $cimm_report['issue'] ?? '',
+                'location' => $cimm_report['location'] ?? '',
+                'latitude' => $cimm_report['coord_lat'] ?? null,
+                'longitude' => $cimm_report['coord_lng'] ?? null,
+                'reporter_name' => $cimm_report['reporter_name'] ?? null,
+                'district' => $cimm_report['district'] ?? null,
+                'created_at' => $cimm_report['submitted_at'] ?? $now,
+                'updated_at' => $now,
+                $timestamp_key => $now,
+                'approved_at' => null,
+                'engineer' => $cimm_report['engineer'] ?? null,
+                'budget_allocation' => $cimm_report['budget_allocation'] ?? null,
+                'cimm_engineer_name' => $cimm_report['engineer'] ?? null,
+                'cimm_budget' => $cimm_report['budget'] ?? $cimm_report['budget_allocation'] ?? null,
+                'cimm_starting_date' => $cimm_report['starting_date'] ?? null,
+                'cimm_estimated_end_date' => $cimm_report['estimated_end_date'] ?? null,
+                'cimm_status' => $cimm_report['verification_status'] ?? null,
+                'cimm_district' => $cimm_report['district'] ?? null,
+            ];
 
         $fields = array_keys($insert_fields);
         $placeholders = array_fill(0, count($fields), '?');
@@ -599,6 +610,9 @@ function rgmap_archive_copy_cimm_report($conn, $cimm_req_id, $status) {
 
         $now = date('Y-m-d H:i:s');
         $timestamp_key = ($status === 'cancelled') ? 'rejected_at' : 'completed_at';
+        // Preserve ALL original CIMM information so a later restore brings
+        // the report back exactly as it was — start/end dates, engineer,
+        // budget and the rest are stored in the archive's cimm_* columns.
         $insert_fields = [
             'report_id' => $cimm_report['reference_code'] ?? ('CIMM-' . $cimm_req_id),
             'title' => $cimm_report['infrastructure'] ?? 'CIMM Report',
@@ -616,12 +630,20 @@ function rgmap_archive_copy_cimm_report($conn, $cimm_req_id, $status) {
             'location' => $cimm_report['location'] ?? '',
             'latitude' => $cimm_report['coord_lat'] ?? null,
             'longitude' => $cimm_report['coord_lng'] ?? null,
+            'reporter_name' => $cimm_report['reporter_name'] ?? null,
+            'district' => $cimm_report['district'] ?? null,
             'created_at' => $cimm_report['submitted_at'] ?? $now,
             'updated_at' => $now,
             $timestamp_key => $now,
             'approved_at' => null,
             'engineer' => $cimm_report['engineer'] ?? null,
             'budget_allocation' => $cimm_report['budget_allocation'] ?? null,
+            'cimm_engineer_name' => $cimm_report['engineer'] ?? null,
+            'cimm_budget' => $cimm_report['budget'] ?? $cimm_report['budget_allocation'] ?? null,
+            'cimm_starting_date' => $cimm_report['starting_date'] ?? null,
+            'cimm_estimated_end_date' => $cimm_report['estimated_end_date'] ?? null,
+            'cimm_status' => $cimm_report['verification_status'] ?? null,
+            'cimm_district' => $cimm_report['district'] ?? null,
         ];
 
         $fields = array_keys($insert_fields);
