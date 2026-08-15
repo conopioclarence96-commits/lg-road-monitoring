@@ -613,6 +613,46 @@ function create_user_login_tokens($email, $withRegister = true) {
     ];
 }
 
+// Return the set of report keys (report_type:report_id) with an active
+// assignment to the given user. Used so Road Monitoring Officers only see the
+// reports assigned to them. Matches the report_type / report_id naming used by
+// annotate_report_assignment_status() below ('_source_table' + 'id').
+function get_assigned_report_keys($conn, $user_id) {
+    $keys = [];
+    if (!$conn || !$user_id) return $keys;
+    try {
+        $stmt = $conn->prepare(
+            "SELECT report_type, report_id FROM report_assignments
+             WHERE user_id = ? AND status = 'active'"
+        );
+        $stmt->bind_param('i', $user_id);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        while ($row = $res->fetch_assoc()) {
+            $keys[$row['report_type'] . ':' . $row['report_id']] = true;
+        }
+        $stmt->close();
+    } catch (Exception $e) {
+        error_log("get_assigned_report_keys error: " . $e->getMessage());
+    }
+    return $keys;
+}
+
+// Keep only report rows actively assigned to $user_id. Rows must carry their
+// source table in '_source_table' and their primary key in 'id' (same contract
+// as annotate_report_assignment_status()). Pass $user_id = 0/null to disable.
+function filter_reports_assigned_to_user($conn, array $reports, $user_id) {
+    if (!$user_id) return $reports;
+    $assigned = get_assigned_report_keys($conn, $user_id);
+    if (empty($assigned)) return [];
+    $filtered = array_filter($reports, function ($r) use ($assigned) {
+        $table = $r['_source_table'] ?? 'road_transportation_reports';
+        $id = $r['id'] ?? 0;
+        return isset($assigned[$table . ':' . $id]);
+    });
+    return array_values($filtered);
+}
+
 // Annotate a list of report rows with a display-only "Assignment Status".
 // The report_assignments table is the single source of truth updated by the
 // Assign/Unassign Staff features, so this reflects assignments live on every

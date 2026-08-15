@@ -31,13 +31,18 @@ $road_only = in_array($_SESSION['role'] ?? '', ['road_ops_supervisor', 'road_mon
 // Creator Information (full name, contact number, email) in report details.
 $is_road_supervisor = ($_SESSION['role'] ?? '') === 'road_ops_supervisor';
 
+// Road Monitoring Officers see only the reports assigned to them by the
+// Road Operations Supervisor.
+$is_road_monitoring_officer = ($_SESSION['role'] ?? '') === 'road_monitoring_officer';
+$assigned_to_user_id = $is_road_monitoring_officer ? (int)($_SESSION['user_id'] ?? 0) : null;
+
 $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
 $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
 $status_filter = isset($_GET['status']) ? $_GET['status'] : 'all';
 $type_filter = isset($_GET['type']) ? $_GET['type'] : 'all';
 
 // Helper function to get recent submissions with pagination
-function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', $type_filter = 'all', $transport_only = false, $road_only = false) {
+function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', $type_filter = 'all', $transport_only = false, $road_only = false, $assigned_to_user_id = null) {
     global $conn;
     $reports = [];
     if (!$conn) return $reports;
@@ -152,6 +157,11 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
         }
         }
 
+        // Road Monitoring Officers see only the reports assigned to them.
+        if ($assigned_to_user_id) {
+            $reports = filter_reports_assigned_to_user($conn, $reports, $assigned_to_user_id);
+        }
+
         // Filter by type after fetching (since source is a calculated field)
         if ($type_filter !== 'all') {
             $reports = array_filter($reports, function($report) use ($type_filter) {
@@ -172,7 +182,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
 }
 
 try {
-    $reports = getRecentSubmissionsPaginated($offset, $limit, $status_filter, $type_filter, $transport_only, $road_only);
+    $reports = getRecentSubmissionsPaginated($offset, $limit, $status_filter, $type_filter, $transport_only, $road_only, $assigned_to_user_id);
 
     // Display-only Assignment Status (Assigned / Unassigned) for each report,
     // read live from report_assignments so it reflects Assign/Unassign changes.

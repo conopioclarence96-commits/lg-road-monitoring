@@ -1262,8 +1262,8 @@ function notification_assignment_url(array $ap): string {
         .dark-mode .nc-empty > i { color: #475569; }
         .dark-mode .nc-dismiss { color: #64748b; }
 
-        <?php if ($is_admin): ?>
-        /* Dark-mode readable status/priority badges (system_admin only) */
+        <?php if ($is_admin || $is_road_supervisor || $is_road_officer): ?>
+        /* Dark-mode readable status/priority badges (system_admin, road_ops_supervisor, road_monitoring_officer only) */
         .dark-mode .nc-st-pending { background: rgba(180, 83, 9, 0.22); color: #fde68a; }
         .dark-mode .nc-st-assigned { background: rgba(29, 78, 216, 0.25); color: #93c5fd; }
         .dark-mode .nc-st-progress { background: rgba(194, 65, 12, 0.22); color: #fdba74; }

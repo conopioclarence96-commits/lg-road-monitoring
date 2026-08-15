@@ -116,6 +116,35 @@ $is_trans_ops_supervisor = ($_SESSION['role'] ?? '') === 'trans_ops_supervisor';
 // this role.
 $is_transport_monitoring_officer = ($_SESSION['role'] ?? '') === 'trans_monitoring_officer';
 
+// db-badge class helpers — mirror lgu_staff_dashboard.php's dbStatusBadge() /
+// dbPriorityBadge() so the Road Operations Supervisor's and Road Monitoring
+// Officer's Recent Submissions badges (status / priority) match the dashboard
+// exactly.
+function rmo_db_status_class($status) {
+    $map = [
+        'pending' => 'db-st-pending',
+        'in-progress' => 'db-st-progress',
+        'completed' => 'db-st-completed',
+        'approved' => 'db-st-completed',
+        'rejected' => 'db-st-rejected',
+        'cancelled' => 'db-st-cancelled',
+        'active' => 'db-st-active',
+        'assigned' => 'db-st-assigned',
+    ];
+    $key = strtolower((string)$status);
+    return $map[$key] ?? 'db-st-pending';
+}
+
+function rmo_db_priority_badge($priority) {
+    $map = [
+        'high' => ['db-pr-high', 'fa-exclamation-triangle'],
+        'medium' => ['db-pr-medium', 'fa-exclamation'],
+        'low' => ['db-pr-low', 'fa-check'],
+    ];
+    $key = strtolower((string)$priority);
+    return $map[$key] ?? ['db-pr-medium', 'fa-exclamation'];
+}
+
 // Function to get enhanced dashboard stats
 function getEnhancedStats() {
     global $conn, $is_transport_supervisor, $is_road_only_role;
@@ -237,7 +266,7 @@ function getEnhancedStats() {
 //   - Infrastructure Projects (road_maintenance_reports) that are APPROVED or
 //     COMPLETED
 //   - CIMM reports whose verification_status is 'Verified'
-function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter = 'all', $transport_only = false, $road_only = false) {
+function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter = 'all', $transport_only = false, $road_only = false, $assigned_to_user_id = null) {
     global $conn;
     $reports = [];
     if (!$conn) return $reports;
@@ -365,6 +394,11 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
         } catch (Exception $e) {
             error_log("Recent CIMM reports error: ".$e->getMessage());
         }
+        }
+
+        // Road Monitoring Officers see only the reports assigned to them.
+        if ($assigned_to_user_id) {
+            $reports = filter_reports_assigned_to_user($conn, $reports, $assigned_to_user_id);
         }
 
         // Sort combined results by created_at DESC and cap at the requested limit
@@ -981,7 +1015,7 @@ if ($focus_report_id > 0) {
 $alerts = getActiveAlerts();
 $roads = getRoadStatus();
 $enhanced_stats = getEnhancedStats();
-$recent_reports = getRecentSubmissions(10, $status_filter, 'all', $is_transport_supervisor, $is_road_only_role);
+$recent_reports = getRecentSubmissions(10, $status_filter, 'all', $is_transport_supervisor, $is_road_only_role, $is_road_monitoring_officer ? (int)($_SESSION['user_id'] ?? 0) : null);
 
 if ($focus_report_id > 0) {
     $focus_row = resolve_recent_focus_row($focus_report_id, $focus_source_hint);
@@ -997,6 +1031,16 @@ if ($focus_report_id > 0) {
         $restricted = ($is_transport_supervisor
                 && in_array($focus_row['source'] ?? '', ['infrastructure', 'cimm'], true))
             || ($is_road_only_role && (($focus_row['report_category'] ?? '') !== 'road'));
+
+        // Road Monitoring Officers only see reports assigned to them, so a
+        // deep-linked focus row must also carry an active assignment.
+        if (!$restricted && $is_road_monitoring_officer) {
+            $assigned_keys = get_assigned_report_keys($conn, (int)($_SESSION['user_id'] ?? 0));
+            $focus_key = ($focus_row['_source_table'] ?? 'road_transportation_reports') . ':' . ($focus_row['id'] ?? 0);
+            if (!isset($assigned_keys[$focus_key])) {
+                $restricted = true;
+            }
+        }
 
         if (!$restricted) {
             $already_present = false;
@@ -2272,26 +2316,52 @@ annotate_report_assignment_status($conn, $recent_reports);
         .ds-tooltip .tip-value { color: #93c5fd; font-weight: 700; }
         <?php endif; ?>
 
-        /* Dark-mode readable db_badge (status / priority / assignment /
-           CIMM badges) — road_ops_supervisor only. Mirrors the db-badge
-           palette used by lgu_staff_dashboard.php so the Recent Submissions
-           badges stay readable on dark backgrounds for the Road supervisor. */
-        <?php if ($is_road_supervisor): ?>
-        body.dark-mode .badge-pending,
-        body.dark-mode .badge-medium,
-        body.dark-mode .cimm-verify-badge-pending { background: rgba(180, 83, 9, 0.22); color: #fcd34d; }
-        body.dark-mode .badge-in-progress { background: rgba(30, 64, 175, 0.35); color: #93c5fd; }
-        body.dark-mode .badge-approved,
-        body.dark-mode .badge-completed,
+        /* db-badge — matches lgu_staff_dashboard.php's .db-badge / .db-st-* /
+           .db-pr-* badges. Rendered in Recent Submissions for the Road
+           Operations Supervisor and Road Monitoring Officer only. */
+        <?php if ($is_road_supervisor || $is_road_monitoring_officer): ?>
+        .db-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 10px;
+            border-radius: 999px;
+            white-space: nowrap;
+        }
+        .db-st-pending   { background: #fef3c7; color: #b45309; }
+        .db-st-active,
+        .db-st-assigned  { background: #dbeafe; color: #1d4ed8; }
+        .db-st-progress  { background: #ffedd5; color: #c2410c; }
+        .db-st-completed,
+        .db-st-approved  { background: #d1fae5; color: #047857; }
+        .db-st-cancelled,
+        .db-st-rejected  { background: #fee2e2; color: #b91c1c; }
+        .db-pr-high      { background: #fee2e2; color: #dc2626; }
+        .db-pr-medium    { background: #ffedd5; color: #c2410c; }
+        .db-pr-low       { background: #d1fae5; color: #059669; }
+
+        body.dark-mode .db-st-pending   { background: rgba(180, 83, 9, 0.22); color: #fcd34d; }
+        body.dark-mode .db-st-active,
+        body.dark-mode .db-st-assigned  { background: rgba(30, 64, 175, 0.35); color: #93c5fd; }
+        body.dark-mode .db-st-progress  { background: rgba(194, 65, 12, 0.25); color: #fdba74; }
+        body.dark-mode .db-st-completed,
+        body.dark-mode .db-st-approved  { background: rgba(4, 120, 87, 0.28); color: #6ee7b7; }
+        body.dark-mode .db-st-cancelled,
+        body.dark-mode .db-st-rejected  { background: rgba(185, 28, 28, 0.28); color: #fca5a5; }
+        body.dark-mode .db-pr-high      { background: rgba(220, 38, 38, 0.28); color: #fca5a5; }
+        body.dark-mode .db-pr-medium    { background: rgba(194, 65, 12, 0.25); color: #fdba74; }
+        body.dark-mode .db-pr-low       { background: rgba(5, 150, 105, 0.28); color: #6ee7b7; }
+
+        /* Assignment / CIMM badges that are not part of the db-badge set but
+           still appear in the Recent Submissions table — Road supervisor and
+           Road Monitoring Officer only. */
+        body.dark-mode .assignment-assigned    { background: rgba(30, 64, 175, 0.35); color: #93c5fd; }
+        body.dark-mode .assignment-unassigned  { background: rgba(51, 65, 85, 0.30); color: #cbd5e1; }
         body.dark-mode .cimm-verify-badge-verified { background: rgba(4, 120, 87, 0.28); color: #6ee7b7; }
-        body.dark-mode .badge-cancelled,
-        body.dark-mode .badge-high,
-        body.dark-mode .badge-critical { background: rgba(185, 28, 28, 0.28); color: #fca5a5; }
-        body.dark-mode .badge-low,
-        body.dark-mode .badge-source,
-        body.dark-mode .assignment-unassigned { background: rgba(51, 65, 85, 0.30); color: #cbd5e1; }
-        body.dark-mode .badge-source { border-color: #2d323b; }
-        body.dark-mode .assignment-assigned { background: rgba(4, 120, 87, 0.28); color: #6ee7b7; }
+        body.dark-mode .cimm-verify-badge-pending  { background: rgba(180, 83, 9, 0.22); color: #fcd34d; }
+        body.dark-mode .cimm-verify-badge-none     { color: #9ca3af; }
         <?php endif; ?>
 
         /* Dark-mode compatible GIS map district tooltip on hover
@@ -2685,7 +2755,13 @@ annotate_report_assignment_status($conn, $recent_reports);
                             <td style="font-family:monospace;font-size:12px;"><?php echo htmlspecialchars($rr['report_id'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars($rr['title'] ?? 'Untitled'); ?></td>
                             <td><?php echo htmlspecialchars($rr_source_label); ?></td>
-                            <td><span class="badge badge-<?php echo strtolower(str_replace(' ', '-', $rr['status'] ?? 'pending')); ?>"><?php echo ucfirst(str_replace('-',' ',$rr['status'] ?? 'pending')); ?></span></td>
+                            <td>
+                                <?php if ($is_road_supervisor || $is_road_monitoring_officer): ?>
+                                    <span class="db-badge <?php echo rmo_db_status_class($rr['status'] ?? 'pending'); ?>"><?php echo ucfirst(str_replace('-',' ',$rr['status'] ?? 'pending')); ?></span>
+                                <?php else: ?>
+                                    <span class="badge badge-<?php echo strtolower(str_replace(' ', '-', $rr['status'] ?? 'pending')); ?>"><?php echo ucfirst(str_replace('-',' ',$rr['status'] ?? 'pending')); ?></span>
+                                <?php endif; ?>
+                            </td>
                             <td><?php if (($rr['assignment_status'] ?? 'unassigned') === 'assigned'): ?>
                                 <?php if (!empty($rr['assignment_officer'])): ?>
                                     <span class="badge assignment-badge assignment-assigned"><?php echo htmlspecialchars($rr['assignment_officer']); ?></span>
@@ -2695,7 +2771,14 @@ annotate_report_assignment_status($conn, $recent_reports);
                             <?php else: ?>
                                 <span class="badge assignment-badge assignment-unassigned">Unassigned</span>
                             <?php endif; ?></td>
-                            <td><span class="badge badge-<?php echo strtolower($rr['priority'] ?? 'low'); ?>"><?php echo ucfirst($rr['priority'] ?? 'low'); ?></span></td>
+                            <td>
+                                <?php if ($is_road_supervisor || $is_road_monitoring_officer): ?>
+                                    <?php $rmo_pb = rmo_db_priority_badge($rr['priority'] ?? 'low'); ?>
+                                    <span class="db-badge <?php echo $rmo_pb[0]; ?>"><i class="fas <?php echo $rmo_pb[1]; ?>"></i> <?php echo ucfirst($rr['priority'] ?? 'low'); ?></span>
+                                <?php else: ?>
+                                    <span class="badge badge-<?php echo strtolower($rr['priority'] ?? 'low'); ?>"><?php echo ucfirst($rr['priority'] ?? 'low'); ?></span>
+                                <?php endif; ?>
+                            </td>
                             <td><?php echo date('M d, Y H:i', strtotime($rr['created_at'] ?? 'now')); ?></td>
                             <td>
                                 <?php if (($rr['source'] ?? '') === 'cimm'): ?>
@@ -5244,6 +5327,32 @@ annotate_report_assignment_status($conn, $recent_reports);
     const isRoadOfficer = (currentUserRole === 'road_monitoring_officer');
     const canArchiveCompleted = (currentUserRole === 'system_admin' || currentUserRole === 'road_ops_supervisor' || currentUserRole === 'trans_ops_supervisor');
 
+    // db-badge helpers — mirror the PHP rmo_db_status_class() /
+    // rmo_db_priority_badge() (and lgu_staff_dashboard.php's db-badge) so the
+    // Road supervisor's / Road Monitoring Officer's dynamically-loaded rows
+    // match the dashboard badges.
+    function dbStatusBadgeClass(status) {
+        const map = {
+            'pending': 'db-st-pending',
+            'in-progress': 'db-st-progress',
+            'completed': 'db-st-completed',
+            'approved': 'db-st-completed',
+            'rejected': 'db-st-rejected',
+            'cancelled': 'db-st-cancelled',
+            'active': 'db-st-active',
+            'assigned': 'db-st-assigned',
+        };
+        return map[String(status || '').toLowerCase()] || 'db-st-pending';
+    }
+    function dbPriorityBadge(priority) {
+        const map = {
+            'high': ['db-pr-high', 'fa-exclamation-triangle'],
+            'medium': ['db-pr-medium', 'fa-exclamation'],
+            'low': ['db-pr-low', 'fa-check'],
+        };
+        return map[String(priority || '').toLowerCase()] || ['db-pr-medium', 'fa-exclamation'];
+    }
+
     function loadMoreReports() {
         if (isLoadingMore || !hasMoreReports) return;
         
@@ -5325,13 +5434,17 @@ annotate_report_assignment_status($conn, $recent_reports);
             <td style="font-family:monospace;font-size:12px;">${escapeHtml(report.report_id)}</td>
             <td>${escapeHtml(report.title)}</td>
             <td>${escapeHtml(report.source_label)}</td>
-            <td><span class="badge badge-${report.status.toLowerCase().replace(' ', '-')}">${escapeHtml(ucfirst(report.status.replace('-', ' ')))}</span></td>
+            <td>${(isRoadSupervisor || isRoadOfficer)
+                ? `<span class="db-badge ${dbStatusBadgeClass(report.status)}">${escapeHtml(ucfirst(report.status.replace('-', ' ')))}</span>`
+                : `<span class="badge badge-${report.status.toLowerCase().replace(' ', '-')}">${escapeHtml(ucfirst(report.status.replace('-', ' ')))}</span>`}</td>
             <td>${report.assignment_status === 'assigned'
                 ? (report.assignment_officer
                     ? `<span class="badge assignment-badge assignment-assigned">${escapeHtml(report.assignment_officer)}</span>`
                     : `<span class="badge assignment-badge assignment-assigned">Assigned</span>`)
                 : `<span class="badge assignment-badge assignment-unassigned">Unassigned</span>`}</td>
-            <td><span class="badge badge-${report.priority.toLowerCase()}">${escapeHtml(ucfirst(report.priority))}</span></td>
+            <td>${(isRoadSupervisor || isRoadOfficer)
+                ? `<span class="db-badge ${dbPriorityBadge(report.priority)[0]}"><i class="fas ${dbPriorityBadge(report.priority)[1]}"></i> ${escapeHtml(ucfirst(report.priority))}</span>`
+                : `<span class="badge badge-${report.priority.toLowerCase()}">${escapeHtml(ucfirst(report.priority))}</span>`}</td>
             <td>${formatDate(report.created_at)}</td>
             <td>
                 ${report.source === 'cimm' ? 
