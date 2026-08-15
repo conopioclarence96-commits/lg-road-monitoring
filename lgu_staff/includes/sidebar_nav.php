@@ -578,8 +578,8 @@ foreach ($nav_items as $section => $items) {
     </nav>
 </aside>
 
-<?php if (in_array($user_role, ['system_admin', 'road_ops_supervisor', 'road_monitoring_officer'], true)): ?>
-<!-- Mobile hamburger menu toggle (system_admin, road_ops_supervisor, road_monitoring_officer) -->
+<?php if (in_array($user_role, ['system_admin', 'road_ops_supervisor', 'road_monitoring_officer', 'trans_ops_supervisor', 'trans_monitoring_officer'], true)): ?>
+<!-- Mobile hamburger menu toggle (system_admin, road_ops_supervisor, road_monitoring_officer, trans_ops_supervisor, trans_monitoring_officer) -->
 <button type="button" class="admin-menu-toggle" id="adminMenuToggle" aria-label="Open navigation menu" aria-controls="sidebar" aria-expanded="false">
     <i class="fas fa-bars" aria-hidden="true"></i>
 </button>
