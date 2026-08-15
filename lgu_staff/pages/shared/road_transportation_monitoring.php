@@ -2078,6 +2078,58 @@ annotate_report_assignment_status($conn, $recent_reports);
         body.dark-mode .tomtom-panel h5 { color:#e4e6ea; }
         body.dark-mode .tomtom-panel label { color:#9ca3af; }
         body.dark-mode .tomtom-panel input,body.dark-mode .tomtom-panel select { background:#1a1d23;color:#e4e6ea;border-color:#2d323b; }
+        .pt-route-list {
+            max-height: 280px;
+            overflow-y: auto;
+            margin-top: 8px;
+            border: 1px solid rgba(55,98,200,0.15);
+            border-radius: 8px;
+            background: #fff;
+        }
+        .pt-route-item {
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding: 10px 12px;
+            border: 0;
+            border-bottom: 1px solid rgba(0,0,0,0.06);
+            background: transparent;
+            cursor: pointer;
+            font-size: 12px;
+            color: #1e3c72;
+        }
+        .pt-route-item:last-child { border-bottom: 0; }
+        .pt-route-item:hover { background: rgba(55,98,200,0.08); }
+        .pt-route-item.is-selected {
+            background: rgba(220,38,38,0.12);
+            box-shadow: inset 3px 0 0 #dc2626;
+        }
+        .pt-route-item .pt-route-name { font-weight: 600; display: block; }
+        .pt-route-item .pt-route-meta { color: #6b7280; font-size: 11px; margin-top: 2px; display: block; }
+        .pt-route-badge {
+            display: inline-block;
+            margin-left: 6px;
+            padding: 1px 6px;
+            border-radius: 999px;
+            font-size: 10px;
+            font-weight: 600;
+            background: rgba(234,88,12,0.12);
+            color: #ea580c;
+            vertical-align: middle;
+        }
+        .pt-route-empty, .pt-route-status {
+            padding: 14px 12px;
+            font-size: 12px;
+            color: #6b7280;
+            text-align: center;
+        }
+        body.dark-mode .pt-route-list { background: #1a1d23; border-color: #2d323b; }
+        body.dark-mode .pt-route-item { color: #e4e6ea; border-bottom-color: rgba(255,255,255,0.06); }
+        body.dark-mode .pt-route-item:hover { background: rgba(255,255,255,0.04); }
+        body.dark-mode .pt-route-item.is-selected { background: rgba(220,38,38,0.18); }
+        body.dark-mode .pt-route-item .pt-route-meta,
+        body.dark-mode .pt-route-empty,
+        body.dark-mode .pt-route-status { color: #9ca3af; }
 
         .route-info-box {
             margin-top:8px;padding:10px;background:rgba(55,98,200,0.06);border-radius:8px;font-size:12px;color:#333;
@@ -2466,6 +2518,7 @@ annotate_report_assignment_status($conn, $recent_reports);
                             <span class="map-legend-item"><span class="map-legend-dot" style="background:#ca8a04;"></span> Works</span>
                             <span class="map-legend-item"><span class="map-legend-dot" style="background:#0284c7;"></span> Bus stop</span>
                             <span class="map-legend-item"><span class="map-legend-dot" style="background:#475569;"></span> Rail</span>
+                            <span class="map-legend-item"><span class="map-legend-dot" style="background:#dc2626;"></span> PT route</span>
                         </div>
                         <div class="map-search-box" style="display:flex;align-items:center;gap:6px;margin-left:8px;">
                             <input type="text" id="mapSearchInput" placeholder="Search places..." style="padding:5px 10px;border:1px solid rgba(55,98,200,0.3);border-radius:6px;font-size:12px;width:160px;">
@@ -2494,6 +2547,9 @@ annotate_report_assignment_status($conn, $recent_reports);
                         </button>
                         <button class="map-fullscreen-btn" id="toggleRailStationsBtn" onclick="toggleRailStationPins()" style="background:#6c757d;color:#fff;border-color:#6c757d;">
                             <i class="fas fa-train"></i> Rail
+                        </button>
+                        <button class="map-fullscreen-btn" id="togglePtRoutesBtn" onclick="showPtRoutesPanel()" style="background:#6c757d;color:#fff;border-color:#6c757d;">
+                            <i class="fas fa-route"></i> PT Routes
                         </button>
                         <button class="map-fullscreen-btn" id="toggleTrafficBtn" onclick="toggleTrafficLayer()">
                             <i class="fas fa-car"></i> Traffic
@@ -2654,6 +2710,22 @@ annotate_report_assignment_status($conn, $recent_reports);
                         <button class="btn-action btn-sm btn-secondary" onclick="closePanel('evChargingPanel')">Close</button>
                     </div>
                     <div id="evResults" class="route-info-box" style="display:none;"></div>
+                </div>
+
+                <!-- OSM Public Transport Routes Panel -->
+                <div id="ptRoutesPanel" class="tomtom-panel">
+                    <h5><i class="fas fa-route"></i> Public Transport Routes (OSM)</h5>
+                    <p class="t-text-secondary" style="font-size:12px;">Select a route to show it on the map. Data from OpenStreetMap.</p>
+                    <label for="ptRouteSearch">Search routes</label>
+                    <input type="text" id="ptRouteSearch" placeholder="Name, from, to, ref..." oninput="renderPtRouteList()">
+                    <div id="ptRouteListMeta" class="t-text-secondary" style="font-size:11px;margin-top:6px;"></div>
+                    <div id="ptRouteList" class="pt-route-list">
+                        <div class="pt-route-status">Loading routes…</div>
+                    </div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <button class="btn-action btn-sm btn-secondary" type="button" onclick="clearSelectedOsmRoute()"><i class="fas fa-eraser"></i> Clear map</button>
+                        <button class="btn-action btn-sm btn-secondary" type="button" onclick="closePanel('ptRoutesPanel')">Close</button>
+                    </div>
                 </div>
 
                 <div id="mapSearchResults" class="search-results-dropdown"></div>
@@ -4765,6 +4837,8 @@ annotate_report_assignment_status($conn, $recent_reports);
     let busStopsVisible = false;
     let railStationsLayer = null;
     let railStationsVisible = false;
+    let busRoutesLayer = null;
+    let selectedOsmRouteId = null;
     let evMarkersLayer = null, rangeLayer = null;
     let toolsDropdownOpen = false;
     let mapClickHandler = null;
@@ -4784,6 +4858,7 @@ annotate_report_assignment_status($conn, $recent_reports);
 
     function closePanel(panelId) {
         document.getElementById(panelId).style.display = 'none';
+        if (panelId === 'ptRoutesPanel') setPtRoutesBtnStyle(false);
         if (mapClickHandler) {
             map.off('click', mapClickHandler);
             mapClickHandler = null;
@@ -5105,12 +5180,14 @@ annotate_report_assignment_status($conn, $recent_reports);
     const layerCaches = {
         incidents: { fetchedAt: 0, items: null, loading: false },
         bus: { fetchedAt: 0, items: null, loading: false },
-        rail: { fetchedAt: 0, items: null, loading: false }
+        rail: { fetchedAt: 0, items: null, loading: false },
+        osmRoutes: { fetchedAt: 0, items: null, loading: false }
     };
     const TOGGLE_BTN_LABELS = {
         toggleAccidentsBtn: '<i class="fas fa-exclamation-triangle"></i> Incidents',
         toggleBusStopsBtn: '<i class="fas fa-bus"></i> Bus',
-        toggleRailStationsBtn: '<i class="fas fa-train"></i> Rail'
+        toggleRailStationsBtn: '<i class="fas fa-train"></i> Rail',
+        togglePtRoutesBtn: '<i class="fas fa-route"></i> PT Routes'
     };
 
     function hasLayerCache(cache) {
@@ -5131,9 +5208,11 @@ annotate_report_assignment_status($conn, $recent_reports);
                 layerCaches[key].items = entry.items;
                 layerCaches[key].fetchedAt = entry.fetchedAt;
             });
+            // osmRoutes intentionally omitted from localStorage (large); server file-cache handles refresh
         } catch (e) { /* ignore corrupt/quota errors */ }
     }
     function saveLayerCacheToStorage(key) {
+        if (key === 'osmRoutes') return; // server-side file cache only
         try {
             let stored = {};
             try {
@@ -5507,6 +5586,231 @@ annotate_report_assignment_status($conn, $recent_reports);
     loadBusStopPins(true);
     loadRailStationPins(true);
 
+    // ===== OSM PT ROUTES (Overpass) — list first, map on select =====
+    const OSM_ROUTES_API = '../api/overpass/routes.php';
+    const OSM_ROUTE_COLORS = { bus: '#dc2626', jeep: '#dc2626' };
+
+    function osmRoutePopupHtml(route) {
+        const kindLabel = route.kind === 'jeep' ? 'Jeepney route' : 'Bus / PUV route';
+        const bits = [];
+        if (route.ref) bits.push('Ref: ' + route.ref);
+        if (route.network) bits.push(route.network);
+        if (route.from || route.to) bits.push([route.from, route.to].filter(Boolean).join(' → '));
+        return '<strong>' + (route.name || kindLabel) + '</strong><br>' +
+            '<span style="color:#6b7280;font-size:11px;">' + kindLabel + ' · OpenStreetMap</span>' +
+            (bits.length ? '<br><span style="color:#6b7280;font-size:11px;">' + bits.join(' · ') + '</span>' : '');
+    }
+
+    function setPtRoutesBtnStyle(active) {
+        const btn = document.getElementById('togglePtRoutesBtn');
+        if (!btn || btn.classList.contains('is-loading')) return;
+        if (active) {
+            btn.style.background = 'rgba(220,38,38,0.12)';
+            btn.style.color = '#dc2626';
+            btn.style.borderColor = 'rgba(220,38,38,0.35)';
+        } else {
+            btn.style.background = '#6c757d';
+            btn.style.color = '#fff';
+            btn.style.borderColor = '#6c757d';
+        }
+    }
+
+    function setOsmRoutesLoading(loading) {
+        setToggleLoading('togglePtRoutesBtn', loading, function() {
+            const panel = document.getElementById('ptRoutesPanel');
+            setPtRoutesBtnStyle(panel && panel.style.display === 'block');
+        });
+    }
+
+    function fetchOsmRoutes() {
+        return fetch(OSM_ROUTES_API, { credentials: 'same-origin' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data || !data.success) {
+                    throw new Error((data && data.error) || 'Could not load OSM routes');
+                }
+                const payload = data.data || {};
+                return {
+                    routes: Array.isArray(payload.routes) ? payload.routes : [],
+                    fetchedAt: payload.fetchedAt || Date.now()
+                };
+            });
+    }
+
+    function ensureOsmRoutesLoaded(silent) {
+        const cache = layerCaches.osmRoutes;
+        if (isLayerCacheFresh(cache)) {
+            renderPtRouteList();
+            return Promise.resolve(cache.items);
+        }
+        if (cache.loading) {
+            return new Promise(function(resolve) {
+                const timer = setInterval(function() {
+                    if (!layerCaches.osmRoutes.loading) {
+                        clearInterval(timer);
+                        resolve(layerCaches.osmRoutes.items || []);
+                    }
+                }, 200);
+            });
+        }
+        cache.loading = true;
+        setOsmRoutesLoading(true);
+        const listEl = document.getElementById('ptRouteList');
+        if (listEl && !hasLayerCache(cache)) {
+            listEl.innerHTML = '<div class="pt-route-status"><i class="fas fa-spinner fa-spin"></i> Loading routes…</div>';
+        }
+        return fetchOsmRoutes().then(function(result) {
+            cache.items = result.routes;
+            cache.fetchedAt = Date.now();
+            cache.loading = false;
+            setOsmRoutesLoading(false);
+            renderPtRouteList();
+            if (!silent) {
+                showNotification(result.routes.length
+                    ? (result.routes.length + ' OSM routes ready')
+                    : 'No OSM routes found for Quezon City', 'info');
+            }
+            return result.routes;
+        }).catch(function(err) {
+            cache.loading = false;
+            setOsmRoutesLoading(false);
+            if (listEl) {
+                listEl.innerHTML = '<div class="pt-route-empty">' + (err.message || 'Could not load OSM routes') + '</div>';
+            }
+            if (!silent) showNotification(err.message || 'Could not load OSM routes', 'error');
+            return [];
+        });
+    }
+    window.loadOsmRouteLines = function(silent) { ensureOsmRoutesLoaded(!!silent); };
+
+    function escapeHtml(str) {
+        return String(str == null ? '' : str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function renderPtRouteList() {
+        const listEl = document.getElementById('ptRouteList');
+        const metaEl = document.getElementById('ptRouteListMeta');
+        const searchEl = document.getElementById('ptRouteSearch');
+        if (!listEl) return;
+        const cache = layerCaches.osmRoutes;
+        if (cache.loading && !hasLayerCache(cache)) {
+            listEl.innerHTML = '<div class="pt-route-status"><i class="fas fa-spinner fa-spin"></i> Loading routes…</div>';
+            if (metaEl) metaEl.textContent = '';
+            return;
+        }
+        if (!hasLayerCache(cache)) {
+            listEl.innerHTML = '<div class="pt-route-empty">No routes loaded yet.</div>';
+            if (metaEl) metaEl.textContent = '';
+            return;
+        }
+        const q = ((searchEl && searchEl.value) || '').trim().toLowerCase();
+        const routes = cache.items.slice().sort(function(a, b) {
+            return String(a.name || '').localeCompare(String(b.name || ''));
+        });
+        const filtered = !q ? routes : routes.filter(function(r) {
+            const hay = [r.name, r.from, r.to, r.ref, r.network, r.kind].join(' ').toLowerCase();
+            return hay.indexOf(q) !== -1;
+        });
+        if (metaEl) {
+            metaEl.textContent = filtered.length + ' of ' + routes.length + ' route' + (routes.length === 1 ? '' : 's');
+        }
+        if (!filtered.length) {
+            listEl.innerHTML = '<div class="pt-route-empty">No routes match your search.</div>';
+            return;
+        }
+        listEl.innerHTML = filtered.map(function(r) {
+            const selected = String(r.id) === String(selectedOsmRouteId);
+            const ends = [r.from, r.to].filter(Boolean).join(' → ');
+            const metaBits = [];
+            if (ends) metaBits.push(ends);
+            if (r.ref) metaBits.push('Ref ' + r.ref);
+            if (r.network) metaBits.push(r.network);
+            const badge = r.kind === 'jeep' ? '<span class="pt-route-badge">Jeep</span>' : '';
+            return '<button type="button" class="pt-route-item' + (selected ? ' is-selected' : '') + '" data-route-id="' + escapeHtml(r.id) + '" onclick="selectOsmRoute(' + Number(r.id) + ')">' +
+                '<span class="pt-route-name">' + escapeHtml(r.name || ('Route ' + r.id)) + badge + '</span>' +
+                (metaBits.length ? '<span class="pt-route-meta">' + escapeHtml(metaBits.join(' · ')) + '</span>' : '') +
+                '</button>';
+        }).join('');
+    }
+    window.renderPtRouteList = renderPtRouteList;
+
+    function clearSelectedOsmRoute(silent) {
+        selectedOsmRouteId = null;
+        if (busRoutesLayer) {
+            map.removeLayer(busRoutesLayer);
+            busRoutesLayer = null;
+        }
+        renderPtRouteList();
+        if (!silent) showNotification('Route cleared from map', 'info');
+    }
+    window.clearSelectedOsmRoute = clearSelectedOsmRoute;
+
+    function selectOsmRoute(routeId) {
+        const cache = layerCaches.osmRoutes;
+        if (!hasLayerCache(cache)) {
+            showNotification('Routes are still loading', 'info');
+            ensureOsmRoutesLoaded(false).then(function() { selectOsmRoute(routeId); });
+            return;
+        }
+        if (String(selectedOsmRouteId) === String(routeId)) {
+            clearSelectedOsmRoute(false);
+            return;
+        }
+        const route = cache.items.find(function(r) { return String(r.id) === String(routeId); });
+        if (!route) {
+            showNotification('Route not found', 'error');
+            return;
+        }
+        if (busRoutesLayer) {
+            map.removeLayer(busRoutesLayer);
+            busRoutesLayer = null;
+        }
+        const color = OSM_ROUTE_COLORS[route.kind] || OSM_ROUTE_COLORS.bus;
+        const layer = L.layerGroup().addTo(map);
+        const bounds = [];
+        const popup = osmRoutePopupHtml(route);
+        (route.lines || []).forEach(function(line) {
+            if (!line || line.length < 2) return;
+            L.polyline(line, {
+                color: color,
+                weight: 4,
+                opacity: 0.9,
+                lineJoin: 'round',
+                lineCap: 'round'
+            }).bindPopup(popup).addTo(layer);
+            line.forEach(function(pt) {
+                if (pt && pt.length >= 2) bounds.push(pt);
+            });
+        });
+        busRoutesLayer = layer;
+        selectedOsmRouteId = route.id;
+        renderPtRouteList();
+        if (bounds.length) {
+            try {
+                map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+            } catch (e) { /* ignore invalid bounds */ }
+        }
+        showNotification((route.name || 'Route') + ' shown on map', 'info');
+    }
+    window.selectOsmRoute = selectOsmRoute;
+
+    function showPtRoutesPanel() {
+        closeAllPanels();
+        document.getElementById('ptRoutesPanel').style.display = 'block';
+        setPtRoutesBtnStyle(true);
+        ensureOsmRoutesLoaded(true).then(function() {
+            renderPtRouteList();
+        });
+    }
+    window.showPtRoutesPanel = showPtRoutesPanel;
+
+    // Prefetch OSM routes into cache (nothing drawn until list selection)
+    ensureOsmRoutesLoaded(true);
+
     // ===== TRAFFIC INCIDENTS =====
     function toggleTrafficIncidentsLayer() {
         const btn = document.getElementById('toggleIncidentsBtn');
@@ -5669,9 +5973,11 @@ annotate_report_assignment_status($conn, $recent_reports);
 
     // ===== UTILITY =====
     function closeAllPanels() {
-        ['routePlannerPanel', 'reachableRangePanel', 'geofencingPanel', 'evChargingPanel'].forEach(id => {
-            document.getElementById(id).style.display = 'none';
+        ['routePlannerPanel', 'reachableRangePanel', 'geofencingPanel', 'evChargingPanel', 'ptRoutesPanel'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = 'none';
         });
+        setPtRoutesBtnStyle(false);
         if (mapClickHandler) { map.off('click', mapClickHandler); mapClickHandler = null; }
     }
 
