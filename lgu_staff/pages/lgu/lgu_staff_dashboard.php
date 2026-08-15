@@ -951,8 +951,8 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
         .dark-mode .asg-foot { border-color: #334155; }
         .dark-mode .dsh-badge { background: #312e81; color: #c7d2fe; }
         .dark-mode .db-empty { color: #64748b; }
-        <?php if ($is_road_supervisor || $is_road_monitoring_officer): ?>
-        /* Readable db-badge text in dark mode for Road Operations Supervisors and Road Monitoring Officers only */
+        <?php if ($is_road_supervisor || $is_road_monitoring_officer || $is_trans_ops_supervisor || $is_transport_monitoring_officer): ?>
+        /* Readable db-badge text in dark mode for Road Operations Supervisors, Road Monitoring Officers, Transportation Operations Supervisors and Transportation Monitoring Officers */
         .dark-mode .db-st-pending   { background: rgba(180, 83, 9, 0.22); color: #fcd34d; }
         .dark-mode .db-st-active,
         .dark-mode .db-st-assigned  { background: rgba(30, 64, 175, 0.35); color: #93c5fd; }

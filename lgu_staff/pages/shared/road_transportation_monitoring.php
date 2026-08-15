@@ -108,6 +108,14 @@ $is_road_monitoring_officer = ($_SESSION['role'] ?? '') === 'road_monitoring_off
 // System Admin: dark-mode readable status badges only for this role.
 $is_system_admin = ($_SESSION['role'] ?? '') === 'system_admin';
 
+// Transportation Operations Supervisor: dark-mode readable status badges only
+// for this role.
+$is_trans_ops_supervisor = ($_SESSION['role'] ?? '') === 'trans_ops_supervisor';
+
+// Transportation Monitoring Officer: dark-mode readable status badges only for
+// this role.
+$is_transport_monitoring_officer = ($_SESSION['role'] ?? '') === 'trans_monitoring_officer';
+
 // Function to get enhanced dashboard stats
 function getEnhancedStats() {
     global $conn, $is_transport_supervisor, $is_road_only_role;
@@ -2225,8 +2233,8 @@ annotate_report_assignment_status($conn, $recent_reports);
             border-color: #3a3f4a;
         }
         body.dark-mode #addUpdateModal .file-preview-item { background: #2a2e36; border-color: #3a3f4a; }
-        /* Dark-mode readable status badges (system_admin only) */
-        <?php if ($is_system_admin): ?>
+        /* Dark-mode readable status badges (system_admin, trans_ops_supervisor and trans_monitoring_officer only) */
+        <?php if ($is_system_admin || $is_trans_ops_supervisor || $is_transport_monitoring_officer): ?>
         body.dark-mode .badge-pending,
         body.dark-mode .badge-medium,
         body.dark-mode .cimm-verify-badge-pending { background: rgba(133, 100, 4, 0.25); color: #fde68a; }
@@ -2262,6 +2270,43 @@ annotate_report_assignment_status($conn, $recent_reports);
         }
         .ds-tooltip .tip-label { color: #f1f5f9; }
         .ds-tooltip .tip-value { color: #93c5fd; font-weight: 700; }
+        <?php endif; ?>
+
+        /* Dark-mode readable db_badge (status / priority / assignment /
+           CIMM badges) — road_ops_supervisor only. Mirrors the db-badge
+           palette used by lgu_staff_dashboard.php so the Recent Submissions
+           badges stay readable on dark backgrounds for the Road supervisor. */
+        <?php if ($is_road_supervisor): ?>
+        body.dark-mode .badge-pending,
+        body.dark-mode .badge-medium,
+        body.dark-mode .cimm-verify-badge-pending { background: rgba(180, 83, 9, 0.22); color: #fcd34d; }
+        body.dark-mode .badge-in-progress { background: rgba(30, 64, 175, 0.35); color: #93c5fd; }
+        body.dark-mode .badge-approved,
+        body.dark-mode .badge-completed,
+        body.dark-mode .cimm-verify-badge-verified { background: rgba(4, 120, 87, 0.28); color: #6ee7b7; }
+        body.dark-mode .badge-cancelled,
+        body.dark-mode .badge-high,
+        body.dark-mode .badge-critical { background: rgba(185, 28, 28, 0.28); color: #fca5a5; }
+        body.dark-mode .badge-low,
+        body.dark-mode .badge-source,
+        body.dark-mode .assignment-unassigned { background: rgba(51, 65, 85, 0.30); color: #cbd5e1; }
+        body.dark-mode .badge-source { border-color: #2d323b; }
+        body.dark-mode .assignment-assigned { background: rgba(4, 120, 87, 0.28); color: #6ee7b7; }
+        <?php endif; ?>
+
+        /* Dark-mode compatible GIS map district tooltip on hover
+           (trans_ops_supervisor only) */
+        <?php if ($is_trans_ops_supervisor): ?>
+        body.dark-mode .district-tooltip {
+            background: var(--bg-card) !important;
+            border-color: var(--border-default) !important;
+            color: var(--text-primary) !important;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45) !important;
+        }
+        body.dark-mode .district-tooltip.leaflet-tooltip-top:before { border-top-color: var(--bg-card) !important; }
+        body.dark-mode .district-tooltip.leaflet-tooltip-bottom:before { border-bottom-color: var(--bg-card) !important; }
+        body.dark-mode .district-tooltip.leaflet-tooltip-left:before { border-left-color: var(--bg-card) !important; }
+        body.dark-mode .district-tooltip.leaflet-tooltip-right:before { border-right-color: var(--bg-card) !important; }
         <?php endif; ?>
     </style>
 </head>

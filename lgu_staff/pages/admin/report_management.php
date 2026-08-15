@@ -2296,6 +2296,232 @@ if ($focus_id > 0) {
             border-color: #3a3f4a;
         }
         body.dark-mode #addUpdateModal .file-preview-item { background: #2a2e36; border-color: #3a3f4a; }
+
+        /* Dark-mode compatibility for the rm-edit-btn modals (Update Report /
+           Edit CIMM Report / Assign Staff to Project) — Transportation
+           Operations Supervisors only */
+        <?php if ($is_transport_supervisor): ?>
+        body.dark-mode #editReportModal .modal-content,
+        body.dark-mode #editCimmModal .modal-content,
+        body.dark-mode #assignUserModal .modal-content {
+            background: #1e2229 !important;
+            border: 1px solid #2d323b !important;
+        }
+        body.dark-mode #editReportModal .modal-body,
+        body.dark-mode #editCimmModal .modal-body,
+        body.dark-mode #assignUserModal .modal-body {
+            background: #1e2229 !important;
+        }
+        body.dark-mode #editReportModal .form-section,
+        body.dark-mode #editCimmModal .form-section {
+            background: #22262e !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode #editReportModal .form-section h6,
+        body.dark-mode #editCimmModal .form-section h6 { color: #93c5fd !important; }
+        body.dark-mode #editReportModal .form-label,
+        body.dark-mode #editCimmModal .form-label,
+        body.dark-mode #assignUserModal .form-label { color: #e4e6ea !important; }
+        body.dark-mode #editReportModal .form-control,
+        body.dark-mode #editCimmModal .form-control,
+        body.dark-mode #assignUserModal .form-control {
+            background: #1a1d23 !important;
+            color: #e4e6ea !important;
+            border-color: #3a3f4a !important;
+        }
+        body.dark-mode #editReportModal .modal-footer,
+        body.dark-mode #editCimmModal .modal-footer,
+        body.dark-mode #assignUserModal .modal-footer {
+            background: #1e2229 !important;
+            border-top-color: #2d323b !important;
+        }
+        body.dark-mode #editReportModal .btn-secondary-custom,
+        body.dark-mode #editCimmModal .btn-secondary-custom,
+        body.dark-mode #assignUserModal .btn-secondary-custom {
+            background: rgba(148, 163, 184, 0.12) !important;
+            color: #cbd5e1 !important;
+            border-color: #475569 !important;
+        }
+        body.dark-mode #editReportModal .btn-secondary-custom:hover,
+        body.dark-mode #editCimmModal .btn-secondary-custom:hover,
+        body.dark-mode #assignUserModal .btn-secondary-custom:hover {
+            background: #475569 !important;
+            color: #fff !important;
+        }
+        body.dark-mode #editReportModal .t-text-secondary,
+        body.dark-mode #editCimmModal .t-text-secondary,
+        body.dark-mode #assignUserModal .t-text-secondary { color: #94a3b8 !important; }
+
+        /* Assigned staff cards injected by loadAssignedUsers() */
+        body.dark-mode #editReportModal .asg-card,
+        body.dark-mode #editCimmModal .asg-card {
+            background: linear-gradient(135deg, #263449 0%, #1e293b 100%) !important;
+            border-color: #334155 !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35) !important;
+        }
+        body.dark-mode #editReportModal .asg-card div,
+        body.dark-mode #editCimmModal .asg-card div { color: #cbd5e1 !important; }
+        body.dark-mode #editReportModal .asg-card div div:first-child,
+        body.dark-mode #editCimmModal .asg-card div div:first-child { color: #e2e8f0 !important; }
+        body.dark-mode #editReportModal .asg-empty,
+        body.dark-mode #editCimmModal .asg-empty {
+            background: #1e293b !important;
+            border-color: #334155 !important;
+        }
+        body.dark-mode #editReportModal .asg-empty span,
+        body.dark-mode #editCimmModal .asg-empty span,
+        body.dark-mode #editReportModal .asg-empty i,
+        body.dark-mode #editCimmModal .asg-empty i { color: #94a3b8 !important; }
+        body.dark-mode #editReportModal .asg-error,
+        body.dark-mode #editCimmModal .asg-error {
+            background: rgba(127, 29, 29, 0.25) !important;
+            border-color: #7f1d1d !important;
+        }
+        body.dark-mode #editReportModal .asg-error span,
+        body.dark-mode #editCimmModal .asg-error span,
+        body.dark-mode #editReportModal .asg-error i,
+        body.dark-mode #editCimmModal .asg-error i { color: #fca5a5 !important; }
+        body.dark-mode #editReportModal .asg-muted,
+        body.dark-mode #editCimmModal .asg-muted { color: #94a3b8 !important; }
+
+        /* Available staff list injected by openAssignUserModal() */
+        body.dark-mode #assignUserModal #availableUsersList {
+            background: #1a1d23 !important;
+            border-color: #3a3f4a !important;
+        }
+        body.dark-mode #assignUserModal .usr-card {
+            background-color: #1e293b !important;
+            border-bottom-color: #334155 !important;
+        }
+        body.dark-mode #assignUserModal .usr-card.usr-selected {
+            background-color: rgba(55, 98, 200, 0.25) !important;
+        }
+        body.dark-mode #assignUserModal .usr-card div { color: #cbd5e1 !important; }
+        body.dark-mode #assignUserModal .usr-card div div:first-child { color: #e2e8f0 !important; }
+        body.dark-mode #assignUserModal .usr-muted { color: #94a3b8 !important; }
+        body.dark-mode #assignUserModal .usr-error { color: #fca5a5 !important; }
+        body.dark-mode #assignUserModal .usr-badge-assigned {
+            background: rgba(5, 150, 105, 0.28) !important;
+            color: #6ee7b7 !important;
+        }
+        body.dark-mode #assignUserModal .usr-badge-assign {
+            background: rgba(30, 64, 175, 0.35) !important;
+            color: #93c5fd !important;
+        }
+        <?php endif; ?>
+
+        /* Dark-mode compatibility for the rm-edit-btn modals (Update Report /
+           Edit CIMM Report / Assign Staff to Project) — Road Operations
+           Supervisors only */
+        <?php if ($is_road_supervisor): ?>
+        body.dark-mode #editReportModal .modal-content,
+        body.dark-mode #editCimmModal .modal-content,
+        body.dark-mode #assignUserModal .modal-content {
+            background: #1e2229 !important;
+            border: 1px solid #2d323b !important;
+        }
+        body.dark-mode #editReportModal .modal-body,
+        body.dark-mode #editCimmModal .modal-body,
+        body.dark-mode #assignUserModal .modal-body {
+            background: #1e2229 !important;
+        }
+        body.dark-mode #editReportModal .form-section,
+        body.dark-mode #editCimmModal .form-section {
+            background: #22262e !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode #editReportModal .form-section h6,
+        body.dark-mode #editCimmModal .form-section h6 { color: #93c5fd !important; }
+        body.dark-mode #editReportModal .form-label,
+        body.dark-mode #editCimmModal .form-label,
+        body.dark-mode #assignUserModal .form-label { color: #e4e6ea !important; }
+        body.dark-mode #editReportModal .form-control,
+        body.dark-mode #editCimmModal .form-control,
+        body.dark-mode #assignUserModal .form-control {
+            background: #1a1d23 !important;
+            color: #e4e6ea !important;
+            border-color: #3a3f4a !important;
+        }
+        body.dark-mode #editReportModal .modal-footer,
+        body.dark-mode #editCimmModal .modal-footer,
+        body.dark-mode #assignUserModal .modal-footer {
+            background: #1e2229 !important;
+            border-top-color: #2d323b !important;
+        }
+        body.dark-mode #editReportModal .btn-secondary-custom,
+        body.dark-mode #editCimmModal .btn-secondary-custom,
+        body.dark-mode #assignUserModal .btn-secondary-custom {
+            background: rgba(148, 163, 184, 0.12) !important;
+            color: #cbd5e1 !important;
+            border-color: #475569 !important;
+        }
+        body.dark-mode #editReportModal .btn-secondary-custom:hover,
+        body.dark-mode #editCimmModal .btn-secondary-custom:hover,
+        body.dark-mode #assignUserModal .btn-secondary-custom:hover {
+            background: #475569 !important;
+            color: #fff !important;
+        }
+        body.dark-mode #editReportModal .t-text-secondary,
+        body.dark-mode #editCimmModal .t-text-secondary,
+        body.dark-mode #assignUserModal .t-text-secondary { color: #94a3b8 !important; }
+
+        /* Assigned staff cards injected by loadAssignedUsers() */
+        body.dark-mode #editReportModal .asg-card,
+        body.dark-mode #editCimmModal .asg-card {
+            background: linear-gradient(135deg, #263449 0%, #1e293b 100%) !important;
+            border-color: #334155 !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35) !important;
+        }
+        body.dark-mode #editReportModal .asg-card div,
+        body.dark-mode #editCimmModal .asg-card div { color: #cbd5e1 !important; }
+        body.dark-mode #editReportModal .asg-card div div:first-child,
+        body.dark-mode #editCimmModal .asg-card div div:first-child { color: #e2e8f0 !important; }
+        body.dark-mode #editReportModal .asg-empty,
+        body.dark-mode #editCimmModal .asg-empty {
+            background: #1e293b !important;
+            border-color: #334155 !important;
+        }
+        body.dark-mode #editReportModal .asg-empty span,
+        body.dark-mode #editCimmModal .asg-empty span,
+        body.dark-mode #editReportModal .asg-empty i,
+        body.dark-mode #editCimmModal .asg-empty i { color: #94a3b8 !important; }
+        body.dark-mode #editReportModal .asg-error,
+        body.dark-mode #editCimmModal .asg-error {
+            background: rgba(127, 29, 29, 0.25) !important;
+            border-color: #7f1d1d !important;
+        }
+        body.dark-mode #editReportModal .asg-error span,
+        body.dark-mode #editCimmModal .asg-error span,
+        body.dark-mode #editReportModal .asg-error i,
+        body.dark-mode #editCimmModal .asg-error i { color: #fca5a5 !important; }
+        body.dark-mode #editReportModal .asg-muted,
+        body.dark-mode #editCimmModal .asg-muted { color: #94a3b8 !important; }
+
+        /* Available staff list injected by openAssignUserModal() */
+        body.dark-mode #assignUserModal #availableUsersList {
+            background: #1a1d23 !important;
+            border-color: #3a3f4a !important;
+        }
+        body.dark-mode #assignUserModal .usr-card {
+            background-color: #1e293b !important;
+            border-bottom-color: #334155 !important;
+        }
+        body.dark-mode #assignUserModal .usr-card.usr-selected {
+            background-color: rgba(55, 98, 200, 0.25) !important;
+        }
+        body.dark-mode #assignUserModal .usr-card div { color: #cbd5e1 !important; }
+        body.dark-mode #assignUserModal .usr-card div div:first-child { color: #e2e8f0 !important; }
+        body.dark-mode #assignUserModal .usr-muted { color: #94a3b8 !important; }
+        body.dark-mode #assignUserModal .usr-error { color: #fca5a5 !important; }
+        body.dark-mode #assignUserModal .usr-badge-assigned {
+            background: rgba(5, 150, 105, 0.28) !important;
+            color: #6ee7b7 !important;
+        }
+        body.dark-mode #assignUserModal .usr-badge-assign {
+            background: rgba(30, 64, 175, 0.35) !important;
+            color: #93c5fd !important;
+        }
+        <?php endif; ?>
         #updatesModal .btn-action, #addUpdateModal .btn-action {
             padding: 10px 20px;
             font-size: 14px;
@@ -4923,11 +5149,11 @@ if ($focus_id > 0) {
             }
             
             if (!reportId || !reportType) {
-                container.innerHTML = '<div style="color: #6b7280; font-size: 13px;">No report selected</div>';
+                container.innerHTML = '<div class="asg-muted" style="color: #6b7280; font-size: 13px;">No report selected</div>';
                 return;
             }
             
-            container.innerHTML = '<div style="color: #6b7280; font-size: 13px;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+            container.innerHTML = '<div class="asg-muted" style="color: #6b7280; font-size: 13px;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
             
             fetch(`../api/get_assigned_users.php?report_id=${reportId}&report_type=${encodeURIComponent(reportType)}`)
                 .then(r => {
@@ -4940,7 +5166,7 @@ if ($focus_id > 0) {
                         console.log('Assignments count:', data.assignments.length);
                         if (data.assignments.length === 0) {
                             container.innerHTML = `
-                                <div style="display: flex; align-items: center; gap: 8px; padding: 12px; background: #f9fafb; border-radius: 6px; border: 1px dashed #d1d5db;">
+                                <div class="asg-empty" style="display: flex; align-items: center; gap: 8px; padding: 12px; background: #f9fafb; border-radius: 6px; border: 1px dashed #d1d5db;">
                                     <i class="fas fa-user-slash" style="color: #9ca3af; font-size: 16px;"></i>
                                     <span style="color: #6b7280; font-size: 13px;">No staff assigned yet</span>
                                 </div>
@@ -4953,6 +5179,7 @@ if ($focus_id > 0) {
                                 data.assignments.forEach(assignment => {
                                     console.log('Rendering assignment:', assignment);
                                     const userDiv = document.createElement('div');
+                                    userDiv.className = 'asg-card';
                                     userDiv.style.cssText = 'display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: linear-gradient(135deg, #f0f4fa 0%, #e8f0fe 100%); border-radius: 8px; border: 1px solid #dbeafe; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: all 0.2s;';
                                     userDiv.onmouseover = function() { this.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'; this.style.transform = 'translateY(-1px)'; };
                                     userDiv.onmouseout = function() { this.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)'; this.style.transform = 'translateY(0)'; };
@@ -5004,7 +5231,7 @@ if ($focus_id > 0) {
                         }
                     } else {
                         container.innerHTML = `
-                            <div style="display: flex; align-items: center; gap: 8px; padding: 12px; background: #fef2f2; border-radius: 6px; border: 1px solid #fecaca;">
+                            <div class="asg-error" style="display: flex; align-items: center; gap: 8px; padding: 12px; background: #fef2f2; border-radius: 6px; border: 1px solid #fecaca;">
                                 <i class="fas fa-exclamation-circle" style="color: #dc3545; font-size: 16px;"></i>
                                 <span style="color: #dc3545; font-size: 13px;">${escapeHtml(data.message)}</span>
                             </div>
@@ -5014,7 +5241,7 @@ if ($focus_id > 0) {
                 .catch(error => {
                     console.error('Error loading assigned users:', error);
                     container.innerHTML = `
-                        <div style="display: flex; align-items: center; gap: 8px; padding: 12px; background: #fef2f2; border-radius: 6px; border: 1px solid #fecaca;">
+                        <div class="asg-error" style="display: flex; align-items: center; gap: 8px; padding: 12px; background: #fef2f2; border-radius: 6px; border: 1px solid #fecaca;">
                             <i class="fas fa-exclamation-circle" style="color: #dc3545; font-size: 16px;"></i>
                             <span style="color: #dc3545; font-size: 13px;">Failed to load assigned staff</span>
                         </div>
@@ -5086,7 +5313,7 @@ if ($focus_id > 0) {
             
             // Load available users
             const usersList = document.getElementById('availableUsersList');
-            usersList.innerHTML = '<div style="text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin"></i> Loading staff...</div>';
+            usersList.innerHTML = '<div class="usr-muted" style="text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin"></i> Loading staff...</div>';
             
             fetch(`../api/get_assignable_users.php?report_id=${reportId}&report_type=${encodeURIComponent(reportType)}`)
                 .then(r => r.json())
@@ -5094,11 +5321,12 @@ if ($focus_id > 0) {
                     console.log('Report category debug:', data.report_category, 'Target role:', data.target_role);
                     if (data.success) {
                         if (data.users.length === 0) {
-                            usersList.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">No staff available for this project type</div>';
+                            usersList.innerHTML = '<div class="usr-muted" style="text-align: center; padding: 20px; color: #666;">No staff available for this project type</div>';
                         } else {
                             usersList.innerHTML = '';
                             data.users.forEach(user => {
                                 const userDiv = document.createElement('div');
+                                userDiv.className = 'usr-card';
                                 userDiv.style.cssText = 'display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #e5e7eb; cursor: pointer; transition: all 0.2s;';
                                 userDiv.style.backgroundColor = user.already_assigned ? '#f3f4f6' : '#fff';
                                 userDiv.onclick = function() {
@@ -5139,20 +5367,20 @@ if ($focus_id > 0) {
                                             Active: <strong>${user.active_assignments}</strong>
                                         </div>
                                         ${user.already_assigned 
-                                            ? '<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: #d1fae5; color: #059669; border-radius: 12px; font-size: 11px; font-weight: 500;"><i class="fas fa-check-circle"></i> Assigned</span>' 
-                                            : '<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: #dbeafe; color: #2563eb; border-radius: 12px; font-size: 11px; font-weight: 500;"><i class="fas fa-plus-circle"></i> Assign</span>'}
+                                            ? '<span class="usr-badge-assigned" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: #d1fae5; color: #059669; border-radius: 12px; font-size: 11px; font-weight: 500;"><i class="fas fa-check-circle"></i> Assigned</span>' 
+                                            : '<span class="usr-badge-assign" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: #dbeafe; color: #2563eb; border-radius: 12px; font-size: 11px; font-weight: 500;"><i class="fas fa-plus-circle"></i> Assign</span>'}
                                     </div>
                                 `;
                                 usersList.appendChild(userDiv);
                             });
                         }
                     } else {
-                        usersList.innerHTML = `<div style="text-align: center; padding: 20px; color: #dc3545;">${escapeHtml(data.message)}</div>`;
+                        usersList.innerHTML = `<div class="usr-error" style="text-align: center; padding: 20px; color: #dc3545;">${escapeHtml(data.message)}</div>`;
                     }
                 })
                 .catch(error => {
                     console.error('Error loading users:', error);
-                    usersList.innerHTML = '<div style="text-align: center; padding: 20px; color: #dc3545;">Failed to load staff</div>';
+                    usersList.innerHTML = '<div class="usr-error" style="text-align: center; padding: 20px; color: #dc3545;">Failed to load staff</div>';
                 });
         }
 
@@ -5164,6 +5392,7 @@ if ($focus_id > 0) {
                 const usersList = document.getElementById('availableUsersList');
                 Array.from(usersList.children).forEach(child => {
                     child.style.backgroundColor = '#fff';
+                    child.classList.remove('usr-selected');
                 });
                 return;
             }
@@ -5174,8 +5403,10 @@ if ($focus_id > 0) {
             const usersList = document.getElementById('availableUsersList');
             Array.from(usersList.children).forEach(child => {
                 child.style.backgroundColor = '#fff';
+                child.classList.remove('usr-selected');
             });
             event.currentTarget.style.backgroundColor = '#e3f2fd';
+            event.currentTarget.classList.add('usr-selected');
         }
 
         function assignUserToProject() {
