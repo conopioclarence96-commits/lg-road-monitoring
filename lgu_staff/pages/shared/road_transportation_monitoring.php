@@ -1531,6 +1531,26 @@ annotate_report_assignment_status($conn, $recent_reports);
         .incident-map-pin.cat-jam { background: #f59e0b; }
         .incident-map-pin.cat-works { background: #ca8a04; }
         .incident-map-pin.cat-other { background: #6b7280; }
+        .transit-map-pin {
+            color: #fff;
+            border-radius: 50%;
+            width: 26px;
+            height: 26px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            border: 2px solid #fff;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+        .transit-map-pin.bus { background: #0284c7; }
+        .transit-map-pin.rail { background: #475569; }
+        .map-fullscreen-btn.is-loading {
+            opacity: 0.85;
+            cursor: wait;
+            pointer-events: none;
+        }
+        .map-fullscreen-btn:disabled { cursor: wait; }
         @keyframes accident-pin-pulse {
             0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.55); }
             70% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
@@ -2444,6 +2464,8 @@ annotate_report_assignment_status($conn, $recent_reports);
                             <span class="map-legend-item"><span class="map-legend-dot" style="background:#111827;"></span> Closed</span>
                             <span class="map-legend-item"><span class="map-legend-dot" style="background:#f59e0b;"></span> Jam</span>
                             <span class="map-legend-item"><span class="map-legend-dot" style="background:#ca8a04;"></span> Works</span>
+                            <span class="map-legend-item"><span class="map-legend-dot" style="background:#0284c7;"></span> Bus stop</span>
+                            <span class="map-legend-item"><span class="map-legend-dot" style="background:#475569;"></span> Rail</span>
                         </div>
                         <div class="map-search-box" style="display:flex;align-items:center;gap:6px;margin-left:8px;">
                             <input type="text" id="mapSearchInput" placeholder="Search places..." style="padding:5px 10px;border:1px solid rgba(55,98,200,0.3);border-radius:6px;font-size:12px;width:160px;">
@@ -2464,8 +2486,14 @@ annotate_report_assignment_status($conn, $recent_reports);
                         </div>
                     </div>
                     <div class="map-toolbar-right">
-                        <button class="map-fullscreen-btn" id="toggleAccidentsBtn" onclick="toggleAccidentPins()" style="background:rgba(220,38,38,0.1);color:#dc2626;border-color:rgba(220,38,38,0.3);">
+                        <button class="map-fullscreen-btn" id="toggleAccidentsBtn" onclick="toggleAccidentPins()" style="background:#6c757d;color:#fff;border-color:#6c757d;">
                             <i class="fas fa-exclamation-triangle"></i> Incidents
+                        </button>
+                        <button class="map-fullscreen-btn" id="toggleBusStopsBtn" onclick="toggleBusStopPins()" style="background:#6c757d;color:#fff;border-color:#6c757d;">
+                            <i class="fas fa-bus"></i> Bus
+                        </button>
+                        <button class="map-fullscreen-btn" id="toggleRailStationsBtn" onclick="toggleRailStationPins()" style="background:#6c757d;color:#fff;border-color:#6c757d;">
+                            <i class="fas fa-train"></i> Rail
                         </button>
                         <button class="map-fullscreen-btn" id="toggleTrafficBtn" onclick="toggleTrafficLayer()">
                             <i class="fas fa-car"></i> Traffic
@@ -4732,7 +4760,11 @@ annotate_report_assignment_status($conn, $recent_reports);
     let routeFromPoint = null, routeToPoint = null;
     let routeLayer = null, satelliteLayer = null, incidentsLayer = null;
     let accidentsLayer = null;
-    let accidentsVisible = true;
+    let accidentsVisible = false;
+    let busStopsLayer = null;
+    let busStopsVisible = false;
+    let railStationsLayer = null;
+    let railStationsVisible = false;
     let evMarkersLayer = null, rangeLayer = null;
     let toolsDropdownOpen = false;
     let mapClickHandler = null;
@@ -5067,49 +5099,150 @@ annotate_report_assignment_status($conn, $recent_reports);
         return null;
     }
 
-    // Live TomTom incidents: closures, jams, roadworks, and accidents when present
-    function loadAccidentPins(silent) {
-        if (!accidentsVisible) return;
-        const center = QC_CENTER;
-        TomTomServices.trafficIncidents(center[0], center[1], 15).then(data => {
-            if (!accidentsVisible) return;
-            if (accidentsLayer) {
-                map.removeLayer(accidentsLayer);
-                accidentsLayer = null;
+    // Shared 1h cache + loading for Incidents / Bus / Rail toggles
+    const LAYER_CACHE_TTL_MS = 60 * 60 * 1000;
+    const LAYER_CACHE_STORAGE_KEY = 'qc_map_layer_cache_v1';
+    const layerCaches = {
+        incidents: { fetchedAt: 0, items: null, loading: false },
+        bus: { fetchedAt: 0, items: null, loading: false },
+        rail: { fetchedAt: 0, items: null, loading: false }
+    };
+    const TOGGLE_BTN_LABELS = {
+        toggleAccidentsBtn: '<i class="fas fa-exclamation-triangle"></i> Incidents',
+        toggleBusStopsBtn: '<i class="fas fa-bus"></i> Bus',
+        toggleRailStationsBtn: '<i class="fas fa-train"></i> Rail'
+    };
+
+    function hasLayerCache(cache) {
+        return Array.isArray(cache.items);
+    }
+    function isLayerCacheFresh(cache) {
+        return hasLayerCache(cache) && (Date.now() - cache.fetchedAt) < LAYER_CACHE_TTL_MS;
+    }
+    function loadLayerCachesFromStorage() {
+        try {
+            const raw = localStorage.getItem(LAYER_CACHE_STORAGE_KEY);
+            if (!raw) return;
+            const stored = JSON.parse(raw);
+            ['incidents', 'bus', 'rail'].forEach(function(key) {
+                const entry = stored && stored[key];
+                if (!entry || !Array.isArray(entry.items) || !entry.fetchedAt) return;
+                if ((Date.now() - entry.fetchedAt) >= LAYER_CACHE_TTL_MS) return;
+                layerCaches[key].items = entry.items;
+                layerCaches[key].fetchedAt = entry.fetchedAt;
+            });
+        } catch (e) { /* ignore corrupt/quota errors */ }
+    }
+    function saveLayerCacheToStorage(key) {
+        try {
+            let stored = {};
+            try {
+                stored = JSON.parse(localStorage.getItem(LAYER_CACHE_STORAGE_KEY) || '{}') || {};
+            } catch (e) {
+                stored = {};
             }
-            if (!data.success) {
-                if (!silent) showNotification(data.error || 'Could not load traffic incidents', 'error');
-                return;
-            }
-            const incidents = collectTomTomIncidents(data.data || data);
-            accidentsLayer = L.layerGroup().addTo(map);
-            let count = 0;
-            incidents.forEach(inc => {
-                const pos = incidentLatLng(inc);
-                if (!pos || pos[0] == null || pos[1] == null) return;
-                if (typeof isInsideQCBounds === 'function' && !isInsideQCBounds(pos[0], pos[1])) return;
-                const cat = incidentCategory(inc);
-                const style = incidentStyle(cat);
-                const popup = incidentPopupHtml(inc);
-                const line = incidentLineLatLngs(inc);
-                if (line && line.length > 1) {
-                    L.polyline(line, { color: style.color, weight: 5, opacity: 0.85 })
-                        .bindPopup(popup)
-                        .addTo(accidentsLayer);
-                }
-                const icon = L.divIcon({
-                    html: '<div class="incident-map-pin ' + style.css + '"><i class="fas fa-' + style.icon + '"></i></div>',
-                    className: '',
-                    iconSize: [28, 28],
-                    iconAnchor: [14, 14]
-                });
-                L.marker(pos, { icon, zIndexOffset: 600 })
+            const cache = layerCaches[key];
+            if (!hasLayerCache(cache) || !cache.fetchedAt) return;
+            stored[key] = { fetchedAt: cache.fetchedAt, items: cache.items };
+            // Drop stale siblings so storage stays lean
+            ['incidents', 'bus', 'rail'].forEach(function(k) {
+                if (!stored[k] || !stored[k].fetchedAt) return;
+                if ((Date.now() - stored[k].fetchedAt) >= LAYER_CACHE_TTL_MS) delete stored[k];
+            });
+            localStorage.setItem(LAYER_CACHE_STORAGE_KEY, JSON.stringify(stored));
+        } catch (e) { /* ignore quota errors */ }
+    }
+    loadLayerCachesFromStorage();
+
+    function setToggleLoading(btnId, loading, restoreStyleFn) {
+        const btn = document.getElementById(btnId);
+        if (!btn) return;
+        btn.classList.toggle('is-loading', !!loading);
+        if (loading) {
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading';
+            return;
+        }
+        btn.innerHTML = TOGGLE_BTN_LABELS[btnId] || btn.innerHTML;
+        if (typeof restoreStyleFn === 'function') restoreStyleFn();
+    }
+
+    function renderAccidentPinsFromData(incidents) {
+        if (accidentsLayer) {
+            map.removeLayer(accidentsLayer);
+            accidentsLayer = null;
+        }
+        accidentsLayer = L.layerGroup().addTo(map);
+        let count = 0;
+        (incidents || []).forEach(function(inc) {
+            const pos = incidentLatLng(inc);
+            if (!pos || pos[0] == null || pos[1] == null) return;
+            if (typeof isInsideQCBounds === 'function' && !isInsideQCBounds(pos[0], pos[1])) return;
+            const cat = incidentCategory(inc);
+            const style = incidentStyle(cat);
+            const popup = incidentPopupHtml(inc);
+            const line = incidentLineLatLngs(inc);
+            if (line && line.length > 1) {
+                L.polyline(line, { color: style.color, weight: 5, opacity: 0.85 })
                     .bindPopup(popup)
                     .addTo(accidentsLayer);
-                count++;
+            }
+            const icon = L.divIcon({
+                html: '<div class="incident-map-pin ' + style.css + '"><i class="fas fa-' + style.icon + '"></i></div>',
+                className: '',
+                iconSize: [28, 28],
+                iconAnchor: [14, 14]
             });
-            if (!silent) {
+            L.marker(pos, { icon: icon, zIndexOffset: 600 })
+                .bindPopup(popup)
+                .addTo(accidentsLayer);
+            count++;
+        });
+        return count;
+    }
+
+    function fetchAccidentIncidents() {
+        return TomTomServices.trafficIncidents(QC_CENTER[0], QC_CENTER[1], 15).then(function(data) {
+            if (!data.success) {
+                throw new Error(data.error || 'Could not load traffic incidents');
+            }
+            return collectTomTomIncidents(data.data || data);
+        });
+    }
+
+    function loadAccidentPins(silent) {
+        const cache = layerCaches.incidents;
+        let showedCache = false;
+        if (accidentsVisible && hasLayerCache(cache)) {
+            const count = renderAccidentPinsFromData(cache.items);
+            showedCache = true;
+            if (!silent && isLayerCacheFresh(cache)) {
                 showNotification(count ? (count + ' live incident' + (count === 1 ? '' : 's') + ' on the map') : 'No live traffic incidents in Quezon City', 'info');
+            }
+        }
+        if (isLayerCacheFresh(cache) || cache.loading) return;
+
+        cache.loading = true;
+        setToggleLoading('toggleAccidentsBtn', true);
+        fetchAccidentIncidents().then(function(incidents) {
+            cache.items = incidents;
+            cache.fetchedAt = Date.now();
+            cache.loading = false;
+            saveLayerCacheToStorage('incidents');
+            setToggleLoading('toggleAccidentsBtn', false, function() {
+                setAccidentToggleStyle(accidentsVisible);
+            });
+            if (!accidentsVisible) return;
+            const count = renderAccidentPinsFromData(incidents);
+            if (!silent && !showedCache) {
+                showNotification(count ? (count + ' live incident' + (count === 1 ? '' : 's') + ' on the map') : 'No live traffic incidents in Quezon City', 'info');
+            }
+        }).catch(function(err) {
+            cache.loading = false;
+            setToggleLoading('toggleAccidentsBtn', false, function() {
+                setAccidentToggleStyle(accidentsVisible);
+            });
+            if (!silent && !showedCache && accidentsVisible) {
+                showNotification(err.message || 'Could not load traffic incidents', 'error');
             }
         });
     }
@@ -5117,7 +5250,7 @@ annotate_report_assignment_status($conn, $recent_reports);
 
     function setAccidentToggleStyle(on) {
         const btn = document.getElementById('toggleAccidentsBtn');
-        if (!btn) return;
+        if (!btn || btn.classList.contains('is-loading')) return;
         if (on) {
             btn.style.background = 'rgba(220,38,38,0.1)';
             btn.style.color = '#dc2626';
@@ -5144,6 +5277,235 @@ annotate_report_assignment_status($conn, $recent_reports);
     }
 
     loadAccidentPins(true);
+
+    // ===== BUS / RAIL TRANSIT POIs (TomTom categorySet) =====
+    const TOMTOM_BUS_CATEGORY = '9942002';
+    const TOMTOM_RAIL_CATEGORY = '7380';
+    const TRANSIT_POI_CENTERS = [
+        [14.651417, 121.04917],
+        [14.705, 121.05],
+        [14.60, 121.05],
+        [14.65, 121.015],
+        [14.65, 121.09],
+        [14.68, 121.075],
+        [14.62, 121.03]
+    ];
+
+    function transitPoiPosition(poi) {
+        const pos = poi && poi.position;
+        if (!pos || pos.lat == null || pos.lon == null) return null;
+        return [pos.lat, pos.lon];
+    }
+
+    function transitPoiPopupHtml(poi, kindLabel) {
+        const name = (poi.poi && poi.poi.name) || kindLabel;
+        const addr = (poi.address && (poi.address.freeformAddress || poi.address.streetName)) || '';
+        const cats = (poi.poi && poi.poi.categories) ? poi.poi.categories.join(', ') : '';
+        return '<strong>' + name + '</strong><br>' +
+            (addr ? addr + '<br>' : '') +
+            (cats ? '<span style="color:#6b7280;font-size:11px;">' + cats + '</span><br>' : '') +
+            '<span style="color:#6b7280;font-size:11px;">' + kindLabel + '</span>';
+    }
+
+    function fetchTransitPois(categorySet) {
+        return Promise.all(TRANSIT_POI_CENTERS.map(function(c) {
+            return TomTomServices.nearbySearch(c[0], c[1], {
+                categorySet: categorySet,
+                radius: 8000,
+                limit: 100
+            });
+        })).then(function(responses) {
+            const byId = {};
+            responses.forEach(function(data) {
+                if (!data || !data.success) return;
+                const payload = data.data || data;
+                const results = (payload && payload.results) ? payload.results : [];
+                results.forEach(function(poi) {
+                    const key = poi.id || ((poi.position && poi.position.lat) + ',' + (poi.position && poi.position.lon));
+                    if (key && !byId[key]) byId[key] = poi;
+                });
+            });
+            return Object.keys(byId).map(function(k) { return byId[k]; });
+        });
+    }
+
+    function renderTransitPins(pois, cssClass, iconName, kindLabel) {
+        const layer = L.layerGroup().addTo(map);
+        let count = 0;
+        (pois || []).forEach(function(poi) {
+            const pos = transitPoiPosition(poi);
+            if (!pos) return;
+            if (typeof isInsideQCBounds === 'function' && !isInsideQCBounds(pos[0], pos[1])) return;
+            const icon = L.divIcon({
+                html: '<div class="transit-map-pin ' + cssClass + '"><i class="fas fa-' + iconName + '"></i></div>',
+                className: '',
+                iconSize: [26, 26],
+                iconAnchor: [13, 13]
+            });
+            L.marker(pos, { icon: icon, zIndexOffset: 500 })
+                .bindPopup(transitPoiPopupHtml(poi, kindLabel))
+                .addTo(layer);
+            count++;
+        });
+        return { layer: layer, count: count };
+    }
+
+    function setBusToggleStyle(on) {
+        const btn = document.getElementById('toggleBusStopsBtn');
+        if (!btn || btn.classList.contains('is-loading')) return;
+        if (on) {
+            btn.style.background = 'rgba(2,132,199,0.1)';
+            btn.style.color = '#0284c7';
+            btn.style.borderColor = 'rgba(2,132,199,0.35)';
+        } else {
+            btn.style.background = '#6c757d';
+            btn.style.color = '#fff';
+            btn.style.borderColor = '#6c757d';
+        }
+    }
+
+    function setRailToggleStyle(on) {
+        const btn = document.getElementById('toggleRailStationsBtn');
+        if (!btn || btn.classList.contains('is-loading')) return;
+        if (on) {
+            btn.style.background = 'rgba(71,85,105,0.12)';
+            btn.style.color = '#475569';
+            btn.style.borderColor = 'rgba(71,85,105,0.35)';
+        } else {
+            btn.style.background = '#6c757d';
+            btn.style.color = '#fff';
+            btn.style.borderColor = '#6c757d';
+        }
+    }
+
+    function loadBusStopPins(silent) {
+        const cache = layerCaches.bus;
+        let showedCache = false;
+        if (busStopsVisible && hasLayerCache(cache)) {
+            if (busStopsLayer) {
+                map.removeLayer(busStopsLayer);
+                busStopsLayer = null;
+            }
+            const rendered = renderTransitPins(cache.items, 'bus', 'bus', 'Bus stop');
+            busStopsLayer = rendered.layer;
+            showedCache = true;
+            if (!silent && isLayerCacheFresh(cache)) {
+                showNotification(rendered.count ? (rendered.count + ' bus stop' + (rendered.count === 1 ? '' : 's') + ' on the map') : 'No bus stops found in Quezon City', 'info');
+            }
+        }
+        if (isLayerCacheFresh(cache) || cache.loading) return;
+
+        cache.loading = true;
+        setToggleLoading('toggleBusStopsBtn', true);
+        fetchTransitPois(TOMTOM_BUS_CATEGORY).then(function(pois) {
+            cache.items = pois;
+            cache.fetchedAt = Date.now();
+            cache.loading = false;
+            saveLayerCacheToStorage('bus');
+            setToggleLoading('toggleBusStopsBtn', false, function() {
+                setBusToggleStyle(busStopsVisible);
+            });
+            if (!busStopsVisible) return;
+            if (busStopsLayer) {
+                map.removeLayer(busStopsLayer);
+                busStopsLayer = null;
+            }
+            const rendered = renderTransitPins(pois, 'bus', 'bus', 'Bus stop');
+            busStopsLayer = rendered.layer;
+            if (!silent && !showedCache) {
+                showNotification(rendered.count ? (rendered.count + ' bus stop' + (rendered.count === 1 ? '' : 's') + ' on the map') : 'No bus stops found in Quezon City', 'info');
+            }
+        }).catch(function() {
+            cache.loading = false;
+            setToggleLoading('toggleBusStopsBtn', false, function() {
+                setBusToggleStyle(busStopsVisible);
+            });
+            if (!silent && !showedCache && busStopsVisible) {
+                showNotification('Could not load bus stops', 'error');
+            }
+        });
+    }
+    window.loadBusStopPins = loadBusStopPins;
+
+    function loadRailStationPins(silent) {
+        const cache = layerCaches.rail;
+        let showedCache = false;
+        if (railStationsVisible && hasLayerCache(cache)) {
+            if (railStationsLayer) {
+                map.removeLayer(railStationsLayer);
+                railStationsLayer = null;
+            }
+            const rendered = renderTransitPins(cache.items, 'rail', 'train', 'Railroad station');
+            railStationsLayer = rendered.layer;
+            showedCache = true;
+            if (!silent && isLayerCacheFresh(cache)) {
+                showNotification(rendered.count ? (rendered.count + ' rail station' + (rendered.count === 1 ? '' : 's') + ' on the map') : 'No rail stations found in Quezon City', 'info');
+            }
+        }
+        if (isLayerCacheFresh(cache) || cache.loading) return;
+
+        cache.loading = true;
+        setToggleLoading('toggleRailStationsBtn', true);
+        fetchTransitPois(TOMTOM_RAIL_CATEGORY).then(function(pois) {
+            cache.items = pois;
+            cache.fetchedAt = Date.now();
+            cache.loading = false;
+            saveLayerCacheToStorage('rail');
+            setToggleLoading('toggleRailStationsBtn', false, function() {
+                setRailToggleStyle(railStationsVisible);
+            });
+            if (!railStationsVisible) return;
+            if (railStationsLayer) {
+                map.removeLayer(railStationsLayer);
+                railStationsLayer = null;
+            }
+            const rendered = renderTransitPins(pois, 'rail', 'train', 'Railroad station');
+            railStationsLayer = rendered.layer;
+            if (!silent && !showedCache) {
+                showNotification(rendered.count ? (rendered.count + ' rail station' + (rendered.count === 1 ? '' : 's') + ' on the map') : 'No rail stations found in Quezon City', 'info');
+            }
+        }).catch(function() {
+            cache.loading = false;
+            setToggleLoading('toggleRailStationsBtn', false, function() {
+                setRailToggleStyle(railStationsVisible);
+            });
+            if (!silent && !showedCache && railStationsVisible) {
+                showNotification('Could not load rail stations', 'error');
+            }
+        });
+    }
+    window.loadRailStationPins = loadRailStationPins;
+
+    function toggleBusStopPins() {
+        busStopsVisible = !busStopsVisible;
+        setBusToggleStyle(busStopsVisible);
+        if (!busStopsVisible) {
+            if (busStopsLayer) {
+                map.removeLayer(busStopsLayer);
+                busStopsLayer = null;
+            }
+            showNotification('Bus stop pins hidden', 'info');
+            return;
+        }
+        loadBusStopPins(false);
+    }
+
+    function toggleRailStationPins() {
+        railStationsVisible = !railStationsVisible;
+        setRailToggleStyle(railStationsVisible);
+        if (!railStationsVisible) {
+            if (railStationsLayer) {
+                map.removeLayer(railStationsLayer);
+                railStationsLayer = null;
+            }
+            showNotification('Rail station pins hidden', 'info');
+            return;
+        }
+        loadRailStationPins(false);
+    }
+
+    loadBusStopPins(true);
+    loadRailStationPins(true);
 
     // ===== TRAFFIC INCIDENTS =====
     function toggleTrafficIncidentsLayer() {
