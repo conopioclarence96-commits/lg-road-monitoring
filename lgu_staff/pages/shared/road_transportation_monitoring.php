@@ -2530,6 +2530,7 @@ annotate_report_assignment_status($conn, $recent_reports);
                             </button>
                             <div id="toolsDropdownMenu" class="t-card" style="display:none;position:absolute;top:100%;right:0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.15);z-index:1200;min-width:200px;padding:8px 0;margin-top:4px;">
                                 <button class="tools-dropdown-item" onclick="showRoutePlanner()"><i class="fas fa-route"></i> Route Planner</button>
+                                <button class="tools-dropdown-item" onclick="showCommutePlanner()"><i class="fas fa-bus"></i> Commute Planner</button>
                                 <button class="tools-dropdown-item" onclick="toggleSatelliteLayer()"><i class="fas fa-satellite"></i> Satellite View</button>
                                 <button class="tools-dropdown-item" onclick="toggleTrafficIncidentsLayer()" id="toggleIncidentsBtn"><i class="fas fa-exclamation-triangle"></i> Traffic Incidents</button>
                                 <button class="tools-dropdown-item" onclick="showEVCharging()"><i class="fas fa-charging-station"></i> EV Stations</button>
@@ -2725,6 +2726,19 @@ annotate_report_assignment_status($conn, $recent_reports);
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
                         <button class="btn-action btn-sm btn-secondary" type="button" onclick="clearSelectedOsmRoute()"><i class="fas fa-eraser"></i> Clear map</button>
                         <button class="btn-action btn-sm btn-secondary" type="button" onclick="closePanel('ptRoutesPanel')">Close</button>
+                    </div>
+                </div>
+
+                <!-- Commute Planner (Sakay deep link) -->
+                <div id="commutePlannerPanel" class="tomtom-panel">
+                    <h5><i class="fas fa-bus"></i> Commute Planner</h5>
+                    <p class="t-text-secondary" style="font-size:12px;">Pick origin and destination on the map, then open directions on Sakay.ph.</p>
+                    <div id="commutePlannerStatus" class="route-info-box">Click the map to set the <strong>origin</strong>.</div>
+                    <div id="commutePlannerCoords" class="t-text-secondary" style="font-size:11px;margin-top:8px;display:none;"></div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <button class="btn-action btn-sm" type="button" id="openSakayTripBtn" onclick="openSakayTrip()" disabled><i class="fas fa-external-link-alt"></i> Open in Sakay</button>
+                        <button class="btn-action btn-sm btn-secondary" type="button" onclick="resetCommutePlanner()"><i class="fas fa-redo"></i> Reset</button>
+                        <button class="btn-action btn-sm btn-secondary" type="button" onclick="closeCommutePlanner()"><i class="fas fa-times"></i> Close</button>
                     </div>
                 </div>
 
@@ -3734,7 +3748,11 @@ annotate_report_assignment_status($conn, $recent_reports);
         }
 
         // Map click: place pin, show form, and run full GIS analysis
+        // Skip while a tool (Route Planner / Commute Planner / etc.) owns map clicks.
         map.on('click', function(e) {
+            if (typeof mapClickHandler === 'function' && mapClickHandler) return;
+            if (window.suppressMapReportPin) return;
+
             const { lat, lng } = e.latlng;
             
             // Check if clicked location is within Quezon City polygon
@@ -4842,6 +4860,8 @@ annotate_report_assignment_status($conn, $recent_reports);
     let evMarkersLayer = null, rangeLayer = null;
     let toolsDropdownOpen = false;
     let mapClickHandler = null;
+    let commuteFrom = null, commuteTo = null;
+    let commuteMarkersLayer = null;
 
     // Tools dropdown
     function toggleToolsDropdown() {
@@ -4859,6 +4879,7 @@ annotate_report_assignment_status($conn, $recent_reports);
     function closePanel(panelId) {
         document.getElementById(panelId).style.display = 'none';
         if (panelId === 'ptRoutesPanel') setPtRoutesBtnStyle(false);
+        if (panelId === 'commutePlannerPanel') clearCommutePlannerState(false);
         if (mapClickHandler) {
             map.off('click', mapClickHandler);
             mapClickHandler = null;
@@ -5973,13 +5994,153 @@ annotate_report_assignment_status($conn, $recent_reports);
 
     // ===== UTILITY =====
     function closeAllPanels() {
-        ['routePlannerPanel', 'reachableRangePanel', 'geofencingPanel', 'evChargingPanel', 'ptRoutesPanel'].forEach(id => {
+        ['routePlannerPanel', 'reachableRangePanel', 'geofencingPanel', 'evChargingPanel', 'ptRoutesPanel', 'commutePlannerPanel'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.style.display = 'none';
         });
         setPtRoutesBtnStyle(false);
+        clearCommutePlannerState(false);
         if (mapClickHandler) { map.off('click', mapClickHandler); mapClickHandler = null; }
     }
+
+    // ===== COMMUTE PLANNER (Sakay deep link) =====
+    function updateCommutePlannerUi() {
+        const statusEl = document.getElementById('commutePlannerStatus');
+        const coordsEl = document.getElementById('commutePlannerCoords');
+        const openBtn = document.getElementById('openSakayTripBtn');
+        if (!statusEl || !coordsEl || !openBtn) return;
+
+        if (!commuteFrom) {
+            statusEl.innerHTML = 'Click the map to set the <strong>origin</strong>.';
+            coordsEl.style.display = 'none';
+            openBtn.disabled = true;
+            return;
+        }
+        if (!commuteTo) {
+            statusEl.innerHTML = 'Origin set. Click the map to set the <strong>destination</strong>.';
+            coordsEl.style.display = 'block';
+            coordsEl.textContent = 'From: ' + commuteFrom.lat.toFixed(6) + ', ' + commuteFrom.lng.toFixed(6);
+            openBtn.disabled = true;
+            return;
+        }
+        statusEl.innerHTML = 'Origin and destination set. Open Sakay for transit directions.';
+        coordsEl.style.display = 'block';
+        coordsEl.innerHTML =
+            'From: ' + commuteFrom.lat.toFixed(6) + ', ' + commuteFrom.lng.toFixed(6) + '<br>' +
+            'To: ' + commuteTo.lat.toFixed(6) + ', ' + commuteTo.lng.toFixed(6);
+        openBtn.disabled = false;
+    }
+
+    function clearCommutePlannerState(keepPanel) {
+        commuteFrom = null;
+        commuteTo = null;
+        window.suppressMapReportPin = false;
+        if (commuteMarkersLayer) {
+            map.removeLayer(commuteMarkersLayer);
+            commuteMarkersLayer = null;
+        }
+        if (!keepPanel) {
+            const panel = document.getElementById('commutePlannerPanel');
+            if (panel) panel.style.display = 'none';
+        }
+        updateCommutePlannerUi();
+    }
+
+    function resetCommutePlanner() {
+        if (mapClickHandler) {
+            map.off('click', mapClickHandler);
+            mapClickHandler = null;
+        }
+        clearCommutePlannerState(true);
+        bindCommuteMapClicks();
+        showNotification('Click the map to set the origin', 'info');
+    }
+    window.resetCommutePlanner = resetCommutePlanner;
+
+    function closeCommutePlanner() {
+        if (mapClickHandler) {
+            map.off('click', mapClickHandler);
+            mapClickHandler = null;
+        }
+        clearCommutePlannerState(false);
+    }
+    window.closeCommutePlanner = closeCommutePlanner;
+
+    function buildSakayTripUrl(from, to) {
+        const fromParam = encodeURIComponent(from.lat + ',' + from.lng);
+        const toParam = encodeURIComponent(to.lat + ',' + to.lng);
+        return 'https://sakay.ph/app/trip?from=' + fromParam + '&to=' + toParam;
+    }
+
+    function openSakayTrip() {
+        if (!commuteFrom || !commuteTo) {
+            showNotification('Set both origin and destination first', 'error');
+            return;
+        }
+        const url = buildSakayTripUrl(commuteFrom, commuteTo);
+        window.open(url, '_blank', 'noopener,noreferrer');
+        showNotification('Opening Sakay.ph commute directions…', 'info');
+    }
+    window.openSakayTrip = openSakayTrip;
+
+    function bindCommuteMapClicks() {
+        if (mapClickHandler) map.off('click', mapClickHandler);
+        window.suppressMapReportPin = true;
+        mapClickHandler = function(e) {
+            if (typeof isInsideQCBounds === 'function' && !isInsideQCBounds(e.latlng.lat, e.latlng.lng)) {
+                showNotification('Please select a location within Quezon City only.', 'error');
+                return;
+            }
+            if (!commuteMarkersLayer) {
+                commuteMarkersLayer = L.layerGroup().addTo(map);
+            }
+            if (!commuteFrom) {
+                commuteFrom = e.latlng;
+                L.circleMarker(e.latlng, {
+                    color: '#10b981',
+                    fillColor: '#10b981',
+                    fillOpacity: 0.85,
+                    radius: 9,
+                    weight: 2
+                }).bindPopup('Origin').addTo(commuteMarkersLayer).openPopup();
+                updateCommutePlannerUi();
+                showNotification('Now click the destination on the map', 'info');
+                return;
+            }
+            if (!commuteTo) {
+                commuteTo = e.latlng;
+                L.circleMarker(e.latlng, {
+                    color: '#ef4444',
+                    fillColor: '#ef4444',
+                    fillOpacity: 0.85,
+                    radius: 9,
+                    weight: 2
+                }).bindPopup('Destination').addTo(commuteMarkersLayer).openPopup();
+                map.off('click', mapClickHandler);
+                mapClickHandler = null;
+                window.suppressMapReportPin = false;
+                updateCommutePlannerUi();
+                const panel = document.getElementById('commutePlannerPanel');
+                if (panel) {
+                    panel.style.display = 'block';
+                    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+                openSakayTrip();
+            }
+        };
+        map.on('click', mapClickHandler);
+    }
+
+    function showCommutePlanner() {
+        closeAllPanels();
+        document.getElementById('commutePlannerPanel').style.display = 'block';
+        document.getElementById('toolsDropdownMenu').style.display = 'none';
+        toolsDropdownOpen = false;
+        clearCommutePlannerState(true);
+        bindCommuteMapClicks();
+        showNotification('Click the map to set the origin', 'info');
+    }
+    window.showCommutePlanner = showCommutePlanner;
 
     // ===== LOAD MORE BUTTON FOR RECENT SUBMISSIONS =====
     let currentOffset = 10;
