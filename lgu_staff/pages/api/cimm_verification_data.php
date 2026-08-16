@@ -273,19 +273,11 @@ function cimm_resolution_status_to_display(?string $resolutionStatus, ?string $a
 
 /**
  * Apply one CIMM report payload (the same shape cimm_rgmap_fetch_report()
- * in the CIMM repo produces).
- *
- * A payload carrying rgmap_report_pk means this report started life as one
- * of THIS system's own road_transportation_reports rows (an LGU Monitoring
- * report pushed to CIMM and now mirrored back). Those rows belong ONLY in
- * road_transportation_reports — they are never written into
- * cimm_verification_reports (the CIMM Verification panel is reserved for
- * genuine external CIMM road reports). In that case this function only
- * keeps the originating row's cimm_engineer_name/cimm_budget/cimm_status/
- * cimm_district etc. current and returns without inserting anything.
- *
- * Only genuine CIMM reports (no rgmap_report_pk) are stored in
- * cimm_verification_reports.
+ * in the CIMM repo produces) into cimm_verification_reports, and — if the
+ * payload carries rgmap_report_pk (meaning this CIMM report started life as
+ * one of THIS system's own road_transportation_reports rows) — also keep
+ * that row's cimm_engineer_name/cimm_budget/cimm_status/cimm_district etc.
+ * current.
  *
  * This is the single write path shared by:
  *   - cimm-reports-webhook.php   (live push from CIMM, one report at a time)
@@ -306,49 +298,6 @@ function rgmap_apply_cimm_report_payload(PDO $pdo, ?mysqli $conn, array $data): 
     rgmap_ensure_cimm_verification_table($pdo);
 
     $reference = (string)($data['reference'] ?? ('REQ-' . str_pad((string)$cimmReqId, 3, '0', STR_PAD_LEFT)));
-
-    // ── Self-originated reports stay in road_transportation_reports only. ──
-    // A payload carrying rgmap_report_pk is one of THIS system's own LGU
-    // Monitoring rows (road_transportation_reports) being mirrored back by
-    // CIMM's sync — NOT a genuine external CIMM road report. It must never
-    // be written into cimm_verification_reports (that table and the CIMM
-    // Verification panel are reserved for real CIMM reports). Only mirror
-    // the latest CIMM-provided fields back onto the originating row, then
-    // return without inserting a duplicate.
-    $rgmapReportPk = isset($data['rgmap_report_pk']) ? (int)$data['rgmap_report_pk'] : 0;
-    if ($rgmapReportPk > 0) {
-        if ($conn instanceof mysqli) {
-            require_once __DIR__ . '/rgmap_cimm_sync.php';
-            rgmap_cimm_ensure_schema($conn);
-
-            $cimmEngineerName = $data['engineer'] ?? null;
-            $cimmBudget = isset($data['budget']) ? (float)$data['budget'] : null;
-            $cimmStartingDate = $data['starting_date'] ?? null;
-            $cimmEstimatedEndDate = $data['estimated_end_date'] ?? null;
-            $cimmStatus = $data['resolution_status'] ?? null;
-            $cimmReportUrl = $data['portal_url'] ?? null;
-            $cimmDistrict = $data['district'] ?? null;
-
-            $updStmt = $conn->prepare(
-                "UPDATE road_transportation_reports
-                 SET cimm_engineer_name = ?, cimm_budget = ?, cimm_starting_date = ?,
-                     cimm_estimated_end_date = ?, cimm_status = ?, cimm_report_url = ?,
-                     cimm_district = ?
-                 WHERE id = ?"
-            );
-            if ($updStmt) {
-                $updStmt->bind_param(
-                    'sdsssssi',
-                    $cimmEngineerName, $cimmBudget, $cimmStartingDate,
-                    $cimmEstimatedEndDate, $cimmStatus, $cimmReportUrl, $cimmDistrict, $rgmapReportPk
-                );
-                $updStmt->execute();
-                $updStmt->close();
-            }
-        }
-        return ['id' => 0, 'cimm_req_id' => $cimmReqId, 'reference' => $reference];
-    }
-
     $cimmRepId = isset($data['cimm_rep_id']) ? (int)$data['cimm_rep_id'] : null;
     if ($cimmRepId !== null && $cimmRepId <= 0) {
         $cimmRepId = null;
@@ -452,6 +401,43 @@ function rgmap_apply_cimm_report_payload(PDO $pdo, ?mysqli $conn, array $data): 
     $localIdStmt = $pdo->prepare('SELECT id FROM cimm_verification_reports WHERE cimm_req_id = ? LIMIT 1');
     $localIdStmt->execute([$cimmReqId]);
     $localId = (int)($localIdStmt->fetchColumn() ?: 0);
+
+    // ── If this CIMM report originated from one of THIS system's own
+    //    road_transportation_reports rows, also keep that specific row
+    //    current — not just the cimm_verification_reports mirror above —
+    //    so staff looking at the report they originally submitted see the
+    //    latest engineer/budget/dates/status/district without having to go
+    //    find it in a different panel. ──────────────────────────────────
+    $rgmapReportPk = isset($data['rgmap_report_pk']) ? (int)$data['rgmap_report_pk'] : 0;
+    if ($rgmapReportPk > 0 && $conn instanceof mysqli) {
+        require_once __DIR__ . '/rgmap_cimm_sync.php';
+        rgmap_cimm_ensure_schema($conn);
+
+        $cimmEngineerName = $data['engineer'] ?? null;
+        $cimmBudget = isset($data['budget']) ? (float)$data['budget'] : null;
+        $cimmStartingDate = $data['starting_date'] ?? null;
+        $cimmEstimatedEndDate = $data['estimated_end_date'] ?? null;
+        $cimmStatus = $data['resolution_status'] ?? null;
+        $cimmReportUrl = $data['portal_url'] ?? null;
+        $cimmDistrict = $data['district'] ?? null;
+
+        $updStmt = $conn->prepare(
+            "UPDATE road_transportation_reports
+             SET cimm_engineer_name = ?, cimm_budget = ?, cimm_starting_date = ?,
+                 cimm_estimated_end_date = ?, cimm_status = ?, cimm_report_url = ?,
+                 cimm_district = ?
+             WHERE id = ?"
+        );
+        if ($updStmt) {
+            $updStmt->bind_param(
+                'sdsssssi',
+                $cimmEngineerName, $cimmBudget, $cimmStartingDate,
+                $cimmEstimatedEndDate, $cimmStatus, $cimmReportUrl, $cimmDistrict, $rgmapReportPk
+            );
+            $updStmt->execute();
+            $updStmt->close();
+        }
+    }
 
     return ['id' => $localId, 'cimm_req_id' => $cimmReqId, 'reference' => $reference];
 }
