@@ -207,6 +207,74 @@ if ($database_available && $conn) {
     }
 }
 
+// Get latest infrastructure project updates
+$infrastructure_updates = [];
+if ($database_available && $conn) {
+    try {
+        // Check if the expected columns exist
+        $stmt = $conn->prepare("DESCRIBE infrastructure_projects");
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        $has_name = false;
+        $has_location = false;
+        $has_budget = false;
+        $has_progress = false;
+        $has_status = false;
+        $has_start_date = false;
+        $has_end_date = false;
+        $has_latitude = false;
+        $has_longitude = false;
+        $has_is_published = false;
+
+        while ($row = $result->fetch_assoc()) {
+            if ($row['Field'] === 'name') $has_name = true;
+            if ($row['Field'] === 'location') $has_location = true;
+            if ($row['Field'] === 'budget') $has_budget = true;
+            if ($row['Field'] === 'progress') $has_progress = true;
+            if ($row['Field'] === 'status') $has_status = true;
+            if ($row['Field'] === 'start_date') $has_start_date = true;
+            if ($row['Field'] === 'end_date') $has_end_date = true;
+            if ($row['Field'] === 'latitude') $has_latitude = true;
+            if ($row['Field'] === 'longitude') $has_longitude = true;
+            if ($row['Field'] === 'is_published') $has_is_published = true;
+        }
+        $stmt->close();
+
+        // Build query based on available columns
+        $select_fields = "id";
+        if ($has_name) $select_fields .= ", name";
+        if ($has_location) $select_fields .= ", location";
+        if ($has_budget) $select_fields .= ", budget";
+        if ($has_progress) $select_fields .= ", progress";
+        if ($has_status) $select_fields .= ", status";
+        if ($has_start_date) $select_fields .= ", start_date";
+        if ($has_end_date) $select_fields .= ", end_date";
+        if ($has_latitude) $select_fields .= ", latitude";
+        if ($has_longitude) $select_fields .= ", longitude";
+
+        $order_field = $has_start_date ? "start_date" : "created_at";
+
+        $infra_sql = "SELECT $select_fields FROM infrastructure_projects";
+        if ($has_is_published) {
+            $infra_sql .= " WHERE is_published = 1";
+        }
+        $infra_sql .= " ORDER BY $order_field DESC LIMIT 3";
+
+        $stmt = $conn->prepare($infra_sql);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        while ($row = $result->fetch_assoc()) {
+            $infrastructure_updates[] = $row;
+        }
+        $stmt->close();
+    } catch (Exception $e) {
+        // Log details internally, show the generic "projects coming soon" state
+        error_log("index.php infrastructure project updates query: " . $e->getMessage());
+        $infrastructure_updates = [];
+    }
+}
+
 // Load access control settings
 $access_settings = [];
 if ($database_available && $conn) {
@@ -655,6 +723,27 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         .badge-closure {
             background: #fde3e3;
             color: #951f1f;
+        }
+
+        /* Infrastructure project status badges */
+        .badge-active {
+            background: #d6e9f8;
+            color: #0f4762;
+        }
+
+        .badge-completed {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge-delayed {
+            background: #fde3e3;
+            color: #951f1f;
+        }
+
+        .badge-pending {
+            background: #fff3cd;
+            color: #8a6d1a;
         }
 
         /* Statistics Cards — flat QC style */
@@ -1246,6 +1335,84 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         .gis-search-result-item:hover { background: #eaf3f9; }
         .gis-search-result-item small { display: block; color: var(--qc-shades-400); font-size: 11px; margin-top: 2px; }
 
+        /* Infrastructure Project Updates — GIS map (flat QC card) */
+        .infra-map-card {
+            display: flex;
+            flex-direction: column;
+            background: #ffffff;
+            border: 1px solid var(--qc-card-border);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: none;
+        }
+        .infra-map-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            border-bottom: 1px solid #eef3f6;
+            background: #ffffff;
+        }
+        .infra-map-count {
+            margin-left: auto;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--qc-shades-500);
+        }
+        .infra-map-canvas {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            height: 460px;
+            min-height: 320px;
+            background: var(--qc-shades-100);
+        }
+        .infra-map-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            padding: 10px 16px;
+            border-top: 1px solid #eef3f6;
+            background: #ffffff;
+        }
+        .infra-map-legend .legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--qc-shades-500);
+        }
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 2px solid #ffffff;
+            box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+            flex-shrink: 0;
+        }
+        .infra-map-card.infra-map-fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 9999;
+            border-radius: 0;
+            border: none;
+            box-shadow: none;
+        }
+        .infra-map-card.infra-map-fullscreen .infra-map-canvas {
+            height: auto;
+            flex: 1 1 auto;
+            min-height: 0;
+        }
+        @media (max-width: 575.98px) {
+            .infra-map-canvas { height: 340px; }
+            .infra-map-count { margin-left: 0; width: 100%; }
+        }
+
         /* Citizen Report Modal Styles */
         .modal-header.bg-primary {
             background: var(--qc-primary-800) !important;
@@ -1637,6 +1804,10 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         html.dark-mode .badge-maintenance { background: #4a3f13; color: #fde68a; }
         html.dark-mode .badge-advisory { background: #123044; color: #93c5fd; }
         html.dark-mode .badge-closure { background: #3f1d1d; color: #fca5a5; }
+        html.dark-mode .badge-active { background: #123044; color: #93c5fd; }
+        html.dark-mode .badge-completed { background: #13251a; color: #6ee7b7; }
+        html.dark-mode .badge-delayed { background: #3f1d1d; color: #fca5a5; }
+        html.dark-mode .badge-pending { background: #4a3f13; color: #fde68a; }
         html.dark-mode .stat-icon,
         html.dark-mode .service-icon,
         html.dark-mode .contact-icon { background: #26313c; }
@@ -1679,6 +1850,12 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         html.dark-mode .gis-search-result-item { border-bottom-color: #2d323b; color: #e4e6ea; }
         html.dark-mode .gis-search-result-item:hover { background: #26313c; color: #fff; }
         html.dark-mode .gis-search-result-item small { color: #7f8b99; }
+        html.dark-mode .infra-map-card { background: #1e1e1e; border-color: #333; }
+        html.dark-mode .infra-map-toolbar,
+        html.dark-mode .infra-map-legend { background: #1e1e1e; border-color: #333; }
+        html.dark-mode .infra-map-count { color: #9ca3af; }
+        html.dark-mode .infra-map-legend .legend-item { color: #9ca3af; }
+        html.dark-mode .infra-map-canvas { background: #171a1f; }
 
         /* Leaflet maps */
         html.dark-mode .leaflet-container { background: #171a1f; }
@@ -2210,6 +2387,138 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         </div>
     </section>
 
+    <!-- Infrastructure Project Updates Section -->
+    <section class="section" id="infrastructure" <?php echo ($access_settings['hide_infrastructure_updates'] ?? '0') === '1' ? 'style="display:none"' : ''; ?>>
+        <div class="container">
+            <h2 class="section-title">Infrastructure Project Updates</h2>
+            <p class="section-subtitle">Track the latest road and transportation infrastructure projects underway across the city</p>
+
+            <div class="row g-4">
+                <?php if (!empty($infrastructure_updates)): ?>
+                    <?php foreach ($infrastructure_updates as $project): ?>
+                        <?php
+                        $project_status_key = strtolower(str_replace(' ', '_', $project['status'] ?? 'active'));
+                        $project_badge_class = in_array($project_status_key, ['active', 'completed', 'delayed', 'pending'], true) ? $project_status_key : 'active';
+                        ?>
+                        <div class="col-md-4">
+                            <div class="card update-card">
+                                <div class="card-header position-relative">
+                                    <?php echo htmlspecialchars($project['name'] ?? 'Infrastructure Project'); ?>
+                                    <span class="update-badge badge-<?php echo $project_badge_class; ?>">
+                                        <?php echo ucfirst(str_replace('_', ' ', $project_status_key)); ?>
+                                    </span>
+                                </div>
+                                <div class="card-body">
+                                    <?php
+                                    $project_image_candidates = [];
+                                    if (!empty($project['attachments'])):
+                                        $attachments = json_decode($project['attachments'], true);
+                                        if (is_array($attachments) && !empty($attachments)):
+                                            foreach ($attachments as $attachment):
+                                                if (isset($attachment['type']) && $attachment['type'] === 'image' && isset($attachment['file_path'])):
+                                                    $project_image_candidates[] = $attachment['file_path'];
+                                                    break;
+                                                endif;
+                                            endforeach;
+                                        endif;
+                                    endif;
+                                    if (!empty($project['photo'])):
+                                        $project_image_candidates[] = $project['photo'];
+                                    endif;
+                                    if (!empty($project['image_path'])):
+                                        $project_image_candidates[] = $project['image_path'];
+                                    endif;
+                                    $project_display_image = '';
+                                    foreach ($project_image_candidates as $candidate):
+                                        $resolved = road_updates_resolve_image_url($candidate, $basePath);
+                                        if ($resolved) { $project_display_image = $resolved; break; }
+                                    endforeach;
+                                    ?>
+                                    <?php if ($project_display_image): ?>
+                                        <div class="mb-3">
+                                            <img src="<?php echo htmlspecialchars($project_display_image); ?>"
+                                                 alt="<?php echo htmlspecialchars(($project['name'] ?? 'Infrastructure project') . ' photo'); ?>"
+                                                 loading="lazy"
+                                                 class="img-fluid rounded shadow-sm"
+                                                 style="max-height: 200px; object-fit: cover; width: 100%; cursor: pointer;"
+                                                 onclick="window.open(this.src, '_blank')"
+                                                 title="Click to view full size">
+                                        </div>
+                                    <?php endif; ?>
+
+                                    <?php if (!empty($project['location'])): ?>
+                                    <p class="card-text">
+                                        <i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($project['location']); ?>
+                                    </p>
+                                    <?php endif; ?>
+
+                                    <?php if (isset($project['progress']) && $project['progress'] !== ''): ?>
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <small class="text-muted"><i class="fas fa-tasks"></i> Progress</small>
+                                            <small class="text-muted"><?php echo (int)$project['progress']; ?>%</small>
+                                        </div>
+                                        <div class="progress" style="height: 8px;">
+                                            <div class="progress-bar" role="progressbar"
+                                                 style="width: <?php echo max(0, min(100, (int)$project['progress'])); ?>%;"
+                                                 aria-valuenow="<?php echo (int)$project['progress']; ?>" aria-valuemin="0" aria-valuemax="100"></div>
+                                        </div>
+                                    </div>
+                                    <?php endif; ?>
+
+                                    <div class="before-after-meta">
+                                        <?php if (!empty($project['start_date'])): ?>
+                                        <span><i class="fas fa-calendar-check"></i> <?php echo date('M d, Y', strtotime($project['start_date'])); ?></span>
+                                        <?php endif; ?>
+                                        <?php if (!empty($project['end_date'])): ?>
+                                        <span><i class="fas fa-flag-checkered"></i> <?php echo date('M d, Y', strtotime($project['end_date'])); ?></span>
+                                        <?php endif; ?>
+                                    </div>
+
+                                    <?php if (!empty($project['budget'])): ?>
+                                    <span class="before-after-cost">₱<?php echo number_format((float)$project['budget'], 0); ?></span>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <!-- No infrastructure project updates - show empty state -->
+                    <div class="col-12">
+                        <div class="before-after-empty">
+                            <i class="fas fa-hard-hat"></i>
+                            <h5>No Project Updates Yet</h5>
+                            <p>Infrastructure project updates will be posted here as work progresses.</p>
+                        </div>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- Infrastructure Projects GIS Map -->
+            <div class="infra-map-card" id="infrastructureMapCard">
+                <div class="infra-map-toolbar">
+                    <div class="gis-map-search-box">
+                        <label for="infraMapSearchInput" class="visually-hidden">Search for a location in Quezon City</label>
+                        <input type="text" id="infraMapSearchInput" placeholder="Search for a location..." class="gis-search-input" autocomplete="off">
+                        <button type="button" class="gis-map-btn gis-search-btn" id="infraMapSearchBtn" title="Search" aria-label="Search for a location"><i class="fas fa-search"></i></button>
+                        <div id="infraMapSearchResults" class="gis-search-results"></div>
+                    </div>
+                    <button type="button" class="gis-map-btn" id="toggleInfraTrafficBtn" title="Toggle traffic overlay"><i class="fas fa-car"></i> Traffic</button>
+                    <button type="button" class="gis-map-btn" id="fullscreenInfraMapBtn" title="Toggle fullscreen"><i class="fas fa-expand"></i> Fullscreen</button>
+                    <span class="infra-map-count"><i class="fas fa-hard-hat"></i> <?php echo count($infrastructure_updates); ?> project(s)</span>
+                </div>
+                <div class="infra-map-canvas" id="infrastructureMap" role="region" aria-label="Map of infrastructure projects in Quezon City"></div>
+                <div class="infra-map-legend">
+                    <span class="legend-item"><span class="legend-dot" style="background:#1381b6;"></span> Active</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:#28a745;"></span> Completed</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:#dc3545;"></span> Delayed</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:#ffc107;"></span> Pending</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:#6c757d;"></span> Other</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- About Section -->
     <section class="section" id="about" <?php echo ($access_settings['hide_about'] ?? '0') === '1' ? 'style="display:none"' : ''; ?>>
         <div class="container">
@@ -2338,6 +2647,210 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
     <!-- Citizen Report (map, OTP, photo upload, submit) -->
     <script src="assets/js/citizen-report.js?v=<?php echo $asset_version; ?>"></script>
+
+    <!-- Infrastructure Project Updates GIS Map (same engine/features as the staff & citizen GIS maps) -->
+    <script>
+    (function () {
+        'use strict';
+
+        var CONFIG = window.LG_ASSET_CONFIG || {};
+        var TOMTOM_API_KEY = CONFIG.TOMTOM_API_KEY || '';
+        var QC_GEOJSON = window.QC_GEOJSON || null;
+        var mapEl = document.getElementById('infrastructureMap');
+        var cardEl = document.getElementById('infrastructureMapCard');
+        if (!mapEl || typeof L === 'undefined') return;
+
+        var PROJECTS = <?php echo json_encode($infrastructure_updates, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+
+        var map = null;
+        var trafficLayer = null;
+        var trafficVisible = true;
+        var mapFullscreen = false;
+
+        function statusColor(status) {
+            switch (String(status || '').toLowerCase()) {
+                case 'active': return '#1381b6';
+                case 'completed': return '#28a745';
+                case 'delayed': return '#dc3545';
+                case 'pending': return '#ffc107';
+                default: return '#6c757d';
+            }
+        }
+
+        function prettyStatus(status) {
+            return String(status || 'active').toLowerCase().replace(/[-_]/g, ' ').replace(/^\w/, function (c) { return c.toUpperCase(); });
+        }
+
+        function escapeHtml(t) {
+            if (t === null || t === undefined) return '';
+            var d = document.createElement('div');
+            d.textContent = String(t);
+            return d.innerHTML;
+        }
+
+        function initInfrastructureMap() {
+            var latlngs = (QC_GEOJSON && QC_GEOJSON.coordinates && QC_GEOJSON.coordinates[0] && QC_GEOJSON.coordinates[0][0])
+                ? QC_GEOJSON.coordinates[0][0].map(function (c) { return [c[1], c[0]]; })
+                : [[14.61, 120.97], [14.71, 121.12]];
+            var bounds = L.latLngBounds(latlngs);
+
+            map = L.map('infrastructureMap', {
+                maxBounds: bounds.pad(0.12),
+                maxBoundsViscosity: 1.0,
+                zoomControl: true
+            }).setView([14.651417, 121.04917], 13);
+
+            L.tileLayer('https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
+                attribution: '&copy; TomTom',
+                maxZoom: 18
+            }).addTo(map);
+
+            trafficLayer = L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
+                attribution: '&copy; TomTom Traffic',
+                opacity: 0.7
+            }).addTo(map);
+
+            // Quezon City administrative boundary
+            if (QC_GEOJSON && QC_GEOJSON.coordinates) {
+                L.polygon(latlngs, {
+                    color: '#3762c8',
+                    weight: 2,
+                    opacity: 0.8,
+                    fillOpacity: 0.06,
+                    fillColor: '#3762c8'
+                }).addTo(map);
+            }
+
+            // QC district overlay (same GeoJSON used by the staff GIS map)
+            fetch('lgu_staff/pages/api/qc_districts.geojson')
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (!data || !data.features || !data.features.length) return;
+                    var colors = { 1: '#3b82f6', 2: '#8b5cf6', 3: '#10b981', 4: '#f59e0b', 5: '#ef4444', 6: '#06b6d4' };
+                    L.geoJSON(data, {
+                        style: function (feature) {
+                            var dNum = parseInt(String(feature.properties.district_number || feature.properties.district || '').replace(/\D/g, '')) || 1;
+                            return {
+                                color: colors[dNum] || '#3762c8',
+                                weight: 1.5,
+                                opacity: 0.55,
+                                fillOpacity: 0.05,
+                                fillColor: colors[dNum] || '#3762c8',
+                                dashArray: '5,5'
+                            };
+                        },
+                        onEachFeature: function (feature, layer) {
+                            layer.bindTooltip(feature.properties.district_name || feature.properties.district || 'District', { sticky: true });
+                        }
+                    }).addTo(map);
+                })
+                .catch(function () {});
+
+            // Infrastructure project markers (only rows that carry coordinates)
+            (PROJECTS || []).forEach(function (p) {
+                var lat = parseFloat(p.latitude);
+                var lng = parseFloat(p.longitude);
+                if (isNaN(lat) || isNaN(lng) || !isFinite(lat) || !isFinite(lng)) return;
+                var color = statusColor(p.status);
+                var icon = L.divIcon({
+                    html: '<div style="background:' + color + ';color:#fff;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-size:13px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.35);"><i class="fas fa-hard-hat"></i></div>',
+                    className: '',
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15]
+                });
+                var lines = ['<b>' + escapeHtml(p.name) + '</b>'];
+                if (p.location) lines.push('<small><i class="fas fa-map-marker-alt"></i> ' + escapeHtml(p.location) + '</small>');
+                if (typeof p.progress === 'number') lines.push('<small><i class="fas fa-tasks"></i> Progress: ' + parseInt(p.progress, 10) + '%</small>');
+                if (p.start_date) lines.push('<small><i class="fas fa-calendar-check"></i> ' + escapeHtml(String(p.start_date).slice(0, 10)) + '</small>');
+                if (p.budget) lines.push('<small><i class="fas fa-coins"></i> Budget: &#8369;' + Number(p.budget).toLocaleString(undefined, { maximumFractionDigits: 0 }) + '</small>');
+                lines.push('<span style="color:' + color + ';font-weight:700;">' + escapeHtml(prettyStatus(p.status)) + '</span>');
+                L.marker([lat, lng], { icon: icon }).addTo(map).bindPopup(lines.join('<br>'));
+            });
+
+            map.setMinZoom(10);
+            map.setMaxZoom(18);
+
+            setTimeout(function () { if (map) map.invalidateSize(); }, 400);
+        }
+
+        function infraMapSearch() {
+            var q = document.getElementById('infraMapSearchInput').value.trim();
+            var resultsDiv = document.getElementById('infraMapSearchResults');
+            if (!q || !window.TomTomServices) return;
+            window.TomTomServices.poiSearch(q, { limit: 8 }).then(function (data) {
+                if (!data.success || !data.data || !data.data.results) {
+                    resultsDiv.style.display = 'none';
+                    return;
+                }
+                resultsDiv.innerHTML = data.data.results.map(function (r) {
+                    var pos = r.position || {};
+                    return '<div class="gis-search-result-item" data-lat="' + (pos.lat || 0) + '" data-lng="' + (pos.lon || 0) + '">' +
+                        '<i class="fas fa-map-pin" style="color:#3762c8;margin-right:6px;"></i>' + (r.poi && r.poi.name || (r.address && r.address.freeformAddress) || 'Unknown') +
+                        '<small>' + ((r.address && r.address.freeformAddress) || '') + '</small></div>';
+                }).join('');
+                resultsDiv.style.display = 'block';
+            });
+        }
+
+        function toggleInfraTraffic() {
+            if (!map || !trafficLayer) return;
+            var btn = document.getElementById('toggleInfraTrafficBtn');
+            if (trafficVisible) {
+                map.removeLayer(trafficLayer);
+                btn.classList.add('inactive-toggle');
+            } else {
+                trafficLayer.addTo(map);
+                btn.classList.remove('inactive-toggle');
+            }
+            trafficVisible = !trafficVisible;
+        }
+
+        function toggleInfraFullscreen() {
+            if (!cardEl) return;
+            var btn = document.getElementById('fullscreenInfraMapBtn');
+            mapFullscreen = !mapFullscreen;
+            cardEl.classList.toggle('infra-map-fullscreen', mapFullscreen);
+            btn.innerHTML = mapFullscreen
+                ? '<i class="fas fa-compress"></i> Exit'
+                : '<i class="fas fa-expand"></i> Fullscreen';
+            setTimeout(function () { if (map) map.invalidateSize(); }, 300);
+        }
+
+        var searchBtn = document.getElementById('infraMapSearchBtn');
+        if (searchBtn) searchBtn.addEventListener('click', infraMapSearch);
+
+        var searchInput = document.getElementById('infraMapSearchInput');
+        if (searchInput) searchInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') infraMapSearch(); });
+
+        var searchResults = document.getElementById('infraMapSearchResults');
+        if (searchResults) {
+            searchResults.addEventListener('click', function (e) {
+                var item = e.target.closest('.gis-search-result-item');
+                if (!item || !map) return;
+                searchResults.style.display = 'none';
+                map.setView([parseFloat(item.dataset.lat), parseFloat(item.dataset.lng)], 15);
+            });
+        }
+
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest('.infra-map-toolbar') && searchResults) {
+                searchResults.style.display = 'none';
+            }
+        });
+
+        var trafficBtn = document.getElementById('toggleInfraTrafficBtn');
+        if (trafficBtn) trafficBtn.addEventListener('click', toggleInfraTraffic);
+
+        var fullscreenBtn = document.getElementById('fullscreenInfraMapBtn');
+        if (fullscreenBtn) fullscreenBtn.addEventListener('click', toggleInfraFullscreen);
+
+        window.addEventListener('resize', function () {
+            if (map) map.invalidateSize();
+        });
+
+        initInfrastructureMap();
+    })();
+    </script>
 
     <!-- Terms and Conditions Modal -->
     <div class="modal fade" id="termsModal" tabindex="-1" aria-labelledby="termsModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
