@@ -11,6 +11,16 @@ ini_set('session.cookie_secure', 0);
 
 session_start();
 
+// CSRF token for the citizen report endpoint (validated by citizen_report.php).
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+$csrf_token = $_SESSION['csrf_token'];
+
+// Cache-busting version for custom assets (bump on deploy). APP_VERSION comes
+// from lgu_staff/includes/config.php; fall back if it is not defined yet.
+$asset_version = defined('APP_VERSION') ? APP_VERSION : '1.0.0';
+
 // Dynamic base path detection
 $basePath = '';
 $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
@@ -130,7 +140,8 @@ if ($database_available && $conn) {
             unset($upd);
         }
     } catch (Exception $e) {
-        // Handle database errors gracefully
+        // Log details internally, return a safe generic empty state to users
+        error_log("index.php road updates query: " . $e->getMessage());
         $road_updates = [];
     }
 }
@@ -173,7 +184,8 @@ if ($database_available && $conn) {
         $stats['pending_reports'] = $result->fetch_assoc()['count'];
         $stmt->close();
     } catch (Exception $e) {
-        // Handle database errors gracefully
+        // Log details internally, keep default zeroed stats for display
+        error_log("index.php statistics query: " . $e->getMessage());
     }
 }
 
@@ -189,6 +201,8 @@ if ($database_available && $conn) {
         }
         $stmt->close();
     } catch (Exception $e) {
+        // Log details internally, show the generic "projects coming soon" state
+        error_log("index.php completed projects query: " . $e->getMessage());
         $before_after_projects = [];
     }
 }
@@ -204,7 +218,8 @@ if ($database_available && $conn) {
             }
         }
     } catch (Exception $e) {
-        // Settings table may not exist yet
+        // Settings table may not exist yet - log and continue with defaults
+        error_log("index.php site_settings query: " . $e->getMessage());
     }
 }
 
@@ -224,17 +239,19 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     <link rel="icon" type="image/png" href="assets/img/logocityhall.png">
     
     <!-- Bootstrap 5 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
     <!-- Font Awesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha384-iw3OoTErCYJJB9mCa8LNS2hbsQ7M3C0EpIsO/H5+EGAkPGc6rk+V8i04oW/K5xq0" crossorigin="anonymous" referrerpolicy="no-referrer">
     <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Transition CSS -->
-    <link rel="stylesheet" href="styles/transition.css">
+    <link rel="stylesheet" href="styles/transition.css?v=<?php echo $asset_version; ?>">
     <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous" />
     <!-- Turf.js for point-in-polygon -->
-    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js" integrity="sha384-82q0nm29xZzIo5BMtDYnh2/NxeO6FoaK1S/0nF84w3cEsqbBfun3JdMyDVYWfVY5" crossorigin="anonymous"></script>
     
     <style>
         :root {
@@ -1502,6 +1519,19 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             border-color: var(--primary-color);
             background: #f0f2f8;
         }
+        .file-upload-label:focus-visible,
+        .file-upload-area input[type="file"]:focus-visible + .file-upload-label {
+            outline: 3px solid var(--qc-primary-500);
+            outline-offset: 2px;
+        }
+        /* High-contrast error state for the dropzone (light mode) */
+        .file-upload-label.has-error {
+            border-color: #dc3545;
+            background: #fdf1f1;
+        }
+        .file-upload-label.has-error i {
+            color: #dc3545;
+        }
         .file-upload-label i {
             font-size: 2rem;
             color: var(--primary-color);
@@ -1683,6 +1713,17 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             box-shadow: 0 0 0 3px rgba(144, 202, 249, 0.2);
         }
         html.dark-mode .cr-form-group label { color: #cbd5e1; }
+        /* High-contrast field error states (dark mode) */
+        html.dark-mode .cr-form-group .field-error { color: #fca5a5; }
+        html.dark-mode .cr-form-group input.error,
+        html.dark-mode .cr-form-group select.error,
+        html.dark-mode .cr-form-group textarea.error { border-color: #f87171; }
+        html.dark-mode .cr-form-group input.error:focus,
+        html.dark-mode .cr-form-group select.error:focus,
+        html.dark-mode .cr-form-group textarea.error:focus {
+            border-color: #f87171;
+            box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.25);
+        }
         html.dark-mode .cr-btn-outline { border-color: #90caf9; color: #90caf9; }
         html.dark-mode .cr-btn-outline:hover { background: #90caf9; color: #000; }
         html.dark-mode .cr-status.success { background: #13251a; color: #6ee7b7; border-color: #1f4d33; }
@@ -1690,6 +1731,12 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         html.dark-mode .cr-status.info { background: #0e2430; color: #7dd3fc; border-color: #1f4a5e; }
         html.dark-mode .file-upload-label { background: #171a1f; border-color: #444; }
         html.dark-mode .file-upload-label:hover { background: #1f232b; }
+        /* High-contrast error state for the dropzone (dark mode) */
+        html.dark-mode .file-upload-label.has-error {
+            border-color: #f87171;
+            background: #2a1416;
+        }
+        html.dark-mode .file-upload-label.has-error i { color: #fca5a5; }
         html.dark-mode .file-upload-hint { color: #7f8b99; }
         html.dark-mode .file-count { color: #9ca3af; }
         html.dark-mode .photo-preview-item { border-color: #444; }
@@ -1853,7 +1900,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 <a href="road-updates.php" class="btn btn-secondary-hero btn-hero">
                     <i class="fas fa-newspaper"></i> Latest Updates
                 </a>
-                <button id="makeReportBtn" class="btn btn-primary-hero btn-hero">
+                <button type="button" id="makeReportBtn" class="btn btn-primary-hero btn-hero" aria-haspopup="dialog">
                     <i class="fas fa-pen-alt"></i> Make a Report
                 </button>
             </div>
@@ -1873,18 +1920,20 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 <div class="modal-body">
                     <div class="citizen-report-map-wrap">
                         <div class="gis-map-search-box">
-                            <input type="text" id="citizenMapSearchInput" placeholder="Search for a location..." class="gis-search-input">
-                            <button class="gis-map-btn gis-search-btn" onclick="citizenMapSearch()" title="Search"><i class="fas fa-search"></i></button>
+                            <label for="citizenMapSearchInput" class="visually-hidden">Search for a location in Quezon City</label>
+                            <input type="text" id="citizenMapSearchInput" placeholder="Search for a location..." class="gis-search-input" autocomplete="off">
+                            <button type="button" class="gis-map-btn gis-search-btn" id="citizenMapSearchBtn" title="Search" aria-label="Search for a location"><i class="fas fa-search"></i></button>
                             <div id="citizenMapSearchResults" class="gis-search-results"></div>
                         </div>
-                        <div class="citizen-report-map" id="citizenMap"></div>
+                        <div class="citizen-report-map" id="citizenMap" role="region" aria-label="Interactive map - search for a location or click the map to pin the exact location of the issue"></div>
                     </div>
                     <p class="citizen-report-hint">
                         <i class="fas fa-mouse-pointer"></i> Search for a location or click on the map to pin the exact location of the issue
                         <br><small class="text-muted">Map is restricted to Quezon City area</small>
                     </p>
 
-                    <form id="citizenReportForm" enctype="multipart/form-data">
+                    <form id="citizenReportForm" enctype="multipart/form-data" novalidate>
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES); ?>">
                         <input type="hidden" name="latitude" id="crLat">
                         <input type="hidden" name="longitude" id="crLng">
                         <input type="hidden" name="address" id="crAddress">
@@ -1922,9 +1971,9 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
                         <div class="cr-form-row">
                             <div class="cr-form-group">
-                                <label><i class="fas fa-phone"></i> Phone Number <span class="text-danger">*</span></label>
-                                <input type="tel" name="phone" id="crPhone" required placeholder="0917 123 4567 or +639 17 123 4567" inputmode="numeric" autocomplete="tel">
-                                <div class="field-error" id="crPhoneError">Please enter a valid Philippine mobile number.</div>
+                                <label for="crPhone"><i class="fas fa-phone"></i> Phone Number <span class="text-danger">*</span></label>
+                                <input type="tel" name="phone" id="crPhone" required placeholder="0917 123 4567 or +639 17 123 4567" inputmode="numeric" autocomplete="tel" aria-describedby="crPhoneError">
+                                <div class="field-error" id="crPhoneError" role="alert">Please enter a valid Philippine mobile number.</div>
                             </div>
                             <div class="cr-form-group">
                                 <label><i class="fas fa-comment"></i> Description <span class="text-danger">*</span></label>
@@ -1933,9 +1982,9 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         </div>
 
                         <div class="cr-form-group">
-                            <label><i class="fas fa-camera"></i> Add Photos <span class="text-danger">*</span></label>
+                            <label for="crPhotos"><i class="fas fa-camera"></i> Add Photos <span class="text-danger">*</span></label>
                             <div class="file-upload-area">
-                                <input type="file" name="photos[]" id="crPhotos" multiple accept="image/jpeg,image/jpg,image/png" required>
+                                <input type="file" name="photos[]" id="crPhotos" multiple accept="image/jpeg,image/jpg,image/png" required aria-describedby="crPhotosError">
                                 <label for="crPhotos" class="file-upload-label">
                                     <i class="fas fa-cloud-upload-alt"></i>
                                     <span class="file-upload-text">Add Files</span>
@@ -1943,6 +1992,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                 </label>
                                 <span class="file-count" id="fileCount">No files selected</span>
                             </div>
+                            <div class="field-error" id="crPhotosError" role="alert">Please upload at least 2 photos before submitting your report.</div>
                             <div id="photoPreview" class="photo-preview-grid"></div>
                             <small class="text-muted">Click <strong>Add Files</strong> to choose photos. You can select multiple at once. Click the <strong>X</strong> on a photo to remove it.</small>
                         </div>
@@ -1953,14 +2003,16 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                 Enter your Gmail to receive a verification code. Limit of <strong>2 reports per day</strong>.
                             </p>
                             <div class="cr-otp-row">
-                                <input type="email" id="crEmail" placeholder="your.email@gmail.com" required>
-                                <button type="button" class="cr-btn cr-btn-primary" id="sendOtpBtn" onclick="sendOtp()"><i class="fas fa-paper-plane"></i> Send Code</button>
+                                <label for="crEmail" class="visually-hidden">Gmail address</label>
+                                <input type="email" id="crEmail" placeholder="your.email@gmail.com" required autocomplete="email">
+                                <button type="button" class="cr-btn cr-btn-primary" id="sendOtpBtn"><i class="fas fa-paper-plane"></i> Send Code</button>
                             </div>
                             <div class="cr-otp-row" style="margin-top:10px;">
-                                <input type="text" id="crOtp" placeholder="Enter 6-digit code" maxlength="6" inputmode="numeric" pattern="[0-9]*">
-                                <button type="button" class="cr-btn cr-btn-success" id="verifyOtpBtn" onclick="verifyOtp()" disabled><i class="fas fa-check"></i> Verify</button>
+                                <label for="crOtp" class="visually-hidden">Verification code</label>
+                                <input type="text" id="crOtp" placeholder="Enter 6-digit code" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code">
+                                <button type="button" class="cr-btn cr-btn-success" id="verifyOtpBtn" disabled><i class="fas fa-check"></i> Verify</button>
                             </div>
-                            <div id="crOtpStatus" class="cr-status"></div>
+                            <div id="crOtpStatus" class="cr-status" role="status" aria-live="polite"></div>
                         </div>
                     </form>
                 </div>
@@ -2023,7 +2075,8 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                     if ($display_image): ?>
                                         <div class="mt-3">
                                             <img src="<?php echo htmlspecialchars($display_image); ?>" 
-                                                 alt="Report Image" 
+                                                 alt="<?php echo htmlspecialchars(($update['title'] ?? 'Road update') . ' report photo'); ?>" 
+                                                 loading="lazy"
                                                  class="img-fluid rounded shadow-sm"
                                                  style="max-height: 200px; object-fit: cover; width: 100%; cursor: pointer;"
                                                  onclick="window.open(this.src, '_blank')"
@@ -2257,136 +2310,22 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     <?php include __DIR__ . '/includes/a11y_html.php'; ?>
 
     <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
     <!-- TomTom Services (JS client for API proxy) -->
-    <script>window.TOMTOM_API_PROXY = 'lgu_staff/pages/api/tomtom/proxy.php';</script>
-    <script src="lgu_staff/js/tomtom-services.js"></script>
+    <script>
+        window.TOMTOM_API_PROXY = 'lgu_staff/pages/api/tomtom/proxy.php';
+        window.LG_ASSET_CONFIG = {
+            TOMTOM_API_KEY: <?php echo json_encode(defined('TOMTOM_API_KEY') ? TOMTOM_API_KEY : ''); ?>,
+            CITIZEN_API: 'lgu_staff/pages/api/citizen_report.php'
+        };
+    </script>
+    <script src="lgu_staff/js/tomtom-services.js?v=<?php echo $asset_version; ?>"></script>
 
     <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
+
     <!-- Custom JavaScript -->
-    <script>
-        // Smooth scrolling for navigation links
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function (e) {
-                e.preventDefault();
-                const target = document.querySelector(this.getAttribute('href'));
-                if (target) {
-                    target.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start'
-                    });
-                }
-            });
-        });
-
-        
-        
-        // Navbar background on scroll
-        window.addEventListener('scroll', function() {
-            const navbar = document.querySelector('.navbar');
-            if (window.scrollY > 100) {
-                navbar.classList.add('scrolled');
-            } else {
-                navbar.classList.remove('scrolled');
-            }
-        });
-
-        // Animate elements on scroll - using class toggle to prevent flash on refresh
-        const observerOptions = {
-            threshold: 0.1,
-            rootMargin: '0px 0px -50px 0px'
-        };
-
-        const observer = new IntersectionObserver(function(entries) {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('animate-in');
-                }
-            });
-        }, observerOptions);
-
-        document.querySelectorAll('.update-card, .stat-card, .service-card, .before-after-card').forEach(card => {
-            card.classList.add('scroll-animate');
-            observer.observe(card);
-        });
-
-        // Before & After Comparison Slider
-        document.querySelectorAll('[data-slider]').forEach(slider => {
-            const imgBefore = slider.querySelector('.img-before');
-            const handle = slider.querySelector('[data-handle]');
-            let isDragging = false;
-
-            function updateSlider(x) {
-                const rect = slider.getBoundingClientRect();
-                let pos = ((x - rect.left) / rect.width) * 100;
-                pos = Math.max(0, Math.min(100, pos));
-
-                imgBefore.style.clipPath = `inset(0 ${100 - pos}% 0 0)`;
-                handle.style.left = pos + '%';
-            }
-
-            // Mouse events
-            slider.addEventListener('mousedown', (e) => {
-                isDragging = true;
-                updateSlider(e.clientX);
-                slider.style.cursor = 'grabbing';
-            });
-
-            document.addEventListener('mousemove', (e) => {
-                if (!isDragging) return;
-                e.preventDefault();
-                updateSlider(e.clientX);
-            });
-
-            document.addEventListener('mouseup', () => {
-                if (isDragging) {
-                    isDragging = false;
-                    slider.style.cursor = 'ew-resize';
-                }
-            });
-
-            // Touch events
-            slider.addEventListener('touchstart', (e) => {
-                isDragging = true;
-                updateSlider(e.touches[0].clientX);
-            }, { passive: true });
-
-            slider.addEventListener('touchmove', (e) => {
-                if (!isDragging) return;
-                e.preventDefault();
-                updateSlider(e.touches[0].clientX);
-            }, { passive: false });
-
-            slider.addEventListener('touchend', () => {
-                isDragging = false;
-            });
-
-            // Animate handle on load
-            setTimeout(() => {
-                let start = 0;
-                const target = 50;
-                const duration = 800;
-                const startTime = performance.now();
-
-                function animate(time) {
-                    const elapsed = time - startTime;
-                    const progress = Math.min(elapsed / duration, 1);
-                    const eased = 1 - Math.pow(1 - progress, 3);
-                    const current = start + (target - start) * eased;
-
-                    imgBefore.style.clipPath = `inset(0 ${100 - current}% 0 0)`;
-                    handle.style.left = current + '%';
-
-                    if (progress < 1) {
-                        requestAnimationFrame(animate);
-                    }
-                }
-                requestAnimationFrame(animate);
-            }, 300);
-        });
-    </script>
+    <script src="assets/js/main.js?v=<?php echo $asset_version; ?>"></script>
 
 
     <?php include __DIR__ . '/includes/hamburger_menu_js.php'; ?>
@@ -2394,493 +2333,11 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     <script src="lgu_staff/js/page-transition.js"></script>
     <?php include __DIR__ . '/includes/a11y_js.php'; ?>
 
-    <script>
-        const TOMTOM_API_KEY = '<?php echo TOMTOM_API_KEY; ?>';
-        const CITIZEN_API = 'lgu_staff/pages/api/citizen_report.php';
+    <!-- QC Boundary Data -->
+    <script src="assets/js/qc-boundary.js?v=<?php echo $asset_version; ?>"></script>
 
-        let citizenMap = null;
-        let citizenPin = null;
-        let otpVerified = false;
-        let photoFiles = [];
-
-        const QC_GEOJSON = {"type":"MultiPolygon","coordinates":[[[[120.9896951,14.6260342],[120.9897783,14.6261549],[120.9898201,14.6262495],[120.9912426,14.6305282],[120.9925998,14.634629],[120.9927488,14.6350728],[120.9930436,14.6359804],[120.9921888,14.6362678],[120.9925993,14.6374219],[120.9923657,14.6379133],[120.9920194,14.6385471],[120.9913141,14.6398144],[120.9912629,14.6398421],[120.9913863,14.6402168],[120.9915513,14.6406945],[120.9917593,14.6410924],[120.9919297,14.6415352],[120.9921201,14.6419929],[120.9923392,14.642419],[120.9925111,14.6428751],[120.9926892,14.6433075],[120.9928758,14.6436994],[120.9928964,14.6438027],[120.9928787,14.6442386],[120.9928718,14.644469],[120.9931041,14.6450106],[120.9933546,14.6455495],[120.9934932,14.645824],[120.9940588,14.6468884],[120.9941546,14.647084],[120.994172,14.6471239],[120.9943354,14.6474992],[120.9945753,14.6480502],[120.9951615,14.6497136],[120.9955689,14.6507248],[120.9962495,14.6521912],[120.9965706,14.6528858],[120.9970642,14.6539536],[120.9972619,14.6543814],[120.9976659,14.6551673],[120.9984358,14.6561778],[120.9985902,14.6563956],[120.9987949,14.6566755],[120.9989016,14.6568231],[120.9991025,14.6573354],[120.9992982,14.6581072],[120.999302,14.6581224],[120.9993861,14.661943],[120.9994033,14.6634339],[120.9994138,14.663877],[120.9994174,14.6643627],[120.9997577,14.664741],[121.0003125,14.6653244],[121.0022246,14.667334],[121.0058529,14.6710675],[121.014895,14.6806545],[121.0192022,14.6851812],[121.0223396,14.6884807],[121.0216672,14.6903804],[121.0221324,14.6903954],[121.0229565,14.6905977],[121.0235056,14.6907147],[121.0237582,14.6909064],[121.0238923,14.6911428],[121.0239012,14.691906],[121.0240538,14.6925147],[121.0243684,14.6930298],[121.0244819,14.6934312],[121.0245216,14.6936771],[121.0244945,14.6938242],[121.0244036,14.6939703],[121.0242791,14.6940888],[121.0238403,14.6943388],[121.0237035,14.6944269],[121.0235877,14.6945374],[121.0234997,14.6946994],[121.0234332,14.6949622],[121.0232403,14.6956412],[121.0231926,14.6957695],[121.0231054,14.6958487],[121.0223848,14.6962489],[121.0221059,14.6965265],[121.0214981,14.6973489],[121.0212587,14.6975987],[121.0209106,14.6978548],[121.020637,14.6979778],[121.0203162,14.6981101],[121.0201167,14.6982726],[121.0198162,14.6987914],[121.0194826,14.6992014],[121.0192923,14.6994167],[121.0189767,14.6996771],[121.0183257,14.7000777],[121.0181346,14.7002392],[121.0180226,14.7003683],[121.0179367,14.7005187],[121.0177858,14.7008239],[121.0176954,14.7010947],[121.017515,14.7015545],[121.0172752,14.7021269],[121.0172537,14.7022965],[121.0172773,14.7024392],[121.0173735,14.7027291],[121.0175166,14.7029124],[121.0178529,14.7032927],[121.0179256,14.7034017],[121.0161294,14.708755],[121.0136441,14.7159085],[121.0183472,14.7204784],[121.0205352,14.7225911],[121.0224236,14.7243718],[121.0257601,14.7275181],[121.0273872,14.7292097],[121.0280557,14.7298826],[121.0308457,14.732682],[121.0362582,14.7380574],[121.0385103,14.740294],[121.0404931,14.7421201],[121.0464397,14.7422036],[121.0531742,14.742157],[121.0587677,14.7421837],[121.0663291,14.7421927],[121.075878,14.7423099],[121.0769046,14.7423243],[121.0770302,14.7420002],[121.0772585,14.7420616],[121.0773718,14.7420979],[121.0774749,14.7421411],[121.0775529,14.7421861],[121.0776449,14.7422779],[121.0777091,14.7423599],[121.0777577,14.7424549],[121.0778078,14.7425895],[121.0778258,14.742725],[121.0778333,14.7428592],[121.0779129,14.7444754],[121.0779317,14.7447783],[121.0779571,14.7449288],[121.0779908,14.7450374],[121.0780318,14.7451322],[121.0780846,14.7452281],[121.0781445,14.7453116],[121.0782561,14.7454372],[121.0783473,14.7455143],[121.0784592,14.7455823],[121.0785924,14.7456529],[121.0802603,14.7461772],[121.0802811,14.7461923],[121.0805133,14.7463022],[121.0806645,14.7464257],[121.082152,14.7479453],[121.0824692,14.7483083],[121.0826085,14.7484806],[121.082698,14.748611],[121.0833299,14.7495766],[121.0842517,14.7508641],[121.0844538,14.7511728],[121.0846162,14.7514516],[121.0846896,14.7516349],[121.0847244,14.7517425],[121.0847557,14.7518499],[121.0847854,14.7520288],[121.0848696,14.7533543],[121.0849007,14.753781],[121.0850078,14.7552569],[121.08507,14.7556543],[121.0851033,14.7558102],[121.0853354,14.7566921],[121.0856433,14.7578089],[121.0857106,14.758085],[121.0887985,14.7579696],[121.089366,14.7582657],[121.0896539,14.7582575],[121.0907068,14.7579449],[121.091745,14.7585362],[121.0925497,14.7591997],[121.0934468,14.7598163],[121.0948137,14.7609386],[121.0956111,14.7615413],[121.0964583,14.7615898],[121.0984063,14.7623292],[121.0990606,14.7626015],[121.0997537,14.7640376],[121.0997995,14.7651862],[121.1012409,14.7654178],[121.1016249,14.7655348],[121.1025355,14.7638675],[121.104773,14.7618357],[121.105793,14.7622963],[121.1073723,14.7627981],[121.1090833,14.7631436],[121.1093054,14.7639251],[121.1095933,14.7646242],[121.1099963,14.7651342],[121.1113289,14.7665244],[121.112048,14.7673232],[121.112593,14.7679537],[121.1134127,14.7693916],[121.1139187,14.7712492],[121.116914,14.772087],[121.1175027,14.7723201],[121.1191841,14.7740299],[121.1204059,14.774863],[121.1227424,14.7743387],[121.123635,14.7733002],[121.1253473,14.7758945],[121.126301,14.7757419],[121.1272065,14.7760592],[121.1282731,14.7763691],[121.1289228,14.7762065],[121.1298201,14.7752879],[121.1309266,14.7751283],[121.1311391,14.7758509],[121.1317064,14.7764085],[121.1332033,14.7764137],[121.1331762,14.7756687],[121.1337681,14.7752992],[121.13332,14.7748],[121.1327295,14.7741422],[121.132411,14.7720049],[121.1322758,14.771775],[121.1308227,14.7714603],[121.1297934,14.7713221],[121.1290096,14.7714835],[121.1278939,14.7700103],[121.127839,14.7691148],[121.1272269,14.7693315],[121.1267174,14.7687146],[121.1269178,14.7681074],[121.1259981,14.7668581],[121.1247996,14.7658129],[121.1237838,14.7653683],[121.1239254,14.7645778],[121.1246215,14.764273],[121.1251752,14.7631133],[121.125776,14.7626983],[121.1252233,14.7610973],[121.1253091,14.7608898],[121.124262,14.7598523],[121.1235239,14.7598938],[121.123069,14.7579018],[121.1215498,14.7578437],[121.1211807,14.7568643],[121.1213609,14.7559513],[121.1207944,14.7550217],[121.1210519,14.7539178],[121.1208202,14.7527807],[121.1206314,14.7520088],[121.1196186,14.7509132],[121.1181479,14.7495936],[121.1186965,14.7475179],[121.1177821,14.7464168],[121.1177004,14.7462763],[121.1176619,14.746133],[121.1176944,14.745882],[121.1181852,14.74502],[121.1183029,14.7434952],[121.1180428,14.7428784],[121.1178619,14.7420636],[121.117651,14.7413675],[121.1175255,14.7406808],[121.117859,14.739857],[121.1167681,14.7398421],[121.1166398,14.7396788],[121.1157523,14.7385508],[121.1151634,14.7379454],[121.1145497,14.7377214],[121.1141598,14.7376302],[121.1138032,14.737456],[121.1137369,14.7372321],[121.1141681,14.7360875],[121.1144336,14.735565],[121.1148897,14.7350341],[121.1153542,14.7346858],[121.1156528,14.7346858],[121.1157523,14.7344121],[121.1160177,14.7343126],[121.1166812,14.7340306],[121.1176351,14.7332343],[121.1183484,14.7327367],[121.118638,14.7327323],[121.1184252,14.7321399],[121.1184868,14.7307439],[121.1183676,14.7298888],[121.1171018,14.7208067],[121.1139303,14.6980488],[121.1134183,14.6979009],[121.1129406,14.6977012],[121.112502,14.6973898],[121.1121494,14.696915],[121.1121743,14.6964194],[121.1114141,14.6957288],[121.1114034,14.6951533],[121.1115761,14.693783],[121.1115295,14.6930258],[121.1113873,14.6912424],[121.1113484,14.6894359],[121.1113444,14.6892498],[121.1121855,14.6852978],[121.1121169,14.6846502],[121.1119916,14.6844409],[121.1116706,14.6834048],[121.1101685,14.6808973],[121.1088846,14.6787885],[121.1079596,14.6772824],[121.1066178,14.6757895],[121.105877,14.6752513],[121.1050187,14.6744874],[121.1036883,14.6727604],[121.103246,14.6723195],[121.1002379,14.6700618],[121.0993176,14.6692092],[121.0989231,14.66828],[121.0987592,14.6678005],[121.0986737,14.6673511],[121.0987996,14.667012],[121.0983993,14.6651508],[121.0983915,14.664832],[121.0981473,14.6642649],[121.0980176,14.6639866],[121.0979213,14.6637413],[121.0967374,14.6642299],[121.0966408,14.6645002],[121.0965238,14.6645363],[121.096494,14.6646002],[121.0964764,14.6648531],[121.0963356,14.664908],[121.0961861,14.6648805],[121.0956829,14.6652424],[121.0952371,14.6652695],[121.095218,14.6652617],[121.0951488,14.6652335],[121.0948585,14.6649347],[121.0941136,14.6646918],[121.0938826,14.6645004],[121.0936995,14.6643486],[121.0936321,14.6639892],[121.0935248,14.6634173],[121.0920319,14.6617729],[121.0914765,14.6609324],[121.0911456,14.6605249],[121.0912009,14.6596216],[121.0882081,14.6566672],[121.0874608,14.6573361],[121.0867891,14.6566853],[121.0865123,14.6557911],[121.0859908,14.6562612],[121.0857081,14.6554682],[121.0854564,14.6547612],[121.0861472,14.6545518],[121.0857806,14.6532691],[121.0857761,14.6529528],[121.0858927,14.6527812],[121.0866746,14.652202],[121.0874307,14.651506],[121.0874186,14.651271],[121.0867363,14.6514588],[121.0865934,14.6514982],[121.0868934,14.6493282],[121.0877308,14.6489835],[121.0877901,14.6485394],[121.0896603,14.6468726],[121.0889727,14.6464517],[121.0881572,14.6459452],[121.0874867,14.6458583],[121.0876123,14.6448987],[121.0855999,14.6444918],[121.0853712,14.6437206],[121.0847489,14.6436375],[121.084572,14.6436446],[121.0835988,14.6439511],[121.083191,14.6439884],[121.0831645,14.6436992],[121.0831803,14.6433858],[121.0823549,14.6424372],[121.0822937,14.6419772],[121.0824574,14.6413518],[121.0823287,14.6410846],[121.0823068,14.640833],[121.0819886,14.6401248],[121.0817834,14.6400111],[121.0814819,14.6395869],[121.0814591,14.6391565],[121.0809909,14.638754],[121.0807133,14.6384576],[121.0811626,14.638401],[121.0816883,14.6383388],[121.0819852,14.6383165],[121.0819219,14.6379116],[121.0818386,14.6373806],[121.0817386,14.6369035],[121.0813323,14.636861],[121.0808709,14.6368195],[121.0806778,14.6365807],[121.0806885,14.6362589],[121.0803023,14.635823],[121.0799697,14.6355115],[121.0797189,14.6346416],[121.0802379,14.6345357],[121.0799374,14.6339782],[121.0795619,14.6336149],[121.0787821,14.6333002],[121.0783354,14.6331595],[121.0781921,14.6331024],[121.0781852,14.6327038],[121.0777695,14.6328058],[121.0777259,14.6325722],[121.0777748,14.6324289],[121.0776147,14.6322159],[121.0775373,14.6316817],[121.077469,14.6314838],[121.0774626,14.6309563],[121.0771695,14.6303523],[121.0769013,14.6296256],[121.0758175,14.629031],[121.0751483,14.628847],[121.074425,14.6286421],[121.0744066,14.6280696],[121.0744536,14.6279073],[121.0747689,14.6264184],[121.075037,14.6252375],[121.0750843,14.6249965],[121.0751135,14.6247014],[121.0752906,14.6239809],[121.0750915,14.6237732],[121.0758256,14.623032],[121.0759409,14.6228017],[121.0764557,14.6218147],[121.0765189,14.6213886],[121.0765039,14.6208781],[121.0762267,14.6203305],[121.0758218,14.6195429],[121.0779778,14.6182727],[121.0781009,14.6182005],[121.0781522,14.6181704],[121.0782067,14.6181381],[121.0788822,14.6177381],[121.0786891,14.6173291],[121.0784541,14.616765],[121.078399,14.6160455],[121.0784392,14.6155269],[121.0788997,14.6141584],[121.079012,14.6138249],[121.0799561,14.6124462],[121.0810672,14.6115981],[121.082733,14.6104304],[121.0846661,14.6090753],[121.0866938,14.6076539],[121.0869916,14.607435],[121.0873671,14.6069989],[121.0876246,14.6066771],[121.0880242,14.6060925],[121.0883546,14.6054058],[121.0889512,14.6041655],[121.0900155,14.6024379],[121.0904275,14.6011754],[121.0904543,14.6001564],[121.0902434,14.5996752],[121.0899858,14.5992902],[121.0895263,14.599072],[121.0884909,14.5990613],[121.0879024,14.599318],[121.0874234,14.6003282],[121.0870479,14.6014334],[121.0863878,14.6022288],[121.0856732,14.6028411],[121.0846416,14.6033011],[121.083786,14.6033745],[121.0832517,14.6032684],[121.0828519,14.6030984],[121.0824594,14.6026332],[121.0823594,14.6023855],[121.0823531,14.6017929],[121.082531,14.5989494],[121.0824407,14.5972293],[121.0823855,14.596288],[121.0823165,14.5951453],[121.0827285,14.5921634],[121.0830518,14.5903997],[121.0826503,14.5905369],[121.0799433,14.5915772],[121.0798384,14.5916175],[121.0797276,14.5916496],[121.0796285,14.5916782],[121.0782473,14.5921938],[121.0782408,14.5921739],[121.0774851,14.5924783],[121.0760398,14.5926956],[121.0738133,14.5930164],[121.0723414,14.5932389],[121.0706848,14.593464],[121.0704484,14.5934856],[121.0698755,14.5933839],[121.0695316,14.5930667],[121.0680469,14.5919521],[121.0617941,14.5905758],[121.0616432,14.5905503],[121.0614237,14.5904899],[121.0596451,14.5900235],[121.0582621,14.5896463],[121.0572211,14.589369],[121.0577585,14.5911365],[121.0578276,14.591349],[121.0581667,14.592365],[121.0583341,14.5927896],[121.058484,14.5932156],[121.0587576,14.5940416],[121.0592133,14.5953564],[121.0594743,14.5962171],[121.0595967,14.5969132],[121.0596363,14.5971525],[121.0596703,14.5973922],[121.0596993,14.5976371],[121.0597212,14.5978708],[121.0597365,14.5981082],[121.0597432,14.5983444],[121.0597438,14.5986502],[121.0597399,14.5988943],[121.0597277,14.5991796],[121.0597074,14.599452],[121.059688,14.5999107],[121.059654,14.6001755],[121.0595855,14.6005855],[121.0595051,14.6009766],[121.0594012,14.6013798],[121.0593019,14.6017279],[121.0592271,14.6017034],[121.0591491,14.601912],[121.0590045,14.602265],[121.0569959,14.6066534],[121.0569881,14.6066703],[121.0567956,14.6065867],[121.0521673,14.6045402],[121.0517929,14.6043748],[121.0516597,14.6046499],[121.051977,14.6048031],[121.0514962,14.6058821],[121.051396,14.6062072],[121.0513718,14.6063175],[121.0510734,14.607049],[121.0500514,14.6096748],[121.049922,14.6096421],[121.0494407,14.6095204],[121.0493306,14.6094959],[121.0489723,14.6094162],[121.0488039,14.609382],[121.0484539,14.6093052],[121.0483294,14.6092755],[121.048233,14.6092525],[121.0477992,14.6091441],[121.0477546,14.6091336],[121.0475866,14.609092],[121.0471288,14.6089875],[121.0470529,14.6089712],[121.0469987,14.6089577],[121.0469243,14.608939],[121.0466595,14.6088721],[121.0462801,14.6087762],[121.0462033,14.6087584],[121.0461319,14.6087435],[121.0459073,14.6086864],[121.0458646,14.6086757],[121.0458196,14.6086706],[121.0457618,14.6086687],[121.0456728,14.6086802],[121.0451532,14.6087612],[121.0450626,14.6087768],[121.0447027,14.6088322],[121.0445993,14.6088481],[121.0442439,14.6088989],[121.0441123,14.6089231],[121.0440186,14.6089572],[121.0433434,14.6095191],[121.043249,14.6095823],[121.043084,14.6096476],[121.0430551,14.609655],[121.0430241,14.6096537],[121.0429708,14.6096503],[121.0429556,14.609642],[121.0428448,14.6095839],[121.0421317,14.6093009],[121.0413743,14.609006],[121.0410559,14.6088588],[121.0408955,14.6087829],[121.0407498,14.6086936],[121.040266,14.6083382],[121.0396159,14.6078858],[121.0393201,14.6076583],[121.0391728,14.6075514],[121.0388707,14.6073116],[121.0387121,14.6071658],[121.0386965,14.6071521],[121.0386585,14.6071185],[121.038506,14.6069836],[121.038087,14.6066134],[121.0380076,14.6065489],[121.0378158,14.6063813],[121.0377321,14.6063141],[121.0376133,14.6064446],[121.0372834,14.6067543],[121.0370345,14.6076347],[121.0368916,14.6079957],[121.0368975,14.608417],[121.0368149,14.608499],[121.0363622,14.6086678],[121.0362119,14.6086815],[121.0359383,14.6086822],[121.0356082,14.6086928],[121.0353238,14.6088145],[121.0352143,14.6089671],[121.0348568,14.6094131],[121.0346766,14.609438],[121.0343474,14.6094571],[121.0339011,14.6095485],[121.0336672,14.6096889],[121.0334107,14.6099756],[121.0328741,14.6107088],[121.0327126,14.6108919],[121.0325136,14.6110659],[121.0320248,14.6115037],[121.0316733,14.611683],[121.0314635,14.6118989],[121.0313434,14.6121154],[121.0312621,14.6122656],[121.0310722,14.6126096],[121.0308805,14.6129253],[121.0304507,14.6129786],[121.0301013,14.6131495],[121.0298162,14.6131828],[121.0294838,14.6130842],[121.0293482,14.6129809],[121.0292359,14.6128516],[121.0292577,14.612472],[121.0289744,14.6121481],[121.0288587,14.6120778],[121.0286223,14.6120554],[121.0281632,14.6122481],[121.0275067,14.6123474],[121.0269145,14.6123391],[121.0259875,14.6123059],[121.0255013,14.6123868],[121.0253272,14.6125184],[121.0252071,14.6127011],[121.0250526,14.6131828],[121.0249404,14.6134936],[121.0243076,14.6137399],[121.0237484,14.6138698],[121.0236239,14.6138471],[121.0235014,14.6138021],[121.0234014,14.6137345],[121.0232946,14.6135373],[121.0232654,14.6133529],[121.0232341,14.613178],[121.0230435,14.6120983],[121.0225558,14.6113174],[121.0219307,14.6104505],[121.0214352,14.6095448],[121.0212748,14.6094049],[121.0214532,14.6092493],[121.0217177,14.609016],[121.0219135,14.6088317],[121.0220838,14.6085433],[121.0222199,14.6082751],[121.022237,14.6077435],[121.0219474,14.6071501],[121.0213826,14.6064302],[121.0209541,14.6058371],[121.0205743,14.6052367],[121.0201956,14.6045802],[121.0198942,14.603941],[121.0196633,14.6031741],[121.0195915,14.6028204],[121.0193839,14.6029514],[121.0185805,14.6036079],[121.0176183,14.6043722],[121.0175128,14.6044948],[121.0163648,14.6053799],[121.0153858,14.6061298],[121.0139822,14.607205],[121.0104299,14.6098411],[121.0092936,14.6107331],[121.0081408,14.6115939],[121.0069471,14.6125167],[121.0052731,14.6139723],[121.003646,14.6150944],[121.0009647,14.6170829],[120.9978929,14.6193355],[120.9976689,14.619578],[120.9974816,14.6197598],[120.997321,14.6198882],[120.9972545,14.6199419],[120.997134,14.6200392],[120.9963828,14.6206206],[120.9962633,14.6207132],[120.9961245,14.6208263],[120.9960606,14.62087],[120.9959383,14.6209647],[120.9953714,14.6214035],[120.9949749,14.6217104],[120.9938057,14.6226129],[120.9926137,14.6235329],[120.9917968,14.6241634],[120.9914942,14.624397],[120.991401,14.624469],[120.9913147,14.6245355],[120.9905417,14.6251302],[120.9905112,14.6251559],[120.9903521,14.6252791],[120.9899835,14.6255638],[120.9898287,14.6256977],[120.9897691,14.6257597],[120.989722,14.625838],[120.9897026,14.6258983],[120.9896983,14.625934],[120.9896955,14.6259579],[120.9896951,14.6260342]]]]};
-
-        function isInsideQC(lat, lng) {
-            try {
-                const pt = turf.point([lng, lat]);
-                const poly = turf.multiPolygon(QC_GEOJSON.coordinates);
-                return turf.booleanPointInPolygon(pt, poly);
-            } catch (e) {
-                return false;
-            }
-        }
-
-        let qcVisiblePolygon = null;
-
-        document.getElementById('citizenReportModal').addEventListener('shown.bs.modal', function () {
-            if (!citizenMap) {
-                initCitizenMap();
-            }
-            setTimeout(() => citizenMap?.invalidateSize(), 300);
-        });
-
-        document.getElementById('citizenReportModal').addEventListener('hidden.bs.modal', function () {
-            resetCitizenForm();
-        });
-
-        function initCitizenMap() {
-            const latlngs = QC_GEOJSON.coordinates[0][0].map(c => [c[1], c[0]]);
-            const bounds = L.latLngBounds(latlngs);
-
-            citizenMap = L.map('citizenMap', {
-                maxBounds: bounds.pad(0.05),
-                maxBoundsViscosity: 1.0
-            }).setView([14.651417, 121.04917], 14);
-
-            L.tileLayer('https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
-                attribution: '&copy; TomTom',
-                maxZoom: 18
-            }).addTo(citizenMap);
-
-            qcVisiblePolygon = L.polygon(latlngs, {
-                color: '#2a5298',
-                weight: 2,
-                fill: true,
-                fillColor: '#2a5298',
-                fillOpacity: 0.08,
-                opacity: 0.7
-            }).addTo(citizenMap);
-
-            citizenMap.on('click', function(e) {
-                const { lat, lng } = e.latlng;
-                if (!isInsideQC(lat, lng)) {
-                    showCrStatus('Reports can only be submitted within Quezon City.', 'error');
-                    return;
-                }
-                placeCitizenPin(lat, lng);
-            });
-        }
-
-        function placeCitizenPin(lat, lng) {
-            if (!isInsideQC(lat, lng)) {
-                showCrStatus('Reports can only be submitted within Quezon City.', 'error');
-                return;
-            }
-            if (citizenPin) citizenMap.removeLayer(citizenPin);
-            citizenPin = L.marker([lat, lng], { draggable: true }).addTo(citizenMap);
-            document.getElementById('crLat').value = lat.toFixed(6);
-            document.getElementById('crLng').value = lng.toFixed(6);
-            document.getElementById('citizenMap').classList.add('has-pin');
-            document.getElementById('crOtpStatus').style.display = 'none';
-
-            TomTomServices?.reverseGeocode(lat, lng).then(data => {
-                const addr = data?.data?.addresses?.[0]?.address?.freeformAddress
-                    || data?.data?.address?.freeformAddress;
-                if (addr) {
-                    document.getElementById('crAddress').value = addr;
-                }
-            }).catch(() => {});
-
-            citizenPin.on('dragend', function() {
-                const pos = citizenPin.getLatLng();
-                if (!isInsideQC(pos.lat, pos.lng)) {
-                    citizenPin.setLatLng([lat, lng]);
-                    showCrStatus('Reports can only be submitted within Quezon City.', 'error');
-                    return;
-                }
-                document.getElementById('crLat').value = pos.lat.toFixed(6);
-                document.getElementById('crLng').value = pos.lng.toFixed(6);
-                TomTomServices?.reverseGeocode(pos.lat, pos.lng).then(data => {
-                    const addr = data?.data?.addresses?.[0]?.address?.freeformAddress
-                        || data?.data?.address?.freeformAddress;
-                    if (addr) {
-                        document.getElementById('crAddress').value = addr;
-                    }
-                }).catch(() => {});
-            });
-        }
-
-        function citizenMapSearch() {
-            const q = document.getElementById('citizenMapSearchInput').value.trim();
-            if (!q) return;
-            const resultsDiv = document.getElementById('citizenMapSearchResults');
-            TomTomServices.poiSearch(q, { limit: 8 }).then(data => {
-                if (!data.success || !data.data || !data.data.results) {
-                    resultsDiv.style.display = 'none';
-                    return;
-                }
-                const results = data.data.results;
-                resultsDiv.innerHTML = results.map(r => {
-                    const pos = r.position || {};
-                    return '<div class="gis-search-result-item" onclick="citizenMapSelectResult(' + (pos.lat || 0) + ',' + (pos.lon || 0) + ')">' +
-                        '<i class="fas fa-map-pin" style="color:#3762c8;margin-right:6px;"></i>' + (r.poi?.name || r.address?.freeformAddress || 'Unknown') +
-                        '<small>' + (r.address?.freeformAddress || '') + '</small></div>';
-                }).join('');
-                resultsDiv.style.display = 'block';
-            });
-        }
-
-        function citizenMapSelectResult(lat, lng) {
-            document.getElementById('citizenMapSearchResults').style.display = 'none';
-            if (!isInsideQC(lat, lng)) {
-                showCrStatus('Selected location is outside Quezon City.', 'error');
-                return;
-            }
-            citizenMap.setView([lat, lng], 15);
-            placeCitizenPin(lat, lng);
-        }
-
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('.citizen-report-map-wrap')) {
-                const results = document.getElementById('citizenMapSearchResults');
-                if (results) results.style.display = 'none';
-            }
-        });
-
-        document.getElementById('citizenMapSearchInput')?.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') citizenMapSearch();
-        });
-
-        document.getElementById('crPhotos').addEventListener('change', function(e) {
-            const files = Array.from(e.target.files);
-            files.forEach(file => {
-                if (!photoFiles.some(f => f.name === file.name && f.size === file.size && f.lastModified === file.lastModified)) {
-                    photoFiles.push(file);
-                }
-            });
-            renderPhotoPreviews();
-            document.getElementById('fileCount').textContent = photoFiles.length + ' file(s) selected';
-            syncPhotoFiles();
-            this.value = '';
-            syncPhotoFiles();
-        });
-
-        function renderPhotoPreviews() {
-            const container = document.getElementById('photoPreview');
-            container.innerHTML = '';
-            photoFiles.forEach((file, index) => {
-                const reader = new FileReader();
-                const wrapper = document.createElement('div');
-                wrapper.className = 'photo-preview-item';
-                wrapper.innerHTML = '<button type="button" class="photo-delete-btn" data-index="' + index + '">&times;</button>';
-                const img = document.createElement('img');
-                reader.onload = function(e) {
-                    img.src = e.target.result;
-                };
-                reader.readAsDataURL(file);
-                wrapper.prepend(img);
-                container.appendChild(wrapper);
-            });
-
-            document.getElementById('fileCount').textContent = photoFiles.length + ' file(s) selected';
-
-            document.querySelectorAll('.photo-delete-btn').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    const idx = parseInt(this.dataset.index);
-                    photoFiles.splice(idx, 1);
-                    renderPhotoPreviews();
-                    document.getElementById('fileCount').textContent = photoFiles.length + ' file(s) selected';
-                    syncPhotoFiles();
-                });
-            });
-        }
-
-        function syncPhotoFiles() {
-            const dt = new DataTransfer();
-            photoFiles.forEach(file => dt.items.add(file));
-            const input = document.getElementById('crPhotos');
-            input.files = dt.files;
-        }
-
-        function sendOtp() {
-            const email = document.getElementById('crEmail').value.trim();
-            if (!email || !email.includes('@')) {
-                showCrStatus('Please enter a valid email address.', 'error');
-                return;
-            }
-            if (!email.toLowerCase().endsWith('@gmail.com')) {
-                showCrStatus('Please use a Gmail address (@gmail.com) for verification.', 'error');
-                return;
-            }
-
-            const btn = document.getElementById('sendOtpBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
-
-            const fd = new FormData();
-            fd.append('action', 'send_otp');
-            fd.append('email', email);
-
-            fetch(CITIZEN_API, { method: 'POST', body: fd })
-                .then(r => r.json())
-                .then(data => {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Code';
-                    if (data.success) {
-                        showCrStatus(data.message, 'success');
-                        document.getElementById('verifyOtpBtn').disabled = false;
-                        document.getElementById('crOtp').focus();
-                    } else {
-                        showCrStatus(data.message, 'error');
-                    }
-                })
-                .catch(() => {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Code';
-                    showCrStatus('Failed to send code. Please try again.', 'error');
-                });
-        }
-
-        function verifyOtp() {
-            const otp = document.getElementById('crOtp').value.trim();
-            if (!otp || otp.length < 6) {
-                showCrStatus('Please enter the 6-digit verification code.', 'error');
-                return;
-            }
-
-            const btn = document.getElementById('verifyOtpBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
-
-            const fd = new FormData();
-            fd.append('action', 'verify_otp');
-            fd.append('otp', otp);
-
-            fetch(CITIZEN_API, { method: 'POST', body: fd })
-                .then(r => r.json())
-                .then(data => {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="fas fa-check"></i> Verify';
-                    if (data.success) {
-                        otpVerified = true;
-                        showCrStatus('Email verified! You can now submit your report.', 'success');
-                        document.getElementById('submitReportBtn').disabled = false;
-                        document.getElementById('crEmail').readOnly = true;
-                        document.getElementById('sendOtpBtn').disabled = true;
-                        document.getElementById('verifyOtpBtn').disabled = true;
-                    } else {
-                        showCrStatus(data.message, 'error');
-                    }
-                })
-                .catch(() => {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="fas fa-check"></i> Verify';
-                    showCrStatus('Verification failed. Please try again.', 'error');
-                });
-        }
-
-        // Philippine mobile number validation
-        function normalizePhone(val) {
-            return val.replace(/\s/g, '');
-        }
-
-        function validatePhone(val) {
-            const clean = normalizePhone(val);
-            const localRe = /^09[0-9]{9}$/;
-            const intlRe = /^\+639[0-9]{9}$/;
-            if (localRe.test(clean)) return { valid: true, normalized: clean, format: 'local' };
-            if (intlRe.test(clean)) return { valid: true, normalized: '09' + clean.slice(3), format: 'intl' };
-            return { valid: false, normalized: clean, format: null };
-        }
-
-        function applyPhoneFormat(raw) {
-            if (raw.startsWith('+')) {
-                if (!raw.startsWith('+63')) return '+63';
-                let after = raw.slice(3).replace(/[^0-9]/g, '').slice(0, 9);
-                let r = '+63';
-                if (after.length > 0) r += ' ' + after.slice(0, 2);
-                if (after.length > 2) r += ' ' + after.slice(2, 5);
-                if (after.length > 5) r += ' ' + after.slice(5);
-                return r;
-            }
-            let d = raw.replace(/[^0-9]/g, '').slice(0, 11);
-            let r = d;
-            if (d.length > 4) r = d.slice(0, 4) + ' ' + d.slice(4, 7) + ' ' + d.slice(7);
-            else if (d.length > 2) r = d.slice(0, 4) + ' ' + d.slice(4);
-            return r;
-        }
-
-        function showPhoneError(input, show) {
-            const errEl = document.getElementById('crPhoneError');
-            if (show) {
-                input.classList.add('error');
-                errEl.classList.add('show');
-            } else {
-                input.classList.remove('error');
-                errEl.classList.remove('show');
-            }
-        }
-
-        const crPhoneInput = document.getElementById('crPhone');
-        crPhoneInput.addEventListener('input', function() {
-            let raw = this.value.replace(/[^0-9+]/g, '');
-            // Enforce exactly one leading +
-            let plusCount = (raw.match(/\+/g) || []).length;
-            if (plusCount > 1) {
-                raw = '+' + raw.replace(/\+/g, '');
-            } else if (plusCount === 1 && !raw.startsWith('+')) {
-                raw = '+' + raw.replace(/\+/g, '');
-            }
-            // Determine raw digit count before reformatting for cursor adjustment
-            const cursorPos = this.selectionStart;
-            const rawBefore = this.value.slice(0, cursorPos).replace(/[^0-9+]/g, '').length;
-
-            const formatted = applyPhoneFormat(raw);
-            this.value = formatted;
-
-            // Restore cursor position
-            const rawAfter = formatted.replace(/[^0-9+]/g, '');
-            let newPos = 0, digitCount = 0;
-            for (let i = 0; i < formatted.length && digitCount < rawBefore; i++) {
-                if (/[0-9+]/.test(formatted[i])) digitCount++;
-                newPos = i + 1;
-            }
-            // If we ran out of digits before reaching rawBefore, put cursor at end
-            if (digitCount < rawBefore) newPos = formatted.length;
-            this.setSelectionRange(newPos, newPos);
-
-            // Real-time validation
-            const result = validatePhone(normalizePhone(formatted));
-            showPhoneError(this, formatted.length > 0 && !result.valid);
-        });
-
-        crPhoneInput.addEventListener('blur', function() {
-            const val = normalizePhone(this.value);
-            if (val.length > 0) {
-                const result = validatePhone(val);
-                showPhoneError(this, !result.valid);
-                if (result.valid) {
-                    this.value = applyPhoneFormat(result.normalized);
-                }
-            } else {
-                showPhoneError(this, false);
-            }
-        });
-
-        document.getElementById('citizenReportForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-
-            const errors = [];
-
-            const lat = document.getElementById('crLat').value;
-            const lng = document.getElementById('crLng').value;
-            if (!lat || !lng) errors.push('Please pin a location on the map.');
-
-            const issueType = document.getElementById('crIssueType').value;
-            if (!issueType) errors.push('Please select an issue type.');
-
-            const severity = document.getElementById('crSeverity').value;
-            if (!severity) errors.push('Please select a severity level.');
-
-            const name = document.getElementById('crName').value.trim();
-            if (!name) errors.push('Please enter your full name.');
-
-            const phoneInput = document.getElementById('crPhone');
-            const phone = normalizePhone(phoneInput.value);
-            if (!phone) {
-                errors.push('Please enter your phone number.');
-                showPhoneError(phoneInput, true);
-            } else {
-                const phoneResult = validatePhone(phone);
-                if (!phoneResult.valid) {
-                    errors.push('Please enter a valid Philippine mobile number.');
-                    showPhoneError(phoneInput, true);
-                } else {
-                    showPhoneError(phoneInput, false);
-                }
-            }
-
-            const desc = document.getElementById('crDescription').value.trim();
-            if (!desc) errors.push('Please describe the issue.');
-
-            if (photoFiles.length < 2) errors.push('Please upload at least 2 photos before submitting your report.');
-
-            if (!otpVerified) errors.push('Please verify your email first.');
-
-            const subLat = parseFloat(document.getElementById('crLat').value);
-            const subLng = parseFloat(document.getElementById('crLng').value);
-            if (subLat && subLng && !isInsideQC(subLat, subLng)) {
-                errors.push('Reports can only be submitted within Quezon City.');
-            }
-
-            if (errors.length > 0) {
-                showCrStatus(errors.join('<br>'), 'error');
-                return;
-            }
-
-            const btn = document.getElementById('submitReportBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
-
-            const fd = new FormData();
-            fd.append('latitude', document.getElementById('crLat').value);
-            fd.append('longitude', document.getElementById('crLng').value);
-            fd.append('address', document.getElementById('crAddress').value);
-            fd.append('issue_type', document.getElementById('crIssueType').value);
-            fd.append('severity', document.getElementById('crSeverity').value);
-            fd.append('reporter_name', document.getElementById('crName').value.trim());
-            fd.append('phone', normalizePhone(document.getElementById('crPhone').value));
-            fd.append('description', document.getElementById('crDescription').value.trim());
-
-            photoFiles.forEach(file => {
-                fd.append('photos[]', file);
-            });
-
-            fd.append('action', 'submit_report');
-
-            fetch(CITIZEN_API, { method: 'POST', body: fd })
-                .then(r => r.json())
-                .then(data => {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Report';
-                    if (data.success) {
-                        showCrStatus(data.message, 'success');
-                        setTimeout(() => {
-                            const modal = bootstrap.Modal.getInstance(document.getElementById('citizenReportModal'));
-                            if (modal) modal.hide();
-                            resetCitizenForm();
-                        }, 2000);
-                    } else {
-                        showCrStatus(data.message, 'error');
-                    }
-                })
-                .catch(() => {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Report';
-                    showCrStatus('Submission failed. Please try again.', 'error');
-                });
-        });
-
-        function showCrStatus(msg, type) {
-            const el = document.getElementById('crOtpStatus');
-            el.innerHTML = msg;
-            el.className = 'cr-status ' + type;
-            el.style.display = 'block';
-        }
-
-        function resetCitizenForm() {
-            document.getElementById('citizenReportForm').reset();
-            document.getElementById('crOtpStatus').style.display = 'none';
-            const searchInput = document.getElementById('citizenMapSearchInput');
-            if (searchInput) searchInput.value = '';
-            const searchResults = document.getElementById('citizenMapSearchResults');
-            if (searchResults) searchResults.style.display = 'none';
-            document.getElementById('submitReportBtn').disabled = true;
-            document.getElementById('verifyOtpBtn').disabled = true;
-            document.getElementById('sendOtpBtn').disabled = false;
-            document.getElementById('crPhone').classList.remove('error');
-            document.getElementById('crPhoneError').classList.remove('show');
-            document.getElementById('crEmail').readOnly = false;
-            document.getElementById('citizenMap').classList.remove('has-pin');
-            document.getElementById('crAddress').value = '';
-            document.getElementById('photoPreview').innerHTML = '';
-            photoFiles = [];
-            syncPhotoFiles();
-            document.getElementById('fileCount').textContent = 'No files selected';
-            otpVerified = false;
-            if (citizenPin) { citizenMap.removeLayer(citizenPin); citizenPin = null; }
-        }
-    </script>
+    <!-- Citizen Report (map, OTP, photo upload, submit) -->
+    <script src="assets/js/citizen-report.js?v=<?php echo $asset_version; ?>"></script>
 
     <!-- Terms and Conditions Modal -->
     <div class="modal fade" id="termsModal" tabindex="-1" aria-labelledby="termsModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
@@ -2923,107 +2380,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         </div>
     </div>
 
-    <script>
-        // Terms and Conditions modal logic
-        (function() {
-            var termsModalEl = document.getElementById('termsModal');
-            var termsModal = null;
-            var termsCheckbox = document.getElementById('termsCheckbox');
-            var termsContinueBtn = document.getElementById('termsContinueBtn');
-            var termsCancelBtn = document.getElementById('termsCancelBtn');
-            var makeReportBtn = document.getElementById('makeReportBtn');
-            var citizenModalEl = document.getElementById('citizenReportModal');
-
-            if (typeof bootstrap !== 'undefined' && termsModalEl) {
-                termsModal = new bootstrap.Modal(termsModalEl, {
-                    backdrop: 'static',
-                    keyboard: false
-                });
-            }
-
-            function openTermsModal() {
-                termsCheckbox.checked = false;
-                termsContinueBtn.disabled = true;
-                if (termsModal) termsModal.show();
-            }
-
-            function closeTermsModal() {
-                if (termsModal) termsModal.hide();
-            }
-
-            function acceptTermsAndOpenReport() {
-                sessionStorage.setItem('tc_accepted', 'true');
-                closeTermsModal();
-                var reportModal = bootstrap.Modal.getInstance(citizenModalEl);
-                if (!reportModal) reportModal = new bootstrap.Modal(citizenModalEl);
-                reportModal.show();
-            }
-
-            // Check sessionStorage and either open T&C or go directly to report
-            function handleMakeReport() {
-                if (sessionStorage.getItem('tc_accepted') === 'true') {
-                    var reportModal = bootstrap.Modal.getInstance(citizenModalEl);
-                    if (!reportModal) reportModal = new bootstrap.Modal(citizenModalEl);
-                    reportModal.show();
-                } else {
-                    openTermsModal();
-                }
-            }
-
-            if (makeReportBtn) {
-                makeReportBtn.addEventListener('click', handleMakeReport);
-            }
-
-            if (termsCheckbox) {
-                termsCheckbox.addEventListener('change', function() {
-                    termsContinueBtn.disabled = !this.checked;
-                });
-            }
-
-            if (termsContinueBtn) {
-                termsContinueBtn.addEventListener('click', acceptTermsAndOpenReport);
-            }
-
-            if (termsCancelBtn) {
-                termsCancelBtn.addEventListener('click', closeTermsModal);
-            }
-
-            // Focus trapping within the T&C modal
-            if (termsModalEl) {
-                termsModalEl.addEventListener('keydown', function(e) {
-                    if (e.key === 'Escape') {
-                        e.preventDefault();
-                        closeTermsModal();
-                        return;
-                    }
-                    if (e.key === 'Tab') {
-                        var focusable = termsModalEl.querySelectorAll(
-                            'button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
-                        );
-                        var first = focusable[0];
-                        var last = focusable[focusable.length - 1];
-                        if (e.shiftKey) {
-                            if (document.activeElement === first) {
-                                e.preventDefault();
-                                last.focus();
-                            }
-                        } else {
-                            if (document.activeElement === last) {
-                                e.preventDefault();
-                                first.focus();
-                            }
-                        }
-                    }
-                });
-
-                // Focus the first focusable element when the modal opens
-                termsModalEl.addEventListener('shown.bs.modal', function() {
-                    setTimeout(function() {
-                        termsCheckbox.focus();
-                    }, 100);
-                });
-            }
-        })();
-    </script>
+    <script src="assets/js/terms-modal.js?v=<?php echo $asset_version; ?>"></script>
 </body>
 </html>

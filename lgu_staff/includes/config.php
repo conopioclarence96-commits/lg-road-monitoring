@@ -2,24 +2,51 @@
 // Enable mysqli error reporting for proper exception handling
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
+/**
+ * Read a config value from the root .env file (same convention as the
+ * TOMTOM_API_KEY / BREVO_* reads below) falling back to a real process env
+ * var of the same name, then to $default. Parsing is cached so repeated calls
+ * only read the file once per request.
+ *
+ * Note: .env comment lines must use ";" not "#" — parse_ini_file() throws on
+ * "#" lines containing parentheses (see .env.example).
+ */
+function env_get(string $key, string $default = '') {
+    static $envVariables = null;
+    if ($envVariables === null) {
+        $envFile = __DIR__ . '/../../.env';
+        $envVariables = file_exists($envFile) ? (parse_ini_file($envFile) ?: []) : [];
+    }
+    $value = $envVariables[$key] ?? getenv($key);
+    return ($value !== false && $value !== null && trim((string)$value) !== '') ? trim((string)$value) : $default;
+}
+
 // Environment detection
 $server_name = $_SERVER['SERVER_NAME'] ?? 'localhost';
 $is_local = ($server_name === 'localhost' || $server_name === '127.0.0.1' || strpos($server_name, '.local') !== false);
 
-// Database configuration based on environment
-if ($is_local) {
-    // Local development environment
-    define('DB_HOST', 'localhost');
-    define('DB_USER', 'root');
-    define('DB_PASS', '');
-    define('DB_NAME', 'rgmap_lg_road_monitoring');
-} else {
-    // Live server environment
+// Database configuration based on environment. Credentials are pulled from the
+// .env file (or real environment variables) so secrets never live in source.
+// Fallbacks preserve the previous defaults for zero-config local dev.
+$db_env_configured = false;
+foreach (['DB_HOST', 'DB_USER', 'DB_PASS', 'DB_NAME'] as $db_env_key) {
+    if (env_get($db_env_key) !== '') { $db_env_configured = true; break; }
+}
+
+if (!$is_local && !$db_env_configured) {
+    // Live server environment without explicit DB_* env vars — fall back to
+    // the deploy-time live_db_config.php file.
     $live_config = require_once __DIR__ . '/live_db_config.php';
     define('DB_HOST', $live_config['host']);
     define('DB_USER', $live_config['user']);
     define('DB_PASS', $live_config['pass']);
     define('DB_NAME', $live_config['name']);
+} else {
+    // Local development (or explicitly env-configured) environment
+    define('DB_HOST', env_get('DB_HOST', 'localhost'));
+    define('DB_USER', env_get('DB_USER', 'root'));
+    define('DB_PASS', env_get('DB_PASS', ''));
+    define('DB_NAME', env_get('DB_NAME', 'rgmap_lg_road_monitoring'));
 }
 
 // Initialize connection variable
@@ -320,9 +347,7 @@ define('MAX_FILE_SIZE', 5 * 1024 * 1024); // 5MB
 define('ALLOWED_FILE_TYPES', ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'jpg', 'jpeg', 'png']);
 
 // TomTom API Key - Load from .env or environment variable
-$envFile = __DIR__ . '/../../.env';
-$envVariables = file_exists($envFile) ? parse_ini_file($envFile) : [];
-define('TOMTOM_API_KEY', $envVariables['TOMTOM_API_KEY'] ?? getenv('TOMTOM_API_KEY'));
+define('TOMTOM_API_KEY', env_get('TOMTOM_API_KEY', ''));
 
 // TomTom API Services
 require_once __DIR__ . '/tomtom/autoload.php';

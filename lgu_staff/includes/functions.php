@@ -122,28 +122,64 @@ function handle_file_upload($file, $upload_dir, $allowed_types = null) {
     
     // Check if file was uploaded
     if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+        error_log("Upload rejected: tmp_name missing or not an uploaded file");
         return ['success' => false, 'error' => 'No file uploaded or upload error'];
     }
     
     // Check file size
+    if (isset($file['error']) && $file['error'] === UPLOAD_ERR_INI_SIZE) {
+        error_log("Upload rejected: file exceeds upload_max_filesize (PHP INI limit)");
+        return ['success' => false, 'error' => 'File size exceeds the server limit'];
+    }
     if ($file['size'] > MAX_FILE_SIZE) {
+        error_log("Upload rejected: file too large ({$file['size']} bytes, limit " . MAX_FILE_SIZE . ")");
         return ['success' => false, 'error' => 'File size exceeds maximum limit'];
     }
     
-    // Check file type
+    // Extension whitelist check
     $file_ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
     if (!in_array($file_ext, $allowed_types)) {
+        error_log("Upload rejected: disallowed extension '{$file_ext}' for file '{$file['name']}'");
         return ['success' => false, 'error' => 'File type not allowed'];
     }
     
-    // Generate unique filename
-    $filename = uniqid() . '.' . $file_ext;
+    // Strict content validation for images: verify the real MIME type with
+    // getimagesize() instead of trusting the client-provided type/extension,
+    // preventing polyglot/arbitrary-file uploads disguised as images.
+    $image_exts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    if (in_array($file_ext, $image_exts)) {
+        $img_info = @getimagesize($file['tmp_name']);
+        if ($img_info === false) {
+            error_log("Upload rejected: '{$file['name']}' is not a valid image (getimagesize failed)");
+            return ['success' => false, 'error' => 'Invalid image file'];
+        }
+        $mime_to_ext = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/gif' => 'gif',
+            'image/webp' => 'webp',
+        ];
+        $detected_ext = $mime_to_ext[$img_info['mime']] ?? null;
+        if ($detected_ext === null) {
+            error_log("Upload rejected: '{$file['name']}' reports unhandled image MIME '{$img_info['mime']}'");
+            return ['success' => false, 'error' => 'Invalid image type'];
+        }
+        // Re-anchor the stored extension to what the file actually contains so
+        // the final filename always matches the true image format.
+        $file_ext = $detected_ext;
+    }
+    
+    // Generate a unique, sanitized filename. The name is fully server-generated
+    // (never derived from the client filename) to avoid path traversal / name
+    // collisions; only the whitelisted extension comes from the upload.
+    $filename = uniqid('', true) . bin2hex(random_bytes(4)) . '.' . $file_ext;
     $filepath = $upload_dir . '/' . $filename;
     
     // Create upload directory if it doesn't exist
     if (!is_dir($upload_dir)) {
         if (!mkdir($upload_dir, 0777, true)) {
-            return ['success' => false, 'error' => 'Failed to create upload directory: ' . $upload_dir];
+            error_log("Upload failed: could not create upload directory {$upload_dir}");
+            return ['success' => false, 'error' => 'Upload directory is not writable'];
         }
         // Try to set permissions
         chmod($upload_dir, 0777);
@@ -151,7 +187,8 @@ function handle_file_upload($file, $upload_dir, $allowed_types = null) {
     
     // Check if directory is writable
     if (!is_writable($upload_dir)) {
-        return ['success' => false, 'error' => 'Upload directory is not writable: ' . $upload_dir];
+        error_log("Upload failed: upload directory is not writable ({$upload_dir})");
+        return ['success' => false, 'error' => 'Upload directory is not writable'];
     }
     
     // Move file
@@ -160,7 +197,8 @@ function handle_file_upload($file, $upload_dir, $allowed_types = null) {
         chmod($filepath, 0644);
         return ['success' => true, 'filename' => $filename, 'filepath' => $filepath];
     } else {
-        return ['success' => false, 'error' => 'Failed to move uploaded file to: ' . $filepath];
+        error_log("Upload failed: move_uploaded_file could not write to {$filepath}");
+        return ['success' => false, 'error' => 'Failed to save the uploaded file. Please try again.'];
     }
 }
 
@@ -399,11 +437,9 @@ function verify_otp_code($enteredOTP, $purpose = null) {
 }
 
 function send_otp_to_email($email, $otpCode) {
-    $envFile = __DIR__ . '/../../.env';
-    $envVariables = file_exists($envFile) ? parse_ini_file($envFile) : [];
-    $apiKey = $envVariables['BREVO_API_KEY'] ?? getenv('BREVO_API_KEY');
-    $senderName = $envVariables['BREVO_SENDER_NAME'] ?? getenv('BREVO_SENDER_NAME');
-    $senderEmail = $envVariables['BREVO_SENDER_EMAIL'] ?? getenv('BREVO_SENDER_EMAIL');
+    $apiKey = env_get('BREVO_API_KEY');
+    $senderName = env_get('BREVO_SENDER_NAME');
+    $senderEmail = env_get('BREVO_SENDER_EMAIL');
 
     $ch = curl_init('https://api.brevo.com/v3/smtp/email');
     curl_setopt($ch, CURLOPT_POST, true);
@@ -503,11 +539,9 @@ function generate_secure_temporary_password($length = 12) {
 
 // Sends the "staff account created" email with the temporary password and login link.
 function send_staff_account_email($toEmail, $firstName, $temporaryPassword, $loginUrl) {
-    $envFile = __DIR__ . '/../../.env';
-    $envVariables = file_exists($envFile) ? parse_ini_file($envFile) : [];
-    $apiKey = $envVariables['BREVO_API_KEY'] ?? getenv('BREVO_API_KEY');
-    $senderName = $envVariables['BREVO_SENDER_NAME'] ?? getenv('BREVO_SENDER_NAME');
-    $senderEmail = $envVariables['BREVO_SENDER_EMAIL'] ?? getenv('BREVO_SENDER_EMAIL');
+    $apiKey = env_get('BREVO_API_KEY');
+    $senderName = env_get('BREVO_SENDER_NAME');
+    $senderEmail = env_get('BREVO_SENDER_EMAIL');
 
     $firstNameSafe = htmlspecialchars($firstName);
     $emailSafe = htmlspecialchars($toEmail);
@@ -698,11 +732,9 @@ function annotate_report_assignment_status($conn, array &$reports) {
 
 // Send an email containing a magic login URL carrying the login token.
 function send_login_link_email($toEmail, $loginUrl) {
-    $envFile = __DIR__ . '/../../.env';
-    $envVariables = file_exists($envFile) ? parse_ini_file($envFile) : [];
-    $apiKey = $envVariables['BREVO_API_KEY'] ?? getenv('BREVO_API_KEY');
-    $senderName = $envVariables['BREVO_SENDER_NAME'] ?? getenv('BREVO_SENDER_NAME');
-    $senderEmail = $envVariables['BREVO_SENDER_EMAIL'] ?? getenv('BREVO_SENDER_EMAIL');
+    $apiKey = env_get('BREVO_API_KEY');
+    $senderName = env_get('BREVO_SENDER_NAME');
+    $senderEmail = env_get('BREVO_SENDER_EMAIL');
 
     $emailSafe = htmlspecialchars($toEmail);
     $urlSafe = htmlspecialchars($loginUrl);

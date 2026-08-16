@@ -18,8 +18,17 @@
     const a11yBtn = document.getElementById('a11yBtn');
     const a11yPanel = document.getElementById('a11yPanel');
     if (a11yBtn && a11yPanel) {
-        a11yBtn.addEventListener('click', function(e) { e.stopPropagation(); a11yPanel.classList.toggle('active'); });
-        document.addEventListener('click', function(e) { if (!document.getElementById('a11yFab').contains(e.target)) a11yPanel.classList.remove('active'); });
+        a11yBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            a11yPanel.classList.toggle('active');
+            a11yBtn.setAttribute('aria-expanded', a11yPanel.classList.contains('active') ? 'true' : 'false');
+        });
+        document.addEventListener('click', function(e) {
+            if (!document.getElementById('a11yFab').contains(e.target)) {
+                a11yPanel.classList.remove('active');
+                a11yBtn.setAttribute('aria-expanded', 'false');
+            }
+        });
     }
 
     var currentFontSize = parseInt(localStorage.getItem('a11y_fontSize') || '100');
