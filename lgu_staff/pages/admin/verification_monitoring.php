@@ -6611,6 +6611,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     priority: <?php echo json_encode($ir['priority']); ?>,
                     status: <?php echo json_encode($ir['status']); ?>,
                     location: <?php echo json_encode($ir['location']); ?>,
+                    start_address: <?php echo json_encode($ir['start_address'] ?? null); ?>,
+                    end_address: <?php echo json_encode($ir['end_address'] ?? null); ?>,
                     description: <?php echo json_encode($ir['description']); ?>,
                     created_date: <?php echo json_encode($ir['created_date']); ?>,
                     created_at: <?php echo json_encode($ir['created_at']); ?>,
@@ -6817,6 +6819,8 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
                     priority: row.priority,
                     status: row.status,
                     location: row.location,
+                    start_address: row.start_address || null,
+                    end_address: row.end_address || null,
                     description: row.description,
                     created_date: row.created_date,
                     created_at: row.created_at,
@@ -6981,9 +6985,10 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
             peopleGrid += infraInfoItem('hard-hat', 'Maintenance Team', r.maintenance_team);
             document.getElementById('infra-people-grid').innerHTML = peopleGrid;
 
-            // Location
+            // Location — start/end addresses from TomTom reverse geocode
             var locationGrid = '';
-            locationGrid += '<div class="infra-info-item infra-info-value-full"><div class="infra-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="infra-info-label">Location</div><div class="infra-info-value">' + (r.location || '—') + '</div></div></div>';
+            locationGrid += infraInfoItem('map-marker-alt', 'Start Address', r.start_address || '—');
+            locationGrid += infraInfoItem('map-marker', 'End Address', r.end_address || '—');
             document.getElementById('infra-location-grid').innerHTML = locationGrid;
 
             // View Map button: only shown when the project has a saved road

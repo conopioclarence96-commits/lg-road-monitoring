@@ -19,7 +19,10 @@
  * (including budget/assigned_engineers) lives entirely in
  * rgmap_upsert_ipms_road_project() over there — this file just forwards
  * whatever IPMS sends for each road, unchanged, so new additive fields from
- * IPMS never require a change here, only in the data-access layer.
+ * IPMS never require a change here, only in the data-access layer. One
+ * exception: on Sync (this endpoint), projects missing start_address /
+ * end_address are reverse-geocoded from start/end coordinates via TomTom
+ * before the upsert. Addresses already stored are left alone.
  *
  * Run on a cron (hourly is plenty — IPMS says this data doesn't change
  * minute to minute):
@@ -157,14 +160,68 @@ if ($doDebug) {
     @file_put_contents($dumpDir . "/ipms_pull_decoded_{$time}.json", json_encode($decoded, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 }
 
+/**
+ * Reverse-geocode lat/lng via TomTom Search API → freeform address (≤100 chars).
+ */
+function rgmap_ipms_tomtom_address(?float $lat, ?float $lng): ?string {
+    if ($lat === null || $lng === null) {
+        return null;
+    }
+    static $geo = null;
+    if ($geo === null) {
+        require_once __DIR__ . '/../../includes/tomtom/autoload.php';
+        $geo = new GeocodingService();
+    }
+
+    $result = $geo->reverseGeocode($lat, $lng, [
+        'returnSpeedLimit' => 'false',
+        'returnRoadUse' => 'false',
+    ]);
+    if (empty($result['success']) || !is_array($result['data'] ?? null)) {
+        return null;
+    }
+
+    $addresses = $result['data']['addresses'] ?? [];
+    $addr = is_array($addresses) && isset($addresses[0]['address']) && is_array($addresses[0]['address'])
+        ? $addresses[0]['address']
+        : [];
+
+    $freeform = trim((string)($addr['freeformAddress'] ?? ''));
+    if ($freeform === '') {
+        $parts = array_filter([
+            trim((string)($addr['streetNumber'] ?? $addr['houseNumber'] ?? '')),
+            trim((string)($addr['streetName'] ?? $addr['street'] ?? '')),
+            trim((string)($addr['municipalitySubdivision'] ?? $addr['neighbourhood'] ?? '')),
+            trim((string)($addr['municipality'] ?? '')),
+        ], static fn($p) => $p !== '');
+        $freeform = implode(', ', $parts);
+    }
+    if ($freeform === '') {
+        return null;
+    }
+
+    return mb_substr($freeform, 0, 100);
+}
+
 try {
     $pdo = rgmap_ipms_pdo();
     rgmap_ensure_ipms_road_projects_table($pdo);
 
     $synced = 0;
     $failed = 0;
+    $geocoded = 0;
     $errors = [];
     $seenIds = [];
+
+    // Existing rows: geocode only when start/end address is still empty
+    // (new inserts + Sync backfill). Skip rows that already have addresses.
+    $existingMeta = [];
+    foreach ($pdo->query('SELECT project_id, start_address, end_address FROM ipms_road_projects') as $row) {
+        $existingMeta[(int)$row['project_id']] = [
+            'start_address' => trim((string)($row['start_address'] ?? '')),
+            'end_address'   => trim((string)($row['end_address'] ?? '')),
+        ];
+    }
 
     foreach ($roads as $road) {
         if (!is_array($road)) {
@@ -176,9 +233,37 @@ try {
             $errors[] = ['project_id' => $road['project_id'] ?? null, 'reason' => 'missing/invalid project_id'];
             continue;
         }
+
+        $meta = $existingMeta[$projectId] ?? null;
+        $needsStart = $meta === null || $meta['start_address'] === '';
+        $needsEnd = $meta === null || $meta['end_address'] === '';
+
+        if ($needsStart || $needsEnd) {
+            $start = is_array($road['start_coordinate'] ?? null) ? $road['start_coordinate'] : [];
+            $end = is_array($road['end_coordinate'] ?? null) ? $road['end_coordinate'] : [];
+            $startLat = isset($start['lat']) && $start['lat'] !== '' ? (float)$start['lat'] : null;
+            $startLng = isset($start['lng']) && $start['lng'] !== '' ? (float)$start['lng'] : null;
+            $endLat = isset($end['lat']) && $end['lat'] !== '' ? (float)$end['lat'] : null;
+            $endLng = isset($end['lng']) && $end['lng'] !== '' ? (float)$end['lng'] : null;
+
+            if ($needsStart) {
+                $road['start_address'] = rgmap_ipms_tomtom_address($startLat, $startLng);
+            }
+            if ($needsEnd) {
+                $road['end_address'] = rgmap_ipms_tomtom_address($endLat, $endLng);
+            }
+            if (($road['start_address'] ?? null) !== null || ($road['end_address'] ?? null) !== null) {
+                $geocoded++;
+            }
+        }
+
         if (rgmap_upsert_ipms_road_project($pdo, $road)) {
             $synced++;
             $seenIds[] = $projectId;
+            $existingMeta[$projectId] = [
+                'start_address' => trim((string)($road['start_address'] ?? ($meta['start_address'] ?? ''))),
+                'end_address'   => trim((string)($road['end_address'] ?? ($meta['end_address'] ?? ''))),
+            ];
         } else {
             $failed++;
             $errors[] = ['project_id' => $projectId, 'reason' => 'upsert failed'];
@@ -199,6 +284,7 @@ try {
         'source_url' => $url,
         'fetched' => count($roads),
         'synced' => $synced,
+        'geocoded' => $geocoded,
         'failed' => $failed,
         'pruned' => $pruned,
         'errors' => $errors,

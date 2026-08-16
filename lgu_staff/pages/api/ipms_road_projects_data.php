@@ -68,6 +68,8 @@ function rgmap_ensure_ipms_road_projects_table(PDO $pdo): void {
         synced_at           TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
         status              VARCHAR(50)  NULL DEFAULT NULL,
+        start_address       VARCHAR(100) NULL DEFAULT NULL,
+        end_address         VARCHAR(100) NULL DEFAULT NULL,
         UNIQUE KEY uq_ipms_project (project_id),
         INDEX idx_project_status (project_status),
         INDEX idx_status_bucket (status_bucket)
@@ -90,6 +92,14 @@ function rgmap_ensure_ipms_road_projects_table(PDO $pdo): void {
     $existingStatus = $pdo->query("SHOW COLUMNS FROM ipms_road_projects LIKE 'status'")->fetchAll();
     if (empty($existingStatus)) {
         $pdo->exec("ALTER TABLE ipms_road_projects ADD COLUMN status VARCHAR(50) NULL DEFAULT NULL AFTER created_at");
+    }
+    $existingStartAddr = $pdo->query("SHOW COLUMNS FROM ipms_road_projects LIKE 'start_address'")->fetchAll();
+    if (empty($existingStartAddr)) {
+        $pdo->exec("ALTER TABLE ipms_road_projects ADD COLUMN start_address VARCHAR(100) NULL DEFAULT NULL AFTER status");
+    }
+    $existingEndAddr = $pdo->query("SHOW COLUMNS FROM ipms_road_projects LIKE 'end_address'")->fetchAll();
+    if (empty($existingEndAddr)) {
+        $pdo->exec("ALTER TABLE ipms_road_projects ADD COLUMN end_address VARCHAR(100) NULL DEFAULT NULL AFTER start_address");
     }
 }
 
@@ -148,19 +158,29 @@ function rgmap_upsert_ipms_road_project(PDO $pdo, array $road): bool {
     // when status_bucket becomes completed — then force status = completed.
     $localStatus = ($statusBucket === 'completed') ? 'completed' : 'pending';
 
+    $clipAddr = static function ($v): ?string {
+        $v = trim((string)($v ?? ''));
+        if ($v === '') {
+            return null;
+        }
+        return mb_substr($v, 0, 100);
+    };
+    $startAddress = $clipAddr($road['start_address'] ?? null);
+    $endAddress = $clipAddr($road['end_address'] ?? null);
+
     $stmt = $pdo->prepare("
         INSERT INTO ipms_road_projects (
             project_id, project_name, project_status, status_bucket, progress_percent,
             start_date, end_date, road_name, road_type, road_status,
             polyline_json, road_length_meters, start_lat, start_lng, end_lat, end_lng,
             barangays_json, districts_json, budget, assigned_engineers_json, payload_json,
-            status
+            status, start_address, end_address
         ) VALUES (
             ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?,
-            ?
+            ?, ?, ?
         )
         ON DUPLICATE KEY UPDATE
             project_name = VALUES(project_name),
@@ -184,6 +204,8 @@ function rgmap_upsert_ipms_road_project(PDO $pdo, array $road): bool {
             assigned_engineers_json = VALUES(assigned_engineers_json),
             payload_json = VALUES(payload_json),
             status = IF(VALUES(status_bucket) = 'completed', 'completed', status),
+            start_address = COALESCE(NULLIF(start_address, ''), VALUES(start_address)),
+            end_address = COALESCE(NULLIF(end_address, ''), VALUES(end_address)),
             synced_at = CURRENT_TIMESTAMP
     ");
 
@@ -210,6 +232,8 @@ function rgmap_upsert_ipms_road_project(PDO $pdo, array $road): bool {
         json_encode($assignedEngineers, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         json_encode($road, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         $localStatus,
+        $startAddress,
+        $endAddress,
     ]);
 }
 
@@ -357,6 +381,8 @@ function rgmap_infra_panel_rows(?PDO $pdo = null, string $workflowStatus = 'pend
             'location'         => (is_array($proj['barangays_covered'] ?? null) && count($proj['barangays_covered']))
                 ? implode(', ', array_filter(array_map('trim', array_map('strval', $proj['barangays_covered'])), fn($b) => $b !== ''))
                 : trim((string)($proj['road_name'] ?? '')),
+            'start_address'    => trim((string)($proj['start_address'] ?? '')) ?: null,
+            'end_address'      => trim((string)($proj['end_address'] ?? '')) ?: null,
             'description'      => trim((string)($proj['road_status'] ?? '')),
             'created_date'     => null,
             'created_at'       => $proj['created_at'] ?? null,
