@@ -953,6 +953,55 @@ function mapCimmToReportManagement(array $row): array {
     ];
 }
 
+/**
+ * Fetch LGU Monitoring reports independently (same idea as CIMM):
+ * own LIMIT so Citizen rows cannot crowd them out of the shared get_reports() pool.
+ */
+function getLguReportsForManagement(
+    string $status_filter = 'all',
+    bool $road_only = false,
+    bool $transport_only = false,
+    int $limit = 20
+): array {
+    global $conn;
+
+    $limit = max(1, $limit);
+    $est = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'estimation'");
+    $est_col = ($est && $est->num_rows > 0) ? 'estimation' : '0 as estimation';
+
+    $sql = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status,
+                   assigned_to, engineer, budget_allocation, cimm_engineer_name, cimm_budget,
+                   {$est_col}, resolution_notes as notes, department, created_date, created_at,
+                   updated_at, approved_at, attachments, image_path, report_type, report_category,
+                   report_source, created_by, restored_from_archive,
+                   'lgu_reports' as source_system
+            FROM road_transportation_reports
+            WHERE report_source = 'local'
+              AND created_by != 0
+              AND report_type != 'infrastructure_issue'
+              AND (
+                    status IN ('approved', 'in-progress')
+                    OR (status = 'cancelled' AND restored_from_archive = 1)
+                  )";
+
+    if ($road_only) {
+        $sql .= " AND report_category = 'road'";
+    } elseif ($transport_only) {
+        $sql .= " AND report_category = 'transportation'";
+    }
+
+    if ($status_filter !== 'all' && $status_filter !== 'completed') {
+        $sql .= " AND status = '" . $conn->real_escape_string($status_filter) . "'";
+    } elseif ($status_filter === 'completed') {
+        // Active query has no completed rows; completed append handles that.
+        return [];
+    }
+
+    $sql .= " ORDER BY created_at DESC LIMIT " . (int)$limit;
+    $rows = fetch_all($sql);
+    return is_array($rows) ? $rows : [];
+}
+
 // Get CIMM reports for report management display
 function getCimmReportsForManagement($status_filter = 'all') {
     $pdo = rgmap_verification_pdo();
@@ -1101,8 +1150,13 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
         }
         $transport_params = $params ?? [];
     } else {
-        // Both transport and maintenance included.
+        // Both transport and maintenance included (source=all).
+        // LGU Monitoring is fetched separately via getLguReportsForManagement(),
+        // so exclude staff-created LGU rows here — otherwise they eat the
+        // shared LIMIT and crowd out Citizen reports (and vice versa).
         $where_parts = $where_conditions;
+        $where_parts[] = 'created_by = 0';
+        $where_parts[] = "report_type != 'infrastructure_issue'";
         if ($road_cond !== '') {
             $where_parts[] = $road_cond;
         }
@@ -1317,6 +1371,17 @@ if (!$is_transport_supervisor && ($source_filter === 'all' || $source_filter ===
         $infra_reports_list = [];
     }
 }
+
+// LGU Monitoring: own query + LIMIT (not shared with Citizen via get_reports).
+if ($source_filter === 'all' || $source_filter === 'lgu_reports') {
+    $lgu_reports_list = getLguReportsForManagement(
+        $status_filter,
+        $is_road_supervisor,
+        $is_transport_supervisor,
+        $per_page
+    );
+}
+
 // Citizen reports only appear in the Citizen Reports panel after they have
 // been verified and approved in verification_monitoring.php. Any pre-verification
 // status keeps them out of this panel (they remain in verification_monitoring.php).
@@ -1324,13 +1389,14 @@ $citizen_unverified_statuses = ['pending', 'awaiting verification', 'for verific
 foreach ($reports as $report) {
     $src = $report['source_system'] ?? 'transport';
 
+    // LGU rows come from getLguReportsForManagement() above — skip here so
+    // the shared get_reports() LIMIT cannot crowd them out.
+    if ($src === 'lgu_reports' || $src === 'hidden') {
+        continue;
+    }
+
     if ($is_transport_supervisor) {
-        // 'lgu_reports' is already restricted to approved LGU Monitoring
-        // Transportation reports by get_reports(); LGU Road reports land in
-        // 'transport' with created_by != 0 and are not shown here.
-        if ($src === 'lgu_reports') {
-            $lgu_reports_list[] = $report;
-        } elseif ($src !== 'maintenance' && ($report['created_by'] ?? 0) == 0 && !in_array(strtolower($report['status'] ?? ''), $citizen_unverified_statuses)) {
+        if ($src !== 'maintenance' && ($report['created_by'] ?? 0) == 0 && !in_array(strtolower($report['status'] ?? ''), $citizen_unverified_statuses)) {
             $citizen_reports[] = $report;
         }
         continue;
@@ -1340,15 +1406,11 @@ foreach ($reports as $report) {
         // Legacy maintenance / infrastructure_issue rows are ignored — the
         // Infrastructure Projects panel is fed from ipms_road_projects above.
         continue;
-    } elseif ($src === 'lgu_reports') {
-        $lgu_reports_list[] = $report;
-    } elseif ($src === 'hidden') {
-        // Skip unapproved LGU reports
-    } else {
-        // Only include verified citizen reports where created_by = 0
-        if (($report['created_by'] ?? 0) == 0 && !in_array(strtolower($report['status'] ?? ''), $citizen_unverified_statuses)) {
-            $citizen_reports[] = $report;
-        }
+    }
+
+    // Only include verified citizen reports where created_by = 0
+    if (($report['created_by'] ?? 0) == 0 && !in_array(strtolower($report['status'] ?? ''), $citizen_unverified_statuses)) {
+        $citizen_reports[] = $report;
     }
 }
 
