@@ -25,28 +25,22 @@ function env_get(string $key, string $default = '') {
 $server_name = $_SERVER['SERVER_NAME'] ?? 'localhost';
 $is_local = ($server_name === 'localhost' || $server_name === '127.0.0.1' || strpos($server_name, '.local') !== false);
 
-// Database configuration based on environment. Credentials are pulled from the
-// .env file (or real environment variables) so secrets never live in source.
-// Fallbacks preserve the previous defaults for zero-config local dev.
-$db_env_configured = false;
-foreach (['DB_HOST', 'DB_USER', 'DB_PASS', 'DB_NAME'] as $db_env_key) {
-    if (env_get($db_env_key) !== '') { $db_env_configured = true; break; }
-}
-
-if (!$is_local && !$db_env_configured) {
-    // Live server environment without explicit DB_* env vars — fall back to
-    // the deploy-time live_db_config.php file.
-    $live_config = require_once __DIR__ . '/live_db_config.php';
-    define('DB_HOST', $live_config['host']);
-    define('DB_USER', $live_config['user']);
-    define('DB_PASS', $live_config['pass']);
-    define('DB_NAME', $live_config['name']);
-} else {
-    // Local development (or explicitly env-configured) environment
+// Database configuration based on environment.
+// Local: .env DB_* (or the previous zero-config defaults).
+// Live: always live_db_config.php. A copied .env is needed on the server for
+// API keys (TOMTOM/BREVO/IPMS), but those same DB_* values are local creds
+// and must not override the live connection.
+if ($is_local) {
     define('DB_HOST', env_get('DB_HOST', 'localhost'));
     define('DB_USER', env_get('DB_USER', 'root'));
     define('DB_PASS', env_get('DB_PASS', ''));
     define('DB_NAME', env_get('DB_NAME', 'rgmap_lg_road_monitoring'));
+} else {
+    $live_config = require __DIR__ . '/live_db_config.php';
+    define('DB_HOST', $live_config['host']);
+    define('DB_USER', $live_config['user']);
+    define('DB_PASS', $live_config['pass']);
+    define('DB_NAME', $live_config['name']);
 }
 
 // Initialize connection variable
