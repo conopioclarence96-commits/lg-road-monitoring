@@ -71,7 +71,12 @@ try {
                     'ipms' AS report_source,
                     budget AS budget_allocation,
                     start_date,
-                    end_date
+                    end_date,
+                    start_address,
+                    end_address,
+                    end_lat,
+                    end_lng,
+                    polyline_json
              FROM ipms_road_projects
              WHERE project_id = ? AND status = 'approved'"
         );
@@ -93,6 +98,11 @@ try {
         $report['rejected_at'] = null;
         $report['completed_at'] = null;
         $report['update_media'] = [];
+        $report['start_address'] = trim((string)($report['start_address'] ?? '')) ?: null;
+        $report['end_address'] = trim((string)($report['end_address'] ?? '')) ?: null;
+        $polyline = json_decode((string)($report['polyline_json'] ?? '[]'), true);
+        $report['polyline'] = is_array($polyline) ? $polyline : [];
+        unset($report['polyline_json']);
 
         // Assigned engineers from JSON column
         try {

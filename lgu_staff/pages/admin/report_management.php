@@ -4905,6 +4905,8 @@ if ($focus_id > 0) {
             'priority' => $ir['priority'] ?? '—',
             'status' => $ir['status'] ?? 'approved',
             'location' => $ir['location'] ?? '',
+            'start_address' => $ir['start_address'] ?? null,
+            'end_address' => $ir['end_address'] ?? null,
             'description' => $ir['description'] ?? '',
             'created_at' => $ir['created_at'] ?? null,
             'updated_at' => $ir['updated_at'] ?? null,
@@ -4960,7 +4962,8 @@ if ($focus_id > 0) {
             document.getElementById('rm-source-grid').innerHTML = sourceGrid;
 
             var locationGrid = '';
-            locationGrid += '<div class="rm-info-item rm-info-value-full"><div class="rm-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="rm-info-label">Location</div><div class="rm-info-value">' + (r.location || '—') + '</div></div></div>';
+            locationGrid += rmInfoItem('map-marker-alt', 'Start Address', r.start_address || '—');
+            locationGrid += rmInfoItem('map-marker', 'End Address', r.end_address || '—');
             document.getElementById('rm-location-grid').innerHTML = locationGrid;
 
             var descEl = document.getElementById('rm-description');

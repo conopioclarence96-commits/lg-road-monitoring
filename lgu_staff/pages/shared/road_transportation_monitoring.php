@@ -323,8 +323,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                     'road_transportation_reports' AS _source_table
               FROM road_transportation_reports t
               LEFT JOIN users u ON u.id = t.created_by
-             WHERE t.report_type != 'infrastructure_issue'
-               AND t.status IN ('approved', 'in-progress', 'completed')
+             WHERE t.status IN ('approved', 'in-progress', 'completed')
                AND (t.created_by IS NULL OR t.created_by = 0
                     OR t.cimm_sync_status IS NULL OR t.cimm_sync_status <> 'pushed'
                     OR (t.report_category IN ('transportation', 'road') AND t.report_source = 'local' AND t.created_by != 0))
@@ -359,24 +358,6 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                         'ipms_road_projects' AS _source_table
                  FROM ipms_road_projects
                  WHERE status = 'approved'",
-                $status_filter, $type_filter, $limit
-            ));
-        }
-
-        // 2b. Infrastructure issue rows that live inside the transport table
-        //     are also managed as Infrastructure Projects by report_management.
-        if (!$transport_only) {
-            $reports = array_merge($reports, $fetch(
-                "SELECT id, report_id, title, report_type, report_category,
-                        'infrastructure' AS source,
-                        status, priority, severity, created_at, description,
-                        latitude, longitude, location, reporter_name, attachments, image_path,
-                        cimm_sync_status, cimm_verified_at, cimm_verified_by,
-                        engineer, budget_allocation, cimm_engineer_name, cimm_budget,
-                        'road_transportation_reports' AS _source_table
-                 FROM road_transportation_reports
-                 WHERE report_type = 'infrastructure_issue'
-                   AND status IN ('approved','in-progress','completed'){$road_category_filter}",
                 $status_filter, $type_filter, $limit
             ));
         }
@@ -969,9 +950,7 @@ function resolve_recent_focus_row(int $id, string $source_hint = ''): ?array {
                 $stmt->close();
                 if ($r) {
                     $r['_source_table'] = 'road_transportation_reports';
-                    $r['source'] = (($r['report_type'] ?? '') === 'infrastructure_issue')
-                        ? 'infrastructure'
-                        : ((!empty($r['created_by'])) ? 'lgu' : 'citizen');
+                    $r['source'] = (!empty($r['created_by'])) ? 'lgu' : 'citizen';
                     return $r;
                 }
             } elseif ($src === 'maintenance' || $src === 'infrastructure') {
@@ -3546,7 +3525,8 @@ annotate_report_assignment_status($conn, $recent_reports);
         }
 
         function openRmMap() {
-            openRoadPathMap('rm-map-container', currentRmPoint, false);
+            var asLine = Array.isArray(currentRmPoint) && currentRmPoint.length >= 2;
+            openRoadPathMap('rm-map-container', currentRmPoint, asLine);
         }
 
         function rmFormatDate(dateStr) {
@@ -3557,8 +3537,10 @@ annotate_report_assignment_status($conn, $recent_reports);
             return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
         }
 
-        // View Report Details Modal — same data source, fields, and layout as
-        // report_management.php's View button (get_report_details.php).
+        // View Report Details Modal — fetch by source table:
+        // Infrastructure Projects → ipms_road_projects
+        // Citizen / LGU Monitoring → road_transportation_reports
+        // CIMM → cimm_verification_reports
         function viewReportDetails(id, source) {
             const row = document.querySelector(`#recentReportsTable .report-table-row[data-id="${id}"]`);
             if (!row || !row.dataset.details) {
@@ -3571,22 +3553,21 @@ annotate_report_assignment_status($conn, $recent_reports);
                 return;
             }
 
+            var src = String(source || row.dataset.source || '').toLowerCase();
             var reportType = data.report_type || '';
             var table = 'road_transportation_reports';
-            if (source === 'cimm') {
+            if (src === 'cimm' || src === 'external') {
                 table = 'cimm_verification_reports';
-            } else if (source === 'infrastructure') {
-                table = (data.table === 'ipms_road_projects')
-                    ? 'ipms_road_projects'
-                    : ((reportType === 'infrastructure_issue') ? 'road_transportation_reports' : 'ipms_road_projects');
+            } else if (src === 'infrastructure' || src === 'maintenance') {
+                table = 'ipms_road_projects';
+                if (!reportType) reportType = 'infrastructure_issue';
+            } else {
+                // citizen, lgu, and any other transport-sourced rows
+                table = 'road_transportation_reports';
             }
-            // Use the row's embedded source table when provided (e.g. Road
-            // Operations Supervisor report types that live in the transport
-            // table but are not in get_report_details.php's type guess list).
-            if (data.table) table = data.table;
 
-            var url = '../api/get_report_details.php?id=' + id + '&type=' + encodeURIComponent(reportType);
-            if (table) url += '&table=' + encodeURIComponent(table);
+            var url = '../api/get_report_details.php?id=' + id + '&type=' + encodeURIComponent(reportType || 'transportation');
+            url += '&table=' + encodeURIComponent(table);
 
             fetch(url)
                 .then(response => response.json())
@@ -3709,22 +3690,36 @@ annotate_report_assignment_status($conn, $recent_reports);
                         }
                     }
 
-                    // Location
+                    // Location — Infrastructure Projects use start/end addresses
                     var locationGrid = '';
-                    var locVal = r.location || '—';
-                    if (r.latitude && r.longitude && r.latitude != 0 && r.longitude != 0) {
-                        locVal += '<br><a href="https://www.openstreetmap.org/?mlat=' + r.latitude + '&mlon=' + r.longitude + '&zoom=15" target="_blank" style="color:#3762c8;font-size:12px;text-decoration:none;"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map</a>';
+                    if (src === 'infrastructure' || src === 'maintenance') {
+                        locationGrid += rmInfoItem('map-marker-alt', 'Start Address', r.start_address || '—');
+                        locationGrid += rmInfoItem('map-marker', 'End Address', r.end_address || '—');
+                    } else {
+                        var locVal = r.location || '—';
+                        if (r.latitude && r.longitude && r.latitude != 0 && r.longitude != 0) {
+                            locVal += '<br><a href="https://www.openstreetmap.org/?mlat=' + r.latitude + '&mlon=' + r.longitude + '&zoom=15" target="_blank" style="color:#3762c8;font-size:12px;text-decoration:none;"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map</a>';
+                        }
+                        locationGrid += '<div class="rm-info-item rm-info-value-full"><div class="rm-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="rm-info-label">Location</div><div class="rm-info-value">' + locVal + '</div></div></div>';
                     }
-                    locationGrid += '<div class="rm-info-item rm-info-value-full"><div class="rm-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="rm-info-label">Location</div><div class="rm-info-value">' + locVal + '</div></div></div>';
                     document.getElementById('rm-location-grid').innerHTML = locationGrid;
 
-                    // View Map button: only shown when the report has a saved
-                    // coordinate point (latitude / longitude).
-                    currentRmPoint = (r.latitude && r.longitude && r.latitude != 0 && r.longitude != 0)
-                        ? [[parseFloat(r.latitude), parseFloat(r.longitude)]]
-                        : null;
+                    // View Map: polyline for IPMS projects, else single lat/lng point
+                    currentRmPoint = null;
+                    if ((src === 'infrastructure' || src === 'maintenance') && Array.isArray(r.polyline) && r.polyline.length >= 2) {
+                        currentRmPoint = r.polyline.map(function(pt) { return [pt[0], pt[1]]; });
+                    } else if (r.latitude && r.longitude && r.latitude != 0 && r.longitude != 0) {
+                        currentRmPoint = [[parseFloat(r.latitude), parseFloat(r.longitude)]];
+                    }
                     var rmMapBtn = document.getElementById('rm-view-map-btn');
-                    if (rmMapBtn) rmMapBtn.style.display = currentRmPoint ? '' : 'none';
+                    if (rmMapBtn) {
+                        rmMapBtn.style.display = currentRmPoint ? '' : 'none';
+                        if (currentRmPoint && currentRmPoint.length >= 2 && (src === 'infrastructure' || src === 'maintenance')) {
+                            rmMapBtn.onclick = function() { openRoadPathMap('rm-map-container', currentRmPoint, true); };
+                        } else if (currentRmPoint) {
+                            rmMapBtn.onclick = function() { openRoadPathMap('rm-map-container', currentRmPoint, false); };
+                        }
+                    }
                     var rmMapContainer = document.getElementById('rm-map-container');
                     if (rmMapContainer) rmMapContainer.classList.remove('road-map-visible');
 
@@ -4655,9 +4650,13 @@ annotate_report_assignment_status($conn, $recent_reports);
             var src = String(currentUpdatesReportSource || existing.source || '').toLowerCase();
             var type = currentUpdatesReportType || existing.report_type || 'transportation';
             var table = 'road_transportation_reports';
-            if (src === 'infrastructure' || src === 'maintenance') table = (existing.table === 'road_transportation_reports') ? 'road_transportation_reports' : 'ipms_road_projects';
-            else if (src === 'cimm' || src === 'external') table = 'cimm_verification_reports';
-            if (existing.table) table = existing.table;
+            if (src === 'cimm' || src === 'external') table = 'cimm_verification_reports';
+            else if (src === 'infrastructure' || src === 'maintenance') {
+                table = 'ipms_road_projects';
+                if (!type || type === 'transportation') type = 'infrastructure_issue';
+            } else {
+                table = 'road_transportation_reports';
+            }
             if (!currentUpdatesReportId) {
                 currentUpdatesReportDetails = existing;
                 return Promise.resolve();
@@ -5292,6 +5291,7 @@ annotate_report_assignment_status($conn, $recent_reports);
     // Shared 1h cache + loading for Incidents / Bus / Rail toggles
     const LAYER_CACHE_TTL_MS = 60 * 60 * 1000;
     const LAYER_CACHE_STORAGE_KEY = 'qc_map_layer_cache_v1';
+    const LAYER_RENDER_CHUNK = 35;
     const layerCaches = {
         incidents: { fetchedAt: 0, items: null, loading: false },
         bus: { fetchedAt: 0, items: null, loading: false },
@@ -5304,6 +5304,8 @@ annotate_report_assignment_status($conn, $recent_reports);
         toggleRailStationsBtn: '<i class="fas fa-train"></i> Rail',
         togglePtRoutesBtn: '<i class="fas fa-route"></i> PT Routes'
     };
+    // Cancel mid-flight chunked paints when the user toggles a layer off
+    let accidentRenderGen = 0;
 
     function hasLayerCache(cache) {
         return Array.isArray(cache.items);
@@ -5311,6 +5313,37 @@ annotate_report_assignment_status($conn, $recent_reports);
     function isLayerCacheFresh(cache) {
         return hasLayerCache(cache) && (Date.now() - cache.fetchedAt) < LAYER_CACHE_TTL_MS;
     }
+
+    // Yield so Leaflet pin paints / JSON work don't freeze the UI thread
+    function yieldToMain() {
+        return new Promise(function(resolve) {
+            if (typeof requestAnimationFrame === 'function') {
+                requestAnimationFrame(function() { setTimeout(resolve, 0); });
+            } else {
+                setTimeout(resolve, 0);
+            }
+        });
+    }
+
+    function mapOverChunks(items, eachFn, shouldContinue, chunkSize) {
+        items = items || [];
+        chunkSize = chunkSize || LAYER_RENDER_CHUNK;
+        let i = 0;
+        let count = 0;
+        function step() {
+            if (typeof shouldContinue === 'function' && !shouldContinue()) {
+                return Promise.resolve(count);
+            }
+            const end = Math.min(i + chunkSize, items.length);
+            for (; i < end; i++) {
+                if (eachFn(items[i], i)) count++;
+            }
+            if (i >= items.length) return Promise.resolve(count);
+            return yieldToMain().then(step);
+        }
+        return step();
+    }
+
     function loadLayerCachesFromStorage() {
         try {
             const raw = localStorage.getItem(LAYER_CACHE_STORAGE_KEY);
@@ -5331,23 +5364,25 @@ annotate_report_assignment_status($conn, $recent_reports);
             saveOsmRoutesToIdb();
             return;
         }
-        try {
-            let stored = {};
+        // Defer stringify — large incident/bus payloads freeze the UI if sync
+        setTimeout(function() {
             try {
-                stored = JSON.parse(localStorage.getItem(LAYER_CACHE_STORAGE_KEY) || '{}') || {};
-            } catch (e) {
-                stored = {};
-            }
-            const cache = layerCaches[key];
-            if (!hasLayerCache(cache) || !cache.fetchedAt) return;
-            stored[key] = { fetchedAt: cache.fetchedAt, items: cache.items };
-            // Drop stale siblings so storage stays lean
-            ['incidents', 'bus', 'rail'].forEach(function(k) {
-                if (!stored[k] || !stored[k].fetchedAt) return;
-                if ((Date.now() - stored[k].fetchedAt) >= LAYER_CACHE_TTL_MS) delete stored[k];
-            });
-            localStorage.setItem(LAYER_CACHE_STORAGE_KEY, JSON.stringify(stored));
-        } catch (e) { /* ignore quota errors */ }
+                let stored = {};
+                try {
+                    stored = JSON.parse(localStorage.getItem(LAYER_CACHE_STORAGE_KEY) || '{}') || {};
+                } catch (e) {
+                    stored = {};
+                }
+                const cache = layerCaches[key];
+                if (!hasLayerCache(cache) || !cache.fetchedAt) return;
+                stored[key] = { fetchedAt: cache.fetchedAt, items: cache.items };
+                ['incidents', 'bus', 'rail'].forEach(function(k) {
+                    if (!stored[k] || !stored[k].fetchedAt) return;
+                    if ((Date.now() - stored[k].fetchedAt) >= LAYER_CACHE_TTL_MS) delete stored[k];
+                });
+                localStorage.setItem(LAYER_CACHE_STORAGE_KEY, JSON.stringify(stored));
+            } catch (e) { /* ignore quota errors */ }
+        }, 0);
     }
 
     // OSM routes are too large for localStorage; IndexedDB keeps the 1h client cache across refresh
@@ -5413,7 +5448,13 @@ annotate_report_assignment_status($conn, $recent_reports);
             });
         }).catch(function() { /* quota / private mode */ });
     }
-    loadLayerCachesFromStorage();
+    // Parse localStorage off the critical path so a large cache doesn't freeze first paint
+    const layerCacheHydrated = new Promise(function(resolve) {
+        setTimeout(function() {
+            loadLayerCachesFromStorage();
+            resolve();
+        }, 0);
+    });
     // Resolve before any OSM fetch so refresh can reuse IndexedDB within 1h
     const osmRoutesIdbReady = loadOsmRoutesFromIdb();
 
@@ -5421,6 +5462,7 @@ annotate_report_assignment_status($conn, $recent_reports);
         const btn = document.getElementById(btnId);
         if (!btn) return;
         btn.classList.toggle('is-loading', !!loading);
+        btn.disabled = !!loading;
         if (loading) {
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading';
             return;
@@ -5430,16 +5472,19 @@ annotate_report_assignment_status($conn, $recent_reports);
     }
 
     function renderAccidentPinsFromData(incidents) {
+        const gen = ++accidentRenderGen;
         if (accidentsLayer) {
             map.removeLayer(accidentsLayer);
             accidentsLayer = null;
         }
         accidentsLayer = L.layerGroup().addTo(map);
-        let count = 0;
-        (incidents || []).forEach(function(inc) {
+        const layer = accidentsLayer;
+
+        return mapOverChunks(incidents, function(inc) {
+            if (gen !== accidentRenderGen || !accidentsVisible || layer !== accidentsLayer) return false;
             const pos = incidentLatLng(inc);
-            if (!pos || pos[0] == null || pos[1] == null) return;
-            if (typeof isInsideQCBounds === 'function' && !isInsideQCBounds(pos[0], pos[1])) return;
+            if (!pos || pos[0] == null || pos[1] == null) return false;
+            if (typeof isInsideQCBounds === 'function' && !isInsideQCBounds(pos[0], pos[1])) return false;
             const cat = incidentCategory(inc);
             const style = incidentStyle(cat);
             const popup = incidentPopupHtml(inc);
@@ -5447,7 +5492,7 @@ annotate_report_assignment_status($conn, $recent_reports);
             if (line && line.length > 1) {
                 L.polyline(line, { color: style.color, weight: 5, opacity: 0.85 })
                     .bindPopup(popup)
-                    .addTo(accidentsLayer);
+                    .addTo(layer);
             }
             const icon = L.divIcon({
                 html: '<div class="incident-map-pin ' + style.css + '"><i class="fas fa-' + style.icon + '"></i></div>',
@@ -5457,10 +5502,11 @@ annotate_report_assignment_status($conn, $recent_reports);
             });
             L.marker(pos, { icon: icon, zIndexOffset: 600 })
                 .bindPopup(popup)
-                .addTo(accidentsLayer);
-            count++;
+                .addTo(layer);
+            return true;
+        }, function() {
+            return gen === accidentRenderGen && accidentsVisible && layer === accidentsLayer;
         });
-        return count;
     }
 
     function fetchAccidentIncidents() {
@@ -5475,30 +5521,47 @@ annotate_report_assignment_status($conn, $recent_reports);
     function loadAccidentPins(silent) {
         const cache = layerCaches.incidents;
         let showedCache = false;
+        let paintPromise = Promise.resolve(0);
+
         if (accidentsVisible && hasLayerCache(cache)) {
-            const count = renderAccidentPinsFromData(cache.items);
-            showedCache = true;
-            if (!silent && isLayerCacheFresh(cache)) {
-                showNotification(count ? (count + ' live incident' + (count === 1 ? '' : 's') + ' on the map') : 'No live traffic incidents in Quezon City', 'info');
-            }
+            setToggleLoading('toggleAccidentsBtn', true);
+            paintPromise = renderAccidentPinsFromData(cache.items).then(function(count) {
+                showedCache = true;
+                setToggleLoading('toggleAccidentsBtn', false, function() {
+                    setAccidentToggleStyle(accidentsVisible);
+                });
+                if (!silent && isLayerCacheFresh(cache)) {
+                    showNotification(count ? (count + ' live incident' + (count === 1 ? '' : 's') + ' on the map') : 'No live traffic incidents in Quezon City', 'info');
+                }
+                return count;
+            });
         }
-        if (isLayerCacheFresh(cache) || cache.loading) return;
+        if (isLayerCacheFresh(cache) || cache.loading) return paintPromise;
 
         cache.loading = true;
         setToggleLoading('toggleAccidentsBtn', true);
-        fetchAccidentIncidents().then(function(incidents) {
+        return paintPromise.then(function() {
+            return fetchAccidentIncidents();
+        }).then(function(incidents) {
             cache.items = incidents;
             cache.fetchedAt = Date.now();
             cache.loading = false;
             saveLayerCacheToStorage('incidents');
-            setToggleLoading('toggleAccidentsBtn', false, function() {
-                setAccidentToggleStyle(accidentsVisible);
-            });
-            if (!accidentsVisible) return;
-            const count = renderAccidentPinsFromData(incidents);
-            if (!silent && !showedCache) {
-                showNotification(count ? (count + ' live incident' + (count === 1 ? '' : 's') + ' on the map') : 'No live traffic incidents in Quezon City', 'info');
+            if (!accidentsVisible) {
+                setToggleLoading('toggleAccidentsBtn', false, function() {
+                    setAccidentToggleStyle(accidentsVisible);
+                });
+                return 0;
             }
+            return renderAccidentPinsFromData(incidents).then(function(count) {
+                setToggleLoading('toggleAccidentsBtn', false, function() {
+                    setAccidentToggleStyle(accidentsVisible);
+                });
+                if (!silent && !showedCache) {
+                    showNotification(count ? (count + ' live incident' + (count === 1 ? '' : 's') + ' on the map') : 'No live traffic incidents in Quezon City', 'info');
+                }
+                return count;
+            });
         }).catch(function(err) {
             cache.loading = false;
             setToggleLoading('toggleAccidentsBtn', false, function() {
@@ -5529,6 +5592,7 @@ annotate_report_assignment_status($conn, $recent_reports);
         accidentsVisible = !accidentsVisible;
         setAccidentToggleStyle(accidentsVisible);
         if (!accidentsVisible) {
+            accidentRenderGen++;
             if (accidentsLayer) {
                 map.removeLayer(accidentsLayer);
                 accidentsLayer = null;
@@ -5538,8 +5602,6 @@ annotate_report_assignment_status($conn, $recent_reports);
         }
         loadAccidentPins(false);
     }
-
-    loadAccidentPins(true);
 
     // ===== BUS / RAIL TRANSIT POIs (TomTom categorySet) =====
     const TOMTOM_BUS_CATEGORY = '9942002';
@@ -5592,13 +5654,29 @@ annotate_report_assignment_status($conn, $recent_reports);
         });
     }
 
-    function renderTransitPins(pois, cssClass, iconName, kindLabel) {
+    function renderTransitPins(pois, cssClass, iconName, kindLabel, opts) {
+        opts = opts || {};
+        const genRef = opts.genRef;
+        const isVisible = opts.isVisible;
+        const setLayer = opts.setLayer;
+        const getLayer = opts.getLayer;
+        const gen = genRef ? (++genRef.value) : 0;
+
+        const existing = typeof getLayer === 'function' ? getLayer() : null;
+        if (existing) {
+            map.removeLayer(existing);
+            if (typeof setLayer === 'function') setLayer(null);
+        }
         const layer = L.layerGroup().addTo(map);
-        let count = 0;
-        (pois || []).forEach(function(poi) {
+        if (typeof setLayer === 'function') setLayer(layer);
+
+        return mapOverChunks(pois, function(poi) {
+            if (genRef && gen !== genRef.value) return false;
+            if (typeof isVisible === 'function' && !isVisible()) return false;
+            if (typeof getLayer === 'function' && getLayer() !== layer) return false;
             const pos = transitPoiPosition(poi);
-            if (!pos) return;
-            if (typeof isInsideQCBounds === 'function' && !isInsideQCBounds(pos[0], pos[1])) return;
+            if (!pos) return false;
+            if (typeof isInsideQCBounds === 'function' && !isInsideQCBounds(pos[0], pos[1])) return false;
             const icon = L.divIcon({
                 html: '<div class="transit-map-pin ' + cssClass + '"><i class="fas fa-' + iconName + '"></i></div>',
                 className: '',
@@ -5608,10 +5686,19 @@ annotate_report_assignment_status($conn, $recent_reports);
             L.marker(pos, { icon: icon, zIndexOffset: 500 })
                 .bindPopup(transitPoiPopupHtml(poi, kindLabel))
                 .addTo(layer);
-            count++;
+            return true;
+        }, function() {
+            if (genRef && gen !== genRef.value) return false;
+            if (typeof isVisible === 'function' && !isVisible()) return false;
+            if (typeof getLayer === 'function' && getLayer() !== layer) return false;
+            return true;
+        }).then(function(count) {
+            return { layer: layer, count: count };
         });
-        return { layer: layer, count: count };
     }
+
+    const busRenderToken = { value: 0 };
+    const railRenderToken = { value: 0 };
 
     function setBusToggleStyle(on) {
         const btn = document.getElementById('toggleBusStopsBtn');
@@ -5644,40 +5731,57 @@ annotate_report_assignment_status($conn, $recent_reports);
     function loadBusStopPins(silent) {
         const cache = layerCaches.bus;
         let showedCache = false;
+        let paintPromise = Promise.resolve({ count: 0 });
+
         if (busStopsVisible && hasLayerCache(cache)) {
-            if (busStopsLayer) {
-                map.removeLayer(busStopsLayer);
-                busStopsLayer = null;
-            }
-            const rendered = renderTransitPins(cache.items, 'bus', 'bus', 'Bus stop');
-            busStopsLayer = rendered.layer;
-            showedCache = true;
-            if (!silent && isLayerCacheFresh(cache)) {
-                showNotification(rendered.count ? (rendered.count + ' bus stop' + (rendered.count === 1 ? '' : 's') + ' on the map') : 'No bus stops found in Quezon City', 'info');
-            }
+            setToggleLoading('toggleBusStopsBtn', true);
+            paintPromise = renderTransitPins(cache.items, 'bus', 'bus', 'Bus stop', {
+                genRef: busRenderToken,
+                isVisible: function() { return busStopsVisible; },
+                getLayer: function() { return busStopsLayer; },
+                setLayer: function(l) { busStopsLayer = l; }
+            }).then(function(rendered) {
+                showedCache = true;
+                setToggleLoading('toggleBusStopsBtn', false, function() {
+                    setBusToggleStyle(busStopsVisible);
+                });
+                if (!silent && isLayerCacheFresh(cache)) {
+                    showNotification(rendered.count ? (rendered.count + ' bus stop' + (rendered.count === 1 ? '' : 's') + ' on the map') : 'No bus stops found in Quezon City', 'info');
+                }
+                return rendered;
+            });
         }
-        if (isLayerCacheFresh(cache) || cache.loading) return;
+        if (isLayerCacheFresh(cache) || cache.loading) return paintPromise;
 
         cache.loading = true;
         setToggleLoading('toggleBusStopsBtn', true);
-        fetchTransitPois(TOMTOM_BUS_CATEGORY).then(function(pois) {
+        return paintPromise.then(function() {
+            return fetchTransitPois(TOMTOM_BUS_CATEGORY);
+        }).then(function(pois) {
             cache.items = pois;
             cache.fetchedAt = Date.now();
             cache.loading = false;
             saveLayerCacheToStorage('bus');
-            setToggleLoading('toggleBusStopsBtn', false, function() {
-                setBusToggleStyle(busStopsVisible);
+            if (!busStopsVisible) {
+                setToggleLoading('toggleBusStopsBtn', false, function() {
+                    setBusToggleStyle(busStopsVisible);
+                });
+                return { count: 0 };
+            }
+            return renderTransitPins(pois, 'bus', 'bus', 'Bus stop', {
+                genRef: busRenderToken,
+                isVisible: function() { return busStopsVisible; },
+                getLayer: function() { return busStopsLayer; },
+                setLayer: function(l) { busStopsLayer = l; }
+            }).then(function(rendered) {
+                setToggleLoading('toggleBusStopsBtn', false, function() {
+                    setBusToggleStyle(busStopsVisible);
+                });
+                if (!silent && !showedCache) {
+                    showNotification(rendered.count ? (rendered.count + ' bus stop' + (rendered.count === 1 ? '' : 's') + ' on the map') : 'No bus stops found in Quezon City', 'info');
+                }
+                return rendered;
             });
-            if (!busStopsVisible) return;
-            if (busStopsLayer) {
-                map.removeLayer(busStopsLayer);
-                busStopsLayer = null;
-            }
-            const rendered = renderTransitPins(pois, 'bus', 'bus', 'Bus stop');
-            busStopsLayer = rendered.layer;
-            if (!silent && !showedCache) {
-                showNotification(rendered.count ? (rendered.count + ' bus stop' + (rendered.count === 1 ? '' : 's') + ' on the map') : 'No bus stops found in Quezon City', 'info');
-            }
         }).catch(function() {
             cache.loading = false;
             setToggleLoading('toggleBusStopsBtn', false, function() {
@@ -5693,40 +5797,57 @@ annotate_report_assignment_status($conn, $recent_reports);
     function loadRailStationPins(silent) {
         const cache = layerCaches.rail;
         let showedCache = false;
+        let paintPromise = Promise.resolve({ count: 0 });
+
         if (railStationsVisible && hasLayerCache(cache)) {
-            if (railStationsLayer) {
-                map.removeLayer(railStationsLayer);
-                railStationsLayer = null;
-            }
-            const rendered = renderTransitPins(cache.items, 'rail', 'train', 'Railroad station');
-            railStationsLayer = rendered.layer;
-            showedCache = true;
-            if (!silent && isLayerCacheFresh(cache)) {
-                showNotification(rendered.count ? (rendered.count + ' rail station' + (rendered.count === 1 ? '' : 's') + ' on the map') : 'No rail stations found in Quezon City', 'info');
-            }
+            setToggleLoading('toggleRailStationsBtn', true);
+            paintPromise = renderTransitPins(cache.items, 'rail', 'train', 'Railroad station', {
+                genRef: railRenderToken,
+                isVisible: function() { return railStationsVisible; },
+                getLayer: function() { return railStationsLayer; },
+                setLayer: function(l) { railStationsLayer = l; }
+            }).then(function(rendered) {
+                showedCache = true;
+                setToggleLoading('toggleRailStationsBtn', false, function() {
+                    setRailToggleStyle(railStationsVisible);
+                });
+                if (!silent && isLayerCacheFresh(cache)) {
+                    showNotification(rendered.count ? (rendered.count + ' rail station' + (rendered.count === 1 ? '' : 's') + ' on the map') : 'No rail stations found in Quezon City', 'info');
+                }
+                return rendered;
+            });
         }
-        if (isLayerCacheFresh(cache) || cache.loading) return;
+        if (isLayerCacheFresh(cache) || cache.loading) return paintPromise;
 
         cache.loading = true;
         setToggleLoading('toggleRailStationsBtn', true);
-        fetchTransitPois(TOMTOM_RAIL_CATEGORY).then(function(pois) {
+        return paintPromise.then(function() {
+            return fetchTransitPois(TOMTOM_RAIL_CATEGORY);
+        }).then(function(pois) {
             cache.items = pois;
             cache.fetchedAt = Date.now();
             cache.loading = false;
             saveLayerCacheToStorage('rail');
-            setToggleLoading('toggleRailStationsBtn', false, function() {
-                setRailToggleStyle(railStationsVisible);
+            if (!railStationsVisible) {
+                setToggleLoading('toggleRailStationsBtn', false, function() {
+                    setRailToggleStyle(railStationsVisible);
+                });
+                return { count: 0 };
+            }
+            return renderTransitPins(pois, 'rail', 'train', 'Railroad station', {
+                genRef: railRenderToken,
+                isVisible: function() { return railStationsVisible; },
+                getLayer: function() { return railStationsLayer; },
+                setLayer: function(l) { railStationsLayer = l; }
+            }).then(function(rendered) {
+                setToggleLoading('toggleRailStationsBtn', false, function() {
+                    setRailToggleStyle(railStationsVisible);
+                });
+                if (!silent && !showedCache) {
+                    showNotification(rendered.count ? (rendered.count + ' rail station' + (rendered.count === 1 ? '' : 's') + ' on the map') : 'No rail stations found in Quezon City', 'info');
+                }
+                return rendered;
             });
-            if (!railStationsVisible) return;
-            if (railStationsLayer) {
-                map.removeLayer(railStationsLayer);
-                railStationsLayer = null;
-            }
-            const rendered = renderTransitPins(pois, 'rail', 'train', 'Railroad station');
-            railStationsLayer = rendered.layer;
-            if (!silent && !showedCache) {
-                showNotification(rendered.count ? (rendered.count + ' rail station' + (rendered.count === 1 ? '' : 's') + ' on the map') : 'No rail stations found in Quezon City', 'info');
-            }
         }).catch(function() {
             cache.loading = false;
             setToggleLoading('toggleRailStationsBtn', false, function() {
@@ -5743,6 +5864,7 @@ annotate_report_assignment_status($conn, $recent_reports);
         busStopsVisible = !busStopsVisible;
         setBusToggleStyle(busStopsVisible);
         if (!busStopsVisible) {
+            busRenderToken.value++;
             if (busStopsLayer) {
                 map.removeLayer(busStopsLayer);
                 busStopsLayer = null;
@@ -5757,6 +5879,7 @@ annotate_report_assignment_status($conn, $recent_reports);
         railStationsVisible = !railStationsVisible;
         setRailToggleStyle(railStationsVisible);
         if (!railStationsVisible) {
+            railRenderToken.value++;
             if (railStationsLayer) {
                 map.removeLayer(railStationsLayer);
                 railStationsLayer = null;
@@ -5767,8 +5890,22 @@ annotate_report_assignment_status($conn, $recent_reports);
         loadRailStationPins(false);
     }
 
-    loadBusStopPins(true);
-    loadRailStationPins(true);
+    // Prefetch after idle so map init / UI stay responsive; stagger layers
+    function scheduleLayerPrefetch() {
+        const run = function() {
+            layerCacheHydrated.then(function() {
+                loadAccidentPins(true);
+                setTimeout(function() { loadBusStopPins(true); }, 400);
+                setTimeout(function() { loadRailStationPins(true); }, 800);
+            });
+        };
+        if (typeof requestIdleCallback === 'function') {
+            requestIdleCallback(run, { timeout: 2500 });
+        } else {
+            setTimeout(run, 600);
+        }
+    }
+    scheduleLayerPrefetch();
 
     // ===== OSM PT ROUTES (Overpass) — list first, map on select =====
     const OSM_ROUTES_API = '../api/overpass/routes.php';
