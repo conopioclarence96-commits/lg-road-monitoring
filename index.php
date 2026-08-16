@@ -193,43 +193,6 @@ if ($database_available && $conn) {
     }
 }
 
-// Get road projects (full lifecycle: new/ongoing/completed/cancelled)
-// synced from IPMS (see lgu_staff/pages/api/ipms-road-projects-pull.php for the poller that keeps
-// this cache fresh, and ipms_road_projects_data.php for the schema). This is
-// IPMS's own project data, kept intentionally separate from this app's
-// citizen-reported incident tables.
-require_once __DIR__ . '/lgu_staff/pages/api/ipms_road_projects_data.php';
-$ipms_road_projects = [];
-if ($database_available && $conn) {
-    try {
-        $ipms_road_projects = rgmap_fetch_ipms_road_projects(rgmap_ipms_pdo());
-    } catch (Exception $e) {
-        $ipms_road_projects = [];
-    }
-}
-
-// Display metadata (badge label/class, human status) for an IPMS project
-// status. IPMS sends the raw status string (approved/bidding/active/... —
-// see ipms-road-projects-pull.php doc comment for the full list); this just
-// maps it to something citizen-friendly. Covers the full lifecycle IPMS now
-// sends (new/ongoing/completed/cancelled), not just upcoming/ongoing.
-function ipms_status_meta(string $status): array {
-    $map = [
-        'approved'              => ['label' => 'Upcoming — Approved',        'class' => 'rp-upcoming'],
-        'bidding'               => ['label' => 'Upcoming — Bidding',         'class' => 'rp-upcoming'],
-        'awarded'               => ['label' => 'Upcoming — Awarded',        'class' => 'rp-upcoming'],
-        'assigned'              => ['label' => 'Upcoming — Assigned',       'class' => 'rp-upcoming'],
-        'active'                => ['label' => 'Ongoing',                    'class' => 'rp-active'],
-        'delayed'               => ['label' => 'Ongoing — Delayed',         'class' => 'rp-delayed'],
-        'on_hold'               => ['label' => 'On Hold',                    'class' => 'rp-on_hold'],
-        'completion_inspection' => ['label' => 'Final Inspection',          'class' => 'rp-completion_inspection'],
-        'completed'             => ['label' => 'Completed',                  'class' => 'rp-completed'],
-        'turnover'              => ['label' => 'Completed — Turned Over',    'class' => 'rp-completed'],
-        'cancelled'             => ['label' => 'Cancelled',                  'class' => 'rp-cancelled'],
-    ];
-    return $map[$status] ?? ['label' => ucfirst(str_replace('_', ' ', $status)), 'class' => 'rp-upcoming'];
-}
-
 // Load access control settings
 $access_settings = [];
 if ($database_available && $conn) {
@@ -1189,62 +1152,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             color: var(--qc-shades-200);
         }
 
-        /* Road Projects Section (IPMS feed) */
-        #roadProjectsMap {
-            height: 420px;
-            border-radius: 12px;
-            overflow: hidden;
-            border: 1px solid var(--qc-card-border);
-            box-shadow: 0 8px 24px rgba(17, 82, 114, 0.08);
-            margin-bottom: 30px;
-        }
-
-        /* GIS Map Wrapper & Toolbar */
-        .gis-map-wrapper {
-            position: relative;
-            margin-bottom: 30px;
-        }
-        .gis-map-toolbar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 8px;
-            padding: 10px 16px;
-            background: #fff;
-            border: 1px solid var(--qc-card-border);
-            border-bottom: none;
-            border-radius: 12px 12px 0 0;
-            box-shadow: 0 2px 12px rgba(17, 82, 114, 0.06);
-            z-index: 10;
-            position: relative;
-        }
-        .gis-toolbar-left, .gis-toolbar-right {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-        .gis-map-legend {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            font-size: 12px;
-            color: var(--qc-shades-500);
-        }
-        .gis-legend-item {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            white-space: nowrap;
-        }
-        .gis-legend-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            display: inline-block;
-            flex-shrink: 0;
-        }
         .gis-map-btn {
             display: inline-flex;
             align-items: center;
@@ -1321,164 +1228,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         .gis-search-result-item:last-child { border-bottom: none; }
         .gis-search-result-item:hover { background: #eaf3f9; }
         .gis-search-result-item small { display: block; color: var(--qc-shades-400); font-size: 11px; margin-top: 2px; }
-        .gis-dropdown-menu {
-            position: absolute;
-            top: 100%;
-            right: 0;
-            background: #fff;
-            border: 1px solid var(--qc-card-border);
-            border-radius: 10px;
-            box-shadow: 0 8px 24px rgba(17, 82, 114, 0.12);
-            z-index: 1000;
-            min-width: 200px;
-            padding: 6px 0;
-            margin-top: 4px;
-        }
-        .gis-dropdown-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            width: 100%;
-            padding: 9px 16px;
-            border: none;
-            background: none;
-            font-size: 13px;
-            color: #333;
-            cursor: pointer;
-            text-align: left;
-            transition: background 0.15s;
-        }
-        .gis-dropdown-item:hover { background: #eaf3f9; color: var(--qc-primary-800); }
-        .gis-dropdown-item i { width: 16px; text-align: center; color: var(--qc-primary-800); }
-        .gis-district-tooltip {
-            background: var(--qc-primary-800);
-            color: #fff;
-            border-radius: 8px;
-            padding: 6px 12px;
-            font-size: 12px;
-            font-weight: 500;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-            border: none;
-        }
-        .gis-district-tooltip::before { border-top-color: var(--qc-primary-800); }
-
-        /* Fullscreen mode */
-        body.gis-map-fullscreen-active .gis-map-wrapper {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            z-index: 9999;
-            border-radius: 0;
-            margin: 0;
-        }
-        body.gis-map-fullscreen-active .gis-map-toolbar {
-            border-radius: 0;
-            position: fixed;
-            top: 0; left: 0; right: 0;
-            z-index: 10000;
-        }
-        body.gis-map-fullscreen-active #roadProjectsMap {
-            position: fixed;
-            top: 52px; left: 0; right: 0; bottom: 0;
-            height: auto;
-            border-radius: 0;
-            z-index: 9999;
-        }
-
-        .road-projects-empty {
-            text-align: center;
-            padding: 60px 20px;
-            color: var(--qc-shades-400);
-        }
-
-        .road-projects-empty i {
-            font-size: 3rem;
-            margin-bottom: 15px;
-            color: var(--qc-shades-200);
-        }
-
-        .road-projects-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
-            gap: 20px;
-        }
-
-        .road-project-card {
-            background: white;
-            border: 1px solid var(--qc-card-border);
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: none;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-            cursor: pointer;
-        }
-
-        .road-project-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 10px 24px rgba(17, 82, 114, 0.1);
-        }
-
-        .road-project-card h4 {
-            font-size: 1rem;
-            font-weight: 700;
-            color: var(--qc-primary-900);
-            margin-bottom: 8px;
-        }
-
-        .rp-status-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            color: white;
-            margin-bottom: 10px;
-        }
-
-        .rp-status-badge.rp-upcoming { background: #2196f3; }
-        .rp-status-badge.rp-active { background: #28a745; }
-        .rp-status-badge.rp-delayed { background: #dc3545; }
-        .rp-status-badge.rp-on_hold { background: #6c757d; }
-        .rp-status-badge.rp-completion_inspection { background: #17a2b8; }
-        .rp-status-badge.rp-completed { background: #6f42c1; }
-        .rp-status-badge.rp-cancelled { background: #343a40; }
-
-        .rp-bucket-filter {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-bottom: 16px;
-        }
-
-        .rp-meta {
-            font-size: 0.85rem;
-            color: var(--qc-shades-500);
-            margin-bottom: 4px;
-        }
-
-        .rp-meta i {
-            color: var(--qc-primary-500);
-            width: 16px;
-            text-align: center;
-            margin-right: 4px;
-        }
-
-        .rp-progress-track {
-            background: #eef1f3;
-            border-radius: 10px;
-            height: 8px;
-            overflow: hidden;
-            margin: 10px 0 6px;
-        }
-
-        .rp-progress-fill {
-            height: 100%;
-            background: var(--qc-primary-800);
-        }
-
-        .rp-progress-label {
-            font-size: 0.75rem;
-            color: var(--qc-shades-400);
-        }
 
         /* Citizen Report Modal Styles */
         .modal-header.bg-primary {
@@ -1864,16 +1613,10 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         html.dark-mode .stat-icon i,
         html.dark-mode .service-icon i,
         html.dark-mode .contact-icon i { color: #93c5fd; }
-        html.dark-mode .before-after-card,
-        html.dark-mode .road-project-card { background: #1e1e1e; border-color: #333; }
-        html.dark-mode .before-after-meta span,
-        html.dark-mode .rp-meta,
-        html.dark-mode .rp-progress-label { color: #9ca3af; }
-        html.dark-mode .rp-progress-track { background: #2d323b; }
-        html.dark-mode .before-after-empty,
-        html.dark-mode .road-projects-empty { color: #9ca3af; }
-        html.dark-mode .before-after-empty i,
-        html.dark-mode .road-projects-empty i { color: #374151; }
+        html.dark-mode .before-after-card { background: #1e1e1e; border-color: #333; }
+        html.dark-mode .before-after-meta span { color: #9ca3af; }
+        html.dark-mode .before-after-empty { color: #9ca3af; }
+        html.dark-mode .before-after-empty i { color: #374151; }
         html.dark-mode .btn-outline-dark { color: #c8cdd4; border-color: #6b7280; }
         html.dark-mode .btn-outline-dark:hover,
         html.dark-mode .btn-check:checked + .btn-outline-dark { background: #343a40; color: #fff; border-color: #343a40; }
@@ -1881,13 +1624,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         html.dark-mode .btn-outline-secondary:hover,
         html.dark-mode .btn-check:checked + .btn-outline-secondary { background: #6b7280; color: #fff; border-color: #6b7280; }
 
-        /* GIS toolbar, search & dropdowns */
-        html.dark-mode .gis-map-toolbar {
-            background: #1e2229;
-            border-color: #2d323b;
-            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-        }
-        html.dark-mode .gis-map-legend { color: #9ca3af; }
+        /* GIS search & dropdowns */
         html.dark-mode .gis-map-btn {
             border-color: rgba(147, 197, 253, 0.35);
             background: rgba(147, 197, 253, 0.08);
@@ -1908,13 +1645,10 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             color: #e4e6ea;
         }
         html.dark-mode .gis-search-input:focus { box-shadow: 0 0 0 2px rgba(33, 161, 214, 0.25); }
-        html.dark-mode .gis-search-results,
-        html.dark-mode .gis-dropdown-menu { background: #1e2229; border-color: #2d323b; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); }
+        html.dark-mode .gis-search-results { background: #1e2229; border-color: #2d323b; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); }
         html.dark-mode .gis-search-result-item { border-bottom-color: #2d323b; color: #e4e6ea; }
-        html.dark-mode .gis-search-result-item:hover,
-        html.dark-mode .gis-dropdown-item:hover { background: #26313c; color: #fff; }
+        html.dark-mode .gis-search-result-item:hover { background: #26313c; color: #fff; }
         html.dark-mode .gis-search-result-item small { color: #7f8b99; }
-        html.dark-mode .gis-dropdown-item { color: #e4e6ea; }
 
         /* Leaflet maps */
         html.dark-mode .leaflet-container { background: #171a1f; }
@@ -1987,11 +1721,9 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
            LANDING PAGE MOBILE RESPONSIVENESS (scoped to index.php)
            ============================================================ */
 
-        /* Stop fixed-width map/legend elements from causing horizontal scroll */
+        /* Stop fixed-width map elements from causing horizontal scroll */
         @media (max-width: 767.98px) {
             body { overflow-x: hidden; }
-            .gis-map-legend { flex-wrap: wrap; gap: 6px 10px; }
-            #roadProjectsMap { height: 340px; }
         }
 
         /* Small phones & narrow viewports */
@@ -2026,18 +1758,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             .stat-number { font-size: 1.75rem; }
             .stat-icon { width: 54px; height: 54px; font-size: 1.35rem; }
 
-            /* Road projects — map toolbar stacks vertically */
-            .gis-map-toolbar { flex-direction: column; align-items: stretch; padding: 10px; }
-            .gis-toolbar-left, .gis-toolbar-right { width: 100%; }
-            .gis-toolbar-right { justify-content: flex-start; }
-            .gis-map-search-box { flex: 1; }
-            .gis-search-input { flex: 1; width: auto; min-width: 0; }
-            .gis-toolbar-right .gis-map-btn { flex: 1 1 auto; justify-content: center; }
-            .gis-toolbar-right .gis-dropdown { flex: 1 1 auto; }
-            .gis-toolbar-right .gis-dropdown .gis-map-btn { width: 100%; }
-
-            /* Road project cards & before/after info */
-            .road-project-card { padding: 16px; }
+            /* Before/after info */
             .before-after-info { padding: 16px; }
 
             /* Footer */
@@ -2337,110 +2058,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         </div>
     </section>
 
-    <!-- Road Projects Section (IPMS feed) -->
-    <section class="section" id="road-projects" <?php echo ($access_settings['hide_road_projects'] ?? '0') === '1' ? 'style="display:none"' : ''; ?>>
-        <div class="container">
-            <h2 class="section-title">Road Projects</h2>
-            <p class="section-subtitle">Track road projects across the city — from newly approved through ongoing construction, completion, or cancellation</p>
-
-            <?php if (!empty($ipms_road_projects)): ?>
-            <div class="rp-bucket-filter" role="group" aria-label="Filter road projects by stage">
-                <input type="checkbox" class="btn-check" id="rpFilterNew" data-bucket="new" checked>
-                <label class="btn btn-sm btn-outline-primary" for="rpFilterNew">New</label>
-                <input type="checkbox" class="btn-check" id="rpFilterOngoing" data-bucket="ongoing" checked>
-                <label class="btn btn-sm btn-outline-success" for="rpFilterOngoing">Ongoing</label>
-                <input type="checkbox" class="btn-check" id="rpFilterCompleted" data-bucket="completed">
-                <label class="btn btn-sm btn-outline-secondary" for="rpFilterCompleted">Completed</label>
-                <input type="checkbox" class="btn-check" id="rpFilterCancelled" data-bucket="cancelled">
-                <label class="btn btn-sm btn-outline-dark" for="rpFilterCancelled">Cancelled</label>
-            </div>
-            <div class="gis-map-wrapper">
-                <div class="gis-map-toolbar">
-                    <div class="gis-toolbar-left">
-                        <div class="gis-map-legend">
-                            <span class="gis-legend-item"><span class="gis-legend-dot" style="background:#2196f3;"></span> New</span>
-                            <span class="gis-legend-item"><span class="gis-legend-dot" style="background:#28a745;"></span> Active</span>
-                            <span class="gis-legend-item"><span class="gis-legend-dot" style="background:#dc3545;"></span> Delayed</span>
-                            <span class="gis-legend-item"><span class="gis-legend-dot" style="background:#6c757d;"></span> On Hold</span>
-                            <span class="gis-legend-item"><span class="gis-legend-dot" style="background:#17a2b8;"></span> Final Inspection</span>
-                            <span class="gis-legend-item"><span class="gis-legend-dot" style="background:#6f42c1;"></span> Completed</span>
-                            <span class="gis-legend-item"><span class="gis-legend-dot" style="background:#343a40;"></span> Cancelled</span>
-                        </div>
-                        <div class="gis-map-search-box">
-                            <input type="text" id="gisMapSearchInput" placeholder="Search places..." class="gis-search-input">
-                            <button class="gis-map-btn gis-search-btn" onclick="gisMapSearch()" title="Search"><i class="fas fa-search"></i></button>
-                            <div id="gisMapSearchResults" class="gis-search-results"></div>
-                        </div>
-                    </div>
-                    <div class="gis-toolbar-right">
-                        <div class="gis-dropdown" style="position:relative;display:inline-block;">
-                            <button class="gis-map-btn" onclick="toggleGisToolsDropdown()" id="gisToolsDropdownBtn">
-                                <i class="fas fa-tools"></i> Tools
-                            </button>
-                            <div id="gisToolsDropdownMenu" class="gis-dropdown-menu" style="display:none;">
-                                <button class="gis-dropdown-item" onclick="toggleGisSatelliteLayer()"><i class="fas fa-satellite"></i> Satellite View</button>
-                                <button class="gis-dropdown-item" onclick="toggleGisTrafficIncidentsLayer()" id="gisToggleIncidentsBtn"><i class="fas fa-exclamation-triangle"></i> Traffic Incidents</button>
-                            </div>
-                        </div>
-                        <button class="gis-map-btn" id="gisToggleTrafficBtn" onclick="toggleGisTrafficLayer()">
-                            <i class="fas fa-car"></i> Traffic
-                        </button>
-                        <button class="gis-map-btn" onclick="toggleGisMapFullscreen()" id="gisFullscreenMapBtn">
-                            <i class="fas fa-expand"></i> Fullscreen
-                        </button>
-                    </div>
-                </div>
-                <div id="roadProjectsMap"></div>
-            </div>
-            <div class="road-projects-grid">
-                <?php foreach ($ipms_road_projects as $proj):
-                    $meta = ipms_status_meta($proj['project_status']);
-                    $progress = max(0, min(100, (int)$proj['progress_percent']));
-                ?>
-                <div class="road-project-card" data-bucket="<?php echo htmlspecialchars($proj['scope_bucket'] ?? 'new'); ?>" onclick="focusRoadProjectOnMap(<?php echo (int)$proj['project_id']; ?>)">
-                    <span class="rp-status-badge <?php echo htmlspecialchars($meta['class']); ?>"><?php echo htmlspecialchars($meta['label']); ?></span>
-                    <h4><?php echo htmlspecialchars($proj['project_name']); ?></h4>
-                    <div class="rp-meta"><i class="fas fa-road"></i> <?php echo htmlspecialchars($proj['road_type']); ?> &middot; <?php echo htmlspecialchars($proj['road_status']); ?></div>
-                    <?php if (!empty($proj['barangays_covered'])): ?>
-                    <div class="rp-meta"><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars(implode(', ', $proj['barangays_covered'])); ?></div>
-                    <?php endif; ?>
-                    <?php if (!empty($proj['start_date']) || !empty($proj['end_date'])): ?>
-                    <div class="rp-meta">
-                        <i class="fas fa-calendar"></i>
-                        <?php echo !empty($proj['start_date']) ? htmlspecialchars(date('M Y', strtotime($proj['start_date']))) : '—'; ?>
-                        &ndash;
-                        <?php echo !empty($proj['end_date']) ? htmlspecialchars(date('M Y', strtotime($proj['end_date']))) : '—'; ?>
-                    </div>
-                    <?php endif; ?>
-                    <?php if (!empty($proj['budget'])): ?>
-                    <div class="rp-meta"><i class="fas fa-money-bill-wave"></i> &#8369;<?php echo number_format((float)$proj['budget'], 0); ?></div>
-                    <?php endif; ?>
-                    <div class="rp-meta">
-                        <i class="fas fa-user-hard-hat"></i>
-                        <?php echo !empty($proj['assigned_engineers']) ? htmlspecialchars(implode(', ', $proj['assigned_engineers'])) : 'Unassigned'; ?>
-                    </div>
-                    <div class="rp-progress-track">
-                        <div class="rp-progress-fill" style="width: <?php echo $progress; ?>%;"></div>
-                    </div>
-                    <div class="rp-progress-label"><?php echo $progress; ?>% complete</div>
-                </div>
-                <?php endforeach; ?>
-            </div>
-            <div class="road-projects-empty" id="roadProjectsFilterEmpty" style="display:none;">
-                <i class="fas fa-filter"></i>
-                <h5>No Projects in This View</h5>
-                <p>Try enabling another status above.</p>
-            </div>
-            <?php else: ?>
-            <div class="road-projects-empty">
-                <i class="fas fa-road"></i>
-                <h5>No Road Projects Yet</h5>
-                <p>New, ongoing, completed, and cancelled road projects from IPMS will appear here once available.</p>
-            </div>
-            <?php endif; ?>
-        </div>
-    </section>
-
     <!-- Statistics Section -->
     <section class="section bg-light" <?php echo ($access_settings['hide_stats'] ?? '0') === '1' ? 'style="display:none"' : ''; ?>>
         <div class="container">
@@ -2626,7 +2243,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             <div class="footer-links-row">
                 <a href="#home">Home</a>
                 <a href="road-updates.php">Road Updates</a>
-                <a href="#road-projects">Road Projects</a>
                 <a href="public_reports.php">Road Status</a>
                 <a href="about.php">About</a>
                 <a href="contact.php">Contact</a>
@@ -2781,344 +2397,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     <script>
         const TOMTOM_API_KEY = '<?php echo TOMTOM_API_KEY; ?>';
         const CITIZEN_API = 'lgu_staff/pages/api/citizen_report.php';
-
-        // Road projects synced from IPMS across their full lifecycle
-        // (new/ongoing/completed/cancelled — read-only cache, see
-        // lgu_staff/pages/api/ipms-road-projects-pull.php). Each
-        // polyline_coordinates pair is [lat, lng], start -> end.
-        const IPMS_ROAD_PROJECTS = <?php echo json_encode(array_map(function ($p) {
-            return [
-                'project_id' => (int)$p['project_id'],
-                'project_name' => $p['project_name'],
-                'project_status' => $p['project_status'],
-                'progress_percent' => (int)$p['progress_percent'],
-                'road_type' => $p['road_type'],
-                'road_status' => $p['road_status'],
-                'polyline' => $p['polyline_coordinates'],
-                'scope_bucket' => $p['scope_bucket'],
-                'budget' => $p['budget'],
-                'assigned_engineers' => $p['assigned_engineers'],
-            ];
-        }, $ipms_road_projects), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
-
-        const ROAD_PROJECT_COLORS = {
-            'approved': '#2196f3',
-            'bidding': '#2196f3',
-            'awarded': '#2196f3',
-            'assigned': '#2196f3',
-            'active': '#28a745',
-            'delayed': '#dc3545',
-            'on_hold': '#6c757d',
-            'completion_inspection': '#17a2b8',
-            'completed': '#6f42c1',
-            'turnover': '#6f42c1',
-            'cancelled': '#343a40'
-        };
-        // One Leaflet layerGroup per lifecycle bucket, so the New/Ongoing/
-        // Completed/Cancelled filter chips can show/hide a whole bucket at
-        // once instead of toggling every polyline individually.
-        let roadProjectBucketGroups = null;
-        const roadProjectLayers = {};
-        let roadProjectsMap = null;
-        let gisTrafficLayer = null;
-        let gisSatelliteLayer = null;
-        let gisIncidentsLayer = null;
-        let gisDistrictsLayer = null;
-        let gisMapFullscreen = false;
-        let gisToolsDropdownOpen = false;
-
-        const GIS_QC_CENTER = [14.6760, 121.0437];
-        const GIS_QC_POLYGON_COORDS = [
-            [14.605, 120.982],[14.620, 120.985],[14.640, 120.988],[14.660, 120.990],
-            [14.680, 120.995],[14.700, 121.005],[14.715, 121.020],[14.730, 121.035],
-            [14.745, 121.050],[14.755, 121.065],[14.765, 121.080],[14.773, 121.095],
-            [14.770, 121.110],[14.762, 121.125],[14.750, 121.135],[14.735, 121.142],
-            [14.718, 121.146],[14.700, 121.148],[14.682, 121.142],[14.665, 121.135],
-            [14.650, 121.125],[14.638, 121.112],[14.628, 121.098],[14.618, 121.080],
-            [14.612, 121.062],[14.607, 121.045],[14.605, 121.028],[14.603, 121.010],
-            [14.602, 121.000],[14.603, 120.990]
-        ];
-
-        function initRoadProjectsMap() {
-            const mapEl = document.getElementById('roadProjectsMap');
-            if (!mapEl || typeof L === 'undefined') return;
-
-            roadProjectsMap = L.map('roadProjectsMap').setView(GIS_QC_CENTER, 12);
-
-            L.tileLayer('https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
-                attribution: '© TomTom',
-                maxZoom: 18
-            }).addTo(roadProjectsMap);
-
-            gisTrafficLayer = L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
-                attribution: '© TomTom Traffic',
-                opacity: 0.7
-            }).addTo(roadProjectsMap);
-
-            L.polygon(GIS_QC_POLYGON_COORDS, {
-                color: '#3762c8',
-                weight: 2,
-                opacity: 0.8,
-                fillOpacity: 0.06,
-                fillColor: '#3762c8'
-            }).addTo(roadProjectsMap);
-
-            const qcBounds = L.latLngBounds(GIS_QC_POLYGON_COORDS);
-            roadProjectsMap.setMaxBounds(qcBounds.pad(0.15));
-            roadProjectsMap.setMinZoom(11);
-            roadProjectsMap.setMaxZoom(18);
-            roadProjectsMap.on('moveend', function() {
-                const center = roadProjectsMap.getCenter();
-                if (!qcBounds.contains(center)) {
-                    roadProjectsMap.setView(GIS_QC_CENTER, 12);
-                }
-            });
-
-            fetch('lgu_staff/pages/api/qc_districts.geojson')
-                .then(r => r.json())
-                .then(data => {
-                    const colors = { 1: '#3b82f6', 2: '#8b5cf6', 3: '#10b981', 4: '#f59e0b', 5: '#ef4444', 6: '#06b6d4' };
-                    gisDistrictsLayer = L.geoJSON(data, {
-                        style: function(feature) {
-                            const dNum = parseInt((feature.properties.district_number || feature.properties.district || '').replace(/\D/g, '')) || 1;
-                            return {
-                                color: colors[dNum] || '#3762c8',
-                                weight: 1.5,
-                                opacity: 0.6,
-                                fillOpacity: 0.04,
-                                fillColor: colors[dNum] || '#3762c8',
-                                dashArray: '5,5'
-                            };
-                        },
-                        onEachFeature: function(feature, layer) {
-                            layer.bindTooltip(feature.properties.district_name || feature.properties.district, {
-                                sticky: true,
-                                className: 'gis-district-tooltip'
-                            });
-                        }
-                    }).addTo(roadProjectsMap);
-                })
-                .catch(e => console.warn('Could not load QC districts GeoJSON:', e));
-
-            roadProjectBucketGroups = {
-                new: L.layerGroup(),
-                ongoing: L.layerGroup(),
-                completed: L.layerGroup(),
-                cancelled: L.layerGroup()
-            };
-
-            const allPoints = [];
-            IPMS_ROAD_PROJECTS.forEach(proj => {
-                if (!Array.isArray(proj.polyline) || proj.polyline.length < 2) return;
-                const latlngs = proj.polyline.map(pt => [pt[0], pt[1]]);
-                const color = ROAD_PROJECT_COLORS[proj.project_status] || '#2196f3';
-                const bucket = roadProjectBucketGroups[proj.scope_bucket] ? proj.scope_bucket : 'new';
-                const line = L.polyline(latlngs, {
-                    color: color,
-                    weight: 5,
-                    opacity: 0.85
-                });
-                const budgetLine = proj.budget ? ('&#8369;' + Number(proj.budget).toLocaleString('en-US', { maximumFractionDigits: 0 }) + '<br>') : '';
-                const engineersLabel = (Array.isArray(proj.assigned_engineers) && proj.assigned_engineers.length > 0)
-                    ? proj.assigned_engineers.map(escapeRoadProjectHtml).join(', ')
-                    : 'Unassigned';
-                line.bindPopup(
-                    '<strong>' + escapeRoadProjectHtml(proj.project_name) + '</strong><br>' +
-                    escapeRoadProjectHtml(proj.road_type) + ' &middot; ' + escapeRoadProjectHtml(proj.road_status) + '<br>' +
-                    proj.progress_percent + '% complete<br>' +
-                    budgetLine +
-                    '<i class="fas fa-user-hard-hat"></i> ' + engineersLabel
-                );
-                line.addTo(roadProjectBucketGroups[bucket]);
-                roadProjectLayers[proj.project_id] = { layer: line, bucket: bucket };
-                allPoints.push(...latlngs);
-            });
-
-            applyRoadProjectFilters();
-
-            if (allPoints.length > 0) {
-                roadProjectsMap.fitBounds(L.latLngBounds(allPoints).pad(0.15));
-            } else {
-                roadProjectsMap.fitBounds(qcBounds.pad(0.1));
-            }
-        }
-
-        function getActiveRoadProjectFilters() {
-            const active = new Set();
-            document.querySelectorAll('.rp-bucket-filter .btn-check').forEach(cb => {
-                if (cb.checked) active.add(cb.dataset.bucket);
-            });
-            return active;
-        }
-
-        function applyRoadProjectFilters() {
-            const active = getActiveRoadProjectFilters();
-            let visible = 0;
-            document.querySelectorAll('.road-project-card').forEach(card => {
-                const show = active.has(card.dataset.bucket);
-                card.style.display = show ? '' : 'none';
-                if (show) visible++;
-            });
-            if (roadProjectsMap && roadProjectBucketGroups) {
-                Object.keys(roadProjectBucketGroups).forEach(bucket => {
-                    const group = roadProjectBucketGroups[bucket];
-                    if (active.has(bucket)) {
-                        if (!roadProjectsMap.hasLayer(group)) group.addTo(roadProjectsMap);
-                    } else if (roadProjectsMap.hasLayer(group)) {
-                        roadProjectsMap.removeLayer(group);
-                    }
-                });
-            }
-            const emptyEl = document.getElementById('roadProjectsFilterEmpty');
-            if (emptyEl) emptyEl.style.display = visible === 0 ? 'block' : 'none';
-        }
-
-        document.querySelectorAll('.rp-bucket-filter .btn-check').forEach(cb => {
-            cb.addEventListener('change', applyRoadProjectFilters);
-        });
-
-        function escapeRoadProjectHtml(text) {
-            const d = document.createElement('div');
-            d.textContent = text || '';
-            return d.innerHTML;
-        }
-
-        function focusRoadProjectOnMap(projectId) {
-            const entry = roadProjectLayers[projectId];
-            if (!entry || !roadProjectsMap) return;
-            const checkbox = document.querySelector('.rp-bucket-filter .btn-check[data-bucket="' + entry.bucket + '"]');
-            if (checkbox && !checkbox.checked) {
-                checkbox.checked = true;
-                applyRoadProjectFilters();
-            }
-            document.getElementById('roadProjectsMap').scrollIntoView({ behavior: 'smooth', block: 'center' });
-            roadProjectsMap.fitBounds(entry.layer.getBounds().pad(0.3));
-            entry.layer.openPopup(entry.layer.getBounds().getCenter());
-        }
-
-        let gisTrafficVisible = true;
-        function toggleGisTrafficLayer() {
-            gisTrafficVisible = !gisTrafficVisible;
-            const btn = document.getElementById('gisToggleTrafficBtn');
-            if (gisTrafficVisible) {
-                gisTrafficLayer.addTo(roadProjectsMap);
-                btn.classList.remove('inactive-toggle');
-                btn.classList.add('active-toggle');
-            } else {
-                roadProjectsMap.removeLayer(gisTrafficLayer);
-                btn.classList.remove('active-toggle');
-                btn.classList.add('inactive-toggle');
-            }
-        }
-
-        function toggleGisSatelliteLayer() {
-            if (gisSatelliteLayer) {
-                roadProjectsMap.removeLayer(gisSatelliteLayer);
-                gisSatelliteLayer = null;
-                return;
-            }
-            gisSatelliteLayer = L.tileLayer('https://api.tomtom.com/map/1/tile/satellite/main/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
-                attribution: '© TomTom',
-                maxZoom: 18
-            }).addTo(roadProjectsMap);
-        }
-
-        function toggleGisTrafficIncidentsLayer() {
-            if (gisIncidentsLayer) {
-                roadProjectsMap.removeLayer(gisIncidentsLayer);
-                gisIncidentsLayer = null;
-                document.getElementById('gisToggleIncidentsBtn').innerHTML = '<i class="fas fa-exclamation-triangle"></i> Traffic Incidents';
-                return;
-            }
-            const center = roadProjectsMap.getCenter();
-            TomTomServices.trafficIncidents(center.lat, center.lng, 15).then(data => {
-                if (data.success && data.data && data.data.incidents && data.data.incidents.length > 0) {
-                    gisIncidentsLayer = L.layerGroup().addTo(roadProjectsMap);
-                    data.data.incidents.forEach(inc => {
-                        const pos = inc.geometry?.point || inc.properties?.geometryCoordinates;
-                        if (pos) {
-                            const icon = L.divIcon({
-                                html: '<div style="background:#ef4444;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);"><i class="fas fa-exclamation"></i></div>',
-                                className: '', iconSize: [22, 22]
-                            });
-                            const ev = inc.properties || inc.event;
-                            L.marker([pos.lat || pos.latitude, pos.lon || pos.longitude], { icon })
-                                .bindPopup('<b>' + (ev?.type || 'Traffic Incident') + '</b><br>' + (ev?.description || ev?.iconCategory || ''))
-                                .addTo(gisIncidentsLayer);
-                        }
-                    });
-                    document.getElementById('gisToggleIncidentsBtn').innerHTML = '<i class="fas fa-exclamation-triangle"></i> Hide Incidents';
-                } else {
-                    gisIncidentsLayer = L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/incidents/absolute/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
-                        attribution: '© TomTom Incidents', opacity: 0.7
-                    }).addTo(roadProjectsMap);
-                    document.getElementById('gisToggleIncidentsBtn').innerHTML = '<i class="fas fa-exclamation-triangle"></i> Hide Incidents';
-                }
-            });
-        }
-
-        function toggleGisToolsDropdown() {
-            const menu = document.getElementById('gisToolsDropdownMenu');
-            gisToolsDropdownOpen = !gisToolsDropdownOpen;
-            menu.style.display = gisToolsDropdownOpen ? 'block' : 'none';
-        }
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('.gis-dropdown')) {
-                const menu = document.getElementById('gisToolsDropdownMenu');
-                if (menu) { menu.style.display = 'none'; gisToolsDropdownOpen = false; }
-            }
-        });
-
-        function toggleGisMapFullscreen() {
-            gisMapFullscreen = !gisMapFullscreen;
-            document.body.classList.toggle('gis-map-fullscreen-active', gisMapFullscreen);
-            const btn = document.getElementById('gisFullscreenMapBtn');
-            btn.innerHTML = gisMapFullscreen ? '<i class="fas fa-compress"></i> Exit' : '<i class="fas fa-expand"></i> Fullscreen';
-            setTimeout(() => roadProjectsMap?.invalidateSize(), 300);
-        }
-
-        function gisMapSearch() {
-            const q = document.getElementById('gisMapSearchInput').value.trim();
-            if (!q) return;
-            const resultsDiv = document.getElementById('gisMapSearchResults');
-            TomTomServices.poiSearch(q, { limit: 8 }).then(data => {
-                if (!data.success || !data.data || !data.data.results) {
-                    resultsDiv.style.display = 'none';
-                    return;
-                }
-                const results = data.data.results;
-                if (results.length > 0 && results[0].position) {
-                    roadProjectsMap.setView([results[0].position.lat, results[0].position.lon], 15);
-                }
-                resultsDiv.innerHTML = results.map(r => {
-                    const pos = r.position || {};
-                    return '<div class="gis-search-result-item" onclick="gisMapFlyTo(' + (pos.lat || 0) + ',' + (pos.lon || 0) + ')">' +
-                        '<i class="fas fa-map-pin" style="color:#3762c8;margin-right:6px;"></i>' + (r.poi?.name || r.address?.freeformAddress || 'Unknown') +
-                        '<small>' + (r.address?.freeformAddress || '') + '</small></div>';
-                }).join('');
-                resultsDiv.style.display = 'block';
-            });
-        }
-
-        function gisMapFlyTo(lat, lng) {
-            roadProjectsMap.setView([lat, lng], 15);
-            document.getElementById('gisMapSearchResults').style.display = 'none';
-        }
-
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('.gis-map-search-box')) {
-                const results = document.getElementById('gisMapSearchResults');
-                if (results) results.style.display = 'none';
-            }
-        });
-
-        document.getElementById('gisMapSearchInput')?.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') gisMapSearch();
-        });
-
-        if (IPMS_ROAD_PROJECTS.length > 0) {
-            initRoadProjectsMap();
-        }
 
         let citizenMap = null;
         let citizenPin = null;

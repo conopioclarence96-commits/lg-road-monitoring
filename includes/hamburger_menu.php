@@ -1,7 +1,7 @@
 <?php
 // Shared hamburger menu markup for the public landing pages.
 // Uses $basePath when it is defined (subfolder installs) and keeps
-// same-page anchor links (#home / #road-projects) on index.php.
+// same-page anchor links (#home) on index.php.
 $__hm_base = isset($basePath) ? $basePath : '';
 $__hm_is_index = (basename($_SERVER['PHP_SELF'] ?? '') === 'index.php');
 ?>
@@ -36,7 +36,6 @@ $__hm_is_index = (basename($_SERVER['PHP_SELF'] ?? '') === 'index.php');
     <div class="side-menu-group">
         <h5 class="menu-label"><i class="fas fa-tasks"></i> Programs</h5>
         <ul class="side-menu-nav">
-            <li><a href="<?php echo $__hm_is_index ? '#road-projects' : $__hm_base . 'index.php#road-projects'; ?>"><i class="fas fa-road"></i> Road Projects</a></li>
             <li><a href="<?php echo $__hm_base; ?>road-updates.php"><i class="fas fa-newspaper"></i> Road Updates</a></li>
             <li><a href="<?php echo $__hm_base; ?>public_reports.php"><i class="fas fa-map-marked-alt"></i> Road Status</a></li>
             <li><a href="<?php echo $__hm_base; ?>public_transparency_view.php"><i class="fas fa-balance-scale"></i> Transparency</a></li>

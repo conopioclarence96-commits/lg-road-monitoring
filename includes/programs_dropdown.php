@@ -67,11 +67,6 @@ $__pd_base = isset($basePath) ? $basePath : '';
     </button>
     <ul class="dropdown-menu" aria-labelledby="programsDropdown">
         <li>
-            <a class="dropdown-item" href="<?php echo $__pd_base; ?>index.php#road-projects">
-                <i class="fas fa-road"></i> Road Projects
-            </a>
-        </li>
-        <li>
             <a class="dropdown-item" href="<?php echo $__pd_base; ?>road-updates.php">
                 <i class="fas fa-newspaper"></i> Road Updates
             </a>

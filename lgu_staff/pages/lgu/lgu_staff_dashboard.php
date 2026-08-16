@@ -1063,6 +1063,34 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
         )";
     }
 
+    // Road Operations Supervisor "Awaiting for assignments" panel only. Same
+    // rule as road_monitoring_visibility_sql() above, EXCEPT LGU Monitoring
+    // reports (road_transportation_reports rows with report_source = 'local'
+    // and created_by != 0) count regardless of whether they have been pushed
+    // to CIMM — matching the Road Monitoring page's Recent Submissions LGU
+    // exception. So any LGU Monitoring report the supervisor assigns to an
+    // officer in report_management.php always appears in this panel, just like
+    // it appears under Recent Submissions on the monitoring page. Road
+    // Monitoring Officers' panels keep the stricter filter above.
+    function road_supervisor_assignment_visibility_sql(): string {
+        return " AND (
+            (ra.report_type = 'road_transportation_reports'
+             AND r.report_category = 'road'
+             AND r.status IN ('approved','in-progress','completed')
+             AND (r.report_type = 'infrastructure_issue'
+                  OR r.created_by IS NULL OR r.created_by = 0
+                  OR r.cimm_sync_status IS NULL OR r.cimm_sync_status <> 'pushed'
+                  OR (r.report_source = 'local' AND r.created_by != 0)))
+            OR
+            (ra.report_type = 'road_maintenance_reports'
+             AND m.status IN ('approved','in-progress','completed'))
+            OR
+            (ra.report_type = 'cimm_verification_reports'
+             AND c.verification_status IN ('Approved','In Progress','Completed')
+             AND c.infrastructure = 'Roads')
+        )";
+    }
+
     function getMyAssignments($conn, $user_id, $road_only = false, $transport_only = false) {
         $rows = [];
         if (!$conn || $user_id <= 0) {
@@ -1180,9 +1208,10 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
     // assignments made by a user with the road_ops_supervisor role qualify.
     // When $user_id is given, only assignments for that officer are returned
     // (used by Road Monitoring Officers on their own dashboard). When
-    // $apply_visibility is true (both road roles), only assignments whose
-    // reports actually appear on road_transportation_monitoring.php are
-    // returned.
+    // $apply_visibility is true (Road Operations Supervisors only), only
+    // assignments whose reports actually appear on
+    // road_transportation_monitoring.php are returned — using the
+    // supervisor-specific rule that also keeps LGU Monitoring reports visible.
     function getSupervisorAssignedReports($conn, $user_id = null, $apply_visibility = false) {
         $rows = [];
         if (!$conn) return $rows;
@@ -1194,11 +1223,11 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
             $assignee_filter = " AND ra.user_id = ?";
             $params[] = (int)$user_id;
         }
-        // Road Monitoring Officers and Road Operations Supervisors: only
-        // assignments for reports that actually appear on
-        // road_transportation_monitoring.php.
+        // Road Operations Supervisors: only assignments for reports that
+        // actually appear on road_transportation_monitoring.php (with the LGU
+        // Monitoring report exception so assigned LGU reports are never hidden).
         if ($apply_visibility) {
-            $visibility_filter = road_monitoring_visibility_sql();
+            $visibility_filter = road_supervisor_assignment_visibility_sql();
         }
 
         $query = "

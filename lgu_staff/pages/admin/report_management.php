@@ -1262,6 +1262,7 @@ $_GET['source'] = $source_filter;
 // Road Operations Supervisors see only Road-relevant reports: Road reports in
 // the LGU Monitoring panel, all CIMM reports, and no Transportation reports.
 $is_road_supervisor = ($user_role === 'road_ops_supervisor');
+$is_system_admin = ($user_role === 'system_admin');
 
 // Get data
 // Completed LGU Monitoring reports (Road + Transportation) stay visible in this
@@ -2345,9 +2346,9 @@ if ($focus_id > 0) {
         body.dark-mode #addUpdateModal .file-preview-item { background: #2a2e36; border-color: #3a3f4a; }
 
         /* Dark-mode compatibility for the rm-edit-btn modals (Update Report /
-           Edit CIMM Report / Assign Staff to Project) — Transportation
-           Operations Supervisors only */
-        <?php if ($is_transport_supervisor): ?>
+           Edit CIMM Report / Assign Staff to Project) — Road / Transportation
+           Operations Supervisors and System Admin only */
+        <?php if ($is_transport_supervisor || $is_road_supervisor || $is_system_admin): ?>
         body.dark-mode #editReportModal .modal-content,
         body.dark-mode #editCimmModal .modal-content,
         body.dark-mode #assignUserModal .modal-content {
@@ -2455,12 +2456,6 @@ if ($focus_id > 0) {
             background: rgba(30, 64, 175, 0.35) !important;
             color: #93c5fd !important;
         }
-        <?php endif; ?>
-
-        /* Dark-mode compatibility for the rm-edit-btn modals (Update Report /
-           Edit CIMM Report / Assign Staff to Project) — Road Operations
-           Supervisors only */
-        <?php if ($is_road_supervisor): ?>
         body.dark-mode #editReportModal .modal-content,
         body.dark-mode #editCimmModal .modal-content,
         body.dark-mode #assignUserModal .modal-content {
