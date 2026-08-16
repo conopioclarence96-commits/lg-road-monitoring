@@ -995,7 +995,7 @@ function getCimmReportsForManagement($status_filter = 'all') {
 }
 
 // Get reports for display
-function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50, $offset = 0, $road_only = false, $include_completed = false) {
+function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50, $offset = 0, $road_only = false, $include_completed = false, $transport_only = false) {
     global $conn;
     
     $reports = [];
@@ -1058,6 +1058,11 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
     // report_category classification.
     $road_cond = $road_only ? 'report_category = \'road\'' : '';
 
+    // Transportation Operations Supervisors see only Transportation reports.
+    // Road LGU monitoring reports (report_category = 'road') must never reach
+    // their LGU Monitoring panel, so exclude them at the query level too.
+    $transport_cond = $transport_only ? "report_category = 'transportation'" : '';
+
     if (!$include_transport && !$include_maintenance) {
         $transport_query = "SELECT NULL FROM road_transportation_reports WHERE 1=0";
     } elseif (!$include_transport && $include_maintenance) {
@@ -1065,6 +1070,9 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
         $transport_query .= " WHERE report_type = 'infrastructure_issue'";
         if ($road_cond !== '') {
             $transport_query .= " AND {$road_cond}";
+        }
+        if ($transport_cond !== '') {
+            $transport_query .= " AND {$transport_cond}";
         }
         if (!empty($where_conditions)) {
             $transport_query .= " AND " . implode(' AND ', $where_conditions);
@@ -1075,6 +1083,9 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
         $transport_query .= " WHERE report_type != 'infrastructure_issue'";
         if ($road_cond !== '') {
             $transport_query .= " AND {$road_cond}";
+        }
+        if ($transport_cond !== '') {
+            $transport_query .= " AND {$transport_cond}";
         }
         if ($is_lgu_filter) {
             $transport_query .= " AND report_source = 'local' AND created_by != 0 AND (status IN ({$lgu_active_statuses}) OR {$restored_cancelled})";
@@ -1093,6 +1104,9 @@ function get_reports($status_filter = 'all', $source_filter = 'all', $limit = 50
         $where_parts = $where_conditions;
         if ($road_cond !== '') {
             $where_parts[] = $road_cond;
+        }
+        if ($transport_cond !== '') {
+            $where_parts[] = $transport_cond;
         }
         if (!empty($where_parts)) {
             $transport_query .= " WHERE " . implode(' AND ', $where_parts);
@@ -1271,7 +1285,7 @@ $is_system_admin = ($user_role === 'system_admin');
 // to include them for the Transportation Operations Supervisor (which also keeps
 // their completed Citizen reports visible, as before); completed reports for the
 // other roles are appended to the LGU panel separately below.
-$reports = get_reports($status_filter, $source_filter, $per_page, $offset, $is_road_supervisor, ($user_role === 'trans_ops_supervisor'));
+$reports = get_reports($status_filter, $source_filter, $per_page, $offset, $is_road_supervisor, ($user_role === 'trans_ops_supervisor'), ($user_role === 'trans_ops_supervisor'));
 $stats = get_report_stats();
 $csrf_token = generate_csrf_token();
 $flash_message = get_flash_message();
@@ -1332,6 +1346,8 @@ if ($status_filter === 'all' || $status_filter === 'completed') {
         $completed_lgu_sql = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, engineer, budget_allocation, cimm_engineer_name, cimm_budget, estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, 'lgu_reports' as source_system FROM road_transportation_reports WHERE report_source = 'local' AND created_by != 0 AND report_type != 'infrastructure_issue' AND status = 'completed'";
         if ($is_road_supervisor) {
             $completed_lgu_sql .= " AND report_category = 'road'";
+        } elseif ($is_transport_supervisor) {
+            $completed_lgu_sql .= " AND report_category = 'transportation'";
         }
         $completed_lgu_sql .= " ORDER BY created_at DESC LIMIT {$per_page}";
         $completed_lgu_res = $conn->query($completed_lgu_sql);
@@ -1422,11 +1438,16 @@ if ($focus_id > 0) {
         $transport_est = $est_result && $est_result->num_rows > 0;
         $transport_est_col = $transport_est ? 'estimation' : '0 as estimation';
 
-        $transport_focus_query = function ($id) use ($conn, $transport_est_col, $is_road_supervisor) {
+        $transport_focus_query = function ($id) use ($conn, $transport_est_col, $is_road_supervisor, $is_transport_supervisor) {
             $row = fetch_one("SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, {$transport_est_col}, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, CASE WHEN report_type = 'infrastructure_issue' THEN 'maintenance' WHEN report_category = 'transportation' AND report_source = 'local' AND created_by != 0 AND status = 'approved' THEN 'lgu_reports' WHEN report_category = 'transportation' AND report_source = 'local' AND created_by != 0 THEN 'hidden' ELSE 'transport' END as source_system FROM road_transportation_reports WHERE id = ?", [$id], 'i');
             // Road Operations Supervisors never see Transportation reports —
             // do not reveal them even via a deep-link.
             if ($is_road_supervisor && ($row['report_category'] ?? '') === 'transportation') {
+                return null;
+            }
+            // Transportation Operations Supervisors never see Road LGU reports —
+            // do not reveal them even via a deep-link.
+            if ($is_transport_supervisor && ($row['report_category'] ?? '') === 'road') {
                 return null;
             }
             return $row;
