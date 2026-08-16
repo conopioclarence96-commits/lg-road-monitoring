@@ -97,26 +97,22 @@ if ($reportPk <= 0 && $reportIdStr === '') {
         $pdo = rgmap_verification_pdo();
         rgmap_ensure_cimm_verification_table($pdo);
 
-        // Engineer and budget_allocation CIMM provided for this LGU road
-        // report are mirrored into the row's own cimm_engineer_name /
-        // cimm_budget columns by rgmap_apply_cimm_report_payload() (the
-        // webhook/pull/backfill write path). Read them from the row directly
-        // — LGU reports are never stored in cimm_verification_reports, so
-        // that table can no longer be the source here.
+        // Look up engineer and budget_allocation that CIMM stored in
+        // cimm_verification_reports for this LGU report (matched via the
+        // rgmap_report_pk that CIMM echoes back in payload_json).
         $engineer = null;
         $budgetAllocation = null;
-        $cimmLookup = $conn->prepare(
-            "SELECT cimm_engineer_name, cimm_budget
-               FROM road_transportation_reports
-              WHERE id = ?
+        $cimmLookup = $pdo->prepare(
+            "SELECT engineer, budget_allocation
+               FROM cimm_verification_reports
+              WHERE JSON_EXTRACT(payload_json, '$.rgmap_report_pk') = ?
               LIMIT 1"
         );
-        $cimmLookup->bind_param('i', $reportPk);
-        $cimmLookup->execute();
-        $cimmRow = $cimmLookup->get_result()->fetch_assoc();
+        $cimmLookup->execute([$reportPk]);
+        $cimmRow = $cimmLookup->fetch(PDO::FETCH_ASSOC);
         if ($cimmRow) {
-            $engineer = $cimmRow['cimm_engineer_name'] ?? null;
-            $budgetAllocation = $cimmRow['cimm_budget'] ?? null;
+            $engineer = $cimmRow['engineer'] ?? null;
+            $budgetAllocation = $cimmRow['budget_allocation'] ?? null;
         }
 
         if ($reportPk > 0) {
@@ -128,20 +124,18 @@ if ($reportPk <= 0 && $reportIdStr === '') {
             );
             $stmt->bind_param('sssi', $verifiedBy, $engineer, $budgetAllocation, $reportPk);
         } else {
-            // Look up engineer/budget_allocation for the string-ID path from
-            // the row's own cimm_engineer_name / cimm_budget mirrors (see
-            // above), matched by the LGU report_id CIMM echoes back.
-            $cimmLookup2 = $conn->prepare(
-                "SELECT cimm_engineer_name, cimm_budget
-                   FROM road_transportation_reports
-                  WHERE report_id = ?
+            // Look up engineer/budget_allocation via report_reference (the LGU
+            // report_id CIMM echoes back in payload_json) for the string-ID path.
+            $cimmLookup2 = $pdo->prepare(
+                "SELECT engineer, budget_allocation
+                   FROM cimm_verification_reports
+                  WHERE report_reference = ? OR JSON_EXTRACT(payload_json, '$.rgmap_report_id') = ?
                   LIMIT 1"
             );
-            $cimmLookup2->bind_param('s', $reportIdStr);
-            $cimmLookup2->execute();
-            $cimmRow2 = $cimmLookup2->get_result()->fetch_assoc();
-            $engineer2 = $cimmRow2['cimm_engineer_name'] ?? null;
-            $budgetAllocation2 = $cimmRow2['cimm_budget'] ?? null;
+            $cimmLookup2->execute([$reportIdStr, $reportIdStr]);
+            $cimmRow2 = $cimmLookup2->fetch(PDO::FETCH_ASSOC);
+            $engineer2 = $cimmRow2['engineer'] ?? null;
+            $budgetAllocation2 = $cimmRow2['budget_allocation'] ?? null;
 
             $stmt = $conn->prepare(
                 "UPDATE road_transportation_reports
