@@ -954,20 +954,108 @@ function mapCimmToReportManagement(array $row): array {
 }
 
 /**
+ * Reusable panel pagination helpers.
+ * Panel keys become query params: lgu_page, citizen_page, cimm_page, etc.
+ */
+function rm_panel_page(string $panel): int {
+    return max(1, (int)($_GET[$panel . '_page'] ?? 1));
+}
+
+function rm_panel_offset(string $panel, int $perPage): int {
+    return (rm_panel_page($panel) - 1) * max(1, $perPage);
+}
+
+function rm_panel_page_url(string $panel, int $page): string {
+    $params = $_GET;
+    $params[$panel . '_page'] = max(1, $page);
+    return '?' . http_build_query($params);
+}
+
+/**
+ * @return array{html:string,total_pages:int,page:int,from:int,to:int}
+ */
+function rm_build_panel_pagination(string $panel, int $page, int $perPage, int $total): array {
+    $perPage = max(1, $perPage);
+    $totalPages = max(1, (int)ceil($total / $perPage));
+    $page = min(max(1, $page), $totalPages);
+    $from = $total === 0 ? 0 : (($page - 1) * $perPage) + 1;
+    $to = min($total, $page * $perPage);
+
+    $html = '<div class="rm-panel-pagination" data-panel="' . htmlspecialchars($panel) . '" data-page="' . $page . '" data-total="' . $total . '" data-per-page="' . $perPage . '">';
+    $html .= '<div class="rm-panel-pagination-info">Showing ' . $from . '–' . $to . ' of ' . $total . '</div>';
+    $html .= '<div class="rm-panel-pagination-controls">';
+
+    $prevDisabled = $page <= 1;
+    $nextDisabled = $page >= $totalPages;
+
+    $html .= '<button type="button" class="rm-page-btn' . ($prevDisabled ? ' disabled' : '') . '" data-panel="' . htmlspecialchars($panel) . '" data-page="' . ($page - 1) . '"' . ($prevDisabled ? ' disabled aria-disabled="true"' : '') . '><i class="fas fa-chevron-left"></i></button>';
+    $html .= '<span class="rm-page-label">Page ' . $page . ' / ' . $totalPages . '</span>';
+    $html .= '<button type="button" class="rm-page-btn' . ($nextDisabled ? ' disabled' : '') . '" data-panel="' . htmlspecialchars($panel) . '" data-page="' . ($page + 1) . '"' . ($nextDisabled ? ' disabled aria-disabled="true"' : '') . '><i class="fas fa-chevron-right"></i></button>';
+    $html .= '</div></div>';
+
+    return [
+        'html' => $html,
+        'total_pages' => $totalPages,
+        'page' => $page,
+        'from' => $from,
+        'to' => $to,
+    ];
+}
+
+/**
  * Fetch LGU Monitoring reports independently (same idea as CIMM):
- * own LIMIT so Citizen rows cannot crowd them out of the shared get_reports() pool.
+ * own LIMIT/OFFSET so Citizen rows cannot crowd them out.
+ *
+ * @return array{rows:array<int,array>,total:int}
  */
 function getLguReportsForManagement(
     string $status_filter = 'all',
     bool $road_only = false,
     bool $transport_only = false,
-    int $limit = 20
+    int $limit = 10,
+    int $offset = 0,
+    string $search = ''
 ): array {
     global $conn;
 
     $limit = max(1, $limit);
+    $offset = max(0, $offset);
     $est = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'estimation'");
     $est_col = ($est && $est->num_rows > 0) ? 'estimation' : '0 as estimation';
+
+    $where = "report_source = 'local'
+              AND created_by != 0
+              AND report_type != 'infrastructure_issue'";
+
+    if ($road_only) {
+        $where .= " AND report_category = 'road'";
+    } elseif ($transport_only) {
+        $where .= " AND report_category = 'transportation'";
+    }
+
+    // Include completed in the same paginated set (no separate append).
+    if ($status_filter === 'all') {
+        $where .= " AND (
+            status IN ('approved', 'in-progress', 'completed')
+            OR (status = 'cancelled' AND restored_from_archive = 1)
+        )";
+    } elseif ($status_filter === 'completed') {
+        $where .= " AND status = 'completed'";
+    } elseif ($status_filter === 'cancelled') {
+        $where .= " AND status = 'cancelled' AND restored_from_archive = 1";
+    } else {
+        $where .= " AND status = '" . $conn->real_escape_string($status_filter) . "'";
+    }
+
+    $search = trim($search);
+    if ($search !== '') {
+        $like = $conn->real_escape_string($search);
+        $like = str_replace(['%', '_'], ['\\%', '\\_'], $like);
+        $where .= " AND report_id LIKE '%{$like}%'";
+    }
+
+    $countRow = fetch_one("SELECT COUNT(*) AS c FROM road_transportation_reports WHERE {$where}");
+    $total = (int)($countRow['c'] ?? 0);
 
     $sql = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status,
                    assigned_to, engineer, budget_allocation, cimm_engineer_name, cimm_budget,
@@ -976,34 +1064,292 @@ function getLguReportsForManagement(
                    report_source, created_by, restored_from_archive,
                    'lgu_reports' as source_system
             FROM road_transportation_reports
-            WHERE report_source = 'local'
-              AND created_by != 0
-              AND report_type != 'infrastructure_issue'
-              AND (
-                    status IN ('approved', 'in-progress')
-                    OR (status = 'cancelled' AND restored_from_archive = 1)
-                  )";
+            WHERE {$where}
+            ORDER BY created_at DESC
+            LIMIT " . (int)$limit . " OFFSET " . (int)$offset;
 
-    if ($road_only) {
-        $sql .= " AND report_category = 'road'";
-    } elseif ($transport_only) {
-        $sql .= " AND report_category = 'transportation'";
-    }
-
-    if ($status_filter !== 'all' && $status_filter !== 'completed') {
-        $sql .= " AND status = '" . $conn->real_escape_string($status_filter) . "'";
-    } elseif ($status_filter === 'completed') {
-        // Active query has no completed rows; completed append handles that.
-        return [];
-    }
-
-    $sql .= " ORDER BY created_at DESC LIMIT " . (int)$limit;
     $rows = fetch_all($sql);
-    return is_array($rows) ? $rows : [];
+    return [
+        'rows' => is_array($rows) ? $rows : [],
+        'total' => $total,
+    ];
 }
 
-// Get CIMM reports for report management display
-function getCimmReportsForManagement($status_filter = 'all') {
+/**
+ * Render LGU Monitoring table body rows (shared by initial page + AJAX pagination).
+ */
+function rm_render_lgu_panel_tbody(
+    array $reports,
+    bool $is_road_supervisor,
+    bool $is_transport_supervisor,
+    string $user_role
+): string {
+    $type_labels = [
+        'infrastructure_issue' => 'Infrastructure Issue',
+        'traffic_jam' => 'Traffic Jam',
+        'accident' => 'Vehicle Accident',
+        'road_closure' => 'Road Closure',
+        'potholes' => 'Potholes',
+        'road_damage' => 'Road Damage',
+    ];
+    $lgu_transport_types = ['potholes', 'road_damage', 'shoulder_damage', 'traffic_jam', 'accident', 'congestion', 'traffic_light_outage', 'vehicle_breakdown', 'traffic_sign_issue', 'transportation', 'infrastructure_issue', 'road_closure', 'parking_violation', 'public_transport_issue'];
+    $lgu_road_types = ['debris', 'cracks', 'erosion', 'flooding', 'marking_fade'];
+    $colspan = (($is_road_supervisor || $user_role === 'system_admin') ? 11 : 9) + ($is_transport_supervisor ? 1 : 0);
+    $can_edit = $is_road_supervisor || $is_transport_supervisor || $user_role === 'system_admin';
+    $show_engineer = $is_road_supervisor || $user_role === 'system_admin';
+
+    ob_start();
+    if (!empty($reports)):
+        foreach ($reports as $report):
+            $lgu_delete_table = (in_array($report['report_type'], $lgu_transport_types, true) || in_array($report['report_type'], $lgu_road_types, true)) ? 'road_transportation_reports' : 'road_maintenance_reports';
+            $rtype = htmlspecialchars((string)($report['report_type'] ?? ''), ENT_QUOTES);
+            $src = htmlspecialchars((string)($report['source_system'] ?? 'transport'), ENT_QUOTES);
+            ?>
+                        <tr data-id="<?php echo (int)$report['id']; ?>" data-source="lgu_reports">
+                            <td>
+                                <div class="rm-action-group">
+                                    <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo $rtype; ?>', 'road_transportation_reports')">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <?php if ($can_edit): ?>
+                                    <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo $rtype; ?>', 'road_transportation_reports')">
+                                        <i class="fas fa-pencil"></i>
+                                    </button>
+                                    <?php endif; ?>
+                                    <?php if (($report['status'] ?? '') === 'completed'): ?>
+                                    <button class="rm-archive-btn" onclick="archiveReport(<?php echo (int)$report['id']; ?>, '<?php echo $src; ?>')" title="Archive">
+                                        <i class="fas fa-archive"></i>
+                                    </button>
+                                    <?php else: ?>
+                                    <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo $rtype; ?>', '<?php echo $lgu_delete_table; ?>')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                    <?php endif; ?>
+                                </div>
+                            </td>
+                            <td><?php echo htmlspecialchars($report['report_id'] ?? '—'); ?></td>
+                            <td><?php echo htmlspecialchars(strlen($report['title'] ?? '') > 35 ? substr($report['title'], 0, 35) . '...' : ($report['title'] ?? '')); ?></td>
+                            <td><?php echo htmlspecialchars($type_labels[$report['report_type']] ?? ucfirst((string)($report['report_type'] ?? ''))); ?></td>
+                            <td><?php echo htmlspecialchars($report['location'] ?? '—'); ?></td>
+                            <td><?php echo htmlspecialchars(ucfirst($report['department'] ?? '')); ?></td>
+                            <td><span class="rm-priority-badge <?php echo htmlspecialchars((string)($report['priority'] ?? '')); ?>"><?php echo ucfirst(htmlspecialchars((string)($report['priority'] ?? ''))); ?></span></td>
+                            <?php if ($is_transport_supervisor): ?>
+                            <td>
+                                <?php if (($report['assignment_status'] ?? 'unassigned') === 'assigned' && !empty($report['assignment_officer'])): ?>
+                                <span class="assignment-badge assignment-assigned"><?php echo htmlspecialchars($report['assignment_officer']); ?></span>
+                                <?php else: ?>
+                                <span class="assignment-badge assignment-unassigned">Unassigned</span>
+                                <?php endif; ?>
+                            </td>
+                            <?php endif; ?>
+                            <?php if ($show_engineer): ?>
+                            <td>
+                                <?php $lgu_engineer = (trim((string)($report['cimm_engineer_name'] ?? '')) !== '') ? $report['cimm_engineer_name'] : ($report['engineer'] ?? ''); ?>
+                                <?php if (!empty($lgu_engineer) && ($report['report_category'] ?? '') === 'road'): ?>
+                                <span class="rm-badge lgu" title="CIMM Assigned Engineer"><?php echo htmlspecialchars($lgu_engineer); ?></span>
+                                <?php else: ?>
+                                <span class="t-text-muted">—</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php $lgu_budget = (!empty($report['cimm_budget']) && (float)$report['cimm_budget'] > 0) ? $report['cimm_budget'] : ($report['budget_allocation'] ?? null); ?>
+                                <?php if (!empty($lgu_budget) && (float)$lgu_budget > 0 && ($report['report_category'] ?? '') === 'road'): ?>
+                                <span class="t-text-success" title="CIMM Budget Allocation">₱ <?php echo number_format((float)$lgu_budget, 2); ?></span>
+                                <?php else: ?>
+                                <span class="t-text-muted">—</span>
+                                <?php endif; ?>
+                            </td>
+                            <?php endif; ?>
+                            <td><span class="rm-status-badge <?php echo htmlspecialchars(strtolower((string)($report['status'] ?? ''))); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', (string)($report['status'] ?? '')))); ?></span></td>
+                            <td>
+                                <?php echo !empty($report['created_at']) ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?>
+                                <?php if (($report['status'] ?? '') === 'approved' && !empty($report['approved_at'])): ?>
+                                    <br><small class="t-text-success" style="font-weight:600;">Approved: <?php echo date('M d, Y', strtotime($report['approved_at'])); ?></small>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+            <?php
+        endforeach;
+    else:
+        ?>
+                        <tr>
+                            <td colspan="<?php echo (int)$colspan; ?>">
+                                <div class="rm-empty-state">
+                                    <div class="rm-empty-icon" style="background: rgba(55, 98, 200, 0.12);">
+                                        <i class="fas fa-clipboard-list t-text-link"></i>
+                                    </div>
+                                    <h4>No LGU Monitoring Reports</h4>
+                                    <p>No LGU-created monitoring reports found.</p>
+                                </div>
+                            </td>
+                        </tr>
+        <?php
+    endif;
+    return (string)ob_get_clean();
+}
+
+/**
+ * Fetch Citizen Reports independently (same pagination pattern as LGU).
+ * Only post-verification citizen rows (created_by = 0).
+ *
+ * @return array{rows:array<int,array>,total:int}
+ */
+function getCitizenReportsForManagement(
+    string $status_filter = 'all',
+    bool $transport_only = false,
+    int $limit = 10,
+    int $offset = 0,
+    string $search = ''
+): array {
+    global $conn;
+
+    $limit = max(1, $limit);
+    $offset = max(0, $offset);
+    $est = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'estimation'");
+    $est_col = ($est && $est->num_rows > 0) ? 'estimation' : '0 as estimation';
+
+    $unverified = "('pending', 'awaiting verification', 'for verification', 'under review', 'submitted', 'new')";
+    $where = "created_by = 0
+              AND report_type != 'infrastructure_issue'
+              AND LOWER(status) NOT IN {$unverified}";
+
+    if ($transport_only) {
+        $where .= " AND report_category = 'transportation'";
+    }
+
+    if ($status_filter !== 'all') {
+        $where .= " AND status = '" . $conn->real_escape_string($status_filter) . "'";
+    }
+
+    $search = trim($search);
+    if ($search !== '') {
+        $like = $conn->real_escape_string($search);
+        $like = str_replace(['%', '_'], ['\\%', '\\_'], $like);
+        $where .= " AND report_id LIKE '%{$like}%'";
+    }
+
+    $countRow = fetch_one("SELECT COUNT(*) AS c FROM road_transportation_reports WHERE {$where}");
+    $total = (int)($countRow['c'] ?? 0);
+
+    $sql = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status,
+                   assigned_to, engineer, budget_allocation, cimm_engineer_name, cimm_budget,
+                   {$est_col}, resolution_notes as notes, department, created_date, created_at,
+                   updated_at, approved_at, attachments, image_path, report_type, report_category,
+                   report_source, created_by, restored_from_archive,
+                   'transport' as source_system
+            FROM road_transportation_reports
+            WHERE {$where}
+            ORDER BY created_at DESC
+            LIMIT " . (int)$limit . " OFFSET " . (int)$offset;
+
+    $rows = fetch_all($sql);
+    return [
+        'rows' => is_array($rows) ? $rows : [],
+        'total' => $total,
+    ];
+}
+
+/**
+ * Render Citizen Reports table body (initial page + AJAX pagination).
+ */
+function rm_render_citizen_panel_tbody(
+    array $reports,
+    bool $is_road_supervisor,
+    bool $is_transport_supervisor,
+    string $user_role
+): string {
+    $type_labels = [
+        'infrastructure_issue' => 'Infrastructure Issue',
+        'traffic_jam' => 'Traffic Jam',
+        'accident' => 'Vehicle Accident',
+        'road_closure' => 'Road Closure',
+        'potholes' => 'Potholes',
+        'road_damage' => 'Road Damage',
+    ];
+    $colspan = 9 + ($is_transport_supervisor ? 1 : 0);
+    $can_edit = $is_road_supervisor || $is_transport_supervisor || $user_role === 'system_admin';
+
+    ob_start();
+    if (!empty($reports)):
+        foreach ($reports as $report):
+            $rtype = htmlspecialchars((string)($report['report_type'] ?? ''), ENT_QUOTES);
+            $src = htmlspecialchars((string)($report['source_system'] ?? 'transport'), ENT_QUOTES);
+            ?>
+                        <tr data-id="<?php echo (int)$report['id']; ?>" data-source="citizen">
+                            <td>
+                                <div class="rm-action-group">
+                                    <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo $rtype; ?>')">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <?php if ($can_edit): ?>
+                                    <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo $rtype; ?>', 'road_transportation_reports')">
+                                        <i class="fas fa-pencil"></i>
+                                    </button>
+                                    <?php endif; ?>
+                                    <?php if (($report['status'] ?? '') === 'completed'): ?>
+                                    <button class="rm-archive-btn" onclick="archiveReport(<?php echo (int)$report['id']; ?>, '<?php echo $src; ?>')" title="Archive">
+                                        <i class="fas fa-archive"></i>
+                                    </button>
+                                    <?php else: ?>
+                                    <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo $rtype; ?>')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                    <?php endif; ?>
+                                </div>
+                            </td>
+                            <td><?php echo htmlspecialchars($report['report_id'] ?? '—'); ?></td>
+                            <td><?php echo htmlspecialchars(strlen($report['title'] ?? '') > 35 ? substr($report['title'], 0, 35) . '...' : ($report['title'] ?? '')); ?></td>
+                            <td><?php echo htmlspecialchars($type_labels[$report['report_type']] ?? ucfirst((string)($report['report_type'] ?? ''))); ?></td>
+                            <td><?php echo htmlspecialchars($report['location'] ?? '—'); ?></td>
+                            <td><?php echo htmlspecialchars(ucfirst($report['department'] ?? '')); ?></td>
+                            <td><span class="rm-priority-badge <?php echo htmlspecialchars((string)($report['priority'] ?? '')); ?>"><?php echo ucfirst(htmlspecialchars((string)($report['priority'] ?? ''))); ?></span></td>
+                            <?php if ($is_transport_supervisor): ?>
+                            <td>
+                                <?php if (($report['assignment_status'] ?? 'unassigned') === 'assigned' && !empty($report['assignment_officer'])): ?>
+                                <span class="assignment-badge assignment-assigned"><?php echo htmlspecialchars($report['assignment_officer']); ?></span>
+                                <?php else: ?>
+                                <span class="assignment-badge assignment-unassigned">Unassigned</span>
+                                <?php endif; ?>
+                            </td>
+                            <?php endif; ?>
+                            <td><span class="rm-status-badge <?php echo htmlspecialchars(strtolower((string)($report['status'] ?? ''))); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', (string)($report['status'] ?? '')))); ?></span></td>
+                            <td>
+                                <?php echo !empty($report['created_at']) ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?>
+                                <?php if (($report['status'] ?? '') === 'approved' && !empty($report['approved_at'])): ?>
+                                    <br><small class="t-text-success" style="font-weight:600;">Approved: <?php echo date('M d, Y', strtotime($report['approved_at'])); ?></small>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+            <?php
+        endforeach;
+    else:
+        ?>
+                        <tr>
+                            <td colspan="<?php echo (int)$colspan; ?>">
+                                <div class="rm-empty-state">
+                                    <div class="rm-empty-icon">
+                                        <i class="fas fa-users"></i>
+                                    </div>
+                                    <h4>No Citizen Reports</h4>
+                                    <p>No citizen-submitted reports found.</p>
+                                </div>
+                            </td>
+                        </tr>
+        <?php
+    endif;
+    return (string)ob_get_clean();
+}
+
+// Get CIMM reports for report management display (paginated + searchable).
+/**
+ * @return array{rows:array<int,array>,total:int}
+ */
+function getCimmReportsForManagement(
+    string $status_filter = 'all',
+    int $limit = 10,
+    int $offset = 0,
+    string $search = ''
+): array {
     $pdo = rgmap_verification_pdo();
 
     // 'Cancelled' is included so a CANCELLED report that was restored from the
@@ -1041,7 +1387,82 @@ function getCimmReportsForManagement($status_filter = 'all') {
         }));
     }
 
-    return $mapped;
+    $search = trim($search);
+    if ($search !== '') {
+        $mapped = array_values(array_filter($mapped, static function ($r) use ($search) {
+            return stripos((string)($r['report_id'] ?? ''), $search) !== false;
+        }));
+    }
+
+    $total = count($mapped);
+    $limit = max(1, $limit);
+    $offset = max(0, $offset);
+    $pageRows = array_slice($mapped, $offset, $limit);
+
+    return [
+        'rows' => $pageRows,
+        'total' => $total,
+    ];
+}
+
+/**
+ * Render CIMM Reports table body (initial page + AJAX pagination).
+ * Action handlers use 0-based indices within the current page (cimmData).
+ */
+function rm_render_cimm_panel_tbody(array $reports): string {
+    ob_start();
+    if (!empty($reports)):
+        $cimmIdx = 0;
+        foreach ($reports as $row):
+            ?>
+                        <tr data-id="<?php echo (int)$row['id']; ?>" data-source="cimm">
+                            <td>
+                                <div class="rm-action-group">
+                                    <button class="rm-action-btn" onclick="viewCimmReport(<?php echo $cimmIdx; ?>)">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <button class="rm-edit-btn" onclick="editCimmReport(<?php echo $cimmIdx; ?>)">
+                                        <i class="fas fa-pencil"></i>
+                                    </button>
+                                    <?php if (($row['status'] ?? '') === 'completed'): ?>
+                                    <button class="rm-archive-btn" onclick="archiveReport(<?php echo (int)$row['id']; ?>, 'cimm')" title="Archive">
+                                        <i class="fas fa-archive"></i>
+                                    </button>
+                                    <?php else: ?>
+                                    <button class="rm-delete-btn" onclick="deleteCimmReport(<?php echo $cimmIdx; ?>)">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                    <?php endif; ?>
+                                </div>
+                            </td>
+                            <td><?php echo htmlspecialchars($row['report_id'] ?? '—'); ?></td>
+                            <td><?php echo htmlspecialchars($row['title'] ?? '—'); ?></td>
+                            <td><?php echo htmlspecialchars($row['location'] ?? '—'); ?></td>
+                            <td><?php echo htmlspecialchars(strlen($row['description'] ?? '') > 40 ? substr($row['description'], 0, 40) . '...' : ($row['description'] ?? '')); ?></td>
+                            <td><?php echo htmlspecialchars($row['assigned_to'] ?? '—'); ?></td>
+                            <td><span class="rm-priority-badge <?php echo htmlspecialchars((string)($row['priority'] ?? '')); ?>"><?php echo ucfirst(htmlspecialchars((string)($row['priority'] ?? ''))); ?></span></td>
+                            <td><?php echo !empty($row['estimation']) ? '₱' . number_format((float)$row['estimation'], 2) : '—'; ?></td>
+                            <td><span class="rm-status-badge <?php echo htmlspecialchars(strtolower((string)($row['status'] ?? ''))); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', (string)($row['status'] ?? '')))); ?></span></td>
+                        </tr>
+            <?php
+            $cimmIdx++;
+        endforeach;
+    else:
+        ?>
+                        <tr>
+                            <td colspan="9">
+                                <div class="rm-empty-state">
+                                    <div class="rm-empty-icon" style="background: rgba(249, 115, 22, 0.12);">
+                                        <i class="fas fa-building t-text-cimm"></i>
+                                    </div>
+                                    <h4>No CIMM Reports</h4>
+                                    <p>No reports from the CIMM system found.</p>
+                                </div>
+                            </td>
+                        </tr>
+        <?php
+    endif;
+    return (string)ob_get_clean();
 }
 
 // Get reports for display
@@ -1283,7 +1704,7 @@ function get_report_stats() {
     
     // CIMM stats
     try {
-        $cimm_all = getCimmReportsForManagement();
+        $cimm_all = getCimmReportsForManagement('all', 100000, 0, '')['rows'];
         $stats['total_reports'] += count($cimm_all);
         foreach ($cimm_all as $cimm_report) {
             if ($cimm_report['status'] === 'pending') $stats['pending_reports']++;
@@ -1304,6 +1725,7 @@ function get_report_stats() {
 // Pagination
 $page = max(1, intval($_GET['page'] ?? 1));
 $per_page = 20;
+$panel_per_page = 10; // LGU (and future panel) AJAX pagination page size
 $offset = ($page - 1) * $per_page;
 
 // Filters
@@ -1332,15 +1754,157 @@ $_GET['source'] = $source_filter;
 // the LGU Monitoring panel, all CIMM reports, and no Transportation reports.
 $is_road_supervisor = ($user_role === 'road_ops_supervisor');
 $is_system_admin = ($user_role === 'system_admin');
+$is_transport_supervisor = ($user_role === 'trans_ops_supervisor');
 
-// Get data
-// Completed LGU Monitoring reports (Road + Transportation) stay visible in this
-// page for their 7-day retention window (with an on-demand Archive button)
-// instead of being auto-archived immediately. The shared get_reports() is asked
-// to include them for the Transportation Operations Supervisor (which also keeps
-// their completed Citizen reports visible, as before); completed reports for the
-// other roles are appended to the LGU panel separately below.
-$reports = get_reports($status_filter, $source_filter, $per_page, $offset, $is_road_supervisor, ($user_role === 'trans_ops_supervisor'), ($user_role === 'trans_ops_supervisor'));
+// AJAX panel pagination — return rows + controls without a full page reload.
+if (($_GET['ajax'] ?? '') === 'panel_page') {
+    header('Content-Type: application/json; charset=utf-8');
+    $panel = preg_replace('/[^a-z_]/', '', strtolower((string)($_GET['panel'] ?? '')));
+    $ajax_page = max(1, (int)($_GET['page'] ?? 1));
+
+    if ($panel === 'lgu') {
+        $search_q = trim((string)($_GET['q'] ?? ''));
+        $lgu_result = getLguReportsForManagement(
+            $status_filter,
+            $is_road_supervisor,
+            $is_transport_supervisor,
+            $panel_per_page,
+            ($ajax_page - 1) * $panel_per_page,
+            $search_q
+        );
+        $total = (int)$lgu_result['total'];
+        $max_page = max(1, (int)ceil($total / max(1, $panel_per_page)));
+        if ($ajax_page > $max_page) {
+            $ajax_page = $max_page;
+            $lgu_result = getLguReportsForManagement(
+                $status_filter,
+                $is_road_supervisor,
+                $is_transport_supervisor,
+                $panel_per_page,
+                ($ajax_page - 1) * $panel_per_page,
+                $search_q
+            );
+            $total = (int)$lgu_result['total'];
+        }
+        $rows = $lgu_result['rows'];
+        if ($is_transport_supervisor) {
+            annotate_report_assignment_status($conn, $rows);
+        }
+        $pagination_html = ($total > $panel_per_page)
+            ? rm_build_panel_pagination('lgu', $ajax_page, $panel_per_page, $total)['html']
+            : '';
+        echo json_encode([
+            'success' => true,
+            'panel' => 'lgu',
+            'page' => $ajax_page,
+            'total' => $total,
+            'per_page' => $panel_per_page,
+            'q' => $search_q,
+            'rows_html' => rm_render_lgu_panel_tbody($rows, $is_road_supervisor, $is_transport_supervisor, $user_role),
+            'pagination_html' => $pagination_html,
+            'badge_text' => $total . ' Reports',
+        ]);
+        exit;
+    }
+
+    if ($panel === 'citizen') {
+        if ($is_road_supervisor) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Forbidden']);
+            exit;
+        }
+        $search_q = trim((string)($_GET['q'] ?? ''));
+        $citizen_result = getCitizenReportsForManagement(
+            $status_filter,
+            $is_transport_supervisor,
+            $panel_per_page,
+            ($ajax_page - 1) * $panel_per_page,
+            $search_q
+        );
+        $total = (int)$citizen_result['total'];
+        $max_page = max(1, (int)ceil($total / max(1, $panel_per_page)));
+        if ($ajax_page > $max_page) {
+            $ajax_page = $max_page;
+            $citizen_result = getCitizenReportsForManagement(
+                $status_filter,
+                $is_transport_supervisor,
+                $panel_per_page,
+                ($ajax_page - 1) * $panel_per_page,
+                $search_q
+            );
+            $total = (int)$citizen_result['total'];
+        }
+        $rows = $citizen_result['rows'];
+        if ($is_transport_supervisor) {
+            annotate_report_assignment_status($conn, $rows);
+        }
+        $pagination_html = ($total > $panel_per_page)
+            ? rm_build_panel_pagination('citizen', $ajax_page, $panel_per_page, $total)['html']
+            : '';
+        echo json_encode([
+            'success' => true,
+            'panel' => 'citizen',
+            'page' => $ajax_page,
+            'total' => $total,
+            'per_page' => $panel_per_page,
+            'q' => $search_q,
+            'rows_html' => rm_render_citizen_panel_tbody($rows, $is_road_supervisor, $is_transport_supervisor, $user_role),
+            'pagination_html' => $pagination_html,
+            'badge_text' => $total . ' Reports',
+        ]);
+        exit;
+    }
+
+    if ($panel === 'cimm') {
+        if ($is_transport_supervisor) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Forbidden']);
+            exit;
+        }
+        $search_q = trim((string)($_GET['q'] ?? ''));
+        $cimm_result = getCimmReportsForManagement(
+            $status_filter,
+            $panel_per_page,
+            ($ajax_page - 1) * $panel_per_page,
+            $search_q
+        );
+        $total = (int)$cimm_result['total'];
+        $max_page = max(1, (int)ceil($total / max(1, $panel_per_page)));
+        if ($ajax_page > $max_page) {
+            $ajax_page = $max_page;
+            $cimm_result = getCimmReportsForManagement(
+                $status_filter,
+                $panel_per_page,
+                ($ajax_page - 1) * $panel_per_page,
+                $search_q
+            );
+            $total = (int)$cimm_result['total'];
+        }
+        $rows = $cimm_result['rows'];
+        $pagination_html = ($total > $panel_per_page)
+            ? rm_build_panel_pagination('cimm', $ajax_page, $panel_per_page, $total)['html']
+            : '';
+        echo json_encode([
+            'success' => true,
+            'panel' => 'cimm',
+            'page' => $ajax_page,
+            'total' => $total,
+            'per_page' => $panel_per_page,
+            'q' => $search_q,
+            'rows_html' => rm_render_cimm_panel_tbody($rows),
+            'rows_json' => array_values($rows),
+            'pagination_html' => $pagination_html,
+            'badge_text' => $total . ' Reports',
+        ]);
+        exit;
+    }
+
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'Unknown panel']);
+    exit;
+}
+
+// Get data — panel lists use dedicated queries; get_reports() no longer feeds Citizen.
 $stats = get_report_stats();
 $csrf_token = generate_csrf_token();
 $flash_message = get_flash_message();
@@ -1348,12 +1912,24 @@ $flash_message = get_flash_message();
 // Transportation Operations supervisors only see LGU Monitoring
 // Transportation reports and Citizen reports (no CIMM, infrastructure,
 // or LGU Road reports).
-$is_transport_supervisor = ($user_role === 'trans_ops_supervisor');
+// $is_transport_supervisor set above (also used by AJAX panel_page).
 
 // Separate reports by source system for panel display
 $citizen_reports = [];
+$citizen_reports_total = 0;
+$citizen_page = rm_panel_page('citizen');
+$citizen_pagination_html = '';
+$citizen_search = trim((string)($_GET['citizen_q'] ?? ''));
 $lgu_reports_list = [];
+$lgu_reports_total = 0;
+$lgu_page = rm_panel_page('lgu');
+$lgu_pagination_html = '';
+$lgu_search = trim((string)($_GET['lgu_q'] ?? ''));
 $cimm_reports_list = [];
+$cimm_reports_total = 0;
+$cimm_page = rm_panel_page('cimm');
+$cimm_pagination_html = '';
+$cimm_search = trim((string)($_GET['cimm_q'] ?? ''));
 // Infrastructure Projects panel reads approved rows from ipms_road_projects
 // (not road_maintenance_reports / infrastructure_issue).
 $infra_reports_list = [];
@@ -1372,77 +1948,63 @@ if (!$is_transport_supervisor && ($source_filter === 'all' || $source_filter ===
     }
 }
 
-// LGU Monitoring: own query + LIMIT (not shared with Citizen via get_reports).
+// LGU Monitoring: own query + LIMIT/OFFSET (reusable panel pagination).
 if ($source_filter === 'all' || $source_filter === 'lgu_reports') {
-    $lgu_reports_list = getLguReportsForManagement(
+    $lgu_page = rm_panel_page('lgu');
+    $lgu_result = getLguReportsForManagement(
         $status_filter,
         $is_road_supervisor,
         $is_transport_supervisor,
-        $per_page
+        $panel_per_page,
+        rm_panel_offset('lgu', $panel_per_page),
+        $lgu_search
     );
-}
-
-// Citizen reports only appear in the Citizen Reports panel after they have
-// been verified and approved in verification_monitoring.php. Any pre-verification
-// status keeps them out of this panel (they remain in verification_monitoring.php).
-$citizen_unverified_statuses = ['pending', 'awaiting verification', 'for verification', 'under review', 'submitted', 'new'];
-foreach ($reports as $report) {
-    $src = $report['source_system'] ?? 'transport';
-
-    // LGU rows come from getLguReportsForManagement() above — skip here so
-    // the shared get_reports() LIMIT cannot crowd them out.
-    if ($src === 'lgu_reports' || $src === 'hidden') {
-        continue;
+    $lgu_reports_total = $lgu_result['total'];
+    $lgu_max_page = max(1, (int)ceil($lgu_reports_total / max(1, $panel_per_page)));
+    if ($lgu_page > $lgu_max_page) {
+        $lgu_page = $lgu_max_page;
+        $lgu_result = getLguReportsForManagement(
+            $status_filter,
+            $is_road_supervisor,
+            $is_transport_supervisor,
+            $panel_per_page,
+            ($lgu_page - 1) * $panel_per_page,
+            $lgu_search
+        );
+        $lgu_reports_total = $lgu_result['total'];
     }
-
-    if ($is_transport_supervisor) {
-        if ($src !== 'maintenance' && ($report['created_by'] ?? 0) == 0 && !in_array(strtolower($report['status'] ?? ''), $citizen_unverified_statuses)) {
-            $citizen_reports[] = $report;
-        }
-        continue;
-    }
-
-    if ($src === 'maintenance') {
-        // Legacy maintenance / infrastructure_issue rows are ignored — the
-        // Infrastructure Projects panel is fed from ipms_road_projects above.
-        continue;
-    }
-
-    // Only include verified citizen reports where created_by = 0
-    if (($report['created_by'] ?? 0) == 0 && !in_array(strtolower($report['status'] ?? ''), $citizen_unverified_statuses)) {
-        $citizen_reports[] = $report;
+    $lgu_reports_list = $lgu_result['rows'];
+    if ($lgu_reports_total > $panel_per_page) {
+        $lgu_pagination_html = rm_build_panel_pagination('lgu', $lgu_page, $panel_per_page, $lgu_reports_total)['html'];
     }
 }
 
-// Completed LGU Monitoring reports (Road + Transportation) keep the same
-// completed-report behavior as the supervisor portal: they stay visible in the
-// LGU panel for the 7-day retention window, then the auto-archive sweep moves
-// them to the archive. They are fetched separately so the Citizen and
-// Infrastructure panels — and their role visibility — are completely unaffected.
-if ($status_filter === 'all' || $status_filter === 'completed') {
-    if ($source_filter === 'all' || $source_filter === 'lgu_reports') {
-        // Infrastructure projects (report_type = infrastructure_issue) are
-        // excluded here — they belong to the Infrastructure panel, where a
-        // dedicated completed-infrastructure append below keeps them visible.
-        $completed_lgu_sql = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, engineer, budget_allocation, cimm_engineer_name, cimm_budget, estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, 'lgu_reports' as source_system FROM road_transportation_reports WHERE report_source = 'local' AND created_by != 0 AND report_type != 'infrastructure_issue' AND status = 'completed'";
-        if ($is_road_supervisor) {
-            $completed_lgu_sql .= " AND report_category = 'road'";
-        } elseif ($is_transport_supervisor) {
-            $completed_lgu_sql .= " AND report_category = 'transportation'";
-        }
-        $completed_lgu_sql .= " ORDER BY created_at DESC LIMIT {$per_page}";
-        $completed_lgu_res = $conn->query($completed_lgu_sql);
-        if ($completed_lgu_res) {
-            $existing_lgu_ids = [];
-            foreach ($lgu_reports_list as $lr) {
-                $existing_lgu_ids[] = (int)$lr['id'];
-            }
-            while ($r = $completed_lgu_res->fetch_assoc()) {
-                if (!in_array((int)$r['id'], $existing_lgu_ids, true)) {
-                    $lgu_reports_list[] = $r;
-                }
-            }
-        }
+// Citizen Reports: independent query (post-verification only). Hidden for road supervisors.
+if (!$is_road_supervisor && ($source_filter === 'all' || $source_filter === 'transport')) {
+    $citizen_page = rm_panel_page('citizen');
+    $citizen_result = getCitizenReportsForManagement(
+        $status_filter,
+        $is_transport_supervisor,
+        $panel_per_page,
+        rm_panel_offset('citizen', $panel_per_page),
+        $citizen_search
+    );
+    $citizen_reports_total = $citizen_result['total'];
+    $citizen_max_page = max(1, (int)ceil($citizen_reports_total / max(1, $panel_per_page)));
+    if ($citizen_page > $citizen_max_page) {
+        $citizen_page = $citizen_max_page;
+        $citizen_result = getCitizenReportsForManagement(
+            $status_filter,
+            $is_transport_supervisor,
+            $panel_per_page,
+            ($citizen_page - 1) * $panel_per_page,
+            $citizen_search
+        );
+        $citizen_reports_total = $citizen_result['total'];
+    }
+    $citizen_reports = $citizen_result['rows'];
+    if ($citizen_reports_total > $panel_per_page) {
+        $citizen_pagination_html = rm_build_panel_pagination('citizen', $citizen_page, $panel_per_page, $citizen_reports_total)['html'];
     }
 }
 
@@ -1458,15 +2020,38 @@ if ($is_transport_supervisor) {
     annotate_report_assignment_status($conn, $citizen_reports);
 }
 
-// Fetch CIMM reports independently (not through the combined get_reports pipeline
-// which limits all sources to 20 total, crowding out CIMM reports)
+// Fetch CIMM reports independently (paginated; not through get_reports).
 $include_cimm = ($source_filter === 'all' || $source_filter === 'cimm');
 if ($include_cimm && !$is_transport_supervisor) {
     try {
-        $cimm_reports_list = getCimmReportsForManagement($status_filter);
+        $cimm_page = rm_panel_page('cimm');
+        $cimm_result = getCimmReportsForManagement(
+            $status_filter,
+            $panel_per_page,
+            rm_panel_offset('cimm', $panel_per_page),
+            $cimm_search
+        );
+        $cimm_reports_total = $cimm_result['total'];
+        $cimm_max_page = max(1, (int)ceil($cimm_reports_total / max(1, $panel_per_page)));
+        if ($cimm_page > $cimm_max_page) {
+            $cimm_page = $cimm_max_page;
+            $cimm_result = getCimmReportsForManagement(
+                $status_filter,
+                $panel_per_page,
+                ($cimm_page - 1) * $panel_per_page,
+                $cimm_search
+            );
+            $cimm_reports_total = $cimm_result['total'];
+        }
+        $cimm_reports_list = $cimm_result['rows'];
+        if ($cimm_reports_total > $panel_per_page) {
+            $cimm_pagination_html = rm_build_panel_pagination('cimm', $cimm_page, $panel_per_page, $cimm_reports_total)['html'];
+        }
     } catch (Exception $e) {
         error_log("CIMM panel fetch failed: " . $e->getMessage());
         $cimm_reports_list = [];
+        $cimm_reports_total = 0;
+        $cimm_pagination_html = '';
     }
 }
 
@@ -2957,6 +3542,63 @@ if ($focus_id > 0) {
             background: rgba(55, 98, 200, 0.08);
         }
 
+        .rm-panel-pagination {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 16px;
+            border-top: 1px solid rgba(55, 98, 200, 0.12);
+            flex-wrap: wrap;
+        }
+        .rm-panel-pagination-info {
+            font-size: 13px;
+            color: #4b5563;
+        }
+        body.dark-mode .rm-panel-pagination-info {
+            color: #9ca3af;
+        }
+        .rm-panel-pagination-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .rm-page-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 34px;
+            height: 34px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+            color: #fff;
+            text-decoration: none;
+            font-size: 12px;
+            cursor: pointer;
+            padding: 0;
+        }
+        .rm-page-btn:hover:not(.disabled) {
+            box-shadow: 0 4px 12px rgba(55, 98, 200, 0.3);
+        }
+        .rm-page-btn.disabled {
+            opacity: 0.4;
+            pointer-events: none;
+            cursor: default;
+        }
+        .rm-panel-pagination-slot.is-loading {
+            opacity: 0.55;
+            pointer-events: none;
+        }
+        .rm-page-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #1e3c72;
+        }
+        body.dark-mode .rm-page-label {
+            color: #93c5fd;
+        }
+
         .rm-panel-subtitle {
             font-size: 13px;
             color: #6b7280;
@@ -3868,7 +4510,7 @@ if ($focus_id > 0) {
                     <div>
                         <div class="rm-panel-title-group">
                             <h2 class="rm-panel-title">LGU Monitoring Reports</h2>
-                            <span class="rm-panel-badge lgu"><?php echo count($lgu_reports_list); ?> Reports</span>
+                            <span class="rm-panel-badge lgu" id="lguReportsBadge"><?php echo (int)$lgu_reports_total; ?> Reports</span>
                         </div>
                         <p class="rm-panel-subtitle">Reports created by LGU staff via the road monitoring system</p>
                     </div>
@@ -3878,7 +4520,7 @@ if ($focus_id > 0) {
             <div class="rm-panel-search">
                 <div class="rm-search-wrapper">
                     <i class="fas fa-search"></i>
-                    <input type="text" class="rm-search-input" id="lguSearchInput" placeholder="Search by Report #..." oninput="panelSearch('lguSearchInput', 'lguTable')">
+                    <input type="text" class="rm-search-input" id="lguSearchInput" placeholder="Search by Report #..." value="<?php echo htmlspecialchars($lgu_search); ?>" oninput="onPanelServerSearch('lgu')">
                 </div>
                 <button class="rm-sort-btn" onclick="toggleLguSort()">
                     <i class="fas fa-sort"></i> Sort
@@ -3908,108 +4550,12 @@ if ($focus_id > 0) {
                         </tr>
                     </thead>
                     <tbody>
-                        <?php
-                        $hasLgu = false;
-                        $lgu_transport_types = ['potholes', 'road_damage', 'shoulder_damage', 'traffic_jam', 'accident', 'congestion', 'traffic_light_outage', 'vehicle_breakdown', 'traffic_sign_issue', 'transportation', 'infrastructure_issue', 'road_closure', 'parking_violation', 'public_transport_issue'];
-                        $lgu_road_types = ['debris', 'cracks', 'erosion', 'flooding', 'marking_fade'];
-                        if (!empty($lgu_reports_list)):
-                            foreach ($lgu_reports_list as $report):
-                                $hasLgu = true;
-                                $lgu_delete_table = (in_array($report['report_type'], $lgu_transport_types, true) || in_array($report['report_type'], $lgu_road_types, true)) ? 'road_transportation_reports' : 'road_maintenance_reports';
-                        ?>
-                        <tr data-id="<?php echo (int)$report['id']; ?>" data-source="lgu_reports">
-                            <td>
-                                <div class="rm-action-group">
-                                    <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'road_transportation_reports')">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                    <?php if ($is_road_supervisor || $is_transport_supervisor || $user_role === 'system_admin'): ?>
-                                    <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'road_transportation_reports')">
-                                        <i class="fas fa-pencil"></i>
-                                    </button>
-                                    <?php endif; ?>
-                                    <?php if (($report['status'] ?? '') === 'completed'): ?>
-                                    <button class="rm-archive-btn" onclick="archiveReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['source_system'] ?? 'transport', ENT_QUOTES); ?>')" title="Archive">
-                                        <i class="fas fa-archive"></i>
-                                    </button>
-                                    <?php else: ?>
-                                    <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', '<?php echo $lgu_delete_table; ?>')">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                    <?php endif; ?>
-                                </div>
-                            </td>
-                            <td><?php echo htmlspecialchars($report['report_id'] ?? '—'); ?></td>
-                            <td><?php echo htmlspecialchars(strlen($report['title'] ?? '') > 35 ? substr($report['title'], 0, 35) . '...' : ($report['title'] ?? '')); ?></td>
-                            <td><?php
-                                $type_labels = [
-                                    'infrastructure_issue' => 'Infrastructure Issue',
-                                    'traffic_jam' => 'Traffic Jam',
-                                    'accident' => 'Vehicle Accident',
-                                    'road_closure' => 'Road Closure',
-                                    'potholes' => 'Potholes',
-                                    'road_damage' => 'Road Damage',
-                                ];
-                                echo htmlspecialchars($type_labels[$report['report_type']] ?? ucfirst($report['report_type']));
-                            ?></td>
-                            <td><?php echo htmlspecialchars($report['location'] ?? '—'); ?></td>
-                            <td><?php echo htmlspecialchars(ucfirst($report['department'] ?? '')); ?></td>
-                            <td><span class="rm-priority-badge <?php echo htmlspecialchars($report['priority']); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'])); ?></span></td>
-                            <?php if ($is_transport_supervisor): ?>
-                            <td>
-                                <?php if (($report['assignment_status'] ?? 'unassigned') === 'assigned' && !empty($report['assignment_officer'])): ?>
-                                <span class="assignment-badge assignment-assigned"><?php echo htmlspecialchars($report['assignment_officer']); ?></span>
-                                <?php else: ?>
-                                <span class="assignment-badge assignment-unassigned">Unassigned</span>
-                                <?php endif; ?>
-                            </td>
-                            <?php endif; ?>
-                            <?php if ($is_road_supervisor || $user_role === 'system_admin'): ?>
-                            <td>
-                                <?php $lgu_engineer = (trim((string)($report['cimm_engineer_name'] ?? '')) !== '') ? $report['cimm_engineer_name'] : ($report['engineer'] ?? ''); ?>
-                                <?php if (!empty($lgu_engineer) && ($report['report_category'] ?? '') === 'road'): ?>
-                                <span class="rm-badge lgu" title="CIMM Assigned Engineer"><?php echo htmlspecialchars($lgu_engineer); ?></span>
-                                <?php else: ?>
-                                <span class="t-text-muted">—</span>
-                                <?php endif; ?>
-                            </td>
-                            <td>
-                                <?php $lgu_budget = (!empty($report['cimm_budget']) && (float)$report['cimm_budget'] > 0) ? $report['cimm_budget'] : ($report['budget_allocation'] ?? null); ?>
-                                <?php if (!empty($lgu_budget) && (float)$lgu_budget > 0 && ($report['report_category'] ?? '') === 'road'): ?>
-                                <span class="t-text-success" title="CIMM Budget Allocation">₱ <?php echo number_format((float)$lgu_budget, 2); ?></span>
-                                <?php else: ?>
-                                <span class="t-text-muted">—</span>
-                                <?php endif; ?>
-                            </td>
-                            <?php endif; ?>
-                            <td><span class="rm-status-badge <?php echo htmlspecialchars(strtolower($report['status'])); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span></td>
-                            <td>
-                                <?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?>
-                                <?php if (($report['status'] ?? '') === 'approved' && !empty($report['approved_at'])): ?>
-                                    <br><small class="t-text-success" style="font-weight:600;">Approved: <?php echo date('M d, Y', strtotime($report['approved_at'])); ?></small>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                        <?php
-                            endforeach;
-                        endif;
-                        ?>
-
-                        <?php if (!$hasLgu): ?>
-                        <tr>
-                            <td colspan="<?php echo (($is_road_supervisor || $user_role === 'system_admin') ? 11 : 9) + ($is_transport_supervisor ? 1 : 0); ?>">
-                                <div class="rm-empty-state">
-                                    <div class="rm-empty-icon" style="background: rgba(55, 98, 200, 0.12);">
-                                        <i class="fas fa-clipboard-list t-text-link"></i>
-                                    </div>
-                                    <h4>No LGU Monitoring Reports</h4>
-                                    <p>No LGU-created monitoring reports found.</p>
-                                </div>
-                            </td>
-                        </tr>
-                        <?php endif; ?>
+                        <?php echo rm_render_lgu_panel_tbody($lgu_reports_list, $is_road_supervisor, $is_transport_supervisor, $user_role); ?>
                     </tbody>
                 </table>
+            </div>
+            <div id="lguPagination" class="rm-panel-pagination-slot">
+                <?php echo $lgu_pagination_html; ?>
             </div>
         </div>
 
@@ -4024,7 +4570,7 @@ if ($focus_id > 0) {
                     <div>
                         <div class="rm-panel-title-group">
                             <h2 class="rm-panel-title">Citizen Reports</h2>
-                            <span class="rm-panel-badge citizen"><?php echo count($citizen_reports); ?> Reports</span>
+                            <span class="rm-panel-badge citizen" id="citizenReportsBadge"><?php echo (int)$citizen_reports_total; ?> Reports</span>
                         </div>
                         <p class="rm-panel-subtitle">Reports submitted by citizens via the road monitoring system</p>
                     </div>
@@ -4034,7 +4580,7 @@ if ($focus_id > 0) {
             <div class="rm-panel-search">
                 <div class="rm-search-wrapper">
                     <i class="fas fa-search"></i>
-                    <input type="text" class="rm-search-input" id="citizenSearchInput" placeholder="Search by Report #..." oninput="panelSearch('citizenSearchInput', 'citizenTable')">
+                    <input type="text" class="rm-search-input" id="citizenSearchInput" placeholder="Search by Report #..." value="<?php echo htmlspecialchars($citizen_search); ?>" oninput="onPanelServerSearch('citizen')">
                 </div>
                 <button class="rm-sort-btn" onclick="toggleCitizenSort()">
                     <i class="fas fa-sort"></i> Sort
@@ -4060,87 +4606,12 @@ if ($focus_id > 0) {
                         </tr>
                     </thead>
                     <tbody>
-                        <?php
-                        $hasCitizen = false;
-                        if (!empty($citizen_reports)):
-                            foreach ($citizen_reports as $report):
-                                $hasCitizen = true;
-                        ?>
-                        <tr data-id="<?php echo (int)$report['id']; ?>" data-source="citizen">
-                            <td>
-                                <div class="rm-action-group">
-                                    <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                    <?php if ($is_road_supervisor || $is_transport_supervisor || $user_role === 'system_admin'): ?>
-                                    <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', 'road_transportation_reports')">
-                                        <i class="fas fa-pencil"></i>
-                                    </button>
-                                    <?php endif; ?>
-                                    <?php if (($report['status'] ?? '') === 'completed'): ?>
-                                    <button class="rm-archive-btn" onclick="archiveReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['source_system'] ?? 'transport', ENT_QUOTES); ?>')" title="Archive">
-                                        <i class="fas fa-archive"></i>
-                                    </button>
-                                    <?php else: ?>
-                                    <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                    <?php endif; ?>
-                                </div>
-                            </td>
-                            <td><?php echo htmlspecialchars($report['report_id'] ?? '—'); ?></td>
-                            <td><?php echo htmlspecialchars(strlen($report['title'] ?? '') > 35 ? substr($report['title'], 0, 35) . '...' : ($report['title'] ?? '')); ?></td>
-                            <td><?php
-                                $type_labels = [
-                                    'infrastructure_issue' => 'Infrastructure Issue',
-                                    'traffic_jam' => 'Traffic Jam',
-                                    'accident' => 'Vehicle Accident',
-                                    'road_closure' => 'Road Closure',
-                                    'potholes' => 'Potholes',
-                                    'road_damage' => 'Road Damage',
-                                ];
-                                echo htmlspecialchars($type_labels[$report['report_type']] ?? ucfirst($report['report_type']));
-                            ?></td>
-                            <td><?php echo htmlspecialchars($report['location'] ?? '—'); ?></td>
-                            <td><?php echo htmlspecialchars(ucfirst($report['department'] ?? '')); ?></td>
-                            <td><span class="rm-priority-badge <?php echo htmlspecialchars($report['priority']); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'])); ?></span></td>
-                            <?php if ($is_transport_supervisor): ?>
-                            <td>
-                                <?php if (($report['assignment_status'] ?? 'unassigned') === 'assigned' && !empty($report['assignment_officer'])): ?>
-                                <span class="assignment-badge assignment-assigned"><?php echo htmlspecialchars($report['assignment_officer']); ?></span>
-                                <?php else: ?>
-                                <span class="assignment-badge assignment-unassigned">Unassigned</span>
-                                <?php endif; ?>
-                            </td>
-                            <?php endif; ?>
-                            <td><span class="rm-status-badge <?php echo htmlspecialchars(strtolower($report['status'])); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span></td>
-                            <td>
-                                <?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?>
-                                <?php if (($report['status'] ?? '') === 'approved' && !empty($report['approved_at'])): ?>
-                                    <br><small class="t-text-success" style="font-weight:600;">Approved: <?php echo date('M d, Y', strtotime($report['approved_at'])); ?></small>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                        <?php
-                            endforeach;
-                        endif;
-                        ?>
-
-                        <?php if (!$hasCitizen): ?>
-                        <tr>
-                            <td colspan="<?php echo 9 + ($is_transport_supervisor ? 1 : 0); ?>">
-                                <div class="rm-empty-state">
-                                    <div class="rm-empty-icon">
-                                        <i class="fas fa-users"></i>
-                                    </div>
-                                    <h4>No Citizen Reports</h4>
-                                    <p>No citizen-submitted reports found.</p>
-                                </div>
-                            </td>
-                        </tr>
-                        <?php endif; ?>
+                        <?php echo rm_render_citizen_panel_tbody($citizen_reports, $is_road_supervisor, $is_transport_supervisor, $user_role); ?>
                     </tbody>
                 </table>
+            </div>
+            <div id="citizenPagination" class="rm-panel-pagination-slot">
+                <?php echo $citizen_pagination_html; ?>
             </div>
         </div>
         <?php endif; ?>
@@ -4156,7 +4627,7 @@ if ($focus_id > 0) {
                     <div>
                         <div class="rm-panel-title-group">
                             <h2 class="rm-panel-title">CIMM Reports</h2>
-                            <span class="rm-panel-badge cimm"><?php echo count($cimm_reports_list); ?> Reports</span>
+                            <span class="rm-panel-badge cimm" id="cimmReportsBadge"><?php echo (int)$cimm_reports_total; ?> Reports</span>
                         </div>
                         <p class="rm-panel-subtitle">External reports from the CIMM system — managed via Verification Monitoring</p>
                     </div>
@@ -4166,7 +4637,7 @@ if ($focus_id > 0) {
             <div class="rm-panel-search">
                 <div class="rm-search-wrapper">
                     <i class="fas fa-search"></i>
-                    <input type="text" class="rm-search-input" id="cimmSearchInput" placeholder="Search by Rep #..." oninput="panelSearch('cimmSearchInput', 'cimmTable')">
+                    <input type="text" class="rm-search-input" id="cimmSearchInput" placeholder="Search by Rep #..." value="<?php echo htmlspecialchars($cimm_search); ?>" oninput="onPanelServerSearch('cimm')">
                 </div>
                 <button class="rm-sort-btn" onclick="toggleCimmSort()">
                     <i class="fas fa-sort"></i> Sort
@@ -4189,63 +4660,12 @@ if ($focus_id > 0) {
                         </tr>
                     </thead>
                     <tbody>
-                        <?php
-                        $hasCimm = false;
-                        $cimmIdx = 0;
-                        if (!empty($cimm_reports_list)):
-                            foreach ($cimm_reports_list as $row):
-                                $hasCimm = true;
-                        ?>
-                        <tr data-id="<?php echo (int)$row['id']; ?>" data-source="cimm">
-                            <td>
-                                <div class="rm-action-group">
-                                    <button class="rm-action-btn" onclick="viewCimmReport(<?php echo $cimmIdx; ?>)">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                    <button class="rm-edit-btn" onclick="editCimmReport(<?php echo $cimmIdx; ?>)">
-                                        <i class="fas fa-pencil"></i>
-                                    </button>
-                                    <?php if (($row['status'] ?? '') === 'completed'): ?>
-                                    <button class="rm-archive-btn" onclick="archiveReport(<?php echo (int)$row['id']; ?>, 'cimm')" title="Archive">
-                                        <i class="fas fa-archive"></i>
-                                    </button>
-                                    <?php else: ?>
-                                    <button class="rm-delete-btn" onclick="deleteCimmReport(<?php echo $cimmIdx; ?>)">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                    <?php endif; ?>
-                                </div>
-                            </td>
-                            <td><?php echo htmlspecialchars($row['report_id'] ?? '—'); ?></td>
-                            <td><?php echo htmlspecialchars($row['title'] ?? '—'); ?></td>
-                            <td><?php echo htmlspecialchars($row['location'] ?? '—'); ?></td>
-                            <td><?php echo htmlspecialchars(strlen($row['description'] ?? '') > 40 ? substr($row['description'], 0, 40) . '...' : ($row['description'] ?? '')); ?></td>
-                            <td><?php echo htmlspecialchars($row['assigned_to'] ?? '—'); ?></td>
-                            <td><span class="rm-priority-badge <?php echo htmlspecialchars($row['priority']); ?>"><?php echo ucfirst(htmlspecialchars($row['priority'])); ?></span></td>
-                            <td><?php echo !empty($row['estimation']) ? '₱' . number_format($row['estimation'], 2) : '—'; ?></td>
-                            <td><span class="rm-status-badge <?php echo htmlspecialchars(strtolower($row['status'])); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $row['status']))); ?></span></td>
-                        </tr>
-                        <?php
-                            $cimmIdx++;
-                            endforeach;
-                        endif;
-                        ?>
-
-                        <?php if (!$hasCimm): ?>
-                        <tr>
-                            <td colspan="9">
-                                <div class="rm-empty-state">
-                                    <div class="rm-empty-icon" style="background: rgba(249, 115, 22, 0.12);">
-                                        <i class="fas fa-building t-text-cimm"></i>
-                                    </div>
-                                    <h4>No CIMM Reports</h4>
-                                    <p>No reports from the CIMM system found.</p>
-                                </div>
-                            </td>
-                        </tr>
-                        <?php endif; ?>
+                        <?php echo rm_render_cimm_panel_tbody($cimm_reports_list); ?>
                     </tbody>
                 </table>
+            </div>
+            <div id="cimmPagination" class="rm-panel-pagination-slot">
+                <?php echo $cimm_pagination_html; ?>
             </div>
         </div>
         <?php endif; ?>
@@ -4775,7 +5195,7 @@ if ($focus_id > 0) {
 
     <script>
         // CIMM data for detail viewing (read-only)
-        const cimmData = <?php echo json_encode(array_values($cimm_reports_list), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+        let cimmData = <?php echo json_encode(array_values($cimm_reports_list), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
 
         // Sort toggle state. Declared at the very top of this script so it is
         // initialized before anything below can throw — the sort functions are
@@ -4895,6 +5315,9 @@ if ($focus_id > 0) {
             url.searchParams.set('status', status);
             url.searchParams.set('source', source);
             url.searchParams.set('page', '1');
+            url.searchParams.set('lgu_page', '1');
+            url.searchParams.set('citizen_page', '1');
+            url.searchParams.set('cimm_page', '1');
             window.location.href = url.toString();
         }
 
@@ -4903,6 +5326,9 @@ if ($focus_id > 0) {
             url.searchParams.delete('status');
             url.searchParams.delete('source');
             url.searchParams.set('page', '1');
+            url.searchParams.set('lgu_page', '1');
+            url.searchParams.set('citizen_page', '1');
+            url.searchParams.set('cimm_page', '1');
             window.location.href = url.toString();
         }
 
@@ -6731,12 +7157,8 @@ if ($focus_id > 0) {
             });
         });
 
-        // Panel search — matches only the Report ID / Report # column (index 1;
-        // index 0 is the Action buttons column). It is wired via each input's
-        // inline 'oninput' attribute so it works even if any earlier part of
-        // this script fails before the addEventListener lines below run (the
-        // function is hoisted to global scope, so the inline handler can always
-        // call it).
+        // Panel search — client-side filter for panels that are not server-paginated
+        // (CIMM / Infrastructure). LGU + Citizen use onPanelServerSearch() instead.
         function panelSearch(inputId, tableId) {
             const query = document.getElementById(inputId).value.trim().toLowerCase();
             const tbody = document.querySelector('#' + tableId + ' tbody');
@@ -6751,14 +7173,94 @@ if ($focus_id > 0) {
             });
         }
 
-        // Search is wired BOTH via each input's inline 'oninput' attribute (guaranteed
-        // to work even if this script throws before reaching here, since
-        // panelSearch is hoisted to global scope) AND via these listeners (in
-        // case a browser ignores the attribute). Filtering is idempotent, so
-        // having both is harmless. Null-checks keep this from throwing when a
-        // panel is not rendered for the current role (e.g. the Citizen panel is
-        // hidden for Road Operations Supervisors).
-        [['citizenSearchInput', 'citizenTable'], ['lguSearchInput', 'lguTable'], ['cimmSearchInput', 'cimmTable'], ['infraSearchInput', 'infraTable']].forEach(function(pair) {
+        // AJAX panel pagination (LGU + Citizen + CIMM).
+        let rmPanelPageLoading = false;
+        const rmPanelSearchTimers = {};
+        const rmPanelDom = {
+            lgu: { table: '#lguTable', pagination: 'lguPagination', badge: 'lguReportsBadge', search: 'lguSearchInput' },
+            citizen: { table: '#citizenTable', pagination: 'citizenPagination', badge: 'citizenReportsBadge', search: 'citizenSearchInput' },
+            cimm: { table: '#cimmTable', pagination: 'cimmPagination', badge: 'cimmReportsBadge', search: 'cimmSearchInput' }
+        };
+        function onPanelServerSearch(panel) {
+            if (!rmPanelDom[panel]) return;
+            clearTimeout(rmPanelSearchTimers[panel]);
+            rmPanelSearchTimers[panel] = setTimeout(function trySearch() {
+                if (rmPanelPageLoading) {
+                    rmPanelSearchTimers[panel] = setTimeout(trySearch, 150);
+                    return;
+                }
+                loadPanelPage(panel, 1);
+            }, 300);
+        }
+        async function loadPanelPage(panel, page) {
+            if (!panel || rmPanelPageLoading) return;
+            const dom = rmPanelDom[panel];
+            if (!dom) return;
+            const pageNum = Math.max(1, parseInt(page, 10) || 1);
+            const statusEl = document.getElementById('statusFilter');
+            const sourceEl = document.getElementById('sourceFilter');
+            const searchInput = document.getElementById(dom.search);
+            const q = searchInput ? searchInput.value.trim() : '';
+            const url = new URL(window.location.href);
+            url.searchParams.set('ajax', 'panel_page');
+            url.searchParams.set('panel', panel);
+            url.searchParams.set('page', String(pageNum));
+            if (statusEl) url.searchParams.set('status', statusEl.value || 'all');
+            if (sourceEl) url.searchParams.set('source', sourceEl.value || 'all');
+            // Always drive AJAX search from the input via `q` only — strip stale
+            // panel_q params from the current URL so clearing the box returns
+            // the unfiltered list.
+            url.searchParams.delete('lgu_q');
+            url.searchParams.delete('citizen_q');
+            url.searchParams.delete('cimm_q');
+            url.searchParams.delete('q');
+            if (q) url.searchParams.set('q', q);
+
+            const tbody = document.querySelector(dom.table + ' tbody');
+            const pagSlot = document.getElementById(dom.pagination);
+            const badge = document.getElementById(dom.badge);
+            if (!tbody || !pagSlot) return;
+
+            rmPanelPageLoading = true;
+            pagSlot.classList.add('is-loading');
+            try {
+                const res = await fetch(url.toString(), {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                    credentials: 'same-origin'
+                });
+                const data = await res.json();
+                if (!data || !data.success) throw new Error((data && data.message) || 'Failed to load page');
+                tbody.innerHTML = data.rows_html || '';
+                pagSlot.innerHTML = data.pagination_html || '';
+                if (badge && data.badge_text) badge.textContent = data.badge_text;
+                if (panel === 'cimm' && Array.isArray(data.rows_json)) {
+                    cimmData = data.rows_json;
+                }
+
+                const hist = new URL(window.location.href);
+                hist.searchParams.set(panel + '_page', String(data.page || pageNum));
+                if (q) hist.searchParams.set(panel + '_q', q);
+                else hist.searchParams.delete(panel + '_q');
+                hist.searchParams.delete('ajax');
+                hist.searchParams.delete('q');
+                window.history.replaceState({}, '', hist.toString());
+            } catch (err) {
+                console.error('Panel pagination failed:', err);
+            } finally {
+                pagSlot.classList.remove('is-loading');
+                rmPanelPageLoading = false;
+            }
+        }
+
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('.rm-page-btn[data-panel]');
+            if (!btn || btn.disabled || btn.classList.contains('disabled')) return;
+            e.preventDefault();
+            loadPanelPage(btn.getAttribute('data-panel'), btn.getAttribute('data-page'));
+        });
+
+        // Client-side search only for Infrastructure (not AJAX-paginated).
+        [['infraSearchInput', 'infraTable']].forEach(function(pair) {
             var input = document.getElementById(pair[0]);
             if (input) input.addEventListener('input', function() { panelSearch(pair[0], pair[1]); });
         });
