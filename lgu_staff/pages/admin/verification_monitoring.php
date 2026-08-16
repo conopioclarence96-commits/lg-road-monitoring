@@ -687,54 +687,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = $_POST['action'];
         $table = in_array($source, ['transport', 'lgu', 'external']) ? 'road_transportation_reports' : 'road_maintenance_reports';
 
-        // Infrastructure Projects (read-only IPMS mirror): approve/reject reflects
-        // the action on the local mirror row so the panel updates immediately.
+        // Infrastructure Projects (IPMS mirror): approve/reject updates the
+        // local workflow `status` column so the panel (status = pending only)
+        // refreshes correctly without touching IPMS project_status.
         if ($source === 'infra' && in_array($action, ['approve', 'reject'])) {
             $infra_pdo = rgmap_ipms_pdo();
 
             if ($action === 'approve') {
-                // ✓ Verify/Approve: mark the mirror project approved (hiding it
-                // from this panel) and move it into report management as an
-                // active Infrastructure Project report.
-                $infra_upd = $infra_pdo->prepare("UPDATE ipms_road_projects SET project_status = 'approved' WHERE project_id = ?");
+                // ✓ Approve: mark local status approved (hides from this panel).
+                // Stay in ipms_road_projects only — do not copy into report tables.
+                $infra_upd = $infra_pdo->prepare("UPDATE ipms_road_projects SET status = 'approved' WHERE project_id = ?");
                 $infra_upd->execute([$report_id]);
-
-                $proj = $infra_pdo->prepare("SELECT * FROM ipms_road_projects WHERE project_id = ?");
-                $proj->execute([$report_id]);
-                $proj = $proj->fetch();
-
-                if ($proj) {
-                    $barangays = json_decode((string)($proj['barangays_json'] ?? '[]'), true) ?: [];
-                    $engs      = json_decode((string)($proj['assigned_engineers_json'] ?? '[]'), true) ?: [];
-                    $loc       = count($barangays)
-                        ? implode(', ', array_filter(array_map('trim', array_map('strval', $barangays)), fn($b) => $b !== ''))
-                        : trim((string)($proj['road_name'] ?? ''));
-                    $engineer  = implode(', ', array_filter(array_map('trim', array_map('strval', $engs)), fn($e) => $e !== ''));
-                    $ipmsReportId = 'IPMS-' . $report_id;
-                    $desc      = trim((string)($proj['road_status'] ?? '')) ?: 'Approved infrastructure project.';
-                    $creatorId = (int)($_SESSION['user_id'] ?? 0);
-
-                    $ins = $conn->prepare("INSERT INTO road_transportation_reports
-                        (report_id, report_type, report_category, report_source, title, department, priority, status,
-                         created_date, due_date, description, location, latitude, longitude, created_by,
-                         created_at, updated_at, approved_at, engineer, budget_allocation,
-                         cimm_starting_date, cimm_estimated_end_date)
-                        VALUES (?, 'infrastructure_issue', 'road', 'local', ?, 'Engineering', 'medium', 'approved',
-                         CURDATE(), ?, ?, ?, NULL, NULL, ?, NOW(), NOW(), NOW(), ?, ?, ?, ?)");
-                    $ins->bind_param(
-                        'sssssisdss',
-                        $ipmsReportId, $proj['project_name'], $proj['end_date'], $desc, $loc,
-                        $creatorId, $engineer, $proj['budget'], $proj['start_date'], $proj['end_date']
-                    );
-                    $ins->execute();
-                }
-
-                $vm_message = 'Infrastructure project approved and moved to report management.';
+                $vm_message = 'Infrastructure project approved.';
             } else {
-                // X Reject: follow the existing reject flow — mark the mirror
-                // project cancelled. Rejected projects are not moved to report
-                // management.
-                $infra_upd = $infra_pdo->prepare("UPDATE ipms_road_projects SET project_status = 'cancelled' WHERE project_id = ?");
+                // X Reject: mark local status rejected.
+                $infra_upd = $infra_pdo->prepare("UPDATE ipms_road_projects SET status = 'rejected' WHERE project_id = ?");
                 $infra_upd->execute([$report_id]);
                 $vm_message = 'Infrastructure project rejected.';
             }
@@ -947,63 +914,11 @@ $citizen_reports = getCitizenReports($conn);
 // mirror (see lgu_staff/pages/api/ipms_road_projects_data.php), not the empty
 // road_maintenance_reports source previously used here.
 require_once __DIR__ . '/../api/ipms_road_projects_data.php';
-$ipms_projects_raw = [];
+$infra_reports = [];
 try {
-    $ipms_projects_raw = rgmap_fetch_ipms_road_projects(rgmap_ipms_pdo());
+    $infra_reports = rgmap_infra_panel_rows();
 } catch (Exception $e) {
     error_log("IPMS road projects fetch failed: " . $e->getMessage());
-}
-$infra_reports = [];
-foreach ($ipms_projects_raw as $proj) {
-    // The panel only surfaces actionable projects — hide ones that have
-    // already been completed / turned over.
-    $proj_scope = $proj['scope_bucket'] ?? $proj['status_bucket'] ?? '';
-    if ($proj_scope === 'completed') {
-        continue;
-    }
-    // Approved projects have been moved to report management, so they no
-    // longer belong in this verification panel.
-    if (in_array((string)($proj['project_status'] ?? ''), ['approved'], true)) {
-        continue;
-    }
-    // Assigned engineers are decoded back into an array by the fetcher;
-    // join them into a single display string.
-    $infra_engineers = $proj['assigned_engineers'] ?? [];
-    $infra_engineer  = is_array($infra_engineers)
-        ? implode(', ', array_filter(array_map('trim', array_map('strval', $infra_engineers)), fn($n) => $n !== ''))
-        : trim((string)$infra_engineers);
-
-    $infra_reports[] = [
-        'id'               => (int)$proj['project_id'],
-        'source'           => 'maintenance',
-        'report_id'        => (string)$proj['project_id'],
-        'title'            => trim((string)($proj['project_name'] ?? '')),
-        'infrastructure'   => trim((string)($proj['road_type'] ?? '')),
-        'report_type'      => trim((string)($proj['road_type'] ?? '')),
-        'department'       => '—',
-        'priority'         => '—',
-        'status'           => (string)($proj['project_status'] ?? ''),
-        // Barangays covered are decoded into an array by the fetcher; join
-        // them into a single display string. Falls back to the road name.
-        'location'         => (is_array($proj['barangays_covered'] ?? null) && count($proj['barangays_covered']))
-            ? implode(', ', array_filter(array_map('trim', array_map('strval', $proj['barangays_covered'])), fn($b) => $b !== ''))
-            : trim((string)($proj['road_name'] ?? '')),
-        'description'      => null,
-        'created_date'     => null,
-        'created_at'       => $proj['created_at'] ?? null,
-        'due_date'         => $proj['end_date'] ?? null,
-        'reporter_name'    => null,
-        'estimated_cost'   => null,
-        'actual_cost'      => null,
-        'maintenance_team' => null,
-        'attachments'      => null,
-        'issue_notes'      => trim((string)($proj['road_status'] ?? '')),
-        'engineer'         => $infra_engineer,
-        'start_date'       => $proj['start_date'] ?? null,
-        'end_date'         => $proj['end_date'] ?? null,
-        'budget'           => $proj['budget'] ?? null,
-        'polyline'         => $proj['polyline_coordinates'] ?? null,
-    ];
 }
 
 // Deep-link focus: ?source= + ?id= (or the notifications-specific
@@ -2693,6 +2608,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             background: linear-gradient(135deg, #ea580c, #c2410c);
             transform: translateY(-1px);
             box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+        }
+
+        .infra-sync-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 18px;
+            background: linear-gradient(135deg, #f97316, #ea580c);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+
+        .infra-sync-btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #ea580c, #c2410c);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+        }
+
+        .infra-sync-btn:disabled {
+            opacity: 0.75;
+            cursor: wait;
+            transform: none;
+            box-shadow: none;
         }
 
         .infra-table-wrapper {
@@ -5765,11 +5709,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <div>
                         <div class="infra-reports-title-group">
                             <h2 class="infra-reports-title">Infrastructure Projects</h2>
-                            <span class="infra-reports-badge in-progress"><?php echo is_array($infra_reports) ? count($infra_reports) : 0; ?> Reports</span>
+                            <span class="infra-reports-badge in-progress" id="infraReportsBadge"><?php echo is_array($infra_reports) ? count($infra_reports) : 0; ?> Reports</span>
                         </div>
                         <p class="infra-reports-subtitle">Infrastructure maintenance and infrastructure issue reports</p>
                     </div>
                 </div>
+                <button type="button" class="infra-sync-btn" id="infraSyncBtn" onclick="syncInfraProjects(this)" title="Pull latest projects from IPMS">
+                    <i class="fas fa-sync-alt"></i> Sync
+                </button>
             </div>
 
             <div class="infra-reports-search">
@@ -6779,6 +6726,171 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
                 return infraSortAsc ? aText.localeCompare(bText) : bText.localeCompare(aText);
             });
             rows.forEach(row => tbody.appendChild(row));
+        }
+
+        function escapeInfraHtml(str) {
+            return String(str == null ? '' : str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function truncateInfraText(str, maxLen) {
+            var text = String(str == null ? '' : str);
+            if (!text) return '—';
+            return text.length > maxLen ? text.slice(0, maxLen) + '...' : text;
+        }
+
+        function infraStatusClass(status) {
+            if (status === 'approved') return 'approved';
+            if (status === 'cancelled') return 'cancelled';
+            if (status === 'pending') return 'pending';
+            if (status === 'in-progress') return 'in-progress';
+            if (status === 'completed') return 'completed';
+            return '';
+        }
+
+        function infraFilterStatus(status) {
+            if (['approved', 'completed'].indexOf(status) !== -1) return 'approved';
+            if (status === 'cancelled') return 'rejected';
+            return 'pending';
+        }
+
+        function rebuildInfraTable(reports) {
+            var table = document.getElementById('infraTable');
+            if (!table) return;
+            var tbody = table.querySelector('tbody');
+            if (!tbody) return;
+
+            infraDataMap = {};
+            var badge = document.getElementById('infraReportsBadge');
+            if (badge) badge.textContent = (reports.length || 0) + ' Reports';
+
+            if (!reports.length) {
+                tbody.innerHTML =
+                    '<tr><td colspan="12"><div class="infra-empty-state">' +
+                    '<div class="infra-empty-icon"><i class="fas fa-hard-hat"></i></div>' +
+                    '<p>No infrastructure projects at this time.</p>' +
+                    '</div></td></tr>';
+                return;
+            }
+
+            var html = '';
+            reports.forEach(function(row) {
+                var id = parseInt(row.id, 10) || 0;
+                var source = row.source || 'maintenance';
+                var status = String(row.status || '');
+                var priority = String(row.priority || '—');
+                var priorityClass = ['high', 'medium', 'low', 'critical'].indexOf(priority.toLowerCase()) !== -1
+                    ? priority.toLowerCase()
+                    : '';
+                var statusLabel = status.replace(/[-_]/g, ' ');
+                statusLabel = statusLabel ? statusLabel.charAt(0).toUpperCase() + statusLabel.slice(1) : '—';
+                var priorityLabel = priority ? priority.charAt(0).toUpperCase() + priority.slice(1) : '—';
+                var notes = truncateInfraText(row.issue_notes, 40);
+                var budget = (row.budget != null && row.budget !== '' && Number(row.budget) !== 0)
+                    ? formatCurrency(row.budget)
+                    : '—';
+                var canAct = ['approved', 'cancelled'].indexOf(status) === -1;
+
+                infraDataMap[id + '_' + source] = {
+                    id: id,
+                    source: source,
+                    report_id: row.report_id,
+                    title: row.title,
+                    report_type: row.report_type,
+                    department: row.department,
+                    priority: row.priority,
+                    status: row.status,
+                    location: row.location,
+                    description: row.description,
+                    created_date: row.created_date,
+                    created_at: row.created_at,
+                    due_date: row.due_date,
+                    reporter_name: row.reporter_name || '—',
+                    estimated_cost: row.estimated_cost || null,
+                    actual_cost: row.actual_cost || null,
+                    maintenance_team: row.maintenance_team || '—',
+                    attachments: row.attachments || null,
+                    polyline: row.polyline || null
+                };
+
+                html += '<tr data-id="' + id + '" data-report-id="' + id + '" data-status="' + escapeInfraHtml(infraFilterStatus(status)) + '" data-source="maintenance">';
+                html += '<td><div class="infra-action-group">';
+                html += '<button class="infra-action-btn" onclick="viewInfraReport(' + id + ', \'' + escapeInfraHtml(source) + '\')"><i class="fas fa-eye"></i></button>';
+                if (canAct) {
+                    html += '<form method="POST" class="infra-action-form" onsubmit="return confirm(\'Are you sure you want to approve this infrastructure project?\');">';
+                    html += '<input type="hidden" name="report_id" value="' + id + '">';
+                    html += '<input type="hidden" name="source" value="infra">';
+                    html += '<button type="submit" name="action" value="approve" class="infra-verify-btn" title="Approve infrastructure project"><i class="fas fa-check"></i></button>';
+                    html += '</form>';
+                    html += '<form method="POST" class="infra-action-form" onsubmit="return confirm(\'Are you sure you want to reject this infrastructure project?\');">';
+                    html += '<input type="hidden" name="report_id" value="' + id + '">';
+                    html += '<input type="hidden" name="source" value="infra">';
+                    html += '<button type="submit" name="action" value="reject" class="infra-reject-btn" title="Reject infrastructure project"><i class="fas fa-times"></i></button>';
+                    html += '</form>';
+                }
+                html += '</div></td>';
+                html += '<td>' + escapeInfraHtml(row.report_id || '—') + '</td>';
+                html += '<td>' + escapeInfraHtml(row.infrastructure || '—') + '</td>';
+                html += '<td>' + escapeInfraHtml(row.location || '—') + '</td>';
+                html += '<td>' + escapeInfraHtml(notes) + '</td>';
+                html += '<td>' + escapeInfraHtml(row.engineer || '—') + '</td>';
+                html += '<td>' + escapeInfraHtml(row.reporter_name || '—') + '</td>';
+                html += '<td>' + escapeInfraHtml(formatDate(row.start_date)) + '</td>';
+                html += '<td>' + escapeInfraHtml(formatDate(row.end_date)) + '</td>';
+                html += '<td><span class="infra-status-badge ' + escapeInfraHtml(priorityClass) + '">' + escapeInfraHtml(priorityLabel) + '</span></td>';
+                html += '<td>' + escapeInfraHtml(budget) + '</td>';
+                html += '<td><span class="infra-status-badge ' + escapeInfraHtml(infraStatusClass(status)) + '">' + escapeInfraHtml(statusLabel) + '</span></td>';
+                html += '</tr>';
+            });
+
+            tbody.innerHTML = html;
+
+            var searchInput = document.getElementById('infraSearchInput');
+            if (searchInput && searchInput.value) {
+                searchInput.dispatchEvent(new Event('input'));
+            }
+        }
+
+        function syncInfraProjects(btn) {
+            if (!btn || btn.disabled) return;
+            var originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
+
+            fetch('../api/ipms-road-projects-pull.php', { credentials: 'same-origin' })
+                .then(function(r) {
+                    return r.json().then(function(j) {
+                        return { ok: r.ok, j: j };
+                    });
+                })
+                .then(function(res) {
+                    if (!res.ok || !res.j || !res.j.success) {
+                        throw new Error((res.j && res.j.message) || 'Sync failed');
+                    }
+                    return fetch('../api/ipms-infra-panel-data.php', { credentials: 'same-origin' });
+                })
+                .then(function(r) {
+                    return r.json().then(function(j) {
+                        return { ok: r.ok, j: j };
+                    });
+                })
+                .then(function(res) {
+                    if (!res.ok || !res.j || !res.j.success) {
+                        throw new Error((res.j && res.j.message) || 'Failed to refresh infrastructure projects');
+                    }
+                    rebuildInfraTable(Array.isArray(res.j.reports) ? res.j.reports : []);
+                    btn.disabled = false;
+                    btn.innerHTML = originalHtml;
+                })
+                .catch(function(err) {
+                    alert(err.message || 'Sync failed');
+                    btn.disabled = false;
+                    btn.innerHTML = originalHtml;
+                });
         }
 
         // Helper: build an infra info item with icon

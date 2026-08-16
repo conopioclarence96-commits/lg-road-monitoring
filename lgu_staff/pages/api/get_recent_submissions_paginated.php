@@ -96,19 +96,32 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
             $status_filter
         ));
 
-        // 2. Infrastructure Projects (road_maintenance_reports, finalized)
+        // 2. Infrastructure Projects (ipms_road_projects, locally approved).
         //    Excluded for Transportation Operations Supervisors.
         if (!$transport_only) {
             $reports = array_merge($reports, $fetch(
-            "SELECT id, report_id, title, report_type,
+            "SELECT project_id AS id,
+                    CAST(project_id AS CHAR) AS report_id,
+                    project_name AS title,
+                    COALESCE(NULLIF(road_type, ''), 'infrastructure_issue') AS report_type,
                     'infrastructure' AS source,
-                    status, priority, NULL AS severity, created_at, description,
-                    NULL AS latitude, NULL AS longitude, location, NULL AS reporter_name,
-                    NULL AS attachments, NULL AS image_path,
-                    NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by,
-                    'road_maintenance_reports' AS _source_table
-             FROM road_maintenance_reports
-             WHERE status IN ('approved','in-progress','completed')",
+                    status,
+                    'medium' AS priority,
+                    NULL AS severity,
+                    created_at,
+                    road_status AS description,
+                    start_lat AS latitude,
+                    start_lng AS longitude,
+                    COALESCE(NULLIF(road_name, ''), project_name) AS location,
+                    NULL AS reporter_name,
+                    NULL AS attachments,
+                    NULL AS image_path,
+                    NULL AS cimm_sync_status,
+                    NULL AS cimm_verified_at,
+                    NULL AS cimm_verified_by,
+                    'ipms_road_projects' AS _source_table
+             FROM ipms_road_projects
+             WHERE status = 'approved'",
             $status_filter
         ));
 
@@ -220,6 +233,7 @@ try {
             'verification_status' => $rr['verification_status'] ?? '',
             'report_category' => $rr['report_category'] ?? '',
             'report_type' => $rr['report_type'] ?? '',
+            'table' => $rr['_source_table'] ?? 'road_transportation_reports',
             'details' => [
                 'id' => $rr['id'],
                 'report_id' => $rr['report_id'],
@@ -244,6 +258,7 @@ try {
                 'report_category' => $rr['report_category'] ?? '',
                 'engineer' => $rr['engineer'] ?? ($rr['cimm_engineer_name'] ?? ''),
                 'budget_allocation' => $rr['budget_allocation'] ?? ($rr['cimm_budget'] ?? ''),
+                'table' => $rr['_source_table'] ?? 'road_transportation_reports',
             ] + ($is_road_supervisor ? [
                 'creator_full_name' => $rr['creator_full_name'] ?? '',
                 'creator_phone' => $rr['creator_phone'] ?? '',

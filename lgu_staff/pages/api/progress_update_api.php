@@ -17,6 +17,68 @@ $user_id = $_SESSION['user_id'];
 $method = $_SERVER['REQUEST_METHOD'];
 
 /**
+ * Resolve which live table a progress-update report_id belongs to.
+ * Prefer explicit $source so the same numeric id in transport / IPMS / CIMM
+ * does not collide (first-match would pick the wrong row).
+ *
+ * @return array{table:string,id_column:string}|null
+ */
+function rgmap_progress_resolve_table(string $source = ''): ?array {
+    $source = strtolower(trim($source));
+    if ($source === 'cimm' || $source === 'external') {
+        return ['table' => 'cimm_verification_reports', 'id_column' => 'id'];
+    }
+    if ($source === 'infrastructure' || $source === 'maintenance' || $source === 'ipms') {
+        return ['table' => 'ipms_road_projects', 'id_column' => 'project_id'];
+    }
+    if ($source === '') {
+        return null;
+    }
+    return ['table' => 'road_transportation_reports', 'id_column' => 'id'];
+}
+
+/**
+ * Confirm the report exists. When $source is set, only that table is checked.
+ * When empty, probe transport → IPMS → CIMM (no road_maintenance_reports).
+ */
+function rgmap_progress_find_report($conn, int $report_id, string $source = ''): ?array {
+    $resolved = rgmap_progress_resolve_table($source);
+    $probe = [];
+    if ($resolved) {
+        $probe[] = $resolved['table'];
+    } else {
+        $probe = ['road_transportation_reports', 'ipms_road_projects', 'cimm_verification_reports'];
+    }
+
+    foreach ($probe as $table) {
+        if ($table === 'ipms_road_projects') {
+            $row = fetch_one(
+                "SELECT project_id AS id, CAST(project_id AS CHAR) AS report_id FROM ipms_road_projects WHERE project_id = ? AND status = 'approved'",
+                [$report_id],
+                'i'
+            );
+        } elseif ($table === 'cimm_verification_reports') {
+            $row = fetch_one(
+                "SELECT id, reference_code AS report_id FROM cimm_verification_reports WHERE id = ?",
+                [$report_id],
+                'i'
+            );
+        } else {
+            $row = fetch_one(
+                "SELECT id, report_id FROM road_transportation_reports WHERE id = ?",
+                [$report_id],
+                'i'
+            );
+        }
+        if ($row) {
+            $row['_source_table'] = $table;
+            return $row;
+        }
+    }
+    return null;
+}
+
+/**
  * Role-based assignment restriction for posting progress updates.
  *
  * When a staff member is assigned to a report via the "Assign Staff" feature,
@@ -38,11 +100,11 @@ function rgmap_can_post_progress_update($conn, $report_id, $source, $user_id, $c
     }
 
     $source = strtolower(trim($source));
-    $table = $source === 'cimm'
-        ? 'cimm_verification_reports'
-        : 'road_transportation_reports';
-    if (!$table) {
-        return false;
+    $resolved = rgmap_progress_resolve_table($source !== '' ? $source : 'lgu');
+    $table = $resolved['table'] ?? 'road_transportation_reports';
+    if ($table === 'ipms_road_projects') {
+        // IPMS projects are not assigned via report_assignments today.
+        return true;
     }
 
     try {
@@ -197,16 +259,13 @@ if ($method === 'GET') {
         // Allow read-only access without login for public timeline
         if ($action === 'get_updates') {
             $report_id = intval($_GET['report_id'] ?? 0);
+            $source = sanitize_input($_GET['source'] ?? '');
             if ($report_id <= 0) {
                 json_response(['success' => false, 'message' => 'Invalid report ID']);
             }
-            $report = fetch_one("SELECT id FROM road_transportation_reports WHERE id = ?", [$report_id], "i");
-            if (!$report) {
-                $report = fetch_one("SELECT id FROM road_maintenance_reports WHERE id = ?", [$report_id], "i");
-            }
-            if (!$report) {
-                $report = fetch_one("SELECT id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
-            }
+            // Prefer source so id collisions across transport / IPMS / CIMM
+            // do not resolve to the wrong report.
+            $report = rgmap_progress_find_report($conn, $report_id, $source);
             if (!$report) {
                 json_response(['success' => false, 'message' => 'Report not found']);
             }
@@ -269,9 +328,17 @@ if ($method === 'GET') {
         if (empty($description)) json_response(['success' => false, 'message' => 'Description is required']);
 
         $report = null;
-        if ($source === 'cimm') {
+        $report_table = 'road_transportation_reports';
+        if ($source === 'cimm' || $source === 'external') {
             $report = fetch_one("SELECT id, reference_code AS report_id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
             $report_table = 'cimm_verification_reports';
+        } elseif ($source === 'infrastructure' || $source === 'maintenance' || $source === 'ipms') {
+            $report = fetch_one(
+                "SELECT project_id AS id, CAST(project_id AS CHAR) AS report_id FROM ipms_road_projects WHERE project_id = ? AND status = 'approved'",
+                [$report_id],
+                "i"
+            );
+            $report_table = 'ipms_road_projects';
         } else {
             $report = fetch_one("SELECT id, report_id FROM road_transportation_reports WHERE id = ?", [$report_id], "i");
             $report_table = 'road_transportation_reports';
@@ -280,6 +347,7 @@ if ($method === 'GET') {
 
         // The report's status column depends on which table it lives in.
         $status_column = ($report_table === 'cimm_verification_reports') ? 'verification_status' : 'status';
+        $status_id_column = ($report_table === 'ipms_road_projects') ? 'project_id' : 'id';
 
         // Role-based assignment restriction — enforced in the backend so it
         // covers report_management.php and road_transportation_monitoring.php
@@ -296,20 +364,18 @@ if ($method === 'GET') {
             $update_id = $conn->insert_id;
 
             // Automatically advance an Approved report to In Progress once an
-            // update is added (report_management.php and
-            // road_transportation_monitoring.php both post updates here).
-            // This runs on every update (not just the first), so reports
-            // restored from the archive still advance even though they carry
-            // prior updates. CIMM reports store their status as title-case
-            // (e.g. 'Approved', 'In Progress') in verification_status, so
-            // compare and write the correct casing per table.
-            $cur = $conn->query("SELECT `{$status_column}` AS st FROM `{$report_table}` WHERE id = {$report_id}")->fetch_assoc();
-            $current_status = strtolower((string)($cur['st'] ?? ''));
-            if ($current_status === 'approved') {
-                $target_status = ($report_table === 'cimm_verification_reports') ? 'In Progress' : 'in-progress';
-                $s_stmt = $conn->prepare("UPDATE `{$report_table}` SET `{$status_column}` = ? WHERE id = ?");
-                $s_stmt->bind_param("si", $target_status, $report_id);
-                $s_stmt->execute();
+            // update is added. Skip IPMS projects — their local workflow
+            // status stays approved/rejected/completed and is not driven by
+            // progress posts the same way.
+            if ($report_table !== 'ipms_road_projects') {
+                $cur = $conn->query("SELECT `{$status_column}` AS st FROM `{$report_table}` WHERE `{$status_id_column}` = {$report_id}")->fetch_assoc();
+                $current_status = strtolower((string)($cur['st'] ?? ''));
+                if ($current_status === 'approved') {
+                    $target_status = ($report_table === 'cimm_verification_reports') ? 'In Progress' : 'in-progress';
+                    $s_stmt = $conn->prepare("UPDATE `{$report_table}` SET `{$status_column}` = ? WHERE `{$status_id_column}` = ?");
+                    $s_stmt->bind_param("si", $target_status, $report_id);
+                    $s_stmt->execute();
+                }
             }
 
             // Handle media uploads

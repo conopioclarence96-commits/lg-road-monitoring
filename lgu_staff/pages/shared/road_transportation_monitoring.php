@@ -263,8 +263,7 @@ function getEnhancedStats() {
 //     panel), and LGU Transportation reports
 //     (report_category='transportation') do not require CIMM verification and
 //     appear once approved
-//   - Infrastructure Projects (road_maintenance_reports) that are APPROVED or
-//     COMPLETED
+//   - Infrastructure Projects (ipms_road_projects) that are locally APPROVED
 //   - CIMM reports whose verification_status is 'Verified'
 function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter = 'all', $transport_only = false, $road_only = false, $assigned_to_user_id = null) {
     global $conn;
@@ -333,20 +332,33 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
             $status_filter, $type_filter, $limit
         ));
 
-        // 2. Infrastructure Projects (road_maintenance_reports, finalized).
+        // 2. Infrastructure Projects (ipms_road_projects, locally approved).
         //    Excluded for Transportation Operations Supervisors.
         if (!$transport_only) {
             $reports = array_merge($reports, $fetch(
-                "SELECT id, report_id, title, report_type,
+                "SELECT project_id AS id,
+                        CAST(project_id AS CHAR) AS report_id,
+                        project_name AS title,
+                        COALESCE(NULLIF(road_type, ''), 'infrastructure_issue') AS report_type,
                         'road' AS report_category,
                         'infrastructure' AS source,
-                        status, priority, NULL AS severity, created_at, description,
-                        NULL AS latitude, NULL AS longitude, location, NULL AS reporter_name,
-                        NULL AS attachments, NULL AS image_path,
-                        NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by,
-                        'road_maintenance_reports' AS _source_table
-                 FROM road_maintenance_reports
-                 WHERE status IN ('approved','in-progress','completed')",
+                        status,
+                        'medium' AS priority,
+                        NULL AS severity,
+                        created_at,
+                        road_status AS description,
+                        start_lat AS latitude,
+                        start_lng AS longitude,
+                        COALESCE(NULLIF(road_name, ''), project_name) AS location,
+                        NULL AS reporter_name,
+                        NULL AS attachments,
+                        NULL AS image_path,
+                        NULL AS cimm_sync_status,
+                        NULL AS cimm_verified_at,
+                        NULL AS cimm_verified_by,
+                        'ipms_road_projects' AS _source_table
+                 FROM ipms_road_projects
+                 WHERE status = 'approved'",
                 $status_filter, $type_filter, $limit
             ));
         }
@@ -938,14 +950,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 // Resolve a report into the flat shape Recent Submissions renders, searching
-// across the three tables that feed it (transport / maintenance / CIMM).
+// across the tables that feed it (transport / IPMS / CIMM).
 // Returns null when the id does not exist in any of them.
 function resolve_recent_focus_row(int $id, string $source_hint = ''): ?array {
     global $conn;
 
     $candidates = $source_hint !== ''
         ? [$source_hint]
-        : ['transport', 'maintenance', 'cimm'];
+        : ['transport', 'maintenance', 'infrastructure', 'cimm'];
 
     try {
         foreach ($candidates as $src) {
@@ -962,14 +974,14 @@ function resolve_recent_focus_row(int $id, string $source_hint = ''): ?array {
                         : ((!empty($r['created_by'])) ? 'lgu' : 'citizen');
                     return $r;
                 }
-            } elseif ($src === 'maintenance') {
-                $stmt = $conn->prepare("SELECT id, report_id, title, report_type, 'road' AS report_category, status, priority, NULL AS severity, created_at, description, NULL AS latitude, NULL AS longitude, location, NULL AS reporter_name, NULL AS attachments, NULL AS image_path, NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by FROM road_maintenance_reports WHERE id = ?");
+            } elseif ($src === 'maintenance' || $src === 'infrastructure') {
+                $stmt = $conn->prepare("SELECT project_id AS id, CAST(project_id AS CHAR) AS report_id, project_name AS title, COALESCE(NULLIF(road_type, ''), 'infrastructure_issue') AS report_type, 'road' AS report_category, status, 'medium' AS priority, NULL AS severity, created_at, road_status AS description, start_lat AS latitude, start_lng AS longitude, COALESCE(NULLIF(road_name, ''), project_name) AS location, NULL AS reporter_name, NULL AS attachments, NULL AS image_path, NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by FROM ipms_road_projects WHERE project_id = ? AND status = 'approved'");
                 $stmt->bind_param("i", $id);
                 $stmt->execute();
                 $r = $stmt->get_result()->fetch_assoc();
                 $stmt->close();
                 if ($r) {
-                    $r['_source_table'] = 'road_maintenance_reports';
+                    $r['_source_table'] = 'ipms_road_projects';
                     $r['source'] = 'infrastructure';
                     return $r;
                 }
@@ -2857,6 +2869,7 @@ annotate_report_assignment_status($conn, $recent_reports);
                             'verification_status' => $rr['verification_status'] ?? '',
                             'engineer' => $rr['engineer'] ?? ($rr['cimm_engineer_name'] ?? ''),
                             'budget_allocation' => $rr['budget_allocation'] ?? ($rr['cimm_budget'] ?? ''),
+                            'table' => $rr['_source_table'] ?? 'road_transportation_reports',
                         ];
                         if ($is_road_supervisor) {
                             // Report Creator Information — Road Supervisor portal only.
@@ -3563,7 +3576,9 @@ annotate_report_assignment_status($conn, $recent_reports);
             if (source === 'cimm') {
                 table = 'cimm_verification_reports';
             } else if (source === 'infrastructure') {
-                table = (reportType === 'infrastructure_issue') ? 'road_transportation_reports' : 'road_maintenance_reports';
+                table = (data.table === 'ipms_road_projects')
+                    ? 'ipms_road_projects'
+                    : ((reportType === 'infrastructure_issue') ? 'road_transportation_reports' : 'ipms_road_projects');
             }
             // Use the row's embedded source table when provided (e.g. Road
             // Operations Supervisor report types that live in the transport
@@ -4082,11 +4097,17 @@ annotate_report_assignment_status($conn, $recent_reports);
             if (exportWordBtn) exportWordBtn.style.display = 'inline-flex';
             if (exportButtons) exportButtons.style.display = 'none';
             if (isTerminalUpdatesStatus()) {
+                // Completed / cancelled: hide Complete, Cancel, and Add Update
                 if (completeBtn) completeBtn.style.display = 'none';
                 if (cancelBtn) cancelBtn.style.display = 'none';
                 if (addUpdateBtn) addUpdateBtn.style.display = 'none';
                 return true;
             }
+            // Not terminal yet: show Complete, Cancel, and Add Update
+            // (officer assignment checks may refine Complete/Cancel afterward)
+            if (completeBtn) completeBtn.style.display = 'inline-flex';
+            if (cancelBtn) cancelBtn.style.display = 'inline-flex';
+            if (addUpdateBtn) addUpdateBtn.style.display = 'inline-flex';
             return false;
         }
 
@@ -4115,8 +4136,6 @@ annotate_report_assignment_status($conn, $recent_reports);
             // Check if the Request Completion / Request Cancellation buttons may
             // be shown (officers only get them for reports assigned to them).
             checkRequestPermission();
-            // Fetch report status to determine if Complete/Cancel buttons should be hidden
-            fetchReportStatus(id, source);
         }
 
         function checkRequestPermission() {
@@ -4133,14 +4152,7 @@ annotate_report_assignment_status($conn, $recent_reports);
             if (tag) role = tag.getAttribute('data-role') || '';
             var isOfficer = (role === 'road_monitoring_officer' || role === 'trans_monitoring_officer');
 
-            // Admins have no Complete/Cancel access - hide both buttons.
-            if (role === 'system_admin') {
-                completeBtn.style.display = 'none';
-                if (cancelBtn) cancelBtn.style.display = 'none';
-                return;
-            }
-
-            // Non-officers use the direct Complete/Cancel path (no restriction).
+            // Non-officers (supervisors, system admin, etc.) use direct Complete/Cancel.
             if (!isOfficer) {
                 completeBtn.style.display = 'inline-flex';
                 if (cancelBtn) cancelBtn.style.display = 'inline-flex';
@@ -4643,8 +4655,9 @@ annotate_report_assignment_status($conn, $recent_reports);
             var src = String(currentUpdatesReportSource || existing.source || '').toLowerCase();
             var type = currentUpdatesReportType || existing.report_type || 'transportation';
             var table = 'road_transportation_reports';
-            if (src === 'infrastructure' || src === 'maintenance') table = 'road_maintenance_reports';
+            if (src === 'infrastructure' || src === 'maintenance') table = (existing.table === 'road_transportation_reports') ? 'road_transportation_reports' : 'ipms_road_projects';
             else if (src === 'cimm' || src === 'external') table = 'cimm_verification_reports';
+            if (existing.table) table = existing.table;
             if (!currentUpdatesReportId) {
                 currentUpdatesReportDetails = existing;
                 return Promise.resolve();
@@ -5310,11 +5323,14 @@ annotate_report_assignment_status($conn, $recent_reports);
                 layerCaches[key].items = entry.items;
                 layerCaches[key].fetchedAt = entry.fetchedAt;
             });
-            // osmRoutes intentionally omitted from localStorage (large); server file-cache handles refresh
+            // osmRoutes (~3MB) uses IndexedDB — see loadOsmRoutesFromIdb / saveOsmRoutesToIdb
         } catch (e) { /* ignore corrupt/quota errors */ }
     }
     function saveLayerCacheToStorage(key) {
-        if (key === 'osmRoutes') return; // server-side file cache only
+        if (key === 'osmRoutes') {
+            saveOsmRoutesToIdb();
+            return;
+        }
         try {
             let stored = {};
             try {
@@ -5333,7 +5349,73 @@ annotate_report_assignment_status($conn, $recent_reports);
             localStorage.setItem(LAYER_CACHE_STORAGE_KEY, JSON.stringify(stored));
         } catch (e) { /* ignore quota errors */ }
     }
+
+    // OSM routes are too large for localStorage; IndexedDB keeps the 1h client cache across refresh
+    const OSM_ROUTES_IDB_NAME = 'qc_map_osm_routes_v1';
+    const OSM_ROUTES_IDB_STORE = 'layers';
+    function openOsmRoutesIdb() {
+        return new Promise(function(resolve, reject) {
+            if (!window.indexedDB) {
+                reject(new Error('IndexedDB unavailable'));
+                return;
+            }
+            const req = indexedDB.open(OSM_ROUTES_IDB_NAME, 1);
+            req.onupgradeneeded = function() {
+                const db = req.result;
+                if (!db.objectStoreNames.contains(OSM_ROUTES_IDB_STORE)) {
+                    db.createObjectStore(OSM_ROUTES_IDB_STORE);
+                }
+            };
+            req.onsuccess = function() { resolve(req.result); };
+            req.onerror = function() { reject(req.error || new Error('IndexedDB open failed')); };
+        });
+    }
+    function loadOsmRoutesFromIdb() {
+        return openOsmRoutesIdb().then(function(db) {
+            return new Promise(function(resolve, reject) {
+                const tx = db.transaction(OSM_ROUTES_IDB_STORE, 'readonly');
+                const req = tx.objectStore(OSM_ROUTES_IDB_STORE).get('osmRoutes');
+                req.onsuccess = function() {
+                    db.close();
+                    resolve(req.result || null);
+                };
+                req.onerror = function() {
+                    db.close();
+                    reject(req.error);
+                };
+            });
+        }).then(function(entry) {
+            if (!entry || !Array.isArray(entry.items) || !entry.fetchedAt) return false;
+            if ((Date.now() - entry.fetchedAt) >= LAYER_CACHE_TTL_MS) return false;
+            layerCaches.osmRoutes.items = entry.items;
+            layerCaches.osmRoutes.fetchedAt = entry.fetchedAt;
+            return true;
+        }).catch(function() { return false; });
+    }
+    function saveOsmRoutesToIdb() {
+        const cache = layerCaches.osmRoutes;
+        if (!hasLayerCache(cache) || !cache.fetchedAt) return Promise.resolve();
+        return openOsmRoutesIdb().then(function(db) {
+            return new Promise(function(resolve, reject) {
+                const tx = db.transaction(OSM_ROUTES_IDB_STORE, 'readwrite');
+                tx.objectStore(OSM_ROUTES_IDB_STORE).put({
+                    fetchedAt: cache.fetchedAt,
+                    items: cache.items
+                }, 'osmRoutes');
+                tx.oncomplete = function() {
+                    db.close();
+                    resolve();
+                };
+                tx.onerror = function() {
+                    db.close();
+                    reject(tx.error);
+                };
+            });
+        }).catch(function() { /* quota / private mode */ });
+    }
     loadLayerCachesFromStorage();
+    // Resolve before any OSM fetch so refresh can reuse IndexedDB within 1h
+    const osmRoutesIdbReady = loadOsmRoutesFromIdb();
 
     function setToggleLoading(btnId, loading, restoreStyleFn) {
         const btn = document.getElementById(btnId);
@@ -5740,47 +5822,50 @@ annotate_report_assignment_status($conn, $recent_reports);
     }
 
     function ensureOsmRoutesLoaded(silent) {
-        const cache = layerCaches.osmRoutes;
-        if (isLayerCacheFresh(cache)) {
-            renderPtRouteList();
-            return Promise.resolve(cache.items);
-        }
-        if (cache.loading) {
-            return new Promise(function(resolve) {
-                const timer = setInterval(function() {
-                    if (!layerCaches.osmRoutes.loading) {
-                        clearInterval(timer);
-                        resolve(layerCaches.osmRoutes.items || []);
-                    }
-                }, 200);
+        return osmRoutesIdbReady.then(function() {
+            const cache = layerCaches.osmRoutes;
+            if (isLayerCacheFresh(cache)) {
+                renderPtRouteList();
+                return cache.items;
+            }
+            if (cache.loading) {
+                return new Promise(function(resolve) {
+                    const timer = setInterval(function() {
+                        if (!layerCaches.osmRoutes.loading) {
+                            clearInterval(timer);
+                            resolve(layerCaches.osmRoutes.items || []);
+                        }
+                    }, 200);
+                });
+            }
+            cache.loading = true;
+            setOsmRoutesLoading(true);
+            const listEl = document.getElementById('ptRouteList');
+            if (listEl && !hasLayerCache(cache)) {
+                listEl.innerHTML = '<div class="pt-route-status"><i class="fas fa-spinner fa-spin"></i> Loading routes…</div>';
+            }
+            return fetchOsmRoutes().then(function(result) {
+                cache.items = result.routes;
+                cache.fetchedAt = result.fetchedAt || Date.now();
+                cache.loading = false;
+                setOsmRoutesLoading(false);
+                saveOsmRoutesToIdb();
+                renderPtRouteList();
+                if (!silent) {
+                    showNotification(result.routes.length
+                        ? (result.routes.length + ' OSM routes ready')
+                        : 'No OSM routes found for Quezon City', 'info');
+                }
+                return result.routes;
+            }).catch(function(err) {
+                cache.loading = false;
+                setOsmRoutesLoading(false);
+                if (listEl) {
+                    listEl.innerHTML = '<div class="pt-route-empty">' + (err.message || 'Could not load OSM routes') + '</div>';
+                }
+                if (!silent) showNotification(err.message || 'Could not load OSM routes', 'error');
+                return [];
             });
-        }
-        cache.loading = true;
-        setOsmRoutesLoading(true);
-        const listEl = document.getElementById('ptRouteList');
-        if (listEl && !hasLayerCache(cache)) {
-            listEl.innerHTML = '<div class="pt-route-status"><i class="fas fa-spinner fa-spin"></i> Loading routes…</div>';
-        }
-        return fetchOsmRoutes().then(function(result) {
-            cache.items = result.routes;
-            cache.fetchedAt = Date.now();
-            cache.loading = false;
-            setOsmRoutesLoading(false);
-            renderPtRouteList();
-            if (!silent) {
-                showNotification(result.routes.length
-                    ? (result.routes.length + ' OSM routes ready')
-                    : 'No OSM routes found for Quezon City', 'info');
-            }
-            return result.routes;
-        }).catch(function(err) {
-            cache.loading = false;
-            setOsmRoutesLoading(false);
-            if (listEl) {
-                listEl.innerHTML = '<div class="pt-route-empty">' + (err.message || 'Could not load OSM routes') + '</div>';
-            }
-            if (!silent) showNotification(err.message || 'Could not load OSM routes', 'error');
-            return [];
         });
     }
     window.loadOsmRouteLines = function(silent) { ensureOsmRoutesLoaded(!!silent); };
@@ -5910,7 +5995,7 @@ annotate_report_assignment_status($conn, $recent_reports);
     }
     window.showPtRoutesPanel = showPtRoutesPanel;
 
-    // Prefetch OSM routes into cache (nothing drawn until list selection)
+    // Prefetch after IndexedDB hydrate (no network if client 1h cache is fresh)
     ensureOsmRoutesLoaded(true);
 
     // ===== TRAFFIC INCIDENTS =====
@@ -6538,11 +6623,6 @@ annotate_report_assignment_status($conn, $recent_reports);
                         <?php if ($is_officer_role): ?>
                         <button type="button" class="btn-success-custom" id="completeBtn">Request Completion</button>
                         <button type="button" class="btn-danger-custom" id="cancelBtn">Request Cancellation</button>
-                        <?php elseif ($is_road_supervisor): ?>
-                        <button type="button" class="btn-success-custom" id="completeBtn">Complete</button>
-                        <button type="button" class="btn-danger-custom" id="cancelBtn">Cancel</button>
-                        <?php elseif ($is_system_admin): ?>
-                        <?php // Admin has no Complete/Cancel access - buttons are not rendered. ?>
                         <?php else: ?>
                         <button type="button" class="btn-success-custom" id="completeBtn">Complete</button>
                         <button type="button" class="btn-danger-custom" id="cancelBtn">Cancel</button>

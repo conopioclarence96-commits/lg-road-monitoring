@@ -3,6 +3,7 @@ require_once '../../includes/session_config.php';
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 require_once __DIR__ . '/../../pages/api/cimm_verification_data.php';
+require_once __DIR__ . '/../api/ipms_road_projects_data.php';
 // Archive helpers (rgmap_archive_report, rgmap_auto_archive_completed, ...) —
 // shared with progress_update_api.php. Required so the 7-day auto-archive
 // sweep runs on this page for completed LGU reports.
@@ -1299,7 +1300,23 @@ $is_transport_supervisor = ($user_role === 'trans_ops_supervisor');
 $citizen_reports = [];
 $lgu_reports_list = [];
 $cimm_reports_list = [];
+// Infrastructure Projects panel reads approved rows from ipms_road_projects
+// (not road_maintenance_reports / infrastructure_issue).
 $infra_reports_list = [];
+if (!$is_transport_supervisor && ($source_filter === 'all' || $source_filter === 'maintenance')) {
+    try {
+        $infra_reports_list = rgmap_infra_panel_rows(null, 'approved');
+        if ($status_filter !== 'all') {
+            $infra_reports_list = array_values(array_filter(
+                $infra_reports_list,
+                static fn($r) => strtolower((string)($r['status'] ?? '')) === strtolower($status_filter)
+            ));
+        }
+    } catch (Exception $e) {
+        error_log('IPMS approved projects fetch failed: ' . $e->getMessage());
+        $infra_reports_list = [];
+    }
+}
 // Citizen reports only appear in the Citizen Reports panel after they have
 // been verified and approved in verification_monitoring.php. Any pre-verification
 // status keeps them out of this panel (they remain in verification_monitoring.php).
@@ -1320,7 +1337,9 @@ foreach ($reports as $report) {
     }
 
     if ($src === 'maintenance') {
-        $infra_reports_list[] = $report;
+        // Legacy maintenance / infrastructure_issue rows are ignored — the
+        // Infrastructure Projects panel is fed from ipms_road_projects above.
+        continue;
     } elseif ($src === 'lgu_reports') {
         $lgu_reports_list[] = $report;
     } elseif ($src === 'hidden') {
@@ -1365,34 +1384,10 @@ if ($status_filter === 'all' || $status_filter === 'completed') {
     }
 }
 
-// Completed Infrastructure Projects (report_type = infrastructure_issue) keep
-// the same completed-report behavior: they stay visible in the Infrastructure
-// panel for the 7-day retention window, then the auto-archive sweep moves them
-// to the archive. This mirrors the completed-LGU append above so a restored
-// completed IPMS Infrastructure Project returns to report_management.php (and
-// to the Infrastructure panel it came from), keeping its Completed status. They
-// are fetched separately so the LGU panel append never claims them.
-if (($status_filter === 'all' || $status_filter === 'completed')
-    && !$is_transport_supervisor
-    && ($source_filter === 'all' || $source_filter === 'maintenance')) {
-    $completed_infra_sql = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, engineer, budget_allocation, cimm_engineer_name, cimm_budget, estimation, resolution_notes as notes, department, created_date, created_at, updated_at, approved_at, attachments, image_path, report_type, report_category, report_source, created_by, 'maintenance' as source_system FROM road_transportation_reports WHERE report_type = 'infrastructure_issue' AND status = 'completed'";
-    if ($is_road_supervisor) {
-        $completed_infra_sql .= " AND report_category = 'road'";
-    }
-    $completed_infra_sql .= " ORDER BY created_at DESC LIMIT {$per_page}";
-    $completed_infra_res = $conn->query($completed_infra_sql);
-    if ($completed_infra_res) {
-        $existing_infra_ids = [];
-        foreach ($infra_reports_list as $ir) {
-            $existing_infra_ids[] = (int)$ir['id'];
-        }
-        while ($r = $completed_infra_res->fetch_assoc()) {
-            if (!in_array((int)$r['id'], $existing_infra_ids, true)) {
-                $infra_reports_list[] = $r;
-            }
-        }
-    }
-}
+// Completed Infrastructure Projects previously came from
+// road_transportation_reports (infrastructure_issue). That panel now uses
+// ipms_road_projects with status = approved only, so the completed append
+// from the transport table is no longer applied.
 
 // Transportation Operations Supervisors see the assigned staff member's name
 // in the LGU Monitoring and Citizen Reports tables.
@@ -4243,25 +4238,12 @@ if ($focus_id > 0) {
                             foreach ($infra_reports_list as $report):
                                 $hasInfra = true;
                         ?>
-                        <tr data-id="<?php echo (int)$report['id']; ?>" data-source="maintenance">
+                        <tr data-id="<?php echo (int)$report['id']; ?>" data-source="maintenance" data-ipms="1">
                             <td>
                                 <div class="rm-action-group">
-                                    <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
+                                    <button class="rm-action-btn" onclick="viewIpmsInfraProject(<?php echo (int)$report['id']; ?>)" title="View">
                                         <i class="fas fa-eye"></i>
                                     </button>
-                                    <?php $infra_edit_table = (($report['report_type'] ?? '') === 'infrastructure_issue') ? 'road_transportation_reports' : 'road_maintenance_reports'; ?>
-                                    <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>', '<?php echo $infra_edit_table; ?>')" title="Edit">
-                                        <i class="fas fa-pencil"></i>
-                                    </button>
-                                    <?php if (($report['status'] ?? '') === 'completed'): ?>
-                                    <button class="rm-archive-btn" onclick="archiveReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['source_system'] ?? 'maintenance', ENT_QUOTES); ?>')" title="Archive">
-                                        <i class="fas fa-archive"></i>
-                                    </button>
-                                    <?php else: ?>
-                                    <button class="rm-delete-btn" onclick="deleteReport(<?php echo (int)$report['id']; ?>, '<?php echo htmlspecialchars($report['report_type'], ENT_QUOTES); ?>')">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                    <?php endif; ?>
                                 </div>
                             </td>
                             <td><?php echo htmlspecialchars($report['report_id'] ?? '—'); ?></td>
@@ -4275,17 +4257,15 @@ if ($focus_id > 0) {
                                     'corrective' => 'Corrective Maintenance',
                                     'scheduled' => 'Scheduled Maintenance',
                                 ];
-                                echo htmlspecialchars($type_labels[$report['report_type']] ?? ucfirst($report['report_type']));
+                                $rtype = $report['report_type'] ?? '';
+                                echo htmlspecialchars($type_labels[$rtype] ?? (ucfirst(str_replace(['_', '-'], ' ', (string)$rtype)) ?: 'Infrastructure Project'));
                             ?></td>
                             <td><?php echo htmlspecialchars($report['location'] ?? '—'); ?></td>
-                            <td><?php echo htmlspecialchars(ucfirst($report['department'] ?? '')); ?></td>
-                            <td><span class="rm-priority-badge <?php echo htmlspecialchars($report['priority']); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'])); ?></span></td>
-                            <td><span class="rm-status-badge <?php echo htmlspecialchars(strtolower($report['status'])); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span></td>
+                            <td><?php echo htmlspecialchars(ucfirst($report['department'] ?? 'Engineering')); ?></td>
+                            <td><span class="rm-priority-badge"><?php echo htmlspecialchars($report['priority'] ?? '—'); ?></span></td>
+                            <td><span class="rm-status-badge <?php echo htmlspecialchars(strtolower($report['status'] ?? 'approved')); ?>"><?php echo ucfirst(htmlspecialchars(str_replace(['-', '_'], ' ', (string)($report['status'] ?? 'approved')))); ?></span></td>
                             <td>
-                                <?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?>
-                                <?php if (($report['status'] ?? '') === 'approved' && !empty($report['approved_at'])): ?>
-                                    <br><small class="t-text-success" style="font-weight:600;">Approved: <?php echo date('M d, Y', strtotime($report['approved_at'])); ?></small>
-                                <?php endif; ?>
+                                <?php echo !empty($report['created_at']) ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?>
                             </td>
                         </tr>
                         <?php
@@ -4628,13 +4608,13 @@ if ($focus_id > 0) {
                 <span id="updateReportInfo" class="t-text-secondary" style="font-size: 13px;"></span>
                 <div id="actionButtons" style="display: flex; justify-content: space-between;">
                     <div style="display: flex; gap: 8px;">
-                        <button class="btn-success-custom" onclick="completeReport()">Complete</button>
-                        <button class="btn-danger-custom" onclick="cancelReport()">Cancel</button>
+                        <button type="button" class="btn-success-custom" id="completeBtn" onclick="completeReport()">Complete</button>
+                        <button type="button" class="btn-danger-custom" id="cancelBtn" onclick="cancelReport()">Cancel</button>
                         <button type="button" class="btn-action" id="exportWordBtn" onclick="exportUpdatesToExcel()"><i class="fas fa-file-word"></i> Export as Word</button>
                     </div>
                     <div style="display: flex; gap: 8px;">
-                        <button class="btn-action" id="addUpdateBtn" onclick="showAddUpdateModal()">+ Add Update</button>
-                        <button class="btn-secondary-custom" onclick="closeModal('updatesModal')">Close</button>
+                        <button type="button" class="btn-action" id="addUpdateBtn" onclick="showAddUpdateModal()">+ Add Update</button>
+                        <button type="button" class="btn-secondary-custom" onclick="closeModal('updatesModal')">Close</button>
                     </div>
                 </div>
                 <div id="exportButtons" style="display: none; justify-content: flex-end; gap: 8px;">
@@ -4911,6 +4891,102 @@ if ($focus_id > 0) {
                 modal.classList.remove('active');
                 document.body.style.overflow = '';
             }
+        }
+
+        // Approved IPMS projects for the Infrastructure Projects panel (view-only).
+        var infraIpmsDataMap = {};
+        <?php foreach ($infra_reports_list as $ir): ?>
+        infraIpmsDataMap[<?php echo (int)$ir['id']; ?>] = <?php echo json_encode([
+            'id' => (int)$ir['id'],
+            'report_id' => $ir['report_id'] ?? '',
+            'title' => $ir['title'] ?? '',
+            'report_type' => $ir['report_type'] ?? 'infrastructure_issue',
+            'department' => $ir['department'] ?? 'Engineering',
+            'priority' => $ir['priority'] ?? '—',
+            'status' => $ir['status'] ?? 'approved',
+            'location' => $ir['location'] ?? '',
+            'description' => $ir['description'] ?? '',
+            'created_at' => $ir['created_at'] ?? null,
+            'updated_at' => $ir['updated_at'] ?? null,
+            'due_date' => $ir['due_date'] ?? null,
+            'engineer' => $ir['engineer'] ?? '',
+            'budget' => $ir['budget'] ?? null,
+            'start_date' => $ir['start_date'] ?? null,
+            'end_date' => $ir['end_date'] ?? null,
+            'polyline' => $ir['polyline'] ?? null,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+        <?php endforeach; ?>
+
+        function viewIpmsInfraProject(id) {
+            var r = infraIpmsDataMap[id];
+            if (!r) {
+                alert('Project data not found.');
+                return;
+            }
+
+            var statusStyles = {
+                'pending':    {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
+                'approved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
+                'completed':  {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
+                'rejected':   {bg:'rgba(220,53,69,0.15)',  color:'#ef4444'},
+                'cancelled':  {bg:'rgba(220,53,69,0.15)',  color:'#ef4444'}
+            };
+
+            document.getElementById('rm-report-id').textContent = 'Project #' + (r.report_id || '—');
+            document.getElementById('rm-title').textContent = r.title || '—';
+
+            var st = (r.status || 'approved').toLowerCase();
+            var ss = statusStyles[st] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
+            var badgesHtml = rmBadge(r.status || '—', ss.bg, ss.color);
+            badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(249,115,22,0.12);color:#f97316;">Infrastructure Project</span>';
+            document.getElementById('rm-badges').innerHTML = badgesHtml;
+
+            var reportGrid = '';
+            reportGrid += rmInfoItem('folder', 'Road Type', r.report_type || '—');
+            reportGrid += rmInfoItem('calendar-alt', 'Created', formatDate(r.created_at));
+            reportGrid += rmInfoItem('sync-alt', 'Last Synced', formatDate(r.updated_at));
+            reportGrid += rmInfoItem('calendar-check', 'Start Date', formatDate(r.start_date));
+            reportGrid += rmInfoItem('clock', 'End Date', formatDate(r.end_date || r.due_date));
+            document.getElementById('rm-report-grid').innerHTML = reportGrid;
+
+            var sourceGrid = '';
+            sourceGrid += rmInfoItem('server', 'Source', 'IPMS');
+            sourceGrid += rmInfoItem('building', 'Department', r.department || 'Engineering');
+            sourceGrid += rmInfoItem('hard-hat', 'Engineers', r.engineer || '—');
+            if (r.budget != null && r.budget !== '' && Number(r.budget) !== 0) {
+                var budgetLabel = '₱' + Number(r.budget).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                sourceGrid += rmInfoItem('wallet', 'Budget', budgetLabel);
+            }
+            document.getElementById('rm-source-grid').innerHTML = sourceGrid;
+
+            var locationGrid = '';
+            locationGrid += '<div class="rm-info-item rm-info-value-full"><div class="rm-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="rm-info-label">Location</div><div class="rm-info-value">' + (r.location || '—') + '</div></div></div>';
+            document.getElementById('rm-location-grid').innerHTML = locationGrid;
+
+            var descEl = document.getElementById('rm-description');
+            if (descEl) descEl.textContent = r.description || '—';
+
+            var timelineEl = document.getElementById('rm-timeline-grid');
+            if (timelineEl) timelineEl.innerHTML = '';
+
+            // Clear attachments / map sections that belong to other report types
+            var attachEl = document.getElementById('rm-attachments');
+            if (attachEl) attachEl.innerHTML = '';
+            var mapBtn = document.getElementById('rm-view-map-btn');
+            var mapContainer = document.getElementById('rm-map-container');
+            currentRmPoint = null;
+            if (Array.isArray(r.polyline) && r.polyline.length >= 2) {
+                currentRmPoint = r.polyline.map(function(pt) { return [pt[0], pt[1]]; });
+                if (mapBtn) {
+                    mapBtn.style.display = '';
+                    mapBtn.onclick = function() { openRoadPathMap('rm-map-container', currentRmPoint, true); };
+                }
+            } else if (mapBtn) {
+                mapBtn.style.display = 'none';
+            }
+            if (mapContainer) mapContainer.classList.remove('road-map-visible');
+
+            openViewReportModal();
         }
 
         function openLightbox(src) {
@@ -5550,10 +5626,38 @@ if ($focus_id > 0) {
             }
         }
 
-        function viewReportUpdates(id, type, source) {
+        function isTerminalUpdatesStatus() {
+            var s = String(currentUpdatesReportStatus || '').toLowerCase().replace(/_/g, ' ').trim();
+            return s === 'completed' || s === 'cancelled' || s === 'canceled';
+        }
+
+        function applyUpdatesFooterMode() {
+            var actionButtons = document.getElementById('actionButtons');
+            var exportButtons = document.getElementById('exportButtons');
+            var exportWordBtn = document.getElementById('exportWordBtn');
+            var completeBtn = document.getElementById('completeBtn');
+            var cancelBtn = document.getElementById('cancelBtn');
+            var addUpdateBtn = document.getElementById('addUpdateBtn');
+            if (actionButtons) actionButtons.style.display = 'flex';
+            if (exportWordBtn) exportWordBtn.style.display = 'inline-flex';
+            if (exportButtons) exportButtons.style.display = 'none';
+            if (isTerminalUpdatesStatus()) {
+                if (completeBtn) completeBtn.style.display = 'none';
+                if (cancelBtn) cancelBtn.style.display = 'none';
+                if (addUpdateBtn) addUpdateBtn.style.display = 'none';
+                return true;
+            }
+            if (completeBtn) completeBtn.style.display = 'inline-flex';
+            if (cancelBtn) cancelBtn.style.display = 'inline-flex';
+            if (addUpdateBtn) addUpdateBtn.style.display = 'inline-flex';
+            return false;
+        }
+
+        function viewReportUpdates(id, type, source, status) {
             currentUpdatesReportId = id;
             currentUpdatesReportType = type;
             currentUpdatesReportSource = source;
+            currentUpdatesReportStatus = status || '';
             currentUpdatesReportDetails = { id: id, source: source, report_type: type };
             var row = document.querySelector('tr[data-id="' + id + '"]');
             if (row) {
@@ -5568,7 +5672,12 @@ if ($focus_id > 0) {
                     else if (label === 'location') currentUpdatesReportDetails.location = text;
                     else if (label === 'department') currentUpdatesReportDetails.department = text;
                     else if (label === 'priority') currentUpdatesReportDetails.priority = text;
-                    else if (label === 'status') currentUpdatesReportDetails.status = text;
+                    else if (label === 'status') {
+                        currentUpdatesReportDetails.status = text;
+                        if (!currentUpdatesReportStatus) {
+                            currentUpdatesReportStatus = text.toLowerCase().replace(/\s+/g, '-');
+                        }
+                    }
                     else if (label === 'created') currentUpdatesReportDetails.created_at = text;
                     else if (label === 'assignment') currentUpdatesReportDetails.assignment_officer = text;
                 });
@@ -5578,6 +5687,7 @@ if ($focus_id > 0) {
             if (typeof loadUpdates === 'function') {
                 loadUpdates(id, type);
             }
+            if (applyUpdatesFooterMode()) return;
             // Check if user can add updates and show/hide the Add Update button accordingly
             checkUpdatePermission();
         }
@@ -5590,6 +5700,10 @@ if ($focus_id > 0) {
             // confirms an active assignment for this report.
             var btn = document.getElementById('addUpdateBtn');
             if (!btn) return;
+            if (isTerminalUpdatesStatus()) {
+                btn.style.display = 'none';
+                return;
+            }
             var role = '';
             var tag = document.getElementById('sessionTimeoutData');
             if (tag) role = tag.getAttribute('data-role') || '';

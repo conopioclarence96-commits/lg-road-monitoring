@@ -13,7 +13,12 @@ if (!isset($_SESSION['user_id'])) {
     json_error('Unauthorized', 401);
 }
 
+// Release session lock immediately so other pages/API calls for this user
+// are not blocked while we wait on Overpass or stream a large cache file.
+session_write_close();
+
 header('Content-Type: application/json');
+header('Cache-Control: private, max-age=3600');
 
 $cacheDir = __DIR__ . '/cache';
 $cacheFile = $cacheDir . '/qc_bus_jeep_routes.json';

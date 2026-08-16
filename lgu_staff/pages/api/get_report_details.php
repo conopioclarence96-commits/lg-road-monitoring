@@ -33,11 +33,85 @@ $table = in_array($report_type, $transport_types) ? 'road_transportation_reports
 // would point at road_maintenance_reports and fail. Honor a validated table
 // param whenever the caller knows the real source table.
 $explicit_table = sanitize_input($_GET['table'] ?? '');
-if (in_array($explicit_table, ['road_transportation_reports', 'road_maintenance_reports', 'cimm_verification_reports'], true)) {
+if (in_array($explicit_table, ['road_transportation_reports', 'road_maintenance_reports', 'cimm_verification_reports', 'ipms_road_projects'], true)) {
     $table = $explicit_table;
 }
 
 try {
+    // IPMS approved projects — keyed by project_id (not autoincrement id).
+    if ($table === 'ipms_road_projects') {
+        $stmt = $conn->prepare(
+            "SELECT project_id AS id,
+                    CAST(project_id AS CHAR) AS report_id,
+                    project_name AS title,
+                    COALESCE(NULLIF(road_type, ''), 'infrastructure_issue') AS report_type,
+                    'Engineering' AS department,
+                    'medium' AS priority,
+                    status,
+                    NULL AS created_date,
+                    end_date AS due_date,
+                    road_status AS description,
+                    COALESCE(NULLIF(road_name, ''), project_name) AS location,
+                    start_lat AS latitude,
+                    start_lng AS longitude,
+                    NULL AS reporter_name,
+                    NULL AS reporter_email,
+                    NULL AS severity,
+                    NULL AS reported_date,
+                    NULL AS resolved_date,
+                    NULL AS assigned_to,
+                    NULL AS notes,
+                    0 AS estimation,
+                    NULL AS attachments,
+                    NULL AS created_by,
+                    created_at,
+                    synced_at AS updated_at,
+                    NULL AS image_path,
+                    'road' AS report_category,
+                    'ipms' AS report_source,
+                    budget AS budget_allocation,
+                    start_date,
+                    end_date
+             FROM ipms_road_projects
+             WHERE project_id = ? AND status = 'approved'"
+        );
+        $stmt->bind_param("i", $report_id);
+        $stmt->execute();
+        $report = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$report) {
+            json_response(['success' => false, 'error' => 'Report not found']);
+        }
+
+        $report['created_by_name'] = null;
+        $report['source'] = 'infrastructure';
+        $report['estimation'] = $report['estimation'] ?? 0;
+        $report['created_at'] = isset($report['created_at']) ? format_datetime($report['created_at']) : null;
+        $report['updated_at'] = !empty($report['updated_at']) ? format_datetime($report['updated_at']) : null;
+        $report['approved_at'] = null;
+        $report['rejected_at'] = null;
+        $report['completed_at'] = null;
+        $report['update_media'] = [];
+
+        // Assigned engineers from JSON column
+        try {
+            $engStmt = $conn->prepare("SELECT assigned_engineers_json FROM ipms_road_projects WHERE project_id = ?");
+            $engStmt->bind_param("i", $report_id);
+            $engStmt->execute();
+            $engRow = $engStmt->get_result()->fetch_assoc();
+            $engStmt->close();
+            $engs = json_decode((string)($engRow['assigned_engineers_json'] ?? '[]'), true) ?: [];
+            $report['engineer'] = is_array($engs)
+                ? implode(', ', array_filter(array_map('trim', array_map('strval', $engs))))
+                : '';
+        } catch (Exception $e) {
+            $report['engineer'] = '';
+        }
+
+        json_response(['success' => true, 'report' => $report]);
+    }
+
     // Check if estimation column exists
     $estimation_column_exists = false;
     $result = $conn->query("SHOW COLUMNS FROM {$table} LIKE 'estimation'");

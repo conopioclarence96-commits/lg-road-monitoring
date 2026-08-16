@@ -45,6 +45,7 @@
  */
 declare(strict_types=1);
 
+require_once __DIR__ . '/../../includes/session_config.php';
 require_once __DIR__ . '/../../includes/config.php';
 require_once __DIR__ . '/ipms_road_projects_data.php';
 
@@ -73,7 +74,9 @@ function rgmap_ipms_env(string $key): string {
 
 $PULL_KEY = rgmap_ipms_env('IPMS_PULL_KEY') ?: 'IPMS_RGMAP_PULL_KEY_2026';
 $provided = trim((string)($_GET['key'] ?? $_SERVER['HTTP_X_API_KEY'] ?? ''));
-if ($provided === '' || !hash_equals($PULL_KEY, $provided)) {
+$keyOk = $provided !== '' && hash_equals($PULL_KEY, $provided);
+$sessionOk = isset($_SESSION['user_id']);
+if (!$keyOk && !$sessionOk) {
     http_response_code(401);
     echo json_encode(['success' => false, 'message' => 'Unauthorized']);
     exit;
