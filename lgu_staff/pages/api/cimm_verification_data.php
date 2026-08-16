@@ -273,19 +273,19 @@ function cimm_resolution_status_to_display(?string $resolutionStatus, ?string $a
 
 /**
  * Apply one CIMM report payload (the same shape cimm_rgmap_fetch_report()
- * in the CIMM repo produces) into cimm_verification_reports, and — if the
- * payload carries rgmap_report_pk (meaning this CIMM report started life as
- * one of THIS system's own road_transportation_reports rows) — also keep
- * that row's cimm_engineer_name/cimm_budget/cimm_status/cimm_district etc.
- * current.
+ * in the CIMM repo produces).
  *
- * This is the single write path shared by:
- *   - cimm-reports-webhook.php   (live push from CIMM, one report at a time)
- *   - cimm-reports-pull.php      (cron catch-up, replays into the webhook)
- *   - rgmap_backfill_stale_cimm_reports() (verification_monitoring.php's
- *     capped auto-heal for rows that predate this function, or that never
- *     wrote correctly because of the parameter-count bug this replaces —
- *     see git history on cimm-reports-webhook.php)
+ * Two mutually exclusive write paths (avoids Recent Submissions duplicates):
+ *   - Payload has rgmap_report_pk → UPDATE that road_transportation_reports
+ *     row only (report already lives in this system; do NOT insert into
+ *     cimm_verification_reports).
+ *   - No rgmap_report_pk → upsert cimm_verification_reports only
+ *     (native CIMM / citizen report).
+ *
+ * Shared by:
+ *   - cimm-reports-webhook.php
+ *   - cimm-reports-pull.php
+ *   - rgmap_backfill_stale_cimm_reports()
  *
  * @return array{id:int,cimm_req_id:int,reference:string}
  */
@@ -295,9 +295,49 @@ function rgmap_apply_cimm_report_payload(PDO $pdo, ?mysqli $conn, array $data): 
         throw new \InvalidArgumentException('cimm_req_id is required');
     }
 
+    $reference = (string)($data['reference'] ?? ('REQ-' . str_pad((string)$cimmReqId, 3, '0', STR_PAD_LEFT)));
+    $rgmapReportPk = isset($data['rgmap_report_pk']) ? (int)$data['rgmap_report_pk'] : 0;
+
+    // ── Path A: linked LGU report — update road table only ──────────────
+    if ($rgmapReportPk > 0) {
+        if (!($conn instanceof mysqli)) {
+            throw new \RuntimeException('mysqli connection required to update road_transportation_reports');
+        }
+        require_once __DIR__ . '/rgmap_cimm_sync.php';
+        rgmap_cimm_ensure_schema($conn);
+
+        $cimmEngineerName = $data['engineer'] ?? null;
+        $cimmBudget = isset($data['budget']) ? (float)$data['budget'] : null;
+        $cimmStartingDate = $data['starting_date'] ?? null;
+        $cimmEstimatedEndDate = $data['estimated_end_date'] ?? null;
+        $cimmStatus = $data['resolution_status'] ?? null;
+        $cimmReportUrl = $data['portal_url'] ?? null;
+        $cimmDistrict = $data['district'] ?? null;
+
+        $updStmt = $conn->prepare(
+            "UPDATE road_transportation_reports
+             SET cimm_engineer_name = ?, cimm_budget = ?, cimm_starting_date = ?,
+                 cimm_estimated_end_date = ?, cimm_status = ?, cimm_report_url = ?,
+                 cimm_district = ?
+             WHERE id = ?"
+        );
+        if (!$updStmt) {
+            throw new \RuntimeException('Failed to prepare road_transportation_reports update');
+        }
+        $updStmt->bind_param(
+            'sdsssssi',
+            $cimmEngineerName, $cimmBudget, $cimmStartingDate,
+            $cimmEstimatedEndDate, $cimmStatus, $cimmReportUrl, $cimmDistrict, $rgmapReportPk
+        );
+        $updStmt->execute();
+        $updStmt->close();
+
+        return ['id' => $rgmapReportPk, 'cimm_req_id' => $cimmReqId, 'reference' => $reference];
+    }
+
+    // ── Path B: native CIMM report — upsert cimm_verification_reports only
     rgmap_ensure_cimm_verification_table($pdo);
 
-    $reference = (string)($data['reference'] ?? ('REQ-' . str_pad((string)$cimmReqId, 3, '0', STR_PAD_LEFT)));
     $cimmRepId = isset($data['cimm_rep_id']) ? (int)$data['cimm_rep_id'] : null;
     if ($cimmRepId !== null && $cimmRepId <= 0) {
         $cimmRepId = null;
@@ -358,12 +398,6 @@ function rgmap_apply_cimm_report_payload(PDO $pdo, ?mysqli $conn, array $data): 
             synced_at = CURRENT_TIMESTAMP
     ");
 
-    // 31 placeholders above, 31 values below — keep these in lockstep. A past
-    // mismatch here (two stray trailing values with no matching placeholder)
-    // made every call throw "Invalid parameter number" under
-    // ATTR_EMULATE_PREPARES=false, silently failing every push AND every
-    // pull-replay — see git history on the old inline version of this code
-    // in cimm-reports-webhook.php for the fix.
     $stmt->execute([
         $cimmReqId,
         $cimmRepId,
@@ -402,43 +436,6 @@ function rgmap_apply_cimm_report_payload(PDO $pdo, ?mysqli $conn, array $data): 
     $localIdStmt->execute([$cimmReqId]);
     $localId = (int)($localIdStmt->fetchColumn() ?: 0);
 
-    // ── If this CIMM report originated from one of THIS system's own
-    //    road_transportation_reports rows, also keep that specific row
-    //    current — not just the cimm_verification_reports mirror above —
-    //    so staff looking at the report they originally submitted see the
-    //    latest engineer/budget/dates/status/district without having to go
-    //    find it in a different panel. ──────────────────────────────────
-    $rgmapReportPk = isset($data['rgmap_report_pk']) ? (int)$data['rgmap_report_pk'] : 0;
-    if ($rgmapReportPk > 0 && $conn instanceof mysqli) {
-        require_once __DIR__ . '/rgmap_cimm_sync.php';
-        rgmap_cimm_ensure_schema($conn);
-
-        $cimmEngineerName = $data['engineer'] ?? null;
-        $cimmBudget = isset($data['budget']) ? (float)$data['budget'] : null;
-        $cimmStartingDate = $data['starting_date'] ?? null;
-        $cimmEstimatedEndDate = $data['estimated_end_date'] ?? null;
-        $cimmStatus = $data['resolution_status'] ?? null;
-        $cimmReportUrl = $data['portal_url'] ?? null;
-        $cimmDistrict = $data['district'] ?? null;
-
-        $updStmt = $conn->prepare(
-            "UPDATE road_transportation_reports
-             SET cimm_engineer_name = ?, cimm_budget = ?, cimm_starting_date = ?,
-                 cimm_estimated_end_date = ?, cimm_status = ?, cimm_report_url = ?,
-                 cimm_district = ?
-             WHERE id = ?"
-        );
-        if ($updStmt) {
-            $updStmt->bind_param(
-                'sdsssssi',
-                $cimmEngineerName, $cimmBudget, $cimmStartingDate,
-                $cimmEstimatedEndDate, $cimmStatus, $cimmReportUrl, $cimmDistrict, $rgmapReportPk
-            );
-            $updStmt->execute();
-            $updStmt->close();
-        }
-    }
-
     return ['id' => $localId, 'cimm_req_id' => $cimmReqId, 'reference' => $reference];
 }
 
@@ -448,21 +445,16 @@ function rgmap_apply_cimm_report_payload(PDO $pdo, ?mysqli $conn, array $data): 
  * symptom of the webhook parameter-count bug fixed in
  * rgmap_apply_cimm_report_payload() above — rows written while that bug was
  * live either never landed at all, or in some cases landed via an older
- * code path without today's full column set). Also covers rows whose
- * linked road_transportation_reports.cimm_status was never populated for
- * the same reason, which is what made the "LGU Monitoring Reports" panel
- * keep showing the stale "Pushed" badge instead of CIMM's real status.
+ * code path without today's full column set).
  *
  * Re-fetches each affected report fresh from CIMM's export API (the same
  * endpoint cimm-reports-pull.php uses) and replays it through
- * rgmap_apply_cimm_report_payload() — the now-fixed write path — so old
- * data self-corrects the next time this page loads, without requiring
- * anyone to manually run the pull cron. Capped per page load (matching the
- * codebase's existing backfill convention — see the district backfill in
- * the CIMM repo's road_monitoring.php) so a large backlog can't turn one
- * page view into a slow batch job; any remainder is picked up on the next
- * load. Safe to call on every request — a report with nothing stale is a
- * cheap no-op query and this does nothing further.
+ * rgmap_apply_cimm_report_payload() — so old data self-corrects the next
+ * time this page loads, without requiring anyone to manually run the pull
+ * cron. Capped per page load so a large backlog can't turn one page view
+ * into a slow batch job; any remainder is picked up on the next load.
+ * Safe to call on every request — a report with nothing stale is a cheap
+ * no-op query and this does nothing further.
  *
  * @return array{attempted:int,fixed:int,failed:int}
  */
