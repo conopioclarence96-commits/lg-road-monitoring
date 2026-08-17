@@ -858,47 +858,9 @@ function rgmap_ensure_auto_archive_column() {
     }
 }
 
-// Auto-archive sweep: move every completed report whose 7-day retention window
-// has passed into the archive. The deadline is computed from the report's
-// actual completion timestamp (completed_at + 7 days), NOT from when it was
-// last viewed or updated. Only reports completed through the supervisor
-// portal's Complete button carry auto_archive_at (a non-null marker), so
-// reports completed via report_management.php are never affected.
-// Returns the number of reports archived.
+// Completed projects stay on Completed Projects until an administrator or
+// supervisor clicks Archive. Automatic 7-day moves are disabled; this helper
+// is kept so existing callers do not break.
 function rgmap_auto_archive_completed($conn) {
-    $moved = 0;
-    try {
-        rgmap_ensure_auto_archive_column();
-
-        foreach (['road_transportation_reports', 'road_maintenance_reports'] as $table) {
-            $stmt = $conn->prepare("SELECT id FROM $table WHERE status = 'completed' AND auto_archive_at IS NOT NULL AND completed_at IS NOT NULL AND completed_at <= (NOW() - INTERVAL 7 DAY)");
-            $stmt->execute();
-            $res = $stmt->get_result();
-            $stmt->close();
-            $ids = [];
-            while ($row = $res->fetch_assoc()) $ids[] = (int)$row['id'];
-            foreach ($ids as $rid) {
-                if (rgmap_archive_report($conn, $table, $rid, 'completed')) $moved++;
-            }
-        }
-
-        // CIMM reports have no completed_at column; their auto_archive_at is
-        // stamped at the moment they are completed, so it doubles as the
-        // completion timestamp for the 7-day window.
-        $stmt = $conn->prepare("SELECT id FROM cimm_verification_reports WHERE verification_status = 'Completed' AND auto_archive_at IS NOT NULL AND auto_archive_at <= NOW()");
-        $stmt->execute();
-        $res = $stmt->get_result();
-        $stmt->close();
-        $ids = [];
-        while ($row = $res->fetch_assoc()) $ids[] = (int)$row['id'];
-        foreach ($ids as $rid) {
-            if (rgmap_archive_cimm_report($conn, $rid, 'completed')) $moved++;
-        }
-    } catch (Exception $e) {
-        error_log("rgmap_auto_archive_completed error: " . $e->getMessage());
-    }
-    if ($moved > 0) {
-        error_log("rgmap_auto_archive_completed moved {$moved} completed report(s) to archive");
-    }
-    return $moved;
+    return 0;
 }

@@ -625,15 +625,8 @@ if ($method === 'GET') {
         }
     } elseif ($action === 'complete_status') {
         // Supervisor Complete button on road_transportation_monitoring.php.
-        // Marks the report completed but KEEPS it on the monitoring page: a
-        // 7-day auto-archive deadline is stamped instead of moving the row to
-        // the archive immediately (unlike the old complete_archive_move). The
-        // background sweep (auto_archive_completed / rgmap_auto_archive_completed)
-        // moves it to the archive once the deadline passes, and the Recent
-        // Submissions query shows completed reports until then. The sweep
-        // measures the deadline from the actual completion timestamp
-        // (completed_at + 7 days), so the stamped auto_archive_at is only used
-        // as a "completed via portal" marker.
+        // Marks the report completed and keeps it on Completed Projects until
+        // Archive is clicked. It does not move the row to the archive.
         $report_id = intval($_POST['report_id'] ?? 0);
         $source = sanitize_input($_POST['source'] ?? '');
 
@@ -665,8 +658,8 @@ if ($method === 'GET') {
             // Notify the acting supervisor so the completion result appears in
             // their notifications feed (notifications.php).
             rgmap_notify_supervisor_action($conn, $report_id, 'complete', $user_id, $report_row['report_id'] ?? null);
-            log_audit_action($user_id, "Completed report", "Report ID: {$report_id}, Status: completed (auto-archive in 7 days)");
-            json_response(['success' => true, 'message' => 'Report completed. It will stay on this page for 7 days, then move to the archive automatically.']);
+            log_audit_action($user_id, "Completed report", "Report ID: {$report_id}, Status: completed");
+            json_response(['success' => true, 'message' => 'Report completed. It will stay in Completed Projects until it is archived.']);
         } catch (Exception $e) {
             error_log("Complete status error: " . $e->getMessage());
             json_response(['success' => false, 'message' => 'Failed to complete the report: ' . $e->getMessage()], 500);
@@ -676,8 +669,8 @@ if ($method === 'GET') {
         // road_transportation_monitoring.php. The button is only rendered for
         // reports whose status is COMPLETED (all other statuses hide it), and
         // it moves the report into road_transportation_reports_archive keeping
-        // its current status — the report leaves Recent Submissions immediately
-        // instead of waiting out the 7-day auto-archive window.
+        // its current status — the report leaves Completed Projects only when
+        // Archive is clicked.
         // Available to any admin/staff role that can access the monitoring page.
         if (!is_admin_or_staff_role($_SESSION['role'] ?? '')) {
             json_response(['success' => false, 'message' => 'You are not authorized to archive reports.'], 403);
@@ -713,18 +706,9 @@ if ($method === 'GET') {
             json_response(['success' => false, 'message' => 'Failed to archive the report: ' . $e->getMessage()], 500);
         }
     } elseif ($action === 'auto_archive_completed') {
-        // Move every completed report whose 7-day retention window has passed
-        // into the archive. Only reports completed through the supervisor
-        // portal's Complete button carry auto_archive_at, so report_management
-        // completions are never touched. Fired by the portal on page load.
-        $moved = 0;
-        try {
-            $moved = rgmap_auto_archive_completed($conn);
-            json_response(['success' => true, 'archived' => $moved, 'message' => "Auto-archived {$moved} completed report(s)"]);
-        } catch (Exception $e) {
-            error_log("Auto archive completed error: " . $e->getMessage());
-            json_response(['success' => false, 'message' => 'Failed to archive completed reports: ' . $e->getMessage()], 500);
-        }
+        // Automatic archive of completed projects is disabled. They remain on
+        // Completed Projects until Archive is clicked.
+        json_response(['success' => true, 'archived' => 0, 'message' => 'Automatic archive of completed projects is disabled.']);
     } elseif ($action === 'submit_review_request') {
         // Road/Transportation Monitoring Officers request a completion or
         // cancellation of a project. This ONLY creates a role-targeted

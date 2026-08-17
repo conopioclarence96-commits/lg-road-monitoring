@@ -103,13 +103,69 @@
         return isFinite(n) && n >= 0 ? n.toFixed(2) : '';
     }
 
-    function firstImageFromEntry(entry) {
-        if (!entry) return null;
-        var img = entry.querySelector('.update-images img');
-        if (!img) return null;
-        var src = img.getAttribute('src') || '';
-        if (src.indexOf('data:image') === 0) return src;
-        return null;
+    function normalizeDataImageUrl(src) {
+        if (!src) return null;
+        var s = String(src)
+            .replace(/&amp;/g, '&')
+            .replace(/&#34;/g, '"')
+            .trim();
+        var dataIdx = s.toLowerCase().indexOf('data:image');
+        if (dataIdx < 0) return null;
+        s = s.slice(dataIdx);
+        // Keep the data: prefix intact; strip whitespace only from the payload
+        // so Word/HTML line-wrapped base64 still decodes.
+        var comma = s.indexOf(',');
+        if (comma < 0) return null;
+        var header = s.slice(0, comma).replace(/\s+/g, '');
+        var payload = s.slice(comma + 1).replace(/\s+/g, '');
+        if (!payload) return null;
+        if (!/^data:image\/[a-z0-9.+-]+(;base64)?$/i.test(header)) return null;
+        if (header.toLowerCase().indexOf(';base64') === -1) {
+            header += ';base64';
+        }
+        return header + ',' + payload;
+    }
+
+    function imagesFromUpdateHtml(html) {
+        var out = [];
+        var seen = {};
+        var chunk = String(html || '');
+        var re = /(?:src|SRC)\s*=\s*(["'])(data:image[\s\S]*?)\1/g;
+        var m;
+        while ((m = re.exec(chunk))) {
+            var src = normalizeDataImageUrl(m[2]);
+            if (src && !seen[src]) {
+                seen[src] = true;
+                out.push(src);
+            }
+        }
+        if (!out.length) {
+            re = /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=\s]+/g;
+            while ((m = re.exec(chunk))) {
+                var src2 = normalizeDataImageUrl(m[0]);
+                if (src2 && !seen[src2]) {
+                    seen[src2] = true;
+                    out.push(src2);
+                }
+            }
+        }
+        return out;
+    }
+
+    function imagesFromUpdateEntry(entry) {
+        if (!entry) return [];
+        var box = entry.querySelector('.update-images') || entry;
+        var fromHtml = imagesFromUpdateHtml(box.innerHTML || '');
+        if (fromHtml.length) return fromHtml;
+        var imgs = box.querySelectorAll('img');
+        var out = [];
+        for (var i = 0; i < imgs.length; i++) {
+            var src = normalizeDataImageUrl(
+                imgs[i].getAttribute('src') || imgs[i].getAttribute('data-src') || ''
+            );
+            if (src) out.push(src);
+        }
+        return out;
     }
 
     function parseUpdateHeaderDate(headerText) {
@@ -118,15 +174,76 @@
         return parseExportDate(parts[0].trim());
     }
 
-    function collectTimelineDates(doc) {
+    function parseUpdateHeaderTimestamp(headerText) {
+        var parts = String(headerText || '').trim().split(' - ');
+        var raw = parts.length ? parts[0].trim() : '';
+        if (!raw) return 0;
+        var d = new Date(raw);
+        return isNaN(d.getTime()) ? 0 : d.getTime();
+    }
+
+    function getProgressTimelineEntries(doc) {
+        var headings = doc.querySelectorAll('h2');
+        var timelineH2 = null;
+        for (var i = 0; i < headings.length; i++) {
+            if (headings[i].textContent.trim().indexOf(MARKER_TIMELINE) !== -1) {
+                timelineH2 = headings[i];
+                break;
+            }
+        }
+        var entries = [];
+        if (timelineH2) {
+            var node = timelineH2.nextElementSibling;
+            while (node && node.tagName !== 'H2') {
+                if (node.classList && node.classList.contains('update-entry')) {
+                    entries.push(node);
+                } else if (node.querySelectorAll) {
+                    var nested = node.querySelectorAll('.update-entry');
+                    for (var n = 0; n < nested.length; n++) entries.push(nested[n]);
+                }
+                node = node.nextElementSibling;
+            }
+        }
+        if (!entries.length) {
+            entries = Array.prototype.slice.call(doc.querySelectorAll('.update-entry'));
+        }
+        return entries;
+    }
+
+    function collectOrderedUpdatePhotos(entries) {
+        var rows = [];
+        for (var i = 0; i < entries.length; i++) {
+            var header = entries[i].querySelector('.update-header');
+            rows.push({
+                index: i,
+                ts: header ? parseUpdateHeaderTimestamp(header.textContent) : 0,
+                photos: imagesFromUpdateEntry(entries[i])
+            });
+        }
+        rows.sort(function (a, b) {
+            if (a.ts && b.ts && a.ts !== b.ts) return a.ts - b.ts;
+            if (a.ts && !b.ts) return -1;
+            if (!a.ts && b.ts) return 1;
+            return a.index - b.index;
+        });
+        var photos = [];
+        for (var r = 0; r < rows.length; r++) {
+            for (var p = 0; p < rows[r].photos.length; p++) {
+                photos.push(rows[r].photos[p]);
+            }
+        }
+        return photos;
+    }
+
+    function collectTimelineDates(entries) {
         var dates = [];
-        var entries = doc.querySelectorAll('.update-entry');
         for (var i = 0; i < entries.length; i++) {
             var header = entries[i].querySelector('.update-header');
             if (!header) continue;
             var iso = parseUpdateHeaderDate(header.textContent);
             if (iso) dates.push(iso);
         }
+        dates.sort();
         return dates;
     }
 
@@ -158,17 +275,26 @@
         ]);
 
         var completionDate = '';
-        var entries = doc.querySelectorAll('.update-entry');
-        var beforeImage = null;
-        var afterImage = null;
-        var timelineDates = collectTimelineDates(doc);
+        var entries = getProgressTimelineEntries(doc);
+        var orderedPhotos = collectOrderedUpdatePhotos(entries);
+        if (!orderedPhotos.length) {
+            var timelineHtml = html.split('Progress Timeline')[1] || '';
+            var rawBlocks = timelineHtml.split(/class=["']update-entry["']/i);
+            for (var b = 1; b < rawBlocks.length; b++) {
+                var blockPhotos = imagesFromUpdateHtml(rawBlocks[b]);
+                for (var bp = 0; bp < blockPhotos.length; bp++) {
+                    orderedPhotos.push(blockPhotos[bp]);
+                }
+            }
+            if (!orderedPhotos.length) {
+                orderedPhotos = imagesFromUpdateHtml(timelineHtml || html);
+            }
+        }
+        var beforeImage = orderedPhotos.length ? orderedPhotos[0] : null;
+        var afterImage = orderedPhotos.length ? orderedPhotos[orderedPhotos.length - 1] : null;
+        var timelineDates = collectTimelineDates(entries);
 
         for (var i = 0; i < entries.length; i++) {
-            var imgSrc = firstImageFromEntry(entries[i]);
-            if (imgSrc) {
-                if (!beforeImage) beforeImage = imgSrc;
-                afterImage = imgSrc;
-            }
             var header = entries[i].querySelector('.update-header');
             if (header && !completionDate) {
                 var headerText = header.textContent.trim();

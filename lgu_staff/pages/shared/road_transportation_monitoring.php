@@ -68,17 +68,6 @@ if (
     exit();
 }
 
-// Auto-archive sweep: move any completed report whose 7-day retention window
-// (measured from completed_at, set by the Complete button's complete_status
-// action) has passed into the archive. Runs once per page load; it only touches
-// reports carrying auto_archive_at, so report_management completions are never
-// moved. Completed reports stay visible in Recent Submissions until then.
-try {
-    rgmap_auto_archive_completed($conn);
-} catch (Exception $e) {
-    error_log('Road/Transportation monitoring auto-archive sweep: ' . $e->getMessage());
-}
-
 // Transportation Operations Supervisors and Transportation Monitoring Officers
 // are restricted to Transportation category reports only — the Roads option is
 // hidden and road submissions are rejected server-side. Recent Submissions /
@@ -289,7 +278,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
         : "verification_status IN ('Approved', 'In Progress')";
 
     // Helper to append shared WHERE/ORDER/LIMIT clauses and run a query
-    $fetch = function ($sql, $status_filter, $type_filter, $limit) use ($conn) {
+    $fetch = function ($sql, $status_filter, $type_filter, $limit) use ($conn, $completed_only) {
         $params = [];
         $types = '';
         if ($status_filter !== 'all') {
@@ -304,9 +293,15 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
             $params[] = $type_filter;
             $types .= 's';
         }
-        $sql .= " ORDER BY created_at DESC LIMIT ?";
-        $params[] = $limit;
-        $types .= 'i';
+        if ($completed_only) {
+            // Display order only. No LIMIT so every completed row stays in the
+            // result set; the page cap is applied after sorting.
+            $sql .= " ORDER BY completed_at DESC";
+        } else {
+            $sql .= " ORDER BY created_at DESC LIMIT ?";
+            $params[] = $limit;
+            $types .= 'i';
+        }
         $stmt = $conn->prepare($sql);
         if (!empty($params)) $stmt->bind_param($types, ...$params);
         $stmt->execute();
@@ -326,7 +321,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
         $reports = array_merge($reports, $fetch(
             "SELECT t.id, t.report_id, t.title, t.report_type, t.report_category,
                     CASE WHEN t.created_by IS NULL OR t.created_by = 0 THEN 'citizen' ELSE 'lgu' END AS source,
-                    t.status, t.priority, t.severity, t.created_at, t.description,
+                    t.status, t.priority, t.severity, t.created_at, t.completed_at, t.description,
                     t.latitude, t.longitude, t.location, t.reporter_name, t.attachments, t.image_path,
                     t.cimm_status, t.cimm_sync_status, t.cimm_verified_at, t.cimm_verified_by,
                     t.engineer, t.budget_allocation, t.cimm_engineer_name, t.cimm_budget,
@@ -384,6 +379,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                             'infrastructure_issue' AS report_type, 'road' AS report_category, 'cimm' AS source,
                             verification_status AS status, priority, NULL AS severity,
                             COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at,
+                            resolved_at AS completed_at,
                             issue AS description, coord_lat AS latitude, coord_lng AS longitude,
                             location, reporter_name, NULL AS attachments, NULL AS image_path,
                             'verified' AS cimm_sync_status, verified_at AS cimm_verified_at,
@@ -406,10 +402,30 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
             $reports = filter_reports_assigned_to_user($conn, $reports, $assigned_to_user_id);
         }
 
-        // Sort combined results by created_at DESC and cap at the requested limit
-        usort($reports, function($a, $b) {
-            return strtotime($b['created_at'] ?? 'now') - strtotime($a['created_at'] ?? 'now');
-        });
+        // Live monitoring list: hide Unassigned reports until an officer is assigned.
+        // Completed Projects keeps the full finalized set.
+        if (!$completed_only) {
+            $reports = filter_reports_with_active_assignment($conn, $reports);
+        }
+
+        // Completed Projects: reorder only (ORDER BY completed_at DESC).
+        // Live monitoring stays by created_at. array_slice is display paging
+        // and does not delete or archive rows.
+        if ($completed_only) {
+            usort($reports, function ($a, $b) {
+                $ta = strtotime((string)($a['completed_at'] ?? '')) ?: 0;
+                $tb = strtotime((string)($b['completed_at'] ?? '')) ?: 0;
+                if ($tb === $ta) {
+                    return (strtotime((string)($b['created_at'] ?? '')) ?: 0)
+                         <=> (strtotime((string)($a['created_at'] ?? '')) ?: 0);
+                }
+                return $tb <=> $ta;
+            });
+        } else {
+            usort($reports, function($a, $b) {
+                return strtotime($b['created_at'] ?? 'now') - strtotime($a['created_at'] ?? 'now');
+            });
+        }
         $reports = array_slice($reports, 0, $limit);
     } catch (Exception $e) {
         error_log("Recent reports error: ".$e->getMessage());
@@ -955,7 +971,7 @@ function resolve_recent_focus_row(int $id, string $source_hint = ''): ?array {
     try {
         foreach ($candidates as $src) {
             if ($src === 'transport') {
-                $stmt = $conn->prepare("SELECT t.id, t.report_id, t.title, t.report_type, t.report_category, t.status, t.priority, t.severity, t.created_at, t.description, t.latitude, t.longitude, t.location, t.reporter_name, t.attachments, t.image_path, t.cimm_sync_status, t.cimm_verified_at, t.cimm_verified_by, t.created_by, u.full_name AS creator_full_name, u.phone_number AS creator_phone, u.email AS creator_email FROM road_transportation_reports t LEFT JOIN users u ON u.id = t.created_by WHERE t.id = ?");
+                $stmt = $conn->prepare("SELECT t.id, t.report_id, t.title, t.report_type, t.report_category, t.status, t.priority, t.severity, t.created_at, t.completed_at, t.description, t.latitude, t.longitude, t.location, t.reporter_name, t.attachments, t.image_path, t.cimm_sync_status, t.cimm_verified_at, t.cimm_verified_by, t.created_by, u.full_name AS creator_full_name, u.phone_number AS creator_phone, u.email AS creator_email FROM road_transportation_reports t LEFT JOIN users u ON u.id = t.created_by WHERE t.id = ?");
                 $stmt->bind_param("i", $id);
                 $stmt->execute();
                 $r = $stmt->get_result()->fetch_assoc();
@@ -980,7 +996,7 @@ function resolve_recent_focus_row(int $id, string $source_hint = ''): ?array {
                 require_once __DIR__ . '/../api/cimm_verification_data.php';
                 $pdo = rgmap_verification_pdo();
                 rgmap_ensure_cimm_verification_table($pdo);
-                $stmt = $pdo->prepare("SELECT id, reference_code AS report_id, infrastructure AS title, 'infrastructure_issue' AS report_type, " . cimm_status_case_sql() . " AS status, priority, NULL AS severity, COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at, issue AS description, coord_lat AS latitude, coord_lng AS longitude, location, reporter_name, NULL AS attachments, NULL AS image_path, 'verified' AS cimm_sync_status, verified_at AS cimm_verified_at, NULL AS cimm_verified_by FROM cimm_verification_reports WHERE id = ?");
+                $stmt = $pdo->prepare("SELECT id, reference_code AS report_id, infrastructure AS title, 'infrastructure_issue' AS report_type, " . cimm_status_case_sql() . " AS status, priority, NULL AS severity, COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at, resolved_at AS completed_at, issue AS description, coord_lat AS latitude, coord_lng AS longitude, location, reporter_name, NULL AS attachments, NULL AS image_path, 'verified' AS cimm_sync_status, verified_at AS cimm_verified_at, NULL AS cimm_verified_by FROM cimm_verification_reports WHERE id = ?");
                 $stmt->execute([$id]);
                 $r = $stmt->fetch(PDO::FETCH_ASSOC);
                 if ($r) {
@@ -1098,6 +1114,16 @@ if ($focus_report_id > 0) {
             }
         }
 
+        // Monitoring page only: Unassigned reports stay off this list until
+        // an officer is assigned. Completed Projects does not use this gate.
+        if (!$restricted && !$is_completed_projects_view) {
+            $any_assigned = get_active_assignment_keys($conn);
+            $focus_key = ($focus_row['_source_table'] ?? 'road_transportation_reports') . ':' . ($focus_row['id'] ?? 0);
+            if (!isset($any_assigned[$focus_key])) {
+                $restricted = true;
+            }
+        }
+
         if (!$restricted) {
             $already_present = false;
             foreach ($recent_reports as $existing) {
@@ -1109,7 +1135,16 @@ if ($focus_report_id > 0) {
             }
             if (!$already_present) {
                 $recent_reports[] = $focus_row;
-                usort($recent_reports, function ($a, $b) {
+                usort($recent_reports, function ($a, $b) use ($is_completed_projects_view) {
+                    if ($is_completed_projects_view) {
+                        $ta = strtotime((string)($a['completed_at'] ?? '')) ?: 0;
+                        $tb = strtotime((string)($b['completed_at'] ?? '')) ?: 0;
+                        if ($tb === $ta) {
+                            return (strtotime((string)($b['created_at'] ?? '')) ?: 0)
+                                 <=> (strtotime((string)($a['created_at'] ?? '')) ?: 0);
+                        }
+                        return $tb <=> $ta;
+                    }
                     return strtotime($b['created_at'] ?? 'now') - strtotime($a['created_at'] ?? 'now');
                 });
             }
@@ -3089,7 +3124,7 @@ if ($is_system_admin) {
         <!-- Recent Reports Table -->
         <div class="reports-table-section">
             <div class="table-header">
-                <h3><i class="fas fa-<?php echo $is_completed_projects_view ? 'check-circle' : 'list'; ?>"></i> <?php echo $is_completed_projects_view ? 'Completed Projects' : 'Recent Submissions'; ?></h3>
+                <h3><i class="fas fa-<?php echo $is_completed_projects_view ? 'check-circle' : 'list'; ?>"></i> <?php echo $is_completed_projects_view ? 'Completed Projects' : 'Active Monitoring Reports'; ?></h3>
                 <div class="table-header-right">
                     <?php if (!$is_completed_projects_view): ?>
                     <select class="filter-select" id="statusFilter" onchange="filterReports()">
@@ -5171,15 +5206,14 @@ if ($is_system_admin) {
             location.reload();
         }
 
-        // Archive button on the Recent Submissions panel. Only shown for
-        // reports whose status is COMPLETED — Pending, Approved, In Progress,
-        // Cancelled, Rejected, and every other status hide it. Moves the
-        // report into the archive keeping its current status, so it leaves
-        // Recent Submissions immediately instead of waiting out the 7-day
-        // auto-archive window.
+        // Archive button. Only shown for reports whose status is COMPLETED —
+        // Pending, Approved, In Progress, Cancelled, Rejected, and every other
+        // status hide it. Moves the report into the archive keeping its current
+        // status. Completed projects otherwise stay on Completed Projects until
+        // this button is used.
         function archiveReport(id, source) {
             if (!id) return;
-            if (!confirm('Archive this report? It will be moved out of Recent Submissions into the Archive, keeping its current status.')) return;
+            if (!confirm('Archive this report? It will be moved out of Active Monitoring Reports into the Archive, keeping its current status.')) return;
 
             var fd = new FormData();
             fd.append('action', 'archive_report');
@@ -5270,12 +5304,8 @@ if ($is_system_admin) {
         }
 
         function updateStatusOnly() {
-            // complete_status marks the report completed AND stamps a 7-day
-            // auto-archive deadline (auto_archive_at) instead of moving it to
-            // the archive immediately. It stays on the monitoring page so the
-            // officer can still view it; the background sweep
-            // (auto_archive_completed / rgmap_auto_archive_completed) moves it
-            // to the archive once the deadline (completed_at + 7 days) passes.
+            // complete_status marks the report completed and leaves it on
+            // Completed Projects until Archive is clicked.
             var statusFormData = new FormData();
             statusFormData.append('action', 'complete_status');
             statusFormData.append('report_id', currentUpdatesReportId);

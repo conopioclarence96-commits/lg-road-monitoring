@@ -1052,14 +1052,21 @@ if ($conn) {
     const IMPORT_IMAGE_EXT = { 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' };
 
     function dataUrlToFile(dataUrl, baseName) {
-        const parts = /^data:([^;,]+)(;base64)?,([\s\S]*)$/i.exec(String(dataUrl || ''));
-        if (!parts) return null;
-        const mime = parts[1].toLowerCase();
+        let raw = String(dataUrl || '').trim();
+        const dataIdx = raw.toLowerCase().indexOf('data:image');
+        if (dataIdx > 0) raw = raw.slice(dataIdx);
+        const comma = raw.indexOf(',');
+        if (comma < 0) return null;
+        const header = raw.slice(0, comma).replace(/\s+/g, '');
+        const payload = raw.slice(comma + 1).replace(/\s+/g, '');
+        const mimeMatch = /^data:([^;,]+)/i.exec(header);
+        if (!mimeMatch || !payload) return null;
+        const mime = mimeMatch[1].toLowerCase();
         const ext = IMPORT_IMAGE_EXT[mime];
         if (!ext) return null;
         let bytes;
         try {
-            const binary = parts[2] ? atob(parts[3]) : decodeURIComponent(parts[3]);
+            const binary = atob(payload);
             bytes = new Uint8Array(binary.length);
             for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
         } catch (e) {
@@ -1075,7 +1082,23 @@ if ($conn) {
         return true;
     }
 
+    function showImportedPhotoPreview(type, dataUrl) {
+        const area = document.getElementById(type + 'PhotoArea');
+        const preview = document.getElementById(type + 'PhotoPreview');
+        if (!area || !preview || !dataUrl) return;
+        preview.src = dataUrl;
+        preview.style.display = 'block';
+        const icon = area.querySelector('.upload-icon');
+        const text = area.querySelector('.upload-text');
+        if (icon) icon.style.display = 'none';
+        if (text) text.style.display = 'none';
+        area.classList.add('has-image');
+        const removeBtn = area.querySelector('.remove-photo');
+        if (removeBtn) removeBtn.style.display = 'flex';
+    }
+
     function importPhotoFromExport(type, dataUrl) {
+        showImportedPhotoPreview(type, dataUrl);
         const file = dataUrlToFile(dataUrl, 'imported-' + type + '-' + Date.now());
         if (!file) return Promise.resolve(false);
         return uploadPhotoFile(type, file);
@@ -1093,11 +1116,9 @@ if ($conn) {
         if (setImportedField('projectCost', data.cost)) imported++;
         if (setImportedField('projectCompletedBy', data.completedBy)) imported++;
 
-        // The export's first and last update images become the before/after
-        // pair; a single-image timeline only yields an after photo.
+        // First photo in progress-update order → Before; last photo → After.
         const photoJobs = [];
-        const onePhotoOnly = data.beforeImage && data.beforeImage === data.afterImage;
-        if (data.beforeImage && !onePhotoOnly) {
+        if (data.beforeImage) {
             photoJobs.push(importPhotoFromExport('before', data.beforeImage));
         }
         if (data.afterImage) {

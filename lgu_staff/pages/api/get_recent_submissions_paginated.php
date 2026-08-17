@@ -71,7 +71,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
         : "verification_status IN ('Approved', 'In Progress')";
 
     // Helper to append shared WHERE clauses and run a query (no pagination at query level)
-    $fetch = function ($sql, $status_filter) use ($conn) {
+    $fetch = function ($sql, $status_filter) use ($conn, $completed_only) {
         $params = [];
         $types = '';
         if ($status_filter !== 'all') {
@@ -81,7 +81,9 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
             $params[] = $status_filter;
             $types .= 's';
         }
-        $sql .= " ORDER BY created_at DESC";
+        $sql .= $completed_only
+            ? " ORDER BY completed_at DESC"
+            : " ORDER BY created_at DESC";
         $stmt = $conn->prepare($sql);
         if (!empty($params)) $stmt->bind_param($types, ...$params);
         $stmt->execute();
@@ -97,7 +99,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
         $reports = array_merge($reports, $fetch(
             "SELECT t.id, t.report_id, t.title, t.report_type, t.report_category,
                     CASE WHEN t.created_by IS NULL OR t.created_by = 0 THEN 'citizen' ELSE 'lgu' END AS source,
-                    t.status, t.priority, t.severity, t.created_at, t.description,
+                    t.status, t.priority, t.severity, t.created_at, t.completed_at, t.description,
                     t.latitude, t.longitude, t.location, t.reporter_name, t.attachments, t.image_path,
                     t.cimm_status, t.cimm_sync_status, t.cimm_verified_at, t.cimm_verified_by,
                     t.engineer, t.budget_allocation, t.cimm_engineer_name, t.cimm_budget,
@@ -156,6 +158,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
                                 'infrastructure_issue' AS report_type, 'cimm' AS source,
                                 verification_status AS status, priority, NULL AS severity,
                                 COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at,
+                                resolved_at AS completed_at,
                                 issue AS description, coord_lat AS latitude, coord_lng AS longitude,
                                 location, reporter_name, NULL AS attachments, NULL AS image_path,
                                 'approved' AS cimm_sync_status, verified_at AS cimm_verified_at,
@@ -178,6 +181,12 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
             $reports = filter_reports_assigned_to_user($conn, $reports, $assigned_to_user_id);
         }
 
+        // Live monitoring list: hide Unassigned reports until an officer is assigned.
+        // Completed Projects (completed_only=1) is unchanged.
+        if (!$completed_only) {
+            $reports = filter_reports_with_active_assignment($conn, $reports);
+        }
+
         // Filter by type after fetching (since source is a calculated field)
         if ($type_filter !== 'all') {
             $reports = array_filter($reports, function($report) use ($type_filter) {
@@ -186,10 +195,23 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
             $reports = array_values($reports); // Re-index array
         }
 
-        // Sort combined results by created_at DESC and apply pagination
-        usort($reports, function($a, $b) {
-            return strtotime($b['created_at'] ?? 'now') - strtotime($a['created_at'] ?? 'now');
-        });
+        // Completed Projects: reorder only (ORDER BY completed_at DESC).
+        // array_slice is display paging and does not delete or archive rows.
+        if ($completed_only) {
+            usort($reports, function ($a, $b) {
+                $ta = strtotime((string)($a['completed_at'] ?? '')) ?: 0;
+                $tb = strtotime((string)($b['completed_at'] ?? '')) ?: 0;
+                if ($tb === $ta) {
+                    return (strtotime((string)($b['created_at'] ?? '')) ?: 0)
+                         <=> (strtotime((string)($a['created_at'] ?? '')) ?: 0);
+                }
+                return $tb <=> $ta;
+            });
+        } else {
+            usort($reports, function($a, $b) {
+                return strtotime($b['created_at'] ?? 'now') - strtotime($a['created_at'] ?? 'now');
+            });
+        }
         $reports = array_slice($reports, $offset, $limit);
     } catch (Exception $e) {
         error_log("Recent reports error: ".$e->getMessage());

@@ -687,6 +687,47 @@ function filter_reports_assigned_to_user($conn, array $reports, $user_id) {
     return array_values($filtered);
 }
 
+// Keys of reports that currently have any active assignment (any officer).
+function get_active_assignment_keys($conn) {
+    $keys = [];
+    if (!$conn) {
+        return $keys;
+    }
+    try {
+        $chk = $conn->query("SHOW TABLES LIKE 'report_assignments'");
+        if (!$chk || $chk->num_rows === 0) {
+            return $keys;
+        }
+        $res = $conn->query("SELECT report_type, report_id FROM report_assignments WHERE status = 'active'");
+        if ($res) {
+            while ($row = $res->fetch_assoc()) {
+                $keys[(string)$row['report_type'] . ':' . (int)$row['report_id']] = true;
+            }
+        }
+    } catch (Exception $e) {
+        error_log('get_active_assignment_keys error: ' . $e->getMessage());
+    }
+    return $keys;
+}
+
+// Keep only reports that have an active assigned monitoring officer.
+// Same '_ as filter_reports_assigned_to_user() ('_source_table' + 'id').
+function filter_reports_with_active_assignment($conn, array $reports) {
+    if (empty($reports)) {
+        return $reports;
+    }
+    $assigned = get_active_assignment_keys($conn);
+    if (empty($assigned)) {
+        return [];
+    }
+    $filtered = array_filter($reports, function ($r) use ($assigned) {
+        $table = $r['_source_table'] ?? 'road_transportation_reports';
+        $id = $r['id'] ?? 0;
+        return isset($assigned[$table . ':' . $id]);
+    });
+    return array_values($filtered);
+}
+
 // Annotate a list of report rows with a display-only "Assignment Status".
 // The report_assignments table is the single source of truth updated by the
 // Assign/Unassign Staff features, so this reflects assignments live on every

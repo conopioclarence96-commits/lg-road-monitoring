@@ -554,46 +554,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'mark_view') {
-        // The View Project / View Report button: mark exactly this one card as
-        // read for the current user. Transportation roles only; the card id is
-        // validated against the prefixes used by this page so nothing else is
-        // touched. Session keys persist the always-on cards (assignments,
-        // report status updates, change-request outcomes); report_notifications
-        // rows get their real is_read flag set.
+        // View Report / Review Request (and trans View Project): mark exactly
+        // this feed card as read. Does not update report rows. Already-read
+        // keys are not written again; the client also skips the badge drop.
         $key = trim((string)($_POST['id'] ?? ''));
-        if ($is_trans_role && $key !== '' && $user_id > 0) {
-            if (preg_match('/^(asg|ru|su)(\d+)$/', $key)) {
-                $read = nc_read_set();
-                if (!in_array($key, $read, true)) {
-                    $_SESSION['nc_read'][(int)$user_id][] = $key;
-                }
-                nc_read_persist_db([$key]);
-            } elseif (preg_match('/^ro(\d+)$/', $key, $m)) {
-                $stmt = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE id = ? AND recipient_email = ? AND type IN ('approve_request','reject_request')");
-                $stmt->bind_param("is", $m[1], $user_email);
-                $stmt->execute();
-                $stmt->close();
-            } elseif (preg_match('/^rq(\d+)$/', $key, $m)) {
-                $stmt = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE id = ? AND recipient_role = ? AND type IN ('completion','cancellation')");
-                $stmt->bind_param("is", $m[1], $user_role);
-                $stmt->execute();
-                $stmt->close();
-            } elseif (preg_match('/^tro(\d+)$/', $key, $m)) {
-                $stmt = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE id = ? AND recipient_email = ? AND type IN ('transparency_approved','transparency_rejected')");
-                $stmt->bind_param("is", $m[1], $user_email);
-                $stmt->execute();
-                $stmt->close();
-            } elseif (preg_match('/^stu(\d+)$/', $key, $m)) {
-                $stmt = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE id = ? AND recipient_email = ? AND type = 'no_update_stale'");
-                $stmt->bind_param("is", $m[1], $user_email);
-                $stmt->execute();
-                $stmt->close();
-            } elseif (preg_match('/^sa(\d+)$/', $key, $m)) {
-                $stmt = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE id = ? AND recipient_email = ? AND type IN ('complete_report','cancel_report')");
-                $stmt->bind_param("is", $m[1], $user_email);
-                $stmt->execute();
-                $stmt->close();
+        if ($key === '' || $user_id <= 0) {
+            echo json_encode(['success' => true]);
+            exit;
+        }
+
+        if ($user_role === 'system_admin' && preg_match('/^(rep|cr|pn|asg|tur|stu)\d+$/', $key)) {
+            $admin_read = nc_admin_read_set();
+            if (!in_array($key, $admin_read, true)) {
+                $_SESSION['nc_admin_read'][(int)$user_id][] = $key;
             }
+            nc_admin_read_persist_db([$key]);
+            echo json_encode(['success' => true]);
+            exit;
+        }
+
+        if (preg_match('/^(asg|ru|su)\d+$/', $key) && $is_trans_role) {
+            $read = nc_read_set();
+            if (!in_array($key, $read, true)) {
+                $_SESSION['nc_read'][(int)$user_id][] = $key;
+            }
+            nc_read_persist_db([$key]);
+        } elseif (preg_match('/^ro(\d+)$/', $key, $m) && $user_email !== '') {
+            $stmt = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE id = ? AND recipient_email = ? AND type IN ('approve_request','reject_request')");
+            $stmt->bind_param("is", $m[1], $user_email);
+            $stmt->execute();
+            $stmt->close();
+        } elseif (preg_match('/^rq(\d+)$/', $key, $m)) {
+            $stmt = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE id = ? AND recipient_role = ? AND type IN ('completion','cancellation')");
+            $stmt->bind_param("is", $m[1], $user_role);
+            $stmt->execute();
+            $stmt->close();
+        } elseif (preg_match('/^tro(\d+)$/', $key, $m) && $user_email !== '') {
+            $stmt = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE id = ? AND recipient_email = ? AND type IN ('transparency_approved','transparency_rejected')");
+            $stmt->bind_param("is", $m[1], $user_email);
+            $stmt->execute();
+            $stmt->close();
+        } elseif (preg_match('/^stu(\d+)$/', $key, $m) && $user_email !== '') {
+            $stmt = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE id = ? AND recipient_email = ? AND type = 'no_update_stale'");
+            $stmt->bind_param("is", $m[1], $user_email);
+            $stmt->execute();
+            $stmt->close();
+        } elseif (preg_match('/^sa(\d+)$/', $key, $m) && $user_email !== '') {
+            $stmt = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE id = ? AND recipient_email = ? AND type IN ('complete_report','cancel_report')");
+            $stmt->bind_param("is", $m[1], $user_email);
+            $stmt->execute();
+            $stmt->close();
         }
         echo json_encode(['success' => true]);
         exit;
@@ -1602,7 +1612,7 @@ function notification_assignment_url(array $ap): string {
                 'unread' => !in_array('rep' . (int)$report['id'], $nc_admin_read, true),
                 'url' => notification_pending_report_focus_url($report),
                 'url_label' => 'View Report',
-                'mark' => ['url' => '', 'data' => ['action' => 'mark_read', 'type' => 'report', 'id' => (int)$report['id']]],
+                'mark' => null,
             ]);
         }
 
@@ -1657,7 +1667,7 @@ function notification_assignment_url(array $ap): string {
                 'unread' => !in_array('tur' . (int)$tr['id'], $nc_admin_read, true),
                 'url' => notification_transparency_request_url($tr),
                 'url_label' => 'Review Request',
-                'mark' => ['url' => '', 'data' => ['action' => 'mark_read_transparency', 'id' => (int)$tr['id']]],
+                'mark' => null,
             ]);
         }
 
@@ -1718,6 +1728,11 @@ function notification_assignment_url(array $ap): string {
         // admin has ever seen stays visible, with the current read state.
         foreach (nc_admin_snapshot_feed() as $payload) {
             $payload['unread'] = !in_array($payload['id'], $nc_admin_read, true);
+            // Request Report and Transparency Upload Request cards: no Mark as
+            // Read button. Opening View Report / Review Request marks them read.
+            if (in_array($payload['kind'] ?? '', ['report', 'transparency'], true)) {
+                $payload['mark'] = null;
+            }
             $nc_push($payload);
         }
     } else {
@@ -2009,7 +2024,12 @@ function notification_assignment_url(array $ap): string {
                                 $search_text = strtolower(trim(implode(' ', array_filter([$item['title'], $item['desc'], $item['sub'], $item['report_id']]))));
                                 $mark_payload = $item['mark'] ? json_encode($item['mark']['data']) : '';
                             ?>
-                            <div class="nc-card <?php echo $item['unread'] ? 'unread' : 'read'; ?>" data-kind="<?php echo $item['kind']; ?>" data-unread="<?php echo $item['unread'] ? 'true' : 'false'; ?>" data-id="<?php echo htmlspecialchars($item['id']); ?>" data-search="<?php echo htmlspecialchars($search_text); ?>">
+                            <?php
+                                $nc_url_label = (string)($item['url_label'] ?? '');
+                                $nc_auto_read = $is_trans_role
+                                    || in_array($nc_url_label, ['View Report', 'Review Request'], true);
+                            ?>
+                            <div class="nc-card <?php echo $item['unread'] ? 'unread' : 'read'; ?>" data-kind="<?php echo $item['kind']; ?>" data-unread="<?php echo $item['unread'] ? 'true' : 'false'; ?>" data-id="<?php echo htmlspecialchars($item['id']); ?>" data-search="<?php echo htmlspecialchars($search_text); ?>"<?php echo ($is_admin && ($item['kind'] ?? '') === 'report') ? ' onclick="ncOpenAdminReport(event)"' : ''; ?>>
                                 <div class="nc-icon" style="background: <?php echo $item['color']; ?>;"><i class="fas <?php echo $item['icon']; ?>"></i></div>
                                 <div class="nc-body">
                                     <div class="nc-title-row">
@@ -2019,7 +2039,7 @@ function notification_assignment_url(array $ap): string {
                                         </div>
                                         <div class="nc-actions">
                                             <?php if ($item['url']): ?>
-                                                <a class="nc-btn nc-btn-primary" href="<?php echo $item['url']; ?>" target="_parent" <?php echo $is_trans_role ? 'onclick="return ncViewProject(event)"' : ''; ?>><i class="fas fa-external-link-alt"></i> <?php echo $item['url_label']; ?></a>
+                                                <a class="nc-btn nc-btn-primary" href="<?php echo $item['url']; ?>" target="_parent" <?php echo $nc_auto_read ? 'onclick="return ncViewProject(event)"' : ''; ?>><i class="fas fa-external-link-alt"></i> <?php echo $item['url_label']; ?></a>
                                             <?php endif; ?>
                                             <?php if ($item['mark'] && $item['unread']): ?>
                                                 <button class="nc-btn nc-mark" data-mark-url="<?php echo $item['mark']['url']; ?>" data-mark-payload='<?php echo $mark_payload; ?>' onclick="ncMarkRead(this)"><i class="fas fa-check"></i> Mark as read</button>
@@ -2147,15 +2167,23 @@ function notification_assignment_url(array $ap): string {
             ncApplyFilters();
         }
 
-        // The View Project / View Report button: mark exactly this card as read
-        // (transportation roles only) before navigating. The card stays visible
-        // but renders as read and the badge drops immediately; the session
-        // write is what keeps the count down after a refresh.
+        // Admin Request Report cards: clicking the card (except dismiss / the
+        // View Report button) follows the same open-and-mark-read path.
+        function ncOpenAdminReport(ev) {
+            if (ev.target.closest('.nc-dismiss, a.nc-btn-primary')) return;
+            var card = ev.currentTarget;
+            var link = card.querySelector('a.nc-btn-primary');
+            if (!link) return;
+            if (typeof link.click === 'function') link.click();
+        }
+
+        // View Report / Review Request: mark this card as read before navigating.
+        // Transportation View Project keeps the same path. Already-read cards
+        // skip the badge drop and just follow the existing redirect.
         function ncViewProject(ev) {
             var el = ev.currentTarget;
-            if (!(NC_IS_TRANS_SUPERVISOR || NC_IS_TRANS_OFFICER)) return true;
-            if (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey || ev.button !== 0) return true;
             var card = el.closest('.nc-card');
+            if (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey || ev.button !== 0) return true;
             if (!card || card.dataset.unread !== 'true') return true;
             var cardId = card.dataset.id || '';
             var href = el.getAttribute('href') || '';

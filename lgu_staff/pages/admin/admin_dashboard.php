@@ -31,6 +31,8 @@ $_SESSION['last_activity'] = time();
 
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
+require_once __DIR__ . '/../api/cimm_verification_data.php';
+require_once __DIR__ . '/../api/ipms_road_projects_data.php';
 
 // Ensure approved_at and rejected_at columns exist in users table
 if ($conn->connect_error === null) {
@@ -95,6 +97,145 @@ try {
     ];
 }
 
+// Pending Approvals panel: same population as account_approvals.php (staff/
+// citizen roles still waiting). Excludes already approved/rejected rows and
+// roles that page does not review (e.g. system_admin). Chart stats above are
+// left unchanged.
+$pending_approval_where = "role IN ('lgu_staff', 'citizen', 'road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer')
+    AND account_status = 'pending'
+    AND approved_at IS NULL
+    AND rejected_at IS NULL";
+$pending_users_list = [];
+$pending_approvals_count = 0;
+try {
+    $cnt = $conn->prepare("SELECT COUNT(*) AS count FROM users WHERE {$pending_approval_where}");
+    $cnt->execute();
+    $pending_approvals_count = (int)$cnt->get_result()->fetch_assoc()['count'];
+    $cnt->close();
+
+    $pu_stmt = $conn->prepare("SELECT id, full_name, role, created_at FROM users WHERE {$pending_approval_where} ORDER BY created_at DESC LIMIT 5");
+    $pu_stmt->execute();
+    $pending_users_list = $pu_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $pu_stmt->close();
+} catch (Exception $e) {
+    error_log("Dashboard pending approvals error: " . $e->getMessage());
+    $pending_users_list = [];
+    $pending_approvals_count = 0;
+}
+
+// High Priority panel: the same live reports Report Management shows when
+// Priority = High (LGU, Citizen, CIMM, Infrastructure). Not a separate copy.
+$high_priority_reports = [];
+$high_priority_panel_count = 0;
+try {
+    $hp_rows = [];
+    $has_restored = false;
+    try {
+        $col = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'restored_from_archive'");
+        $has_restored = $col && $col->num_rows > 0;
+    } catch (Exception $e) {}
+    $lgu_cancelled = $has_restored
+        ? " OR (status = 'cancelled' AND restored_from_archive = 1)"
+        : '';
+
+    // LGU Monitoring (default Report Management status=all).
+    $lgu_sql = "SELECT id, report_id, title, status, created_at, 'lgu_reports' AS rm_source
+                FROM road_transportation_reports
+                WHERE report_source = 'local'
+                  AND created_by != 0
+                  AND report_type != 'infrastructure_issue'
+                  AND LOWER(priority) = 'high'
+                  AND (
+                        status IN ('approved', 'in-progress')
+                        {$lgu_cancelled}
+                  )";
+    $res = $conn->query($lgu_sql);
+    if ($res) {
+        while ($row = $res->fetch_assoc()) $hp_rows[] = $row;
+    }
+
+    // Citizen Reports (post-verification, not completed).
+    $citizen_sql = "SELECT id, report_id, title, status, created_at, 'citizen' AS rm_source
+                    FROM road_transportation_reports
+                    WHERE created_by = 0
+                      AND report_type != 'infrastructure_issue'
+                      AND LOWER(priority) = 'high'
+                      AND LOWER(status) NOT IN ('pending', 'awaiting verification', 'for verification', 'under review', 'submitted', 'new')
+                      AND status != 'completed'";
+    $res = $conn->query($citizen_sql);
+    if ($res) {
+        while ($row = $res->fetch_assoc()) $hp_rows[] = $row;
+    }
+
+    // CIMM — same visibility as getCimmReportsForManagement(status=all).
+    try {
+        $pdo = rgmap_verification_pdo();
+        $cimm_raw = rgmap_fetch_cimm_verification_reports($pdo, [
+            'verification_status' => ['Approved', 'In Progress', 'Completed', 'Cancelled'],
+            'infrastructure' => 'Roads',
+        ]);
+        $override = [
+            'Pending' => 'pending',
+            'Approved' => 'approved',
+            'In Progress' => 'in-progress',
+            'Completed' => 'completed',
+            'Cancelled' => 'cancelled',
+        ];
+        foreach ($cimm_raw as $crow) {
+            if (strtolower((string)($crow['priority'] ?? '')) !== 'high') continue;
+            $verification = $crow['verification_status'] ?? 'Pending Review';
+            if ($verification === 'Dismissed') {
+                $st = 'cancelled';
+            } elseif (isset($override[$verification])) {
+                $st = $override[$verification];
+            } else {
+                $st = cimm_resolution_status_to_display($crow['resolution_status'] ?? null, $crow['approval_status'] ?? null);
+            }
+            $st_l = strtolower($st);
+            if ($st_l === 'pending' || $st_l === 'completed') continue;
+            if ($st_l === 'cancelled' && (int)($crow['restored_from_archive'] ?? 0) !== 1) continue;
+            $hp_rows[] = [
+                'id' => (int)($crow['id'] ?? $crow['cimm_req_id'] ?? 0),
+                'report_id' => $crow['reference_code'] ?? ('REQ-' . ($crow['cimm_req_id'] ?? '')),
+                'title' => $crow['infrastructure'] ?? 'CIMM Report',
+                'status' => $st,
+                'created_at' => $crow['submitted_at'] ?? $crow['created_at'] ?? '',
+                'rm_source' => 'cimm',
+            ];
+        }
+    } catch (Exception $e) {
+        error_log('Dashboard high-priority CIMM: ' . $e->getMessage());
+    }
+
+    // Infrastructure Projects (approved IPMS rows on Report Management).
+    try {
+        foreach (rgmap_infra_panel_rows(null, 'approved') as $ir) {
+            if (strtolower((string)($ir['priority'] ?? '')) !== 'high') continue;
+            $hp_rows[] = [
+                'id' => (int)($ir['id'] ?? 0),
+                'report_id' => (string)($ir['report_id'] ?? ''),
+                'title' => (string)($ir['title'] ?? ''),
+                'status' => (string)($ir['status'] ?? 'approved'),
+                'created_at' => $ir['created_at'] ?? '',
+                'rm_source' => 'maintenance',
+            ];
+        }
+    } catch (Exception $e) {
+        error_log('Dashboard high-priority infra: ' . $e->getMessage());
+    }
+
+    usort($hp_rows, static function ($a, $b) {
+        return (strtotime((string)($b['created_at'] ?? '')) ?: 0)
+             <=> (strtotime((string)($a['created_at'] ?? '')) ?: 0);
+    });
+    $high_priority_panel_count = count($hp_rows);
+    $high_priority_reports = array_slice($hp_rows, 0, 5);
+} catch (Exception $e) {
+    error_log('Dashboard high-priority panel: ' . $e->getMessage());
+    $high_priority_reports = [];
+    $high_priority_panel_count = 0;
+}
+
 // Report statistics for charts
 $report_stats = [
     'by_status' => [],
@@ -132,23 +273,145 @@ try {
     error_log("Report stats error: " . $e->getMessage());
 }
 
-// Latest reports for the panel
-$latest_reports = [];
+// Awaiting for Assignments: live Unassigned reports from the same sets
+// Report Management shows (status=all), using report_assignments.
+$awaiting_assignment_reports = [];
 try {
-    $lrstmt = $conn->prepare("
-        SELECT r.id, r.report_id, r.title, r.report_type, r.report_category, r.report_source,
-               r.priority, r.status, r.created_at, r.created_by,
-               u.full_name as reporter_name
-        FROM road_transportation_reports r
-        LEFT JOIN users u ON r.created_by = u.id
-        ORDER BY r.created_at DESC
-        LIMIT 10
-    ");
-    $lrstmt->execute();
-    $latest_reports = $lrstmt->get_result()->fetch_all(MYSQLI_ASSOC);
-    $lrstmt->close();
+    $aa_rows = [];
+    $has_restored = false;
+    try {
+        $col = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'restored_from_archive'");
+        $has_restored = $col && $col->num_rows > 0;
+    } catch (Exception $e) {}
+    $lgu_cancelled = $has_restored
+        ? " OR (status = 'cancelled' AND restored_from_archive = 1)"
+        : '';
+
+    $aa_unassigned = '';
+    try {
+        $chk = $conn->query("SHOW TABLES LIKE 'report_assignments'");
+        if ($chk && $chk->num_rows > 0) {
+            $aa_unassigned = " AND NOT EXISTS (
+                SELECT 1 FROM report_assignments ra
+                WHERE ra.report_id = r.id
+                  AND ra.report_type = 'road_transportation_reports'
+                  AND ra.status = 'active'
+            )";
+        }
+    } catch (Exception $e) {}
+
+    $lgu_sql = "SELECT r.id, r.report_id, r.title, r.priority, r.status, r.created_at,
+                       'lgu_reports' AS rm_source, 'LGU Monitoring' AS source_label
+                FROM road_transportation_reports r
+                WHERE r.report_source = 'local'
+                  AND r.created_by != 0
+                  AND r.report_type != 'infrastructure_issue'
+                  AND (
+                        r.status IN ('approved', 'in-progress')
+                        {$lgu_cancelled}
+                  )
+                  {$aa_unassigned}";
+    $res = $conn->query($lgu_sql);
+    if ($res) {
+        while ($row = $res->fetch_assoc()) $aa_rows[] = $row;
+    }
+
+    $citizen_sql = "SELECT r.id, r.report_id, r.title, r.priority, r.status, r.created_at,
+                           'citizen' AS rm_source, 'Citizen' AS source_label
+                    FROM road_transportation_reports r
+                    WHERE r.created_by = 0
+                      AND r.report_type != 'infrastructure_issue'
+                      AND LOWER(r.status) NOT IN ('pending', 'awaiting verification', 'for verification', 'under review', 'submitted', 'new')
+                      AND r.status != 'completed'
+                      {$aa_unassigned}";
+    $res = $conn->query($citizen_sql);
+    if ($res) {
+        while ($row = $res->fetch_assoc()) $aa_rows[] = $row;
+    }
+
+    $assigned_keys = [];
+    try {
+        $chk = $conn->query("SHOW TABLES LIKE 'report_assignments'");
+        if ($chk && $chk->num_rows > 0) {
+            $ak = $conn->query("SELECT report_type, report_id FROM report_assignments WHERE status = 'active'");
+            if ($ak) {
+                while ($row = $ak->fetch_assoc()) {
+                    $assigned_keys[(string)$row['report_type'] . ':' . (int)$row['report_id']] = true;
+                }
+            }
+        }
+    } catch (Exception $e) {}
+
+    try {
+        $pdo = rgmap_verification_pdo();
+        $cimm_raw = rgmap_fetch_cimm_verification_reports($pdo, [
+            'verification_status' => ['Approved', 'In Progress', 'Completed', 'Cancelled'],
+            'infrastructure' => 'Roads',
+        ]);
+        $override = [
+            'Pending' => 'pending',
+            'Approved' => 'approved',
+            'In Progress' => 'in-progress',
+            'Completed' => 'completed',
+            'Cancelled' => 'cancelled',
+        ];
+        foreach ($cimm_raw as $crow) {
+            $cid = (int)($crow['id'] ?? $crow['cimm_req_id'] ?? 0);
+            if (isset($assigned_keys['cimm_verification_reports:' . $cid])) continue;
+            $verification = $crow['verification_status'] ?? 'Pending Review';
+            if ($verification === 'Dismissed') {
+                $st = 'cancelled';
+            } elseif (isset($override[$verification])) {
+                $st = $override[$verification];
+            } else {
+                $st = cimm_resolution_status_to_display($crow['resolution_status'] ?? null, $crow['approval_status'] ?? null);
+            }
+            $st_l = strtolower($st);
+            if ($st_l === 'pending' || $st_l === 'completed') continue;
+            if ($st_l === 'cancelled' && (int)($crow['restored_from_archive'] ?? 0) !== 1) continue;
+            $aa_rows[] = [
+                'id' => $cid,
+                'report_id' => $crow['reference_code'] ?? ('REQ-' . ($crow['cimm_req_id'] ?? '')),
+                'title' => $crow['infrastructure'] ?? 'CIMM Report',
+                'priority' => strtolower((string)($crow['priority'] ?? 'medium')),
+                'status' => $st,
+                'created_at' => $crow['submitted_at'] ?? $crow['created_at'] ?? '',
+                'rm_source' => 'cimm',
+                'source_label' => 'CIMM',
+            ];
+        }
+    } catch (Exception $e) {
+        error_log('Dashboard awaiting-assignment CIMM: ' . $e->getMessage());
+    }
+
+    try {
+        foreach (rgmap_infra_panel_rows(null, 'approved') as $ir) {
+            $iid = (int)($ir['id'] ?? 0);
+            $itable = !empty($ir['from_ipms']) ? 'ipms_road_projects' : 'road_maintenance_reports';
+            if (isset($assigned_keys[$itable . ':' . $iid])) continue;
+            $aa_rows[] = [
+                'id' => $iid,
+                'report_id' => (string)($ir['report_id'] ?? ''),
+                'title' => (string)($ir['title'] ?? ''),
+                'priority' => (string)($ir['priority'] ?? 'medium'),
+                'status' => (string)($ir['status'] ?? 'approved'),
+                'created_at' => $ir['created_at'] ?? '',
+                'rm_source' => 'maintenance',
+                'source_label' => 'Infrastructure',
+            ];
+        }
+    } catch (Exception $e) {
+        error_log('Dashboard awaiting-assignment infra: ' . $e->getMessage());
+    }
+
+    usort($aa_rows, static function ($a, $b) {
+        return (strtotime((string)($b['created_at'] ?? '')) ?: 0)
+             <=> (strtotime((string)($a['created_at'] ?? '')) ?: 0);
+    });
+    $awaiting_assignment_reports = array_slice($aa_rows, 0, 10);
 } catch (Exception $e) {
-    error_log("Latest reports error: " . $e->getMessage());
+    error_log('Dashboard awaiting-assignment panel: ' . $e->getMessage());
+    $awaiting_assignment_reports = [];
 }
 
 // Recent activity from audit logs
@@ -680,11 +943,11 @@ try {
                     </div>
                 </div>
 
-                <!-- Latest Uploaded Reports Table -->
-                <div class="card" data-source="road_transportation_reports, users">
+                <!-- Awaiting for Assignments -->
+                <div class="card" data-source="road_transportation_reports">
                     <div class="card-header">
-                        <h3 class="card-title"><i class="fas fa-file-alt"></i> Latest Uploaded Reports</h3>
-                        <a href="report_management.php" class="btn-sm btn-primary">View All</a>
+                        <h3 class="card-title"><i class="fas fa-user-plus"></i> Awaiting for Assignments</h3>
+                        <a href="report_management.php?assignment=unassigned" class="btn-sm btn-primary">View All</a>
                     </div>
                     <div class="table-container">
                         <table>
@@ -696,22 +959,34 @@ try {
                                     <th>Priority</th>
                                     <th>Status</th>
                                     <th>Submitted</th>
-                                    <th>Action</th>
+                                    <th>View</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php if (empty($latest_reports)): ?>
-                                    <tr><td colspan="7" style="text-align:center; color:#94a3b8; padding:24px;">No reports found.</td></tr>
+                                <?php if (empty($awaiting_assignment_reports)): ?>
+                                    <tr><td colspan="7" style="text-align:center; color:#94a3b8; padding:24px;">No unassigned reports.</td></tr>
                                 <?php else: ?>
-                                    <?php foreach ($latest_reports as $lr): ?>
+                                    <?php foreach ($awaiting_assignment_reports as $lr): ?>
+                                    <?php
+                                        $lr_source = (string)($lr['rm_source'] ?? 'lgu_reports');
+                                        $lr_id = (int)($lr['id'] ?? 0);
+                                        $lr_status = ucfirst(str_replace('-', ' ', (string)($lr['status'] ?? '')));
+                                        $lr_priority = strtolower((string)($lr['priority'] ?? 'medium'));
+                                        $lr_label = (string)($lr['source_label'] ?? 'Citizen');
+                                        $lr_badge = 'citizen';
+                                        if ($lr_source === 'lgu_reports') $lr_badge = 'lgu';
+                                        elseif ($lr_source === 'cimm') $lr_badge = 'cimm';
+                                        elseif ($lr_source === 'maintenance') $lr_badge = 'infrastructure';
+                                        $lr_view = 'report_management.php?source=' . rawurlencode($lr_source) . '&amp;id=' . $lr_id . '&amp;open=1';
+                                    ?>
                                     <tr>
-                                        <td style="font-family:monospace; font-size:12px;"><?php echo htmlspecialchars($lr['report_id']); ?></td>
+                                        <td style="font-family:monospace; font-size:12px;"><?php echo htmlspecialchars((string)($lr['report_id'] ?? '')); ?></td>
                                         <td><?php echo htmlspecialchars($lr['title'] ?? 'Untitled'); ?></td>
-                                        <td><span class="badge badge-<?php echo strtolower($lr['report_source'] ?? 'citizen'); ?>"><?php echo ucfirst($lr['report_source'] ?? 'Citizen'); ?></span></td>
-                                        <td><span class="badge badge-<?php echo strtolower($lr['priority'] ?? 'medium'); ?>"><?php echo ucfirst($lr['priority'] ?? 'Medium'); ?></span></td>
-                                        <td><span class="badge badge-<?php echo strtolower(str_replace(' ', '-', $lr['status'])); ?>"><?php echo ucfirst($lr['status']); ?></span></td>
-                                        <td style="font-size:12px; color:#64748b;"><?php echo date('M d, Y', strtotime($lr['created_at'])); ?></td>
-                                        <td><a href="report_management.php?focus_report_id=<?php echo $lr['id']; ?>" class="btn-sm btn-primary"><i class="fas fa-eye"></i> View</a></td>
+                                        <td><span class="badge badge-<?php echo htmlspecialchars($lr_badge); ?>"><?php echo htmlspecialchars($lr_label); ?></span></td>
+                                        <td><span class="badge badge-<?php echo htmlspecialchars($lr_priority); ?>"><?php echo ucfirst(htmlspecialchars($lr_priority)); ?></span></td>
+                                        <td><span class="badge badge-<?php echo htmlspecialchars(strtolower(str_replace(' ', '-', (string)($lr['status'] ?? '')))); ?>"><?php echo htmlspecialchars($lr_status); ?></span></td>
+                                        <td style="font-size:12px; color:#64748b;"><?php echo !empty($lr['created_at']) ? date('M d, Y', strtotime($lr['created_at'])) : '—'; ?></td>
+                                        <td><?php if ($lr_id > 0): ?><a href="<?php echo $lr_view; ?>" class="btn-sm btn-primary"><i class="fas fa-eye"></i> View</a><?php endif; ?></td>
                                     </tr>
                                     <?php endforeach; ?>
                                 <?php endif; ?>
@@ -755,19 +1030,10 @@ try {
                 <div class="card" data-source="users">
                     <div class="card-header">
                         <h3 class="card-title"><i class="fas fa-user-clock"></i> Pending Approvals</h3>
-                        <span class="badge badge-pending"><?php echo $stats['pending_users']; ?></span>
+                        <span class="badge badge-pending"><?php echo (int)$pending_approvals_count; ?></span>
                     </div>
                     <div class="activity-list">
-                        <?php
-                        $pending_users_list = [];
-                        try {
-                            $pu_stmt = $conn->prepare("SELECT id, full_name, role, created_at FROM users WHERE account_status = 'pending' ORDER BY created_at DESC LIMIT 5");
-                            $pu_stmt->execute();
-                            $pending_users_list = $pu_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-                            $pu_stmt->close();
-                        } catch (Exception $e) {}
-                        ?>
-                        <?php if (empty($pending_users_list)): ?>
+                        <?php if ($pending_approvals_count === 0 || empty($pending_users_list)): ?>
                             <p style="text-align:center; color:#94a3b8; padding:16px;">No pending approvals.</p>
                         <?php else: ?>
                             <?php foreach ($pending_users_list as $pu): ?>
@@ -788,29 +1054,23 @@ try {
                 <div class="card" data-source="road_transportation_reports">
                     <div class="card-header">
                         <h3 class="card-title"><i class="fas fa-exclamation-triangle"></i> High Priority</h3>
-                        <span class="badge badge-high"><?php echo $quick_insights['high_priority']; ?></span>
+                        <span class="badge badge-high"><?php echo (int)$high_priority_panel_count; ?></span>
                     </div>
                     <div class="activity-list">
-                        <?php
-                        $high_priority_reports = [];
-                        try {
-                            $hp_stmt = $conn->prepare("SELECT id, report_id, title, status, created_at FROM road_transportation_reports WHERE priority = 'high' AND status NOT IN ('completed','cancelled') ORDER BY created_at DESC LIMIT 5");
-                            $hp_stmt->execute();
-                            $high_priority_reports = $hp_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-                            $hp_stmt->close();
-                        } catch (Exception $e) {}
-                        ?>
-                        <?php if (empty($high_priority_reports)): ?>
+                        <?php if ($high_priority_panel_count === 0 || empty($high_priority_reports)): ?>
                             <p style="text-align:center; color:#94a3b8; padding:16px;">No high priority reports.</p>
                         <?php else: ?>
                             <?php foreach ($high_priority_reports as $hp): ?>
+                                <?php
+                                    $hp_status = ucfirst(str_replace('-', ' ', (string)($hp['status'] ?? '')));
+                                ?>
                                 <div class="widget-item">
                                     <div class="widget-avatar" style="background:#f43f5e;"><i class="fas fa-exclamation"></i></div>
                                     <div class="widget-info">
                                         <div class="widget-title"><?php echo htmlspecialchars($hp['title'] ?? 'Untitled'); ?></div>
-                                        <div class="widget-meta"><?php echo htmlspecialchars($hp['report_id']); ?> &middot; <?php echo ucfirst($hp['status']); ?></div>
+                                        <div class="widget-meta"><?php echo htmlspecialchars($hp['report_id'] ?? ''); ?> &middot; <?php echo htmlspecialchars($hp_status); ?></div>
                                     </div>
-                                    <a href="report_management.php?focus_report_id=<?php echo $hp['id']; ?>" class="btn-sm btn-primary"><i class="fas fa-eye"></i></a>
+                                    <a href="report_management.php?focus_report_id=<?php echo (int)($hp['id'] ?? 0); ?>" class="btn-sm btn-primary"><i class="fas fa-eye"></i></a>
                                 </div>
                             <?php endforeach; ?>
                         <?php endif; ?>
