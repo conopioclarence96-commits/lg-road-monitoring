@@ -18,7 +18,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'system_admin') {
 // Only real notification types are considered: the marker rows (type 'admin_keep',
 // 'admin_read', 'always_on_read') reference report_id 0 and must never be removed.
 $sql = "DELETE rn FROM report_notifications rn
-        WHERE rn.type IN ('progress_update','approve_request','reject_request','complete_report','cancel_report','completion','cancellation')
+        WHERE rn.type IN ('progress_update','approve_request','reject_request','complete_report','cancel_report','completion','cancellation','no_update_stale')
           AND NOT EXISTS (
             SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
             UNION ALL

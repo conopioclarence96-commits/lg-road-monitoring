@@ -225,6 +225,53 @@ function getNotificationsFeedCount($conn, $user_role, $user_id, $email) {
             $stmt->close();
             foreach ($rows as $r) { if (!isset($dismissed_map['sa' . $r['id']])) $count++; }
         }
+
+        // The admin's decision on a Transparency Upload Request this supervisor
+        // submitted (see the 'tro' cards on the Notifications page). Matched
+        // through the request id stored in update_id so only their own requests
+        // count. A missing request table just means no cards.
+        if ($email !== '') {
+            try {
+                $has_tur = $conn->query("SHOW TABLES LIKE 'transparency_upload_requests'");
+                if ($has_tur && $has_tur->num_rows > 0) {
+                    $stmt = $conn->prepare("
+                        SELECT rn.id FROM report_notifications rn
+                        JOIN transparency_upload_requests tr
+                          ON tr.id = rn.update_id AND tr.requested_by = ?
+                        WHERE rn.is_read = 0 AND rn.recipient_email = ?
+                          AND rn.type IN ('transparency_approved', 'transparency_rejected')
+                        LIMIT 20
+                    ");
+                    $stmt->bind_param("is", $user_id, $email);
+                    $stmt->execute();
+                    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                    $stmt->close();
+                    foreach ($rows as $r) { if (!isset($dismissed_map['tro' . $r['id']])) $count++; }
+                }
+            } catch (Exception $e) {}
+        }
+    }
+
+    // 10-day no-progress-update alerts addressed to this transportation account.
+    if ($email !== '' && $is_trans_role) {
+        $stale_exists = "SELECT 1 FROM road_transportation_reports
+                         WHERE id = rn.report_id
+                           AND report_category = 'transportation'
+                           AND report_type != 'infrastructure_issue'";
+        try {
+            $stmt = $conn->prepare("
+                SELECT rn.id FROM report_notifications rn
+                WHERE rn.is_read = 0 AND rn.recipient_email = ?
+                  AND rn.type = 'no_update_stale'
+                  AND EXISTS (" . $stale_exists . " LIMIT 1)
+                LIMIT 20
+            ");
+            $stmt->bind_param("s", $email);
+            $stmt->execute();
+            $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+            foreach ($rows as $r) { if (!isset($dismissed_map['stu' . $r['id']])) $count++; }
+        } catch (Exception $e) {}
     }
 
     return $count;
@@ -235,6 +282,7 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
     global $conn;
     $count = 0;
     if ($conn) {
+        dispatch_no_update_stale_notifications($conn);
         // Email of the logged-in user — used to match notifications that
         // are targeted to an individual (request outcomes, own action
         // results) rather than to a whole role.
@@ -334,6 +382,26 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
                 $stmt->close();
                 foreach ($rows as $r) { if (!isset($dismissed['su' . $r['id']])) $count++; }
 
+                if ($email !== '') {
+                    $stale_exists = "SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
+                                     UNION ALL
+                                     SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
+                                     UNION ALL
+                                     SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id";
+                    $stmt = $conn->prepare("
+                        SELECT rn.id FROM report_notifications rn
+                        WHERE rn.is_read = 0 AND rn.recipient_email = ?
+                          AND rn.type = 'no_update_stale'
+                          AND EXISTS (" . $stale_exists . " LIMIT 1)
+                        LIMIT 20
+                    ");
+                    $stmt->bind_param("s", $email);
+                    $stmt->execute();
+                    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                    $stmt->close();
+                    foreach ($rows as $r) { if (!isset($dismissed['stu' . $r['id']])) $count++; }
+                }
+
                 return $count;
             } catch (Exception $e) {
                 return $count;
@@ -371,7 +439,7 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
                     WHERE rn.is_read = 0
                       AND (
                           (rn.recipient_role = ? AND rn.type IN ('completion', 'cancellation'))
-                          OR (rn.recipient_email = ? AND rn.type IN ('approve_request', 'reject_request', 'complete_report', 'cancel_report'))
+                          OR (rn.recipient_email = ? AND rn.type IN ('approve_request', 'reject_request', 'complete_report', 'cancel_report', 'no_update_stale'))
                       )
                       AND EXISTS (" . $exists . " LIMIT 1)
                     LIMIT 50
@@ -393,9 +461,38 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
                     $id = $row['id'];
                     if (!isset($dismissed['rq' . $id])
                         && !isset($dismissed['sa' . $id])
-                        && !isset($dismissed['ro' . $id])) {
+                        && !isset($dismissed['ro' . $id])
+                        && !isset($dismissed['stu' . $id])) {
                         $count++;
                     }
+                }
+
+                // The admin's decision on a Transparency Upload Request this
+                // supervisor submitted ('tro' cards on the Notifications page).
+                // Counted on its own because these notices belong to a request
+                // rather than to a report row, so they are matched through the
+                // request id kept in update_id.
+                if ($email !== '') {
+                    try {
+                        $has_tur = $conn->query("SHOW TABLES LIKE 'transparency_upload_requests'");
+                        if ($has_tur && $has_tur->num_rows > 0) {
+                            $stmt = $conn->prepare("
+                                SELECT rn.id FROM report_notifications rn
+                                JOIN transparency_upload_requests tr
+                                  ON tr.id = rn.update_id AND tr.requested_by = ?
+                                WHERE rn.is_read = 0 AND rn.recipient_email = ?
+                                  AND rn.type IN ('transparency_approved', 'transparency_rejected')
+                                LIMIT 20
+                            ");
+                            $stmt->bind_param("is", $user_id, $email);
+                            $stmt->execute();
+                            $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                            $stmt->close();
+                            foreach ($rows as $row) {
+                                if (!isset($dismissed['tro' . $row['id']])) $count++;
+                            }
+                        }
+                    } catch (Exception $e) {}
                 }
             } elseif ($user_role === 'trans_monitoring_officer') {
                 // Transportation monitoring officers: their unread notifications
@@ -477,6 +574,7 @@ $nav_items = [
         ['href' => $nav_base . 'pages/shared/road_transportation_monitoring.php', 'icon' => 'map-marked-alt', 'title' => 'Road Monitoring', 'roles' => ['system_admin','road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer']],
         ['href' => $nav_base . 'pages/admin/verification_monitoring.php', 'icon' => 'shield-alt', 'title' => 'Verification Reports', 'roles' => ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor']],
         ['href' => $nav_base . 'pages/admin/report_management.php', 'icon' => 'clipboard-list', 'title' => 'Report Management', 'roles' => ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor']],
+        ['href' => $nav_base . 'pages/shared/completed_projects.php', 'icon' => 'check-circle', 'title' => 'Completed Projects', 'roles' => ['system_admin','road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer']],
     ],
     'transparency' => [
         ['href' => $nav_base . 'pages/shared/public_transparency.php', 'icon' => 'eye', 'title' => 'Public Transparency', 'roles' => ['system_admin', 'lgu_staff']],
@@ -554,6 +652,10 @@ foreach ($nav_items as $section => $items) {
                                     } elseif ($user_role === 'system_admin') {
                                         $display_title = 'Transportation and Road Monitoring';
                                     }
+                                } elseif ($item['title'] === 'Completed Projects' && in_array($user_role, ['trans_ops_supervisor', 'trans_monitoring_officer'], true)) {
+                                    $display_title = 'Completed Transportation Projects';
+                                } elseif ($item['title'] === 'Completed Projects' && $user_role === 'road_ops_supervisor') {
+                                    $display_title = 'Completed Road Projects';
                                 }
                                 echo htmlspecialchars($display_title);
                                 ?>

@@ -51,8 +51,11 @@ $conn->query("CREATE TABLE IF NOT EXISTS published_completed_projects (
     description TEXT,
     location VARCHAR(255) DEFAULT NULL,
     completed_date DATE DEFAULT NULL,
+    start_date DATE DEFAULT NULL,
+    end_date DATE DEFAULT NULL,
     cost DECIMAL(12,2) DEFAULT NULL,
     completed_by VARCHAR(255) DEFAULT NULL,
+    progress_conducted_by VARCHAR(255) DEFAULT NULL,
     photo VARCHAR(500) DEFAULT NULL,
     before_photo VARCHAR(500) DEFAULT NULL,
     is_published TINYINT(1) NOT NULL DEFAULT 0,
@@ -64,6 +67,28 @@ $conn->query("CREATE TABLE IF NOT EXISTS published_completed_projects (
 $check_col = $conn->query("SHOW COLUMNS FROM published_completed_projects LIKE 'is_published'");
 if ($check_col && $check_col->num_rows === 0) {
     $conn->query("ALTER TABLE published_completed_projects ADD COLUMN is_published TINYINT(1) NOT NULL DEFAULT 0 AFTER before_photo");
+}
+
+// Project schedule columns, filled from the first/last progress update on import
+foreach (['start_date' => 'completed_date', 'end_date' => 'start_date'] as $date_col => $after_col) {
+    $check_col = $conn->query("SHOW COLUMNS FROM published_completed_projects LIKE '$date_col'");
+    if ($check_col && $check_col->num_rows === 0) {
+        $conn->query("ALTER TABLE published_completed_projects ADD COLUMN $date_col DATE DEFAULT NULL AFTER $after_col");
+    }
+}
+
+// Staff who posted the progress updates behind the project
+$check_col = $conn->query("SHOW COLUMNS FROM published_completed_projects LIKE 'progress_conducted_by'");
+if ($check_col && $check_col->num_rows === 0) {
+    $conn->query("ALTER TABLE published_completed_projects ADD COLUMN progress_conducted_by VARCHAR(255) DEFAULT NULL AFTER completed_by");
+}
+
+// Date inputs post YYYY-MM-DD; anything else is stored as NULL. Returns
+// $fallback only when the field was not submitted at all.
+function posted_date_value($key, $fallback = null) {
+    if (!array_key_exists($key, $_POST)) return $fallback;
+    $val = trim((string)$_POST[$key]);
+    return ($val !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $val)) ? $val : null;
 }
 
 switch ($action) {
@@ -96,14 +121,17 @@ switch ($action) {
         $completed_date = trim($_POST['completed_date'] ?? '');
         $cost        = (float)($_POST['cost'] ?? 0);
         $completed_by = trim($_POST['completed_by'] ?? '');
+        $conducted_by = trim($_POST['progress_conducted_by'] ?? '');
         $photo       = trim($_POST['photo'] ?? '');
         $before_photo = trim($_POST['before_photo'] ?? '');
         $is_published = isset($_POST['is_published']) ? 1 : 0;
 
         $date_val = ($completed_date !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $completed_date)) ? $completed_date : null;
+        $start_val = posted_date_value('start_date');
+        $end_val   = posted_date_value('end_date');
 
-        $stmt = $conn->prepare("INSERT INTO published_completed_projects (title, description, location, completed_date, cost, completed_by, photo, before_photo, is_published) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param('ssssdsssi', $title, $description, $location, $date_val, $cost, $completed_by, $photo, $before_photo, $is_published);
+        $stmt = $conn->prepare("INSERT INTO published_completed_projects (title, description, location, completed_date, start_date, end_date, cost, completed_by, progress_conducted_by, photo, before_photo, is_published) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param('ssssssdssssi', $title, $description, $location, $date_val, $start_val, $end_val, $cost, $completed_by, $conducted_by, $photo, $before_photo, $is_published);
 
         if ($stmt->execute()) {
             $new_id = $stmt->insert_id;
@@ -134,14 +162,17 @@ switch ($action) {
         $completed_date = trim($_POST['completed_date'] ?? '');
         $cost        = isset($_POST['cost']) ? (float)$_POST['cost'] : $existing['cost'];
         $completed_by = trim($_POST['completed_by'] ?? $existing['completed_by']);
+        $conducted_by = trim($_POST['progress_conducted_by'] ?? ($existing['progress_conducted_by'] ?? ''));
         $photo       = trim($_POST['photo'] ?? '') !== '' ? trim($_POST['photo']) : $existing['photo'];
         $before_photo = trim($_POST['before_photo'] ?? '') !== '' ? trim($_POST['before_photo']) : $existing['before_photo'];
         $is_published = isset($_POST['is_published']) ? 1 : 0;
 
         $date_val = ($completed_date !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $completed_date)) ? $completed_date : $existing['completed_date'];
+        $start_val = posted_date_value('start_date', $existing['start_date'] ?? null);
+        $end_val   = posted_date_value('end_date', $existing['end_date'] ?? null);
 
-        $stmt = $conn->prepare("UPDATE published_completed_projects SET title=?, description=?, location=?, completed_date=?, cost=?, completed_by=?, photo=?, before_photo=?, is_published=? WHERE id=?");
-        $stmt->bind_param('ssssdssssi', $title, $description, $location, $date_val, $cost, $completed_by, $photo, $before_photo, $is_published, $id);
+        $stmt = $conn->prepare("UPDATE published_completed_projects SET title=?, description=?, location=?, completed_date=?, start_date=?, end_date=?, cost=?, completed_by=?, progress_conducted_by=?, photo=?, before_photo=?, is_published=? WHERE id=?");
+        $stmt->bind_param('ssssssdsssssi', $title, $description, $location, $date_val, $start_val, $end_val, $cost, $completed_by, $conducted_by, $photo, $before_photo, $is_published, $id);
 
         if ($stmt->execute()) {
             $status_msg = $is_published ? 'published' : 'unpublished';

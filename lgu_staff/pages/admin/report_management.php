@@ -1171,14 +1171,14 @@ function getLguReportsForManagement(
         $where .= " AND report_category = 'transportation'";
     }
 
-    // Include completed in the same paginated set (no separate append).
+    // Completed projects live on the Completed Projects monitoring page.
     if ($status_filter === 'all') {
         $where .= " AND (
-            status IN ('approved', 'in-progress', 'completed')
+            status IN ('approved', 'in-progress')
             OR (status = 'cancelled' AND restored_from_archive = 1)
         )";
     } elseif ($status_filter === 'completed') {
-        $where .= " AND status = 'completed'";
+        $where .= " AND 1=0";
     } elseif ($status_filter === 'cancelled') {
         $where .= " AND status = 'cancelled' AND restored_from_archive = 1";
     } else {
@@ -1353,7 +1353,11 @@ function getCitizenReportsForManagement(
         $where .= " AND report_category = 'transportation'";
     }
 
-    if ($status_filter !== 'all') {
+    if ($status_filter === 'all') {
+        $where .= " AND status != 'completed'";
+    } elseif ($status_filter === 'completed') {
+        $where .= " AND 1=0";
+    } elseif ($status_filter !== 'all') {
         $where .= " AND status = '" . $conn->real_escape_string($status_filter) . "'";
     }
 
@@ -1514,6 +1518,16 @@ function getCimmReportsForManagement(
         }
         return !in_array($status, ['pending'], true);
     }));
+
+    if ($status_filter === 'completed') {
+        return ['rows' => [], 'total' => 0];
+    }
+
+    if ($status_filter === 'all') {
+        $mapped = array_values(array_filter($mapped, static function ($r) {
+            return strtolower((string)($r['status'] ?? '')) !== 'completed';
+        }));
+    }
 
     if ($status_filter !== 'all') {
         $mapped = array_values(array_filter($mapped, function ($r) use ($status_filter) {
@@ -2335,6 +2349,14 @@ if ($focus_id > 0) {
         }
 
         if ($focus_report) {
+            if (strtolower((string)($focus_report['status'] ?? '')) === 'completed') {
+                $redirect = '../shared/completed_projects.php?focus_report_id=' . (int)$focus_id;
+                if ($focus_source !== '') {
+                    $redirect .= '&source=' . urlencode($focus_source);
+                }
+                header('Location: ' . $redirect);
+                exit;
+            }
             $focus_target['found'] = true;
             $focus_target['panel'] = $focus_panel;
             $panel_sources = [

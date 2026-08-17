@@ -265,16 +265,28 @@ function getEnhancedStats() {
 //     appear once approved
 //   - Infrastructure Projects (ipms_road_projects) that are locally APPROVED
 //   - CIMM reports whose verification_status is 'Verified'
-function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter = 'all', $transport_only = false, $road_only = false, $assigned_to_user_id = null) {
+function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter = 'all', $transport_only = false, $road_only = false, $assigned_to_user_id = null, $completed_only = false) {
     global $conn;
     $reports = [];
     if (!$conn) return $reports;
+
+    if ($completed_only) {
+        $status_filter = 'completed';
+    }
 
     // Transportation Operations Supervisors see only Transportation reports.
     $transport_category_filter = $transport_only ? " AND report_category = 'transportation'" : '';
 
     // Road Operations Supervisors see only Road reports.
     $road_category_filter = $road_only ? " AND report_category = 'road'" : '';
+
+    $transport_status_sql = $completed_only
+        ? "t.status = 'completed'"
+        : "t.status IN ('approved', 'in-progress')";
+
+    $cimm_status_sql = $completed_only
+        ? "verification_status = 'Completed'"
+        : "verification_status IN ('Approved', 'In Progress')";
 
     // Helper to append shared WHERE/ORDER/LIMIT clauses and run a query
     $fetch = function ($sql, $status_filter, $type_filter, $limit) use ($conn) {
@@ -323,7 +335,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                     'road_transportation_reports' AS _source_table
               FROM road_transportation_reports t
               LEFT JOIN users u ON u.id = t.created_by
-             WHERE t.status IN ('approved', 'in-progress', 'completed')
+             WHERE {$transport_status_sql}
                AND (t.created_by IS NULL OR t.created_by = 0
                     OR t.cimm_sync_status IS NULL OR t.cimm_sync_status <> 'pushed'
                     OR (t.report_category IN ('transportation', 'road') AND t.report_source = 'local' AND t.created_by != 0))
@@ -332,8 +344,8 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
         ));
 
         // 2. Infrastructure Projects (ipms_road_projects, locally approved).
-        //    Excluded for Transportation Operations Supervisors.
-        if (!$transport_only) {
+        //    Excluded for Transportation Operations Supervisors and Completed view.
+        if (!$transport_only && !$completed_only) {
             $reports = array_merge($reports, $fetch(
                 "SELECT project_id AS id,
                         CAST(project_id AS CHAR) AS report_id,
@@ -379,7 +391,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                             engineer, budget_allocation,
                             'cimm_verification_reports' AS _source_table
                      FROM cimm_verification_reports
-                     WHERE verification_status IN ('Approved', 'In Progress', 'Completed')
+                     WHERE {$cimm_status_sql}
                        AND infrastructure = 'Roads'
                  ) AS cimm_mapped WHERE 1=1",
                 $status_filter, $type_filter, $limit
@@ -985,8 +997,41 @@ function resolve_recent_focus_row(int $id, string $source_hint = ''): ?array {
 }
 
 // Get filter parameters
+$is_completed_projects_view = defined('MONITORING_COMPLETED_VIEW') && MONITORING_COMPLETED_VIEW;
+
+// Every row of the System Admin's Completed Projects table is Completed, so the
+// Status column carries no information there and is dropped. The monitoring page
+// and all other roles keep it.
+$hide_status_column = $is_system_admin && $is_completed_projects_view;
+
+// Completed Projects only: every row already carries report_category, so the
+// table and View modal can label it as Category (Road / Transportation)
+// without changing stored data. The live monitoring page is left as-is.
+$show_category_column = $is_completed_projects_view;
+$table_colspan = 9 + ($show_category_column ? 1 : 0) - ($hide_status_column ? 1 : 0);
+
+if (!function_exists('completed_project_category_label')) {
+    function completed_project_category_label($category, $source = '') {
+        $cat = strtolower(trim((string)$category));
+        if ($cat === 'transportation') {
+            return 'Transportation';
+        }
+        if ($cat === 'road') {
+            return 'Road';
+        }
+        $src = strtolower(trim((string)$source));
+        if (in_array($src, ['cimm', 'infrastructure', 'maintenance'], true)) {
+            return 'Road';
+        }
+        return 'Road';
+    }
+}
+
 $status_filter = $_GET['status'] ?? 'all';
 $type_filter = $_GET['type'] ?? 'all';
+if ($is_completed_projects_view) {
+    $status_filter = 'completed';
+}
 
 // Deep-link focus: ?focus_report_id= (numeric PK) from a Progress Update
 // notification's "View Report" button. The report may live in any of the
@@ -997,7 +1042,7 @@ $focus_report_id = isset($_GET['focus_report_id']) ? (int)$_GET['focus_report_id
 $focus_source_hint = (string)($_GET['source'] ?? '');
 $focus_target = ['found' => false, 'id' => $focus_report_id, 'source' => '', 'report_id' => ''];
 
-if ($focus_report_id > 0) {
+if ($focus_report_id > 0 && !$is_completed_projects_view) {
     $status_filter = 'all';
     $type_filter = 'all';
 }
@@ -1006,10 +1051,30 @@ if ($focus_report_id > 0) {
 $alerts = getActiveAlerts();
 $roads = getRoadStatus();
 $enhanced_stats = getEnhancedStats();
-$recent_reports = getRecentSubmissions(10, $status_filter, 'all', $is_transport_supervisor, $is_road_only_role, $is_road_monitoring_officer ? (int)($_SESSION['user_id'] ?? 0) : null);
+$recent_reports = getRecentSubmissions(
+    10,
+    $status_filter,
+    'all',
+    $is_transport_supervisor,
+    $is_road_only_role,
+    $is_road_monitoring_officer ? (int)($_SESSION['user_id'] ?? 0) : null,
+    $is_completed_projects_view
+);
 
 if ($focus_report_id > 0) {
     $focus_row = resolve_recent_focus_row($focus_report_id, $focus_source_hint);
+    if ($focus_row && !$is_completed_projects_view && strtolower((string)($focus_row['status'] ?? '')) === 'completed') {
+        $redirect = 'completed_projects.php?focus_report_id=' . (int)$focus_report_id;
+        if ($focus_source_hint !== '') {
+            $redirect .= '&source=' . urlencode($focus_source_hint);
+        }
+        header('Location: ' . $redirect);
+        exit;
+    }
+}
+
+if ($focus_report_id > 0) {
+    $focus_row = $focus_row ?? resolve_recent_focus_row($focus_report_id, $focus_source_hint);
     if ($focus_row) {
         $focus_target['found'] = true;
         $focus_target['source'] = $focus_row['source'] ?? '';
@@ -1056,13 +1121,33 @@ if ($focus_report_id > 0) {
 // Reads live from report_assignments so it reflects Assign/Unassign changes
 // automatically. Never alters the report workflow or report statuses.
 annotate_report_assignment_status($conn, $recent_reports);
+
+if (!$is_completed_projects_view) {
+    annotate_last_progress_update($conn, $recent_reports);
+}
+
+// One-time design preview for the 10-day no-update flag: the first time this
+// monitoring page is opened in the current login session, every row shows the
+// flag so it can be checked visually. The next refresh (and every load after)
+// uses the real 10-day condition. Session only — nothing is written to the DB.
+$preview_no_update_flags = false;
+if (!$is_completed_projects_view && empty($_SESSION['no_update_flag_preview_done'])) {
+    $preview_no_update_flags = true;
+    $_SESSION['no_update_flag_preview_done'] = 1;
+}
+
+// System Admin only: flags projects whose Transparency Upload Request is still
+// waiting for a decision, so they stand out in the Completed Projects table.
+if ($is_system_admin) {
+    annotate_transparency_request_status($conn, $recent_reports);
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Road and Transportation Monitoring | LGU Staff</title>
+    <title><?php echo $is_completed_projects_view ? 'Completed Projects' : 'Road and Transportation Monitoring'; ?> | LGU Staff</title>
     <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -1454,6 +1539,15 @@ annotate_report_assignment_status($conn, $recent_reports);
 
 
         /* ========== Enhanced Features ========== */
+        body.completed-projects-view .map-section,
+        body.completed-projects-view .stats-row,
+        body.completed-projects-view .sidebar-section {
+            display: none !important;
+        }
+        body.completed-projects-view .reports-table-section {
+            margin-top: 0;
+        }
+
         .stats-row {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -1607,6 +1701,14 @@ annotate_report_assignment_status($conn, $recent_reports);
         .assignment-badge { font-weight: 600; }
         .assignment-assigned { background: #d1fae5; color: #065f46; }
         .assignment-unassigned { background: #e2e3e5; color: #495057; }
+        .category-badge {
+            display: inline-block; padding: 2px 10px; border-radius: 12px;
+            font-size: 11px; font-weight: 600; white-space: nowrap;
+        }
+        .category-road { background: rgba(55,98,200,0.12); color: #1e3c72; }
+        .category-transportation { background: rgba(14,165,233,0.16); color: #0369a1; }
+        body.dark-mode .category-road { background: rgba(96,165,250,0.18); color: #93c5fd; }
+        body.dark-mode .category-transportation { background: rgba(56,189,248,0.2); color: #7dd3fc; }
         .cimm-verify-badge {
             display: inline-flex; align-items: center; gap: 5px;
             padding: 3px 10px; border-radius: 12px;
@@ -1877,6 +1979,178 @@ annotate_report_assignment_status($conn, $recent_reports);
             flex-shrink: 0;
             display: flex;
             justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .rm-modal-btn-transparency-approve,
+        .rm-modal-btn-transparency-reject {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+            color: #fff;
+            cursor: pointer;
+            transition: filter 0.2s;
+        }
+
+        .rm-modal-btn-transparency-approve {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+
+        .rm-modal-btn-transparency-reject {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+        }
+
+        .rm-modal-btn-transparency-approve:hover,
+        .rm-modal-btn-transparency-reject:hover {
+            filter: brightness(1.06);
+        }
+
+        .rm-modal-btn-transparency-approve:disabled,
+        .rm-modal-btn-transparency-reject:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* Completed Projects table, System Admin only: marks a project whose
+           Transparency Upload Request is still waiting for a decision. Pinned to
+           the top-left corner of the row's first cell, so the table keeps its
+           existing columns and the cell just reserves room on its left. */
+        .reports-table-section .report-table-row td:first-child { position: relative; }
+
+        .reports-table-section .report-table-row.transparency-flagged td:first-child,
+        .reports-table-section .report-table-row.no-update-flagged td:first-child {
+            padding-left: 46px;
+        }
+
+        .transparency-await-icon {
+            position: absolute;
+            top: 4px;
+            left: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #fbbf24, #f97316);
+            color: #fff;
+            font-size: 14px;
+            box-shadow: 0 3px 8px rgba(249, 115, 22, 0.45);
+            transform-origin: 70% 70%;
+            animation: transparencyHornRing 2.6s ease-in-out infinite;
+        }
+
+        /* Soft halo that keeps pulsing so the flag is hard to scroll past. */
+        .transparency-await-icon::before {
+            content: '';
+            position: absolute;
+            inset: -4px;
+            border-radius: 50%;
+            border: 2px solid rgba(249, 115, 22, 0.55);
+            animation: transparencyHornPulse 2.6s ease-out infinite;
+        }
+
+        .transparency-await-icon i { pointer-events: none; }
+
+        @keyframes transparencyHornRing {
+            0%, 62%, 100% { transform: rotate(0deg); }
+            68% { transform: rotate(-12deg); }
+            74% { transform: rotate(10deg); }
+            80% { transform: rotate(-7deg); }
+            86% { transform: rotate(5deg); }
+        }
+
+        @keyframes transparencyHornPulse {
+            0% { transform: scale(0.85); opacity: 0.85; }
+            70% { transform: scale(1.25); opacity: 0; }
+            100% { transform: scale(1.25); opacity: 0; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .transparency-await-icon,
+            .transparency-await-icon::before { animation: none; }
+        }
+
+        body.dark-mode .transparency-await-icon {
+            box-shadow: 0 3px 10px rgba(249, 115, 22, 0.55);
+        }
+
+        /* Monitoring table: 10+ days without a progress update. Same corner as
+           the transparency horn, on a different colour so the two never read as
+           the same signal. */
+        .no-update-flag {
+            position: absolute;
+            top: 4px;
+            left: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #fb7185, #e11d48);
+            color: #fff;
+            font-size: 13px;
+            box-shadow: 0 3px 8px rgba(225, 29, 72, 0.45);
+        }
+
+        .no-update-flag::before {
+            content: '';
+            position: absolute;
+            inset: -4px;
+            border-radius: 50%;
+            border: 2px solid rgba(225, 29, 72, 0.5);
+            animation: noUpdateFlagPulse 2.6s ease-out infinite;
+        }
+
+        .no-update-flag i { pointer-events: none; }
+
+        @keyframes noUpdateFlagPulse {
+            0% { transform: scale(0.85); opacity: 0.85; }
+            70% { transform: scale(1.25); opacity: 0; }
+            100% { transform: scale(1.25); opacity: 0; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .no-update-flag::before { animation: none; }
+        }
+
+        body.dark-mode .no-update-flag {
+            box-shadow: 0 3px 10px rgba(251, 113, 133, 0.55);
+        }
+
+        .rm-transparency-panel {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 12px 14px;
+            border-radius: 10px;
+            border-left: 3px solid #3762c8;
+            background: rgba(55, 98, 200, 0.08);
+            font-size: 13px;
+        }
+
+        .rm-transparency-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 600;
+        }
+
+        .rm-transparency-actions {
+            display: none;
+            gap: 8px;
+            margin-left: auto;
+        }
+
+        .rm-transparency-panel .rm-modal-btn-transparency-approve,
+        .rm-transparency-panel .rm-modal-btn-transparency-reject {
+            padding: 8px 16px;
+            font-size: 13px;
         }
 
         .rm-modal-btn-close {
@@ -2237,6 +2511,57 @@ annotate_report_assignment_status($conn, $recent_reports);
             gap: 10px;
         }
 
+        /* Progress Updates modal: the timeline can run long and its footer
+           carries several rows of actions, so the dialog is capped to the
+           viewport and only the timeline scrolls. The header and the footer
+           buttons stay in view. */
+        #updatesModal {
+            overflow-y: auto;
+        }
+
+        #updatesModal .modal-content {
+            display: flex;
+            flex-direction: column;
+            margin: 4vh auto;
+            max-height: 92vh;
+        }
+
+        #updatesModal .modal-header,
+        #updatesModal .modal-footer {
+            flex: 0 0 auto;
+        }
+
+        #updatesModal .modal-body {
+            flex: 1 1 auto;
+            min-height: 120px;
+            max-height: none;
+            overflow-y: auto;
+        }
+
+        /* Let the action rows wrap instead of pushing Export or the
+           transparency decisions out of reach on narrow screens. */
+        #updatesModal #actionButtons,
+        #updatesModal #exportButtons,
+        #updatesModal #actionButtons > div {
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        @media (max-width: 640px) {
+            #updatesModal .modal-content {
+                margin: 2vh auto;
+                max-height: 96vh;
+            }
+
+            #updatesModal .modal-body {
+                padding: 16px;
+            }
+
+            #updatesModal .modal-footer {
+                padding: 14px 16px;
+            }
+        }
+
         .btn-secondary-custom {
             padding: 10px 20px;
             background: #6c757d;
@@ -2443,7 +2768,7 @@ annotate_report_assignment_status($conn, $recent_reports);
         <?php endif; ?>
     </style>
 </head>
-<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
+<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo $is_completed_projects_view ? ' completed-projects-view' : ''; ?>">
     <!-- SIDEBAR -->
     <?php include '../../includes/sidebar_nav.php'; ?>
 
@@ -2452,8 +2777,8 @@ annotate_report_assignment_status($conn, $recent_reports);
         <div class="monitoring-header">
             <div class="header-content">
                 <div class="header-title">
-                    <h1>Road and Transportation Reporting</h1>
-                    <p>Real-time monitoring of road conditions and traffic flow</p>
+                    <h1><?php echo $is_completed_projects_view ? 'Completed Projects' : 'Road and Transportation Reporting'; ?></h1>
+                    <p><?php echo $is_completed_projects_view ? 'Review completed projects, progress updates, and related actions.' : 'Real-time monitoring of road conditions and traffic flow'; ?></p>
                 </div>
             </div>
         </div>
@@ -2764,14 +3089,15 @@ annotate_report_assignment_status($conn, $recent_reports);
         <!-- Recent Reports Table -->
         <div class="reports-table-section">
             <div class="table-header">
-                <h3><i class="fas fa-list"></i> Recent Submissions</h3>
+                <h3><i class="fas fa-<?php echo $is_completed_projects_view ? 'check-circle' : 'list'; ?>"></i> <?php echo $is_completed_projects_view ? 'Completed Projects' : 'Recent Submissions'; ?></h3>
                 <div class="table-header-right">
+                    <?php if (!$is_completed_projects_view): ?>
                     <select class="filter-select" id="statusFilter" onchange="filterReports()">
                         <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
                         <option value="approved" <?php echo $status_filter === 'approved' ? 'selected' : ''; ?>>Approved</option>
                         <option value="in-progress" <?php echo $status_filter === 'in-progress' ? 'selected' : ''; ?>>In Progress</option>
-                        <option value="completed" <?php echo $status_filter === 'completed' ? 'selected' : ''; ?>>Completed</option>
                     </select>
+                    <?php endif; ?>
                     <select class="filter-select" id="typeFilter" onchange="filterReportsBySource()">
                         <option value="all">All Types</option>
                         <?php if (!$is_road_supervisor && !$is_road_monitoring_officer): ?>
@@ -2798,7 +3124,12 @@ annotate_report_assignment_status($conn, $recent_reports);
                             <th>Report ID</th>
                             <th>Title</th>
                             <th>Source</th>
+                            <?php if ($show_category_column): ?>
+                            <th>Category</th>
+                            <?php endif; ?>
+                            <?php if (!$hide_status_column): ?>
                             <th>Status</th>
+                            <?php endif; ?>
                             <th>Assignment</th>
                             <th>Priority</th>
                             <th>Date</th>
@@ -2808,7 +3139,7 @@ annotate_report_assignment_status($conn, $recent_reports);
                     </thead>
                     <tbody>
                         <?php if (empty($recent_reports)): ?>
-                        <tr><td colspan="9" style="text-align:center;padding:30px;color:#6b7280;">No reports yet.</td></tr>
+                        <tr><td colspan="<?php echo $table_colspan; ?>" style="text-align:center;padding:30px;color:#6b7280;">No reports yet.</td></tr>
                         <?php else: ?>
                         <?php $source_labels = [
                             'lgu' => 'LGU Monitoring',
@@ -2856,11 +3187,22 @@ annotate_report_assignment_status($conn, $recent_reports);
                             $rr_details['creator_phone'] = $rr['creator_phone'] ?? '';
                             $rr_details['creator_email'] = $rr['creator_email'] ?? '';
                         }
-                        $rr_details_json = htmlspecialchars(json_encode($rr_details), ENT_QUOTES, 'UTF-8'); ?>
-                         <tr class="report-table-row" data-id="<?php echo $rr['id']; ?>" data-title="<?php echo htmlspecialchars(strtolower($rr['title'] ?? '')); ?>" data-report-id="<?php echo htmlspecialchars(strtolower($rr['report_id'] ?? '')); ?>" data-status="<?php echo $rr['status'] ?? 'pending'; ?>" data-source="<?php echo $rr_source_key; ?>" data-details='<?php echo $rr_details_json; ?>'>
-                            <td style="font-family:monospace;font-size:12px;"><?php echo htmlspecialchars($rr['report_id'] ?? '—'); ?></td>
+                        $rr_details_json = htmlspecialchars(json_encode($rr_details), ENT_QUOTES, 'UTF-8');
+                        // Read-only use of the request status already annotated above.
+                        $rr_await_transparency = (($rr['transparency_request_status'] ?? '') === 'pending');
+                        $rr_no_update = !$is_completed_projects_view && ($preview_no_update_flags || !empty($rr['no_update_stale']));
+                        $rr_row_class = 'report-table-row'
+                            . ($rr_await_transparency ? ' transparency-flagged' : '')
+                            . ($rr_no_update ? ' no-update-flagged' : ''); ?>
+                         <tr class="<?php echo $rr_row_class; ?>" data-id="<?php echo $rr['id']; ?>" data-title="<?php echo htmlspecialchars(strtolower($rr['title'] ?? '')); ?>" data-report-id="<?php echo htmlspecialchars(strtolower($rr['report_id'] ?? '')); ?>" data-status="<?php echo $rr['status'] ?? 'pending'; ?>" data-source="<?php echo $rr_source_key; ?>" data-details='<?php echo $rr_details_json; ?>'>
+                            <td style="font-family:monospace;font-size:12px;"><?php if ($rr_no_update): ?><span class="no-update-flag" title="No progress update for 10 days or more" role="img" aria-label="No progress update for 10 days or more"><i class="fas fa-clock"></i></span><?php endif; ?><?php if ($rr_await_transparency): ?><span class="transparency-await-icon" title="Awaiting your Transparency Upload decision" role="img" aria-label="Awaiting Transparency Upload decision"><i class="fas fa-bullhorn"></i></span><?php endif; ?><?php echo htmlspecialchars($rr['report_id'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars($rr['title'] ?? 'Untitled'); ?></td>
                             <td><?php echo htmlspecialchars($rr_source_label); ?></td>
+                            <?php if ($show_category_column): ?>
+                            <?php $rr_category_label = completed_project_category_label($rr['report_category'] ?? '', $rr_source_key); ?>
+                            <td><span class="category-badge <?php echo $rr_category_label === 'Transportation' ? 'category-transportation' : 'category-road'; ?>"><?php echo $rr_category_label; ?></span></td>
+                            <?php endif; ?>
+                            <?php if (!$hide_status_column): ?>
                             <td>
                                 <?php if ($is_road_supervisor || $is_road_monitoring_officer): ?>
                                     <span class="db-badge <?php echo rmo_db_status_class($rr['status'] ?? 'pending'); ?>"><?php echo ucfirst(str_replace('-',' ',$rr['status'] ?? 'pending')); ?></span>
@@ -2868,6 +3210,7 @@ annotate_report_assignment_status($conn, $recent_reports);
                                     <span class="badge badge-<?php echo strtolower(str_replace(' ', '-', $rr['status'] ?? 'pending')); ?>"><?php echo ucfirst(str_replace('-',' ',$rr['status'] ?? 'pending')); ?></span>
                                 <?php endif; ?>
                             </td>
+                            <?php endif; ?>
                             <td><?php if (($rr['assignment_status'] ?? 'unassigned') === 'assigned'): ?>
                                 <?php if (!empty($rr['assignment_officer'])): ?>
                                     <span class="badge assignment-badge assignment-assigned"><?php echo htmlspecialchars($rr['assignment_officer']); ?></span>
@@ -2936,6 +3279,54 @@ annotate_report_assignment_status($conn, $recent_reports);
         // Road Supervisor portal only: appends "(Near <landmark>)" to the
         // detected report location using the nearest TomTom point of interest.
         const IS_ROAD_SUPERVISOR = <?php echo $is_road_supervisor ? 'true' : 'false'; ?>;
+        const IS_TRANS_SUPERVISOR = <?php echo $is_trans_ops_supervisor ? 'true' : 'false'; ?>;
+        const IS_SYSTEM_ADMIN = <?php echo $is_system_admin ? 'true' : 'false'; ?>;
+        const IS_COMPLETED_PROJECTS_VIEW = <?php echo $is_completed_projects_view ? 'true' : 'false'; ?>;
+        const PREVIEW_NO_UPDATE_FLAG = <?php echo !empty($preview_no_update_flags) ? 'true' : 'false'; ?>;
+        const HIDE_STATUS_COLUMN = <?php echo $hide_status_column ? 'true' : 'false'; ?>;
+        const SHOW_CATEGORY_COLUMN = <?php echo $show_category_column ? 'true' : 'false'; ?>;
+        const TABLE_COLSPAN = <?php echo $table_colspan; ?>;
+
+        function completedProjectCategoryLabel(report) {
+            var cat = String((report && (report.report_category
+                || (report.details && report.details.report_category))) || '').toLowerCase();
+            if (cat === 'transportation') return 'Transportation';
+            if (cat === 'road') return 'Road';
+            var src = String((report && report.source) || '').toLowerCase();
+            if (src === 'cimm' || src === 'infrastructure' || src === 'maintenance') return 'Road';
+            return 'Road';
+        }
+
+        function completedProjectCategoryBadge(report) {
+            var label = completedProjectCategoryLabel(report);
+            var cls = label === 'Transportation' ? 'category-transportation' : 'category-road';
+            return '<span class="category-badge ' + cls + '">' + label + '</span>';
+        }
+
+        function isNoUpdateStale(report) {
+            if (IS_COMPLETED_PROJECTS_VIEW) return false;
+            if (PREVIEW_NO_UPDATE_FLAG) return true;
+            return !!(report && report.no_update_stale);
+        }
+
+        function noUpdateFlagIcon(report) {
+            if (!isNoUpdateStale(report)) return '';
+            return '<span class="no-update-flag" title="No progress update for 10 days or more"'
+                + ' role="img" aria-label="No progress update for 10 days or more">'
+                + '<i class="fas fa-clock"></i></span>';
+        }
+
+        function submissionsListApiUrl(offset, limit, status, type) {
+            var statusVal = status || (IS_COMPLETED_PROJECTS_VIEW ? 'completed' : 'all');
+            var url = '../api/get_recent_submissions_paginated.php?offset=' + encodeURIComponent(offset)
+                + '&limit=' + encodeURIComponent(limit)
+                + '&status=' + encodeURIComponent(statusVal)
+                + '&type=' + encodeURIComponent(type || 'all');
+            if (IS_COMPLETED_PROJECTS_VIEW) {
+                url += '&completed_only=1';
+            }
+            return url;
+        }
 
         // Quezon City center
         const QC_CENTER = [14.651417, 121.04917];
@@ -3386,7 +3777,9 @@ annotate_report_assignment_status($conn, $recent_reports);
 
         function filterReportsBySource() {
             const source = document.getElementById('typeFilter').value;
-            const statusFilter = document.getElementById('statusFilter').value;
+            const statusFilter = IS_COMPLETED_PROJECTS_VIEW
+                ? 'completed'
+                : (document.getElementById('statusFilter') ? document.getElementById('statusFilter').value : 'all');
             const tableBody = document.querySelector('#recentReportsTable tbody');
             
             // Clear existing rows
@@ -3394,7 +3787,7 @@ annotate_report_assignment_status($conn, $recent_reports);
             
             // Show loading state
             const loadingRow = document.createElement('tr');
-            loadingRow.innerHTML = '<td colspan="8" style="text-align:center;padding:20px;"><i class="fas fa-spinner fa-spin"></i> Loading reports...</td>';
+            loadingRow.innerHTML = '<td colspan="' + TABLE_COLSPAN + '" style="text-align:center;padding:20px;"><i class="fas fa-spinner fa-spin"></i> Loading reports...</td>';
             tableBody.appendChild(loadingRow);
             
             // Reset pagination state
@@ -3403,7 +3796,7 @@ annotate_report_assignment_status($conn, $recent_reports);
             isLoadingMore = false;
             
             // Fetch filtered data from API
-            fetch(`../api/get_recent_submissions_paginated.php?offset=0&limit=10&status=${statusFilter}&type=${source}`)
+            fetch(submissionsListApiUrl(0, 10, statusFilter, source))
                 .then(response => response.json())
                 .then(data => {
                     tableBody.innerHTML = ''; // Clear loading row
@@ -3426,19 +3819,21 @@ annotate_report_assignment_status($conn, $recent_reports);
                         }
                     } else {
                         // No results
-                        tableBody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:#6b7280;">No reports found for this filter.</td></tr>';
+                        tableBody.innerHTML = '<tr><td colspan="' + TABLE_COLSPAN + '" style="text-align:center;padding:30px;color:#6b7280;">No reports found for this filter.</td></tr>';
                         hasMoreReports = false;
                         hideLoadMoreButton();
                     }
                 })
                 .catch(error => {
-                    tableBody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:#dc3545;">Error loading reports. Please try again.</td></tr>';
+                    tableBody.innerHTML = '<tr><td colspan="' + TABLE_COLSPAN + '" style="text-align:center;padding:30px;color:#dc3545;">Error loading reports. Please try again.</td></tr>';
                     showNotification('Error loading filtered reports', 'error');
                 });
         }
 
         function resetFilters() {
-            document.getElementById('statusFilter').value = 'all';
+            if (document.getElementById('statusFilter')) {
+                document.getElementById('statusFilter').value = 'all';
+            }
             document.getElementById('typeFilter').value = 'all';
             document.querySelectorAll('#recentReportsTable .report-table-row').forEach(row => {
                 row.style.display = '';
@@ -3472,6 +3867,116 @@ annotate_report_assignment_status($conn, $recent_reports);
                 modal.classList.remove('active');
                 document.body.style.overflow = '';
             }
+            hideTransparencyReviewActions();
+        }
+
+        // ===== ADMIN REVIEW OF A TRANSPARENCY UPLOAD REQUEST =====
+        // Set only when the admin arrives from the notification deep link, and
+        // scoped to the one request id / report id pair carried in the URL so a
+        // decision can never land on a different project.
+        var transparencyReview = null;
+
+        function hideTransparencyReviewActions() {
+            var approveBtn = document.getElementById('approveTransparencyBtn');
+            var rejectBtn = document.getElementById('rejectTransparencyBtn');
+            if (approveBtn) approveBtn.style.display = 'none';
+            if (rejectBtn) rejectBtn.style.display = 'none';
+        }
+
+        function setTransparencyReviewBusy(busy) {
+            var approveBtn = document.getElementById('approveTransparencyBtn');
+            var rejectBtn = document.getElementById('rejectTransparencyBtn');
+            if (approveBtn) approveBtn.disabled = busy;
+            if (rejectBtn) rejectBtn.disabled = busy;
+        }
+
+        // Opens the project's details with the two review actions. Verifies the
+        // request server-side first: it must still be pending and must belong to
+        // the report being focused.
+        function openTransparencyReview(requestId, reportId, source) {
+            fetch('../api/transparency_request_api.php?action=get&request_id=' + encodeURIComponent(requestId))
+                .then(function(r) { return r.json(); })
+                .then(function(resp) {
+                    if (!resp || !resp.success || !resp.data) {
+                        showNotification((resp && resp.message) || 'Transparency request not found', 'error');
+                        return;
+                    }
+                    var req = resp.data;
+                    if (parseInt(req.report_id, 10) !== parseInt(reportId, 10)) {
+                        showNotification('This request belongs to a different report.', 'error');
+                        return;
+                    }
+
+                    viewReportDetails(reportId, source || req.report_source || '');
+
+                    if (String(req.status) !== 'pending') {
+                        showNotification('This transparency request was already '
+                            + String(req.status) + '.', 'info');
+                        return;
+                    }
+
+                    transparencyReview = {
+                        requestId: parseInt(req.id, 10),
+                        reportId: parseInt(req.report_id, 10),
+                        source: req.report_source || ''
+                    };
+                    var approveBtn = document.getElementById('approveTransparencyBtn');
+                    var rejectBtn = document.getElementById('rejectTransparencyBtn');
+                    if (approveBtn) approveBtn.style.display = 'inline-flex';
+                    if (rejectBtn) rejectBtn.style.display = 'inline-flex';
+                    setTransparencyReviewBusy(false);
+                    showNotification('Transparency upload request from '
+                        + (req.requested_by_name || 'the Road Operations Supervisor')
+                        + ' is awaiting your review.', 'info');
+                })
+                .catch(function() {
+                    showNotification('Network error', 'error');
+                });
+        }
+
+        function submitTransparencyDecision(decision, reason) {
+            if (!transparencyReview) return;
+            setTransparencyReviewBusy(true);
+
+            var fd = new FormData();
+            fd.append('action', decision);
+            fd.append('request_id', transparencyReview.requestId);
+            if (decision === 'reject' && reason) fd.append('reason', reason);
+
+            fetch('../api/transparency_request_api.php', { method: 'POST', body: fd })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data && data.success) {
+                        showNotification(data.message || 'Request updated', 'success');
+                        transparencyReview = null;
+                        hideTransparencyReviewActions();
+                        // Approving continues in the transparency page, which
+                        // imports this project's data for the admin to review.
+                        if (data.redirect_url) {
+                            setTimeout(function() { window.location.href = data.redirect_url; }, 700);
+                        }
+                    } else {
+                        showNotification((data && data.message) || 'Failed to update the request', 'error');
+                        setTransparencyReviewBusy(false);
+                    }
+                })
+                .catch(function() {
+                    showNotification('Network error', 'error');
+                    setTransparencyReviewBusy(false);
+                });
+        }
+
+        function approveTransparencyRequest() {
+            if (!transparencyReview) return;
+            if (!confirm('Approve the transparency upload request for this project? The project stays Completed.')) return;
+            submitTransparencyDecision('approve');
+        }
+
+        function rejectTransparencyRequest() {
+            if (!transparencyReview) return;
+            var reason = prompt('Reject this transparency upload request? You may add a reason (optional):', '');
+            if (reason === null) return;
+            submitTransparencyDecision('reject', reason.trim());
         }
 
         // View Report Details Modal
@@ -3617,14 +4122,26 @@ annotate_report_assignment_status($conn, $recent_reports);
                     var badgesHtml = rmBadge(r.status || '—', ss.bg, ss.color);
                     badgesHtml += rmBadge(r.priority || '—', ps.bg, ps.color);
                     var reportTypeLabel = typeLabels[r.report_type] || r.report_type || '—';
-                    if (reportTypeLabel !== '—') {
+                    var categoryLabel = completedProjectCategoryLabel({
+                        report_category: r.report_category || data.report_category,
+                        source: src || r.source || data.source
+                    });
+                    if (IS_COMPLETED_PROJECTS_VIEW) {
+                        badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:'
+                            + (categoryLabel === 'Transportation' ? 'rgba(14,165,233,0.16);color:#0369a1;' : 'rgba(55,98,200,0.12);color:#3762c8;')
+                            + '">' + categoryLabel + '</span>';
+                    } else if (reportTypeLabel !== '—') {
                         badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(55,98,200,0.12);color:#3762c8;">' + reportTypeLabel + '</span>';
                     }
                     document.getElementById('rm-badges').innerHTML = badgesHtml;
 
                     // Report Information
                     var reportGrid = '';
-                    reportGrid += rmInfoItem('folder', 'Report Type', reportTypeLabel);
+                    if (IS_COMPLETED_PROJECTS_VIEW) {
+                        reportGrid += rmInfoItem('folder', 'Category', categoryLabel);
+                    } else {
+                        reportGrid += rmInfoItem('folder', 'Report Type', reportTypeLabel);
+                    }
                     reportGrid += rmInfoItem('calendar-alt', 'Created Date', rmFormatDate(r.created_at));
                     reportGrid += rmInfoItem('sync-alt', 'Last Updated', rmFormatDate(r.updated_at));
                     if (r.due_date) {
@@ -4081,6 +4598,247 @@ annotate_report_assignment_status($conn, $recent_reports);
             return s === 'completed' || s === 'cancelled' || s === 'canceled';
         }
 
+        // The transparency workflow only accepts COMPLETED projects: LGU- and
+        // citizen-sourced rows from road_transportation_reports, plus CIMM
+        // verification reports. Mirrors transparency_fetch_request_report().
+        var TRANSPARENCY_SOURCES = ['lgu', 'citizen', 'cimm'];
+
+        function updatesReportCategory() {
+            return String((currentUpdatesReportDetails && currentUpdatesReportDetails.report_category) || '').toLowerCase();
+        }
+
+        // Each supervisor may only request uploads for the reports their own
+        // portal lists, which transparency_role_may_request() also enforces
+        // server-side. A blank category means the details were not available on
+        // the row, and each portal is already filtered to its own category.
+        function canRequestTransparencyUpload() {
+            if (!currentUpdatesReportId) return false;
+            var status = String(currentUpdatesReportStatus || '').toLowerCase().replace(/_/g, ' ').trim();
+            if (status !== 'completed') return false;
+            var source = String(currentUpdatesReportSource || '').toLowerCase();
+            if (TRANSPARENCY_SOURCES.indexOf(source) === -1) return false;
+            var category = updatesReportCategory();
+
+            if (IS_ROAD_SUPERVISOR) {
+                return category === '' || category === 'road';
+            }
+            // Transportation Operations Supervisor: citizen reports and LGU
+            // monitoring reports of the Transportation type only.
+            if (IS_TRANS_SUPERVISOR) {
+                return (category === '' || category === 'transportation')
+                    && (source === 'lgu' || source === 'citizen');
+            }
+            return false;
+        }
+
+        function setTransparencyBtnState(state) {
+            var btn = document.getElementById('requestTransparencyBtn');
+            if (!btn) return;
+            if (state === 'pending') {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-hourglass-half"></i> Transparency Upload Requested';
+            } else if (state === 'approved') {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-check-circle"></i> Transparency Upload Approved';
+            } else if (state === 'sending') {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending Request...';
+            } else {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-bullhorn"></i> Request Transparency Upload';
+            }
+        }
+
+        function refreshTransparencyRequestButton() {
+            var btn = document.getElementById('requestTransparencyBtn');
+            if (!btn) return;
+            if (!canRequestTransparencyUpload()) {
+                btn.style.display = 'none';
+                return;
+            }
+            btn.style.display = 'inline-flex';
+            setTransparencyBtnState('idle');
+            // Reflect an existing request so the supervisor is not invited to
+            // submit a duplicate the API would reject.
+            fetch('../api/transparency_request_api.php?action=status&report_id=' + encodeURIComponent(currentUpdatesReportId)
+                + '&source=' + encodeURIComponent(currentUpdatesReportSource || ''))
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data && data.success) setTransparencyBtnState(data.status);
+                })
+                .catch(function() {});
+        }
+
+        function requestTransparencyUpload() {
+            if (!currentUpdatesReportId || !canRequestTransparencyUpload()) return;
+            if (!confirm('Send this completed project to the administrator for transparency upload review?')) return;
+
+            setTransparencyBtnState('sending');
+
+            var fd = new FormData();
+            fd.append('action', 'submit');
+            fd.append('report_id', currentUpdatesReportId);
+            fd.append('source', currentUpdatesReportSource || '');
+            fd.append('report_type', currentUpdatesReportType || '');
+
+            fetch('../api/transparency_request_api.php', { method: 'POST', body: fd })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data && data.success) {
+                        showNotification(data.message || 'Transparency upload request sent', 'success');
+                        setTransparencyBtnState('pending');
+                    } else {
+                        showNotification((data && data.message) || 'Failed to send the transparency upload request', 'error');
+                        setTransparencyBtnState('idle');
+                    }
+                })
+                .catch(function() {
+                    showNotification('Network error', 'error');
+                    setTransparencyBtnState('idle');
+                });
+        }
+
+        // ===== ADMIN REVIEW FROM THE PROGRESS UPDATES MODAL =====
+        // The notification alert still goes out, but the admin can also see the
+        // request's status and decide on it here, on the completed project itself.
+        // Scoped to the request the status lookup returns for the open report, so
+        // a decision can never land on another project.
+        var updatesTransparencyRequestId = 0;
+
+        function canReviewTransparencyUpload() {
+            if (!IS_SYSTEM_ADMIN || !currentUpdatesReportId) return false;
+            var status = String(currentUpdatesReportStatus || '').toLowerCase().replace(/_/g, ' ').trim();
+            if (status !== 'completed') return false;
+            var source = String(currentUpdatesReportSource || '').toLowerCase();
+            if (TRANSPARENCY_SOURCES.indexOf(source) === -1) return false;
+            // The admin reviews whatever either supervisor may request.
+            var category = updatesReportCategory();
+            return category === '' || category === 'road' || category === 'transportation';
+        }
+
+        function setTransparencyDecisionBusy(busy) {
+            var approveBtn = document.getElementById('approveTransparencyUpdatesBtn');
+            var rejectBtn = document.getElementById('rejectTransparencyUpdatesBtn');
+            if (approveBtn) approveBtn.disabled = busy;
+            if (rejectBtn) rejectBtn.disabled = busy;
+        }
+
+        function renderTransparencyStatus(status, requestId) {
+            var panel = document.getElementById('transparencyStatusPanel');
+            if (!panel) return;
+            var valueEl = document.getElementById('transparencyStatusValue');
+            var metaEl = document.getElementById('transparencyStatusMeta');
+            var actions = document.getElementById('transparencyDecisionActions');
+
+            updatesTransparencyRequestId = parseInt(requestId, 10) || 0;
+            var s = String(status || 'none').toLowerCase();
+            var label = 'Not requested';
+            var color = '#6b7280';
+            var meta = 'No transparency upload request has been submitted for this project.';
+
+            if (s === 'pending') {
+                label = 'Pending review';
+                color = '#b45309';
+                meta = 'Request #' + updatesTransparencyRequestId + ' from the Road Operations Supervisor is awaiting your decision.';
+            } else if (s === 'approved') {
+                label = 'Approved';
+                color = '#047857';
+                meta = 'Request #' + updatesTransparencyRequestId + ' was approved. The project data is imported in Public Transparency for review.';
+            } else if (s === 'rejected') {
+                label = 'Rejected';
+                color = '#b91c1c';
+                meta = 'Request #' + updatesTransparencyRequestId + ' was rejected. The project stays Completed.';
+            }
+
+            if (valueEl) {
+                valueEl.textContent = label;
+                valueEl.style.color = color;
+            }
+            if (metaEl) metaEl.textContent = meta;
+            if (actions) {
+                actions.style.display = (s === 'pending' && updatesTransparencyRequestId > 0) ? 'inline-flex' : 'none';
+            }
+            setTransparencyDecisionBusy(false);
+            panel.style.display = 'flex';
+        }
+
+        function refreshTransparencyStatusPanel() {
+            var panel = document.getElementById('transparencyStatusPanel');
+            if (!panel) return;
+            panel.style.display = 'none';
+            updatesTransparencyRequestId = 0;
+            if (!canReviewTransparencyUpload()) return;
+
+            var reportId = currentUpdatesReportId;
+            fetch('../api/transparency_request_api.php?action=status&report_id=' + encodeURIComponent(reportId)
+                + '&source=' + encodeURIComponent(currentUpdatesReportSource || ''))
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    // Ignore a late response for a project the admin already left.
+                    if (currentUpdatesReportId !== reportId) return;
+                    if (data && data.success) renderTransparencyStatus(data.status, data.request_id);
+                })
+                .catch(function() {});
+        }
+
+        // A decision taken here settles the request, so the row no longer needs
+        // its awaiting-transparency marker.
+        function clearTransparencyAwaitIcon(reportId) {
+            var row = document.querySelector('#recentReportsTable .report-table-row[data-id="' + reportId + '"]');
+            if (!row) return;
+            row.classList.remove('transparency-flagged');
+            var icon = row.querySelector('.transparency-await-icon');
+            if (icon) icon.parentNode.removeChild(icon);
+        }
+
+        function submitTransparencyDecisionFromUpdates(decision, reason) {
+            if (!updatesTransparencyRequestId) return;
+            setTransparencyDecisionBusy(true);
+
+            var fd = new FormData();
+            fd.append('action', decision);
+            fd.append('request_id', updatesTransparencyRequestId);
+            if (decision === 'reject' && reason) fd.append('reason', reason);
+
+            fetch('../api/transparency_request_api.php', { method: 'POST', body: fd })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data && data.success) {
+                        showNotification(data.message || 'Request updated', 'success');
+                        clearTransparencyAwaitIcon(currentUpdatesReportId);
+                        renderTransparencyStatus(
+                            decision === 'approve' ? 'approved' : 'rejected',
+                            updatesTransparencyRequestId
+                        );
+                        // Approving continues in the transparency page, which imports
+                        // this project's data for the admin to review.
+                        if (data.redirect_url) {
+                            setTimeout(function() { window.location.href = data.redirect_url; }, 900);
+                        }
+                    } else {
+                        showNotification((data && data.message) || 'Failed to update the request', 'error');
+                        refreshTransparencyStatusPanel();
+                    }
+                })
+                .catch(function() {
+                    showNotification('Network error', 'error');
+                    setTransparencyDecisionBusy(false);
+                });
+        }
+
+        function approveTransparencyFromUpdates() {
+            if (!updatesTransparencyRequestId) return;
+            if (!confirm('Approve the transparency upload request for this project? The project stays Completed and you will continue in Public Transparency.')) return;
+            submitTransparencyDecisionFromUpdates('approve');
+        }
+
+        function rejectTransparencyFromUpdates() {
+            if (!updatesTransparencyRequestId) return;
+            var reason = prompt('Reject this transparency upload request? You may add a reason (optional):', '');
+            if (reason === null) return;
+            submitTransparencyDecisionFromUpdates('reject', reason.trim());
+        }
+
         function applyUpdatesFooterMode() {
             var actionButtons = document.getElementById('actionButtons');
             var exportButtons = document.getElementById('exportButtons');
@@ -4091,6 +4849,8 @@ annotate_report_assignment_status($conn, $recent_reports);
             if (actionButtons) actionButtons.style.display = 'flex';
             if (exportWordBtn) exportWordBtn.style.display = 'inline-flex';
             if (exportButtons) exportButtons.style.display = 'none';
+            refreshTransparencyRequestButton();
+            refreshTransparencyStatusPanel();
             if (isTerminalUpdatesStatus()) {
                 // Completed / cancelled: hide Complete, Cancel, and Add Update
                 if (completeBtn) completeBtn.style.display = 'none';
@@ -6459,6 +7219,19 @@ annotate_report_assignment_status($conn, $recent_reports);
     const isRoadOfficer = (currentUserRole === 'road_monitoring_officer');
     const canArchiveCompleted = (currentUserRole === 'system_admin' || currentUserRole === 'road_ops_supervisor' || currentUserRole === 'trans_ops_supervisor');
 
+    // Matches the server-rendered rows: only the admin is told which completed
+    // projects are still waiting on a transparency decision.
+    function isAwaitingTransparency(report) {
+        return currentUserRole === 'system_admin'
+            && (report.transparency_request_status || '') === 'pending';
+    }
+    function transparencyAwaitIcon(report) {
+        if (!isAwaitingTransparency(report)) return '';
+        return '<span class="transparency-await-icon" title="Awaiting your Transparency Upload decision"'
+            + ' role="img" aria-label="Awaiting Transparency Upload decision">'
+            + '<i class="fas fa-bullhorn"></i></span>';
+    }
+
     // db-badge helpers — mirror the PHP rmo_db_status_class() /
     // rmo_db_priority_badge() (and lgu_staff_dashboard.php's db-badge) so the
     // Road supervisor's / Road Monitoring Officer's dynamically-loaded rows
@@ -6497,10 +7270,12 @@ annotate_report_assignment_status($conn, $recent_reports);
             loadMoreBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
         }
         
-        const statusFilter = document.getElementById('statusFilter').value;
+        const statusFilter = IS_COMPLETED_PROJECTS_VIEW
+            ? 'completed'
+            : (document.getElementById('statusFilter') ? document.getElementById('statusFilter').value : 'all');
         const typeFilter = document.getElementById('typeFilter').value;
         
-        fetch(`../api/get_recent_submissions_paginated.php?offset=${currentOffset}&limit=10&status=${statusFilter}&type=${typeFilter}`)
+        fetch(submissionsListApiUrl(currentOffset, 10, statusFilter, typeFilter))
             .then(response => response.json())
             .then(data => {
                 if (data.success && data.reports.length > 0) {
@@ -6554,7 +7329,9 @@ annotate_report_assignment_status($conn, $recent_reports);
 
     function createReportRow(report) {
         const tr = document.createElement('tr');
-        tr.className = 'report-table-row';
+        tr.className = 'report-table-row'
+            + (isAwaitingTransparency(report) ? ' transparency-flagged' : '')
+            + (isNoUpdateStale(report) ? ' no-update-flagged' : '');
         tr.dataset.id = report.id;
         tr.dataset.title = (report.title || '').toLowerCase();
         tr.dataset.reportId = (report.report_id || '').toLowerCase();
@@ -6563,12 +7340,13 @@ annotate_report_assignment_status($conn, $recent_reports);
         tr.dataset.details = JSON.stringify(report.details);
         
         tr.innerHTML = `
-            <td style="font-family:monospace;font-size:12px;">${escapeHtml(report.report_id)}</td>
+            <td style="font-family:monospace;font-size:12px;">${noUpdateFlagIcon(report)}${transparencyAwaitIcon(report)}${escapeHtml(report.report_id)}</td>
             <td>${escapeHtml(report.title)}</td>
             <td>${escapeHtml(report.source_label)}</td>
-            <td>${(isRoadSupervisor || isRoadOfficer)
+            ${SHOW_CATEGORY_COLUMN ? `<td>${completedProjectCategoryBadge(report)}</td>` : ''}
+            ${HIDE_STATUS_COLUMN ? '' : `<td>${(isRoadSupervisor || isRoadOfficer)
                 ? `<span class="db-badge ${dbStatusBadgeClass(report.status)}">${escapeHtml(ucfirst(report.status.replace('-', ' ')))}</span>`
-                : `<span class="badge badge-${report.status.toLowerCase().replace(' ', '-')}">${escapeHtml(ucfirst(report.status.replace('-', ' ')))}</span>`}</td>
+                : `<span class="badge badge-${report.status.toLowerCase().replace(' ', '-')}">${escapeHtml(ucfirst(report.status.replace('-', ' ')))}</span>`}</td>`}
             <td>${report.assignment_status === 'assigned'
                 ? (report.assignment_officer
                     ? `<span class="badge assignment-badge assignment-assigned">${escapeHtml(report.assignment_officer)}</span>`
@@ -6640,6 +7418,9 @@ annotate_report_assignment_status($conn, $recent_reports);
     function focusRecentReport() {
         const target = FOCUS_TARGET;
         if (!target || !target.id) return;
+        const urlParams = new URLSearchParams(window.location.search);
+        const transparencyDraft = urlParams.get('transparency_draft');
+        const transparencyRequest = urlParams.get('transparency_request');
         setTimeout(function() {
             if (!target.found) {
                 showNotification('The report referenced by this progress update could not be found.', 'error');
@@ -6672,6 +7453,28 @@ annotate_report_assignment_status($conn, $recent_reports);
                 row.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 row.classList.add('focus-pulse');
                 setTimeout(function() { row.classList.remove('focus-pulse'); }, 5000);
+                if (transparencyDraft && typeof viewReportUpdates === 'function') {
+                    var details = {};
+                    try { details = JSON.parse(row.dataset.details || '{}'); } catch (e) {}
+                    viewReportUpdates(
+                        target.id,
+                        details.report_type || '',
+                        row.dataset.source || target.source || '',
+                        'completed'
+                    );
+                    showNotification(
+                        'Transparency draft #' + transparencyDraft + ' created from this project\'s progress updates. '
+                        + '<a href="../shared/public_transparency.php?edit=' + encodeURIComponent(transparencyDraft) + '" style="color:#fff;text-decoration:underline;">Review draft</a>',
+                        'success'
+                    );
+                }
+                if (transparencyRequest && typeof openTransparencyReview === 'function') {
+                    openTransparencyReview(
+                        transparencyRequest,
+                        target.id,
+                        row.dataset.source || target.source || ''
+                    );
+                }
             }, 350);
         }, 600);
     }
@@ -6734,6 +7537,14 @@ annotate_report_assignment_status($conn, $recent_reports);
                 </div>
             </div>
             <div class="rm-modal-footer">
+                <?php if ($is_system_admin): ?>
+                <button type="button" class="rm-modal-btn-transparency-approve" id="approveTransparencyBtn" style="display:none;" onclick="approveTransparencyRequest()">
+                    <i class="fas fa-check-circle"></i> Approve Transparency Upload
+                </button>
+                <button type="button" class="rm-modal-btn-transparency-reject" id="rejectTransparencyBtn" style="display:none;" onclick="rejectTransparencyRequest()">
+                    <i class="fas fa-times-circle"></i> Reject Request
+                </button>
+                <?php endif; ?>
                 <button type="button" class="rm-modal-btn-close" onclick="closeViewDetailsModal()">
                     <i class="fas fa-times"></i> Close
                 </button>
@@ -6748,13 +7559,32 @@ annotate_report_assignment_status($conn, $recent_reports);
                 <h5 class="modal-title"><i class="fas fa-clock"></i> Progress Updates</h5>
                 <button class="close" onclick="closeModal('updatesModal')">&times;</button>
             </div>
-            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+            <div class="modal-body">
                 <div class="timeline-container" id="updatesTimeline">
                     <div class="timeline-empty"><i class="fas fa-spinner fa-spin fa-2x t-text-link"></i></div>
                 </div>
             </div>
             <div class="modal-footer" style="display: flex; flex-direction: column; gap: 16px;">
                 <span id="updateReportInfo" class="t-text-secondary" style="font-size: 13px;"></span>
+                <?php if ($is_system_admin): ?>
+                <!-- Transparency upload request for this completed project. Keeps the
+                     request reachable here as well as from the admin notification. -->
+                <div id="transparencyStatusPanel" class="rm-transparency-panel" style="display:none;">
+                    <span class="rm-transparency-label t-text-primary">
+                        <i class="fas fa-bullhorn"></i> Transparency Upload:
+                        <strong id="transparencyStatusValue">&mdash;</strong>
+                    </span>
+                    <span id="transparencyStatusMeta" class="t-text-secondary"></span>
+                    <span id="transparencyDecisionActions" class="rm-transparency-actions">
+                        <button type="button" class="rm-modal-btn-transparency-approve" id="approveTransparencyUpdatesBtn" onclick="approveTransparencyFromUpdates()">
+                            <i class="fas fa-check-circle"></i> Approve Transparency Upload
+                        </button>
+                        <button type="button" class="rm-modal-btn-transparency-reject" id="rejectTransparencyUpdatesBtn" onclick="rejectTransparencyFromUpdates()">
+                            <i class="fas fa-times-circle"></i> Reject Request
+                        </button>
+                    </span>
+                </div>
+                <?php endif; ?>
                 <div id="actionButtons" style="display: flex; justify-content: space-between;">
                     <div style="display: flex; gap: 8px;">
                         <?php if ($is_officer_role): ?>
@@ -6765,6 +7595,9 @@ annotate_report_assignment_status($conn, $recent_reports);
                         <button type="button" class="btn-danger-custom" id="cancelBtn">Cancel</button>
                         <?php endif; ?>
                         <button type="button" class="btn-action" id="exportWordBtn" onclick="exportUpdatesToExcel()"><i class="fas fa-file-word"></i> Export as Word</button>
+                        <?php if ($is_road_supervisor || $is_trans_ops_supervisor): ?>
+                        <button type="button" class="btn-action" id="requestTransparencyBtn" style="display:none;background:linear-gradient(135deg,#3762c8,#2748a0);color:#fff;" onclick="requestTransparencyUpload()"><i class="fas fa-bullhorn"></i> Request Transparency Upload</button>
+                        <?php endif; ?>
                     </div>
                     <div style="display: flex; gap: 8px;">
                         <button type="button" class="btn-action" id="addUpdateBtn" onclick="showAddUpdateModal()">+ Add Update</button>

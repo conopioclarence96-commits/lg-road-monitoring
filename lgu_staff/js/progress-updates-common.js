@@ -22,7 +22,8 @@ function ensureExportReportDetails() {
         return Promise.resolve();
     }
     var table = 'road_transportation_reports';
-    if (src === 'infrastructure' || src === 'maintenance') table = 'road_maintenance_reports';
+    if (src === 'infrastructure') table = 'ipms_road_projects';
+    else if (src === 'maintenance') table = 'road_maintenance_reports';
     else if (src === 'cimm' || src === 'external') table = 'cimm_verification_reports';
     var url = '../api/get_report_details.php?id=' + encodeURIComponent(id)
         + '&type=' + encodeURIComponent(type || 'transportation')
@@ -305,6 +306,14 @@ function buildExportDetailsTable(d) {
                 ? d.budget_allocation
                 : d.cimm_budget
         ), 'always']);
+    }
+    var proposedStart = prettyExportValue(d.start_date || d.cimm_starting_date);
+    var proposedEnd = prettyExportValue(d.end_date || d.due_date || d.cimm_estimated_end_date);
+    if (proposedStart) {
+        detailPairs.push(['Proposed Start Date', formatExportDate(proposedStart)]);
+    }
+    if (proposedEnd) {
+        detailPairs.push(['Proposed End Date', formatExportDate(proposedEnd)]);
     }
     detailPairs = detailPairs.concat([
         ['Reported By', prettyExportValue(d.reporter_name)],

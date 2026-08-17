@@ -123,6 +123,22 @@ try {
         error_log("report_update_media table creation: " . $e->getMessage());
     }
     
+    // Same dump-restore damage as report_notifications below: without the key and
+    // AUTO_INCREMENT, every progress-update image insert fails and updates end up
+    // with no media at all.
+    try {
+        $rum_id = $conn->query("SELECT COLUMN_KEY, EXTRA FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '" . DB_NAME . "' AND TABLE_NAME = 'report_update_media' AND COLUMN_NAME = 'id'");
+        $rum_id_row = $rum_id ? $rum_id->fetch_assoc() : null;
+        if ($rum_id_row && stripos((string)$rum_id_row['EXTRA'], 'auto_increment') === false) {
+            if (strtoupper((string)$rum_id_row['COLUMN_KEY']) !== 'PRI') {
+                $conn->query("ALTER TABLE report_update_media ADD PRIMARY KEY (id)");
+            }
+            $conn->query("ALTER TABLE report_update_media MODIFY id INT NOT NULL AUTO_INCREMENT");
+        }
+    } catch (Exception $e) {
+        error_log("report_update_media.id auto_increment repair: " . $e->getMessage());
+    }
+
     try {
         $conn->query("CREATE TABLE IF NOT EXISTS report_notifications (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -160,6 +176,22 @@ try {
         $conn->query("ALTER TABLE report_notifications ADD COLUMN IF NOT EXISTS recipient_role VARCHAR(50) DEFAULT NULL AFTER recipient_email");
     } catch (Exception $e) {
         error_log("report_notifications.recipient_role migration: " . $e->getMessage());
+    }
+
+    // Databases restored from a dump can come back with `id` stripped of its key
+    // and AUTO_INCREMENT, which makes every notification INSERT fail under strict
+    // mode ("Field 'id' doesn't have a default value").
+    try {
+        $rn_id = $conn->query("SELECT COLUMN_KEY, EXTRA FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '" . DB_NAME . "' AND TABLE_NAME = 'report_notifications' AND COLUMN_NAME = 'id'");
+        $rn_id_row = $rn_id ? $rn_id->fetch_assoc() : null;
+        if ($rn_id_row && stripos((string)$rn_id_row['EXTRA'], 'auto_increment') === false) {
+            if (strtoupper((string)$rn_id_row['COLUMN_KEY']) !== 'PRI') {
+                $conn->query("ALTER TABLE report_notifications ADD PRIMARY KEY (id)");
+            }
+            $conn->query("ALTER TABLE report_notifications MODIFY id INT NOT NULL AUTO_INCREMENT");
+        }
+    } catch (Exception $e) {
+        error_log("report_notifications.id auto_increment repair: " . $e->getMessage());
     }
     
     // Ensure citizen report columns exist

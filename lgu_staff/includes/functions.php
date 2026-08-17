@@ -730,6 +730,280 @@ function annotate_report_assignment_status($conn, array &$reports) {
     unset($rr);
 }
 
+// Annotate a list of report rows with the state of their latest Transparency
+// Upload Request, so the Completed Projects table can flag the projects an
+// administrator still has to act on. Each row must carry its primary key in
+// 'id' and its source in 'source' ('lgu', 'citizen' or 'cimm'), which together
+// are how transparency_upload_requests identifies a report. Sets
+// 'transparency_request_status' to '' (never requested), 'pending', 'approved'
+// or 'rejected'. Display-only — it never touches a report's own status.
+function annotate_transparency_request_status($conn, array &$reports) {
+    if (empty($reports)) {
+        return;
+    }
+    $latest = [];
+    try {
+        $exists = $conn->query("SHOW TABLES LIKE 'transparency_upload_requests'");
+        if ($exists && $exists->num_rows > 0) {
+            // Highest id per report/source wins, matching the single-report
+            // lookup the transparency request API uses.
+            $res = $conn->query(
+                "SELECT t.report_id, t.report_source, t.status
+                 FROM transparency_upload_requests t
+                 JOIN (SELECT report_id, report_source, MAX(id) AS id
+                         FROM transparency_upload_requests
+                        GROUP BY report_id, report_source) latest
+                   ON latest.id = t.id"
+            );
+            if ($res) {
+                while ($row = $res->fetch_assoc()) {
+                    $key = strtolower((string)($row['report_source'] ?? '')) . ':' . (int)($row['report_id'] ?? 0);
+                    $latest[$key] = (string)($row['status'] ?? '');
+                }
+            }
+        }
+    } catch (Exception $e) {
+        error_log('annotate_transparency_request_status error: ' . $e->getMessage());
+    }
+    foreach ($reports as &$rr) {
+        $key = strtolower((string)($rr['source'] ?? '')) . ':' . (int)($rr['id'] ?? 0);
+        $rr['transparency_request_status'] = $latest[$key] ?? '';
+    }
+    unset($rr);
+}
+
+// Display-only: when a report last received a progress update (or never has).
+// Sets last_progress_update_at and no_update_stale (true when 10+ days have
+// passed since the last update, or since the report was created if none exist).
+// Does not write to the database or change report status.
+function annotate_last_progress_update($conn, array &$reports) {
+    if (empty($reports)) {
+        return;
+    }
+    $latest = [];
+    try {
+        $exists = $conn->query("SHOW TABLES LIKE 'report_updates'");
+        if ($exists && $exists->num_rows > 0) {
+            $res = $conn->query(
+                "SELECT report_id, MAX(created_at) AS last_at
+                   FROM report_updates
+               GROUP BY report_id"
+            );
+            if ($res) {
+                while ($row = $res->fetch_assoc()) {
+                    $latest[(int)($row['report_id'] ?? 0)] = (string)($row['last_at'] ?? '');
+                }
+            }
+        }
+    } catch (Exception $e) {
+        error_log('annotate_last_progress_update error: ' . $e->getMessage());
+    }
+    $threshold = 10 * 24 * 60 * 60;
+    $now = time();
+    foreach ($reports as &$rr) {
+        $id = (int)($rr['id'] ?? 0);
+        $last = $latest[$id] ?? '';
+        $rr['last_progress_update_at'] = $last;
+        $anchor = $last !== '' ? $last : (string)($rr['created_at'] ?? '');
+        $ts = $anchor !== '' ? strtotime($anchor) : false;
+        $rr['no_update_stale'] = ($ts !== false) && (($now - $ts) >= $threshold);
+    }
+    unset($rr);
+}
+
+/**
+ * When an in-progress/approved report has had no progress update for $days
+ * days, notify the System Admin, the supervisor who assigned the officer, and
+ * the assigned monitoring officer. Uses the existing report_notifications
+ * table (type 'no_update_stale') — no schema change.
+ *
+ * Duplicate-safe for the current 10-day window: a row already sent to the same
+ * email since the last progress update (or report created_at if none) is not
+ * sent again. Posting a new progress update moves that window, so the next
+ * gap of 10 days can alert once more. Never changes report status.
+ */
+function dispatch_no_update_stale_notifications($conn, $days = 10) {
+    static $ran = false;
+    if ($ran || !$conn) {
+        return;
+    }
+    $ran = true;
+    $days = max(1, (int)$days);
+
+    try {
+        $has_n = $conn->query("SHOW TABLES LIKE 'report_notifications'");
+        if (!$has_n || $has_n->num_rows === 0) {
+            return;
+        }
+
+        $stale = [];
+        $res = $conn->query(
+            "SELECT t.id,
+                    t.report_id AS report_code,
+                    t.title,
+                    t.location,
+                    'road_transportation_reports' AS report_table,
+                    COALESCE(u.last_at, t.created_at) AS last_activity
+               FROM road_transportation_reports t
+          LEFT JOIN (
+                    SELECT report_id, MAX(created_at) AS last_at
+                      FROM report_updates
+                  GROUP BY report_id
+                    ) u ON u.report_id = t.id
+              WHERE LOWER(t.status) IN ('approved', 'in-progress')
+                AND COALESCE(u.last_at, t.created_at) <= DATE_SUB(NOW(), INTERVAL {$days} DAY)"
+        );
+        if ($res) {
+            while ($row = $res->fetch_assoc()) {
+                $stale[] = $row;
+            }
+        }
+
+        $has_maint = $conn->query("SHOW TABLES LIKE 'road_maintenance_reports'");
+        if ($has_maint && $has_maint->num_rows > 0) {
+            $mres = $conn->query(
+                "SELECT t.id,
+                        t.report_id AS report_code,
+                        t.title,
+                        t.location,
+                        'road_maintenance_reports' AS report_table,
+                        COALESCE(u.last_at, t.created_at) AS last_activity
+                   FROM road_maintenance_reports t
+              LEFT JOIN (
+                        SELECT report_id, MAX(created_at) AS last_at
+                          FROM report_updates
+                      GROUP BY report_id
+                        ) u ON u.report_id = t.id
+                  WHERE LOWER(t.status) IN ('approved', 'in-progress')
+                    AND COALESCE(u.last_at, t.created_at) <= DATE_SUB(NOW(), INTERVAL {$days} DAY)"
+            );
+            if ($mres) {
+                while ($row = $mres->fetch_assoc()) {
+                    $stale[] = $row;
+                }
+            }
+        }
+
+        $has_cimm = $conn->query("SHOW TABLES LIKE 'cimm_verification_reports'");
+        if ($has_cimm && $has_cimm->num_rows > 0) {
+            $cres = $conn->query(
+                "SELECT t.id,
+                        t.reference_code AS report_code,
+                        t.infrastructure AS title,
+                        t.location,
+                        'cimm_verification_reports' AS report_table,
+                        COALESCE(u.last_at, COALESCE(t.submitted_at, t.verified_at, t.synced_at, NOW())) AS last_activity
+                   FROM cimm_verification_reports t
+              LEFT JOIN (
+                        SELECT report_id, MAX(created_at) AS last_at
+                          FROM report_updates
+                      GROUP BY report_id
+                        ) u ON u.report_id = t.id
+                  WHERE t.verification_status IN ('Approved', 'In Progress')
+                    AND COALESCE(u.last_at, COALESCE(t.submitted_at, t.verified_at, t.synced_at, NOW())) <= DATE_SUB(NOW(), INTERVAL {$days} DAY)"
+            );
+            if ($cres) {
+                while ($row = $cres->fetch_assoc()) {
+                    $stale[] = $row;
+                }
+            }
+        }
+
+        if (empty($stale)) {
+            return;
+        }
+
+        $admins = [];
+        $ares = $conn->query(
+            "SELECT id, email, role FROM users
+              WHERE role = 'system_admin'
+                AND email IS NOT NULL AND TRIM(email) <> ''"
+        );
+        if ($ares) {
+            while ($row = $ares->fetch_assoc()) {
+                $email = trim((string)($row['email'] ?? ''));
+                if ($email !== '') {
+                    $admins[$email] = (string)($row['role'] ?? 'system_admin');
+                }
+            }
+        }
+
+        $has_asg = $conn->query("SHOW TABLES LIKE 'report_assignments'");
+
+        foreach ($stale as $report) {
+            $report_id = (int)($report['id'] ?? 0);
+            if ($report_id <= 0) {
+                continue;
+            }
+            $table = (string)($report['report_table'] ?? 'road_transportation_reports');
+            $last_activity = (string)($report['last_activity'] ?? '');
+            if ($last_activity === '') {
+                continue;
+            }
+
+            $code = trim((string)($report['report_code'] ?? '')) ?: ('#' . $report_id);
+            $title = trim((string)($report['title'] ?? 'Untitled')) ?: 'Untitled';
+            $location = trim((string)($report['location'] ?? ''));
+            $message = 'No progress update for 10 days — Report: ' . $code
+                . ' | Title: ' . $title
+                . ($location !== '' ? (' | Location: ' . $location) : '');
+
+            $recipients = $admins;
+
+            if ($has_asg && $has_asg->num_rows > 0) {
+                $asg = $conn->prepare(
+                    "SELECT ou.email AS officer_email, ou.role AS officer_role,
+                            su.email AS supervisor_email, su.role AS supervisor_role
+                       FROM report_assignments ra
+                  LEFT JOIN users ou ON ou.id = ra.user_id
+                  LEFT JOIN users su ON su.id = ra.assigned_by
+                      WHERE ra.report_id = ? AND ra.report_type = ? AND ra.status = 'active'"
+                );
+                $asg->bind_param('is', $report_id, $table);
+                $asg->execute();
+                $asg_res = $asg->get_result();
+                while ($asg_res && ($ar = $asg_res->fetch_assoc())) {
+                    $off = trim((string)($ar['officer_email'] ?? ''));
+                    if ($off !== '') {
+                        $recipients[$off] = (string)($ar['officer_role'] ?? 'road_monitoring_officer');
+                    }
+                    $sup = trim((string)($ar['supervisor_email'] ?? ''));
+                    if ($sup !== '') {
+                        $recipients[$sup] = (string)($ar['supervisor_role'] ?? 'road_ops_supervisor');
+                    }
+                }
+                $asg->close();
+            }
+
+            foreach ($recipients as $email => $role) {
+                $dup = $conn->prepare(
+                    "SELECT id FROM report_notifications
+                      WHERE report_id = ? AND type = 'no_update_stale'
+                        AND recipient_email = ? AND created_at >= ?
+                      LIMIT 1"
+                );
+                $dup->bind_param('iss', $report_id, $email, $last_activity);
+                $dup->execute();
+                $already = $dup->get_result()->fetch_assoc();
+                $dup->close();
+                if ($already) {
+                    continue;
+                }
+
+                $ins = $conn->prepare(
+                    "INSERT INTO report_notifications (report_id, type, message, recipient_email, recipient_role, is_read)
+                     VALUES (?, 'no_update_stale', ?, ?, ?, 0)"
+                );
+                $ins->bind_param('isss', $report_id, $message, $email, $role);
+                $ins->execute();
+                $ins->close();
+            }
+        }
+    } catch (Exception $e) {
+        error_log('dispatch_no_update_stale_notifications error: ' . $e->getMessage());
+    }
+}
+
 // Send an email containing a magic login URL carrying the login token.
 function send_login_link_email($toEmail, $loginUrl) {
     $apiKey = env_get('BREVO_API_KEY');

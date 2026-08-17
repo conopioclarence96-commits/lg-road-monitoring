@@ -19,6 +19,8 @@ require_once '../../includes/config.php';
 require_once __DIR__ . '/cimm_verification_data.php';
 require_once '../../includes/notification_badge.php';
 
+dispatch_no_update_stale_notifications($conn);
+
 $user_id = (int)$_SESSION['user_id'];
 $email = (string)($_SESSION['email'] ?? '');
 if ($email === '') {

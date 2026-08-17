@@ -85,9 +85,18 @@ function nc_admin_unread_count($conn, $user_id, $email) {
         foreach ($rows as $r) { $ids['cr' . (int)$r['id']] = true; }
     } catch (Exception $e) {}
 
+    // Live pending transparency upload requests.
+    try {
+        $has_tur = $conn->query("SHOW TABLES LIKE 'transparency_upload_requests'");
+        if ($has_tur && $has_tur->num_rows > 0) {
+            $rows = $conn->query("SELECT id FROM transparency_upload_requests WHERE status = 'pending'");
+            while ($rows && ($r = $rows->fetch_assoc())) { $ids['tur' . (int)$r['id']] = true; }
+        }
+    } catch (Exception $e) {}
+
     // Live unread progress notifications referencing an existing report.
     try {
-        $stmt = $conn->prepare("SELECT id FROM report_notifications WHERE is_read = 0 AND EXISTS (
+        $stmt = $conn->prepare("SELECT id FROM report_notifications WHERE is_read = 0 AND type <> 'no_update_stale' AND EXISTS (
             SELECT 1 FROM road_transportation_reports WHERE id = report_notifications.report_id
             UNION ALL
             SELECT 1 FROM road_maintenance_reports WHERE id = report_notifications.report_id
@@ -100,6 +109,25 @@ function nc_admin_unread_count($conn, $user_id, $email) {
         $stmt->close();
         foreach ($rows as $r) { $ids['pn' . (int)$r['id']] = true; }
     } catch (Exception $e) {}
+
+    // Live 10-day no-update alerts addressed to this admin.
+    if ($email !== '') {
+        try {
+            $stmt = $conn->prepare("SELECT id FROM report_notifications WHERE type = 'no_update_stale' AND recipient_email = ? AND is_read = 0 AND EXISTS (
+                SELECT 1 FROM road_transportation_reports WHERE id = report_notifications.report_id
+                UNION ALL
+                SELECT 1 FROM road_maintenance_reports WHERE id = report_notifications.report_id
+                UNION ALL
+                SELECT 1 FROM cimm_verification_reports WHERE id = report_notifications.report_id
+                LIMIT 1
+            )");
+            $stmt->bind_param("s", $email);
+            $stmt->execute();
+            $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+            foreach ($rows as $r) { $ids['stu' . (int)$r['id']] = true; }
+        } catch (Exception $e) {}
+    }
 
     // Live active assignments for this admin.
     try {

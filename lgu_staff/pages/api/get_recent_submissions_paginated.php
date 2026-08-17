@@ -41,17 +41,34 @@ $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
 $status_filter = isset($_GET['status']) ? $_GET['status'] : 'all';
 $type_filter = isset($_GET['type']) ? $_GET['type'] : 'all';
 
+$completed_only = isset($_GET['completed_only']) && $_GET['completed_only'] === '1';
+if ($completed_only) {
+    $status_filter = 'completed';
+}
+
 // Helper function to get recent submissions with pagination
-function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', $type_filter = 'all', $transport_only = false, $road_only = false, $assigned_to_user_id = null) {
+function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', $type_filter = 'all', $transport_only = false, $road_only = false, $assigned_to_user_id = null, $completed_only = false) {
     global $conn;
     $reports = [];
     if (!$conn) return $reports;
+
+    if ($completed_only) {
+        $status_filter = 'completed';
+    }
 
     // Transportation Operations Supervisors see only Transportation reports.
     $transport_category_filter = $transport_only ? " AND report_category = 'transportation'" : '';
 
     // Road Operations Supervisors see only Road reports.
     $road_category_filter = $road_only ? " AND report_category = 'road'" : '';
+
+    $transport_status_sql = $completed_only
+        ? "t.status = 'completed'"
+        : "t.status IN ('approved', 'in-progress')";
+
+    $cimm_status_sql = $completed_only
+        ? "verification_status = 'Completed'"
+        : "verification_status IN ('Approved', 'In Progress')";
 
     // Helper to append shared WHERE clauses and run a query (no pagination at query level)
     $fetch = function ($sql, $status_filter) use ($conn) {
@@ -88,7 +105,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
                     'road_transportation_reports' AS _source_table
              FROM road_transportation_reports t
              LEFT JOIN users u ON u.id = t.created_by
-             WHERE t.status IN ('approved', 'in-progress', 'completed')
+             WHERE {$transport_status_sql}
                AND (t.created_by IS NULL OR t.created_by = 0
                     OR t.cimm_sync_status IS NULL OR t.cimm_sync_status <> 'pushed'
                     OR (t.report_category IN ('transportation', 'road') AND t.report_source = 'local' AND t.created_by != 0)){$transport_category_filter}{$road_category_filter}",
@@ -96,8 +113,8 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
         ));
 
         // 2. Infrastructure Projects (ipms_road_projects, locally approved).
-        //    Excluded for Transportation Operations Supervisors.
-        if (!$transport_only) {
+        //    Excluded for Transportation Operations Supervisors and Completed view.
+        if (!$transport_only && !$completed_only) {
             $reports = array_merge($reports, $fetch(
             "SELECT project_id AS id,
                     CAST(project_id AS CHAR) AS report_id,
@@ -146,7 +163,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
                                 engineer, budget_allocation,
                                 'cimm_verification_reports' AS _source_table
                          FROM cimm_verification_reports
-                         WHERE verification_status IN ('Approved', 'In Progress', 'Completed')
+                         WHERE {$cimm_status_sql}
                            AND infrastructure = 'Roads'
                      ) AS cimm_mapped WHERE 1=1",
                     $status_filter
@@ -181,11 +198,21 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
 }
 
 try {
-    $reports = getRecentSubmissionsPaginated($offset, $limit, $status_filter, $type_filter, $transport_only, $road_only, $assigned_to_user_id);
+    $reports = getRecentSubmissionsPaginated($offset, $limit, $status_filter, $type_filter, $transport_only, $road_only, $assigned_to_user_id, $completed_only);
 
     // Display-only Assignment Status (Assigned / Unassigned) for each report,
     // read live from report_assignments so it reflects Assign/Unassign changes.
     annotate_report_assignment_status($conn, $reports);
+
+    if (empty($completed_only)) {
+        annotate_last_progress_update($conn, $reports);
+    }
+
+    // System Admin only: lets the table flag projects whose Transparency Upload
+    // Request is still waiting for a decision.
+    if (($_SESSION['role'] ?? '') === 'system_admin') {
+        annotate_transparency_request_status($conn, $reports);
+    }
     
     $source_labels = [
         'lgu' => 'LGU Monitoring',
@@ -219,6 +246,8 @@ try {
             'verification_status' => $rr['verification_status'] ?? '',
             'report_category' => $rr['report_category'] ?? '',
             'report_type' => $rr['report_type'] ?? '',
+            'transparency_request_status' => $rr['transparency_request_status'] ?? '',
+            'no_update_stale' => !empty($rr['no_update_stale']),
             'table' => $rr['_source_table'] ?? 'road_transportation_reports',
             'details' => [
                 'id' => $rr['id'],

@@ -29,6 +29,12 @@ if (!isset($_SESSION['user_id']) || !is_admin_or_staff_role($_SESSION['role'] ??
 
 $is_admin = ($_SESSION['role'] === 'system_admin');
 
+// Set when the admin arrives here after approving a transparency upload request;
+// that project's data is then imported into the form for review.
+$prefill_request_id = ($is_admin && isset($_GET['transparency_request']))
+    ? max(0, (int)$_GET['transparency_request'])
+    : 0;
+
 // Handle AJAX requests
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json; charset=utf-8');
@@ -259,6 +265,41 @@ if ($conn) {
 
         .btn-cancel:hover {
             background: #5a6268;
+        }
+
+        .form-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-import {
+            padding: 12px 22px;
+            background: linear-gradient(135deg, #1e3c72, #3762c8);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+
+        .btn-import:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(55,98,200,0.3);
+        }
+
+        .btn-import:disabled {
+            opacity: 0.65;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
         }
 
         .projects-grid {
@@ -515,6 +556,34 @@ if ($conn) {
             font-size: 13px;
         }
 
+        .import-review-banner {
+            background: linear-gradient(135deg, rgba(76,175,80,0.10), rgba(56,142,60,0.10));
+            border-left: 4px solid #4CAF50;
+            border-radius: 12px;
+            padding: 20px 25px;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .import-review-banner .notice-icon {
+            font-size: 2.2rem;
+            color: #388E3C;
+        }
+
+        .import-review-banner h4 {
+            margin: 0 0 5px 0;
+            color: #1e3c72;
+            font-size: 16px;
+        }
+
+        .import-review-banner p {
+            margin: 0;
+            color: #666;
+            font-size: 13px;
+        }
+
         .publish-toggle {
             display: flex;
             flex-direction: column;
@@ -591,6 +660,13 @@ if ($conn) {
             font-size: 12px;
             color: #888;
             margin-left: 4px;
+        }
+
+        .field-hint {
+            display: block;
+            font-size: 11px;
+            color: #888;
+            margin-top: 4px;
         }
 
         .publish-badge {
@@ -673,13 +749,29 @@ if ($conn) {
         </div>
 
         <?php if ($is_admin): ?>
+        <!-- Approved transparency request being imported for review -->
+        <div class="import-review-banner" id="importReviewBanner" style="display:none">
+            <div class="notice-icon"><i class="fas fa-file-import"></i></div>
+            <div>
+                <h4 id="importReviewTitle">Imported from an approved transparency request</h4>
+                <p id="importReviewText">Review the fields below, then save or publish the project.</p>
+            </div>
+        </div>
+
         <!-- Add / Edit Form - Admin Only -->
         <div class="project-form-card" id="projectForm">
             <div class="section-header">
                 <h3 class="section-title" id="formTitle"><i class="fas fa-plus-circle"></i> Add New Project</h3>
-                <button class="btn-cancel" id="btnCancelEdit" style="display:none" onclick="resetForm()">
-                    <i class="fas fa-times"></i> Cancel Edit
-                </button>
+                <div class="form-header-actions">
+                    <button type="button" class="btn-import" id="btnImportExport" onclick="document.getElementById('progressExportInput').click()"
+                            title="Fill this form from a Progress Updates export (.doc)">
+                        <i class="fas fa-file-import"></i> Import from Export
+                    </button>
+                    <input type="file" id="progressExportInput" accept=".doc" style="display:none" onchange="handleProgressExportImport(this)">
+                    <button class="btn-cancel" id="btnCancelEdit" style="display:none" onclick="resetForm()">
+                        <i class="fas fa-times"></i> Cancel Edit
+                    </button>
+                </div>
             </div>
 
             <form id="projectFormEl" enctype="multipart/form-data">
@@ -701,6 +793,18 @@ if ($conn) {
                     </div>
 
                     <div class="form-group">
+                        <label for="projectStartDate">Start Date</label>
+                        <input type="date" id="projectStartDate">
+                        <span class="field-hint">From the first progress update in the import</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="projectEndDate">End Date</label>
+                        <input type="date" id="projectEndDate">
+                        <span class="field-hint">From the last progress update in the import</span>
+                    </div>
+
+                    <div class="form-group">
                         <label for="projectDate">Completion Date</label>
                         <input type="date" id="projectDate">
                     </div>
@@ -713,6 +817,13 @@ if ($conn) {
                     <div class="form-group">
                         <label for="projectCompletedBy">Completed By</label>
                         <input type="text" id="projectCompletedBy" placeholder="e.g. DPWH, Private Contractor">
+                        <span class="field-hint">The report's engineer when imported</span>
+                    </div>
+
+                    <div class="form-group full-width">
+                        <label for="projectConductedBy">Progress Updates Conducted By</label>
+                        <input type="text" id="projectConductedBy" placeholder="e.g. Engr. Ramon Cruz, Officer Dela Cruz">
+                        <span class="field-hint">Staff who posted the progress updates for this project</span>
                     </div>
 
                     <div class="form-group">
@@ -863,47 +974,59 @@ if ($conn) {
     <!-- Toast -->
     <div class="toast" id="toast"></div>
 
+    <script src="../../js/progress-export-import.js?v=<?php echo filemtime(__DIR__ . '/../../js/progress-export-import.js'); ?>"></script>
     <script>
     const API = '../../pages/api/completed_projects_api.php';
     let isEditing = false;
 
     // ─── Photo Upload ─────────────────────────────────────
-    function handlePhotoSelect(input, type) {
-        const file = input.files[0];
-        if (!file) return;
-
-        const formData = new FormData();
-        formData.append('action', 'upload_photo');
-        formData.append('field', type === 'before' ? 'before_photo' : 'photo');
-        formData.append(type === 'before' ? 'before_photo' : 'photo', file);
-
+    function applyUploadedPhoto(type, path) {
         const area = document.getElementById(type + 'PhotoArea');
         const preview = document.getElementById(type + 'PhotoPreview');
         const pathInput = document.getElementById(type + 'PhotoPath');
-        const removeBtn = area.querySelector('.remove-photo');
+        if (!area || !preview || !pathInput) return;
 
-        area.style.opacity = '0.5';
+        pathInput.value = path;
+        preview.src = '../../../' + path;
+        preview.style.display = 'block';
+        area.querySelector('.upload-icon').style.display = 'none';
+        area.querySelector('.upload-text').style.display = 'none';
+        area.classList.add('has-image');
+        area.querySelector('.remove-photo').style.display = 'flex';
+    }
 
-        fetch(API, { method: 'POST', body: formData })
+    function uploadPhotoFile(type, file) {
+        const field = type === 'before' ? 'before_photo' : 'photo';
+        const formData = new FormData();
+        formData.append('action', 'upload_photo');
+        formData.append('field', field);
+        formData.append(field, file);
+
+        const area = document.getElementById(type + 'PhotoArea');
+        if (area) area.style.opacity = '0.5';
+
+        return fetch(API, { method: 'POST', body: formData })
             .then(r => r.json())
             .then(data => {
-                area.style.opacity = '1';
+                if (area) area.style.opacity = '1';
                 if (data.success) {
-                    pathInput.value = data.path;
-                    preview.src = '../../../' + data.path;
-                    preview.style.display = 'block';
-                    area.querySelector('.upload-icon').style.display = 'none';
-                    area.querySelector('.upload-text').style.display = 'none';
-                    area.classList.add('has-image');
-                    removeBtn.style.display = 'flex';
-                } else {
-                    showToast(data.message || 'Upload failed', 'error');
+                    applyUploadedPhoto(type, data.path);
+                    return true;
                 }
+                showToast(data.message || 'Upload failed', 'error');
+                return false;
             })
             .catch(() => {
-                area.style.opacity = '1';
+                if (area) area.style.opacity = '1';
                 showToast('Upload error', 'error');
+                return false;
             });
+    }
+
+    function handlePhotoSelect(input, type) {
+        const file = input.files[0];
+        if (!file) return;
+        uploadPhotoFile(type, file);
     }
 
     function removePhoto(type) {
@@ -922,6 +1045,166 @@ if ($conn) {
         area.classList.remove('has-image');
         removeBtn.style.display = 'none';
     }
+
+    // ─── Import from Progress Updates Export ──────────────
+    // Reads the .doc export shared by completed_projects.php, archive.php and
+    // road_transportation_monitoring.php and pre-fills this form from it.
+    const IMPORT_IMAGE_EXT = { 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' };
+
+    function dataUrlToFile(dataUrl, baseName) {
+        const parts = /^data:([^;,]+)(;base64)?,([\s\S]*)$/i.exec(String(dataUrl || ''));
+        if (!parts) return null;
+        const mime = parts[1].toLowerCase();
+        const ext = IMPORT_IMAGE_EXT[mime];
+        if (!ext) return null;
+        let bytes;
+        try {
+            const binary = parts[2] ? atob(parts[3]) : decodeURIComponent(parts[3]);
+            bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        } catch (e) {
+            return null;
+        }
+        return new File([bytes], baseName + '.' + ext, { type: mime });
+    }
+
+    function setImportedField(id, value) {
+        const el = document.getElementById(id);
+        if (!el || !value) return false;
+        el.value = value;
+        return true;
+    }
+
+    function importPhotoFromExport(type, dataUrl) {
+        const file = dataUrlToFile(dataUrl, 'imported-' + type + '-' + Date.now());
+        if (!file) return Promise.resolve(false);
+        return uploadPhotoFile(type, file);
+    }
+
+    function applyImportedProject(data) {
+        let imported = 0;
+        if (setImportedField('projectTitle', data.title)) imported++;
+        if (setImportedField('projectDesc', data.description)) imported++;
+        if (setImportedField('projectLocation', data.location)) imported++;
+        // Start/End come from the first and last progress update in the export.
+        if (setImportedField('projectStartDate', data.actualStartDate)) imported++;
+        if (setImportedField('projectEndDate', data.actualEndDate)) imported++;
+        if (setImportedField('projectDate', data.completionDate || data.actualEndDate)) imported++;
+        if (setImportedField('projectCost', data.cost)) imported++;
+        if (setImportedField('projectCompletedBy', data.completedBy)) imported++;
+
+        // The export's first and last update images become the before/after
+        // pair; a single-image timeline only yields an after photo.
+        const photoJobs = [];
+        const onePhotoOnly = data.beforeImage && data.beforeImage === data.afterImage;
+        if (data.beforeImage && !onePhotoOnly) {
+            photoJobs.push(importPhotoFromExport('before', data.beforeImage));
+        }
+        if (data.afterImage) {
+            photoJobs.push(importPhotoFromExport('after', data.afterImage));
+        }
+
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+
+        return Promise.all(photoJobs).then(results => {
+            imported += results.filter(Boolean).length;
+            if (!imported) {
+                showToast('This export had no fields that apply to a project', 'error');
+            } else {
+                showToast('Imported ' + imported + ' field(s) — review, then save', 'success');
+            }
+        });
+    }
+
+    function handleProgressExportImport(input) {
+        const file = input.files && input.files[0];
+        input.value = ''; // let the same file be picked again
+        if (!file) return;
+
+        if (!window.ProgressExportImport) {
+            showToast('Import helper failed to load — refresh and try again', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('btnImportExport');
+        const btnLabel = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importing...';
+        }
+
+        window.ProgressExportImport.readExportFile(file)
+            .then(applyImportedProject)
+            .catch(err => showToast(err && err.message ? err.message : 'Could not import this file', 'error'))
+            .then(() => {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = btnLabel;
+                }
+            });
+    }
+
+    // ─── Auto-import an approved transparency request ─────
+    // The admin lands here straight from approving the request, so the approved
+    // project's own progress-update data is pulled from the server instead of
+    // making the admin download and re-upload an export. Nothing is written
+    // until the admin reviews the fields and submits the form.
+    const TRANSPARENCY_REQUEST_API = '../api/transparency_request_api.php';
+    const PREFILL_REQUEST_ID = <?php echo (int)$prefill_request_id; ?>;
+
+    function showImportReviewBanner(req) {
+        const banner = document.getElementById('importReviewBanner');
+        if (!banner) return;
+        const id = (req && req.id) ? req.id : PREFILL_REQUEST_ID;
+        const who = (req && req.requested_by_name) ? req.requested_by_name : 'the Road Operations Supervisor';
+        const project = (req && req.report_title) ? '"' + req.report_title + '"' : 'the approved project';
+        document.getElementById('importReviewTitle').textContent = 'Imported from approved request #' + id;
+        document.getElementById('importReviewText').textContent =
+            'Progress update data for ' + project + ', requested by ' + who
+            + ', has been filled in below. Review every field, then save as draft or publish.';
+        banner.style.display = 'flex';
+    }
+
+    function applyPrefilledProject(data) {
+        setImportedField('projectTitle', data.title);
+        setImportedField('projectDesc', data.description);
+        setImportedField('projectLocation', data.location);
+        setImportedField('projectStartDate', data.first_update_date);
+        setImportedField('projectEndDate', data.last_update_date);
+        setImportedField('projectDate', data.completed_date || data.last_update_date);
+        setImportedField('projectCost', data.cost ? Number(data.cost).toFixed(2) : '');
+        setImportedField('projectCompletedBy', data.completed_by);
+        setImportedField('projectConductedBy', data.progress_conducted_by);
+
+        // Photos were copied into the completed-projects folder server-side, so
+        // the form only needs to point at them.
+        if (data.before_photo) applyUploadedPhoto('before', data.before_photo);
+        if (data.photo) applyUploadedPhoto('after', data.photo);
+    }
+
+    function loadApprovedTransparencyPrefill() {
+        if (!PREFILL_REQUEST_ID || !document.getElementById('projectFormEl')) return;
+
+        fetch(TRANSPARENCY_REQUEST_API + '?action=prefill&request_id=' + encodeURIComponent(PREFILL_REQUEST_ID))
+            .then(r => r.json())
+            .then(resp => {
+                if (!resp || !resp.success || !resp.data) {
+                    showToast((resp && resp.message) || 'Could not import the approved project', 'error');
+                    return;
+                }
+                applyPrefilledProject(resp.data);
+                showImportReviewBanner(resp.request);
+                // Drop the parameter so the reload after saving does not re-import.
+                if (window.history && window.history.replaceState) {
+                    window.history.replaceState({}, '', 'public_transparency.php');
+                }
+                showToast('Approved project imported — review, then save', 'success');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            })
+            .catch(() => showToast('Network error while importing the approved project', 'error'));
+    }
+
+    loadApprovedTransparencyPrefill();
 
     // ─── Publish Toggle Text ───────────────────────────────
     const publishCheckbox = document.getElementById('isPublished');
@@ -956,8 +1239,11 @@ if ($conn) {
         formData.append('description', document.getElementById('projectDesc').value.trim());
         formData.append('location', document.getElementById('projectLocation').value.trim());
         formData.append('completed_date', document.getElementById('projectDate').value);
+        formData.append('start_date', document.getElementById('projectStartDate').value);
+        formData.append('end_date', document.getElementById('projectEndDate').value);
         formData.append('cost', document.getElementById('projectCost').value || 0);
         formData.append('completed_by', document.getElementById('projectCompletedBy').value.trim());
+        formData.append('progress_conducted_by', document.getElementById('projectConductedBy').value.trim());
         formData.append('photo', afterPath);
         formData.append('before_photo', document.getElementById('beforePhotoPath').value);
 
@@ -1006,8 +1292,11 @@ if ($conn) {
         document.getElementById('projectDesc').value = project.description || '';
         document.getElementById('projectLocation').value = project.location || '';
         document.getElementById('projectDate').value = project.completed_date || '';
+        document.getElementById('projectStartDate').value = project.start_date || '';
+        document.getElementById('projectEndDate').value = project.end_date || '';
         document.getElementById('projectCost').value = project.cost || '';
         document.getElementById('projectCompletedBy').value = project.completed_by || '';
+        document.getElementById('projectConductedBy').value = project.progress_conducted_by || '';
 
         // Set publish status
         const publishCheckbox = document.getElementById('isPublished');
