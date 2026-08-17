@@ -407,6 +407,7 @@
         fd.append('reporter_name', document.getElementById('crName').value.trim());
         fd.append('phone', normalizePhone(document.getElementById('crPhone').value));
         fd.append('description', document.getElementById('crDescription').value.trim());
+        fd.append('email_updates', document.getElementById('crEmailUpdates') && document.getElementById('crEmailUpdates').checked ? '1' : '0');
         photoFiles.forEach(function (file) {
             fd.append('photos[]', file);
         });

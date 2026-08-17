@@ -71,6 +71,10 @@ $check_imgpath = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIK
 if ($check_imgpath && $check_imgpath->num_rows === 0) {
     $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN image_path VARCHAR(500) NULL DEFAULT NULL AFTER attachments");
 }
+$check_email_updates = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'receive_email_updates'");
+if ($check_email_updates && $check_email_updates->num_rows === 0) {
+    $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN receive_email_updates TINYINT(1) NOT NULL DEFAULT 0 AFTER reporter_phone");
+}
 
 // Ensure the cimm_engineer_name/cimm_budget/cimm_starting_date/
 // cimm_estimated_end_date/cimm_status/cimm_district columns exist —
@@ -840,6 +844,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $conn->prepare($query);
             $stmt->bind_param('si', $status, $report_id);
             $stmt->execute();
+
+            if ($action === 'approve' && $table === 'road_transportation_reports') {
+                send_citizen_approval_email_if_opted_in($conn, $report_id);
+            }
             
             // Log the action
             $audit_query = "INSERT INTO audit_trails (audit_id, title, audit_type, status, auditor, description, created_at) 
