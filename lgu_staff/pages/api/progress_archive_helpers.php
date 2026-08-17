@@ -51,6 +51,12 @@ function rgmap_archive_ensure_table() {
         }
     } catch (Exception $e) { error_log('rgmap_archive_ensure_table archived_from: ' . $e->getMessage()); }
     try {
+        $chk = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE 'approval_status'");
+        if ($chk && $chk->num_rows === 0) {
+            $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN approval_status VARCHAR(50) NULL DEFAULT NULL");
+        }
+    } catch (Exception $e) { error_log('rgmap_archive_ensure_table approval_status: ' . $e->getMessage()); }
+    try {
         $chk = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE 'source_pk'");
         if ($chk && $chk->num_rows === 0) {
             $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN source_pk INT NULL DEFAULT NULL");
@@ -65,6 +71,20 @@ function rgmap_archive_ensure_table() {
                       WHERE a.source_pk IS NULL
                         AND a.archived_from = 'cimm_verification_reports'");
     } catch (Exception $e) { error_log('rgmap_archive_ensure_table source_pk: ' . $e->getMessage()); }
+    foreach ([
+        'start_address' => 'VARCHAR(100) NULL DEFAULT NULL',
+        'end_address' => 'VARCHAR(100) NULL DEFAULT NULL',
+        'ipms_polyline_json' => 'LONGTEXT NULL DEFAULT NULL',
+    ] as $col => $def) {
+        try {
+            $chk = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE '$col'");
+            if ($chk && $chk->num_rows === 0) {
+                $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN $col $def");
+            }
+        } catch (Exception $e) {
+            error_log("rgmap_archive_ensure_table $col: " . $e->getMessage());
+        }
+    }
 }
 
 // Ensure the restored_from_archive marker column exists on every live report
@@ -294,6 +314,22 @@ function rgmap_archive_cimm_report($conn, $cimm_req_id, $status) {
         }
 
 $timestamp_key = ($archive_status === 'cancelled') ? 'rejected_at' : 'completed_at';
+            // Preserve the CIMM evidence photos (absolute URLs in
+            // evidence_json) in the archive's attachments column so the
+            // archive View modal can render the same evidence photos.
+            $this_cimm_archive_attachments_json = null;
+            $this_cimm_archive_evidence = json_decode((string)($cimm_report['evidence_json'] ?? '[]'), true);
+            if (is_array($this_cimm_archive_evidence) && count($this_cimm_archive_evidence) > 0) {
+                $this_cimm_archive_items = [];
+                foreach ($this_cimm_archive_evidence as $this_cimm_archive_url) {
+                    if (is_string($this_cimm_archive_url) && $this_cimm_archive_url !== '') {
+                        $this_cimm_archive_items[] = ['type' => 'image', 'file_path' => $this_cimm_archive_url];
+                    }
+                }
+                if (count($this_cimm_archive_items) > 0) {
+                    $this_cimm_archive_attachments_json = json_encode($this_cimm_archive_items, JSON_UNESCAPED_SLASHES);
+                }
+            }
             // Preserve ALL original CIMM information so a later restore brings
             // the report back exactly as it was — start/end dates, engineer,
             // budget and the rest are stored in the archive's cimm_* columns.
@@ -328,6 +364,11 @@ $timestamp_key = ($archive_status === 'cancelled') ? 'rejected_at' : 'completed_
                 'cimm_estimated_end_date' => $cimm_report['estimated_end_date'] ?? null,
                 'cimm_status' => $cimm_report['verification_status'] ?? null,
                 'cimm_district' => $cimm_report['district'] ?? null,
+                'approval_status' => $cimm_report['approval_status'] ?? null,
+                'cimm_report_url' => $cimm_report['portal_url'] ?? null,
+                'reporter_email' => $cimm_report['email'] ?? null,
+                'reporter_phone' => $cimm_report['contact_number'] ?? null,
+                'attachments' => $this_cimm_archive_attachments_json,
             ];
 
         $fields = array_keys($insert_fields);
@@ -347,6 +388,138 @@ $timestamp_key = ($archive_status === 'cancelled') ? 'rejected_at' : 'completed_
     } catch (Exception $e) {
         try { $conn->rollback(); } catch (Throwable $rollback_error) { /* No active transaction */ }
         error_log("rgmap_archive_cimm_report failed: " . $e->getMessage());
+        return false;
+    }
+}
+
+// Archive an IPMS infrastructure project: copy every field the verification
+// View modal needs into road_transportation_reports_archive, then remove the
+// row from ipms_road_projects. Used when a project is rejected on
+// verification_monitoring.php or deleted on report_management.php.
+function rgmap_archive_ipms_project($conn, $project_id, $status) {
+    $project_id = (int)$project_id;
+    if ($project_id <= 0) {
+        return false;
+    }
+
+    require_once __DIR__ . '/ipms_road_projects_data.php';
+
+    try {
+        rgmap_archive_ensure_table();
+        $pdo = rgmap_ipms_pdo();
+        $stmt = $pdo->prepare("SELECT * FROM ipms_road_projects WHERE project_id = ?");
+        $stmt->execute([$project_id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return false;
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $valid_archive_statuses = ['pending', 'in-progress', 'completed', 'cancelled', 'approved', 'rejected'];
+        $archive_status = strtolower(trim((string)$status));
+        if (!in_array($archive_status, $valid_archive_statuses, true)) {
+            $archive_status = 'rejected';
+        }
+
+        $archive_priority = strtolower(trim((string)($row['priority'] ?? 'medium')));
+        if (!in_array($archive_priority, ['high', 'medium', 'low'], true)) {
+            $archive_priority = 'medium';
+        }
+
+        $engineers = json_decode((string)($row['assigned_engineers_json'] ?? '[]'), true) ?: [];
+        $engineer = implode(', ', array_filter(
+            array_map('trim', array_map('strval', is_array($engineers) ? $engineers : [])),
+            static fn($n) => $n !== ''
+        ));
+
+        $barangays = json_decode((string)($row['barangays_json'] ?? '[]'), true) ?: [];
+        $location = '';
+        if (is_array($barangays) && count($barangays) > 0) {
+            $location = implode(', ', array_filter(
+                array_map('trim', array_map('strval', $barangays)),
+                static fn($b) => $b !== ''
+            ));
+        }
+        if ($location === '') {
+            $location = trim((string)($row['road_name'] ?? ''));
+        }
+
+        $road_type = trim((string)($row['road_type'] ?? ''));
+        $report_type = $road_type !== '' ? $road_type : 'infrastructure_issue';
+        $start_date = $row['start_date'] ?? null;
+        $end_date = $row['end_date'] ?? null;
+        $report_code = 'IPMS-' . $project_id;
+
+        $insert_fields = [
+            'report_id' => $report_code,
+            'title' => $row['project_name'] ?? 'Infrastructure Project',
+            'report_type' => $report_type,
+            'report_category' => 'road',
+            'report_source' => 'local',
+            'department' => 'engineering',
+            'priority' => $archive_priority,
+            'status' => $archive_status,
+            'previous_status' => $row['status'] ?? null,
+            'archived_from' => 'ipms_road_projects',
+            'source_pk' => $project_id,
+            'created_date' => (!empty($start_date)) ? date('Y-m-d', strtotime($start_date)) : date('Y-m-d'),
+            'due_date' => $end_date,
+            'description' => $row['road_status'] ?? '',
+            'location' => $location,
+            'latitude' => $row['start_lat'] ?? null,
+            'longitude' => $row['start_lng'] ?? null,
+            'created_at' => $row['created_at'] ?? $now,
+            'updated_at' => $now,
+            'rejected_at' => in_array($archive_status, ['rejected', 'cancelled'], true) ? $now : null,
+            'engineer' => ($engineer !== '') ? $engineer : null,
+            'assigned_to' => ($engineer !== '') ? $engineer : null,
+            'budget_allocation' => $row['budget'] ?? null,
+            'cimm_budget' => $row['budget'] ?? null,
+            'cimm_starting_date' => $start_date,
+            'cimm_estimated_end_date' => $end_date,
+            'start_address' => $row['start_address'] ?? null,
+            'end_address' => $row['end_address'] ?? null,
+            'ipms_polyline_json' => $row['polyline_json'] ?? null,
+        ];
+
+        $conn->begin_transaction();
+
+        $dup = $conn->prepare("SELECT id FROM road_transportation_reports_archive WHERE report_id = ? LIMIT 1");
+        $dup->bind_param('s', $report_code);
+        $dup->execute();
+        $existing = $dup->get_result()->fetch_assoc();
+        $dup->close();
+
+        if ($existing) {
+            $set_parts = [];
+            $vals = [];
+            foreach ($insert_fields as $field => $val) {
+                $set_parts[] = "`$field` = ?";
+                $vals[] = $val;
+            }
+            $vals[] = (int)$existing['id'];
+            $upd_sql = "UPDATE road_transportation_reports_archive SET " . implode(', ', $set_parts) . " WHERE id = ?";
+            $upd = $conn->prepare($upd_sql);
+            $upd->execute($vals);
+            $upd->close();
+        } else {
+            $fields = array_keys($insert_fields);
+            $placeholders = array_fill(0, count($fields), '?');
+            $field_list = '`' . implode('`, `', $fields) . '`';
+            $insert = "INSERT INTO road_transportation_reports_archive ($field_list) VALUES (" . implode(', ', $placeholders) . ")";
+            $ins = $conn->prepare($insert);
+            $ins->execute(array_values($insert_fields));
+            $ins->close();
+        }
+
+        $del = $pdo->prepare("DELETE FROM ipms_road_projects WHERE project_id = ?");
+        $del->execute([$project_id]);
+
+        $conn->commit();
+        return true;
+    } catch (Throwable $e) {
+        try { $conn->rollback(); } catch (Throwable $rollback_error) { /* No active transaction */ }
+        error_log('rgmap_archive_ipms_project failed: ' . $e->getMessage());
         return false;
     }
 }

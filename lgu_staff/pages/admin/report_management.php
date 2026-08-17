@@ -939,7 +939,7 @@ function handle_delete_ipms_project() {
         }
 
         $pdo = rgmap_ipms_pdo();
-        $stmt = $pdo->prepare("SELECT * FROM ipms_road_projects WHERE project_id = ?");
+        $stmt = $pdo->prepare("SELECT project_name FROM ipms_road_projects WHERE project_id = ?");
         $stmt->execute([$report_id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -948,54 +948,7 @@ function handle_delete_ipms_project() {
             return;
         }
 
-        $archived = false;
-        try {
-            ensure_archive_table();
-
-            $now = date('Y-m-d H:i:s');
-            $engineers = json_decode((string)($row['assigned_engineers_json'] ?? '[]'), true) ?: [];
-            $engineer = implode(', ', array_filter(array_map('trim', array_map('strval', $engineers)), static fn($n) => $n !== ''));
-
-            $insert_fields = [
-                'report_id'          => 'IPMS-' . $report_id,
-                'title'              => $row['project_name'] ?? 'Infrastructure Project',
-                'report_type'        => 'infrastructure_issue',
-                'report_category'    => 'road',
-                'report_source'      => 'local',
-                'department'         => 'engineering',
-                'priority'           => 'medium',
-                'status'             => 'cancelled',
-                'previous_status'    => $row['status'] ?? null,
-                'archived_from'      => 'ipms_road_projects',
-                'source_pk'          => (int)$report_id,
-                'created_date'       => (!empty($row['start_date'])) ? date('Y-m-d', strtotime($row['start_date'])) : date('Y-m-d'),
-                'description'        => $row['road_status'] ?? '',
-                'location'           => $row['road_name'] ?? '',
-                'latitude'           => $row['start_lat'] ?? null,
-                'longitude'          => $row['start_lng'] ?? null,
-                'created_at'         => $row['created_at'] ?? $now,
-                'updated_at'         => $now,
-                'rejected_at'        => $now,
-                'completed_at'       => null,
-                'approved_at'        => null,
-                'engineer'           => ($engineer !== '') ? $engineer : null,
-                'budget_allocation'  => $row['budget'] ?? null,
-                'cimm_budget'        => $row['budget'] ?? null,
-            ];
-
-            $fields = array_keys($insert_fields);
-            $placeholders = array_fill(0, count($fields), '?');
-            $field_list = '`' . implode('`, `', $fields) . '`';
-            $insert = "INSERT INTO road_transportation_reports_archive ($field_list) VALUES (" . implode(', ', $placeholders) . ")";
-            $stmt = $conn->prepare($insert);
-            $stmt->execute(array_values($insert_fields));
-            $archived = true;
-        } catch (Exception $e) {
-            error_log('Archive failed for IPMS project ' . $report_id . ': ' . $e->getMessage());
-        }
-
-        $del = $pdo->prepare("DELETE FROM ipms_road_projects WHERE project_id = ?");
-        $del->execute([$report_id]);
+        $archived = rgmap_archive_ipms_project($conn, $report_id, 'cancelled');
 
         $label = $row['project_name'] ?? 'Unknown';
         log_audit_action($user_id, "Deleted infrastructure project", "Project ID: {$report_id}, Title: {$label}");
@@ -1279,7 +1232,7 @@ function rm_render_lgu_panel_tbody(
     ];
     $lgu_transport_types = ['potholes', 'road_damage', 'shoulder_damage', 'traffic_jam', 'accident', 'congestion', 'traffic_light_outage', 'vehicle_breakdown', 'traffic_sign_issue', 'transportation', 'infrastructure_issue', 'road_closure', 'parking_violation', 'public_transport_issue'];
     $lgu_road_types = ['debris', 'cracks', 'erosion', 'flooding', 'marking_fade'];
-    $colspan = (($is_road_supervisor || $user_role === 'system_admin') ? 11 : 9) + ($is_transport_supervisor ? 1 : 0);
+    $colspan = (($is_road_supervisor || $user_role === 'system_admin') ? 9 : 7) + ($is_transport_supervisor ? 1 : 0);
     $can_edit = $is_road_supervisor || $is_transport_supervisor || $user_role === 'system_admin';
     $show_engineer = $is_road_supervisor || $user_role === 'system_admin';
 
@@ -1314,9 +1267,7 @@ function rm_render_lgu_panel_tbody(
                             </td>
                             <td><?php echo htmlspecialchars($report['report_id'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars(strlen($report['title'] ?? '') > 35 ? substr($report['title'], 0, 35) . '...' : ($report['title'] ?? '')); ?></td>
-                            <td><?php echo htmlspecialchars($type_labels[$report['report_type']] ?? ucfirst((string)($report['report_type'] ?? ''))); ?></td>
                             <td><?php echo htmlspecialchars($report['location'] ?? '—'); ?></td>
-                            <td><?php echo htmlspecialchars(ucfirst($report['department'] ?? '')); ?></td>
                             <td><span class="rm-priority-badge <?php echo htmlspecialchars((string)($report['priority'] ?? '')); ?>"><?php echo ucfirst(htmlspecialchars((string)($report['priority'] ?? ''))); ?></span></td>
                             <?php if ($is_transport_supervisor): ?>
                             <td>
@@ -1451,7 +1402,7 @@ function rm_render_citizen_panel_tbody(
         'potholes' => 'Potholes',
         'road_damage' => 'Road Damage',
     ];
-    $colspan = 9 + ($is_transport_supervisor ? 1 : 0);
+    $colspan = 7 + ($is_transport_supervisor ? 1 : 0);
     $can_edit = $is_road_supervisor || $is_transport_supervisor || $user_role === 'system_admin';
 
     ob_start();
@@ -1483,10 +1434,8 @@ function rm_render_citizen_panel_tbody(
                                 </div>
                             </td>
                             <td><?php echo htmlspecialchars($report['report_id'] ?? '—'); ?></td>
-                            <td><?php echo htmlspecialchars(strlen($report['title'] ?? '') > 35 ? substr($report['title'], 0, 35) . '...' : ($report['title'] ?? '')); ?></td>
                             <td><?php echo htmlspecialchars($type_labels[$report['report_type']] ?? ucfirst((string)($report['report_type'] ?? ''))); ?></td>
-                            <td><?php echo htmlspecialchars($report['location'] ?? '—'); ?></td>
-                            <td><?php echo htmlspecialchars(ucfirst($report['department'] ?? '')); ?></td>
+                            <td><?php if (($report['location'] ?? '') !== ''): ?><span title="<?php echo htmlspecialchars($report['location']); ?>"><?php echo htmlspecialchars(strlen($report['location']) > 40 ? substr($report['location'], 0, 40) . '...' : $report['location']); ?></span><?php else: ?>—<?php endif; ?></td>
                             <td><span class="rm-priority-badge <?php echo htmlspecialchars((string)($report['priority'] ?? '')); ?>"><?php echo ucfirst(htmlspecialchars((string)($report['priority'] ?? ''))); ?></span></td>
                             <?php if ($is_transport_supervisor): ?>
                             <td>
@@ -4719,9 +4668,7 @@ if ($focus_id > 0) {
                             <th>Action</th>
                             <th>Report #</th>
                             <th>Title</th>
-                            <th>Type</th>
                             <th>Location</th>
-                            <th>Department</th>
                             <th>Priority</th>
                             <?php if ($is_transport_supervisor): ?>
                             <th>Assignment</th>
@@ -4778,10 +4725,8 @@ if ($focus_id > 0) {
                         <tr>
                             <th>Action</th>
                             <th>Report #</th>
-                            <th>Title</th>
                             <th>Type</th>
                             <th>Location</th>
-                            <th>Department</th>
                             <th>Priority</th>
                             <?php if ($is_transport_supervisor): ?>
                             <th>Assignment</th>
@@ -5153,12 +5098,12 @@ if ($focus_id > 0) {
                             <div class="form-group" style="flex: 1;">
                                 <label class="form-label">Status *</label>
                                 <select class="form-control" name="status" id="editCimmStatus" required>
-                                    <?php if (!$is_road_supervisor): ?>
+                                    <?php if (!$is_road_supervisor && !$is_system_admin): ?>
                                     <option value="pending">Pending</option>
                                     <?php endif; ?>
                                     <option value="approved">Approved</option>
                                     <option value="in-progress">In Progress</option>
-                                    <?php if (!$is_road_supervisor): ?>
+                                    <?php if (!$is_road_supervisor && !$is_system_admin): ?>
                                     <option value="completed">Completed</option>
                                     <option value="cancelled">Cancelled</option>
                                     <?php endif; ?>
@@ -7665,12 +7610,14 @@ if ($focus_id > 0) {
             document.getElementById('editCimmInfrastructure').value = r.title || '';
             document.getElementById('editCimmLocation').value = r.location || '';
 
-            // The Status dropdown only offers Approved / In Progress. When the
-            // report's current status is outside that set (e.g. Completed or
-            // Cancelled), show it as a disabled, non-editable option so it is
-            // never silently coerced to "Approved".
+            // Admin-only: the Status dropdown only offers Approved / In
+            // Progress. When the report's current status is outside that set
+            // (e.g. Completed or Cancelled), show it as a disabled, non-editable
+            // option so it is never silently coerced to "Approved". Other roles
+            // keep their existing dropdown options and behavior untouched.
             var cimmStatusSelect = document.getElementById('editCimmStatus');
             var currentCimmStatus = r.status || 'pending';
+            <?php if ($is_system_admin): ?>
             while (cimmStatusSelect.querySelector('option[data-current="1"]')) {
                 cimmStatusSelect.removeChild(cimmStatusSelect.querySelector('option[data-current="1"]'));
             }
@@ -7683,6 +7630,7 @@ if ($focus_id > 0) {
                 curOpt.setAttribute('data-current', '1');
                 cimmStatusSelect.appendChild(curOpt);
             }
+            <?php endif; ?>
             cimmStatusSelect.value = currentCimmStatus;
             document.getElementById('editCimmPriority').value = r.priority || 'medium';
             document.getElementById('editCimmEstimation').value = r.estimation || '';

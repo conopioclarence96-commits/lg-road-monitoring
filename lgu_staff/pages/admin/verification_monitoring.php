@@ -4,6 +4,7 @@ require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 require_once __DIR__ . '/../../api/cimm_verification_data.php';
 require_once __DIR__ . '/../api/ipms_road_projects_data.php';
+require_once __DIR__ . '/../api/progress_archive_helpers.php';
 
 // Session timeout configuration
 $session_timeout = 30 * 60; // 30 minutes in seconds
@@ -120,6 +121,10 @@ if ($check_arch_engineer && $check_arch_engineer->num_rows === 0) {
 $check_arch_budget = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE 'budget_allocation'");
 if ($check_arch_budget && $check_arch_budget->num_rows === 0) {
     $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN budget_allocation DECIMAL(15,2) NULL DEFAULT NULL");
+}
+$check_arch_approval = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE 'approval_status'");
+if ($check_arch_approval && $check_arch_approval->num_rows === 0) {
+    $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN approval_status VARCHAR(50) NULL DEFAULT NULL");
 }
 
 // Ensure reports table exists (from reports.sql)
@@ -532,7 +537,8 @@ function ensure_archive_for_archive_cancel($conn) {
         $conn->query("ALTER TABLE road_transportation_reports_archive MODIFY report_type VARCHAR(255) NULL DEFAULT NULL");
     } catch (Exception $e) { error_log('archive report_type widen: ' . $e->getMessage()); }
     foreach (['previous_status' => "VARCHAR(50) DEFAULT NULL",
-              'archived_from' => "VARCHAR(100) DEFAULT NULL"] as $col => $def) {
+              'archived_from' => "VARCHAR(100) DEFAULT NULL",
+              'approval_status' => "VARCHAR(50) DEFAULT NULL"] as $col => $def) {
         $chk = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE '$col'");
         if ($chk && $chk->num_rows === 0) {
             $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN $col $def");
@@ -617,7 +623,38 @@ function archive_cimm_rejected_report($conn, $cimm_req_id) {
         }
         
         $conn->begin_transaction();
-        
+
+        // Normalise the free-text CIMM priority/status down to values the
+        // archive enum columns accept. CIMM stores title-case and non-enum
+        // values ('Critical', ...) that would otherwise trigger
+        // "Data truncated for column 'priority'" and roll back the whole
+        // reject — which surfaced as a broken Reject (X) button. Mirrors the
+        // guard in rgmap_archive_cimm_report().
+        $archive_priority = strtolower(trim((string)($cimm_report['priority'] ?? 'medium')));
+        if (!in_array($archive_priority, ['high', 'medium', 'low'], true)) {
+            $archive_priority = ($archive_priority === 'critical') ? 'high' : 'medium';
+        }
+        $archive_status = 'rejected';
+
+        // Preserve the CIMM evidence photos. They are stored as plain absolute
+        // URLs in evidence_json (e.g. https://cimm.../uploads/evidence/x.jpg);
+        // the archive's attachments column holds a JSON array of
+        // {type, file_path} entries, so map each URL onto that shape so the
+        // archive View modal can render the same evidence photos.
+        $this_cimm_attachments_json = null;
+        $this_cimm_evidence = json_decode((string)($cimm_report['evidence_json'] ?? '[]'), true);
+        if (is_array($this_cimm_evidence) && count($this_cimm_evidence) > 0) {
+            $this_cimm_attach_items = [];
+            foreach ($this_cimm_evidence as $this_cimm_url) {
+                if (is_string($this_cimm_url) && $this_cimm_url !== '') {
+                    $this_cimm_attach_items[] = ['type' => 'image', 'file_path' => $this_cimm_url];
+                }
+            }
+            if (count($this_cimm_attach_items) > 0) {
+                $this_cimm_attachments_json = json_encode($this_cimm_attach_items, JSON_UNESCAPED_SLASHES);
+            }
+        }
+
         // Map CIMM columns to road_transportation_reports_archive columns. Preserve
         // ALL original CIMM information so a later restore brings the report
         // back exactly as it was — start/end dates, engineer, budget and the
@@ -629,8 +666,8 @@ function archive_cimm_rejected_report($conn, $cimm_req_id) {
             'report_category' => 'road',
             'report_source'   => 'external',
             'department'      => 'engineering',
-            'priority'        => $cimm_report['priority'] ?? 'medium',
-            'status'          => 'rejected',
+            'priority'        => $archive_priority,
+            'status'          => $archive_status,
             'archived_from'   => 'cimm_verification_reports',
             'source_pk'       => (int)$cimm_req_id,
             'created_date'    => (!empty($cimm_report['submitted_at'])) ? date('Y-m-d', strtotime($cimm_report['submitted_at'])) : date('Y-m-d'),
@@ -652,6 +689,11 @@ function archive_cimm_rejected_report($conn, $cimm_req_id) {
             'cimm_estimated_end_date' => $cimm_report['estimated_end_date'] ?? null,
             'cimm_status'          => $cimm_report['verification_status'] ?? null,
             'cimm_district'        => $cimm_report['district'] ?? null,
+            'approval_status'      => $cimm_report['approval_status'] ?? null,
+            'cimm_report_url'      => $cimm_report['portal_url'] ?? null,
+            'reporter_email'       => $cimm_report['email'] ?? null,
+            'reporter_phone'       => $cimm_report['contact_number'] ?? null,
+            'attachments'          => $this_cimm_attachments_json,
         ];
         
         // Build INSERT query dynamically
@@ -687,23 +729,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = $_POST['action'];
         $table = in_array($source, ['transport', 'lgu', 'external']) ? 'road_transportation_reports' : 'road_maintenance_reports';
 
-        // Infrastructure Projects (IPMS mirror): approve/reject updates the
-        // local workflow `status` column so the panel (status = pending only)
-        // refreshes correctly without touching IPMS project_status.
+        // Infrastructure Projects (IPMS mirror): approve updates local workflow
+        // status; reject archives the full project then removes it from
+        // ipms_road_projects (same detail preserved for archive View modal).
         if ($source === 'infra' && in_array($action, ['approve', 'reject'])) {
-            $infra_pdo = rgmap_ipms_pdo();
-
             if ($action === 'approve') {
                 // ✓ Approve: mark local status approved (hides from this panel).
                 // Stay in ipms_road_projects only — do not copy into report tables.
+                $infra_pdo = rgmap_ipms_pdo();
                 $infra_upd = $infra_pdo->prepare("UPDATE ipms_road_projects SET status = 'approved' WHERE project_id = ?");
                 $infra_upd->execute([$report_id]);
                 $vm_message = 'Infrastructure project approved.';
             } else {
-                // X Reject: mark local status rejected.
-                $infra_upd = $infra_pdo->prepare("UPDATE ipms_road_projects SET status = 'rejected' WHERE project_id = ?");
-                $infra_upd->execute([$report_id]);
-                $vm_message = 'Infrastructure project rejected.';
+                // X Reject: copy every project field into the archive, then drop
+                // the live IPMS row so it leaves this panel.
+                $archived = rgmap_archive_ipms_project($conn, $report_id, 'rejected');
+                if ($archived) {
+                    $vm_message = 'Infrastructure project rejected and moved to archive.';
+                } else {
+                    $vm_message = 'Infrastructure project rejected, but archiving failed.';
+                }
             }
 
             $audit_query = "INSERT INTO audit_trails (audit_id, title, audit_type, status, auditor, description, created_at)
@@ -5155,12 +5200,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <th>Action</th>
                             <th>Report #</th>
                             <th>Title</th>
-                            <th>Type</th>
-                            <th>Source</th>
-                            <th>District</th>
+                            <th>Location</th>
                             <th>Priority</th>
-                            <th>Engineer</th>
-                            <th>Budget Allocation</th>
                             <th>Status</th>
                             <th>Date</th>
                         </tr>
@@ -5333,29 +5374,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                 <strong>Rejected At:</strong> <?php echo htmlspecialchars($report['rejected_at']); ?>
                                             </div>
                                             <?php endif; ?>
-                                            <?php if (!empty($report['engineer'])): ?>
-                                            <div class="detail-item">
-                                                <strong>CIMM Assigned Engineer:</strong> 
-                                                <span class="lgu-status-badge t-badge t-badge-info"><?php echo htmlspecialchars($report['engineer']); ?></span>
-                                            </div>
-                                            <?php endif; ?>
-                                            <?php if (!empty($report['budget_allocation']) && $report['budget_allocation'] !== '0.00'): ?>
-                                            <div class="detail-item">
-                                                <strong>CIMM Budget Allocation:</strong> 
-                                                <span class="t-text-success">₱ <?php echo number_format((float)$report['budget_allocation'], 2); ?></span>
-                                            </div>
-                                            <?php endif; ?>
                                         </div>
                                     </div>
                                 </td>
                                 <td><?php echo htmlspecialchars($report['report_id']); ?></td>
                                 <td><?php echo htmlspecialchars(strlen($report['title'] ?? '') > 35 ? substr($report['title'], 0, 35) . '...' : ($report['title'] ?? '')); ?></td>
-                                <td><?php echo htmlspecialchars($lgu_type_labels[$report['report_type']] ?? ucfirst($report['report_type'])); ?></td>
-                                <td><?php echo htmlspecialchars($lgu_source_labels[$report['source']] ?? $report['department'] ?? '—'); ?></td>
-                                <td><?php $lgu_district_display = $is_road_supervisor ? ($report['detected_district'] ?? '') : ($report['cimm_district'] ?? ''); echo htmlspecialchars($lgu_district_display ?? '') !== '' ? htmlspecialchars($lgu_district_display) : '—'; ?></td>
+                                <td><?php if (($report['location'] ?? '') !== ''): ?><span title="<?php echo htmlspecialchars($report['location']); ?>"><?php echo htmlspecialchars(strlen($report['location']) > 40 ? substr($report['location'], 0, 40) . '...' : $report['location']); ?></span><?php else: ?>—<?php endif; ?></td>
                                 <td><span class="lgu-status-badge <?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'] ?? 'medium')); ?></span></td>
-                                <td><?php echo htmlspecialchars($report['cimm_engineer_name'] ?? '') !== '' ? htmlspecialchars($report['cimm_engineer_name']) : '—'; ?></td>
-                                <td><?php echo !empty($report['cimm_budget']) ? '₱' . number_format((float)$report['cimm_budget'], 2) : '—'; ?></td>
                                 <td>
                                     <?php
                                     // Once CIMM has verified this report and turned it into a real
@@ -5408,7 +5433,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <?php endwhile; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="11">
+                                <td colspan="7">
                                     <div class="lgu-empty-state">
                                         <div class="lgu-empty-icon"><i class="fas fa-clipboard-list"></i></div>
                                         <p>No reports at this time.</p>
@@ -5456,9 +5481,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <th>Action</th>
                             <th>Report #</th>
                             <th>Title</th>
-                            <th>Type</th>
                             <th>Location</th>
-                            <th>Reporter</th>
                             <th>Priority</th>
                             <th>Status</th>
                             <th>Date</th>
@@ -5506,20 +5529,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             </td>
                             <td><?php echo htmlspecialchars($crow['report_id']); ?></td>
                             <td><?php echo htmlspecialchars(strlen($crow['title'] ?? '') > 35 ? substr($crow['title'], 0, 35) . '...' : ($crow['title'] ?? '')); ?></td>
-                            <td><?php
-                                $c_type_labels = [
-                                    'traffic_jam' => 'Traffic Jam',
-                                    'accident' => 'Accident',
-                                    'road_closure' => 'Road Closure',
-                                    'traffic_light_outage' => 'Traffic Light',
-                                    'congestion' => 'Congestion',
-                                    'parking_violation' => 'Parking Violation',
-                                    'public_transport_issue' => 'Public Transport',
-                                ];
-                                echo htmlspecialchars($c_type_labels[$crow['report_type']] ?? ucfirst($crow['report_type']));
-                            ?></td>
                             <td><?php echo htmlspecialchars($crow['location'] ?? '—'); ?></td>
-                            <td><?php echo htmlspecialchars($crow['reporter_name'] ?? '—'); ?></td>
                             <td><span class="citizen-status-badge <?php echo htmlspecialchars($crow['priority']); ?>"><?php echo ucfirst(htmlspecialchars($crow['priority'])); ?></span></td>
                             <td><span class="citizen-status-badge <?php echo $c_status_class; ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $crow['status']))); ?></span></td>
                             <td><?php echo $crow['created_at'] ? date('M d, Y', strtotime($crow['created_at'])) : '—'; ?></td>
@@ -5530,7 +5540,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         ?>
                         <?php if (!$hasCitizenReports): ?>
                         <tr>
-                            <td colspan="9">
+                            <td colspan="7">
                                 <div class="citizen-empty-state">
                                     <div class="citizen-empty-icon"><i class="fas fa-users"></i></div>
                                     <p>No citizen reports at this time.</p>
@@ -5581,12 +5591,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <th>Infrastructure</th>
                             <th>Location</th>
                             <th>Issue / Notes</th>
-                            <th>Engineer</th>
-                            <th>Reported By</th>
-                            <th>Start Date</th>
-                            <th>End Date</th>
                             <th>Priority</th>
-                            <th>Budget</th>
                             <th>Status</th>
                         </tr>
                     </thead>
@@ -5628,12 +5633,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <td><?php echo htmlspecialchars($row['infrastructure']); ?></td>
                             <td><?php echo htmlspecialchars($row['location']); ?></td>
                             <td><?php echo htmlspecialchars(strlen($row['issue_notes'] ?? '') > 40 ? substr($row['issue_notes'], 0, 40) . '...' : ($row['issue_notes'] ?? '')); ?></td>
-                            <td><?php echo htmlspecialchars($row['engineer']); ?></td>
-                            <td><?php echo htmlspecialchars($row['reported_by']); ?></td>
-                            <td><?php echo $row['start_date'] ? date('M d, Y', strtotime($row['start_date'])) : '—'; ?></td>
-                            <td><?php echo $row['end_date'] ? date('M d, Y', strtotime($row['end_date'])) : '—'; ?></td>
                             <td><span class="dept-status-badge <?php echo htmlspecialchars($row['priority']); ?>"><?php echo ucfirst(htmlspecialchars($row['priority'])); ?></span></td>
-                            <td><?php echo $row['budget'] ? '₱' . number_format($row['budget'], 2) : '—'; ?></td>
                             <td><span class="dept-status-badge <?php echo htmlspecialchars($row['status']); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $row['status']))); ?></span></td>
                         </tr>
                         <?php endforeach; ?>
@@ -5667,12 +5667,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <td><?php echo htmlspecialchars($row['res_id']); ?></td>
                             <td>—</td>
                             <td><?php echo htmlspecialchars(strlen($row['decline_reason'] ?? '') > 40 ? substr($row['decline_reason'], 0, 40) . '...' : ($row['decline_reason'] ?? '—')); ?></td>
-                            <td><?php echo $row['engineer_id'] ? 'Engineer #' . htmlspecialchars($row['engineer_id']) : '—'; ?></td>
-                            <td><?php echo htmlspecialchars($row['reporter_name'] ?? 'User #' . $row['report_by']); ?></td>
-                            <td><?php echo $row['starting_date'] ? date('M d, Y', strtotime($row['starting_date'])) : '—'; ?></td>
-                            <td><?php echo $row['estimated_end_date'] ? date('M d, Y', strtotime($row['estimated_end_date'])) : '—'; ?></td>
                             <td><span class="dept-status-badge <?php echo strtolower(htmlspecialchars($row['priority_lvl'])); ?>"><?php echo ucfirst(htmlspecialchars($row['priority_lvl'])); ?></span></td>
-                            <td><?php echo $row['budget'] ? '₱' . number_format($row['budget'], 2) : '—'; ?></td>
                             <td><span class="dept-status-badge <?php echo $status; ?>"><?php echo ucfirst(htmlspecialchars($status)); ?></span></td>
                         </tr>
                         <?php 
@@ -5682,7 +5677,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
                         <?php if (!$hasAnyReports): ?>
                         <tr>
-                            <td colspan="12">
+                            <td colspan="7">
                                 <div class="dept-empty-state">
                                     <div class="dept-empty-icon">
                                         <i class="fas fa-sync-alt"></i>
@@ -5738,10 +5733,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <th>Infrastructure</th>
                             <th>Location</th>
                             <th>Issue / Notes</th>
-                            <th>Engineer</th>
-                            <th>Start Date</th>
-                            <th>End Date</th>
-                            <th>Budget</th>
                             <th>Status</th>
                         </tr>
                     </thead>
@@ -5788,12 +5779,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             </td>
                             <td><?php echo htmlspecialchars($irow['report_id']); ?></td>
                             <td><?php echo htmlspecialchars($irow['infrastructure'] ?: '—'); ?></td>
-                            <td><?php echo htmlspecialchars($irow['location'] ?? '—'); ?></td>
+                            <td><?php if (($irow['start_address'] ?? '') !== ''): ?><span title="<?php echo htmlspecialchars($irow['start_address']); ?>"><?php echo htmlspecialchars(strlen($irow['start_address']) > 40 ? substr($irow['start_address'], 0, 40) . '...' : $irow['start_address']); ?></span><?php else: ?>—<?php endif; ?></td>
                             <td><?php echo htmlspecialchars(strlen($irow['issue_notes'] ?? '') > 40 ? substr($irow['issue_notes'], 0, 40) . '...' : ($irow['issue_notes'] ?? '—')); ?></td>
-                            <td><?php echo htmlspecialchars($irow['engineer'] ?: '—'); ?></td>
-                            <td><?php echo $irow['start_date'] ? date('M d, Y', strtotime($irow['start_date'])) : '—'; ?></td>
-                            <td><?php echo $irow['end_date'] ? date('M d, Y', strtotime($irow['end_date'])) : '—'; ?></td>
-                            <td><?php echo $irow['budget'] ? '₱' . number_format((float)$irow['budget'], 2) : '—'; ?></td>
                             <td><span class="infra-status-badge <?php echo $istatus_class; ?>"><?php echo ucfirst(htmlspecialchars(str_replace(['-', '_'], ' ', $irow['status']))); ?></span></td>
                         </tr>
                         <?php
@@ -5803,7 +5790,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
                         <?php if (!$hasInfraReports): ?>
                         <tr>
-                            <td colspan="10">
+                            <td colspan="6">
                                 <div class="infra-empty-state">
                                     <div class="infra-empty-icon">
                                         <i class="fas fa-hard-hat"></i>
@@ -6264,11 +6251,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
             if (r.report_category === 'road') {
                 if (r.engineer) {
-                    sourceGrid += lguInfoItem('hard-hat', 'CIMM Engineer', r.engineer);
+                    sourceGrid += lguInfoItem('hard-hat', 'Engineer', r.engineer);
                 }
                 if (r.budget_allocation) {
-                    sourceGrid += lguInfoItem('money-bill-wave', 'CIMM Budget Allocation', '₱ ' + Number(r.budget_allocation).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+                    sourceGrid += lguInfoItem('money-bill-wave', 'Budget', '₱ ' + Number(r.budget_allocation).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
                 }
+                <?php if (!$is_road_supervisor): ?>
+                if (r.detected_district) {
+                    sourceGrid += lguInfoItem('map-pin', 'District', r.detected_district);
+                }
+                <?php endif; ?>
                 sourceGrid += lguInfoItem('calendar-plus', 'CIMM Starting Date', formatDate(r.cimm_starting_date));
                 sourceGrid += lguInfoItem('calendar-check', 'CIMM Estimated End Date', formatDate(r.cimm_estimated_end_date));
             }
@@ -6602,6 +6594,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     due_date: <?php echo json_encode($ir['due_date']); ?>,
                     estimated_cost: <?php echo json_encode($ir['estimated_cost'] ?? null); ?>,
                     actual_cost: <?php echo json_encode($ir['actual_cost'] ?? null); ?>,
+                    engineer: <?php echo json_encode($ir['engineer'] ?? null); ?>,
+                    start_date: <?php echo json_encode($ir['start_date'] ?? null); ?>,
+                    end_date: <?php echo json_encode($ir['end_date'] ?? null); ?>,
+                    budget: <?php echo json_encode($ir['budget'] ?? null); ?>,
 maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
                     attachments: <?php echo json_encode($ir['attachments'] ?? null); ?>,
                     polyline: <?php echo json_encode($ir['polyline'] ?? null); ?>
@@ -6944,6 +6940,14 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
             }
             document.getElementById('infra-project-grid').innerHTML = projectGrid;
 
+            // Assigned Engineer & Schedule
+            var scheduleGrid = '';
+            scheduleGrid += infraInfoItem('hard-hat', 'Engineer', r.engineer || '—');
+            scheduleGrid += infraInfoItem('calendar-plus', 'Start Date', formatDate(r.start_date));
+            scheduleGrid += infraInfoItem('calendar-minus', 'End Date', formatDate(r.end_date));
+            scheduleGrid += infraInfoItem('money-bill-wave', 'Budget', r.budget ? formatCurrency(r.budget) : '—');
+            document.getElementById('infra-schedule-grid').innerHTML = scheduleGrid;
+
             // Reporter & Department
             var peopleGrid = '';
             peopleGrid += infraInfoItem('hard-hat', 'Maintenance Team', r.maintenance_team);
@@ -7125,8 +7129,8 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
                     rejected_at: <?php echo json_encode($lr['rejected_at']); ?>,
                     created_by: <?php echo (int)($lr['created_by'] ?? 0); ?>,
                     created_by_name: <?php echo json_encode(($creator_map[(int)($lr['created_by'] ?? 0)] ?? [])['full_name'] ?? null); ?>,
-                    engineer: <?php echo json_encode($lr['engineer'] ?? null); ?>,
-                    budget_allocation: <?php echo json_encode($lr['budget_allocation'] ?? null); ?>,
+                    engineer: <?php echo json_encode($lr['engineer'] ?? $lr['cimm_engineer_name'] ?? null); ?>,
+                    budget_allocation: <?php echo json_encode($lr['budget_allocation'] ?? $lr['cimm_budget'] ?? null); ?>,
                     cimm_starting_date: <?php echo json_encode($lr['cimm_starting_date'] ?? null); ?>,
                     cimm_estimated_end_date: <?php echo json_encode($lr['cimm_estimated_end_date'] ?? null); ?>
                     <?php if ($is_road_supervisor): ?>,
@@ -7190,6 +7194,13 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
             if (!r) { alert('Report data not found.'); return; }
 
             var typeLabels = {
+                'traffic_jam': 'Traffic Jam',
+                'accident': 'Accident',
+                'road_closure': 'Road Closure',
+                'traffic_light_outage': 'Traffic Light',
+                'congestion': 'Congestion',
+                'parking_violation': 'Parking Violation',
+                'public_transport_issue': 'Public Transport',
                 'pothole': 'Pothole',
                 'flooding': 'Flooding',
                 'road_damage': 'Road Damage',
@@ -7231,7 +7242,8 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
 
             // Report Information
             var reportGrid = '';
-            reportGrid += cmInfoItem('folder', 'Report Category', r.report_category);
+            reportGrid += cmInfoItem('folder', 'Report Type', reportType);
+            reportGrid += cmInfoItem('tag', 'Report Category', r.report_category);
             reportGrid += cmInfoItem('building', 'Department', r.department);
             reportGrid += cmInfoItem('calendar-alt', 'Created Date', formatDate(r.created_at));
             reportGrid += cmInfoItem('sync-alt', 'Last Updated', formatDate(r.updated_at));
@@ -7551,6 +7563,11 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
                 <div class="infra-modal-section">
                     <div class="infra-modal-section-title"><i class="fas fa-info-circle"></i> Project Information</div>
                     <div class="infra-info-grid" id="infra-project-grid"></div>
+                </div>
+                <!-- Engineer & Schedule -->
+                <div class="infra-modal-section">
+                    <div class="infra-modal-section-title"><i class="fas fa-calendar-alt"></i> Engineer &amp; Schedule</div>
+                    <div class="infra-info-grid" id="infra-schedule-grid"></div>
                 </div>
                 <!-- Reporter / Department -->
                 <div class="infra-modal-section">

@@ -25,7 +25,11 @@ foreach (['report_category' => "ENUM('road','transportation') DEFAULT NULL AFTER
            'report_source' => "ENUM('local','external') DEFAULT 'local' AFTER report_category",
            'previous_status' => "VARCHAR(50) DEFAULT NULL",
            'archived_from' => "VARCHAR(100) DEFAULT NULL",
-           'source_pk' => "INT NULL DEFAULT NULL"] as $col => $def) {
+           'approval_status' => "VARCHAR(50) DEFAULT NULL",
+           'source_pk' => "INT NULL DEFAULT NULL",
+           'start_address' => "VARCHAR(100) NULL DEFAULT NULL",
+           'end_address' => "VARCHAR(100) NULL DEFAULT NULL",
+           'ipms_polyline_json' => "LONGTEXT NULL DEFAULT NULL"] as $col => $def) {
     $chk = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE '$col'");
     if ($chk && $chk->num_rows === 0) {
         $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN $col $def");
@@ -635,6 +639,7 @@ if (isset($_SESSION['archive_message'])) {
     <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <link rel="stylesheet" href="../../css/theme-tokens.css">
     <link rel="stylesheet" href="../../css/theme-utilities.css">
     <link rel="stylesheet" href="../../css/sidebar.css?v=3">
@@ -1047,6 +1052,41 @@ if (isset($_SESSION['archive_message'])) {
             }
         }
 
+        .arch-view-map-btn {
+            margin-left: auto;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            background: rgba(249, 115, 22, 0.1);
+            color: #f97316;
+            border: 1px solid rgba(249, 115, 22, 0.3);
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .arch-view-map-btn:hover {
+            background: rgba(249, 115, 22, 0.2);
+        }
+
+        .road-map-container {
+            display: none;
+            width: 100%;
+            height: 280px;
+            margin-top: 12px;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid rgba(55, 98, 200, 0.2);
+        }
+
+        .road-map-container.road-map-visible {
+            display: block;
+        }
+
         /* View Archive Modal Dark Mode */
         body.dark-mode .rm-modal-content {
             background: #1a1d24 !important;
@@ -1375,12 +1415,14 @@ if (isset($_SESSION['archive_message'])) {
                                     <i class="fas fa-eye"></i> View
                                 </button>
                                 <?php if (!$is_trans_officer && !$is_road_officer): ?>
+                                <?php if (strtolower((string)$row['status']) !== 'rejected'): ?>
                                 <form method="POST" style="display: inline-flex;" onsubmit="return confirm('Restore this report back to active table?');">
                                     <input type="hidden" name="archive_id" value="<?php echo $row['id']; ?>">
                                     <button type="submit" name="action" value="restore" class="btn-restore">
                                         <i class="fas fa-undo"></i> Restore
                                     </button>
                                 </form>
+                                <?php endif; ?>
                                 <form method="POST" style="display: inline-flex;" onsubmit="return confirm('Permanently delete this archived report? This cannot be undone.');">
                                     <input type="hidden" name="archive_id" value="<?php echo $row['id']; ?>">
                                     <button type="submit" name="action" value="delete_forever" class="btn-delete-forever">
@@ -1427,8 +1469,13 @@ if (isset($_SESSION['archive_message'])) {
                 </div>
                 <!-- Location -->
                 <div class="rm-modal-section">
-                    <div class="rm-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location</div>
+                    <div class="rm-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location
+                        <button type="button" id="arch-view-map-btn" class="arch-view-map-btn" style="display:none;" onclick="openArchiveMap()">
+                            <i class="fas fa-map-marked-alt"></i> View Map
+                        </button>
+                    </div>
                     <div class="rm-info-grid" id="rm-location-grid"></div>
+                    <div class="road-map-container" id="arch-map-container"></div>
                 </div>
                 <!-- Description -->
                 <div class="rm-modal-section">
@@ -1486,6 +1533,44 @@ if (isset($_SESSION['archive_message'])) {
             while ($r = $archives->fetch_assoc()) {
                 $rows[] = $r;
             }
+            // Resolve the staff member who created each report (users.full_name
+            // joined to created_by) so the View modal can show "Created By" for
+            // LGU Monitoring reports — the same detail shown before archiving.
+            $arch_creator_map = [];
+            $arch_creator_ids = [];
+            foreach ($rows as $__ar) {
+                $__acb = (int)($__ar['created_by'] ?? 0);
+                if ($__acb > 0) $arch_creator_ids[$__acb] = true;
+            }
+            if (!empty($arch_creator_ids)) {
+                try {
+                    $__ain = implode(',', array_map('intval', array_keys($arch_creator_ids)));
+                    $__ares = $conn->query("SELECT id, full_name FROM users WHERE id IN ({$__ain})");
+                    if ($__ares) {
+                        while ($__au = $__ares->fetch_assoc()) {
+                            $arch_creator_map[(int)$__au['id']] = $__au['full_name'];
+                        }
+                    }
+                } catch (Exception $e) {
+                    error_log("Archive creator lookup error: " . $e->getMessage());
+                }
+            }
+            foreach ($rows as &$__ar) {
+                $__ar['created_by_name'] = $arch_creator_map[(int)($__ar['created_by'] ?? 0)] ?? null;
+                // IPMS infrastructure archives: decode fields the verification
+                // View modal uses so the archive View button can render the same layout.
+                if (($__ar['archived_from'] ?? '') === 'ipms_road_projects') {
+                    $__ar['start_date'] = $__ar['cimm_starting_date'] ?? null;
+                    $__ar['end_date'] = $__ar['cimm_estimated_end_date'] ?? ($__ar['due_date'] ?? null);
+                    $__ar['budget'] = $__ar['budget_allocation'] ?? ($__ar['cimm_budget'] ?? null);
+                    if (!empty($__ar['ipms_polyline_json'])) {
+                        $__ar['polyline'] = json_decode((string)$__ar['ipms_polyline_json'], true) ?: [];
+                    } else {
+                        $__ar['polyline'] = [];
+                    }
+                }
+            }
+            unset($__ar);
             echo json_encode($rows);
         ?>;
 
@@ -1498,6 +1583,61 @@ if (isset($_SESSION['archive_message'])) {
             if (isNaN(d.getTime())) return dateStr;
             var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
             return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+        }
+
+        function formatCurrency(val) {
+            if (val === null || val === undefined || val === '' || isNaN(Number(val))) return '—';
+            return '₱' + Number(val).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        const ARCH_TOMTOM_API_KEY = '<?php echo defined('TOMTOM_API_KEY') ? TOMTOM_API_KEY : ''; ?>';
+        let currentArchivePolyline = null;
+        let archiveMapInstances = {};
+
+        function openArchiveMap() {
+            if (!currentArchivePolyline || currentArchivePolyline.length < 2) {
+                alert('No map data available for this project.');
+                return;
+            }
+            openArchiveRoadPathMap('arch-map-container', currentArchivePolyline, true);
+        }
+
+        function openArchiveRoadPathMap(containerId, points, asLine) {
+            var container = document.getElementById(containerId);
+            if (!container || !points || points.length === 0) return;
+            if (typeof L === 'undefined') {
+                alert('Map library failed to load.');
+                return;
+            }
+
+            container.classList.add('road-map-visible');
+
+            var map = archiveMapInstances[containerId];
+            if (!map) {
+                map = L.map(containerId, { zoomControl: true }).setView([14.6760, 121.0437], 12);
+                L.tileLayer('https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?view=Unified&key=' + ARCH_TOMTOM_API_KEY, {
+                    attribution: '© TomTom',
+                    maxZoom: 18
+                }).addTo(map);
+                archiveMapInstances[containerId] = map;
+            }
+
+            map.eachLayer(function(layer) {
+                if (layer instanceof L.Polyline || layer instanceof L.Marker) {
+                    map.removeLayer(layer);
+                }
+            });
+
+            if (asLine && points.length >= 2) {
+                var latLngs = points.map(function(pt) { return [pt[0], pt[1]]; });
+                var line = L.polyline(latLngs, { color: '#f97316', weight: 5, opacity: 0.9 }).addTo(map);
+                map.fitBounds(line.getBounds(), { padding: [30, 30] });
+            } else {
+                map.setView([points[0][0], points[0][1]], 15);
+                L.marker([points[0][0], points[0][1]]).addTo(map);
+            }
+
+            setTimeout(function() { map.invalidateSize(); }, 100);
         }
 
         function rmBadge(text, bg, color) {
@@ -1530,9 +1670,18 @@ if (isset($_SESSION['archive_message'])) {
             };
 
             var sourceLabels = { 'lgu': 'LGU Monitoring', 'citizen': 'Citizen', 'cimm': 'CIMM', 'infrastructure': 'Infrastructure' };
+            var isIpmsArchive = (row.archived_from === 'ipms_road_projects');
+            var infraTypeLabels = {
+                'infrastructure_issue': 'Infrastructure Issue',
+                'routine': 'Routine Maintenance',
+                'emergency': 'Emergency Repair',
+                'preventive': 'Preventive Maintenance',
+                'corrective': 'Corrective Maintenance',
+                'scheduled': 'Scheduled Maintenance'
+            };
 
             // Header
-            document.getElementById('rm-report-id').textContent = 'Report #' + (row.report_id || '—');
+            document.getElementById('rm-report-id').textContent = (isIpmsArchive ? 'Project #' : 'Report #') + (row.report_id || '—');
             document.getElementById('rm-title').textContent = row.title || '—';
 
             var st = (row.status || 'pending').toLowerCase();
@@ -1541,51 +1690,185 @@ if (isset($_SESSION['archive_message'])) {
             var ps = pStyles[pp] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
 
             var badgesHtml = rmBadge(row.status || '—', ss.bg, ss.color);
-            badgesHtml += rmBadge(row.priority || '—', ps.bg, ps.color);
+            if (isIpmsArchive) {
+                badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(249,115,22,0.12);color:#f97316;">Maintenance</span>';
+            } else {
+                badgesHtml += rmBadge(row.priority || '—', ps.bg, ps.color);
+            }
             var src = row.source_system || 'citizen';
             var sourceLabel = sourceLabels[src] || src;
-            if (sourceLabel !== '—') {
+            if (sourceLabel !== '—' && !isIpmsArchive) {
                 badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(55,98,200,0.12);color:#3762c8;">' + sourceLabel + '</span>';
             }
             document.getElementById('rm-badges').innerHTML = badgesHtml;
 
             // Report Information
             var reportGrid = '';
-            reportGrid += rmInfoItem('folder', 'Report Type', row.report_type);
-            reportGrid += rmInfoItem('calendar-alt', 'Created Date', row.created_date);
-            reportGrid += rmInfoItem('calendar-check', 'Due Date', row.due_date);
-            reportGrid += rmInfoItem('tag', 'Source System', sourceLabel);
-            if (row.estimation) {
-                reportGrid += rmInfoItem('dollar-sign', 'Estimation', row.estimation ? '₱' + parseFloat(row.estimation).toLocaleString('en-PH', {minimumFractionDigits:2}) : '—');
-            }
-            if (row.assigned_to) {
-                reportGrid += rmInfoItem('user-cog', 'Assigned To', row.assigned_to);
+            var lguTypeLabels = {
+                'traffic_jam': 'Traffic Jam',
+                'accident': 'Accident',
+                'road_damage': 'Road Damage',
+                'flooding': 'Flooding',
+                'potholes': 'Potholes',
+                'road_closure': 'Road Closure',
+                'infrastructure_issue': 'Infrastructure Issue',
+                'street_light': 'Street Light',
+                'other': 'Other'
+            };
+            if (src === 'lgu') {
+                // LGU Monitoring reports: render the same complete details and
+                // layout that were available before archiving (mirrors the LGU
+                // View modal in verification_monitoring.php).
+                reportGrid += rmInfoItem('folder', 'Report Type', lguTypeLabels[row.report_type] || row.report_type || '—');
+                reportGrid += rmInfoItem('tag', 'Category', row.report_category);
+                reportGrid += rmInfoItem('calendar-alt', 'Created Date', formatDate(row.created_at));
+                reportGrid += rmInfoItem('sync-alt', 'Last Updated', formatDate(row.updated_at));
+            } else if (src === 'cimm') {
+                // CIMM reports: render the same complete details and layout
+                // that were available before archiving (mirrors the CIMM View
+                // modal in verification_monitoring.php).
+                reportGrid += rmInfoItem('building', 'Infrastructure', row.title);
+                reportGrid += rmInfoItem('folder', 'Report Type', row.report_type);
+                reportGrid += rmInfoItem('calendar-alt', 'Start Date', formatDate(row.cimm_starting_date));
+                reportGrid += rmInfoItem('calendar-check', 'End Date', formatDate(row.cimm_estimated_end_date));
+                reportGrid += rmInfoItem('wallet', 'Budget', row.cimm_budget ? '₱' + parseFloat(row.cimm_budget).toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—');
+                if (row.budget_allocation) {
+                    reportGrid += rmInfoItem('wallet', 'Budget Allocation', '₱' + parseFloat(row.budget_allocation).toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2}));
+                }
+                reportGrid += rmInfoItem('tag', 'Source System', sourceLabel);
+            } else if (isIpmsArchive) {
+                // IPMS Infrastructure Projects: mirror the verification_monitoring
+                // viewInfraReport Project Information section.
+                reportGrid += rmInfoItem('folder', 'Report Type', infraTypeLabels[row.report_type] || row.report_type || '—');
+                reportGrid += rmInfoItem('building', 'Department', row.department || 'Engineering');
+                reportGrid += rmInfoItem('calendar-alt', 'Created Date', formatDate(row.created_date || row.created_at));
+                reportGrid += rmInfoItem('calendar-check', 'Due Date', formatDate(row.due_date || row.end_date));
+                reportGrid += rmInfoItem('wallet', 'Est. Cost', row.estimation ? formatCurrency(row.estimation) : '—');
+            } else {
+                reportGrid += rmInfoItem('folder', 'Report Type', row.report_type);
+                reportGrid += rmInfoItem('calendar-alt', 'Created Date', row.created_date);
+                reportGrid += rmInfoItem('calendar-check', 'Due Date', row.due_date);
+                reportGrid += rmInfoItem('tag', 'Source System', sourceLabel);
+                if (row.estimation) {
+                    reportGrid += rmInfoItem('dollar-sign', 'Estimation', row.estimation ? '₱' + parseFloat(row.estimation).toLocaleString('en-PH', {minimumFractionDigits:2}) : '—');
+                }
+                if (row.assigned_to) {
+                    reportGrid += rmInfoItem('user-cog', 'Assigned To', row.assigned_to);
+                }
             }
             document.getElementById('rm-report-grid').innerHTML = reportGrid;
 
             // Source & Department
             var sourceGrid = '';
-            sourceGrid += rmInfoItem('building', 'Department', row.department);
-            sourceGrid += rmInfoItem('history', 'Archived From', row.archived_from);
-            if (row.previous_status) {
-                sourceGrid += rmInfoItem('undo', 'Previous Status', row.previous_status);
-            }
-            if (row.approved_at) {
-                sourceGrid += rmInfoItem('thumbs-up', 'Approved At', formatDate(row.approved_at));
-            }
-            if (row.rejected_at) {
-                sourceGrid += rmInfoItem('thumbs-down', 'Rejected At', formatDate(row.rejected_at));
+            if (src === 'lgu') {
+                sourceGrid += rmInfoItem('server', 'Source', sourceLabel);
+                sourceGrid += rmInfoItem('building', 'Department', row.department);
+                if (row.created_by_name) {
+                    sourceGrid += rmInfoItem('user', 'Created By', row.created_by_name);
+                }
+                if (row.approved_at) {
+                    sourceGrid += rmInfoItem('thumbs-up', 'Approved At', formatDate(row.approved_at));
+                }
+                if (row.rejected_at) {
+                    sourceGrid += rmInfoItem('thumbs-down', 'Rejected At', formatDate(row.rejected_at));
+                }
+                if ((row.report_category || '') === 'road') {
+                    var lguEng = row.engineer || row.cimm_engineer_name;
+                    var lguBud = row.budget_allocation || row.cimm_budget;
+                    if (lguEng) {
+                        sourceGrid += rmInfoItem('hard-hat', 'Engineer', lguEng);
+                    }
+                    if (lguBud) {
+                        sourceGrid += rmInfoItem('money-bill-wave', 'Budget', '₱ ' + Number(lguBud).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+                    }
+                    if (row.detected_district) {
+                        sourceGrid += rmInfoItem('map-pin', 'District', row.detected_district);
+                    }
+                    sourceGrid += rmInfoItem('calendar-plus', 'CIMM Starting Date', formatDate(row.cimm_starting_date));
+                    sourceGrid += rmInfoItem('calendar-check', 'CIMM Estimated End Date', formatDate(row.cimm_estimated_end_date));
+                }
+                sourceGrid += rmInfoItem('history', 'Archived From', row.archived_from);
+                if (row.previous_status) {
+                    sourceGrid += rmInfoItem('undo', 'Previous Status', row.previous_status);
+                }
+            } else if (src === 'cimm') {
+                // CIMM reports: mirror the Reporter & Engineer plus the status
+                // details shown by the CIMM View modal before archiving.
+                sourceGrid += rmInfoItem('server', 'Source', sourceLabel);
+                sourceGrid += rmInfoItem('building', 'Department', row.department);
+                sourceGrid += rmInfoItem('user', 'Reported By', row.reporter_name);
+                sourceGrid += rmInfoItem('hard-hat', 'Engineer', row.cimm_engineer_name || row.engineer);
+                if (row.cimm_district || row.district) {
+                    sourceGrid += rmInfoItem('map-pin', 'District', row.cimm_district || row.district);
+                }
+                if (row.cimm_status) {
+                    sourceGrid += rmInfoItem('clipboard-check', 'Verification', row.cimm_status);
+                }
+                if (row.approval_status) {
+                    sourceGrid += rmInfoItem('thumbs-up', 'Approval', row.approval_status);
+                }
+                if (row.cimm_report_url) {
+                    sourceGrid += '<div class="rm-info-item"><div class="rm-info-icon"><i class="fas fa-external-link-alt"></i></div><div><div class="rm-info-label">Portal Link</div><div class="rm-info-value"><a href="' + row.cimm_report_url + '" target="_blank" style="color:#3762c8;text-decoration:none;">Open in CIMM</a></div></div></div>';
+                }
+                sourceGrid += rmInfoItem('history', 'Archived From', row.archived_from);
+                if (row.rejected_at) {
+                    sourceGrid += rmInfoItem('thumbs-down', 'Rejected At', formatDate(row.rejected_at));
+                }
+            } else if (isIpmsArchive) {
+                // IPMS Infrastructure Projects: mirror Engineer & Schedule plus
+                // archive metadata from verification_monitoring viewInfraReport.
+                sourceGrid += rmInfoItem('hard-hat', 'Engineer', row.engineer || '—');
+                sourceGrid += rmInfoItem('calendar-plus', 'Start Date', formatDate(row.start_date || row.cimm_starting_date));
+                sourceGrid += rmInfoItem('calendar-minus', 'End Date', formatDate(row.end_date || row.cimm_estimated_end_date || row.due_date));
+                sourceGrid += rmInfoItem('money-bill-wave', 'Budget', row.budget ? formatCurrency(row.budget) : '—');
+                sourceGrid += rmInfoItem('users', 'Maintenance Team', row.maintenance_team || '—');
+                sourceGrid += rmInfoItem('history', 'Archived From', row.archived_from);
+                if (row.previous_status) {
+                    sourceGrid += rmInfoItem('undo', 'Previous Status', row.previous_status);
+                }
+                if (row.rejected_at) {
+                    sourceGrid += rmInfoItem('thumbs-down', 'Rejected At', formatDate(row.rejected_at));
+                }
+            } else {
+                sourceGrid += rmInfoItem('building', 'Department', row.department);
+                sourceGrid += rmInfoItem('history', 'Archived From', row.archived_from);
+                if (row.previous_status) {
+                    sourceGrid += rmInfoItem('undo', 'Previous Status', row.previous_status);
+                }
+                if (row.approved_at) {
+                    sourceGrid += rmInfoItem('thumbs-up', 'Approved At', formatDate(row.approved_at));
+                }
+                if (row.rejected_at) {
+                    sourceGrid += rmInfoItem('thumbs-down', 'Rejected At', formatDate(row.rejected_at));
+                }
             }
             document.getElementById('rm-source-grid').innerHTML = sourceGrid;
 
             // Location
             var locationGrid = '';
-            var locVal = row.location || '—';
-            if (row.latitude && row.longitude && row.latitude != 0 && row.longitude != 0) {
-                locVal += '<br><a href="https://www.openstreetmap.org/?mlat=' + row.latitude + '&mlon=' + row.longitude + '&zoom=15" target="_blank" style="color:#3762c8;font-size:12px;text-decoration:none;"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map (' + row.latitude + ', ' + row.longitude + ')</a>';
+            if (isIpmsArchive) {
+                locationGrid += rmInfoItem('map-marker-alt', 'Start Address', row.start_address || '—');
+                locationGrid += rmInfoItem('map-marker', 'End Address', row.end_address || '—');
+            } else {
+                var locVal = row.location || '—';
+                if (row.latitude && row.longitude && row.latitude != 0 && row.longitude != 0) {
+                    locVal += '<br><a href="https://www.openstreetmap.org/?mlat=' + row.latitude + '&mlon=' + row.longitude + '&zoom=15" target="_blank" style="color:#3762c8;font-size:12px;text-decoration:none;"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map (' + row.latitude + ', ' + row.longitude + ')</a>';
+                }
+                locationGrid += '<div class="rm-info-item rm-info-value-full"><div class="rm-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="rm-info-label">Location</div><div class="rm-info-value">' + locVal + '</div></div></div>';
             }
-            locationGrid += '<div class="rm-info-item rm-info-value-full"><div class="rm-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="rm-info-label">Location</div><div class="rm-info-value">' + locVal + '</div></div></div>';
             document.getElementById('rm-location-grid').innerHTML = locationGrid;
+
+            currentArchivePolyline = (isIpmsArchive && Array.isArray(row.polyline) && row.polyline.length >= 2)
+                ? row.polyline.map(function(pt) { return [pt[0], pt[1]]; })
+                : null;
+            var archMapBtn = document.getElementById('arch-view-map-btn');
+            if (archMapBtn) {
+                archMapBtn.style.display = currentArchivePolyline ? '' : 'none';
+            }
+            var archMapContainer = document.getElementById('arch-map-container');
+            if (archMapContainer) {
+                archMapContainer.classList.remove('road-map-visible');
+            }
 
             // Description
             document.getElementById('rm-description').textContent = row.description || 'No description provided.';
@@ -1593,8 +1876,11 @@ if (isset($_SESSION['archive_message'])) {
             // Attachments
             var images = [];
             var seenPaths = new Set();
+            function absPath(p) {
+                return (/^https?:\/\//i.test(p) || p.indexOf('data:') === 0) ? p : ('../../' + p);
+            }
             if (row.image_path && row.image_path !== '0' && row.image_path !== 'null') {
-                images.push('../../' + row.image_path);
+                images.push(absPath(row.image_path));
                 seenPaths.add(row.image_path);
             }
             if (row.attachments) {
@@ -1603,7 +1889,7 @@ if (isset($_SESSION['archive_message'])) {
                     if (Array.isArray(attachments)) {
                         attachments.forEach(function(a) {
                             if ((a.type === 'image' || !a.type) && a.file_path && !seenPaths.has(a.file_path)) {
-                                images.push('../../' + a.file_path);
+                                images.push(absPath(a.file_path));
                                 seenPaths.add(a.file_path);
                             }
                         });
@@ -1624,15 +1910,42 @@ if (isset($_SESSION['archive_message'])) {
 
             // Timeline
             var timelineGrid = '';
-            timelineGrid += rmInfoItem('calendar-check', 'Created', formatDate(row.created_at));
-            if (row.approved_at) {
-                timelineGrid += rmInfoItem('thumbs-up', 'Approved', formatDate(row.approved_at));
-            }
-            if (row.rejected_at) {
-                timelineGrid += rmInfoItem('thumbs-down', 'Rejected', formatDate(row.rejected_at));
-            }
-            if (row.updated_at) {
-                timelineGrid += rmInfoItem('edit', 'Last Updated', formatDate(row.updated_at));
+            if (src === 'cimm') {
+                timelineGrid += rmInfoItem('calendar-alt', 'Start Date', formatDate(row.cimm_starting_date));
+                timelineGrid += rmInfoItem('calendar-check', 'End Date', formatDate(row.cimm_estimated_end_date));
+                if (row.cimm_status) {
+                    timelineGrid += rmInfoItem('clipboard-check', 'Verification', row.cimm_status);
+                }
+                if (row.approval_status) {
+                    timelineGrid += rmInfoItem('thumbs-up', 'Approval', row.approval_status);
+                }
+                if (row.rejected_at) {
+                    timelineGrid += rmInfoItem('thumbs-down', 'Rejected', formatDate(row.rejected_at));
+                }
+            } else if (isIpmsArchive) {
+                timelineGrid += rmInfoItem('calendar-plus', 'Created', formatDate(row.created_at));
+                timelineGrid += rmInfoItem('calendar-alt', 'Created Date', formatDate(row.created_date || row.created_at));
+                timelineGrid += rmInfoItem('calendar-check', 'Due Date', formatDate(row.due_date || row.end_date));
+                if (row.updated_at) {
+                    timelineGrid += rmInfoItem('edit', 'Last Updated', formatDate(row.updated_at));
+                }
+                if (row.approved_at) {
+                    timelineGrid += rmInfoItem('thumbs-up', 'Approved', formatDate(row.approved_at));
+                }
+                if (row.rejected_at) {
+                    timelineGrid += rmInfoItem('thumbs-down', 'Rejected', formatDate(row.rejected_at));
+                }
+            } else {
+                timelineGrid += rmInfoItem('calendar-check', 'Created', formatDate(row.created_at));
+                if (row.approved_at) {
+                    timelineGrid += rmInfoItem('thumbs-up', 'Approved', formatDate(row.approved_at));
+                }
+                if (row.rejected_at) {
+                    timelineGrid += rmInfoItem('thumbs-down', 'Rejected', formatDate(row.rejected_at));
+                }
+                if (row.updated_at) {
+                    timelineGrid += rmInfoItem('edit', 'Last Updated', formatDate(row.updated_at));
+                }
             }
             document.getElementById('rm-timeline-grid').innerHTML = timelineGrid;
 
@@ -1734,6 +2047,7 @@ if (isset($_SESSION['archive_message'])) {
         }
     </script>
 
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 </body>
 </html>
