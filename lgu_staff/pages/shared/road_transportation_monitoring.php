@@ -1161,16 +1161,6 @@ if (!$is_completed_projects_view) {
     annotate_last_progress_update($conn, $recent_reports);
 }
 
-// One-time design preview for the 10-day no-update flag: the first time this
-// monitoring page is opened in the current login session, every row shows the
-// flag so it can be checked visually. The next refresh (and every load after)
-// uses the real 10-day condition. Session only — nothing is written to the DB.
-$preview_no_update_flags = false;
-if (!$is_completed_projects_view && empty($_SESSION['no_update_flag_preview_done'])) {
-    $preview_no_update_flags = true;
-    $_SESSION['no_update_flag_preview_done'] = 1;
-}
-
 // System Admin only: flags projects whose Transparency Upload Request is still
 // waiting for a decision, so they stand out in the Completed Projects table.
 if ($is_system_admin) {
@@ -3225,7 +3215,7 @@ if ($is_system_admin) {
                         $rr_details_json = htmlspecialchars(json_encode($rr_details), ENT_QUOTES, 'UTF-8');
                         // Read-only use of the request status already annotated above.
                         $rr_await_transparency = (($rr['transparency_request_status'] ?? '') === 'pending');
-                        $rr_no_update = !$is_completed_projects_view && ($preview_no_update_flags || !empty($rr['no_update_stale']));
+                        $rr_no_update = !$is_completed_projects_view && !empty($rr['no_update_stale']);
                         $rr_row_class = 'report-table-row'
                             . ($rr_await_transparency ? ' transparency-flagged' : '')
                             . ($rr_no_update ? ' no-update-flagged' : ''); ?>
@@ -3317,7 +3307,6 @@ if ($is_system_admin) {
         const IS_TRANS_SUPERVISOR = <?php echo $is_trans_ops_supervisor ? 'true' : 'false'; ?>;
         const IS_SYSTEM_ADMIN = <?php echo $is_system_admin ? 'true' : 'false'; ?>;
         const IS_COMPLETED_PROJECTS_VIEW = <?php echo $is_completed_projects_view ? 'true' : 'false'; ?>;
-        const PREVIEW_NO_UPDATE_FLAG = <?php echo !empty($preview_no_update_flags) ? 'true' : 'false'; ?>;
         const HIDE_STATUS_COLUMN = <?php echo $hide_status_column ? 'true' : 'false'; ?>;
         const SHOW_CATEGORY_COLUMN = <?php echo $show_category_column ? 'true' : 'false'; ?>;
         const TABLE_COLSPAN = <?php echo $table_colspan; ?>;
@@ -3340,7 +3329,6 @@ if ($is_system_admin) {
 
         function isNoUpdateStale(report) {
             if (IS_COMPLETED_PROJECTS_VIEW) return false;
-            if (PREVIEW_NO_UPDATE_FLAG) return true;
             return !!(report && report.no_update_stale);
         }
 
@@ -3349,6 +3337,14 @@ if ($is_system_admin) {
             return '<span class="no-update-flag" title="No progress update for 10 days or more"'
                 + ' role="img" aria-label="No progress update for 10 days or more">'
                 + '<i class="fas fa-clock"></i></span>';
+        }
+
+        function clearNoUpdateFlagOnRow(reportId) {
+            var row = document.querySelector('#recentReportsTable .report-table-row[data-id="' + reportId + '"]');
+            if (!row) return;
+            row.classList.remove('no-update-flagged');
+            var icon = row.querySelector('.no-update-flag');
+            if (icon) icon.remove();
         }
 
         function submissionsListApiUrl(offset, limit, status, type) {
@@ -5151,6 +5147,9 @@ if ($is_system_admin) {
                     openModal('updatesModal');
                     if (typeof loadUpdates === 'function') {
                         loadUpdates(currentUpdatesReportId, currentUpdatesReportType);
+                    }
+                    if ((document.getElementById('addUpdateAction') || {}).value === 'create_update') {
+                        clearNoUpdateFlagOnRow(currentUpdatesReportId);
                     }
                 } else {
                     showNotification(data.message || 'Failed to save update', 'error');
