@@ -4893,6 +4893,13 @@ if ($is_system_admin) {
                 if (addUpdateBtn) addUpdateBtn.style.display = 'none';
                 return true;
             }
+            // System Admin does not complete or cancel from this page.
+            if (typeof IS_SYSTEM_ADMIN !== 'undefined' && IS_SYSTEM_ADMIN) {
+                if (completeBtn) completeBtn.style.display = 'none';
+                if (cancelBtn) cancelBtn.style.display = 'none';
+                if (addUpdateBtn) addUpdateBtn.style.display = 'inline-flex';
+                return false;
+            }
             // Not terminal yet: show Complete, Cancel, and Add Update
             // (officer assignment checks may refine Complete/Cancel afterward)
             if (completeBtn) completeBtn.style.display = 'inline-flex';
@@ -4942,7 +4949,14 @@ if ($is_system_admin) {
             if (tag) role = tag.getAttribute('data-role') || '';
             var isOfficer = (role === 'road_monitoring_officer' || role === 'trans_monitoring_officer');
 
-            // Non-officers (supervisors, system admin, etc.) use direct Complete/Cancel.
+            // System Admin does not complete or cancel from this page.
+            if (typeof IS_SYSTEM_ADMIN !== 'undefined' && IS_SYSTEM_ADMIN) {
+                completeBtn.style.display = 'none';
+                if (cancelBtn) cancelBtn.style.display = 'none';
+                return;
+            }
+
+            // Non-officers (supervisors, etc.) use direct Complete/Cancel.
             if (!isOfficer) {
                 completeBtn.style.display = 'inline-flex';
                 if (cancelBtn) cancelBtn.style.display = 'inline-flex';
@@ -5240,6 +5254,7 @@ if ($is_system_admin) {
 
         function completeReport() {
             if (!currentUpdatesReportId) return;
+            if (typeof IS_SYSTEM_ADMIN !== 'undefined' && IS_SYSTEM_ADMIN) return;
             // Road/Transportation Monitoring Officers cannot directly complete a
             // project. Instead they submit a completion request that is routed to
             // the appropriate supervisor for review; the status is left unchanged.
@@ -5335,6 +5350,7 @@ if ($is_system_admin) {
 
         function cancelReport() {
             if (!currentUpdatesReportId) return;
+            if (typeof IS_SYSTEM_ADMIN !== 'undefined' && IS_SYSTEM_ADMIN) return;
             // Road/Transportation Monitoring Officers cannot directly cancel a
             // project. Instead they submit a cancellation request that is routed
             // to the appropriate supervisor for review; the status is left unchanged.
@@ -7620,7 +7636,7 @@ if ($is_system_admin) {
                         <?php if ($is_officer_role): ?>
                         <button type="button" class="btn-success-custom" id="completeBtn">Request Completion</button>
                         <button type="button" class="btn-danger-custom" id="cancelBtn">Request Cancellation</button>
-                        <?php else: ?>
+                        <?php elseif (!$is_system_admin): ?>
                         <button type="button" class="btn-success-custom" id="completeBtn">Complete</button>
                         <button type="button" class="btn-danger-custom" id="cancelBtn">Cancel</button>
                         <?php endif; ?>
