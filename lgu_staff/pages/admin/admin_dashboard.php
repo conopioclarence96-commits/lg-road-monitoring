@@ -592,151 +592,278 @@ try {
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
-        body { background: #f8fafc; min-height: 100vh; color: #1e293b; }
-        .main-content { margin-left: 250px; padding: 28px 32px; }
+        body { background: #f5f3ee; min-height: 100vh; color: var(--text-primary); }
+        body.dark-mode { background: var(--bg-page); }
+        .admin-dash { margin-left: 250px; padding: 28px 32px; max-width: 100%; overflow-x: hidden; }
 
-        /* Header */
-        .dashboard-header {
-            background: white; border-radius: 12px; padding: 20px 28px; margin-bottom: 24px;
-            border: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;
+        .admin-dash .dashboard-header {
+            background: #f4f7fb;
+            border-radius: 14px;
+            padding: 20px 26px;
+            margin-bottom: 22px;
+            border: 1px solid #d5dce8;
+            box-shadow: var(--shadow-card);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
         }
-        .welcome-text h1 { font-size: 20px; font-weight: 600; color: #1e293b; margin-bottom: 2px; }
-        .welcome-text h1 i { color: #3b82f6; margin-right: 8px; }
-        .welcome-text p { color: #64748b; font-size: 13px; }
-        .date-time { text-align: right; color: #64748b; font-size: 13px; }
+        .admin-dash .welcome-text h1 {
+            font-size: 22px; font-weight: 700; color: var(--text-primary);
+            margin-bottom: 4px; display: flex; align-items: center; gap: 12px;
+        }
+        .admin-dash .header-icon {
+            width: 40px; height: 40px; border-radius: 10px;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: var(--color-primary-bg);
+            color: var(--color-primary); font-size: 16px; box-shadow: none;
+        }
+        .admin-dash .welcome-text h1 i { color: inherit; margin-right: 0; }
+        .admin-dash .welcome-text p { color: var(--text-secondary); font-size: 13px; }
+        .admin-dash .date-time { color: var(--text-secondary); font-size: 13px; }
+        .admin-dash .dt-chip {
+            display: flex; align-items: center; gap: 10px;
+            background: var(--color-primary-bg);
+            border: 1px solid var(--border-default);
+            border-radius: 14px; padding: 10px 14px;
+        }
+        .admin-dash .dt-chip i {
+            color: var(--color-primary); font-size: 16px;
+            width: 28px; height: 28px; border-radius: 8px;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: #f4f7fb;
+        }
+        .admin-dash #currentDate { font-weight: 600; color: var(--text-primary); font-size: 13px; }
+        .admin-dash #currentTime { color: var(--text-secondary); font-size: 12px; margin-top: 1px; }
 
-        /* Summary Cards */
         .summary-row {
             display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-bottom: 24px;
         }
         .summary-card {
-            background: white; border-radius: 12px; padding: 18px 20px;
-            border: 1px solid #e2e8f0; position: relative; overflow: hidden;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            background: #f4f7fb; border-radius: 14px; padding: 18px 18px 16px;
+            border: 1px solid #d5dce8; position: relative; overflow: hidden;
+            box-shadow: var(--shadow-card);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
         }
         .summary-card::before {
-            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
         }
-        .summary-card.blue::before { background: #3b82f6; }
-        .summary-card.amber::before { background: #f59e0b; }
-        .summary-card.emerald::before { background: #10b981; }
-        .summary-card.rose::before { background: #f43f5e; }
-        .summary-card.violet::before { background: #8b5cf6; }
-        .summary-card.cyan::before { background: #06b6d4; }
-        .summary-card .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+        .summary-card.blue::before { background: #1e3c72; }
+        .summary-card.amber::before { background: var(--color-warning); }
+        .summary-card.emerald::before { background: var(--color-success); }
+        .summary-card.rose::before { background: var(--color-danger); }
+        .summary-card.violet::before { background: #5a4e78; }
+        .summary-card.cyan::before { background: #0e7490; }
+        .summary-card.blue,
+        .summary-card.amber,
+        .summary-card.emerald,
+        .summary-card.rose,
+        .summary-card.violet,
+        .summary-card.cyan { background: #f4f7fb; }
+        .summary-card .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
         .summary-card .card-icon {
-            width: 36px; height: 36px; border-radius: 8px;
-            display: flex; align-items: center; justify-content: center; font-size: 14px;
+            width: 42px; height: 42px; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center; font-size: 16px;
         }
-        .summary-card.blue .card-icon { background: #eff6ff; color: #3b82f6; }
-        .summary-card.amber .card-icon { background: #fffbeb; color: #f59e0b; }
-        .summary-card.emerald .card-icon { background: #ecfdf5; color: #10b981; }
-        .summary-card.rose .card-icon { background: #fff1f2; color: #f43f5e; }
-        .summary-card.violet .card-icon { background: #f5f3ff; color: #8b5cf6; }
-        .summary-card.cyan .card-icon { background: #ecfeff; color: #06b6d4; }
-        .summary-card .card-value { font-size: 28px; font-weight: 700; color: #1e293b; }
-        .summary-card .card-label { font-size: 12px; color: #64748b; font-weight: 500; }
+        .summary-card.blue .card-icon { background: rgba(59,130,246,0.14); color: #2563eb; }
+        .summary-card.amber .card-icon { background: rgba(245,158,11,0.16); color: #d97706; }
+        .summary-card.emerald .card-icon { background: rgba(16,185,129,0.16); color: #059669; }
+        .summary-card.rose .card-icon { background: rgba(244,63,94,0.14); color: #e11d48; }
+        .summary-card.violet .card-icon { background: rgba(139,92,246,0.16); color: #7c3aed; }
+        .summary-card.cyan .card-icon { background: rgba(6,182,212,0.16); color: #0891b2; }
+        .summary-card .card-value { font-size: 28px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.03em; }
+        .summary-card .card-label { font-size: 12px; color: var(--text-secondary); font-weight: 600; margin-top: 2px; }
 
-        /* Main Layout 70/30 */
         .main-grid { display: grid; grid-template-columns: 1fr 380px; gap: 24px; margin-bottom: 24px; }
-        .left-col { min-width: 0; }
-        .right-col { min-width: 0; }
+        .left-col, .right-col { min-width: 0; }
 
-        /* Cards */
-        .card {
-            background: white; border-radius: 12px; padding: 20px;
-            border: 1px solid #e2e8f0; margin-bottom: 20px;
+        .admin-dash .card {
+            background: #f4f7fb;
+            border-radius: 14px;
+            padding: 20px;
+            border: 1px solid #d5dce8;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow-card);
+            position: relative;
+            overflow: hidden;
+            transition: box-shadow 0.2s ease, transform 0.2s ease;
         }
-        .card-header {
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9;
+        .admin-dash .card.card-flush { margin-bottom: 0; }
+        .admin-dash .card::after {
+            content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
         }
-        .card-title { font-size: 14px; font-weight: 600; color: #1e293b; display: flex; align-items: center; gap: 8px; }
-        .card-title i { color: #3b82f6; font-size: 13px; }
+        .admin-dash .panel-chart::after { background: var(--color-primary); }
+        .admin-dash .panel-awaiting::after { background: var(--color-info); }
+        .admin-dash .panel-activity::after { background: var(--color-purple); }
+        .admin-dash .panel-approvals::after { background: var(--color-warning); }
+        .admin-dash .panel-priority::after { background: var(--color-danger); }
+        .admin-dash .card-header {
+            display: flex; justify-content: space-between; align-items: center; gap: 10px;
+            margin: -20px -20px 16px; padding: 14px 18px 14px 20px;
+            border-bottom: 1px solid var(--border-light);
+            background: var(--bg-hover);
+        }
+        .admin-dash .panel-approvals .card-header { background: var(--color-warning-bg); }
+        .admin-dash .panel-priority .card-header { background: var(--color-danger-bg); }
+        .admin-dash .panel-awaiting .card-header { background: var(--color-info-bg); }
+        .admin-dash .panel-activity .card-header { background: var(--color-purple-bg); }
+        .admin-dash .card-title {
+            font-size: 14px; font-weight: 600; color: var(--text-primary);
+            display: flex; align-items: center; gap: 10px;
+        }
+        .admin-dash .title-icon {
+            width: 30px; height: 30px; border-radius: 9px;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 13px; flex-shrink: 0;
+        }
+        .admin-dash .panel-chart .title-icon { background: var(--color-primary-bg); color: var(--color-primary); }
+        .admin-dash .panel-awaiting .title-icon { background: var(--color-info-bg); color: var(--color-info); }
+        .admin-dash .panel-activity .title-icon { background: var(--color-purple-bg); color: var(--color-purple); }
+        .admin-dash .panel-approvals .title-icon { background: var(--color-warning-bg); color: var(--color-warning); }
+        .admin-dash .panel-priority .title-icon { background: var(--color-danger-bg); color: var(--color-danger); }
+        .admin-dash .card-title i { color: inherit; font-size: 13px; }
 
-        /* Charts */
         .chart-container { position: relative; width: 100%; height: 260px; }
         .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
         .chart-grid .chart-card:first-child { grid-column: 1 / -1; }
 
-        /* Table */
-        .table-container { overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
-        th { background: #f8fafc; font-weight: 600; color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; }
-        td { color: #334155; }
-        tr:hover td { background: #f8fafc; }
-
-        /* Badges */
-        .badge {
-            display: inline-block; padding: 2px 8px; border-radius: 4px;
-            font-size: 11px; font-weight: 500;
+        .admin-dash .table-container {
+            overflow-x: auto; border: 1px solid var(--border-light);
+            border-radius: 12px; background: #f4f7fb;
         }
-        .badge-pending { background: #fef3c7; color: #92400e; }
-        .badge-in-progress { background: #dbeafe; color: #1e40af; }
-        .badge-completed { background: #dcfce7; color: #166534; }
-        .badge-cancelled { background: #fee2e2; color: #991b1b; }
-        .badge-approved { background: #dcfce7; color: #166534; }
-        .badge-high { background: #fee2e2; color: #991b1b; }
-        .badge-medium { background: #fef3c7; color: #92400e; }
-        .badge-low { background: #dcfce7; color: #166534; }
-        .badge-citizen { background: #dbeafe; color: #1e40af; }
-        .badge-cimm { background: #fef3c7; color: #92400e; }
-        .badge-infrastructure { background: #e0e7ff; color: #3730a3; }
-        .badge-lgu { background: #dcfce7; color: #166534; }
-
-        /* Buttons */
-        .btn-sm {
-            padding: 5px 10px; font-size: 11px; border: none; border-radius: 6px;
-            cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 4px;
-            font-weight: 500; text-decoration: none;
+        .admin-dash table { width: 100%; border-collapse: collapse; }
+        .admin-dash th, .admin-dash td {
+            padding: 11px 12px; text-align: left; border-bottom: 1px solid var(--border-light); font-size: 13px;
         }
-        .btn-primary { background: #3b82f6; color: white; }
-        .btn-primary:hover { background: #2563eb; }
-        .btn-success { background: #10b981; color: white; }
-        .btn-danger { background: #ef4444; color: white; }
-        .btn-warning { background: #f59e0b; color: white; }
+        .admin-dash th {
+            background: var(--bg-hover); font-weight: 600; color: var(--text-secondary);
+            font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px;
+        }
+        .admin-dash td { color: var(--text-primary); }
+        .admin-dash tbody tr { transition: background 0.15s ease; }
+        .admin-dash tbody tr:hover td { background: var(--bg-hover); }
+        .admin-dash tbody tr:last-child td { border-bottom: none; }
+        .admin-dash .empty-cell {
+            text-align: center; color: var(--text-muted) !important; padding: 28px 16px !important;
+        }
+        .admin-dash .empty-state {
+            text-align: center; color: var(--text-muted); padding: 22px 12px;
+        }
+        .admin-dash .empty-state i {
+            display: block; font-size: 22px; margin-bottom: 8px; color: var(--text-muted); opacity: 0.8;
+        }
+        .admin-dash .mono-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+        .admin-dash .muted-date { font-size: 12px; color: var(--text-secondary) !important; }
 
-        /* Activity Timeline */
-        .activity-list { max-height: 320px; overflow-y: auto; }
-        .activity-item { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+        .admin-dash .badge {
+            display: inline-block; padding: 3px 9px; border-radius: 999px;
+            font-size: 11px; font-weight: 600; letter-spacing: 0.01em;
+        }
+        .admin-dash .badge-pending { background: var(--badge-pending-bg); color: var(--badge-pending-text); }
+        .admin-dash .badge-in-progress { background: var(--badge-in-progress-bg); color: var(--badge-in-progress-text); }
+        .admin-dash .badge-completed,
+        .admin-dash .badge-approved { background: var(--badge-completed-bg); color: var(--badge-completed-text); }
+        .admin-dash .badge-cancelled { background: var(--badge-cancelled-bg); color: var(--badge-cancelled-text); }
+        .admin-dash .badge-high { background: var(--priority-high-bg); color: var(--priority-high-text); }
+        .admin-dash .badge-medium { background: var(--priority-medium-bg); color: var(--priority-medium-text); }
+        .admin-dash .badge-low { background: var(--priority-low-bg); color: var(--priority-low-text); }
+        .admin-dash .badge-citizen { background: var(--badge-in-progress-bg); color: var(--badge-in-progress-text); }
+        .admin-dash .badge-cimm { background: var(--color-cimm-bg); color: var(--color-cimm-text); }
+        .admin-dash .badge-infrastructure { background: var(--color-purple-bg); color: var(--color-purple-text); }
+        .admin-dash .badge-lgu { background: var(--badge-approved-bg); color: var(--badge-approved-text); }
+
+        .admin-dash .btn-sm {
+            padding: 6px 11px; font-size: 11px; border: none; border-radius: 8px;
+            cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+            font-weight: 600; text-decoration: none; white-space: nowrap;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, filter 0.15s ease;
+        }
+        .admin-dash .btn-sm:hover { transform: translateY(-1px); }
+        .admin-dash .btn-primary {
+            background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+            color: #fff; box-shadow: 0 4px 12px rgba(55, 98, 200, 0.25);
+        }
+        .admin-dash .btn-primary:hover { filter: brightness(1.06); color: #fff; }
+        .admin-dash .btn-review {
+            background: linear-gradient(135deg, var(--color-warning-light), var(--color-warning-dark));
+            color: #fff; box-shadow: 0 4px 12px rgba(217, 119, 6, 0.25);
+        }
+        .admin-dash .btn-review:hover { filter: brightness(1.06); color: #fff; }
+        .admin-dash .btn-success { background: var(--color-success); color: #fff; }
+        .admin-dash .btn-danger { background: var(--color-danger); color: #fff; }
+        .admin-dash .btn-warning { background: var(--color-warning); color: #fff; }
+
+        .activity-list { max-height: 320px; overflow-y: auto; padding-right: 4px; }
+        .activity-item {
+            display: flex; gap: 12px; padding: 10px 8px;
+            border-bottom: 1px solid var(--border-light); border-radius: 10px;
+            transition: background 0.15s ease;
+        }
+        .activity-item:hover { background: var(--bg-hover); }
         .activity-item:last-child { border-bottom: none; }
         .activity-dot {
-            width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex-shrink: 0;
+            width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; flex-shrink: 0;
+            box-shadow: 0 0 0 4px rgba(55, 98, 200, 0.12);
         }
-        .activity-content { flex: 1; }
-        .activity-action { font-size: 13px; color: #334155; }
-        .activity-time { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+        .activity-dot.dot-info { background: var(--color-primary); box-shadow: 0 0 0 4px var(--color-primary-bg); }
+        .activity-dot.dot-success { background: var(--color-success); box-shadow: 0 0 0 4px var(--color-success-bg); }
+        .activity-dot.dot-danger { background: var(--color-danger); box-shadow: 0 0 0 4px var(--color-danger-bg); }
+        .activity-dot.dot-warning { background: var(--color-warning); box-shadow: 0 0 0 4px var(--color-warning-bg); }
+        .activity-content { flex: 1; min-width: 0; }
+        .activity-action { font-size: 13px; color: var(--text-primary); font-weight: 500; }
+        .activity-time { font-size: 11px; color: var(--text-muted) !important; margin-top: 2px; }
 
-        /* Sidebar Widgets */
-        .widget-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+        .widget-item {
+            display: flex; align-items: center; gap: 10px; padding: 10px 8px;
+            border-bottom: 1px solid var(--border-light); border-radius: 10px;
+            transition: background 0.15s ease;
+        }
+        .widget-item:hover { background: var(--bg-hover); }
         .widget-item:last-child { border-bottom: none; }
         .widget-avatar {
-            width: 32px; height: 32px; border-radius: 50%;
+            width: 36px; height: 36px; border-radius: 11px;
             display: flex; align-items: center; justify-content: center;
-            font-size: 12px; font-weight: 600; color: white; flex-shrink: 0;
+            font-size: 13px; font-weight: 600; color: #fff; flex-shrink: 0;
         }
+        .widget-avatar.avatar-warning { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .widget-avatar.avatar-danger { background: linear-gradient(135deg, #f43f5e, #e11d48); }
         .widget-info { flex: 1; min-width: 0; }
-        .widget-title { font-size: 13px; font-weight: 500; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .widget-meta { font-size: 11px; color: #94a3b8; }
+        .widget-title {
+            font-size: 13px; font-weight: 600; color: var(--text-primary);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .widget-meta { font-size: 11px; color: var(--text-muted) !important; }
         .widget-badge { flex-shrink: 0; }
 
-        /* Modal */
         .modal {
             display: none; position: fixed; z-index: 1000; left: 0; top: 0;
-            width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);
+            width: 100%; height: 100%; background-color: var(--bg-overlay);
             align-items: center; justify-content: center;
         }
         .modal-content {
-            background-color: white; padding: 28px; border-radius: 12px;
-            width: 90%; max-width: 480px;
+            background-color: #f4f7fb; padding: 28px; border-radius: 14px;
+            width: 90%; max-width: 480px; border: 1px solid #d5dce8;
+            box-shadow: var(--shadow-lg); color: var(--text-primary);
         }
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-        .modal-title { font-size: 16px; font-weight: 600; color: #1e293b; }
-        .close { font-size: 24px; cursor: pointer; color: #94a3b8; }
-        .close:hover { color: #f43f5e; }
+        .modal-title { font-size: 16px; font-weight: 600; color: var(--text-primary); }
+        .close { font-size: 24px; cursor: pointer; color: var(--text-muted); }
+        .close:hover { color: var(--color-danger); }
 
-        /* Responsive */
+        .workflow-container { margin-bottom: 24px; }
+        .workflow-card {
+            background: #f4f7fb; border-radius: 14px; padding: 20px;
+            border: 1px solid #d5dce8; box-shadow: var(--shadow-card);
+        }
+        .workflow-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border-light);
+        }
+        .workflow-title { font-size: 14px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
+        .workflow-title i { color: var(--color-danger); }
+        .workflow-badge { background: var(--color-danger); color: #fff; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+        .workflow-content { max-height: 360px; overflow-y: auto; }
+
         @media (max-width: 1400px) {
             .summary-row { grid-template-columns: repeat(3, 1fr); }
         }
@@ -746,91 +873,110 @@ try {
             .chart-grid .chart-card:first-child { grid-column: 1 / -1; }
         }
         @media (max-width: 768px) {
-            .main-content { margin-left: 0; padding: 16px; }
+            .admin-dash { margin-left: 0; padding: 16px; }
             .summary-row { grid-template-columns: repeat(2, 1fr); }
+            .admin-dash .dashboard-header { flex-direction: column; align-items: flex-start; }
+            .admin-dash .modal-content { max-width: 96vw; }
+        }
+        @media (max-width: 480px) {
+            .summary-row { grid-template-columns: 1fr; }
+            .admin-dash .header-icon { width: 36px; height: 36px; }
         }
 
-        /* Workflow Card (Inactive Users) */
-        .workflow-container { margin-bottom: 24px; }
-        .workflow-card {
-            background: white; border-radius: 12px; padding: 20px;
-            border: 1px solid #e2e8f0;
+        body.dark-mode .admin-dash .dashboard-header {
+            background: #1c2432 !important;
+            border-color: rgba(147, 179, 224, 0.22) !important;
         }
-        .workflow-header {
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9;
+        body.dark-mode .admin-dash .header-icon {
+            background: var(--color-primary-bg);
+            color: var(--color-primary);
+            box-shadow: none;
         }
-        .workflow-title { font-size: 14px; font-weight: 600; color: #1e293b; display: flex; align-items: center; gap: 8px; }
-        .workflow-title i { color: #f43f5e; }
-        .workflow-badge { background: #f43f5e; color: white; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
-        .workflow-content { max-height: 360px; overflow-y: auto; }
+        body.dark-mode .admin-dash .dt-chip { background: var(--color-primary-bg); border-color: var(--border-default); }
+        body.dark-mode .admin-dash .dt-chip i { background: #1c2432; }
+        body.dark-mode .admin-dash .card,
+        body.dark-mode .admin-dash .summary-card,
+        body.dark-mode .admin-dash .workflow-card,
+        body.dark-mode .admin-dash .table-container,
+        body.dark-mode .admin-dash .modal-content {
+            background: #1c2432 !important;
+            border-color: rgba(147, 179, 224, 0.22) !important;
+        }
+        body.dark-mode .admin-dash .card-header {
+            background: rgba(255,255,255,0.03) !important;
+            border-color: var(--border-default) !important;
+        }
+        body.dark-mode .admin-dash .panel-approvals .card-header { background: var(--color-warning-bg) !important; }
+        body.dark-mode .admin-dash .panel-priority .card-header { background: var(--color-danger-bg) !important; }
+        body.dark-mode .admin-dash .panel-awaiting .card-header { background: var(--color-info-bg) !important; }
+        body.dark-mode .admin-dash .panel-activity .card-header { background: var(--color-purple-bg) !important; }
+        body.dark-mode .admin-dash .card-title,
+        body.dark-mode .admin-dash .card-title span,
+        body.dark-mode .admin-dash .widget-title,
+        body.dark-mode .admin-dash .activity-action,
+        body.dark-mode .admin-dash th,
+        body.dark-mode .admin-dash td { color: var(--text-primary); }
+        body.dark-mode .admin-dash .card-label,
+        body.dark-mode .admin-dash .welcome-text p,
+        body.dark-mode .admin-dash .muted-date { color: var(--text-secondary) !important; }
+        body.dark-mode .admin-dash .btn-primary {
+            background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+            color: #fff !important; border-color: transparent !important;
+        }
+        body.dark-mode .admin-dash .btn-review { color: #fff !important; }
+        body.dark-mode .admin-dash .badge-pending { background: var(--badge-pending-bg) !important; color: var(--badge-pending-text) !important; }
+        body.dark-mode .admin-dash .badge-in-progress { background: var(--badge-in-progress-bg) !important; color: var(--badge-in-progress-text) !important; }
+        body.dark-mode .admin-dash .badge-completed,
+        body.dark-mode .admin-dash .badge-approved { background: var(--badge-completed-bg) !important; color: var(--badge-completed-text) !important; }
+        body.dark-mode .admin-dash .badge-cancelled { background: var(--badge-cancelled-bg) !important; color: var(--badge-cancelled-text) !important; }
+        body.dark-mode .admin-dash .badge-high { background: var(--priority-high-bg) !important; color: var(--priority-high-text) !important; }
+        body.dark-mode .admin-dash .badge-medium { background: var(--priority-medium-bg) !important; color: var(--priority-medium-text) !important; }
+        body.dark-mode .admin-dash .badge-low { background: var(--priority-low-bg) !important; color: var(--priority-low-text) !important; }
+        body.dark-mode .admin-dash .badge-citizen { background: var(--badge-in-progress-bg) !important; color: var(--badge-in-progress-text) !important; }
+        body.dark-mode .admin-dash .badge-cimm { background: var(--color-cimm-bg) !important; color: var(--color-cimm-text) !important; }
+        body.dark-mode .admin-dash .badge-infrastructure { background: var(--color-purple-bg) !important; color: var(--color-purple-text) !important; }
+        body.dark-mode .admin-dash .badge-lgu { background: var(--badge-approved-bg) !important; color: var(--badge-approved-text) !important; }
+        body.dark-mode .admin-dash .modal-content { background: #1c2432 !important; border-color: rgba(147, 179, 224, 0.22) !important; }
+        body.dark-mode .admin-dash .modal-header { background: transparent !important; }
 
         <?php if (($_SESSION['role'] ?? '') === 'system_admin'): ?>
-        /* Readable badge text in dark mode for System Admin only */
-        .dark-mode .badge-pending       { background: rgba(180, 83, 9, 0.22); color: #fcd34d; }
-        .dark-mode .badge-in-progress   { background: rgba(30, 64, 175, 0.35); color: #93c5fd; }
-        .dark-mode .badge-completed     { background: rgba(4, 120, 87, 0.28); color: #6ee7b7; }
-        .dark-mode .badge-cancelled     { background: rgba(185, 28, 28, 0.28); color: #fca5a5; }
-        .dark-mode .badge-approved      { background: rgba(4, 120, 87, 0.28); color: #6ee7b7; }
-        .dark-mode .badge-high          { background: rgba(220, 38, 38, 0.28); color: #fca5a5; }
-        .dark-mode .badge-medium        { background: rgba(194, 65, 12, 0.25); color: #fdba74; }
-        .dark-mode .badge-low           { background: rgba(5, 150, 105, 0.28); color: #6ee7b7; }
-        .dark-mode .badge-citizen       { background: rgba(30, 64, 175, 0.35); color: #93c5fd; }
-        .dark-mode .badge-cimm          { background: rgba(180, 83, 9, 0.22); color: #fcd34d; }
-        .dark-mode .badge-infrastructure { background: rgba(67, 56, 202, 0.3); color: #c7d2fe; }
-        .dark-mode .badge-lgu           { background: rgba(4, 120, 87, 0.28); color: #6ee7b7; }
-
-        /* Dark mode summary cards */
-        .dark-mode .summary-card.blue { background: rgba(96, 165, 250, 0.12); border-color: rgba(96, 165, 250, 0.35); }
-        .dark-mode .summary-card.amber { background: rgba(251, 191, 36, 0.12); border-color: rgba(251, 191, 36, 0.35); }
-        .dark-mode .summary-card.emerald { background: rgba(52, 211, 153, 0.12); border-color: rgba(52, 211, 153, 0.35); }
-        .dark-mode .summary-card.rose { background: rgba(248, 113, 113, 0.12); border-color: rgba(248, 113, 113, 0.35); }
-        .dark-mode .summary-card.violet { background: rgba(167, 139, 250, 0.12); border-color: rgba(167, 139, 250, 0.35); }
-        .dark-mode .summary-card.cyan { background: rgba(56, 189, 248, 0.12); border-color: rgba(56, 189, 248, 0.35); }
-
-        .dark-mode .summary-card.blue::before { background: #60a5fa; }
-        .dark-mode .summary-card.amber::before { background: #fbbf24; }
-        .dark-mode .summary-card.emerald::before { background: #34d399; }
-        .dark-mode .summary-card.rose::before { background: #f87171; }
-        .dark-mode .summary-card.violet::before { background: #a78bfa; }
-        .dark-mode .summary-card.cyan::before { background: #38bdf8; }
-
-        .dark-mode .summary-card.blue .card-icon { background: rgba(96, 165, 250, 0.18); color: #60a5fa; }
-        .dark-mode .summary-card.amber .card-icon { background: rgba(251, 191, 36, 0.18); color: #fbbf24; }
-        .dark-mode .summary-card.emerald .card-icon { background: rgba(52, 211, 153, 0.18); color: #34d399; }
-        .dark-mode .summary-card.rose .card-icon { background: rgba(248, 113, 113, 0.18); color: #f87171; }
-        .dark-mode .summary-card.violet .card-icon { background: rgba(167, 139, 250, 0.18); color: #a78bfa; }
-        .dark-mode .summary-card.cyan .card-icon { background: rgba(56, 189, 248, 0.18); color: #38bdf8; }
-
-        .dark-mode .summary-card.blue .card-value { color: #93c5fd; }
-        .dark-mode .summary-card.amber .card-value { color: #fcd34d; }
-        .dark-mode .summary-card.emerald .card-value { color: #6ee7b7; }
-        .dark-mode .summary-card.rose .card-value { color: #fca5a5; }
-        .dark-mode .summary-card.violet .card-value { color: #c4b5fd; }
-        .dark-mode .summary-card.cyan .card-value { color: #7dd3fc; }
-
-        .dark-mode .summary-card.blue .card-label { color: #bfdbfe; }
-        .dark-mode .summary-card.amber .card-label { color: #fde68a; }
-        .dark-mode .summary-card.emerald .card-label { color: #a7f3d0; }
-        .dark-mode .summary-card.rose .card-label { color: #fecaca; }
-        .dark-mode .summary-card.violet .card-label { color: #ddd6fe; }
-        .dark-mode .summary-card.cyan .card-label { color: #bae6fd; }
-
-        /* Moving cards on hover (System Admin only) - mirrors stat-card:hover on monitoring page */
         .summary-card { cursor: pointer; }
         .summary-card:hover {
             transform: translateY(-4px);
-            box-shadow: 0 8px 24px rgba(0,0,0,0.10);
+            box-shadow: var(--shadow-lg);
         }
-        .dark-mode .summary-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.45); }
+        body.dark-mode .summary-card.blue,
+        body.dark-mode .summary-card.amber,
+        body.dark-mode .summary-card.emerald,
+        body.dark-mode .summary-card.rose,
+        body.dark-mode .summary-card.violet,
+        body.dark-mode .summary-card.cyan { background: #1c2432 !important; border-color: rgba(147, 179, 224, 0.22) !important; }
+        body.dark-mode .summary-card.blue .card-icon { background: rgba(96, 165, 250, 0.18); color: #60a5fa; }
+        body.dark-mode .summary-card.amber .card-icon { background: rgba(251, 191, 36, 0.18); color: #fbbf24; }
+        body.dark-mode .summary-card.emerald .card-icon { background: rgba(52, 211, 153, 0.18); color: #34d399; }
+        body.dark-mode .summary-card.rose .card-icon { background: rgba(248, 113, 113, 0.18); color: #f87171; }
+        body.dark-mode .summary-card.violet .card-icon { background: rgba(167, 139, 250, 0.18); color: #a78bfa; }
+        body.dark-mode .summary-card.cyan .card-icon { background: rgba(56, 189, 248, 0.18); color: #38bdf8; }
+        body.dark-mode .summary-card.blue .card-value { color: #93c5fd !important; }
+        body.dark-mode .summary-card.amber .card-value { color: #fcd34d !important; }
+        body.dark-mode .summary-card.emerald .card-value { color: #6ee7b7 !important; }
+        body.dark-mode .summary-card.rose .card-value { color: #fca5a5 !important; }
+        body.dark-mode .summary-card.violet .card-value { color: #c4b5fd !important; }
+        body.dark-mode .summary-card.cyan .card-value { color: #7dd3fc !important; }
+        body.dark-mode .summary-card.blue .card-label { color: #bfdbfe !important; }
+        body.dark-mode .summary-card.amber .card-label { color: #fde68a !important; }
+        body.dark-mode .summary-card.emerald .card-label { color: #a7f3d0 !important; }
+        body.dark-mode .summary-card.rose .card-label { color: #fecaca !important; }
+        body.dark-mode .summary-card.violet .card-label { color: #ddd6fe !important; }
+        body.dark-mode .summary-card.cyan .card-label { color: #bae6fd !important; }
+        body.dark-mode .summary-card:hover { box-shadow: 0 10px 28px rgba(0,0,0,0.45); }
 
-        /* Data source tooltip (System Admin only) - styled like Chart.js tooltips */
         .ds-tooltip {
             position: fixed; z-index: 9999; pointer-events: none;
-            background: rgba(15, 23, 42, 0.92); color: #f1f5f9;
-            padding: 6px 10px; border-radius: 6px;
+            background: var(--bg-tooltip); color: var(--text-inverse);
+            padding: 7px 11px; border-radius: 8px;
             font-size: 12px; font-weight: 600; line-height: 1.4;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+            box-shadow: var(--shadow-lg);
             white-space: nowrap; max-width: 340px;
             opacity: 0; visibility: hidden;
             transform: translateY(4px);
@@ -841,8 +987,10 @@ try {
             display: inline-block; width: 8px; height: 8px; border-radius: 50%;
             margin-right: 6px; vertical-align: middle;
         }
-        .ds-tooltip .tip-label { color: #f1f5f9; }
-        .ds-tooltip .tip-value { color: #93c5fd; font-weight: 700; }
+        .ds-tooltip .tip-label { color: inherit; }
+        .ds-tooltip .tip-value { color: var(--color-primary-light); font-weight: 700; }
+        body.dark-mode .ds-tooltip { background: #0f172a; color: #f1f5f9; }
+        body.dark-mode .ds-tooltip .tip-value { color: #93c5fd; }
         <?php endif; ?>
     </style>
 </head>
@@ -850,16 +998,21 @@ try {
     <!-- SIDEBAR -->
     <?php include '../../includes/sidebar_nav.php'; ?>
 
-    <div class="main-content">
+    <div class="main-content admin-dash">
         <!-- Dashboard Header -->
         <div class="dashboard-header">
             <div class="welcome-text">
-                <h1><i class="fas fa-shield-alt"></i> Admin Dashboard</h1>
+                <h1><span class="header-icon"><i class="fas fa-gauge-high"></i></span> Admin Dashboard</h1>
                 <p>Road &amp; Transportation Monitoring System</p>
             </div>
             <div class="date-time">
-                <div id="currentDate"></div>
-                <div id="currentTime"></div>
+                <div class="dt-chip">
+                    <i class="fas fa-calendar-day"></i>
+                    <div>
+                        <div id="currentDate"></div>
+                        <div id="currentTime"></div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -867,40 +1020,40 @@ try {
         <div class="summary-row">
             <div class="summary-card blue" data-source="road_transportation_reports">
                 <div class="card-top">
-                    <div class="card-icon"><i class="fas fa-file-alt"></i></div>
+                    <div class="card-icon"><i class="fas fa-clipboard-list"></i></div>
                 </div>
                 <div class="card-value"><?php echo $quick_insights['total_reports']; ?></div>
                 <div class="card-label">Total Reports</div>
             </div>
             <div class="summary-card amber" data-source="road_transportation_reports">
                 <div class="card-top">
-                    <div class="card-icon"><i class="fas fa-clock"></i></div>
+                    <div class="card-icon"><i class="fas fa-hourglass-half"></i></div>
                 </div>
                 <div class="card-value"><?php echo $quick_insights['pending_reports']; ?></div>
                 <div class="card-label">Pending</div>
             </div>
-            <div class="summary-card emerald" data-source="road_transportation_reports">
+            <div class="summary-card cyan" data-source="road_transportation_reports">
                 <div class="card-top">
-                    <div class="card-icon"><i class="fas fa-spinner"></i></div>
+                    <div class="card-icon"><i class="fas fa-gears"></i></div>
                 </div>
                 <div class="card-value"><?php echo $quick_insights['in_progress_reports']; ?></div>
                 <div class="card-label">In Progress</div>
             </div>
-            <div class="summary-card rose" data-source="road_transportation_reports">
+            <div class="summary-card emerald" data-source="road_transportation_reports">
                 <div class="card-top">
-                    <div class="card-icon"><i class="fas fa-check-circle"></i></div>
+                    <div class="card-icon"><i class="fas fa-circle-check"></i></div>
                 </div>
                 <div class="card-value"><?php echo $quick_insights['completed_reports']; ?></div>
                 <div class="card-label">Completed</div>
             </div>
-            <div class="summary-card violet" data-source="road_transportation_reports">
+            <div class="summary-card rose" data-source="road_transportation_reports">
                 <div class="card-top">
-                    <div class="card-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                    <div class="card-icon"><i class="fas fa-bolt"></i></div>
                 </div>
                 <div class="card-value"><?php echo $quick_insights['high_priority']; ?></div>
                 <div class="card-label">High Priority</div>
             </div>
-            <div class="summary-card cyan" data-source="users">
+            <div class="summary-card violet" data-source="users">
                 <div class="card-top">
                     <div class="card-icon"><i class="fas fa-users"></i></div>
                 </div>
@@ -914,9 +1067,9 @@ try {
             <!-- Left Column (70%) -->
             <div class="left-col">
                 <!-- Reports Submitted Last 30 Days -->
-                <div class="card" data-source="road_transportation_reports">
+                <div class="card panel-chart" data-source="road_transportation_reports">
                     <div class="card-header">
-                        <h3 class="card-title"><i class="fas fa-chart-line"></i> Reports Submitted (Last 30 Days)</h3>
+                        <h3 class="card-title"><span class="title-icon"><i class="fas fa-chart-line"></i></span> Reports Submitted (Last 30 Days)</h3>
                     </div>
                     <div class="chart-container">
                         <canvas id="reportsTrend30DayChart"></canvas>
@@ -925,17 +1078,17 @@ try {
 
                 <!-- Charts Row -->
                 <div class="chart-grid">
-                    <div class="card" style="margin-bottom:0;" data-source="road_transportation_reports">
+                    <div class="card card-flush panel-chart" data-source="road_transportation_reports">
                         <div class="card-header">
-                            <h3 class="card-title"><i class="fas fa-chart-bar"></i> Reports by Status</h3>
+                            <h3 class="card-title"><span class="title-icon"><i class="fas fa-chart-column"></i></span> Reports by Status</h3>
                         </div>
                         <div class="chart-container" style="height: 200px; max-width: 320px; margin: 0 auto;">
                             <canvas id="reportsByStatusChart"></canvas>
                         </div>
                     </div>
-                    <div class="card" style="margin-bottom:0;" data-source="users">
+                    <div class="card card-flush panel-chart" data-source="users">
                         <div class="card-header">
-                            <h3 class="card-title"><i class="fas fa-chart-pie"></i> User Accounts</h3>
+                            <h3 class="card-title"><span class="title-icon"><i class="fas fa-chart-pie"></i></span> User Accounts</h3>
                         </div>
                         <div class="chart-container" style="height: 240px; max-width: 320px; margin: 0 auto;">
                             <canvas id="userAccountsChart"></canvas>
@@ -944,10 +1097,10 @@ try {
                 </div>
 
                 <!-- Awaiting for Assignments -->
-                <div class="card" data-source="road_transportation_reports">
+                <div class="card panel-awaiting" data-source="road_transportation_reports">
                     <div class="card-header">
-                        <h3 class="card-title"><i class="fas fa-user-plus"></i> Awaiting for Assignments</h3>
-                        <a href="report_management.php?assignment=unassigned" class="btn-sm btn-primary">View All</a>
+                        <h3 class="card-title"><span class="title-icon"><i class="fas fa-user-plus"></i></span> Awaiting for Assignments</h3>
+                        <a href="report_management.php?assignment=unassigned" class="btn-sm btn-primary"><i class="fas fa-arrow-right"></i> View All</a>
                     </div>
                     <div class="table-container">
                         <table>
@@ -964,7 +1117,7 @@ try {
                             </thead>
                             <tbody>
                                 <?php if (empty($awaiting_assignment_reports)): ?>
-                                    <tr><td colspan="7" style="text-align:center; color:#94a3b8; padding:24px;">No unassigned reports.</td></tr>
+                                    <tr><td colspan="7" class="empty-cell"><i class="fas fa-inbox" style="margin-right:6px;"></i>No unassigned reports.</td></tr>
                                 <?php else: ?>
                                     <?php foreach ($awaiting_assignment_reports as $lr): ?>
                                     <?php
@@ -980,12 +1133,12 @@ try {
                                         $lr_view = 'report_management.php?source=' . rawurlencode($lr_source) . '&amp;id=' . $lr_id . '&amp;open=1';
                                     ?>
                                     <tr>
-                                        <td style="font-family:monospace; font-size:12px;"><?php echo htmlspecialchars((string)($lr['report_id'] ?? '')); ?></td>
+                                        <td class="mono-id"><?php echo htmlspecialchars((string)($lr['report_id'] ?? '')); ?></td>
                                         <td><?php echo htmlspecialchars($lr['title'] ?? 'Untitled'); ?></td>
                                         <td><span class="badge badge-<?php echo htmlspecialchars($lr_badge); ?>"><?php echo htmlspecialchars($lr_label); ?></span></td>
                                         <td><span class="badge badge-<?php echo htmlspecialchars($lr_priority); ?>"><?php echo ucfirst(htmlspecialchars($lr_priority)); ?></span></td>
                                         <td><span class="badge badge-<?php echo htmlspecialchars(strtolower(str_replace(' ', '-', (string)($lr['status'] ?? '')))); ?>"><?php echo htmlspecialchars($lr_status); ?></span></td>
-                                        <td style="font-size:12px; color:#64748b;"><?php echo !empty($lr['created_at']) ? date('M d, Y', strtotime($lr['created_at'])) : '—'; ?></td>
+                                        <td class="muted-date"><?php echo !empty($lr['created_at']) ? date('M d, Y', strtotime($lr['created_at'])) : '—'; ?></td>
                                         <td><?php if ($lr_id > 0): ?><a href="<?php echo $lr_view; ?>" class="btn-sm btn-primary"><i class="fas fa-eye"></i> View</a><?php endif; ?></td>
                                     </tr>
                                     <?php endforeach; ?>
@@ -999,23 +1152,23 @@ try {
             <!-- Right Column (30%) -->
             <div class="right-col">
                 <!-- Recent Activity -->
-                <div class="card" data-source="audit_logs, users">
+                <div class="card panel-activity" data-source="audit_logs, users">
                     <div class="card-header">
-                        <h3 class="card-title"><i class="fas fa-history"></i> Recent Activity</h3>
+                        <h3 class="card-title"><span class="title-icon"><i class="fas fa-clock-rotate-left"></i></span> Recent Activity</h3>
                     </div>
                     <div class="activity-list">
                         <?php if (empty($recent_activity)): ?>
-                            <p style="text-align:center; color:#94a3b8; padding:16px;">No recent activity.</p>
+                            <div class="empty-state"><i class="fas fa-bell-slash"></i>No recent activity.</div>
                         <?php else: ?>
                             <?php foreach (array_slice($recent_activity, 0, 8) as $ra): ?>
                                 <?php
-                                $dot_color = '#3b82f6';
-                                foreach (['approve' => '#10b981', 'reject' => '#ef4444', 'delete' => '#ef4444', 'complete' => '#10b981', 'cancel' => '#f59e0b'] as $k => $c) {
-                                    if (stripos($ra['action'], $k) !== false) { $dot_color = $c; break; }
+                                $dot_class = 'dot-info';
+                                foreach (['approve' => 'dot-success', 'reject' => 'dot-danger', 'delete' => 'dot-danger', 'complete' => 'dot-success', 'cancel' => 'dot-warning'] as $k => $c) {
+                                    if (stripos($ra['action'], $k) !== false) { $dot_class = $c; break; }
                                 }
                                 ?>
                                 <div class="activity-item">
-                                    <div class="activity-dot" style="background:<?php echo $dot_color; ?>;"></div>
+                                    <div class="activity-dot <?php echo $dot_class; ?>"></div>
                                     <div class="activity-content">
                                         <div class="activity-action"><?php echo htmlspecialchars($ra['action']); ?></div>
                                         <div class="activity-time"><?php echo htmlspecialchars($ra['user_name'] ?? 'System'); ?> &middot; <?php echo date('M d, g:ia', strtotime($ra['created_at'])); ?></div>
@@ -1027,23 +1180,23 @@ try {
                 </div>
 
                 <!-- Pending Approvals -->
-                <div class="card" data-source="users">
+                <div class="card panel-approvals" data-source="users">
                     <div class="card-header">
-                        <h3 class="card-title"><i class="fas fa-user-clock"></i> Pending Approvals</h3>
+                        <h3 class="card-title"><span class="title-icon"><i class="fas fa-user-check"></i></span> Pending Approvals</h3>
                         <span class="badge badge-pending"><?php echo (int)$pending_approvals_count; ?></span>
                     </div>
                     <div class="activity-list">
                         <?php if ($pending_approvals_count === 0 || empty($pending_users_list)): ?>
-                            <p style="text-align:center; color:#94a3b8; padding:16px;">No pending approvals.</p>
+                            <div class="empty-state"><i class="fas fa-user-clock"></i>No pending approvals.</div>
                         <?php else: ?>
                             <?php foreach ($pending_users_list as $pu): ?>
                                 <div class="widget-item">
-                                    <div class="widget-avatar" style="background:#f59e0b;"><i class="fas fa-user"></i></div>
+                                    <div class="widget-avatar avatar-warning"><i class="fas fa-user"></i></div>
                                     <div class="widget-info">
                                         <div class="widget-title"><?php echo htmlspecialchars($pu['full_name']); ?></div>
                                         <div class="widget-meta"><?php echo htmlspecialchars($pu['role']); ?> &middot; <?php echo date('M d', strtotime($pu['created_at'])); ?></div>
                                     </div>
-                                    <a href="account_approvals.php" class="btn-sm btn-primary">Review</a>
+                                    <a href="account_approvals.php" class="btn-sm btn-review"><i class="fas fa-clipboard-check"></i> Review</a>
                                 </div>
                             <?php endforeach; ?>
                         <?php endif; ?>
@@ -1051,26 +1204,26 @@ try {
                 </div>
 
                 <!-- High Priority Reports -->
-                <div class="card" data-source="road_transportation_reports">
+                <div class="card panel-priority" data-source="road_transportation_reports">
                     <div class="card-header">
-                        <h3 class="card-title"><i class="fas fa-exclamation-triangle"></i> High Priority</h3>
+                        <h3 class="card-title"><span class="title-icon"><i class="fas fa-bolt"></i></span> High Priority</h3>
                         <span class="badge badge-high"><?php echo (int)$high_priority_panel_count; ?></span>
                     </div>
                     <div class="activity-list">
                         <?php if ($high_priority_panel_count === 0 || empty($high_priority_reports)): ?>
-                            <p style="text-align:center; color:#94a3b8; padding:16px;">No high priority reports.</p>
+                            <div class="empty-state"><i class="fas fa-shield-halved"></i>No high priority reports.</div>
                         <?php else: ?>
                             <?php foreach ($high_priority_reports as $hp): ?>
                                 <?php
                                     $hp_status = ucfirst(str_replace('-', ' ', (string)($hp['status'] ?? '')));
                                 ?>
                                 <div class="widget-item">
-                                    <div class="widget-avatar" style="background:#f43f5e;"><i class="fas fa-exclamation"></i></div>
+                                    <div class="widget-avatar avatar-danger"><i class="fas fa-triangle-exclamation"></i></div>
                                     <div class="widget-info">
                                         <div class="widget-title"><?php echo htmlspecialchars($hp['title'] ?? 'Untitled'); ?></div>
                                         <div class="widget-meta"><?php echo htmlspecialchars($hp['report_id'] ?? ''); ?> &middot; <?php echo htmlspecialchars($hp_status); ?></div>
                                     </div>
-                                    <a href="report_management.php?focus_report_id=<?php echo (int)($hp['id'] ?? 0); ?>" class="btn-sm btn-primary"><i class="fas fa-eye"></i></a>
+                                    <a href="report_management.php?focus_report_id=<?php echo (int)($hp['id'] ?? 0); ?>" class="btn-sm btn-primary"><i class="fas fa-eye"></i> View</a>
                                 </div>
                             <?php endforeach; ?>
                         <?php endif; ?>
@@ -1081,26 +1234,26 @@ try {
 
         <!-- Bottom Section: Charts -->
         <div class="chart-grid">
-            <div class="card" style="margin-bottom:0;" data-source="road_transportation_reports">
+            <div class="card card-flush panel-chart" data-source="road_transportation_reports">
                 <div class="card-header">
-                    <h3 class="card-title"><i class="fas fa-chart-pie"></i> Reports by Source</h3>
+                    <h3 class="card-title"><span class="title-icon"><i class="fas fa-chart-pie"></i></span> Reports by Source</h3>
                 </div>
                 <div class="chart-container" style="height: 240px; max-width: 320px; margin: 0 auto;">
                     <canvas id="reportsBySourceChart"></canvas>
                 </div>
             </div>
-            <div class="card" style="margin-bottom:0;" data-source="road_transportation_reports">
+            <div class="card card-flush panel-chart" data-source="road_transportation_reports">
                 <div class="card-header">
-                    <h3 class="card-title"><i class="fas fa-road"></i> Reports by Category</h3>
+                    <h3 class="card-title"><span class="title-icon"><i class="fas fa-road"></i></span> Reports by Category</h3>
                 </div>
                 <div class="chart-container" style="height: 240px; max-width: 320px; margin: 0 auto;">
                     <canvas id="reportsByCategoryChart"></canvas>
                 </div>
             </div>
         </div>
-        <div class="card" data-source="road_transportation_reports">
+        <div class="card panel-chart" data-source="road_transportation_reports">
             <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-calendar-alt"></i> Monthly Trend</h3>
+                <h3 class="card-title"><span class="title-icon"><i class="fas fa-calendar-alt"></i></span> Monthly Trend</h3>
             </div>
             <div class="chart-container">
                 <canvas id="reportsTrendChart"></canvas>
@@ -1121,6 +1274,17 @@ try {
         
         updateDateTime();
         setInterval(updateDateTime, 1000);
+
+        const isDarkDash = document.body.classList.contains('dark-mode');
+        const chartText = isDarkDash ? '#e4e6ea' : '#334155';
+        const chartMuted = isDarkDash ? '#9ca3af' : '#64748b';
+        const chartGrid = isDarkDash ? 'rgba(255,255,255,0.08)' : 'rgba(15, 23, 42, 0.06)';
+        const chartCutoutBorder = isDarkDash ? '#1a1d24' : '#ffffff';
+        if (window.Chart) {
+            Chart.defaults.color = chartText;
+            Chart.defaults.font.family = 'Poppins, sans-serif';
+            Chart.defaults.borderColor = chartGrid;
+        }
 
         // Chart Data from PHP
         const userStats = {
@@ -1158,7 +1322,7 @@ try {
                     data: [userStats.pending, userStats.approved, userStats.inactive, userStats.deactivated],
                     backgroundColor: [chartColors.pending, chartColors.approved, chartColors.inactive, chartColors.deactivated],
                     borderWidth: 2,
-                    borderColor: '#fff'
+                    borderColor: chartCutoutBorder
                 }]
             },
             options: {
@@ -1198,14 +1362,14 @@ try {
                     const fontSize = (height / 116).toFixed(2);
                     ctx.font = 'bold ' + fontSize + 'em Poppins';
                     ctx.textBaseline = 'middle';
-                    ctx.fillStyle = '#1e293b';
+                    ctx.fillStyle = chartText;
                     const text = userAccountsTotal;
                     const textX = Math.round((width - ctx.measureText(text).width) / 2);
                     const textY = height / 2 - 8;
                     ctx.fillText(text, textX, textY);
                     // Draw label
                     ctx.font = (fontSize * 0.4).toFixed(2) + 'em Poppins';
-                    ctx.fillStyle = '#64748b';
+                    ctx.fillStyle = chartMuted;
                     const label = 'Total Users';
                     const labelX = Math.round((width - ctx.measureText(label).width) / 2);
                     ctx.fillText(label, labelX, textY + 18);
@@ -1240,7 +1404,7 @@ try {
                     y: {
                         beginAtZero: true,
                         ticks: { stepSize: 1, font: { size: 12 } },
-                        grid: { color: 'rgba(0,0,0,0.05)' }
+                        grid: { color: chartGrid }
                     },
                     x: {
                         ticks: { font: { size: 11 } },
@@ -1286,7 +1450,7 @@ try {
                     y: {
                         beginAtZero: true,
                         ticks: { stepSize: 1, font: { size: 12 } },
-                        grid: { color: 'rgba(0,0,0,0.05)' }
+                        grid: { color: chartGrid }
                     },
                     x: {
                         ticks: { font: { size: 12 } },
@@ -1331,7 +1495,7 @@ try {
                 maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
                 scales: {
-                    y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 11 } }, grid: { color: 'rgba(0,0,0,0.05)' } },
+                    y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 11 } }, grid: { color: chartGrid } },
                     x: { ticks: { font: { size: 10 }, maxTicksLimit: 10 }, grid: { display: false } }
                 }
             }
@@ -1350,7 +1514,7 @@ try {
                     data: sourceData,
                     backgroundColor: sourceColors.slice(0, sourceLabels.length),
                     borderWidth: 2,
-                    borderColor: '#fff'
+                    borderColor: chartCutoutBorder
                 }]
             },
             options: {
@@ -1375,7 +1539,7 @@ try {
                     data: categoryData,
                     backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'],
                     borderWidth: 2,
-                    borderColor: '#fff'
+                    borderColor: chartCutoutBorder
                 }]
             },
             options: {

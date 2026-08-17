@@ -2791,18 +2791,810 @@ if ($is_system_admin) {
         body.dark-mode .district-tooltip.leaflet-tooltip-left:before { border-left-color: var(--bg-card) !important; }
         body.dark-mode .district-tooltip.leaflet-tooltip-right:before { border-right-color: var(--bg-card) !important; }
         <?php endif; ?>
+
+        /* ── Monitoring dashboard refresh (theme-aware, UI only) ── */
+        body { background: #f5f3ee; color: var(--text-primary); }
+        body.dark-mode { background: var(--bg-page); }
+        .mon-dash { padding: 24px 28px; max-width: 100%; overflow-x: hidden; }
+
+        .mon-dash .monitoring-header {
+            background: #f4f7fb;
+            border: 1px solid #d5dce8;
+            border-radius: 14px;
+            padding: 20px 24px;
+            margin-bottom: 22px;
+            box-shadow: var(--shadow-card);
+        }
+        .mon-dash .header-content { margin-bottom: 0; }
+        .mon-dash .header-title h1 {
+            color: var(--text-primary);
+            font-size: 22px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 4px;
+        }
+        .mon-dash .header-icon {
+            width: 40px; height: 40px; border-radius: 10px;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: var(--color-primary-bg);
+            color: var(--color-primary);
+            font-size: 16px;
+            box-shadow: none;
+            flex-shrink: 0;
+        }
+        .mon-dash .header-title p { color: var(--text-secondary); font-size: 13px; }
+
+        .mon-dash .stat-card {
+            background: #f4f7fb;
+            border: 1px solid #d5dce8;
+            border-radius: 14px;
+            padding: 18px 18px 16px;
+            box-shadow: var(--shadow-card);
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .mon-dash .stat-card::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+        }
+        .mon-dash .stat-card.accent-blue::before { background: #1e3c72; }
+        .mon-dash .stat-card.accent-amber::before { background: var(--color-warning); }
+        .mon-dash .stat-card.accent-rose::before { background: var(--color-danger); }
+        .mon-dash .stat-card.accent-emerald::before { background: var(--color-success); }
+        .mon-dash .stat-card.accent-blue,
+        .mon-dash .stat-card.accent-amber,
+        .mon-dash .stat-card.accent-rose,
+        .mon-dash .stat-card.accent-emerald { background: #f4f7fb; }
+        .mon-dash .stat-card .stat-icon {
+            width: 40px; height: 40px; border-radius: 10px; font-size: 15px; margin-bottom: 10px;
+        }
+        .mon-dash .stat-card .stat-icon.blue { background: var(--color-primary-bg); color: var(--color-primary); }
+        .mon-dash .stat-card .stat-icon.orange { background: var(--color-warning-bg); color: var(--color-warning); }
+        .mon-dash .stat-card .stat-icon.red { background: var(--color-danger-bg); color: var(--color-danger); }
+        .mon-dash .stat-card .stat-icon.green { background: var(--color-success-bg); color: var(--color-success); }
+        .mon-dash .stat-card .stat-number { color: var(--text-primary); letter-spacing: -0.03em; }
+        .mon-dash .stat-card .stat-label { color: var(--text-secondary); font-weight: 600; }
+
+        .mon-dash .map-section,
+        .mon-dash .info-card,
+        .mon-dash .reports-table-section,
+        .mon-dash .report-form-panel {
+            background: #f4f7fb;
+            border: 1px solid #d5dce8;
+            box-shadow: var(--shadow-card);
+            border-radius: 14px;
+        }
+        .mon-dash .map-title,
+        .mon-dash .info-card-title,
+        .mon-dash .reports-table-section .table-header h3,
+        .mon-dash .report-form-panel h4 {
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .mon-dash .title-icon {
+            width: 30px; height: 30px; border-radius: 9px;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 13px; flex-shrink: 0;
+            background: var(--color-primary-bg); color: var(--color-primary);
+        }
+        .mon-dash .info-card .title-icon { background: var(--color-danger-bg); color: var(--color-danger); }
+        .mon-dash .map-hint { color: var(--text-secondary); }
+        .mon-dash .filter-btn {
+            background: var(--color-primary-bg);
+            color: var(--color-primary);
+            border: 1px solid transparent;
+            border-radius: 999px;
+            font-weight: 600;
+        }
+        .mon-dash .filter-btn:hover,
+        .mon-dash .filter-btn.active {
+            background: var(--color-primary);
+            color: #fff;
+            border-color: var(--color-primary);
+        }
+        .mon-dash .map-legend {
+            background: var(--bg-hover);
+            color: var(--text-secondary);
+            border-radius: 10px;
+        }
+        .mon-dash .map-fullscreen-btn {
+            background: var(--color-primary-bg);
+            color: var(--color-primary);
+            border-color: transparent;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease;
+        }
+        .mon-dash .map-fullscreen-btn:hover { transform: translateY(-1px); background: var(--color-primary); color: #fff; }
+        .mon-dash .map-search-box input {
+            background: var(--bg-input);
+            color: var(--text-primary);
+            border: 1px solid var(--border-input);
+            border-radius: 8px;
+        }
+
+        .mon-dash .reports-table-section { padding: 0; overflow: hidden; }
+        .mon-dash .reports-table-section .table-header {
+            margin: 0;
+            padding: 16px 18px;
+            background: var(--bg-hover);
+            border-bottom: 1px solid var(--border-light);
+        }
+        .mon-dash .filter-select,
+        .mon-dash .road-search {
+            background: var(--bg-input);
+            color: var(--text-primary);
+            border: 1px solid var(--border-input);
+            border-radius: 10px;
+            padding: 8px 12px;
+        }
+        .mon-dash .filter-select:focus,
+        .mon-dash .road-search:focus {
+            outline: none;
+            border-color: var(--border-focus);
+            box-shadow: 0 0 0 3px var(--color-primary-bg);
+        }
+        .mon-dash .reports-table-wrap { padding: 0 6px 6px; }
+        .mon-dash .reports-table-section th {
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 11px;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--border-default);
+        }
+        .mon-dash .reports-table-section td {
+            color: var(--text-primary);
+            border-bottom: 1px solid var(--border-light);
+            padding: 12px;
+            vertical-align: middle;
+        }
+        .mon-dash .reports-table-section tbody tr { transition: background 0.15s ease; }
+        .mon-dash .reports-table-section tbody tr:hover td { background: var(--bg-hover); }
+        .mon-dash .empty-cell {
+            text-align: center !important;
+            padding: 36px 16px !important;
+            color: var(--text-muted) !important;
+        }
+        .mon-dash .muted-date { color: var(--text-secondary) !important; font-size: 12px; }
+        .mon-dash .mono-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+
+        .mon-dash .reports-table-section .badge {
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-weight: 600;
+            border: none;
+        }
+        .mon-dash .badge-pending,
+        .mon-dash .db-st-pending { background: #fef3c7; color: #b45309; }
+        .mon-dash .badge-in-progress,
+        .mon-dash .db-st-progress { background: #fae8ff; color: #a21caf; }
+        .mon-dash .badge-approved,
+        .mon-dash .db-st-approved { background: #fed7aa; color: #c2410c; }
+        .mon-dash .badge-completed,
+        .mon-dash .db-st-completed { background: #fce7f3; color: #9d174d; }
+        .mon-dash .badge-cancelled,
+        .mon-dash .badge-rejected,
+        .mon-dash .db-st-cancelled,
+        .mon-dash .db-st-rejected { background: #fee2e2; color: #b91c1c; }
+        .mon-dash .badge-assigned,
+        .mon-dash .db-st-assigned,
+        .mon-dash .db-st-active { background: #ede9fe; color: #6d28d9; }
+        .mon-dash .badge-high,
+        .mon-dash .badge-critical { background: var(--priority-high-bg); color: var(--priority-high-text); }
+        .mon-dash .badge-medium { background: var(--priority-medium-bg); color: var(--priority-medium-text); }
+        .mon-dash .badge-low { background: var(--priority-low-bg); color: var(--priority-low-text); }
+        .mon-dash .badge-source { background: #f3e8ff; color: #6b21a8; }
+        .mon-dash .badge-source-lgu { background: #ede9fe; color: #6d28d9; }
+        .mon-dash .badge-source-citizen { background: #fce7f3; color: #be185d; }
+        .mon-dash .badge-source-cimm { background: #ffedd5; color: #c2410c; }
+        .mon-dash .badge-source-infrastructure { background: #fde8d0; color: #9a3412; }
+        .mon-dash .assignment-assigned { background: #ede9fe; color: #6d28d9; }
+        .mon-dash .assignment-unassigned { background: #fef3c7; color: #b45309; }
+
+        .mon-dash .action-cell {
+            white-space: nowrap;
+        }
+        .mon-dash .action-cell .table-action-btn { margin: 2px 4px 2px 0; }
+        .mon-dash .table-action-btn {
+            padding: 6px 10px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: var(--color-primary-bg);
+            color: var(--color-primary);
+            transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, background 0.15s ease, color 0.15s ease;
+        }
+        .mon-dash .table-action-btn i { pointer-events: none; }
+        .mon-dash .table-action-btn:hover { transform: translateY(-1px); }
+        .mon-dash .table-action-btn.btn-view { background: var(--color-primary-bg); color: var(--color-primary); }
+        .mon-dash .table-action-btn.btn-view:hover { background: var(--color-primary); color: #fff; }
+        .mon-dash .table-action-btn.view-map { background: var(--color-info-bg); color: var(--color-info); }
+        .mon-dash .table-action-btn.view-map:hover { background: var(--color-info); color: #fff; }
+        .mon-dash .table-action-btn.btn-updates {
+            background: linear-gradient(135deg, var(--color-success-light), var(--color-success-dark));
+            color: #fff;
+        }
+        .mon-dash .table-action-btn.btn-archive {
+            background: linear-gradient(135deg, #64748b, #475569);
+            color: #fff;
+        }
+
+        .btn-action,
+        .btn-success-custom,
+        .btn-danger-custom {
+            border-radius: 10px;
+            font-weight: 600;
+        }
+        .btn-action i,
+        .btn-success-custom i,
+        .btn-danger-custom i,
+        .btn-secondary-custom i { pointer-events: none; }
+        .btn-action:hover,
+        .btn-success-custom:hover,
+        .btn-danger-custom:hover { transform: translateY(-1px); }
+
+        .mon-dash .info-card .alert-item {
+            border-radius: 10px;
+            background: var(--color-danger-bg);
+            border-left-color: var(--color-danger);
+        }
+        .mon-dash .info-card .alert-item.warning {
+            background: var(--color-warning-bg);
+            border-left-color: var(--color-warning);
+        }
+        .mon-dash .alert-title { color: var(--text-primary); }
+        .mon-dash .alert-time { color: var(--text-muted) !important; }
+        .mon-dash .alert-icon { color: var(--color-danger); }
+        .mon-dash .alert-item.warning .alert-icon { color: var(--color-warning); }
+
+        .no-update-flag {
+            background: linear-gradient(135deg, #fb7185, #e11d48);
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(225, 29, 72, 0.45);
+        }
+
+        .modal { background-color: var(--bg-overlay); }
+        .modal-content {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border-default);
+            max-width: min(750px, 94vw);
+        }
+        .modal-header {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+            border-bottom: 1px solid var(--border-light);
+        }
+        .modal-header .modal-title,
+        .modal-header .close { color: var(--text-primary) !important; }
+        .modal-footer { border-top-color: var(--border-light); }
+        #updatesModal .modal-content {
+            width: min(820px, 94vw);
+            max-height: 90vh;
+        }
+        #updatesModal .modal-footer {
+            background: var(--bg-hover);
+        }
+        #updatesModal #actionButtons {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        #addUpdateModal .form-label { color: var(--text-secondary); }
+        #addUpdateModal .form-control {
+            background: var(--bg-input);
+            color: var(--text-primary);
+            border: 1px solid var(--border-input);
+            border-radius: 10px;
+        }
+        .rm-modal-content {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border-default);
+        }
+
+        body.dark-mode .mon-dash .monitoring-header,
+        body.dark-mode .mon-dash .map-section,
+        body.dark-mode .mon-dash .info-card,
+        body.dark-mode .mon-dash .reports-table-section,
+        body.dark-mode .mon-dash .report-form-panel,
+        body.dark-mode .mon-dash .stat-card {
+            background: #1c2432 !important;
+            border-color: rgba(147, 179, 224, 0.22) !important;
+        }
+        body.dark-mode .mon-dash .header-title h1,
+        body.dark-mode .mon-dash .map-title,
+        body.dark-mode .mon-dash .info-card-title,
+        body.dark-mode .mon-dash .reports-table-section .table-header h3 { color: var(--text-primary) !important; }
+        body.dark-mode .mon-dash .header-title p,
+        body.dark-mode .mon-dash .map-hint,
+        body.dark-mode .mon-dash .stat-label { color: var(--text-secondary) !important; }
+        body.dark-mode .mon-dash .stat-card.accent-blue,
+        body.dark-mode .mon-dash .stat-card.accent-amber,
+        body.dark-mode .mon-dash .stat-card.accent-rose,
+        body.dark-mode .mon-dash .stat-card.accent-emerald {
+            background: #1c2432 !important;
+            border-color: rgba(147, 179, 224, 0.22) !important;
+        }
+        body.dark-mode .mon-dash .stat-card .stat-icon.blue { background: var(--color-primary-bg) !important; color: var(--color-primary) !important; }
+        body.dark-mode .mon-dash .stat-card .stat-icon.orange { background: var(--color-warning-bg) !important; color: var(--color-warning) !important; }
+        body.dark-mode .mon-dash .stat-card .stat-icon.red { background: var(--color-danger-bg) !important; color: var(--color-danger) !important; }
+        body.dark-mode .mon-dash .stat-card .stat-icon.green { background: var(--color-success-bg) !important; color: var(--color-success) !important; }
+        body.dark-mode .mon-dash .stat-card .stat-number { color: var(--text-primary) !important; }
+        body.dark-mode .mon-dash .reports-table-section .table-header { background: rgba(255,255,255,0.03) !important; }
+        body.dark-mode .mon-dash .reports-table-section th { color: var(--text-secondary) !important; background: transparent !important; }
+        body.dark-mode .mon-dash .reports-table-section td { color: var(--text-primary) !important; }
+        body.dark-mode .mon-dash .badge-pending,
+        body.dark-mode .mon-dash .db-st-pending { background: rgba(180, 83, 9, 0.28) !important; color: #fcd34d !important; }
+        body.dark-mode .mon-dash .badge-in-progress,
+        body.dark-mode .mon-dash .db-st-progress { background: rgba(162, 28, 175, 0.32) !important; color: #f0abfc !important; }
+        body.dark-mode .mon-dash .badge-approved,
+        body.dark-mode .mon-dash .db-st-approved { background: rgba(234, 88, 12, 0.30) !important; color: #fdba74 !important; }
+        body.dark-mode .mon-dash .badge-completed,
+        body.dark-mode .mon-dash .db-st-completed { background: rgba(157, 23, 77, 0.32) !important; color: #f9a8d4 !important; }
+        body.dark-mode .mon-dash .badge-cancelled,
+        body.dark-mode .mon-dash .badge-rejected,
+        body.dark-mode .mon-dash .db-st-cancelled,
+        body.dark-mode .mon-dash .db-st-rejected { background: rgba(185, 28, 28, 0.30) !important; color: #fca5a5 !important; }
+        body.dark-mode .mon-dash .badge-assigned,
+        body.dark-mode .mon-dash .db-st-assigned,
+        body.dark-mode .mon-dash .db-st-active { background: rgba(109, 40, 217, 0.32) !important; color: #c4b5fd !important; }
+        body.dark-mode .mon-dash .badge-high,
+        body.dark-mode .mon-dash .badge-critical { background: var(--priority-high-bg) !important; color: var(--priority-high-text) !important; }
+        body.dark-mode .mon-dash .badge-medium { background: var(--priority-medium-bg) !important; color: var(--priority-medium-text) !important; }
+        body.dark-mode .mon-dash .badge-low { background: var(--priority-low-bg) !important; color: var(--priority-low-text) !important; }
+        body.dark-mode .mon-dash .badge-source { background: rgba(109, 40, 217, 0.22) !important; color: #d8b4fe !important; }
+        body.dark-mode .mon-dash .badge-source-lgu { background: rgba(109, 40, 217, 0.32) !important; color: #c4b5fd !important; }
+        body.dark-mode .mon-dash .badge-source-citizen { background: rgba(190, 24, 93, 0.32) !important; color: #f9a8d4 !important; }
+        body.dark-mode .mon-dash .badge-source-cimm { background: rgba(194, 65, 12, 0.30) !important; color: #fdba74 !important; }
+        body.dark-mode .mon-dash .badge-source-infrastructure { background: rgba(154, 52, 18, 0.35) !important; color: #fdba74 !important; }
+        body.dark-mode .mon-dash .assignment-assigned { background: rgba(109, 40, 217, 0.32) !important; color: #c4b5fd !important; }
+        body.dark-mode .mon-dash .assignment-unassigned { background: rgba(180, 83, 9, 0.28) !important; color: #fcd34d !important; }
+        body.dark-mode .mon-dash .cimm-verify-badge-verified { background: var(--badge-completed-bg) !important; color: var(--badge-completed-text) !important; }
+        body.dark-mode .mon-dash .cimm-verify-badge-none { color: var(--text-muted) !important; }
+        body.dark-mode .mon-dash .table-action-btn.btn-view { color: var(--color-primary) !important; }
+        body.dark-mode .mon-dash .table-action-btn.btn-updates,
+        body.dark-mode .mon-dash .table-action-btn.btn-archive { color: #fff !important; }
+        body.dark-mode .modal-content { background: var(--bg-card) !important; }
+        body.dark-mode .modal-header { background: linear-gradient(135deg, #2563eb, #1e3a8a) !important; }
+        body.dark-mode .modal-header .modal-title,
+        body.dark-mode .modal-header .close { color: #fff !important; }
+        body.dark-mode .modal-footer { background: rgba(255,255,255,0.03); border-color: var(--border-default) !important; }
+        body.dark-mode #gis-location-warning span,
+        body.dark-mode #gis-warning-text { color: #fecaca !important; }
+        body.dark-mode .mon-dash .report-form-panel label,
+        body.dark-mode .mon-dash .report-form-panel h4 { color: var(--text-primary) !important; }
+        body.dark-mode .mon-dash .report-form-panel select,
+        body.dark-mode .mon-dash .report-form-panel textarea {
+            background: var(--bg-input) !important;
+            color: var(--text-primary) !important;
+            border-color: var(--border-input) !important;
+        }
+        body.dark-mode .btn-primary,
+        body.dark-mode .btn-action { color: #fff !important; }
+        body.dark-mode .btn-success-custom,
+        body.dark-mode .btn-danger-custom { color: #fff !important; }
+
+        @media (max-width: 768px) {
+            .mon-dash { padding: 16px; }
+            .mon-dash .header-title h1 { font-size: 20px; flex-wrap: wrap; }
+            .mon-dash .stats-row { grid-template-columns: 1fr 1fr; gap: 10px; }
+            .mon-dash .action-cell { flex-wrap: wrap; }
+            .mon-dash .reports-table-section .table-header { flex-direction: column; align-items: flex-start; }
+            .mon-dash .table-header-right { width: 100%; }
+            .mon-dash .filter-select,
+            .mon-dash .road-search { width: 100%; }
+            #updatesModal .modal-content,
+            #addUpdateModal .modal-content,
+            .rm-modal-content { width: 96vw; max-width: 96vw; max-height: 96vh; margin: 2vh auto; }
+        }
+        @media (max-width: 480px) {
+            .mon-dash .stats-row { grid-template-columns: 1fr; }
+            .mon-dash .header-icon { width: 36px; height: 36px; }
+        }
+
+        /* ── Completed Projects polish (UI only) ── */
+        body.completed-projects-view { background: #f5f3ee; color: var(--text-primary); }
+        body.completed-projects-view.dark-mode { background: var(--bg-page); }
+        body.completed-projects-view .mon-dash { padding: 24px 28px; max-width: 100%; overflow-x: hidden; }
+
+        body.completed-projects-view .mon-dash .monitoring-header,
+        body.completed-projects-view .mon-dash .reports-table-section {
+            background: #f4f7fb;
+            border: 1px solid #d5dce8;
+            border-radius: 14px;
+            box-shadow: var(--shadow-card);
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+        body.completed-projects-view .mon-dash .monitoring-header {
+            padding: 20px 22px;
+            backdrop-filter: none;
+        }
+        body.completed-projects-view .mon-dash .header-title h1 {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        body.completed-projects-view .mon-dash .header-icon {
+            width: 40px; height: 40px; border-radius: 10px;
+            background: var(--color-success-bg);
+            color: var(--color-success);
+            box-shadow: none;
+            font-size: 16px;
+        }
+        body.completed-projects-view .mon-dash .header-title p {
+            color: var(--text-secondary);
+            font-size: 13px;
+            margin: 0;
+        }
+
+        body.completed-projects-view .mon-dash .reports-table-section {
+            border-left: 3px solid #1e3c72;
+        }
+        body.completed-projects-view .mon-dash .reports-table-section .table-header {
+            background: transparent;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-light);
+            margin-bottom: 0;
+            gap: 12px;
+        }
+        body.completed-projects-view .mon-dash .reports-table-section .table-header h3 {
+            color: var(--text-primary);
+            font-size: 18px;
+            font-weight: 700;
+        }
+        body.completed-projects-view .mon-dash .title-icon {
+            width: 36px; height: 36px; border-radius: 10px;
+            background: var(--color-primary-bg);
+            color: var(--color-primary);
+            font-size: 14px;
+        }
+        body.completed-projects-view .mon-dash .filter-select,
+        body.completed-projects-view .mon-dash .road-search {
+            background: var(--bg-input);
+            color: var(--text-primary);
+            border: 1px solid var(--border-input);
+            border-radius: 8px;
+            min-width: 0;
+        }
+        body.completed-projects-view .mon-dash .road-search { width: min(220px, 100%); }
+        body.completed-projects-view .mon-dash .btn-secondary-custom {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            font-weight: 600;
+        }
+        body.completed-projects-view .mon-dash .btn-secondary-custom:hover {
+            background: var(--color-primary-bg);
+            color: var(--color-primary);
+            border-color: var(--color-primary);
+        }
+
+        body.completed-projects-view .mon-dash .reports-table-wrap {
+            overflow-x: auto;
+            max-width: 100%;
+            -webkit-overflow-scrolling: touch;
+            padding: 0;
+        }
+        body.completed-projects-view .mon-dash .reports-table-section table { min-width: 780px; width: 100%; }
+        body.completed-projects-view .mon-dash .reports-table-section th {
+            background: var(--bg-hover) !important;
+            color: var(--text-secondary) !important;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-default);
+        }
+        body.completed-projects-view .mon-dash .reports-table-section td {
+            color: var(--text-primary);
+            padding: 12px 16px;
+            font-size: 13px;
+            border-bottom: 1px solid var(--border-light);
+        }
+        body.completed-projects-view .mon-dash .reports-table-section tbody tr:hover td { background: var(--bg-hover); }
+        body.completed-projects-view .mon-dash .reports-table-section td:nth-child(2) { white-space: normal; max-width: 240px; }
+        body.completed-projects-view .mon-dash .mono-id { color: var(--text-secondary); }
+        body.completed-projects-view .mon-dash .action-cell { white-space: normal; }
+
+        body.completed-projects-view .mon-dash .badge,
+        body.completed-projects-view .mon-dash .db-badge,
+        body.completed-projects-view .mon-dash .category-badge,
+        body.completed-projects-view .mon-dash .cimm-verify-badge,
+        body.completed-projects-view .mon-dash .assignment-badge {
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            border: none;
+        }
+        body.completed-projects-view .mon-dash .badge-source-lgu {
+            background: rgba(30, 60, 114, 0.10) !important;
+            color: #1e3c72 !important;
+        }
+        body.completed-projects-view .mon-dash .badge-source-citizen {
+            background: rgba(22, 163, 74, 0.10) !important;
+            color: #15803d !important;
+        }
+        body.completed-projects-view .mon-dash .badge-source-cimm {
+            background: rgba(90, 78, 120, 0.12) !important;
+            color: #3f3658 !important;
+        }
+        body.completed-projects-view .mon-dash .badge-source-infrastructure {
+            background: rgba(249, 115, 22, 0.10) !important;
+            color: #c2410c !important;
+        }
+        body.completed-projects-view .mon-dash .category-road {
+            background: rgba(30, 60, 114, 0.10) !important;
+            color: #1e3c72 !important;
+        }
+        body.completed-projects-view .mon-dash .category-transportation {
+            background: rgba(2, 132, 199, 0.10) !important;
+            color: #0369a1 !important;
+        }
+        body.completed-projects-view .mon-dash .badge-pending,
+        body.completed-projects-view .mon-dash .db-st-pending { background: var(--badge-pending-bg) !important; color: var(--badge-pending-text) !important; }
+        body.completed-projects-view .mon-dash .badge-in-progress,
+        body.completed-projects-view .mon-dash .db-st-progress { background: var(--badge-in-progress-bg) !important; color: var(--badge-in-progress-text) !important; }
+        body.completed-projects-view .mon-dash .badge-approved,
+        body.completed-projects-view .mon-dash .badge-completed,
+        body.completed-projects-view .mon-dash .db-st-approved,
+        body.completed-projects-view .mon-dash .db-st-completed { background: var(--badge-approved-bg) !important; color: var(--badge-approved-text) !important; }
+        body.completed-projects-view .mon-dash .badge-cancelled,
+        body.completed-projects-view .mon-dash .db-st-cancelled { background: var(--badge-cancelled-bg) !important; color: var(--badge-cancelled-text) !important; }
+        body.completed-projects-view .mon-dash .badge-high,
+        body.completed-projects-view .mon-dash .db-pr-high { background: var(--priority-high-bg) !important; color: var(--priority-high-text) !important; }
+        body.completed-projects-view .mon-dash .badge-medium,
+        body.completed-projects-view .mon-dash .db-pr-medium { background: var(--priority-medium-bg) !important; color: var(--priority-medium-text) !important; }
+        body.completed-projects-view .mon-dash .badge-low,
+        body.completed-projects-view .mon-dash .db-pr-low { background: var(--priority-low-bg) !important; color: var(--priority-low-text) !important; }
+        body.completed-projects-view .mon-dash .assignment-assigned { background: var(--badge-approved-bg) !important; color: var(--badge-approved-text) !important; }
+        body.completed-projects-view .mon-dash .assignment-unassigned { background: var(--bg-hover) !important; color: var(--text-secondary) !important; }
+        body.completed-projects-view .mon-dash .cimm-verify-badge-verified { background: var(--badge-approved-bg) !important; color: var(--badge-approved-text) !important; }
+
+        body.completed-projects-view .transparency-await-icon {
+            width: 22px; height: 22px;
+            top: 50%; left: 12px;
+            transform: translateY(-50%);
+            background: var(--color-warning-bg);
+            color: var(--color-warning);
+            font-size: 11px;
+            box-shadow: none;
+            animation: none;
+            border: 1px solid rgba(217, 119, 6, 0.22);
+        }
+        body.completed-projects-view .transparency-await-icon::before { display: none; }
+        body.completed-projects-view .reports-table-section .report-table-row.transparency-flagged td:first-child {
+            padding-left: 42px;
+        }
+        body.completed-projects-view .mon-dash .table-action-btn {
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            transform: none;
+        }
+        body.completed-projects-view .mon-dash .table-action-btn:hover { transform: none; }
+        body.completed-projects-view .mon-dash .table-action-btn.btn-view {
+            background: var(--color-primary-bg);
+            color: var(--color-primary);
+        }
+        body.completed-projects-view .mon-dash .table-action-btn.btn-view:hover { background: var(--color-primary); color: #fff; }
+        body.completed-projects-view .mon-dash .table-action-btn.btn-updates {
+            background: var(--color-success-bg);
+            color: var(--color-success-text);
+        }
+        body.completed-projects-view .mon-dash .table-action-btn.btn-updates:hover { background: var(--color-success); color: #fff; }
+        body.completed-projects-view .mon-dash .table-action-btn.btn-archive {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+        body.completed-projects-view .mon-dash .empty-cell { padding: 40px 16px !important; color: var(--text-secondary) !important; }
+
+        body.completed-projects-view .rm-modal-content {
+            background: var(--bg-card) !important;
+            max-width: min(860px, 94vw);
+            max-height: 86vh;
+            box-shadow: var(--shadow-lg);
+        }
+        body.completed-projects-view .rm-modal-header {
+            background: var(--bg-card) !important;
+            padding: 16px 20px 14px !important;
+            border-bottom: 1px solid var(--border-light) !important;
+        }
+        body.completed-projects-view .rm-modal-title { color: var(--text-primary) !important; font-size: 18px !important; }
+        body.completed-projects-view .rm-modal-report-id { color: var(--text-secondary) !important; }
+        body.completed-projects-view .rm-modal-section {
+            background: var(--bg-hover) !important;
+            border: 1px solid var(--border-light) !important;
+            box-shadow: none;
+        }
+        body.completed-projects-view .rm-modal-btn-close {
+            background: var(--color-primary-bg);
+            color: var(--color-primary);
+            border-radius: 8px;
+            font-weight: 600;
+        }
+        body.completed-projects-view .rm-modal-btn-close:hover { background: var(--color-primary); color: #fff; }
+
+        body.completed-projects-view #updatesModal .modal-content,
+        body.completed-projects-view #addUpdateModal .modal-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: 14px;
+            box-shadow: var(--shadow-lg);
+            max-width: min(820px, 94vw);
+        }
+        body.completed-projects-view #updatesModal .modal-header,
+        body.completed-projects-view #addUpdateModal .modal-header {
+            background: var(--bg-card) !important;
+            color: var(--text-primary);
+            border-bottom: 1px solid var(--border-light);
+            padding: 16px 20px;
+        }
+        body.completed-projects-view #updatesModal .modal-title,
+        body.completed-projects-view #addUpdateModal .modal-title,
+        body.completed-projects-view #updatesModal .close,
+        body.completed-projects-view #addUpdateModal .close { color: var(--text-primary) !important; }
+        body.completed-projects-view #updatesModal .modal-body { padding: 16px 20px; }
+        body.completed-projects-view #updatesModal .modal-footer {
+            background: var(--bg-hover);
+            border-top: 1px solid var(--border-light);
+            padding: 14px 20px;
+            gap: 12px;
+        }
+        body.completed-projects-view .rm-transparency-panel {
+            background: var(--color-warning-bg);
+            border: 1px solid rgba(217, 119, 6, 0.18);
+            border-left: 3px solid var(--color-warning);
+            border-radius: 10px;
+            width: 100%;
+        }
+        body.completed-projects-view #updatesModal .btn-success-custom {
+            background: var(--color-success-bg);
+            color: var(--color-success-text);
+            border-radius: 8px;
+            font-weight: 600;
+            transform: none;
+            box-shadow: none;
+        }
+        body.completed-projects-view #updatesModal .btn-success-custom:hover { background: var(--color-success); color: #fff; transform: none; }
+        body.completed-projects-view #updatesModal .btn-danger-custom {
+            background: var(--color-danger-bg);
+            color: var(--color-danger-text);
+            border-radius: 8px;
+            font-weight: 600;
+            transform: none;
+            box-shadow: none;
+        }
+        body.completed-projects-view #updatesModal .btn-danger-custom:hover { background: var(--color-danger); color: #fff; transform: none; }
+        body.completed-projects-view #updatesModal .btn-action {
+            background: var(--color-primary-bg);
+            color: var(--color-primary);
+            border-radius: 8px;
+            font-weight: 600;
+            transform: none;
+            box-shadow: none;
+        }
+        body.completed-projects-view #updatesModal .btn-action:hover { background: var(--color-primary); color: #fff; transform: none; }
+        body.completed-projects-view #requestTransparencyBtn {
+            background: var(--color-primary-bg) !important;
+            color: var(--color-primary) !important;
+        }
+        body.completed-projects-view .rm-modal-btn-transparency-approve {
+            background: var(--color-success-bg);
+            color: var(--color-success-text);
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+        body.completed-projects-view .rm-modal-btn-transparency-reject {
+            background: var(--color-danger-bg);
+            color: var(--color-danger-text);
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+        body.completed-projects-view .timeline-container { margin: 8px 0 4px; }
+        body.completed-projects-view .timeline-container::before {
+            background: var(--border-default);
+            width: 2px;
+        }
+        body.completed-projects-view .timeline-dot {
+            background: var(--color-primary);
+            box-shadow: none;
+            border-color: var(--bg-card);
+        }
+        body.completed-projects-view .timeline-card {
+            background: var(--bg-hover);
+            border: 1px solid var(--border-light);
+            box-shadow: none;
+        }
+        body.completed-projects-view .timeline-title { color: var(--text-primary); }
+        body.completed-projects-view .timeline-meta { color: var(--text-secondary); }
+
+        body.completed-projects-view.dark-mode .mon-dash .monitoring-header,
+        body.completed-projects-view.dark-mode .mon-dash .reports-table-section {
+            background: #1c2432 !important;
+            border-color: rgba(147, 179, 224, 0.22) !important;
+        }
+        body.completed-projects-view.dark-mode #updatesModal .modal-content,
+        body.completed-projects-view.dark-mode #addUpdateModal .modal-content,
+        body.completed-projects-view.dark-mode .rm-modal-content { background: var(--bg-card) !important; }
+        body.completed-projects-view.dark-mode .mon-dash .reports-table-section {
+            border-color: var(--border-default) !important;
+            border-left-color: #93b3e0 !important;
+        }
+        body.completed-projects-view.dark-mode .mon-dash .header-title h1,
+        body.completed-projects-view.dark-mode .mon-dash .reports-table-section .table-header h3,
+        body.completed-projects-view.dark-mode #updatesModal .modal-title,
+        body.completed-projects-view.dark-mode #updatesModal .close { color: var(--text-primary) !important; }
+        body.completed-projects-view.dark-mode .mon-dash .reports-table-section th {
+            background: var(--bg-hover) !important;
+            color: var(--text-secondary) !important;
+        }
+        body.completed-projects-view.dark-mode .mon-dash .reports-table-section td { color: var(--text-primary) !important; }
+        body.completed-projects-view.dark-mode .mon-dash .badge-source-lgu { background: rgba(147, 179, 224, 0.16) !important; color: #93b3e0 !important; }
+        body.completed-projects-view.dark-mode .mon-dash .badge-source-citizen { background: rgba(74, 222, 128, 0.16) !important; color: #86efac !important; }
+        body.completed-projects-view.dark-mode .mon-dash .badge-source-cimm { background: rgba(167, 154, 196, 0.18) !important; color: #c5bdd8 !important; }
+        body.completed-projects-view.dark-mode .mon-dash .badge-source-infrastructure { background: rgba(251, 146, 60, 0.16) !important; color: #fdba74 !important; }
+        body.completed-projects-view.dark-mode .mon-dash .category-road { background: rgba(147, 179, 224, 0.16) !important; color: #93b3e0 !important; }
+        body.completed-projects-view.dark-mode .mon-dash .category-transportation { background: rgba(56, 189, 248, 0.16) !important; color: #7dd3fc !important; }
+        body.completed-projects-view.dark-mode .transparency-await-icon {
+            background: var(--color-warning-bg);
+            color: var(--color-warning-text);
+            box-shadow: none;
+        }
+        body.completed-projects-view.dark-mode #updatesModal .modal-header,
+        body.completed-projects-view.dark-mode #addUpdateModal .modal-header { background: var(--bg-card) !important; }
+        body.completed-projects-view.dark-mode .timeline-card { background: var(--bg-hover); }
+        body.completed-projects-view.dark-mode .timeline-title { color: var(--text-primary); }
+
+        @media (max-width: 768px) {
+            body.completed-projects-view .mon-dash { padding: 16px; }
+            body.completed-projects-view .mon-dash .header-title h1 { font-size: 20px; flex-wrap: wrap; }
+            body.completed-projects-view .mon-dash .reports-table-section .table-header { flex-direction: column; align-items: flex-start; }
+            body.completed-projects-view .mon-dash .table-header-right { width: 100%; }
+            body.completed-projects-view .mon-dash .filter-select,
+            body.completed-projects-view .mon-dash .road-search { width: 100%; }
+            body.completed-projects-view .rm-modal-overlay { padding: 8px; }
+            body.completed-projects-view .rm-modal-content,
+            body.completed-projects-view #updatesModal .modal-content,
+            body.completed-projects-view #addUpdateModal .modal-content { max-width: 96vw; max-height: 96vh; }
+            body.completed-projects-view #updatesModal #actionButtons,
+            body.completed-projects-view #updatesModal #actionButtons > div { width: 100%; }
+            body.completed-projects-view #updatesModal .btn-action,
+            body.completed-projects-view #updatesModal .btn-success-custom,
+            body.completed-projects-view #updatesModal .btn-danger-custom,
+            body.completed-projects-view #updatesModal .btn-secondary-custom { justify-content: center; }
+        }
+        @media (max-width: 480px) {
+            body.completed-projects-view .mon-dash .header-icon { width: 36px; height: 36px; }
+        }
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo $is_completed_projects_view ? ' completed-projects-view' : ''; ?>">
     <!-- SIDEBAR -->
     <?php include '../../includes/sidebar_nav.php'; ?>
 
-    <div class="main-content">
+    <div class="main-content mon-dash">
         <!-- Monitoring Header -->
         <div class="monitoring-header">
             <div class="header-content">
                 <div class="header-title">
-                    <h1><?php echo $is_completed_projects_view ? 'Completed Projects' : 'Road and Transportation Reporting'; ?></h1>
+                    <h1><span class="header-icon"><i class="fas fa-<?php echo $is_completed_projects_view ? 'circle-check' : 'map-location-dot'; ?>"></i></span> <?php echo $is_completed_projects_view ? 'Completed Projects' : 'Road and Transportation Reporting'; ?></h1>
                     <p><?php echo $is_completed_projects_view ? 'Review completed projects, progress updates, and related actions.' : 'Real-time monitoring of road conditions and traffic flow'; ?></p>
                 </div>
             </div>
@@ -2810,23 +3602,23 @@ if ($is_system_admin) {
 
         <!-- Stats Row -->
         <div class="stats-row">
-            <div class="stat-card">
-                <div class="stat-icon blue"><i class="fas fa-road"></i></div>
+            <div class="stat-card accent-blue">
+                <div class="stat-icon blue"><i class="fas fa-clipboard-list"></i></div>
                 <div class="stat-number"><?php echo number_format($enhanced_stats['total']); ?></div>
                 <div class="stat-label">Total Reports</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon orange"><i class="fas fa-exclamation-triangle"></i></div>
+            <div class="stat-card accent-amber">
+                <div class="stat-icon orange"><i class="fas fa-hourglass-half"></i></div>
                 <div class="stat-number"><?php echo number_format($enhanced_stats['active']); ?></div>
                 <div class="stat-label">Active Issues</div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card accent-rose">
                 <div class="stat-icon red"><i class="fas fa-bolt"></i></div>
                 <div class="stat-number"><?php echo number_format($enhanced_stats['critical']); ?></div>
                 <div class="stat-label">High / Critical</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon green"><i class="fas fa-check-circle"></i></div>
+            <div class="stat-card accent-emerald">
+                <div class="stat-icon green"><i class="fas fa-circle-check"></i></div>
                 <div class="stat-number"><?php echo number_format($enhanced_stats['resolved_month']); ?></div>
                 <div class="stat-label">Resolved This Month</div>
             </div>
@@ -2837,7 +3629,7 @@ if ($is_system_admin) {
             <!-- Map Section -->
             <div class="map-section">
                 <div class="map-header">
-                    <h3 class="map-title">Live Road Map — Quezon City</h3>
+                    <h3 class="map-title"><span class="title-icon"><i class="fas fa-map"></i></span> Live Road Map — Quezon City</h3>
                     <p class="map-hint">Click on the map to pin a location, then fill the form and submit your report.</p>
                 </div>
                 <div class="map-toolbar">
@@ -3091,7 +3883,7 @@ if ($is_system_admin) {
                 <!-- Active Alerts -->
                 <div class="info-card">
                     <h3 class="info-card-title">
-                        <i class="fas fa-exclamation-triangle"></i>
+                        <span class="title-icon"><i class="fas fa-bell"></i></span>
                         Active Alerts
                     </h3>
                     <div class="alert-list">
@@ -3114,7 +3906,7 @@ if ($is_system_admin) {
         <!-- Recent Reports Table -->
         <div class="reports-table-section">
             <div class="table-header">
-                <h3><i class="fas fa-<?php echo $is_completed_projects_view ? 'check-circle' : 'list'; ?>"></i> <?php echo $is_completed_projects_view ? 'Completed Projects' : 'Active Monitoring Reports'; ?></h3>
+                <h3><span class="title-icon"><i class="fas fa-<?php echo $is_completed_projects_view ? 'circle-check' : 'table-list'; ?>"></i></span> <?php echo $is_completed_projects_view ? 'Completed Projects' : 'Active Monitoring Reports'; ?></h3>
                 <div class="table-header-right">
                     <?php if (!$is_completed_projects_view): ?>
                     <select class="filter-select" id="statusFilter" onchange="filterReports()">
@@ -3164,7 +3956,7 @@ if ($is_system_admin) {
                     </thead>
                     <tbody>
                         <?php if (empty($recent_reports)): ?>
-                        <tr><td colspan="<?php echo $table_colspan; ?>" style="text-align:center;padding:30px;color:#6b7280;">No reports yet.</td></tr>
+                        <tr><td colspan="<?php echo $table_colspan; ?>" class="empty-cell"><i class="fas fa-inbox"></i> No reports yet.</td></tr>
                         <?php else: ?>
                         <?php $source_labels = [
                             'lgu' => 'LGU Monitoring',
@@ -3220,9 +4012,9 @@ if ($is_system_admin) {
                             . ($rr_await_transparency ? ' transparency-flagged' : '')
                             . ($rr_no_update ? ' no-update-flagged' : ''); ?>
                          <tr class="<?php echo $rr_row_class; ?>" data-id="<?php echo $rr['id']; ?>" data-title="<?php echo htmlspecialchars(strtolower($rr['title'] ?? '')); ?>" data-report-id="<?php echo htmlspecialchars(strtolower($rr['report_id'] ?? '')); ?>" data-status="<?php echo $rr['status'] ?? 'pending'; ?>" data-source="<?php echo $rr_source_key; ?>" data-details='<?php echo $rr_details_json; ?>'>
-                            <td style="font-family:monospace;font-size:12px;"><?php if ($rr_no_update): ?><span class="no-update-flag" title="No progress update for 10 days or more" role="img" aria-label="No progress update for 10 days or more"><i class="fas fa-clock"></i></span><?php endif; ?><?php if ($rr_await_transparency): ?><span class="transparency-await-icon" title="Awaiting your Transparency Upload decision" role="img" aria-label="Awaiting Transparency Upload decision"><i class="fas fa-bullhorn"></i></span><?php endif; ?><?php echo htmlspecialchars($rr['report_id'] ?? '—'); ?></td>
+                            <td class="mono-id"><?php if ($rr_no_update): ?><span class="no-update-flag" title="No progress update for 10 days or more" role="img" aria-label="No progress update for 10 days or more"><i class="fas fa-clock"></i></span><?php endif; ?><?php if ($rr_await_transparency): ?><span class="transparency-await-icon" title="Awaiting your Transparency Upload decision" role="img" aria-label="Awaiting Transparency Upload decision"><i class="fas fa-bullhorn"></i></span><?php endif; ?><?php echo htmlspecialchars($rr['report_id'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars($rr['title'] ?? 'Untitled'); ?></td>
-                            <td><?php echo htmlspecialchars($rr_source_label); ?></td>
+                            <td><span class="badge badge-source badge-source-<?php echo htmlspecialchars(preg_replace('/[^a-z0-9_-]/', '', strtolower((string)$rr_source_key))); ?>"><?php echo htmlspecialchars($rr_source_label); ?></span></td>
                             <?php if ($show_category_column): ?>
                             <?php $rr_category_label = completed_project_category_label($rr['report_category'] ?? '', $rr_source_key); ?>
                             <td><span class="category-badge <?php echo $rr_category_label === 'Transportation' ? 'category-transportation' : 'category-road'; ?>"><?php echo $rr_category_label; ?></span></td>
@@ -3253,7 +4045,7 @@ if ($is_system_admin) {
                                     <span class="badge badge-<?php echo strtolower($rr['priority'] ?? 'low'); ?>"><?php echo ucfirst($rr['priority'] ?? 'low'); ?></span>
                                 <?php endif; ?>
                             </td>
-                            <td><?php echo date('M d, Y H:i', strtotime($rr['created_at'] ?? 'now')); ?></td>
+                            <td class="muted-date"><?php echo date('M d, Y H:i', strtotime($rr['created_at'] ?? 'now')); ?></td>
                             <td>
                                 <?php if (($rr['source'] ?? '') === 'cimm'): ?>
                                     <?php if (strtolower($rr['approval_status'] ?? '') === 'approved'): ?>
@@ -3277,12 +4069,12 @@ if ($is_system_admin) {
                                     <?php endif; ?>
                                 <?php endif; ?>
                             </td>
-                            <td style="white-space:nowrap;">
-                                <button class="table-action-btn" title="View Details" onclick="viewReportDetails(<?php echo $rr['id']; ?>, '<?php echo $rr['source']; ?>')"><i class="fas fa-eye"></i></button>
+                            <td class="action-cell">
+                                <button class="table-action-btn btn-view" title="View Details" onclick="viewReportDetails(<?php echo $rr['id']; ?>, '<?php echo $rr['source']; ?>')"><i class="fas fa-eye"></i> View</button>
                                 <button class="table-action-btn view-map" onclick="focusReportOnMap(<?php echo $rr['id']; ?>)"><i class="fas fa-map-pin"></i> Map</button>
-                                <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(<?php echo $rr['id']; ?>, '<?php echo $rr['report_type']; ?>', '<?php echo $rr['source']; ?>', '<?php echo htmlspecialchars($rr['status'] ?? '', ENT_QUOTES); ?>')"><i class="fas fa-clock"></i> Updates</button>
+                                <button class="table-action-btn btn-updates" onclick="viewReportUpdates(<?php echo $rr['id']; ?>, '<?php echo $rr['report_type']; ?>', '<?php echo $rr['source']; ?>', '<?php echo htmlspecialchars($rr['status'] ?? '', ENT_QUOTES); ?>')"><i class="fas fa-timeline"></i> Updates</button>
                                 <?php if (strtolower((string)($rr['status'] ?? '')) === 'completed' && in_array($_SESSION['role'] ?? '', ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor'], true)): ?>
-                                <button class="table-action-btn" title="Archive" style="background:linear-gradient(135deg,#6b7280,#4b5563);color:#fff;margin-left:4px;" onclick="archiveReport(<?php echo $rr['id']; ?>, '<?php echo $rr['source']; ?>')"><i class="fas fa-archive"></i> Archive</button>
+                                <button class="table-action-btn btn-archive" title="Archive" onclick="archiveReport(<?php echo $rr['id']; ?>, '<?php echo $rr['source']; ?>')"><i class="fas fa-archive"></i> Archive</button>
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -5193,14 +5985,14 @@ if ($is_system_admin) {
 
         // Complete button handler
         document.addEventListener('click', function(e) {
-            if (e.target && e.target.id === 'completeBtn') {
+            if (e.target && e.target.closest && e.target.closest('#completeBtn')) {
                 completeReport();
             }
         });
 
         // Cancel button handler
         document.addEventListener('click', function(e) {
-            if (e.target && e.target.id === 'cancelBtn') {
+            if (e.target && e.target.closest && e.target.closest('#cancelBtn')) {
                 cancelReport();
             }
         });
@@ -5691,14 +6483,14 @@ if ($is_system_admin) {
 
         // Complete button handler
         document.addEventListener('click', function(e) {
-            if (e.target && e.target.id === 'completeBtn') {
+            if (e.target && e.target.closest && e.target.closest('#completeBtn')) {
                 completeReport();
             }
         });
 
         // Cancel button handler
         document.addEventListener('click', function(e) {
-            if (e.target && e.target.id === 'cancelBtn') {
+            if (e.target && e.target.closest && e.target.closest('#cancelBtn')) {
                 cancelReport();
             }
         });
@@ -7385,9 +8177,9 @@ if ($is_system_admin) {
         tr.dataset.details = JSON.stringify(report.details);
         
         tr.innerHTML = `
-            <td style="font-family:monospace;font-size:12px;">${noUpdateFlagIcon(report)}${transparencyAwaitIcon(report)}${escapeHtml(report.report_id)}</td>
+            <td class="mono-id">${noUpdateFlagIcon(report)}${transparencyAwaitIcon(report)}${escapeHtml(report.report_id)}</td>
             <td>${escapeHtml(report.title)}</td>
-            <td>${escapeHtml(report.source_label)}</td>
+            <td><span class="badge badge-source badge-source-${String(report.source || 'citizen').toLowerCase().replace(/[^a-z0-9_-]/g, '')}">${escapeHtml(report.source_label)}</span></td>
             ${SHOW_CATEGORY_COLUMN ? `<td>${completedProjectCategoryBadge(report)}</td>` : ''}
             ${HIDE_STATUS_COLUMN ? '' : `<td>${(isRoadSupervisor || isRoadOfficer)
                 ? `<span class="db-badge ${dbStatusBadgeClass(report.status)}">${escapeHtml(ucfirst(report.status.replace('-', ' ')))}</span>`
@@ -7400,7 +8192,7 @@ if ($is_system_admin) {
             <td>${(isRoadSupervisor || isRoadOfficer)
                 ? `<span class="db-badge ${dbPriorityBadge(report.priority)[0]}"><i class="fas ${dbPriorityBadge(report.priority)[1]}"></i> ${escapeHtml(ucfirst(report.priority))}</span>`
                 : `<span class="badge badge-${report.priority.toLowerCase()}">${escapeHtml(ucfirst(report.priority))}</span>`}</td>
-            <td>${formatDate(report.created_at)}</td>
+            <td class="muted-date">${formatDate(report.created_at)}</td>
             <td>
                 ${report.source === 'cimm' ? 
                     (report.approval_status && report.approval_status.toLowerCase() === 'approved' ?
@@ -7415,12 +8207,12 @@ if ($is_system_admin) {
                         `<span class="cimm-verify-badge cimm-verify-badge-none">—</span>`)
                 }
             </td>
-            <td style="white-space:nowrap;">
-                <button class="table-action-btn" title="View Details" onclick="viewReportDetails(${report.id}, '${report.source}')"><i class="fas fa-eye"></i></button>
+            <td class="action-cell">
+                <button class="table-action-btn btn-view" title="View Details" onclick="viewReportDetails(${report.id}, '${report.source}')"><i class="fas fa-eye"></i> View</button>
                 <button class="table-action-btn view-map" onclick="focusReportOnMap(${report.id})"><i class="fas fa-map-pin"></i> Map</button>
-                <button class="table-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;margin-left:4px;" onclick="viewReportUpdates(${report.id}, '${report.report_type}', '${report.source}', '${(report.status || '').replace(/'/g, "\\'")}')"><i class="fas fa-clock"></i> Updates</button>
+                <button class="table-action-btn btn-updates" onclick="viewReportUpdates(${report.id}, '${report.report_type}', '${report.source}', '${(report.status || '').replace(/'/g, "\\'")}')"><i class="fas fa-timeline"></i> Updates</button>
                 ${(report.status || '').toLowerCase() === 'completed' && canArchiveCompleted ?
-                    `<button class="table-action-btn" title="Archive" style="background:linear-gradient(135deg,#6b7280,#4b5563);color:#fff;margin-left:4px;" onclick="archiveReport(${report.id}, '${report.source}')"><i class="fas fa-archive"></i> Archive</button>` : ''}
+                    `<button class="table-action-btn btn-archive" title="Archive" onclick="archiveReport(${report.id}, '${report.source}')"><i class="fas fa-archive"></i> Archive</button>` : ''}
             </td>
         `;
         
@@ -7599,9 +8391,9 @@ if ($is_system_admin) {
 
     <!-- Progress Updates Modal -->
     <div id="updatesModal" class="modal">
-        <div class="modal-content" style="max-width: 750px;">
+        <div class="modal-content updates-modal-card">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-clock"></i> Progress Updates</h5>
+                <h5 class="modal-title"><i class="fas fa-timeline"></i> Progress Updates</h5>
                 <button class="close" onclick="closeModal('updatesModal')">&times;</button>
             </div>
             <div class="modal-body">
@@ -7633,11 +8425,11 @@ if ($is_system_admin) {
                 <div id="actionButtons" style="display: flex; justify-content: space-between;">
                     <div style="display: flex; gap: 8px;">
                         <?php if ($is_officer_role): ?>
-                        <button type="button" class="btn-success-custom" id="completeBtn">Request Completion</button>
-                        <button type="button" class="btn-danger-custom" id="cancelBtn">Request Cancellation</button>
+                        <button type="button" class="btn-success-custom" id="completeBtn"><i class="fas fa-clipboard-check"></i> Request Completion</button>
+                        <button type="button" class="btn-danger-custom" id="cancelBtn"><i class="fas fa-ban"></i> Request Cancellation</button>
                         <?php elseif (!$is_system_admin): ?>
-                        <button type="button" class="btn-success-custom" id="completeBtn">Complete</button>
-                        <button type="button" class="btn-danger-custom" id="cancelBtn">Cancel</button>
+                        <button type="button" class="btn-success-custom" id="completeBtn"><i class="fas fa-circle-check"></i> Complete</button>
+                        <button type="button" class="btn-danger-custom" id="cancelBtn"><i class="fas fa-ban"></i> Cancel</button>
                         <?php endif; ?>
                         <button type="button" class="btn-action" id="exportWordBtn" onclick="exportUpdatesToExcel()"><i class="fas fa-file-word"></i> Export as Word</button>
                         <?php if ($is_road_supervisor || $is_trans_ops_supervisor): ?>
@@ -7645,8 +8437,8 @@ if ($is_system_admin) {
                         <?php endif; ?>
                     </div>
                     <div style="display: flex; gap: 8px;">
-                        <button type="button" class="btn-action" id="addUpdateBtn" onclick="showAddUpdateModal()">+ Add Update</button>
-                        <button type="button" class="btn-secondary-custom" onclick="closeModal('updatesModal')">Close</button>
+                        <button type="button" class="btn-action" id="addUpdateBtn" onclick="showAddUpdateModal()"><i class="fas fa-plus"></i> Add Update</button>
+                        <button type="button" class="btn-secondary-custom" onclick="closeModal('updatesModal')"><i class="fas fa-xmark"></i> Close</button>
                     </div>
                 </div>
                 <div id="exportButtons" style="display: none; justify-content: flex-end; gap: 8px;">

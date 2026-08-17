@@ -5099,35 +5099,843 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         body.dark-mode .lgu-modal-body::-webkit-scrollbar-thumb {
             background: rgba(255,255,255,0.15) !important;
         }
+
+        /* ── Verification dashboard refresh (theme-aware, UI only) ── */
+        body { background: #f5f3ee; color: var(--text-primary); }
+        body.dark-mode { background: var(--bg-page); }
+        .vm-dash { padding: 24px 28px; max-width: 100%; overflow-x: hidden; }
+
+        .vm-dash .section-panel,
+        .vm-dash .lgu-reports-panel,
+        .vm-dash .citizen-reports-panel,
+        .vm-dash .dept-reports-panel,
+        .vm-dash .infra-reports-panel {
+            background: #f4f7fb;
+            border: 1px solid #d5dce8;
+            border-radius: 14px;
+            box-shadow: var(--shadow-card);
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+        .vm-dash .lgu-reports-panel {
+            background: #f4f7fb;
+            border-color: #c8d0e0;
+            border-left: 3px solid #1e3c72;
+            box-shadow: 0 2px 10px rgba(30, 60, 114, 0.07);
+        }
+        .vm-dash .citizen-reports-panel {
+            background: #f4faf6;
+            border-color: #cce0d4;
+            border-left: 3px solid #16a34a;
+            box-shadow: 0 2px 10px rgba(22, 163, 74, 0.07);
+        }
+        .vm-dash .dept-reports-panel {
+            background: #f5f3f8;
+            border-color: #d4cfe0;
+            border-left: 3px solid #4f4568;
+            box-shadow: 0 2px 10px rgba(79, 69, 104, 0.08);
+        }
+        .vm-dash .infra-reports-panel {
+            background: #fff9f4;
+            border-color: #f0e0cc;
+            border-left: 3px solid #f97316;
+            box-shadow: 0 2px 10px rgba(249, 115, 22, 0.07);
+        }
+        .vm-dash .verification-header {
+            background: transparent;
+            padding: 20px 22px;
+        }
+        .vm-dash .header-content { margin-bottom: 0; gap: 16px; }
+        .vm-dash .header-title h1 {
+            color: var(--text-primary);
+            font-size: 22px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 4px;
+        }
+        .vm-dash .header-icon {
+            width: 40px; height: 40px; border-radius: 10px;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: var(--color-primary-bg);
+            color: var(--color-primary);
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+        .vm-dash .header-title p { color: var(--text-secondary); font-size: 13px; margin: 0; }
+
+        .vm-dash .workflow-stats {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 14px;
+            margin: 0 0 16px;
+        }
+        .vm-dash .workflow-stat {
+            position: relative;
+            overflow: hidden;
+            min-width: 0;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            border-radius: 14px;
+            padding: 16px 18px;
+            background: #f4f7fb;
+            border: 1px solid #d5dce8;
+            box-shadow: var(--shadow-card);
+        }
+        .vm-dash .workflow-stat::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+            background: var(--border-default);
+        }
+        .vm-dash .workflow-stat-icon {
+            width: 40px; height: 40px; border-radius: 10px;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 15px; flex-shrink: 0;
+            background: var(--bg-hover);
+            color: var(--text-secondary);
+        }
+        .vm-dash .workflow-number {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: -0.03em;
+            line-height: 1.15;
+            margin-bottom: 2px;
+        }
+        .vm-dash .workflow-label {
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            text-transform: uppercase;
+        }
+        .vm-dash .workflow-stat.accent-amber::before { background: var(--color-warning); }
+        .vm-dash .workflow-stat.accent-violet::before { background: var(--color-primary); }
+        .vm-dash .workflow-stat.accent-rose::before { background: var(--color-success); }
+        .vm-dash .workflow-stat.accent-amber .workflow-stat-icon { background: var(--color-warning-bg); color: var(--color-warning); }
+        .vm-dash .workflow-stat.accent-violet .workflow-stat-icon { background: var(--color-primary-bg); color: var(--color-primary); }
+        .vm-dash .workflow-stat.accent-rose .workflow-stat-icon { background: var(--color-success-bg); color: var(--color-success); }
+        .vm-dash .workflow-stat.accent-amber,
+        .vm-dash .workflow-stat.accent-violet,
+        .vm-dash .workflow-stat.accent-rose { background: #f4f7fb; }
+
+        .vm-dash .filters-section { background: transparent; padding: 16px 20px; }
+        .vm-dash .form-label { color: var(--text-secondary); font-weight: 600; }
+        .vm-dash .filter-select {
+            background: var(--bg-input);
+            color: var(--text-primary);
+            border: 1px solid var(--border-input);
+            border-radius: 8px;
+        }
+        .vm-dash .btn-secondary-custom {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .vm-dash .btn-secondary-custom:hover {
+            background: var(--color-primary-bg);
+            color: var(--color-primary);
+            border-color: var(--color-primary);
+        }
+
+        .vm-dash .lgu-reports-header,
+        .vm-dash .citizen-reports-header,
+        .vm-dash .dept-reports-header,
+        .vm-dash .infra-reports-header {
+            background: transparent;
+            padding: 16px 20px;
+        }
+        .vm-dash .lgu-reports-header { border-bottom: 1px solid rgba(30, 60, 114, 0.12); }
+        .vm-dash .citizen-reports-header { border-bottom: 1px solid rgba(22, 163, 74, 0.14); }
+        .vm-dash .dept-reports-header { border-bottom: 1px solid rgba(79, 69, 104, 0.14); }
+        .vm-dash .infra-reports-header { border-bottom: 1px solid rgba(249, 115, 22, 0.16); }
+        .vm-dash .lgu-reports-title,
+        .vm-dash .dept-reports-title {
+            color: #1e3c72;
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+        }
+        .vm-dash .dept-reports-title { color: #3f3658; }
+        .vm-dash .citizen-reports-title {
+            color: #15803d;
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+        }
+        .vm-dash .infra-reports-title {
+            color: #c2410c;
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+        }
+        .vm-dash .lgu-reports-subtitle { color: #4a5b82; }
+        .vm-dash .citizen-reports-subtitle { color: #166534; }
+        .vm-dash .dept-reports-subtitle { color: #6b6380; }
+        .vm-dash .infra-reports-subtitle { color: #92400e; }
+        .vm-dash .lgu-reports-icon,
+        .vm-dash .citizen-reports-icon,
+        .vm-dash .dept-reports-icon,
+        .vm-dash .infra-reports-icon {
+            width: 40px; height: 40px; border-radius: 10px;
+            color: #fff !important;
+        }
+        .vm-dash .lgu-reports-icon { background: linear-gradient(135deg, #1e3c72, #0f274a) !important; }
+        .vm-dash .citizen-reports-icon { background: linear-gradient(135deg, #16a34a, #15803d) !important; }
+        .vm-dash .dept-reports-icon { background: linear-gradient(135deg, #5a4e78, #3f3658) !important; }
+        .vm-dash .infra-reports-icon { background: linear-gradient(135deg, #f97316, #ea580c) !important; }
+
+        .vm-dash .lgu-reports-badge {
+            background: #3762c8 !important;
+            color: #fff !important;
+        }
+        .vm-dash .citizen-reports-badge {
+            background: #16a34a !important;
+            color: #fff !important;
+        }
+        .vm-dash .dept-reports-badge,
+        .vm-dash .dept-reports-badge.in-progress {
+            background: #5a4e78 !important;
+            color: #fff !important;
+        }
+        .vm-dash .infra-reports-badge,
+        .vm-dash .infra-reports-badge.in-progress {
+            background: #f97316 !important;
+            color: #fff !important;
+        }
+
+        .vm-dash .lgu-reports-search,
+        .vm-dash .citizen-reports-search,
+        .vm-dash .dept-reports-search,
+        .vm-dash .infra-reports-search {
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border-light);
+            background: transparent;
+        }
+        .vm-dash .lgu-search-wrapper,
+        .vm-dash .citizen-search-wrapper,
+        .vm-dash .dept-search-wrapper,
+        .vm-dash .infra-search-wrapper {
+            background: var(--bg-input);
+            border: 1px solid var(--border-input);
+            border-radius: 8px;
+        }
+        .vm-dash .lgu-search-wrapper:focus-within {
+            border-color: #1e3c72;
+            box-shadow: 0 0 0 3px rgba(30, 60, 114, 0.12);
+        }
+        .vm-dash .citizen-search-wrapper:focus-within {
+            border-color: #16a34a;
+            box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
+        }
+        .vm-dash .infra-search-wrapper:focus-within {
+            border-color: #f97316;
+            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12);
+        }
+        .vm-dash .lgu-search-input,
+        .vm-dash .citizen-search-input,
+        .vm-dash .infra-search-input {
+            background: transparent;
+            color: var(--text-primary);
+            border: none;
+        }
+        .vm-dash .dept-search-input {
+            background: var(--bg-input);
+            color: var(--text-primary);
+            border: 1px solid var(--border-input);
+            border-radius: 8px;
+        }
+        .vm-dash .dept-search-input:focus {
+            border-color: #5a4e78;
+            box-shadow: 0 0 0 3px rgba(90, 78, 120, 0.14);
+        }
+        .vm-dash .lgu-sort-btn,
+        .vm-dash .citizen-sort-btn,
+        .vm-dash .dept-sort-btn,
+        .vm-dash .infra-sort-btn,
+        .vm-dash .infra-sync-btn {
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            color: #fff !important;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .vm-dash .lgu-sort-btn { background: linear-gradient(135deg, #1e3c72, #0f274a) !important; }
+        .vm-dash .citizen-sort-btn { background: linear-gradient(135deg, #16a34a, #15803d) !important; }
+        .vm-dash .dept-sort-btn { background: linear-gradient(135deg, #5a4e78, #3f3658) !important; }
+        .vm-dash .infra-sort-btn,
+        .vm-dash .infra-sync-btn { background: linear-gradient(135deg, #f97316, #ea580c) !important; }
+        .vm-dash .lgu-sort-btn:hover { background: linear-gradient(135deg, #0f274a, #0a1d35) !important; }
+        .vm-dash .citizen-sort-btn:hover { background: linear-gradient(135deg, #15803d, #166534) !important; }
+        .vm-dash .dept-sort-btn:hover { background: linear-gradient(135deg, #3f3658, #2e2742) !important; }
+        .vm-dash .infra-sort-btn:hover,
+        .vm-dash .infra-sync-btn:hover:not(:disabled) { background: linear-gradient(135deg, #ea580c, #c2410c) !important; }
+
+        .vm-dash .lgu-table,
+        .vm-dash .citizen-table,
+        .vm-dash .dept-table,
+        .vm-dash .infra-table { width: 100%; border-collapse: collapse; }
+        .vm-dash .lgu-table thead th,
+        .vm-dash .citizen-table thead th,
+        .vm-dash .dept-table thead th,
+        .vm-dash .infra-table thead th {
+            font-size: 11px;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+            padding: 12px 16px;
+            border-bottom: none;
+        }
+        .vm-dash .lgu-table thead th {
+            background: linear-gradient(135deg, #1e3c72, #0f274a) !important;
+            color: #fff !important;
+        }
+        .vm-dash .citizen-table thead th {
+            background: linear-gradient(135deg, #16a34a, #15803d) !important;
+            color: #fff !important;
+        }
+        .vm-dash .dept-table thead th {
+            background: linear-gradient(135deg, #5a4e78, #3f3658) !important;
+            color: #fff !important;
+        }
+        .vm-dash .infra-table thead th {
+            background: linear-gradient(135deg, #f97316, #ea580c) !important;
+            color: #fff !important;
+        }
+        .vm-dash .lgu-table td,
+        .vm-dash .citizen-table td,
+        .vm-dash .dept-table td,
+        .vm-dash .infra-table td {
+            color: var(--text-primary);
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-light);
+            font-size: 13px;
+            white-space: normal;
+            vertical-align: middle;
+        }
+        .vm-dash .lgu-table td:first-child,
+        .vm-dash .citizen-table td:first-child,
+        .vm-dash .dept-table td:first-child,
+        .vm-dash .infra-table td:first-child { white-space: nowrap; }
+        .vm-dash .lgu-table td:nth-child(2),
+        .vm-dash .citizen-table td:nth-child(2),
+        .vm-dash .dept-table td:nth-child(2),
+        .vm-dash .infra-table td:nth-child(2) {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        .vm-dash .lgu-table tbody tr,
+        .vm-dash .citizen-table tbody tr,
+        .vm-dash .dept-table tbody tr,
+        .vm-dash .infra-table tbody tr { transition: background 0.15s ease; }
+        .vm-dash .lgu-table tbody tr:hover,
+        .vm-dash .citizen-table tbody tr:hover,
+        .vm-dash .dept-table tbody tr:hover,
+        .vm-dash .infra-table tbody tr:hover { background: var(--bg-hover); }
+
+        .vm-dash .lgu-status-badge,
+        .vm-dash .citizen-status-badge,
+        .vm-dash .dept-status-badge,
+        .vm-dash .infra-status-badge,
+        .vm-dash .cimm-status-badge,
+        .vm-dash .t-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 600;
+            border: none;
+        }
+        .vm-dash .lgu-status-badge.pending,
+        .vm-dash .citizen-status-badge.pending,
+        .vm-dash .dept-status-badge.pending,
+        .vm-dash .infra-status-badge.pending,
+        .vm-dash .cimm-status-badge.pending,
+        .vm-dash .t-badge-pending,
+        .vm-dash .cimm-st-awaiting,
+        .vm-dash .lgu-status-badge.medium,
+        .vm-dash .citizen-status-badge.medium,
+        .vm-dash .dept-status-badge.medium {
+            background: var(--badge-pending-bg) !important;
+            color: var(--badge-pending-text) !important;
+        }
+        .vm-dash .lgu-status-badge.in-progress,
+        .vm-dash .citizen-status-badge.in-progress,
+        .vm-dash .dept-status-badge.in-progress,
+        .vm-dash .infra-status-badge.in-progress,
+        .vm-dash .cimm-status-badge.in-progress,
+        .vm-dash .t-badge-info,
+        .vm-dash .cimm-st-scheduled,
+        .vm-dash .cimm-st-pending,
+        .vm-dash .cimm-st-acceptance,
+        .vm-dash .cimm-st-approval,
+        .vm-dash .cimm-st-progress {
+            background: var(--badge-in-progress-bg) !important;
+            color: var(--badge-in-progress-text) !important;
+        }
+        .vm-dash .lgu-status-badge.approved,
+        .vm-dash .lgu-status-badge.completed,
+        .vm-dash .lgu-status-badge.resolved,
+        .vm-dash .lgu-status-badge.verified,
+        .vm-dash .citizen-status-badge.approved,
+        .vm-dash .citizen-status-badge.completed,
+        .vm-dash .citizen-status-badge.resolved,
+        .vm-dash .dept-status-badge.approved,
+        .vm-dash .dept-status-badge.completed,
+        .vm-dash .dept-status-badge.resolved,
+        .vm-dash .dept-status-badge.verified,
+        .vm-dash .infra-status-badge.approved,
+        .vm-dash .infra-status-badge.completed,
+        .vm-dash .infra-status-badge.resolved,
+        .vm-dash .cimm-st-validated,
+        .vm-dash .cimm-st-completed,
+        .vm-dash .cimm-st-archived {
+            background: var(--badge-approved-bg) !important;
+            color: var(--badge-approved-text) !important;
+        }
+        .vm-dash .lgu-status-badge.cancelled,
+        .vm-dash .citizen-status-badge.cancelled,
+        .vm-dash .dept-status-badge.cancelled,
+        .vm-dash .dept-status-badge.dismissed,
+        .vm-dash .infra-status-badge.cancelled,
+        .vm-dash .cimm-st-cancelled,
+        .vm-dash .lgu-status-badge.high,
+        .vm-dash .lgu-status-badge.critical,
+        .vm-dash .citizen-status-badge.high,
+        .vm-dash .citizen-status-badge.critical,
+        .vm-dash .dept-status-badge.high,
+        .vm-dash .dept-status-badge.critical {
+            background: var(--badge-cancelled-bg) !important;
+            color: var(--badge-cancelled-text) !important;
+        }
+        .vm-dash .lgu-status-badge.low,
+        .vm-dash .citizen-status-badge.low,
+        .vm-dash .dept-status-badge.low {
+            background: var(--bg-hover) !important;
+            color: var(--text-secondary) !important;
+        }
+
+        .vm-dash .lgu-action-group,
+        .vm-dash .citizen-action-group,
+        .vm-dash .dept-action-group,
+        .vm-dash .infra-action-group { gap: 6px; flex-wrap: wrap; }
+        .vm-dash .lgu-action-btn,
+        .vm-dash .citizen-action-btn,
+        .vm-dash .dept-action-btn,
+        .vm-dash .infra-action-btn {
+            background: var(--color-primary-bg);
+            color: var(--color-primary);
+            border: 1px solid transparent;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 12px;
+            padding: 6px 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+        .vm-dash .lgu-action-btn:hover,
+        .vm-dash .citizen-action-btn:hover,
+        .vm-dash .dept-action-btn:hover,
+        .vm-dash .infra-action-btn:hover {
+            background: var(--color-primary);
+            color: #fff;
+        }
+        .vm-dash .lgu-verify-btn,
+        .vm-dash .citizen-verify-btn,
+        .vm-dash .dept-verify-btn,
+        .vm-dash .infra-verify-btn {
+            background: var(--color-success-bg) !important;
+            color: var(--color-success-text) !important;
+            border: none;
+            border-radius: 8px;
+            padding: 6px 10px;
+            display: inline-flex; align-items: center; gap: 5px;
+            font-weight: 600;
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+        .vm-dash .lgu-verify-btn:hover,
+        .vm-dash .citizen-verify-btn:hover,
+        .vm-dash .dept-verify-btn:hover,
+        .vm-dash .infra-verify-btn:hover {
+            background: var(--color-success) !important;
+            color: #fff !important;
+        }
+        .vm-dash .lgu-reject-btn,
+        .vm-dash .citizen-reject-btn,
+        .vm-dash .dept-reject-btn,
+        .vm-dash .infra-reject-btn {
+            background: var(--color-danger-bg) !important;
+            color: var(--color-danger-text) !important;
+            border: none;
+            border-radius: 8px;
+            padding: 6px 10px;
+            display: inline-flex; align-items: center; gap: 5px;
+            font-weight: 600;
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+        .vm-dash .lgu-reject-btn:hover,
+        .vm-dash .citizen-reject-btn:hover,
+        .vm-dash .dept-reject-btn:hover,
+        .vm-dash .infra-reject-btn:hover {
+            background: var(--color-danger) !important;
+            color: #fff !important;
+        }
+        .vm-dash .lgu-action-btn i,
+        .vm-dash .citizen-action-btn i,
+        .vm-dash .dept-action-btn i,
+        .vm-dash .infra-action-btn i,
+        .vm-dash .lgu-verify-btn i,
+        .vm-dash .citizen-verify-btn i,
+        .vm-dash .dept-verify-btn i,
+        .vm-dash .infra-verify-btn i,
+        .vm-dash .lgu-reject-btn i,
+        .vm-dash .citizen-reject-btn i,
+        .vm-dash .dept-reject-btn i,
+        .vm-dash .infra-reject-btn i { pointer-events: none; }
+
+        .vm-dash .lgu-empty-state,
+        .vm-dash .citizen-empty-state,
+        .vm-dash .dept-empty-state,
+        .vm-dash .infra-empty-state,
+        .vm-dash .cimm-empty-state {
+            padding: 40px 16px;
+            color: var(--text-secondary);
+        }
+        .vm-dash .lgu-empty-state h4,
+        .vm-dash .citizen-empty-state h4,
+        .vm-dash .dept-empty-state h4,
+        .vm-dash .infra-empty-state h4 { color: var(--text-primary); margin-bottom: 6px; font-size: 15px; }
+        .vm-dash .lgu-empty-icon { background: rgba(30, 60, 114, 0.10) !important; }
+        .vm-dash .lgu-empty-icon i { color: #1e3c72 !important; }
+        .vm-dash .citizen-empty-icon { background: rgba(22, 163, 74, 0.10) !important; }
+        .vm-dash .citizen-empty-icon i { color: #16a34a !important; }
+        .vm-dash .dept-empty-icon { background: rgba(90, 78, 120, 0.10) !important; }
+        .vm-dash .dept-empty-icon i { color: #5a4e78 !important; }
+        .vm-dash .infra-empty-icon,
+        .vm-dash .cimm-empty-state .refresh-icon { background: rgba(249, 115, 22, 0.10) !important; }
+        .vm-dash .infra-empty-icon i { color: #f97316 !important; }
+
+        .citizen-modal-content,
+        .cimm-modal-content,
+        .infra-modal-content,
+        .lgu-modal-content {
+            background: var(--bg-card) !important;
+            color: var(--text-primary);
+            border: 1px solid var(--border-default) !important;
+            max-width: min(680px, 94vw);
+            max-height: 86vh;
+            box-shadow: var(--shadow-lg);
+        }
+        .citizen-modal-header,
+        .cimm-modal-header,
+        .infra-modal-header,
+        .lgu-modal-header {
+            background: var(--bg-card) !important;
+            padding: 16px 20px 14px !important;
+            border-bottom: 1px solid var(--border-light) !important;
+        }
+        .citizen-modal-body,
+        .cimm-modal-body,
+        .infra-modal-body,
+        .lgu-modal-body { padding: 14px 20px !important; }
+        .citizen-modal-footer,
+        .cimm-modal-footer,
+        .infra-modal-footer,
+        .lgu-modal-footer {
+            padding: 12px 20px !important;
+            background: var(--bg-hover) !important;
+            border-top: 1px solid var(--border-light) !important;
+        }
+        .citizen-modal-title,
+        .cimm-modal-title,
+        .infra-modal-title,
+        .lgu-modal-title {
+            color: var(--text-primary) !important;
+            font-size: 18px !important;
+            margin-bottom: 8px !important;
+        }
+        .citizen-modal-report-id,
+        .cimm-modal-report-id,
+        .infra-modal-report-id,
+        .lgu-modal-report-id { color: var(--text-secondary) !important; }
+        .citizen-modal-section,
+        .cimm-modal-section,
+        .infra-modal-section,
+        .lgu-modal-section {
+            background: var(--bg-hover) !important;
+            border: 1px solid var(--border-light) !important;
+            border-radius: 10px;
+            padding: 14px 16px !important;
+            margin-bottom: 12px;
+            box-shadow: none;
+        }
+        .citizen-modal-section-title,
+        .cimm-modal-section-title,
+        .infra-modal-section-title,
+        .lgu-modal-section-title {
+            color: var(--text-secondary) !important;
+            border-bottom-color: var(--border-light) !important;
+            font-size: 12px !important;
+        }
+        .citizen-modal-section-title i,
+        .cimm-modal-section-title i,
+        .infra-modal-section-title i,
+        .lgu-modal-section-title i { color: var(--color-primary) !important; }
+        .citizen-info-label,
+        .cimm-info-label,
+        .infra-info-label,
+        .lgu-info-label { color: var(--text-muted) !important; }
+        .citizen-info-value,
+        .cimm-info-value,
+        .infra-info-value,
+        .lgu-info-value,
+        .citizen-description-text,
+        .cimm-description-text,
+        .infra-description-text,
+        .lgu-description-text { color: var(--text-primary) !important; }
+        .citizen-info-icon,
+        .cimm-info-icon,
+        .infra-info-icon,
+        .lgu-info-icon {
+            background: var(--color-primary-bg) !important;
+            color: var(--color-primary) !important;
+        }
+        .citizen-modal-btn-close,
+        .cimm-modal-btn-close,
+        .infra-modal-btn-close,
+        .lgu-modal-btn-close {
+            background: var(--color-primary-bg) !important;
+            color: var(--color-primary) !important;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+        .citizen-modal-btn-close:hover,
+        .cimm-modal-btn-close:hover,
+        .infra-modal-btn-close:hover,
+        .lgu-modal-btn-close:hover { background: var(--color-primary) !important; color: #fff !important; }
+        .citizen-view-map-btn,
+        .cimm-view-map-btn,
+        .infra-view-map-btn,
+        .lgu-view-map-btn {
+            background: var(--color-primary-bg) !important;
+            color: var(--color-primary) !important;
+            border-color: transparent !important;
+        }
+        .citizen-view-map-btn:hover,
+        .cimm-view-map-btn:hover,
+        .infra-view-map-btn:hover,
+        .lgu-view-map-btn:hover { background: var(--color-primary) !important; color: #fff !important; }
+        .vm-map-link { color: var(--text-link); text-decoration: none; font-size: 12px; }
+        .vm-map-link:hover { text-decoration: underline; }
+
+        body.dark-mode .vm-dash .section-panel,
+        body.dark-mode .vm-dash .lgu-reports-panel,
+        body.dark-mode .vm-dash .citizen-reports-panel,
+        body.dark-mode .vm-dash .dept-reports-panel,
+        body.dark-mode .vm-dash .infra-reports-panel,
+        body.dark-mode .vm-dash .workflow-stat {
+            background: #1c2432 !important;
+        }
+        body.dark-mode .vm-dash .section-panel,
+        body.dark-mode .vm-dash .workflow-stat {
+            border-color: rgba(147, 179, 224, 0.22) !important;
+        }
+        body.dark-mode .vm-dash .lgu-reports-panel {
+            border-color: rgba(147, 179, 224, 0.28) !important;
+            border-left-color: #93b3e0 !important;
+        }
+        body.dark-mode .vm-dash .citizen-reports-panel {
+            border-color: rgba(74, 222, 128, 0.28) !important;
+            border-left-color: #4ade80 !important;
+        }
+        body.dark-mode .vm-dash .dept-reports-panel {
+            border-color: rgba(167, 154, 196, 0.30) !important;
+            border-left-color: #a79ac4 !important;
+        }
+        body.dark-mode .vm-dash .infra-reports-panel {
+            border-color: rgba(251, 146, 60, 0.30) !important;
+            border-left-color: #fb923c !important;
+        }
+        body.dark-mode .vm-dash .lgu-reports-header { border-bottom-color: rgba(147, 179, 224, 0.16) !important; }
+        body.dark-mode .vm-dash .citizen-reports-header { border-bottom-color: rgba(74, 222, 128, 0.16) !important; }
+        body.dark-mode .vm-dash .dept-reports-header { border-bottom-color: rgba(167, 154, 196, 0.16) !important; }
+        body.dark-mode .vm-dash .infra-reports-header { border-bottom-color: rgba(251, 146, 60, 0.18) !important; }
+        body.dark-mode .vm-dash .header-title h1,
+        body.dark-mode .vm-dash .workflow-number { color: var(--text-primary) !important; }
+        body.dark-mode .vm-dash .lgu-reports-title { color: #93b3e0 !important; }
+        body.dark-mode .vm-dash .citizen-reports-title { color: #86efac !important; }
+        body.dark-mode .vm-dash .dept-reports-title { color: #c5bdd8 !important; }
+        body.dark-mode .vm-dash .infra-reports-title { color: #fdba74 !important; }
+        body.dark-mode .vm-dash .header-title p,
+        body.dark-mode .vm-dash .workflow-label { color: var(--text-secondary) !important; }
+        body.dark-mode .vm-dash .lgu-reports-subtitle { color: #8aa3c8 !important; }
+        body.dark-mode .vm-dash .citizen-reports-subtitle { color: #6ee7b7 !important; }
+        body.dark-mode .vm-dash .dept-reports-subtitle { color: #a39bb8 !important; }
+        body.dark-mode .vm-dash .infra-reports-subtitle { color: #fdba74 !important; }
+        body.dark-mode .vm-dash .lgu-table thead th {
+            background: linear-gradient(135deg, #1e3c72, #0f274a) !important;
+            color: #fff !important;
+        }
+        body.dark-mode .vm-dash .citizen-table thead th {
+            background: linear-gradient(135deg, #16a34a, #15803d) !important;
+            color: #fff !important;
+        }
+        body.dark-mode .vm-dash .dept-table thead th {
+            background: linear-gradient(135deg, #5a4e78, #3f3658) !important;
+            color: #fff !important;
+        }
+        body.dark-mode .vm-dash .infra-table thead th {
+            background: linear-gradient(135deg, #f97316, #ea580c) !important;
+            color: #fff !important;
+        }
+        body.dark-mode .vm-dash .lgu-empty-icon { background: rgba(147, 179, 224, 0.14) !important; }
+        body.dark-mode .vm-dash .lgu-empty-icon i { color: #93b3e0 !important; }
+        body.dark-mode .vm-dash .citizen-empty-icon { background: rgba(74, 222, 128, 0.14) !important; }
+        body.dark-mode .vm-dash .citizen-empty-icon i { color: #86efac !important; }
+        body.dark-mode .vm-dash .dept-empty-icon { background: rgba(167, 154, 196, 0.14) !important; }
+        body.dark-mode .vm-dash .dept-empty-icon i { color: #c5bdd8 !important; }
+        body.dark-mode .vm-dash .infra-empty-icon,
+        body.dark-mode .vm-dash .cimm-empty-state .refresh-icon { background: rgba(251, 146, 60, 0.14) !important; }
+        body.dark-mode .vm-dash .infra-empty-icon i { color: #fdba74 !important; }
+        body.dark-mode .vm-dash .lgu-table td,
+        body.dark-mode .vm-dash .citizen-table td,
+        body.dark-mode .vm-dash .dept-table td,
+        body.dark-mode .vm-dash .infra-table td { color: var(--text-primary) !important; }
+        body.dark-mode .vm-dash .lgu-action-btn,
+        body.dark-mode .vm-dash .citizen-action-btn,
+        body.dark-mode .vm-dash .dept-action-btn,
+        body.dark-mode .vm-dash .infra-action-btn {
+            background: var(--color-primary-bg) !important;
+            color: var(--color-primary) !important;
+        }
+        body.dark-mode .vm-dash .lgu-action-btn:hover,
+        body.dark-mode .vm-dash .citizen-action-btn:hover,
+        body.dark-mode .vm-dash .dept-action-btn:hover,
+        body.dark-mode .vm-dash .infra-action-btn:hover {
+            background: var(--color-primary) !important;
+            color: #fff !important;
+        }
+        body.dark-mode .vm-dash .lgu-verify-btn,
+        body.dark-mode .vm-dash .citizen-verify-btn,
+        body.dark-mode .vm-dash .dept-verify-btn,
+        body.dark-mode .vm-dash .infra-verify-btn {
+            background: var(--color-success-bg) !important;
+            color: var(--color-success-text) !important;
+        }
+        body.dark-mode .vm-dash .lgu-reject-btn,
+        body.dark-mode .vm-dash .citizen-reject-btn,
+        body.dark-mode .vm-dash .dept-reject-btn,
+        body.dark-mode .vm-dash .infra-reject-btn {
+            background: var(--color-danger-bg) !important;
+            color: var(--color-danger-text) !important;
+        }
+        body.dark-mode .citizen-modal-content,
+        body.dark-mode .cimm-modal-content,
+        body.dark-mode .infra-modal-content,
+        body.dark-mode .lgu-modal-content,
+        body.dark-mode .citizen-modal-header,
+        body.dark-mode .cimm-modal-header,
+        body.dark-mode .infra-modal-header,
+        body.dark-mode .lgu-modal-header { background: var(--bg-card) !important; }
+        body.dark-mode .citizen-modal-title,
+        body.dark-mode .cimm-modal-title,
+        body.dark-mode .infra-modal-title,
+        body.dark-mode .lgu-modal-title { color: var(--text-primary) !important; }
+        body.dark-mode .citizen-modal-report-id,
+        body.dark-mode .cimm-modal-report-id,
+        body.dark-mode .infra-modal-report-id,
+        body.dark-mode .lgu-modal-report-id { color: var(--text-secondary) !important; }
+        body.dark-mode .citizen-modal-section-title,
+        body.dark-mode .cimm-modal-section-title,
+        body.dark-mode .infra-modal-section-title,
+        body.dark-mode .lgu-modal-section-title { color: var(--text-secondary) !important; }
+        body.dark-mode .citizen-info-icon,
+        body.dark-mode .cimm-info-icon,
+        body.dark-mode .infra-info-icon,
+        body.dark-mode .lgu-info-icon {
+            background: var(--color-primary-bg) !important;
+            color: var(--color-primary) !important;
+        }
+        body.dark-mode .citizen-modal-btn-close,
+        body.dark-mode .cimm-modal-btn-close,
+        body.dark-mode .infra-modal-btn-close,
+        body.dark-mode .lgu-modal-btn-close {
+            background: var(--color-primary-bg) !important;
+            color: var(--color-primary) !important;
+        }
+        body.dark-mode .vm-map-link { color: var(--text-link); }
+
+        @media (max-width: 768px) {
+            .vm-dash { padding: 16px; }
+            .vm-dash .header-content { flex-direction: column; align-items: flex-start; }
+            .vm-dash .workflow-stats { width: 100%; grid-template-columns: 1fr; }
+            .vm-dash .lgu-reports-search,
+            .vm-dash .citizen-reports-search,
+            .vm-dash .dept-reports-search,
+            .vm-dash .infra-reports-search { flex-wrap: wrap; }
+            .citizen-modal-content,
+            .cimm-modal-content,
+            .infra-modal-content,
+            .lgu-modal-content { max-width: 96vw; max-height: 96vh; }
+        }
+        @media (max-width: 480px) {
+            .vm-dash .header-icon { width: 36px; height: 36px; }
+            .vm-dash .header-title h1 { font-size: 20px; }
+        }
+
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
     <!-- SIDEBAR -->
     <?php include '../../includes/sidebar_nav.php'; ?>
 
-    <div class="main-content">
+    <div class="main-content vm-dash">
         <!-- Verification Header Panel -->
         <div class="section-panel">
             <div class="verification-header" style="margin-bottom:0; box-shadow:none; border:none; border-radius:0;">
                 <div class="header-content">
                     <div class="header-title">
-                        <h1>Verification & Monitoring Reports</h1>
+                        <h1><span class="header-icon"><i class="fas fa-clipboard-check"></i></span> Verification & Monitoring Reports</h1>
                         <p>Review and approve infrastructure Projects and monitoring data</p>
                     </div>
-                    <div class="workflow-stats">
-                        <div class="workflow-stat">
-                            <div class="workflow-number"><?php echo number_format($stats['pending']); ?></div>
-                            <div class="workflow-label">Pending</div>
-                        </div>
-                        <div class="workflow-stat">
-                            <div class="workflow-number"><?php echo number_format($stats['in_review']); ?></div>
-                            <div class="workflow-label">In Review</div>
-                        </div>
-                        <div class="workflow-stat">
-                            <div class="workflow-number"><?php echo number_format($stats['approved']); ?></div>
-                            <div class="workflow-label">Approved</div>
-                        </div>
-                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="workflow-stats">
+            <div class="workflow-stat accent-amber">
+                <div class="workflow-stat-icon"><i class="fas fa-hourglass-half"></i></div>
+                <div>
+                    <div class="workflow-number"><?php echo number_format($stats['pending']); ?></div>
+                    <div class="workflow-label">Pending</div>
+                </div>
+            </div>
+            <div class="workflow-stat accent-violet">
+                <div class="workflow-stat-icon"><i class="fas fa-clipboard-list"></i></div>
+                <div>
+                    <div class="workflow-number"><?php echo number_format($stats['in_review']); ?></div>
+                    <div class="workflow-label">In Review</div>
+                </div>
+            </div>
+            <div class="workflow-stat accent-rose">
+                <div class="workflow-stat-icon"><i class="fas fa-check-circle"></i></div>
+                <div>
+                    <div class="workflow-number"><?php echo number_format($stats['approved']); ?></div>
+                    <div class="workflow-label">Approved</div>
                 </div>
             </div>
         </div>
@@ -5267,7 +6075,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 <td>
                                     <div class="lgu-action-group">
                                         <button class="lgu-action-btn" onclick="viewLguReport(<?php echo $report['id']; ?>)">
-                                            <i class="fas fa-eye" id="icon-<?php echo $report['id']; ?>"></i>
+                                            <i class="fas fa-eye" id="icon-<?php echo $report['id']; ?>"></i> View
                                         </button>
                                         <?php if ($pending_ext_verify): ?>
                                             <span class="lgu-status-badge t-badge t-badge-pending" style="font-size:10px;padding:3px 8px;">Ext. Verify</span>
@@ -5276,14 +6084,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                 <input type="hidden" name="report_id" value="<?php echo $report['id']; ?>">
                                                 <input type="hidden" name="source" value="<?php echo htmlspecialchars($report['source']); ?>">
                                                 <button type="submit" name="action" value="cimm_approve" class="lgu-verify-btn" title="Approve CIMM verified report">
-                                                    <i class="fas fa-check-circle"></i>
+                                                    <i class="fas fa-check-circle"></i> Approve
                                                 </button>
                                             </form>
                                             <form method="POST" class="lgu-action-form" onsubmit="return confirm('Are you sure you want to reject this report?');">
                                                 <input type="hidden" name="report_id" value="<?php echo $report['id']; ?>">
                                                 <input type="hidden" name="source" value="<?php echo htmlspecialchars($report['source']); ?>">
                                                 <button type="submit" name="action" value="reject" class="lgu-reject-btn" title="Reject report">
-                                                    <i class="fas fa-times"></i>
+                                                    <i class="fas fa-times"></i> Reject
                                                 </button>
                                             </form>
                                         <?php endif; ?>
@@ -5392,36 +6200,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     // reports CIMM hasn't verified yet (no cimm_status) fall back to
                                     // the local "Awaiting Ext." / RGMAP-native status below.
                                     //
-                                    // Label + colors copied 1:1 from CIMM's own status badges on
-                                    // current_reports.php / pending_reports.php / archive_reports.php
-                                    // (.scheduled-st, .pending-st, .pending-accept-st,
-                                    // .pending-admin-st, .validated-st, .on-going, .completed,
-                                    // .cancelled-st) — inline styles rather than shared CSS classes
-                                    // since this is a different codebase and can't rely on those
-                                    // class names existing here.
+                                    // CIMM-owned status labels stay the same; badge colors
+                                    // use theme-aware classes so Light/Dark Mode both contrast.
                                     $cimmStatusRaw = trim((string)($report['cimm_status'] ?? ''));
                                     if ($cimmStatusRaw !== ''):
                                         $cimmStatusLc = strtolower($cimmStatusRaw);
-                                        // [label, background, color, border]
-                                        $cimmStatusStyles = [
-                                            'pending'                => ['Scheduled',         '#e3f2fd',              '#1565c0', '1.5px solid rgba(21,101,192,.3)'],
-                                            'scheduled'              => ['Scheduled',         '#e3f2fd',              '#1565c0', '1.5px solid rgba(21,101,192,.3)'],
-                                            'awaiting engineer'      => ['Awaiting Engineer',  '#ffe0b2',              '#e65100', 'none'],
-                                            ''                       => ['Awaiting Engineer',  '#ffe0b2',              '#e65100', 'none'],
-                                            'pending acceptance'     => ['Pending Acceptance', 'rgba(99,102,241,.12)', '#4338ca', '1px solid rgba(99,102,241,.28)'],
-                                            'pending admin approval' => ['Pending Approval',   'rgba(139,92,246,.12)', '#4c1d95', '1px solid rgba(139,92,246,.28)'],
-                                            'approved'               => ['Validated',          'rgba(46,125,50,.12)',  '#1b5e20', '1px solid rgba(46,125,50,.28)'],
-                                            'in progress'            => ['In Progress',        '#fff59d',              '#f57f17', 'none'],
-                                            'pending completion'     => ['Pending Completion', '#fff59d',              '#f57f17', 'none'],
-                                            'completed'              => ['Completed',          'rgba(46,125,50,.12)',  '#1b5e20', '1px solid rgba(46,125,50,.28)'],
-                                            'archived'               => ['Archived',           'rgba(46,125,50,.12)',  '#1b5e20', '1px solid rgba(46,125,50,.28)'],
-                                            'cancelled'              => ['Cancelled',          '#ffcdd2',              '#b71c1c', 'none'],
-                                            'rejected'               => ['Rejected',           '#ffcdd2',              '#b71c1c', 'none'],
+                                        $cimmStatusMeta = [
+                                            'pending'                => ['Scheduled',         'cimm-st-scheduled'],
+                                            'scheduled'              => ['Scheduled',         'cimm-st-scheduled'],
+                                            'awaiting engineer'      => ['Awaiting Engineer',  'cimm-st-awaiting'],
+                                            ''                       => ['Awaiting Engineer',  'cimm-st-awaiting'],
+                                            'pending acceptance'     => ['Pending Acceptance', 'cimm-st-acceptance'],
+                                            'pending admin approval' => ['Pending Approval',   'cimm-st-approval'],
+                                            'approved'               => ['Validated',          'cimm-st-validated'],
+                                            'in progress'            => ['In Progress',        'cimm-st-progress'],
+                                            'pending completion'     => ['Pending Completion', 'cimm-st-pending'],
+                                            'completed'              => ['Completed',          'cimm-st-completed'],
+                                            'archived'               => ['Archived',           'cimm-st-archived'],
+                                            'cancelled'              => ['Cancelled',          'cimm-st-cancelled'],
+                                            'rejected'               => ['Rejected',           'cimm-st-cancelled'],
                                         ];
-                                        [$cimmDisplayLabel, $cimmBg, $cimmFg, $cimmBorder] = $cimmStatusStyles[$cimmStatusLc]
-                                            ?? [$cimmStatusRaw, '#fff59d', '#f57f17', 'none'];
+                                        [$cimmDisplayLabel, $cimmStatusClass] = $cimmStatusMeta[$cimmStatusLc]
+                                            ?? [$cimmStatusRaw, 'cimm-st-pending'];
                                     ?>
-                                    <span class="lgu-status-badge" title="CIMM report status" style="background:<?php echo $cimmBg; ?>;color:<?php echo $cimmFg; ?>;border:<?php echo $cimmBorder; ?>;"><?php echo htmlspecialchars($cimmDisplayLabel); ?></span>
+                                    <span class="lgu-status-badge <?php echo $cimmStatusClass; ?>" title="CIMM report status"><?php echo htmlspecialchars($cimmDisplayLabel); ?></span>
                                     <?php elseif ($pending_ext_verify): ?>
                                     <span class="lgu-status-badge t-badge t-badge-pending">Awaiting Ext.</span>
                                     <?php else: ?>
@@ -5436,7 +6238,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 <td colspan="7">
                                     <div class="lgu-empty-state">
                                         <div class="lgu-empty-icon"><i class="fas fa-clipboard-list"></i></div>
-                                        <p>No reports at this time.</p>
+                                        <h4>No LGU reports yet</h4>
+                                        <p>New monitoring reports will appear here when they are submitted.</p>
                                     </div>
                                 </td>
                             </tr>
@@ -5507,21 +6310,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <td>
                                 <div class="citizen-action-group">
                                     <button class="citizen-action-btn" onclick="viewCitizenReport(<?php echo $crow['id']; ?>)">
-                                        <i class="fas fa-eye"></i>
+                                        <i class="fas fa-eye"></i> View
                                     </button>
                                     <?php if ($crow['status'] === 'pending'): ?>
                                     <form method="POST" class="citizen-action-form" onsubmit="return confirm('Are you sure you want to approve this citizen report?');">
                                         <input type="hidden" name="report_id" value="<?php echo (int)$crow['id']; ?>">
                                         <input type="hidden" name="source" value="transport">
                                         <button type="submit" name="action" value="approve" class="citizen-verify-btn" title="Approve report">
-                                            <i class="fas fa-check"></i>
+                                            <i class="fas fa-check"></i> Approve
                                         </button>
                                     </form>
                                     <form method="POST" class="citizen-action-form" onsubmit="return confirm('Are you sure you want to reject this citizen report?');">
                                         <input type="hidden" name="report_id" value="<?php echo (int)$crow['id']; ?>">
                                         <input type="hidden" name="source" value="transport">
                                         <button type="submit" name="action" value="reject" class="citizen-reject-btn" title="Reject report">
-                                            <i class="fas fa-times"></i>
+                                            <i class="fas fa-times"></i> Reject
                                         </button>
                                     </form>
                                     <?php endif; ?>
@@ -5543,7 +6346,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <td colspan="7">
                                 <div class="citizen-empty-state">
                                     <div class="citizen-empty-icon"><i class="fas fa-users"></i></div>
-                                    <p>No citizen reports at this time.</p>
+                                    <h4>No citizen reports yet</h4>
+                                    <p>Public portal submissions will show up here for review.</p>
                                 </div>
                             </td>
                         </tr>
@@ -5612,19 +6416,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <td>
                                 <div class="dept-action-group">
                                     <button class="dept-action-btn" onclick="viewCimmReport(<?php echo $row['id']; ?>)">
-                                        <i class="fas fa-eye"></i>
+                                        <i class="fas fa-eye"></i> View
                                     </button>
                                     <form method="POST" class="dept-action-form" onsubmit="return confirm('Are you sure you want to approve this CIMM report?');">
                                         <input type="hidden" name="cimm_req_id" value="<?php echo (int)$row['cimm_req_id']; ?>">
                                         <button type="submit" name="action" value="approve_cimm" class="dept-verify-btn" title="Approve report">
-                                            <i class="fas fa-check"></i>
+                                            <i class="fas fa-check"></i> Approve
                                         </button>
                                     </form>
                                     <form method="POST" class="dept-action-form" onsubmit="return confirm('Are you sure you want to reject this CIMM report?');">
                                         <input type="hidden" name="cimm_req_id" value="<?php echo (int)$row['cimm_req_id']; ?>">
                                         <input type="hidden" name="rejection_reason" value="Rejected by admin">
                                         <button type="submit" name="action" value="reject_cimm" class="dept-reject-btn" title="Reject report">
-                                            <i class="fas fa-times"></i>
+                                            <i class="fas fa-times"></i> Reject
                                         </button>
                                     </form>
                                 </div>
@@ -5660,7 +6464,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         <tr data-id="<?php echo (int)$row['rep_id']; ?>" data-report-id="<?php echo (int)$row['rep_id']; ?>" data-status="<?php echo $sql_filter_status; ?>" data-source="cimm_sql">
                             <td>
                                 <button class="dept-action-btn" onclick="viewSqlReport(<?php echo $row['rep_id']; ?>)">
-                                    <i class="fas fa-eye"></i>
+                                    <i class="fas fa-eye"></i> View
                                 </button>
                             </td>
                             <td>REP-<?php echo $row['rep_id']; ?></td>
@@ -5680,9 +6484,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <td colspan="7">
                                 <div class="dept-empty-state">
                                     <div class="dept-empty-icon">
-                                        <i class="fas fa-sync-alt"></i>
+                                        <i class="fas fa-building"></i>
                                     </div>
-                                    <p>No department reports at this time.</p>
+                                    <h4>No CIMM reports yet</h4>
+                                    <p>Department infrastructure reports will appear here when received.</p>
                                 </div>
                             </td>
                         </tr>
@@ -5757,21 +6562,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <td>
                                 <div class="infra-action-group">
                                     <button class="infra-action-btn" onclick="viewInfraReport(<?php echo $irow['id']; ?>, '<?php echo htmlspecialchars($irow['source'], ENT_QUOTES); ?>')">
-                                        <i class="fas fa-eye"></i>
+                                        <i class="fas fa-eye"></i> View
                                     </button>
                                     <?php if (!in_array($irow['status'], ['approved', 'cancelled'], true)): ?>
                                     <form method="POST" class="infra-action-form" onsubmit="return confirm('Are you sure you want to approve this infrastructure project?');">
                                         <input type="hidden" name="report_id" value="<?php echo (int)$irow['id']; ?>">
                                         <input type="hidden" name="source" value="infra">
                                         <button type="submit" name="action" value="approve" class="infra-verify-btn" title="Approve infrastructure project">
-                                            <i class="fas fa-check"></i>
+                                            <i class="fas fa-check"></i> Approve
                                         </button>
                                     </form>
                                     <form method="POST" class="infra-action-form" onsubmit="return confirm('Are you sure you want to reject this infrastructure project?');">
                                         <input type="hidden" name="report_id" value="<?php echo (int)$irow['id']; ?>">
                                         <input type="hidden" name="source" value="infra">
                                         <button type="submit" name="action" value="reject" class="infra-reject-btn" title="Reject infrastructure project">
-                                            <i class="fas fa-times"></i>
+                                            <i class="fas fa-times"></i> Reject
                                         </button>
                                     </form>
                                     <?php endif; ?>
@@ -5795,7 +6600,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     <div class="infra-empty-icon">
                                         <i class="fas fa-hard-hat"></i>
                                     </div>
-                                    <p>No infrastructure projects at this time.</p>
+                                    <h4>No infrastructure projects yet</h4>
+                                    <p>Synced IPMS projects will appear here for verification.</p>
                                 </div>
                             </td>
                         </tr>
@@ -6134,12 +6940,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         function statusBadgeHtml(status, label) {
             var colors = {
-                'pending':        'background:rgba(251,191,36,0.15);color:#f59e0b;',
-                'in-progress':    'background:rgba(59,130,246,0.15);color:#3b82f6;',
-                'completed':      'background:rgba(34,197,94,0.15);color:#22c55e;',
-                'resolved':       'background:rgba(34,197,94,0.15);color:#22c55e;',
-                'approved':       'background:rgba(34,197,94,0.15);color:#22c55e;',
-                'cancelled':      'background:rgba(220,53,69,0.15);color:#ef4444;'
+                'pending':        'background:rgba(249,115,22,0.1);color:#c2410c;',
+                'in-progress':    'background:rgba(55,98,200,0.1);color:#3762c8;',
+                'completed':      'background:rgba(5,150,105,0.1);color:#047857;',
+                'resolved':       'background:rgba(5,150,105,0.1);color:#047857;',
+                'approved':       'background:rgba(5,150,105,0.1);color:#047857;',
+                'cancelled':      'background:rgba(220,38,38,0.08);color:#dc2626;'
             };
             var c = colors[status] || '';
             return '<span style="display:inline-block;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;text-transform:capitalize;' + c + '">' + (label || status || '—') + '</span>';
@@ -6147,9 +6953,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         function priorityBadgeHtml(priority) {
             var colors = {
-                'high':   'background:rgba(220,53,69,0.15);color:#ef4444;',
-                'medium': 'background:rgba(251,191,36,0.15);color:#f59e0b;',
-                'low':    'background:rgba(34,197,94,0.15);color:#22c55e;'
+                'high':   'background:rgba(220,38,38,0.1);color:#dc2626;',
+                'medium': 'background:rgba(217,119,6,0.1);color:#d97706;',
+                'low':    'background:rgba(107,114,128,0.12);color:#4b5563;'
             };
             var p = (priority || 'medium').toLowerCase();
             var c = colors[p] || '';
@@ -6198,16 +7004,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             };
 
             var statusStyles = {
-                'pending':    {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
-                'approved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
-                'completed':  {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
-                'cancelled':  {bg:'rgba(220,53,69,0.15)',  color:'#ef4444'},
-                'in-progress':{bg:'rgba(59,130,246,0.15)', color:'#3b82f6'}
+                'pending':    {bg:'rgba(249,115,22,0.1)', color:'#c2410c'},
+                'approved':   {bg:'rgba(5,150,105,0.1)', color:'#047857'},
+                'completed':  {bg:'rgba(5,150,105,0.1)', color:'#047857'},
+                'cancelled':  {bg:'rgba(220,38,38,0.08)', color:'#dc2626'},
+                'in-progress':{bg:'rgba(55,98,200,0.1)', color:'#3762c8'}
             };
             var pStyles = {
-                'high':   {bg:'rgba(220,53,69,0.15)', color:'#ef4444'},
-                'medium': {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
-                'low':    {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'}
+                'high':   {bg:'rgba(220,38,38,0.1)', color:'#dc2626'},
+                'medium': {bg:'rgba(217,119,6,0.1)', color:'#d97706'},
+                'low':    {bg:'rgba(107,114,128,0.12)', color:'#4b5563'}
             };
 
             // Header
@@ -6221,9 +7027,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
             var badgesHtml = lguBadge(r.status || '—', ss.bg, ss.color);
             badgesHtml += lguBadge(r.priority || '—', ps.bg, ps.color);
+            var sourceColors = {
+                lgu: {bg:'rgba(55,98,200,0.1)', color:'#3762c8'},
+                transport: {bg:'rgba(55,98,200,0.1)', color:'#3762c8'},
+                cimm: {bg:'rgba(55,98,200,0.1)', color:'#3762c8'},
+                external: {bg:'rgba(55,98,200,0.1)', color:'#3762c8'},
+                maintenance: {bg:'rgba(55,98,200,0.1)', color:'#3762c8'}
+            };
+            var sc = sourceColors[(r.source || '').toLowerCase()] || {bg:'rgba(55,98,200,0.1)', color:'#3762c8'};
+            var sourceLabel = r.source === 'lgu' ? 'LGU Monitoring' : r.source === 'external' ? 'External (CIMM)' : r.source === 'transport' ? 'Citizen' : r.source === 'maintenance' ? 'Infrastructure' : (r.source || '—');
+            badgesHtml += lguBadge(sourceLabel, sc.bg, sc.color);
             var reportType = typeLabels[r.report_type] || r.report_type || '—';
             if (reportType !== '—') {
-                badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(55,98,200,0.12);color:#3762c8;">' + reportType + '</span>';
+                badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(55,98,200,0.1);color:#3762c8;">' + reportType + '</span>';
             }
             document.getElementById('lgu-badges').innerHTML = badgesHtml;
 
@@ -6237,8 +7053,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
             // Source & Department
             var sourceGrid = '';
-            var sourceLabel = r.source === 'lgu' ? 'LGU Monitoring' : r.source === 'external' ? 'External (CIMM)' : r.source === 'transport' ? 'Transportation' : r.source === 'maintenance' ? 'Maintenance' : r.source;
-            sourceGrid += lguInfoItem('server', 'Source', sourceLabel);
+            sourceGrid += lguInfoItem('server', 'Source', lguBadge(sourceLabel, sc.bg, sc.color));
             sourceGrid += lguInfoItem('building', 'Department', r.department);
             if (r.created_by_name) {
                 sourceGrid += lguInfoItem('user', 'Created By', r.created_by_name);
@@ -6285,7 +7100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             var locationGrid = '';
             var locVal = r.location || '—';
             if (r.latitude && r.longitude) {
-                locVal += '<br><a href="https://www.google.com/maps?q=' + r.latitude + ',' + r.longitude + '" target="_blank" style="color:#3762c8;font-size:12px;text-decoration:none;"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map</a>';
+                locVal += '<br><a href="https://www.google.com/maps?q=' + r.latitude + ',' + r.longitude + '" target="_blank" class="vm-map-link"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map</a>';
             }
             locationGrid += '<div class="lgu-info-item lgu-info-value-full"><div class="lgu-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="lgu-info-label">Location</div><div class="lgu-info-value">' + locVal + '</div></div></div>';
             <?php if ($is_road_supervisor): ?>
@@ -6382,17 +7197,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if (!r) { alert('Report data not found.'); return; }
 
             var statusStyles = {
-                'pending':    {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
-                'approved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
-                'completed':  {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
-                'cancelled':  {bg:'rgba(220,53,69,0.15)',  color:'#ef4444'},
-                'in-progress':{bg:'rgba(59,130,246,0.15)', color:'#3b82f6'},
-                'resolved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'}
+                'pending':    {bg:'rgba(249,115,22,0.1)', color:'#c2410c'},
+                'approved':   {bg:'rgba(5,150,105,0.1)', color:'#047857'},
+                'completed':  {bg:'rgba(5,150,105,0.1)', color:'#047857'},
+                'cancelled':  {bg:'rgba(220,38,38,0.08)', color:'#dc2626'},
+                'in-progress':{bg:'rgba(55,98,200,0.1)', color:'#3762c8'},
+                'resolved':   {bg:'rgba(5,150,105,0.1)', color:'#047857'}
             };
             var pStyles = {
-                'high':   {bg:'rgba(220,53,69,0.15)', color:'#ef4444'},
-                'medium': {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
-                'low':    {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'}
+                'high':   {bg:'rgba(220,38,38,0.1)', color:'#dc2626'},
+                'medium': {bg:'rgba(217,119,6,0.1)', color:'#d97706'},
+                'low':    {bg:'rgba(107,114,128,0.12)', color:'#4b5563'}
             };
 
             // Header
@@ -6406,13 +7221,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
             var badgesHtml = cimmBadge(r.status || '—', ss.bg, ss.color);
             if (r.verification_status && r.verification_status !== r.status) {
-                badgesHtml += cimmBadge(r.verification_status, 'rgba(55,98,200,0.12)', '#3762c8');
+                badgesHtml += cimmBadge(r.verification_status, 'rgba(55,98,200,0.1)', '#3762c8');
             }
             if (r.approval_status) {
-                badgesHtml += cimmBadge(r.approval_status, 'rgba(16,185,129,0.12)', '#10b981');
+                badgesHtml += cimmBadge(r.approval_status, 'rgba(5,150,105,0.1)', '#047857');
             }
             if (r.cimm_req_id) {
-                badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(55,98,200,0.12);color:#3762c8;">ID: ' + r.cimm_req_id + '</span>';
+                badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(107,114,128,0.12);color:#4b5563;">ID: ' + r.cimm_req_id + '</span>';
             }
             badgesHtml += cimmBadge(r.priority || '—', ps.bg, ps.color);
             document.getElementById('cimm-badges').innerHTML = badgesHtml;
@@ -6764,7 +7579,8 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
                 tbody.innerHTML =
                     '<tr><td colspan="10"><div class="infra-empty-state">' +
                     '<div class="infra-empty-icon"><i class="fas fa-hard-hat"></i></div>' +
-                    '<p>No infrastructure projects at this time.</p>' +
+                    '<h4>No infrastructure projects yet</h4>' +
+                    '<p>Synced IPMS projects will appear here for verification.</p>' +
                     '</div></td></tr>';
                 return;
             }
@@ -6806,17 +7622,17 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
 
                 html += '<tr data-id="' + id + '" data-report-id="' + id + '" data-status="' + escapeInfraHtml(infraFilterStatus(status)) + '" data-source="maintenance">';
                 html += '<td><div class="infra-action-group">';
-                html += '<button class="infra-action-btn" onclick="viewInfraReport(' + id + ', \'' + escapeInfraHtml(source) + '\')"><i class="fas fa-eye"></i></button>';
+                html += '<button class="infra-action-btn" onclick="viewInfraReport(' + id + ', \'' + escapeInfraHtml(source) + '\')"><i class="fas fa-eye"></i> View</button>';
                 if (canAct) {
                     html += '<form method="POST" class="infra-action-form" onsubmit="return confirm(\'Are you sure you want to approve this infrastructure project?\');">';
                     html += '<input type="hidden" name="report_id" value="' + id + '">';
                     html += '<input type="hidden" name="source" value="infra">';
-                    html += '<button type="submit" name="action" value="approve" class="infra-verify-btn" title="Approve infrastructure project"><i class="fas fa-check"></i></button>';
+                    html += '<button type="submit" name="action" value="approve" class="infra-verify-btn" title="Approve infrastructure project"><i class="fas fa-check"></i> Approve</button>';
                     html += '</form>';
                     html += '<form method="POST" class="infra-action-form" onsubmit="return confirm(\'Are you sure you want to reject this infrastructure project?\');">';
                     html += '<input type="hidden" name="report_id" value="' + id + '">';
                     html += '<input type="hidden" name="source" value="infra">';
-                    html += '<button type="submit" name="action" value="reject" class="infra-reject-btn" title="Reject infrastructure project"><i class="fas fa-times"></i></button>';
+                    html += '<button type="submit" name="action" value="reject" class="infra-reject-btn" title="Reject infrastructure project"><i class="fas fa-times"></i> Reject</button>';
                     html += '</form>';
                 }
                 html += '</div></td>';
@@ -6905,11 +7721,11 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
             };
 
             var statusStyles = {
-                'pending':    {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
-                'approved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
-                'completed':  {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
-                'cancelled':  {bg:'rgba(220,53,69,0.15)',  color:'#ef4444'},
-                'in-progress':{bg:'rgba(59,130,246,0.15)', color:'#3b82f6'}
+                'pending':    {bg:'rgba(249,115,22,0.1)', color:'#c2410c'},
+                'approved':   {bg:'rgba(5,150,105,0.1)', color:'#047857'},
+                'completed':  {bg:'rgba(5,150,105,0.1)', color:'#047857'},
+                'cancelled':  {bg:'rgba(220,38,38,0.08)', color:'#dc2626'},
+                'in-progress':{bg:'rgba(55,98,200,0.1)', color:'#3762c8'}
             };
 
             // Header
@@ -6921,7 +7737,7 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
 
             var sourceLabel = source === 'transport' ? 'Road & Transportation' : 'Maintenance';
             var badgesHtml = infraBadge(r.status || '—', ss.bg, ss.color);
-            badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(249,115,22,0.12);color:#f97316;">' + sourceLabel + '</span>';
+            badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(55,98,200,0.1);color:#3762c8;">' + sourceLabel + '</span>';
             document.getElementById('infra-badges').innerHTML = badgesHtml;
 
             // Project Information
@@ -7211,16 +8027,16 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
             };
 
             var statusStyles = {
-                'pending':    {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
-                'approved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
-                'completed':  {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
-                'cancelled':  {bg:'rgba(220,53,69,0.15)',  color:'#ef4444'},
-                'in-progress':{bg:'rgba(59,130,246,0.15)', color:'#3b82f6'}
+                'pending':    {bg:'rgba(249,115,22,0.1)', color:'#c2410c'},
+                'approved':   {bg:'rgba(5,150,105,0.1)', color:'#047857'},
+                'completed':  {bg:'rgba(5,150,105,0.1)', color:'#047857'},
+                'cancelled':  {bg:'rgba(220,38,38,0.08)', color:'#dc2626'},
+                'in-progress':{bg:'rgba(55,98,200,0.1)', color:'#3762c8'}
             };
             var pStyles = {
-                'high':   {bg:'rgba(220,53,69,0.15)', color:'#ef4444'},
-                'medium': {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
-                'low':    {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'}
+                'high':   {bg:'rgba(220,38,38,0.1)', color:'#dc2626'},
+                'medium': {bg:'rgba(217,119,6,0.1)', color:'#d97706'},
+                'low':    {bg:'rgba(107,114,128,0.12)', color:'#4b5563'}
             };
 
             // Header
@@ -7236,7 +8052,7 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
             badgesHtml += cmBadge(r.priority || '—', ps.bg, ps.color);
             var reportType = typeLabels[r.report_type] || r.report_type || '—';
             if (reportType !== '—') {
-                badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(22,163,74,0.12);color:#16a34a;">' + reportType + '</span>';
+                badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(55,98,200,0.1);color:#3762c8;">' + reportType + '</span>';
             }
             document.getElementById('cm-badges').innerHTML = badgesHtml;
 
@@ -7260,7 +8076,7 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
             var locationGrid = '';
             var locVal = r.location || '—';
             if (r.latitude && r.longitude) {
-                locVal += '<br><a href="https://www.google.com/maps?q=' + r.latitude + ',' + r.longitude + '" target="_blank" style="color:#16a34a;font-size:12px;text-decoration:none;"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map</a>';
+                locVal += '<br><a href="https://www.google.com/maps?q=' + r.latitude + ',' + r.longitude + '" target="_blank" class="vm-map-link"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map</a>';
             }
             locationGrid += '<div class="citizen-info-item citizen-info-value-full"><div class="citizen-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="citizen-info-label">Location</div><div class="citizen-info-value">' + locVal + '</div></div></div>';
             document.getElementById('cm-location-grid').innerHTML = locationGrid;
