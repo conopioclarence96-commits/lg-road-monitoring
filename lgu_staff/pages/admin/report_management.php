@@ -5153,8 +5153,15 @@ if ($focus_id > 0) {
                             <div class="form-group" style="flex: 1;">
                                 <label class="form-label">Status *</label>
                                 <select class="form-control" name="status" id="editCimmStatus" required>
+                                    <?php if (!$is_road_supervisor): ?>
+                                    <option value="pending">Pending</option>
+                                    <?php endif; ?>
                                     <option value="approved">Approved</option>
                                     <option value="in-progress">In Progress</option>
+                                    <?php if (!$is_road_supervisor): ?>
+                                    <option value="completed">Completed</option>
+                                    <option value="cancelled">Cancelled</option>
+                                    <?php endif; ?>
                                 </select>
                             </div>
                             <div class="form-group" style="flex: 1;">
@@ -5198,120 +5205,6 @@ if ($focus_id > 0) {
                     <div style="display: flex; gap: 10px;">
                         <button type="button" class="btn-secondary-custom" onclick="closeModal('editCimmModal')">Cancel</button>
                         <button type="submit" class="btn-primary-custom" id="cimmEditSubmitBtn">
-                            <i class="fas fa-save"></i> Save Changes
-                        </button>
-                    </div>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Infrastructure Project Edit Modal -->
-    <div id="editIpmsModal" class="modal">
-        <div class="modal-content" style="max-width: 650px;">
-            <div class="modal-header t-cimm-header">
-                <h5 class="modal-title"><i class="fas fa-edit"></i> Edit Infrastructure Project</h5>
-                <button class="close t-text-white" onclick="closeModal('editIpmsModal')">&times;</button>
-            </div>
-            <form method="POST" id="editIpmsForm">
-                <div class="modal-body">
-                    <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
-                    <input type="hidden" name="action" value="update_ipms_project">
-                    <input type="hidden" name="report_id" id="editIpmsReportId">
-                    <input type="hidden" name="report_table" id="editIpmsReportTable" value="ipms_road_projects">
-
-                    <div class="form-section">
-                        <h6><i class="fas fa-info-circle"></i> Project Details</h6>
-                        <div class="form-group">
-                            <label class="form-label">Report #</label>
-                            <input type="text" class="form-control t-bg-input-readonly" id="editIpmsRepNumber" readonly>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Title</label>
-                            <input type="text" class="form-control" name="project_name" id="editIpmsTitle">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Description</label>
-                            <textarea class="form-control" name="road_status" id="editIpmsDescription" rows="3"></textarea>
-                        </div>
-                    </div>
-
-                    <div class="form-section">
-                        <h6><i class="fas fa-tasks"></i> Editable Fields</h6>
-                        <div style="display: flex; gap: 15px;">
-                            <div class="form-group" style="flex: 1;">
-                                <label class="form-label">Status *</label>
-                                <select class="form-control" name="status" id="editIpmsStatus" required>
-                                    <?php if (!$is_road_supervisor): ?>
-                                    <option value="pending">Pending</option>
-                                    <?php endif; ?>
-                                    <option value="approved">Approved</option>
-                                    <option value="in-progress">In Progress</option>
-                                    <?php if (!$is_road_supervisor): ?>
-                                    <option value="completed">Completed</option>
-                                    <option value="cancelled">Cancelled</option>
-                                    <?php endif; ?>
-                                </select>
-                            </div>
-                            <div class="form-group" style="flex: 1;">
-                                <label class="form-label">Priority *</label>
-                                <select class="form-control" name="priority" id="editIpmsPriority" required>
-                                    <option value="low">Low</option>
-                                    <option value="medium">Medium</option>
-                                    <option value="high">High</option>
-                                </select>
-                            </div>
-                        </div>
-                        <?php if ($user_role !== 'system_admin'): ?>
-                        <div style="margin-top: 15px;">
-                            <button type="button" class="btn-action" onclick="openAssignUserModal()">
-                                <i class="fas fa-user-plus"></i> Assign Staff to Project
-                            </button>
-                        </div>
-                        <?php endif; ?>
-                        <div style="margin-top: 15px;">
-                            <label class="form-label">Assigned Staff</label>
-                            <div id="assignedUsersListIpms" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px;">
-                                <div style="color: #6b7280; font-size: 13px;">Loading assigned staff...</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="form-section">
-                        <h6><i class="fas fa-tasks"></i> Schedule &amp; Budget</h6>
-                        <div style="display: flex; gap: 15px;">
-                            <div class="form-group" style="flex: 1;">
-                                <label class="form-label">Start Date</label>
-                                <input type="date" class="form-control t-bg-input-readonly" id="editIpmsStartDate" readonly>
-                            </div>
-                            <div class="form-group" style="flex: 1;">
-                                <label class="form-label">End Date</label>
-                                <input type="date" class="form-control t-bg-input-readonly" id="editIpmsEndDate" readonly>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Budget (₱)</label>
-                            <input type="number" class="form-control t-bg-input-readonly" id="editIpmsBudget" step="0.01" min="0" readonly>
-                        </div>
-                    </div>
-
-                    <div class="form-section">
-                        <h6><i class="fas fa-map-marker-alt"></i> Addresses</h6>
-                        <div class="form-group">
-                            <label class="form-label">Start Address</label>
-                            <input type="text" class="form-control t-bg-input-readonly" id="editIpmsStartAddress" readonly>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">End Address</label>
-                            <input type="text" class="form-control t-bg-input-readonly" id="editIpmsEndAddress" readonly>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer" style="justify-content: space-between;">
-                    <span id="ipmsEditIndicator" class="t-text-secondary" style="font-size: 12px;"></span>
-                    <div style="display: flex; gap: 10px;">
-                        <button type="button" class="btn-secondary-custom" onclick="closeModal('editIpmsModal')">Cancel</button>
-                        <button type="submit" class="btn-primary-custom" id="ipmsEditSubmitBtn">
                             <i class="fas fa-save"></i> Save Changes
                         </button>
                     </div>
