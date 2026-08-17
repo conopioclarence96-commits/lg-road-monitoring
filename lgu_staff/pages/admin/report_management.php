@@ -161,6 +161,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         case 'delete_cimm_report':
             handle_delete_cimm_report();
             break;
+        case 'update_ipms_project':
+            handle_update_ipms_project();
+            break;
+        case 'delete_ipms_project':
+            handle_delete_ipms_project();
+            break;
     }
 }
 
@@ -819,6 +825,185 @@ function handle_delete_cimm_report() {
     } catch (Exception $e) {
         error_log('Delete CIMM report error: ' . $e->getMessage());
         set_flash_message('error', 'Failed to delete CIMM report. Please try again.');
+    }
+}
+
+// Edit an approved IPMS infrastructure project (local bookkeeping fields in
+// the ipms_road_projects mirror). Status and priority are editable from the
+// modal; schedule, budget and addresses are read-only (they mirror the IPMS
+// feed) and are never updated here.
+function handle_update_ipms_project() {
+    global $conn, $user_id;
+
+    $report_id = intval($_POST['report_id'] ?? 0);
+    if ($report_id <= 0) {
+        $msg = 'Invalid project ID';
+        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => $msg]);
+            exit;
+        }
+        set_flash_message('error', $msg);
+        return;
+    }
+
+    try {
+        $pdo = rgmap_ipms_pdo();
+        $stmt = $pdo->prepare("SELECT project_id FROM ipms_road_projects WHERE project_id = ?");
+        $stmt->execute([$report_id]);
+        if (!$stmt->fetch()) {
+            $msg = 'Infrastructure project not found.';
+            if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => $msg]);
+                exit;
+            }
+            set_flash_message('error', $msg);
+            return;
+        }
+
+        $update_fields = [];
+        $params = [];
+
+        $title = sanitize_input($_POST['project_name'] ?? '');
+        if ($title !== '') { $update_fields[] = "project_name = ?"; $params[] = $title; }
+
+        $road_status = sanitize_input($_POST['road_status'] ?? '');
+        if ($road_status !== '') { $update_fields[] = "road_status = ?"; $params[] = $road_status; }
+
+        $status = sanitize_input($_POST['status'] ?? '');
+        $allowed_statuses = ['pending', 'approved', 'in-progress', 'completed', 'cancelled'];
+        if ($status !== '' && in_array($status, $allowed_statuses, true)) {
+            $update_fields[] = "status = ?"; $params[] = $status;
+        }
+
+        $priority = sanitize_input($_POST['priority'] ?? '');
+        $allowed_priorities = ['low', 'medium', 'high'];
+        if ($priority !== '' && in_array($priority, $allowed_priorities, true)) {
+            $update_fields[] = "priority = ?"; $params[] = $priority;
+        }
+
+        // Schedule, budget and addresses are read-only in the edit modal (the
+        // values come from the IPMS mirror), so they are never updated here.
+
+        if (empty($update_fields)) {
+            $msg = 'No changes to save.';
+            if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => $msg]);
+                exit;
+            }
+            set_flash_message('error', $msg);
+            return;
+        }
+
+        $params[] = $report_id;
+        $query = "UPDATE ipms_road_projects SET " . implode(', ', $update_fields) . " WHERE project_id = ?";
+        $stmt = $pdo->prepare($query);
+        $stmt->execute($params);
+
+        log_audit_action($user_id, "Updated infrastructure project", "Project ID: {$report_id}");
+
+        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true, 'message' => 'Infrastructure project updated successfully']);
+            exit;
+        }
+        set_flash_message('success', 'Infrastructure project updated successfully.');
+    } catch (Exception $e) {
+        error_log('Update IPMS project error: ' . $e->getMessage());
+        $msg = 'Failed to update infrastructure project. Please try again.';
+        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => $msg]);
+            exit;
+        }
+        set_flash_message('error', $msg);
+    }
+}
+
+// Trash/Delete an approved IPMS infrastructure project. Follows the same
+// archive-first flow the other report panels use: copy the full project into
+// road_transportation_reports_archive as 'cancelled' (previous_status and
+// archived_from are stamped for a later restore) BEFORE removing the row from
+// ipms_road_projects. No IPMS write-back, and the approval/verification flow
+// in verification_monitoring.php is untouched.
+function handle_delete_ipms_project() {
+    global $conn, $user_id;
+
+    try {
+        $report_id = intval($_POST['report_id'] ?? 0);
+        if ($report_id <= 0) {
+            set_flash_message('error', 'Invalid project ID');
+            return;
+        }
+
+        $pdo = rgmap_ipms_pdo();
+        $stmt = $pdo->prepare("SELECT * FROM ipms_road_projects WHERE project_id = ?");
+        $stmt->execute([$report_id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$row) {
+            set_flash_message('error', 'Infrastructure project not found.');
+            return;
+        }
+
+        $archived = false;
+        try {
+            ensure_archive_table();
+
+            $now = date('Y-m-d H:i:s');
+            $engineers = json_decode((string)($row['assigned_engineers_json'] ?? '[]'), true) ?: [];
+            $engineer = implode(', ', array_filter(array_map('trim', array_map('strval', $engineers)), static fn($n) => $n !== ''));
+
+            $insert_fields = [
+                'report_id'          => 'IPMS-' . $report_id,
+                'title'              => $row['project_name'] ?? 'Infrastructure Project',
+                'report_type'        => 'infrastructure_issue',
+                'report_category'    => 'road',
+                'report_source'      => 'local',
+                'department'         => 'engineering',
+                'priority'           => 'medium',
+                'status'             => 'cancelled',
+                'previous_status'    => $row['status'] ?? null,
+                'archived_from'      => 'ipms_road_projects',
+                'source_pk'          => (int)$report_id,
+                'created_date'       => (!empty($row['start_date'])) ? date('Y-m-d', strtotime($row['start_date'])) : date('Y-m-d'),
+                'description'        => $row['road_status'] ?? '',
+                'location'           => $row['road_name'] ?? '',
+                'latitude'           => $row['start_lat'] ?? null,
+                'longitude'          => $row['start_lng'] ?? null,
+                'created_at'         => $row['created_at'] ?? $now,
+                'updated_at'         => $now,
+                'rejected_at'        => $now,
+                'completed_at'       => null,
+                'approved_at'        => null,
+                'engineer'           => ($engineer !== '') ? $engineer : null,
+                'budget_allocation'  => $row['budget'] ?? null,
+                'cimm_budget'        => $row['budget'] ?? null,
+            ];
+
+            $fields = array_keys($insert_fields);
+            $placeholders = array_fill(0, count($fields), '?');
+            $field_list = '`' . implode('`, `', $fields) . '`';
+            $insert = "INSERT INTO road_transportation_reports_archive ($field_list) VALUES (" . implode(', ', $placeholders) . ")";
+            $stmt = $conn->prepare($insert);
+            $stmt->execute(array_values($insert_fields));
+            $archived = true;
+        } catch (Exception $e) {
+            error_log('Archive failed for IPMS project ' . $report_id . ': ' . $e->getMessage());
+        }
+
+        $del = $pdo->prepare("DELETE FROM ipms_road_projects WHERE project_id = ?");
+        $del->execute([$report_id]);
+
+        $label = $row['project_name'] ?? 'Unknown';
+        log_audit_action($user_id, "Deleted infrastructure project", "Project ID: {$report_id}, Title: {$label}");
+        $msg = $archived ? 'Infrastructure project deleted successfully and moved to archive.' : 'Infrastructure project deleted successfully.';
+        set_flash_message('success', $msg);
+    } catch (Exception $e) {
+        error_log('Delete IPMS project error: ' . $e->getMessage());
+        set_flash_message('error', 'Failed to delete infrastructure project. Please try again.');
     }
 }
 
@@ -4708,6 +4893,8 @@ if ($focus_id > 0) {
                             <th>Type</th>
                             <th>Location</th>
                             <th>Department</th>
+                            <th>Engineer</th>
+                            <th>Budget</th>
                             <th>Priority</th>
                             <th>Status</th>
                             <th>Created</th>
@@ -4726,6 +4913,14 @@ if ($focus_id > 0) {
                                     <button class="rm-action-btn" onclick="viewIpmsInfraProject(<?php echo (int)$report['id']; ?>)" title="View">
                                         <i class="fas fa-eye"></i>
                                     </button>
+                                    <?php if (!empty($report['from_ipms'])): ?>
+                                    <button class="rm-edit-btn" onclick="editIpmsProject(<?php echo (int)$report['id']; ?>)" title="Edit">
+                                        <i class="fas fa-pencil"></i>
+                                    </button>
+                                    <button class="rm-delete-btn" onclick="deleteIpmsProject(<?php echo (int)$report['id']; ?>)" title="Delete">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                    <?php endif; ?>
                                 </div>
                             </td>
                             <td><?php echo htmlspecialchars($report['report_id'] ?? '—'); ?></td>
@@ -4744,6 +4939,8 @@ if ($focus_id > 0) {
                             ?></td>
                             <td><?php echo htmlspecialchars($report['location'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars(ucfirst($report['department'] ?? 'Engineering')); ?></td>
+                            <td><?php echo htmlspecialchars(trim((string)($report['engineer'] ?? '')) ?: '—'); ?></td>
+                            <td><?php echo (!empty($report['budget']) && (float)$report['budget'] > 0) ? '₱' . number_format((float)$report['budget'], 2) : '—'; ?></td>
                             <td><span class="rm-priority-badge"><?php echo htmlspecialchars($report['priority'] ?? '—'); ?></span></td>
                             <td><span class="rm-status-badge <?php echo htmlspecialchars(strtolower($report['status'] ?? 'approved')); ?>"><?php echo ucfirst(htmlspecialchars(str_replace(['-', '_'], ' ', (string)($report['status'] ?? 'approved')))); ?></span></td>
                             <td>
@@ -4757,7 +4954,7 @@ if ($focus_id > 0) {
 
                         <?php if (!$hasInfra): ?>
                         <tr>
-                            <td colspan="9">
+                            <td colspan="11">
                                 <div class="rm-empty-state">
                                     <div class="rm-empty-icon" style="background: rgba(249, 115, 22, 0.12);">
                                         <i class="fas fa-hard-hat t-text-cimm"></i>
@@ -5275,6 +5472,7 @@ if ($focus_id > 0) {
             _pendingDeleteType = null;
             _pendingDeleteTable = null;
             _pendingDeleteCimmIdx = null;
+            _pendingDeleteIpmsId = null;
         }
 
         function confirmDeleteAction() {
@@ -5303,6 +5501,18 @@ if ($focus_id > 0) {
                     '<input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">' +
                     '<input type="hidden" name="action" value="delete_cimm_report">' +
                     '<input type="hidden" name="report_id" value="' + r.id + '">';
+                document.body.appendChild(form);
+                form.submit();
+            } else if (_pendingDeleteIpmsId !== null) {
+                var id = _pendingDeleteIpmsId;
+                cancelDeleteConfirm();
+                if (!id) return;
+                var form = document.createElement('form');
+                form.method = 'POST';
+                form.innerHTML =
+                    '<input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">' +
+                    '<input type="hidden" name="action" value="delete_ipms_project">' +
+                    '<input type="hidden" name="report_id" value="' + id + '">';
                 document.body.appendChild(form);
                 form.submit();
             }
@@ -5755,9 +5965,27 @@ if ($focus_id > 0) {
         }
 
         function loadAssignedUsers() {
-            // Try to get values from both modals, use whichever has a valid reportId
-            let reportId = document.getElementById('editCimmReportId')?.value || document.getElementById('editReportId')?.value;
-            let reportType = document.getElementById('editCimmReportTable')?.value || document.getElementById('editReportTable')?.value;
+            // Read the report id/table from whichever modal is currently open.
+            const ipmsModal = document.getElementById('editIpmsModal');
+            const cimmModal = document.getElementById('editCimmModal');
+
+            let reportId = '';
+            let reportType = '';
+            let container;
+
+            if (ipmsModal && ipmsModal.style.display === 'block') {
+                reportId = document.getElementById('editIpmsReportId').value;
+                reportType = document.getElementById('editIpmsReportTable').value;
+                container = document.getElementById('assignedUsersListIpms');
+            } else if (cimmModal && cimmModal.style.display === 'block') {
+                reportId = document.getElementById('editCimmReportId').value;
+                reportType = document.getElementById('editCimmReportTable').value;
+                container = document.getElementById('assignedUsersListCimm');
+            } else {
+                reportId = document.getElementById('editReportId').value;
+                reportType = document.getElementById('editReportTable').value;
+                container = document.getElementById('assignedUsersListRegular');
+            }
 
             // System Admin may only view assigned staff — no Remove button.
             let role = '';
@@ -5765,12 +5993,7 @@ if ($focus_id > 0) {
             if (roleTag) role = roleTag.getAttribute('data-role') || '';
             const canRemoveStaff = (role !== 'system_admin');
             
-            // Determine which container to use based on which modal is open
-            const cimmModal = document.getElementById('editCimmModal');
-            const isCimmModal = cimmModal && cimmModal.style.display === 'block';
-            const container = document.getElementById(isCimmModal ? 'assignedUsersListCimm' : 'assignedUsersListRegular');
-            
-            console.log('loadAssignedUsers: reportId=', reportId, 'reportType=', reportType, 'container:', container, 'isCimmModal:', isCimmModal);
+            console.log('loadAssignedUsers: reportId=', reportId, 'reportType=', reportType, 'container:', container);
             
             if (!container) {
                 console.error('assignedUsersList container not found!');
@@ -5907,10 +6130,13 @@ if ($focus_id > 0) {
 
         function openAssignUserModal() {
             // Store which modal is currently open
+            const ipmsModal = document.getElementById('editIpmsModal');
             const cimmModal = document.getElementById('editCimmModal');
             const regularModal = document.getElementById('editReportModal');
             
-            if (cimmModal && cimmModal.style.display === 'block') {
+            if (ipmsModal && ipmsModal.style.display === 'block') {
+                originalModalBeforeAssign = 'ipms';
+            } else if (cimmModal && cimmModal.style.display === 'block') {
                 originalModalBeforeAssign = 'cimm';
             } else if (regularModal && regularModal.style.display === 'block') {
                 originalModalBeforeAssign = 'regular';
@@ -5920,7 +6146,11 @@ if ($focus_id > 0) {
             
             let reportId, reportType;
             
-            if (originalModalBeforeAssign === 'cimm') {
+            if (originalModalBeforeAssign === 'ipms') {
+                // Infrastructure (IPMS) modal
+                reportId = document.getElementById('editIpmsReportId').value;
+                reportType = document.getElementById('editIpmsReportTable').value;
+            } else if (originalModalBeforeAssign === 'cimm') {
                 // CIMM modal
                 reportId = document.getElementById('editCimmReportId').value;
                 reportType = document.getElementById('editCimmReportTable').value;
@@ -6045,12 +6275,18 @@ if ($focus_id > 0) {
             }
             
             // Check which modal is currently open
+            const ipmsModal = document.getElementById('editIpmsModal');
             const cimmModal = document.getElementById('editCimmModal');
+            const isIpmsModal = ipmsModal && ipmsModal.style.display === 'block';
             const isCimmModal = cimmModal && cimmModal.style.display === 'block';
             
             let reportId, reportType;
             
-            if (isCimmModal) {
+            if (isIpmsModal) {
+                // Infrastructure (IPMS) modal
+                reportId = document.getElementById('editIpmsReportId').value;
+                reportType = document.getElementById('editIpmsReportTable').value;
+            } else if (isCimmModal) {
                 // CIMM modal
                 reportId = document.getElementById('editCimmReportId').value;
                 reportType = document.getElementById('editCimmReportTable').value;
@@ -6081,7 +6317,9 @@ if ($focus_id > 0) {
                     selectedUserForAssignment = null;
                     
                     // Reopen the original modal
-                    if (originalModalBeforeAssign === 'cimm') {
+                    if (originalModalBeforeAssign === 'ipms') {
+                        openModal('editIpmsModal');
+                    } else if (originalModalBeforeAssign === 'cimm') {
                         openModal('editCimmModal');
                     } else {
                         openModal('editReportModal');
@@ -7426,7 +7664,26 @@ if ($focus_id > 0) {
             document.getElementById('editCimmRepNumber').value = r.report_id || '';
             document.getElementById('editCimmInfrastructure').value = r.title || '';
             document.getElementById('editCimmLocation').value = r.location || '';
-            document.getElementById('editCimmStatus').value = r.status || 'pending';
+
+            // The Status dropdown only offers Approved / In Progress. When the
+            // report's current status is outside that set (e.g. Completed or
+            // Cancelled), show it as a disabled, non-editable option so it is
+            // never silently coerced to "Approved".
+            var cimmStatusSelect = document.getElementById('editCimmStatus');
+            var currentCimmStatus = r.status || 'pending';
+            while (cimmStatusSelect.querySelector('option[data-current="1"]')) {
+                cimmStatusSelect.removeChild(cimmStatusSelect.querySelector('option[data-current="1"]'));
+            }
+            var allowedCimmStatuses = ['approved', 'in-progress'];
+            if (allowedCimmStatuses.indexOf(currentCimmStatus) === -1) {
+                var curOpt = document.createElement('option');
+                curOpt.value = currentCimmStatus;
+                curOpt.textContent = currentCimmStatus.replace(/-/g, ' ').replace(/\b\w/g, function(m) { return m.toUpperCase(); });
+                curOpt.disabled = true;
+                curOpt.setAttribute('data-current', '1');
+                cimmStatusSelect.appendChild(curOpt);
+            }
+            cimmStatusSelect.value = currentCimmStatus;
             document.getElementById('editCimmPriority').value = r.priority || 'medium';
             document.getElementById('editCimmEstimation').value = r.estimation || '';
             document.getElementById('editCimmNotes').value = r.notes || '';
@@ -7490,6 +7747,89 @@ if ($focus_id > 0) {
             .catch(function(err) {
                 console.error('Error:', err);
                 showNotification('Error updating CIMM report', 'error');
+                submitBtn.innerHTML = originalHTML;
+                submitBtn.disabled = false;
+                indicator.textContent = 'Error saving changes';
+            });
+        });
+
+        // Infrastructure (IPMS) edit
+        function editIpmsProject(id) {
+            var r = infraIpmsDataMap[id];
+            if (!r) return;
+            document.getElementById('editIpmsReportId').value = r.id;
+            document.getElementById('editIpmsRepNumber').value = r.report_id || '';
+            document.getElementById('editIpmsTitle').value = r.title || '';
+            document.getElementById('editIpmsDescription').value = r.description || '';
+            document.getElementById('editIpmsStartDate').value = r.start_date ? String(r.start_date).slice(0, 10) : '';
+            document.getElementById('editIpmsEndDate').value = (r.end_date || r.due_date) ? String(r.end_date || r.due_date).slice(0, 10) : '';
+            document.getElementById('editIpmsBudget').value = (r.budget != null && r.budget !== '' && Number(r.budget) !== 0) ? r.budget : '';
+            document.getElementById('editIpmsStartAddress').value = r.start_address || '';
+            document.getElementById('editIpmsEndAddress').value = r.end_address || '';
+            document.getElementById('editIpmsStatus').value = (r.status && r.status !== '—') ? r.status : 'approved';
+            document.getElementById('editIpmsPriority').value = (r.priority && r.priority !== '—') ? r.priority : 'medium';
+            document.getElementById('editIpmsReportTable').value = 'ipms_road_projects';
+            document.getElementById('ipmsEditIndicator').textContent = '';
+            document.getElementById('ipmsEditSubmitBtn').disabled = false;
+            document.getElementById('ipmsEditSubmitBtn').innerHTML = '<i class="fas fa-save"></i> Save Changes';
+            openModal('editIpmsModal');
+            loadAssignedUsers();
+        }
+
+        // Infrastructure (IPMS) delete
+        var _pendingDeleteIpmsId = null;
+
+        function deleteIpmsProject(id) {
+            var r = infraIpmsDataMap[id];
+            if (!r) return;
+            _pendingDeleteIpmsId = id;
+            _pendingDeleteCimmIdx = null;
+            _pendingDeleteReport = null;
+            _pendingDeleteType = null;
+            _pendingDeleteTable = null;
+            document.getElementById('deleteConfirmTitle').textContent = 'Delete Infrastructure Project';
+            document.getElementById('deleteConfirmMsg').textContent = 'Are you sure you want to delete infrastructure project "' + (r.report_id || '') + '"? It will be moved to the archive.';
+            document.getElementById('deleteConfirmInput').value = '';
+            document.getElementById('deleteConfirmInput').classList.remove('valid');
+            document.getElementById('deleteConfirmBtn').classList.remove('enabled');
+            document.getElementById('deleteConfirmOverlay').style.display = 'block';
+            setTimeout(function() { document.getElementById('deleteConfirmInput').focus(); }, 100);
+        }
+
+        // Infrastructure (IPMS) edit form submission
+        document.getElementById('editIpmsForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            var formData = new FormData(this);
+            var submitBtn = document.getElementById('ipmsEditSubmitBtn');
+            var indicator = document.getElementById('ipmsEditIndicator');
+            var originalHTML = submitBtn.innerHTML;
+
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+            submitBtn.disabled = true;
+            indicator.textContent = 'Saving changes...';
+
+            fetch('', {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: formData
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                submitBtn.innerHTML = originalHTML;
+                submitBtn.disabled = false;
+                if (data.success) {
+                    showNotification(data.message || 'Infrastructure project updated successfully', 'success');
+                    closeModal('editIpmsModal');
+                    indicator.textContent = '';
+                    setTimeout(function() { window.location.reload(); }, 800);
+                } else {
+                    showNotification(data.message || 'Failed to update infrastructure project', 'error');
+                    indicator.textContent = 'Failed to save changes';
+                }
+            })
+            .catch(function(err) {
+                console.error('Error:', err);
+                showNotification('Error updating infrastructure project', 'error');
                 submitBtn.innerHTML = originalHTML;
                 submitBtn.disabled = false;
                 indicator.textContent = 'Error saving changes';

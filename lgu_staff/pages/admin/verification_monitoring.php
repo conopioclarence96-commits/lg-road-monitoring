@@ -5722,7 +5722,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <div class="infra-reports-search">
                 <div class="infra-search-wrapper">
                     <i class="fas fa-search"></i>
-                    <input type="text" class="infra-search-input" id="infraSearchInput" placeholder="Search by Rep #, Infrastructure, Location, Engineer, Priority...">
+                    <input type="text" class="infra-search-input" id="infraSearchInput" placeholder="Search by Rep #, Infrastructure, Location, Engineer...">
                 </div>
                 <button class="infra-sort-btn" onclick="toggleInfraSort()">
                     <i class="fas fa-sort"></i> Sort
@@ -5739,10 +5739,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <th>Location</th>
                             <th>Issue / Notes</th>
                             <th>Engineer</th>
-                            <th>Reported By</th>
                             <th>Start Date</th>
                             <th>End Date</th>
-                            <th>Priority</th>
                             <th>Budget</th>
                             <th>Status</th>
                         </tr>
@@ -5793,10 +5791,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <td><?php echo htmlspecialchars($irow['location'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars(strlen($irow['issue_notes'] ?? '') > 40 ? substr($irow['issue_notes'], 0, 40) . '...' : ($irow['issue_notes'] ?? '—')); ?></td>
                             <td><?php echo htmlspecialchars($irow['engineer'] ?: '—'); ?></td>
-                            <td><?php echo htmlspecialchars($irow['reporter_name'] ?? '—'); ?></td>
                             <td><?php echo $irow['start_date'] ? date('M d, Y', strtotime($irow['start_date'])) : '—'; ?></td>
                             <td><?php echo $irow['end_date'] ? date('M d, Y', strtotime($irow['end_date'])) : '—'; ?></td>
-                            <td><span class="infra-status-badge <?php echo in_array(strtolower((string)$irow['priority']), ['high', 'medium', 'low', 'critical'], true) ? htmlspecialchars(strtolower((string)$irow['priority'])) : ''; ?>"><?php echo ucfirst(htmlspecialchars($irow['priority'])); ?></span></td>
                             <td><?php echo $irow['budget'] ? '₱' . number_format((float)$irow['budget'], 2) : '—'; ?></td>
                             <td><span class="infra-status-badge <?php echo $istatus_class; ?>"><?php echo ucfirst(htmlspecialchars(str_replace(['-', '_'], ' ', $irow['status']))); ?></span></td>
                         </tr>
@@ -5807,7 +5803,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
                         <?php if (!$hasInfraReports): ?>
                         <tr>
-                            <td colspan="12">
+                            <td colspan="10">
                                 <div class="infra-empty-state">
                                     <div class="infra-empty-icon">
                                         <i class="fas fa-hard-hat"></i>
@@ -6596,7 +6592,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     title: <?php echo json_encode($ir['title']); ?>,
                     report_type: <?php echo json_encode($ir['report_type']); ?>,
                     department: <?php echo json_encode($ir['department']); ?>,
-                    priority: <?php echo json_encode($ir['priority']); ?>,
                     status: <?php echo json_encode($ir['status']); ?>,
                     location: <?php echo json_encode($ir['location']); ?>,
                     start_address: <?php echo json_encode($ir['start_address'] ?? null); ?>,
@@ -6605,7 +6600,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     created_date: <?php echo json_encode($ir['created_date']); ?>,
                     created_at: <?php echo json_encode($ir['created_at']); ?>,
                     due_date: <?php echo json_encode($ir['due_date']); ?>,
-                    reporter_name: <?php echo json_encode($ir['reporter_name'] ?? '—'); ?>,
                     estimated_cost: <?php echo json_encode($ir['estimated_cost'] ?? null); ?>,
                     actual_cost: <?php echo json_encode($ir['actual_cost'] ?? null); ?>,
 maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
@@ -6772,7 +6766,7 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
 
             if (!reports.length) {
                 tbody.innerHTML =
-                    '<tr><td colspan="12"><div class="infra-empty-state">' +
+                    '<tr><td colspan="10"><div class="infra-empty-state">' +
                     '<div class="infra-empty-icon"><i class="fas fa-hard-hat"></i></div>' +
                     '<p>No infrastructure projects at this time.</p>' +
                     '</div></td></tr>';
@@ -6784,13 +6778,8 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
                 var id = parseInt(row.id, 10) || 0;
                 var source = row.source || 'maintenance';
                 var status = String(row.status || '');
-                var priority = String(row.priority || '—');
-                var priorityClass = ['high', 'medium', 'low', 'critical'].indexOf(priority.toLowerCase()) !== -1
-                    ? priority.toLowerCase()
-                    : '';
                 var statusLabel = status.replace(/[-_]/g, ' ');
                 statusLabel = statusLabel ? statusLabel.charAt(0).toUpperCase() + statusLabel.slice(1) : '—';
-                var priorityLabel = priority ? priority.charAt(0).toUpperCase() + priority.slice(1) : '—';
                 var notes = truncateInfraText(row.issue_notes, 40);
                 var budget = (row.budget != null && row.budget !== '' && Number(row.budget) !== 0)
                     ? formatCurrency(row.budget)
@@ -6804,7 +6793,6 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
                     title: row.title,
                     report_type: row.report_type,
                     department: row.department,
-                    priority: row.priority,
                     status: row.status,
                     location: row.location,
                     start_address: row.start_address || null,
@@ -6813,7 +6801,6 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
                     created_date: row.created_date,
                     created_at: row.created_at,
                     due_date: row.due_date,
-                    reporter_name: row.reporter_name || '—',
                     estimated_cost: row.estimated_cost || null,
                     actual_cost: row.actual_cost || null,
                     maintenance_team: row.maintenance_team || '—',
@@ -6842,10 +6829,8 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
                 html += '<td>' + escapeInfraHtml(row.location || '—') + '</td>';
                 html += '<td>' + escapeInfraHtml(notes) + '</td>';
                 html += '<td>' + escapeInfraHtml(row.engineer || '—') + '</td>';
-                html += '<td>' + escapeInfraHtml(row.reporter_name || '—') + '</td>';
                 html += '<td>' + escapeInfraHtml(formatDate(row.start_date)) + '</td>';
                 html += '<td>' + escapeInfraHtml(formatDate(row.end_date)) + '</td>';
-                html += '<td><span class="infra-status-badge ' + escapeInfraHtml(priorityClass) + '">' + escapeInfraHtml(priorityLabel) + '</span></td>';
                 html += '<td>' + escapeInfraHtml(budget) + '</td>';
                 html += '<td><span class="infra-status-badge ' + escapeInfraHtml(infraStatusClass(status)) + '">' + escapeInfraHtml(statusLabel) + '</span></td>';
                 html += '</tr>';
@@ -6930,11 +6915,6 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
                 'cancelled':  {bg:'rgba(220,53,69,0.15)',  color:'#ef4444'},
                 'in-progress':{bg:'rgba(59,130,246,0.15)', color:'#3b82f6'}
             };
-            var pStyles = {
-                'high':   {bg:'rgba(220,53,69,0.15)', color:'#ef4444'},
-                'medium': {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
-                'low':    {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'}
-            };
 
             // Header
             document.getElementById('infra-report-id').textContent = 'Report #' + (r.report_id || '—');
@@ -6942,13 +6922,10 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
 
             var st = (r.status || 'pending').toLowerCase();
             var ss = statusStyles[st] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
-            var pp = (r.priority || 'medium').toLowerCase();
-            var ps = pStyles[pp] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
 
             var sourceLabel = source === 'transport' ? 'Road & Transportation' : 'Maintenance';
             var badgesHtml = infraBadge(r.status || '—', ss.bg, ss.color);
             badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(249,115,22,0.12);color:#f97316;">' + sourceLabel + '</span>';
-            badgesHtml += infraBadge(r.priority || '—', ps.bg, ps.color);
             document.getElementById('infra-badges').innerHTML = badgesHtml;
 
             // Project Information
@@ -6969,7 +6946,6 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
 
             // Reporter & Department
             var peopleGrid = '';
-            peopleGrid += infraInfoItem('user', 'Reported By', r.reporter_name);
             peopleGrid += infraInfoItem('hard-hat', 'Maintenance Team', r.maintenance_team);
             document.getElementById('infra-people-grid').innerHTML = peopleGrid;
 

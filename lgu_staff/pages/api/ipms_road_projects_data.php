@@ -68,6 +68,7 @@ function rgmap_ensure_ipms_road_projects_table(PDO $pdo): void {
         synced_at           TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
         status              VARCHAR(50)  NULL DEFAULT NULL,
+        priority            VARCHAR(20)  NULL DEFAULT NULL,
         start_address       VARCHAR(100) NULL DEFAULT NULL,
         end_address         VARCHAR(100) NULL DEFAULT NULL,
         UNIQUE KEY uq_ipms_project (project_id),
@@ -100,6 +101,10 @@ function rgmap_ensure_ipms_road_projects_table(PDO $pdo): void {
     $existingEndAddr = $pdo->query("SHOW COLUMNS FROM ipms_road_projects LIKE 'end_address'")->fetchAll();
     if (empty($existingEndAddr)) {
         $pdo->exec("ALTER TABLE ipms_road_projects ADD COLUMN end_address VARCHAR(100) NULL DEFAULT NULL AFTER start_address");
+    }
+    $existingPriority = $pdo->query("SHOW COLUMNS FROM ipms_road_projects LIKE 'priority'")->fetchAll();
+    if (empty($existingPriority)) {
+        $pdo->exec("ALTER TABLE ipms_road_projects ADD COLUMN priority VARCHAR(20) NULL DEFAULT NULL AFTER status");
     }
 }
 
@@ -376,7 +381,7 @@ function rgmap_infra_panel_rows(?PDO $pdo = null, string $workflowStatus = 'pend
             'infrastructure'   => trim((string)($proj['road_type'] ?? '')),
             'report_type'      => trim((string)($proj['road_type'] ?? '')) ?: 'infrastructure_issue',
             'department'       => 'Engineering',
-            'priority'         => '—',
+            'priority'         => trim((string)($proj['priority'] ?? '')) ?: '—',
             'status'           => (string)($proj['status'] ?? $workflowStatus),
             'location'         => (is_array($proj['barangays_covered'] ?? null) && count($proj['barangays_covered']))
                 ? implode(', ', array_filter(array_map('trim', array_map('strval', $proj['barangays_covered'])), fn($b) => $b !== ''))
