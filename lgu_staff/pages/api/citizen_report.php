@@ -211,22 +211,19 @@ function handleSubmitReport() {
         try {
             $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS reporter_name VARCHAR(100) AFTER reporter_email");
             $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS reporter_phone VARCHAR(20) AFTER reporter_name");
-            $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS receive_email_updates TINYINT(1) NOT NULL DEFAULT 0 AFTER reporter_phone");
         } catch (Exception $e) {
             error_log("citizen_report column migration: " . $e->getMessage());
         }
 
-        $emailUpdates = (!empty($_POST['email_updates']) && (string)$_POST['email_updates'] !== '0') ? 1 : 0;
-
         $stmt = $conn->prepare("INSERT INTO road_transportation_reports 
             (report_id, report_type, report_category, report_source, title, description, 
              latitude, longitude, location, severity, priority, status, created_date, 
-             reporter_email, reporter_name, reporter_phone, attachments, image_path, created_by, receive_email_updates)
-            VALUES (?, ?, 'transportation', 'local', ?, ?, ?, ?, ?, ?, ?, 'pending', CURDATE(), ?, ?, ?, ?, ?, 0, ?)");
+             reporter_email, reporter_name, reporter_phone, attachments, image_path, created_by)
+            VALUES (?, ?, 'transportation', 'local', ?, ?, ?, ?, ?, ?, ?, 'pending', CURDATE(), ?, ?, ?, ?, ?, 0)");
 
         $location = $_POST['address'] ?? 'Pinned location';
         $attachmentsJson = json_encode($attachments);
-        $stmt->bind_param('ssssssssssssssi',
+        $stmt->bind_param('ssssssssssssss',
             $reportId,
             $issueType,
             $title,
@@ -240,8 +237,7 @@ function handleSubmitReport() {
             $reporterName,
             $reporterPhone,
             $attachmentsJson,
-            $imagePath,
-            $emailUpdates
+            $imagePath
         );
 
         if ($stmt->execute()) {

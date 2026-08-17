@@ -174,7 +174,6 @@ CREATE TABLE IF NOT EXISTS `road_transportation_reports` (
   `longitude` DECIMAL(11,8) NULL,
   `reporter_name` VARCHAR(100),
   `reporter_email` VARCHAR(100),
-  `receive_email_updates` TINYINT(1) NOT NULL DEFAULT 0,
   `severity` ENUM('low', 'medium', 'high', 'critical'),
   `reported_date` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `resolved_date` TIMESTAMP NULL,

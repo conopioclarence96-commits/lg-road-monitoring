@@ -1961,32 +1961,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             color: var(--qc-primary-900);
             margin-bottom: 12px;
         }
-        .cr-email-updates {
-            display: flex;
-            align-items: flex-start;
-            gap: 10px;
-            margin: 0 0 16px;
-            padding: 12px 14px;
-            background: #f4f8fb;
-            border: 1px solid var(--qc-card-border);
-            border-radius: 10px;
-        }
-        .cr-email-updates input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            margin-top: 2px;
-            flex-shrink: 0;
-            accent-color: var(--qc-primary-500);
-            cursor: pointer;
-        }
-        .cr-email-updates label {
-            margin: 0;
-            font-weight: 500;
-            font-size: 0.9rem;
-            color: var(--qc-primary-900);
-            cursor: pointer;
-            line-height: 1.4;
-        }
         .cr-otp-row {
             display: flex;
             gap: 10px;
@@ -2414,8 +2388,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         html.dark-mode .modal-content { border-color: #2d323b; }
         html.dark-mode .citizen-report-hint { color: #9ca3af; }
         html.dark-mode .cr-verification-box { background: #171a1f; border-color: #333; }
-        html.dark-mode .cr-email-updates { background: #171a1f; border-color: #333; }
-        html.dark-mode .cr-email-updates label { color: #cbd5e1; }
         html.dark-mode .cr-form-group select,
         html.dark-mode .cr-form-group input,
         html.dark-mode .cr-form-group textarea,
@@ -2729,11 +2701,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                 <button type="button" class="cr-btn cr-btn-success" id="verifyOtpBtn" disabled><i class="fas fa-check"></i> Verify</button>
                             </div>
                             <div id="crOtpStatus" class="cr-status" role="status" aria-live="polite"></div>
-                        </div>
-
-                        <div class="cr-email-updates">
-                            <input type="checkbox" id="crEmailUpdates" name="email_updates" value="1">
-                            <label for="crEmailUpdates">Receive email updates about my report</label>
                         </div>
                     </form>
                 </div>
