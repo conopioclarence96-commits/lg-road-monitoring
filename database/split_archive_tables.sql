@@ -7,6 +7,11 @@
 --   road_transportation_reports -> road_transportation_reports_archive (unchanged)
 --
 -- Also creates ipms_sync_exclusions so Delete Forever is not undone by IPMS Sync.
+--
+-- NOTE: A current source dump (e.g. rgmap_lg_road_monitoring (20).sql) already
+-- contains these three tables. After importing that dump you do not need this
+-- script for schema — re-running it only fills leftover remapped rows (if any)
+-- from road_transportation_reports_archive.
 
 -- ---------------------------------------------------------------------------
 -- CIMM archive (same columns as live + archive metadata)
@@ -49,6 +54,7 @@ CREATE TABLE IF NOT EXISTS `ipms_sync_exclusions` (
 
 -- ---------------------------------------------------------------------------
 -- Move existing remapped CIMM rows out of the shared archive
+-- (column list matches road_transportation_reports_archive in the current dump)
 -- ---------------------------------------------------------------------------
 INSERT IGNORE INTO `cimm_verification_reports_archive` (
   `cimm_req_id`,
@@ -118,6 +124,9 @@ WHERE `archived_from` = 'cimm_verification_reports'
 
 -- ---------------------------------------------------------------------------
 -- Move existing remapped IPMS rows out of the shared archive
+-- Uses only columns that exist on the current dump's shared archive.
+-- polyline / start_address / end_address are NULL here (those columns are
+-- not on road_transportation_reports_archive in the source dump).
 -- ---------------------------------------------------------------------------
 INSERT IGNORE INTO `ipms_road_projects_archive` (
   `project_id`,
@@ -158,12 +167,12 @@ SELECT
   COALESCE(NULLIF(`location`, ''), COALESCE(NULLIF(`title`, ''), 'Unnamed Road')),
   COALESCE(NULLIF(`report_type`, ''), 'unknown'),
   COALESCE(`description`, ''),
-  `ipms_polyline_json`,
+  NULL,
   `latitude`,
   `longitude`,
   COALESCE(`budget_allocation`, `cimm_budget`),
-  `start_address`,
-  `end_address`,
+  NULL,
+  NULL,
   COALESCE(`status`, 'rejected'),
   COALESCE(`priority`, 'medium'),
   COALESCE(`created_at`, NOW()),
