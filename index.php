@@ -61,13 +61,33 @@ function road_updates_resolve_image_url($path, $basePath) {
     return '';
 }
 
+/**
+ * Safely format a date string. Returns a fallback if the value is empty or
+ * unparseable, avoiding PHP deprecation warnings from strtotime(false|null).
+ */
+function safe_date_fmt($date, $format = 'M d, Y', $fallback = '—') {
+    if (empty($date)) return $fallback;
+    $ts = @strtotime((string)$date);
+    return ($ts !== false && $ts > 0) ? date($format, $ts) : $fallback;
+}
+
 // Try to include database files with error handling
 $database_available = false;
 $conn = null;
 
-require_once 'lgu_staff/includes/config.php';
-require_once 'lgu_staff/includes/functions.php';
-$database_available = true;
+try {
+    require_once 'lgu_staff/includes/config.php';
+    require_once 'lgu_staff/includes/functions.php';
+    $database_available = true;
+} catch (Exception $e) {
+    error_log("index.php: failed to load database config: " . $e->getMessage());
+    $database_available = false;
+    $conn = null;
+} catch (Error $e) {
+    error_log("index.php: failed to load database config (fatal): " . $e->getMessage());
+    $database_available = false;
+    $conn = null;
+}
 
 // Get latest road updates for display
 $road_updates = [];
@@ -75,9 +95,16 @@ if ($database_available && $conn) {
     try {
         // Check if the expected columns exist
         $stmt = $conn->prepare("DESCRIBE road_transportation_reports");
+        if (!$stmt) {
+            error_log("index.php: DESCRIBE road_transportation_reports failed: " . $conn->error);
+            throw new Exception("prepare failed");
+        }
         $stmt->execute();
         $result = $stmt->get_result();
-        
+        if (!$result) {
+            $stmt->close();
+            throw new Exception("get_result failed");
+        }
         $has_attachments = false;
         $has_title = false;
         $has_description = false;
@@ -103,6 +130,10 @@ if ($database_available && $conn) {
         $order_field = $has_reported_date ? "reported_date" : "created_at";
         
         $stmt = $conn->prepare("SELECT $select_fields FROM road_transportation_reports ORDER BY $order_field DESC LIMIT 3");
+        if (!$stmt) {
+            error_log("index.php: road updates SELECT failed: " . $conn->error);
+            throw new Exception("prepare failed");
+        }
         $stmt->execute();
         $result = $stmt->get_result();
         while ($row = $result->fetch_assoc()) {
@@ -121,23 +152,25 @@ if ($database_available && $conn) {
                  WHERE ru.report_id IN ($placeholders) AND rum.file_type = 'image'
                  ORDER BY rum.id ASC"
             );
-            $media_stmt->bind_param($types, ...$ids);
-            $media_stmt->execute();
-            $media_result = $media_stmt->get_result();
-            $media_by_report = [];
-            while ($m = $media_result->fetch_assoc()) {
-                $rid = $m['report_id'];
-                if (!isset($media_by_report[$rid])) {
-                    $media_by_report[$rid] = $m['file_path'];
+            if ($media_stmt) {
+                $media_stmt->bind_param($types, ...$ids);
+                $media_stmt->execute();
+                $media_result = $media_stmt->get_result();
+                $media_by_report = [];
+                while ($m = $media_result->fetch_assoc()) {
+                    $rid = $m['report_id'];
+                    if (!isset($media_by_report[$rid])) {
+                        $media_by_report[$rid] = $m['file_path'];
+                    }
                 }
-            }
-            $media_stmt->close();
-            foreach ($road_updates as &$upd) {
-                if (empty($upd['_first_image']) && !empty($media_by_report[$upd['id']])) {
-                    $upd['_first_image'] = $media_by_report[$upd['id']];
+                $media_stmt->close();
+                foreach ($road_updates as &$upd) {
+                    if (empty($upd['_first_image']) && !empty($media_by_report[$upd['id']])) {
+                        $upd['_first_image'] = $media_by_report[$upd['id']];
+                    }
                 }
+                unset($upd);
             }
-            unset($upd);
         }
     } catch (Exception $e) {
         // Log details internally, return a safe generic empty state to users
@@ -156,35 +189,29 @@ $stats = [
 
 if ($database_available && $conn) {
     try {
-        // Total reports
-        $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports");
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $stats['total_reports'] = $result->fetch_assoc()['count'];
-        $stmt->close();
-        
-        // Ongoing repairs (in-progress status)
-        $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'in-progress'");
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $stats['ongoing_repairs'] = $result->fetch_assoc()['count'];
-        $stmt->close();
-        
-        // Resolved issues (completed status)
-        $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'completed'");
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $stats['resolved_issues'] = $result->fetch_assoc()['count'];
-        $stmt->close();
-        
-        // Pending reports
-        $stmt = $conn->prepare("SELECT COUNT(*) as count FROM road_transportation_reports WHERE status = 'pending'");
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $stats['pending_reports'] = $result->fetch_assoc()['count'];
-        $stmt->close();
+        $stmt = $conn->prepare(
+            "SELECT
+                COUNT(*) AS total_reports,
+                SUM(status = 'in-progress') AS ongoing_repairs,
+                SUM(status = 'completed') AS resolved_issues,
+                SUM(status = 'pending') AS pending_reports
+             FROM road_transportation_reports"
+        );
+        if ($stmt) {
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result) {
+                $row = $result->fetch_assoc();
+                $stats['total_reports']  = (int)($row['total_reports'] ?? 0);
+                $stats['ongoing_repairs'] = (int)($row['ongoing_repairs'] ?? 0);
+                $stats['resolved_issues'] = (int)($row['resolved_issues'] ?? 0);
+                $stats['pending_reports'] = (int)($row['pending_reports'] ?? 0);
+            }
+            $stmt->close();
+        } else {
+            error_log("index.php: stats query prepare failed: " . $conn->error);
+        }
     } catch (Exception $e) {
-        // Log details internally, keep default zeroed stats for display
         error_log("index.php statistics query: " . $e->getMessage());
     }
 }
@@ -193,7 +220,11 @@ if ($database_available && $conn) {
 $before_after_projects = [];
 if ($database_available && $conn) {
     try {
-        $stmt = $conn->prepare("SELECT id, title, description, location, completed_date, cost, completed_by, photo, before_photo FROM published_completed_projects WHERE photo IS NOT NULL AND photo != '' AND is_published = 1 ORDER BY completed_date DESC LIMIT 6");
+        $stmt = $conn->prepare("SELECT id, title, description, location, completed_date, cost, completed_by, photo, before_photo, category FROM published_completed_projects WHERE photo IS NOT NULL AND photo != '' AND is_published = 1 ORDER BY completed_date DESC");
+        if (!$stmt) {
+            error_log("index.php: completed projects query prepare failed: " . $conn->error);
+            throw new Exception("prepare failed");
+        }
         $stmt->execute();
         $result = $stmt->get_result();
         while ($row = $result->fetch_assoc()) {
@@ -213,8 +244,16 @@ if ($database_available && $conn) {
     try {
         // Check if the expected columns exist
         $stmt = $conn->prepare("DESCRIBE infrastructure_projects");
+        if (!$stmt) {
+            error_log("index.php: DESCRIBE infrastructure_projects failed: " . $conn->error);
+            throw new Exception("prepare failed");
+        }
         $stmt->execute();
         $result = $stmt->get_result();
+        if (!$result) {
+            $stmt->close();
+            throw new Exception("get_result failed");
+        }
 
         $has_name = false;
         $has_location = false;
@@ -262,6 +301,10 @@ if ($database_available && $conn) {
         $infra_sql .= " ORDER BY $order_field DESC LIMIT 3";
 
         $stmt = $conn->prepare($infra_sql);
+        if (!$stmt) {
+            error_log("index.php: infrastructure projects SELECT failed: " . $conn->error);
+            throw new Exception("prepare failed");
+        }
         $stmt->execute();
         $result = $stmt->get_result();
         while ($row = $result->fetch_assoc()) {
@@ -269,7 +312,6 @@ if ($database_available && $conn) {
         }
         $stmt->close();
     } catch (Exception $e) {
-        // Log details internally, show the generic "projects coming soon" state
         error_log("index.php infrastructure project updates query: " . $e->getMessage());
         $infrastructure_updates = [];
     }
@@ -298,6 +340,8 @@ if ($database_available && $conn) {
         $infra_res = $conn->query($infra_sql);
         if ($infra_res) {
             while ($row = $infra_res->fetch_assoc()) $infra_reports[] = $row;
+        } else {
+            error_log("index.php: infrastructure reports (transport) query failed: " . $conn->error);
         }
 
         // Infrastructure projects stored in the maintenance table.
@@ -305,17 +349,59 @@ if ($database_available && $conn) {
         $maint_res = $conn->query($maint_sql);
         if ($maint_res) {
             while ($row = $maint_res->fetch_assoc()) $infra_reports[] = $row;
+        } else {
+            error_log("index.php: infrastructure reports (maintenance) query failed: " . $conn->error);
+        }
+
+        // IPMS road projects synced into the system and approved by admin.
+        if ($conn->query("SHOW TABLES LIKE 'ipms_road_projects'")->num_rows > 0) {
+            $ipms_sql = "SELECT id, project_id, project_name, project_status, status_bucket,
+                progress_percent, start_date, end_date, road_name, road_type, road_status,
+                start_lat, start_lng, end_lat, end_lng, budget, assigned_engineers_json,
+                created_at, status, priority, start_address, end_address
+                FROM ipms_road_projects
+                WHERE status IN ('approved','completed')";
+            $ipms_res = @$conn->query($ipms_sql);
+            if ($ipms_res) {
+                while ($row = $ipms_res->fetch_assoc()) {
+                    $engineers = [];
+                    if (!empty($row['assigned_engineers_json'])) {
+                        $decoded = json_decode($row['assigned_engineers_json'], true);
+                        if (is_array($decoded)) $engineers = $decoded;
+                    }
+                    $location = $row['start_address'] ?: $row['road_name'];
+                    $infra_reports[] = [
+                        'id'            => 'ipms_' . $row['id'],
+                        'report_id'     => 'IPMS-' . $row['project_id'],
+                        'title'         => $row['project_name'],
+                        'description'   => $row['road_status'] . ($row['road_name'] ? ' — ' . $row['road_name'] : ''),
+                        'location'      => $location,
+                        'latitude'      => $row['start_lat'],
+                        'longitude'     => $row['start_lng'],
+                        'priority'      => $row['priority'] ?: 'medium',
+                        'status'        => $row['status'] ?: 'approved',
+                        'assigned_to'   => implode(', ', $engineers),
+                        'department'    => 'IPMS',
+                        'created_at'    => $row['created_at'],
+                        'estimation'    => $row['budget'],
+                        'report_type'   => 'ipms_project',
+                        'source_system' => 'ipms',
+                        '_ipms_progress'=> (int)$row['progress_percent'],
+                        '_ipms_start_date' => $row['start_date'] ?? null,
+                        '_ipms_end_date'   => $row['end_date'] ?? null,
+                    ];
+                }
+            }
         }
 
         // Newest first.
         usort($infra_reports, function ($a, $b) {
-            $ta = $a['created_at'] ?? $a['created_date'] ?? '';
-            $tb = $b['created_at'] ?? $b['created_date'] ?? '';
-            return strtotime($tb) - strtotime($ta);
+            $ta = strtotime($a['created_at'] ?? $a['created_date'] ?? '') ?: 0;
+            $tb = strtotime($b['created_at'] ?? $b['created_date'] ?? '') ?: 0;
+            return $tb - $ta;
         });
         $infra_reports = array_slice($infra_reports, 0, 12);
     } catch (Exception $e) {
-        // Log details internally, show the generic "no verified projects" state
         error_log("index.php infrastructure reports query: " . $e->getMessage());
         $infra_reports = [];
     }
@@ -988,36 +1074,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             gap: 20px;
         }
 
-        .footer-follow-label {
-            font-weight: 600;
-            font-size: 0.9rem;
-            margin-bottom: 8px;
-            color: rgba(255, 255, 255, 0.95);
-        }
-
-        .footer-social-row {
-            display: flex;
-            gap: 10px;
-        }
-
-        .footer-social-circle {
-            width: 34px;
-            height: 34px;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.92);
-            color: #165b79;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 15px;
-            transition: transform 0.2s ease, color 0.2s ease;
-        }
-
-        .footer-social-circle:hover {
-            transform: translateY(-2px);
-            color: #0e2f43;
-        }
-
         .footer-contact-row {
             display: flex;
             align-items: center;
@@ -1112,10 +1168,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             .footer-top-row {
                 flex-direction: column;
                 text-align: center;
-            }
-
-            .footer-social-row {
-                justify-content: center;
             }
 
             .footer-contact-row {
@@ -2774,7 +2826,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                     
                                     <small class="text-muted">
                                         <i class="fas fa-calendar"></i> 
-                                        <?php echo date('M d, Y', strtotime($update['reported_date'] ?? 'now')); ?>
+                                        <?php echo safe_date_fmt($update['reported_date'] ?? ''); ?>
                                     </small>
                                 </div>
                             </div>
@@ -2878,7 +2930,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                             <span><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($proj['location']); ?></span>
                             <?php endif; ?>
                             <?php if (!empty($proj['completed_date'])): ?>
-                            <span><i class="fas fa-calendar-check"></i> <?php echo date('M d, Y', strtotime($proj['completed_date'])); ?></span>
+                            <span><i class="fas fa-calendar-check"></i> <?php echo safe_date_fmt($proj['completed_date']); ?></span>
                             <?php endif; ?>
                         </div>
                         <?php if (!empty($proj['cost'])): ?>
@@ -2979,10 +3031,10 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
                                     <div class="before-after-meta">
                                         <?php if (!empty($project['start_date'])): ?>
-                                        <span><i class="fas fa-calendar-check"></i> <?php echo date('M d, Y', strtotime($project['start_date'])); ?></span>
+                                        <span><i class="fas fa-calendar-check"></i> <?php echo safe_date_fmt($project['start_date']); ?></span>
                                         <?php endif; ?>
                                         <?php if (!empty($project['end_date'])): ?>
-                                        <span><i class="fas fa-flag-checkered"></i> <?php echo date('M d, Y', strtotime($project['end_date'])); ?></span>
+                                        <span><i class="fas fa-flag-checkered"></i> <?php echo safe_date_fmt($project['end_date']); ?></span>
                                         <?php endif; ?>
                                     </div>
 
@@ -3041,6 +3093,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         'preventive' => 'Preventive Maintenance',
                         'corrective' => 'Corrective Maintenance',
                         'scheduled' => 'Scheduled Maintenance',
+                        'ipms_project' => 'IPMS Project',
                     ];
                     $infra_progress_map = [
                         'approved' => 30,
@@ -3056,14 +3109,17 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         $infraHasRows = true;
                         $infra_status_key = strtolower(str_replace(' ', '-', $infra_report['status'] ?? ''));
                         $infra_priority = $infra_report['priority'] ?? 'medium';
-                        $infra_progress = $infra_progress_map[$infra_status_key] ?? 10;
+                        $infra_progress = isset($infra_report['_ipms_progress'])
+                            ? $infra_report['_ipms_progress']
+                            : ($infra_progress_map[$infra_status_key] ?? 10);
                         $infra_search_data = strtolower(
                             ($infra_report['report_id'] ?? '') . ' ' .
                             ($infra_report['title'] ?? '') . ' ' .
                             ($infra_report['location'] ?? '') . ' ' .
                             ($infra_report['department'] ?? '') . ' ' .
                             ($infra_report['status'] ?? '') . ' ' .
-                            ($infra_report['priority'] ?? '')
+                            ($infra_report['priority'] ?? '') . ' ' .
+                            ($infra_report['assigned_to'] ?? '')
                         );
                     ?>
                     <div class="infra-project-card" data-id="<?php echo htmlspecialchars($infra_report['report_id'] ?? '', ENT_QUOTES); ?>" data-search="<?php echo htmlspecialchars($infra_search_data, ENT_QUOTES); ?>" data-lat="<?php echo htmlspecialchars($infra_report['latitude'] ?? '', ENT_QUOTES); ?>" data-lng="<?php echo htmlspecialchars($infra_report['longitude'] ?? '', ENT_QUOTES); ?>" data-loc="<?php echo htmlspecialchars($infra_report['location'] ?? '', ENT_QUOTES); ?>" data-status="<?php echo htmlspecialchars($infra_status_key, ENT_QUOTES); ?>">
@@ -3111,8 +3167,24 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                 <div class="infra-meta-row">
                                     <i class="fas fa-calendar-check"></i>
                                     <span class="infra-meta-label">Created</span>
-                                    <span class="infra-meta-value"><?php echo !empty($infra_report['created_at']) ? date('M d, Y', strtotime($infra_report['created_at'])) : '—'; ?></span>
+                                    <span class="infra-meta-value"><?php echo safe_date_fmt($infra_report['created_at'] ?? ''); ?></span>
                                 </div>
+                                <?php if (($infra_report['report_type'] ?? '') === 'ipms_project'): ?>
+                                <?php if (!empty($infra_report['_ipms_start_date'])): ?>
+                                <div class="infra-meta-row">
+                                    <i class="fas fa-calendar-alt"></i>
+                                    <span class="infra-meta-label">Start</span>
+                                    <span class="infra-meta-value"><?php echo safe_date_fmt($infra_report['_ipms_start_date']); ?></span>
+                                </div>
+                                <?php endif; ?>
+                                <?php if (!empty($infra_report['_ipms_end_date'])): ?>
+                                <div class="infra-meta-row">
+                                    <i class="fas fa-calendar-minus"></i>
+                                    <span class="infra-meta-label">End</span>
+                                    <span class="infra-meta-value"><?php echo safe_date_fmt($infra_report['_ipms_end_date']); ?></span>
+                                </div>
+                                <?php endif; ?>
+                                <?php endif; ?>
                             </div>
 
                             <div class="infra-project-progress">
@@ -3128,7 +3200,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                             <div class="infra-project-desc" hidden>
                                 <p><?php echo nl2br(htmlspecialchars($infra_report['description'] ?? 'No additional details provided for this project.')); ?></p>
                                 <?php if (($infra_report['status'] ?? '') === 'approved' && !empty($infra_report['approved_at'])): ?>
-                                    <span class="infra-reports-verified"><i class="fas fa-check-circle"></i> Verified: <?php echo date('M d, Y', strtotime($infra_report['approved_at'])); ?></span>
+                                    <span class="infra-reports-verified"><i class="fas fa-check-circle"></i> Verified: <?php echo safe_date_fmt($infra_report['approved_at'] ?? ''); ?></span>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -3273,7 +3345,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     <footer class="qc-footer">
         <div class="container">
             <div class="footer-top-row">
-                <div>
                 <div class="footer-contact-row">
                     <a href="tel:+63289881234" class="footer-contact-item"><i class="fas fa-phone-alt"></i> (02) 8988-1234</a>
                     <span class="contact-separator"></span>
@@ -3341,10 +3412,12 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
         var PROJECTS = <?php echo json_encode($infrastructure_updates, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 
-        var INFRA_REPORTS = <?php echo json_encode(array_values(array_filter($infra_reports, function ($r) {
+        var INFRA_REPORTS = <?php echo json_encode(array_values(array_map(function ($r) {
+            return array_diff_key($r, array_flip(['_ipms_progress', '_ipms_start_date', '_ipms_end_date']));
+        }, array_filter($infra_reports, function ($r) {
             return !empty($r['latitude']) && !empty($r['longitude']) &&
                 is_numeric($r['latitude']) && is_numeric($r['longitude']);
-        })), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        }))), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 
         var map = null;
         var trafficLayer = null;
@@ -3526,9 +3599,10 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
             function placeMarker(tLat, tLng) {
                 map.setView([tLat, tLng], 17);
-                var marker = reportMarkers[id];
-                if (marker) {
-                    marker.openPopup();
+                var existing = reportMarkers[id];
+                if (existing) {
+                    existing.setLatLng([tLat, tLng]);
+                    existing.openPopup();
                     activePinId = id;
                     updateActivePin();
                     return;
@@ -3538,7 +3612,8 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 var lines = ['<b>' + escapeHtml(titleText) + '</b>'];
                 if (id) lines.push('<small><i class="fas fa-hashtag"></i> ' + escapeHtml(id) + '</small>');
                 if (locText) lines.push('<small><i class="fas fa-map-marker-alt"></i> ' + escapeHtml(locText) + '</small>');
-                L.marker([tLat, tLng], { icon: icon }).addTo(map).bindPopup(lines.join('<br>')).openPopup();
+                var marker = L.marker([tLat, tLng], { icon: icon }).addTo(map).bindPopup(lines.join('<br>')).openPopup();
+                reportMarkers[id] = marker;
                 activePinId = id;
             }
 

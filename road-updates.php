@@ -253,10 +253,6 @@ if ($database_available && $conn) {
         }
         footer.qc-footer a { color: #fff; text-decoration: none; }
         .footer-top-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 20px; }
-        .footer-follow-label { font-weight: 600; font-size: 0.9rem; margin-bottom: 8px; color: rgba(255,255,255,0.95); }
-        .footer-social-row { display: flex; gap: 10px; }
-        .footer-social-circle { width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,0.92); color: #165b79; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; transition: transform 0.2s ease, color 0.2s ease; }
-        .footer-social-circle:hover { transform: translateY(-2px); color: #0e2f43; }
         .footer-contact-row { display: flex; align-items: center; gap: 14px; font-size: 14px; }
         .footer-contact-item { display: inline-flex; align-items: center; gap: 8px; color: #fff; }
         .footer-contact-item:hover { color: #fff; }
@@ -275,7 +271,6 @@ if ($database_available && $conn) {
             .hero-bar h1 { font-size: 1.5rem; }
             .section-title { font-size: 1.4rem; }
             .footer-top-row { flex-direction: column; text-align: center; }
-            .footer-social-row { justify-content: center; }
             .footer-contact-row { justify-content: center; flex-wrap: wrap; }
             .footer-links-row { justify-content: center; gap: 16px; }
         }
