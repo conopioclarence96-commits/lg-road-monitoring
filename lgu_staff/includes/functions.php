@@ -1101,4 +1101,73 @@ function send_login_link_email($toEmail, $loginUrl) {
 
     return json_decode($response, true);
 }
+
+// Notify a citizen reporter that their completed report appears on the public transparency page.
+function send_transparency_published_email($toEmail, $reporterName, $transparencyUrl, $projectTitle) {
+    $apiKey = env_get('BREVO_API_KEY');
+    $senderName = env_get('BREVO_SENDER_NAME');
+    $senderEmail = env_get('BREVO_SENDER_EMAIL');
+
+    if ($apiKey === '' || $senderEmail === '') {
+        error_log('Transparency published email: Brevo is not configured (BREVO_API_KEY / BREVO_SENDER_EMAIL).');
+        return false;
+    }
+
+    $nameSafe = htmlspecialchars(trim($reporterName) !== '' ? $reporterName : 'Citizen Reporter');
+    $emailSafe = htmlspecialchars($toEmail);
+    $titleSafe = htmlspecialchars(trim($projectTitle) !== '' ? $projectTitle : 'your report');
+    $urlSafe = htmlspecialchars($transparencyUrl);
+
+    $htmlContent = "
+    <html>
+        <body style='font-family: Arial, sans-serif; color: #333;'>
+            <div style='max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;'>
+                <h2 style='color: #0066cc;'>Hello {$nameSafe},</h2>
+                <p>Thank you for submitting your road report. We are pleased to let you know that work related to <strong>{$titleSafe}</strong> has been completed and is now featured on our public transparency page.</p>
+                <p>You can view the before-and-after progress and other completed projects here:</p>
+                <p style='text-align: center; margin: 25px 0;'>
+                    <a href='{$urlSafe}' style='background-color: #0066cc; color: #fff; padding: 12px 28px; text-decoration: none; border-radius: 6px; display: inline-block;'>View Public Transparency Page</a>
+                </p>
+                <p>Or copy this link into your browser:</p>
+                <p style='font-family: monospace; font-size: 12px; word-break: break-all; background: #f4f4f4; padding: 10px; border-radius: 5px;'>{$urlSafe}</p>
+                <p style='font-size: 12px; color: #999; margin-top: 30px;'>Regards,<br>Road and Transportation Department</p>
+            </div>
+        </body>
+    </html>";
+
+    $ch = curl_init('https://api.brevo.com/v3/smtp/email');
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'accept: application/json',
+        'api-key: ' . $apiKey,
+        'content-type: application/json'
+    ]);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+        'sender' => [
+            'name' => $senderName,
+            'email' => $senderEmail
+        ],
+        'to' => [
+            [
+                'email' => $toEmail,
+                'name' => $emailSafe
+            ]
+        ],
+        'subject' => 'Your report is now on the Public Transparency page',
+        'htmlContent' => $htmlContent
+    ]));
+
+    $response = curl_exec($ch);
+    $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    error_log('Transparency published email response (' . $httpCode . '): ' . $response);
+
+    if ($httpCode >= 200 && $httpCode < 300) {
+        return true;
+    }
+
+    return false;
+}
 ?>

@@ -247,12 +247,22 @@
         return dates;
     }
 
+    function extractReportId(doc) {
+        var info = doc.querySelector('.report-info');
+        if (info) {
+            var m = cellPlainText(info).match(/Report\s*#\s*([A-Za-z0-9-]+)/);
+            if (m) return m[1].trim();
+        }
+        return '';
+    }
+
     function parseProgressExport(html) {
         if (!isValidExportDocument(html)) {
             throw new Error('This file is not a valid Progress Updates export (.doc from Road Monitoring or Archive).');
         }
 
         var doc = parseHtmlDocument(html);
+        var reportId = extractReportId(doc);
         var titleEl = doc.querySelector('.report-title');
         var title = titleEl ? cellPlainText(titleEl) : '';
         if (!title) {
@@ -336,6 +346,7 @@
         }
 
         return {
+            reportId: reportId,
             title: title,
             description: description,
             location: location,

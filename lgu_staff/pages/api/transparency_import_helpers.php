@@ -334,18 +334,72 @@ function transparency_copy_photo_to_completed(string $file_path): ?string {
     return 'uploads/completed_projects/' . $filename;
 }
 
-function transparency_first_image_from_update(array $update): ?string {
-    foreach ($update['media'] ?? [] as $media) {
-        $type = strtolower((string)($media['file_type'] ?? ''));
-        $path = (string)($media['file_path'] ?? '');
-        if ($path === '') {
-            continue;
-        }
-        if ($type === 'image' || $type === '' || preg_match('/\.(jpe?g|png|gif|webp)$/i', $path)) {
-            return $path;
+function transparency_is_image_media(array $media): bool {
+    $type = strtolower((string)($media['file_type'] ?? ''));
+    $path = (string)($media['file_path'] ?? '');
+    if ($path === '') {
+        return false;
+    }
+    return $type === 'image' || $type === '' || preg_match('/\.(jpe?g|png|gif|webp)$/i', $path);
+}
+
+function transparency_collect_timeline_images(array $updates): array {
+    $photos = [];
+    foreach ($updates as $update) {
+        foreach ($update['media'] ?? [] as $media) {
+            if (!transparency_is_image_media($media)) {
+                continue;
+            }
+            $photos[] = (string)$media['file_path'];
         }
     }
+    return $photos;
+}
+
+function transparency_first_image_from_update(array $update): ?string {
+    foreach ($update['media'] ?? [] as $media) {
+        if (!transparency_is_image_media($media)) {
+            continue;
+        }
+        return (string)$media['file_path'];
+    }
     return null;
+}
+
+function transparency_last_image_from_update(array $update): ?string {
+    $last = null;
+    foreach ($update['media'] ?? [] as $media) {
+        if (!transparency_is_image_media($media)) {
+            continue;
+        }
+        $last = (string)$media['file_path'];
+    }
+    return $last;
+}
+
+/**
+ * Before/after sources from the full progress timeline (oldest → newest).
+ * - Text-only updates are skipped; the first image may come from a later update.
+ * - A single image is used for both before and after (copied twice so either slot can be cleared).
+ *
+ * @return array{0:?string,1:?string} [before_src, after_src]
+ */
+function transparency_timeline_before_after_sources(array $updates): array {
+    $timeline = transparency_collect_timeline_images($updates);
+    if (empty($timeline)) {
+        return [null, null];
+    }
+    $first = $timeline[0];
+    $last = $timeline[count($timeline) - 1];
+    return [$first, $last];
+}
+
+/** Copy timeline before/after into completed-projects storage (duplicate copy when only one source image). */
+function transparency_copy_timeline_before_after_photos(array $updates): array {
+    [$before_src, $after_src] = transparency_timeline_before_after_sources($updates);
+    $before_photo = $before_src ? transparency_copy_photo_to_completed($before_src) : null;
+    $after_photo = $after_src ? transparency_copy_photo_to_completed($after_src) : null;
+    return [$before_photo, $after_photo];
 }
 
 function transparency_date_only(?string $datetime): ?string {
@@ -399,8 +453,7 @@ function transparency_build_import_data($conn, int $report_id, string $source): 
         $completion_date = transparency_date_only($report['completed_at'] ?? null) ?: $end_date;
     }
 
-    $before_src = transparency_first_image_from_update($first_update);
-    $after_src = transparency_first_image_from_update($last_update);
+    [$before_photo, $after_photo] = transparency_copy_timeline_before_after_photos($updates);
 
     return [
         'title' => trim((string)($report['title'] ?? '')) ?: (string)($report['fallback_title'] ?? ('Road Project #' . $report_id)),
@@ -412,8 +465,8 @@ function transparency_build_import_data($conn, int $report_id, string $source): 
         'cost' => (float)($report['cost'] ?? 0),
         'completed_by' => (string)($report['engineer_name'] ?? ''),
         'progress_conducted_by' => implode(', ', $conducted),
-        'before_photo' => $before_src ? transparency_copy_photo_to_completed($before_src) : null,
-        'photo' => $after_src ? transparency_copy_photo_to_completed($after_src) : null,
+        'before_photo' => $before_photo,
+        'photo' => $after_photo,
         'report_type' => (string)($report['report_type'] ?? ''),
         'report_mgmt_source' => transparency_mgmt_source_for_report($report),
         'source_report_id' => $report_id,

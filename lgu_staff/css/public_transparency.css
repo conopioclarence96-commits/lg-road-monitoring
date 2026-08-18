@@ -1181,30 +1181,41 @@ body.dark-mode .sync-badge {
     color: var(--color-success) !important;
 }
 
-body.dark-mode .publish-label {
+body.dark-mode .publish-switch {
     background: var(--bg-input) !important;
     border-color: var(--border-default) !important;
 }
 
-body.dark-mode .publish-label:hover {
+body.dark-mode .form-group label.publish-switch {
+    background: var(--bg-input) !important;
+    border-color: var(--border-default) !important;
+    color: var(--text-primary) !important;
+}
+
+body.dark-mode .publish-switch:hover,
+body.dark-mode .form-group label.publish-switch:hover {
     border-color: var(--color-primary) !important;
 }
 
-body.dark-mode .publish-checkbox:checked + .publish-label {
+body.dark-mode .publish-switch:has(.publish-checkbox:checked),
+body.dark-mode .form-group label.publish-switch:has(.publish-checkbox:checked) {
     background: var(--color-success-bg) !important;
     border-color: var(--color-success) !important;
 }
 
-body.dark-mode .toggle-slider {
+body.dark-mode .toggle-slider,
+body.dark-mode .form-group label.publish-switch .toggle-slider {
     background: var(--border-default) !important;
 }
 
-body.dark-mode .toggle-slider::before {
-    background: transparent !important;
-    box-shadow: none !important;
+body.dark-mode .toggle-slider::before,
+body.dark-mode .form-group label.publish-switch .toggle-slider::before {
+    background: #fff !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.25) !important;
 }
 
-body.dark-mode .publish-checkbox:checked + .publish-label .toggle-slider {
+body.dark-mode .publish-switch:has(.publish-checkbox:checked) .toggle-slider,
+body.dark-mode .form-group label.publish-switch:has(.publish-checkbox:checked) .toggle-slider {
     background: var(--color-success) !important;
 }
 
@@ -1212,7 +1223,8 @@ body.dark-mode .toggle-text {
     color: #fbbf24 !important;
 }
 
-body.dark-mode .publish-checkbox:checked + .publish-label .toggle-text {
+body.dark-mode .publish-switch:has(.publish-checkbox:checked) .toggle-text,
+body.dark-mode .form-group label.publish-switch:has(.publish-checkbox:checked) .toggle-text {
     color: var(--color-success) !important;
 }
 
@@ -1250,7 +1262,8 @@ body.dark-mode .project-cost {
     background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark)) !important;
 }
 
-body.dark-mode .project-form-card label {
+body.dark-mode .project-form-card > label:not(.publish-switch),
+body.dark-mode .project-form-card .form-group > label:not(.publish-switch) {
     color: var(--text-secondary) !important;
 }
 
