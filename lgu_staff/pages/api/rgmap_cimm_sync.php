@@ -69,6 +69,16 @@ function rgmap_cimm_detect_own_base_url(): string {
 
 function rgmap_cimm_ensure_schema(mysqli $conn): void {
     $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_sync_status VARCHAR(20) DEFAULT NULL");
+    // ADD COLUMN IF NOT EXISTS is a no-op if the column already exists — it
+    // would never correct a stale/wrong default left over from an older or
+    // hand-edited version of this table (the CIMM side's rgmap_road_reports
+    // table hit exactly this: verification_status silently defaulted to
+    // 'Verified' on every new row because the column predated the current
+    // 'Pending' default and nothing ever forced it back). cimm_sync_status
+    // is read as "verified"/"pushed" on the report list/badges — force its
+    // default back to NULL on every request so this table can't drift into
+    // the same class of bug.
+    $conn->query("ALTER TABLE road_transportation_reports MODIFY COLUMN cimm_sync_status VARCHAR(20) DEFAULT NULL");
     $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_pushed_at TIMESTAMP NULL DEFAULT NULL");
     $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_verified_at TIMESTAMP NULL DEFAULT NULL");
     $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS cimm_verified_by VARCHAR(150) DEFAULT NULL");
