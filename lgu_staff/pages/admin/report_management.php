@@ -754,73 +754,14 @@ function handle_delete_cimm_report() {
         // restored) BEFORE removing it from cimm_verification_reports.
         $row = fetch_one("SELECT * FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
 
-        $archived = false;
-        if ($row) {
-            try {
-                ensure_archive_table();
-
-                $now = date('Y-m-d H:i:s');
-                $reference_code = $row['reference_code'] ?? ('CIMM-' . $report_id);
-                // Preserve ALL original CIMM information so a later restore
-                // brings the report back exactly as it was — start/end dates,
-                // engineer, budget and the rest are stored in the archive's
-                // cimm_* columns.
-                $insert_fields = [
-                    'report_id'       => $reference_code,
-                    'title'           => $row['infrastructure'] ?? 'CIMM Report',
-                    'report_type'     => 'infrastructure_issue',
-                    'report_category' => 'road',
-                    'report_source'   => 'external',
-                    'department'      => 'engineering',
-                    'priority'        => $row['priority'] ?? 'medium',
-                    'status'          => 'cancelled',
-                    'previous_status' => $row['verification_status'] ?? null,
-                    'archived_from'   => 'cimm_verification_reports',
-                    'source_pk'       => (int)$report_id,
-                    'created_date'    => (!empty($row['submitted_at'])) ? date('Y-m-d', strtotime($row['submitted_at'])) : date('Y-m-d'),
-                    'description'     => $row['issue'] ?? '',
-                    'location'        => $row['location'] ?? '',
-                    'latitude'        => $row['coord_lat'] ?? null,
-                    'longitude'       => $row['coord_lng'] ?? null,
-                    'reporter_name'   => $row['reporter_name'] ?? null,
-                    'district'        => $row['district'] ?? null,
-                    'created_at'      => $row['submitted_at'] ?? $now,
-                    'updated_at'      => $now,
-                    'rejected_at'     => $now,
-                    'completed_at'    => null,
-                    'approved_at'     => null,
-                    'engineer'        => $row['engineer'] ?? null,
-                    'budget_allocation' => $row['budget_allocation'] ?? null,
-                    'cimm_engineer_name'   => $row['engineer'] ?? null,
-                    'cimm_budget'          => $row['budget'] ?? $row['budget_allocation'] ?? null,
-                    'cimm_starting_date'   => $row['starting_date'] ?? null,
-                    'cimm_estimated_end_date' => $row['estimated_end_date'] ?? null,
-                    'cimm_status'          => $row['verification_status'] ?? null,
-                    'cimm_district'        => $row['district'] ?? null,
-                ];
-
-                $fields = array_keys($insert_fields);
-                $placeholders = array_fill(0, count($fields), '?');
-                $field_list = '`' . implode('`, `', $fields) . '`';
-                $insert = "INSERT INTO road_transportation_reports_archive ($field_list) VALUES (" . implode(', ', $placeholders) . ")";
-                $stmt = $conn->prepare($insert);
-                $stmt->execute(array_values($insert_fields));
-                $archived = true;
-            } catch (Exception $e) {
-                error_log('Archive failed for CIMM report ' . $report_id . ': ' . $e->getMessage());
-            }
-        }
-
-        $stmt = $conn->prepare("DELETE FROM cimm_verification_reports WHERE id = ?");
-        $stmt->bind_param("i", $report_id);
-
-        if ($stmt->execute()) {
-            $label = $row ? ($row['reference_code'] ?? $row['infrastructure'] ?? 'Unknown') : 'Unknown';
+        $archived = rgmap_archive_cimm_report($conn, $report_id, 'cancelled');
+        if ($archived) {
+            $row = $row ?: ['reference_code' => '', 'infrastructure' => 'Unknown'];
+            $label = $row['reference_code'] ?? $row['infrastructure'] ?? 'Unknown';
             log_audit_action($user_id, "Deleted CIMM report", "Report ID: {$report_id}, Label: {$label}");
-            $msg = $archived ? 'CIMM report moved to archive as cancelled.' : 'CIMM report deleted.';
-            set_flash_message('success', $msg);
+            set_flash_message('success', 'CIMM report moved to archive as cancelled.');
         } else {
-            set_flash_message('error', 'Failed to delete CIMM report: ' . $conn->error);
+            set_flash_message('error', 'Failed to archive CIMM report.');
         }
     } catch (Exception $e) {
         error_log('Delete CIMM report error: ' . $e->getMessage());
@@ -872,7 +813,7 @@ function handle_update_ipms_project() {
         if ($road_status !== '') { $update_fields[] = "road_status = ?"; $params[] = $road_status; }
 
         $status = sanitize_input($_POST['status'] ?? '');
-        $allowed_statuses = ['pending', 'approved', 'in-progress', 'completed', 'cancelled'];
+        $allowed_statuses = ['approved', 'in-progress'];
         if ($status !== '' && in_array($status, $allowed_statuses, true)) {
             $update_fields[] = "status = ?"; $params[] = $status;
         }
@@ -2078,12 +2019,12 @@ $cimm_reports_total = 0;
 $cimm_page = rm_panel_page('cimm');
 $cimm_pagination_html = '';
 $cimm_search = trim((string)($_GET['cimm_q'] ?? ''));
-// Infrastructure Projects panel reads approved rows from ipms_road_projects
-// (not road_maintenance_reports / infrastructure_issue).
+// Infrastructure Projects panel reads IPMS rows that are approved,
+// cancelled, or in-progress (not pending verification).
 $infra_reports_list = [];
 if (!$is_transport_supervisor && ($source_filter === 'all' || $source_filter === 'maintenance')) {
     try {
-        $infra_reports_list = rgmap_infra_panel_rows(null, 'approved');
+        $infra_reports_list = rgmap_infra_panel_rows(null, ['approved', 'cancelled', 'in-progress']);
         if ($status_filter !== 'all') {
             $infra_reports_list = array_values(array_filter(
                 $infra_reports_list,
@@ -3382,6 +3323,41 @@ if ($focus_id > 0) {
             background: rgba(30, 64, 175, 0.35) !important;
             color: #93c5fd !important;
         }
+        body.dark-mode #editIpmsModal .modal-content {
+            background: #1e2229 !important;
+            border: 1px solid #2d323b !important;
+        }
+        body.dark-mode #editIpmsModal .modal-body,
+        body.dark-mode #editIpmsModal .modal-footer {
+            background: #1e2229 !important;
+        }
+        body.dark-mode #editIpmsModal .modal-footer { border-top-color: #2d323b !important; }
+        body.dark-mode #editIpmsModal .form-section {
+            background: #22262e !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode #editIpmsModal .form-section h6 { color: #93c5fd !important; }
+        body.dark-mode #editIpmsModal .form-label { color: #e4e6ea !important; }
+        body.dark-mode #editIpmsModal .form-control {
+            background: #1a1d23 !important;
+            color: #e4e6ea !important;
+            border-color: #3a3f4a !important;
+        }
+        body.dark-mode #editIpmsModal .btn-secondary-custom {
+            background: rgba(148, 163, 184, 0.12) !important;
+            color: #cbd5e1 !important;
+            border-color: #475569 !important;
+        }
+        body.dark-mode #editIpmsModal .t-text-secondary,
+        body.dark-mode #editIpmsModal .asg-muted { color: #94a3b8 !important; }
+        body.dark-mode #editIpmsModal .asg-card {
+            background: linear-gradient(135deg, #263449 0%, #1e293b 100%) !important;
+            border-color: #334155 !important;
+        }
+        body.dark-mode #editIpmsModal .asg-empty {
+            background: #1e293b !important;
+            border-color: #334155 !important;
+        }
         <?php endif; ?>
         #updatesModal .btn-action, #addUpdateModal .btn-action {
             padding: 10px 20px;
@@ -3987,8 +3963,15 @@ if ($focus_id > 0) {
 
         .rm-action-group {
             display: inline-flex;
+            flex-direction: row;
+            flex-wrap: nowrap;
             gap: 4px;
             align-items: center;
+            white-space: nowrap;
+        }
+
+        .rm-action-group > * {
+            flex-shrink: 0;
         }
 
         /* Report Detail Modal (mirrors verification_monitoring lgu modal) */
@@ -4757,13 +4740,13 @@ if ($focus_id > 0) {
         .rm-dash .rm-table tbody td {
             color: var(--text-primary); padding: 12px 16px; font-size: 13px; vertical-align: middle;
         }
-        .rm-dash .rm-table td:first-child { white-space: normal; }
+        .rm-dash .rm-table td:first-child { white-space: nowrap; }
         .rm-dash .rm-table td:nth-child(2) {
             font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
             font-size: 12px; color: var(--text-secondary);
         }
         .rm-dash .rm-table td:nth-child(3) { white-space: normal; max-width: 240px; }
-        .rm-dash .rm-action-group { flex-wrap: wrap; gap: 6px; }
+        .rm-dash .rm-action-group { flex-wrap: nowrap; gap: 6px; }
 
         .rm-dash .rm-action-btn {
             background: var(--color-primary-bg); color: var(--color-primary);
@@ -5286,7 +5269,7 @@ if ($focus_id > 0) {
                                         <i class="fas fa-eye"></i>
                                     </button>
                                     <?php if (!empty($report['from_ipms'])): ?>
-                                    <button class="rm-edit-btn" onclick="editIpmsProject(<?php echo (int)$report['id']; ?>)" title="Edit">
+                                    <button type="button" class="rm-edit-btn" onclick="editIpmsProject(<?php echo (int)$report['id']; ?>)" title="Edit">
                                         <i class="fas fa-pencil"></i>
                                     </button>
                                     <button class="rm-delete-btn" onclick="deleteIpmsProject(<?php echo (int)$report['id']; ?>)" title="Delete">
@@ -5577,6 +5560,105 @@ if ($focus_id > 0) {
                     <div style="display: flex; gap: 10px;">
                         <button type="button" class="btn-secondary-custom" onclick="closeModal('editCimmModal')">Cancel</button>
                         <button type="submit" class="btn-primary-custom" id="cimmEditSubmitBtn">
+                            <i class="fas fa-save"></i> Save Changes
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Infrastructure (IPMS) Edit Project Modal -->
+    <div id="editIpmsModal" class="modal">
+        <div class="modal-content" style="max-width: 650px;">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-edit"></i> Edit Infrastructure Project</h5>
+                <button type="button" class="close" onclick="closeModal('editIpmsModal')">&times;</button>
+            </div>
+            <form method="POST" id="editIpmsForm">
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
+                    <input type="hidden" name="action" value="update_ipms_project">
+                    <input type="hidden" name="report_id" id="editIpmsReportId">
+                    <input type="hidden" name="report_table" id="editIpmsReportTable">
+
+                    <div class="form-section">
+                        <h6><i class="fas fa-info-circle"></i> Project Details</h6>
+                        <div class="form-group">
+                            <label class="form-label">Report #</label>
+                            <input type="text" class="form-control t-bg-input-readonly" id="editIpmsRepNumber" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Title</label>
+                            <input type="text" class="form-control t-bg-input-readonly" id="editIpmsTitle" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control t-bg-input-readonly" id="editIpmsDescription" rows="3" readonly></textarea>
+                        </div>
+                        <div style="display: flex; gap: 15px;">
+                            <div class="form-group" style="flex: 1;">
+                                <label class="form-label">Start Date</label>
+                                <input type="date" class="form-control t-bg-input-readonly" id="editIpmsStartDate" readonly>
+                            </div>
+                            <div class="form-group" style="flex: 1;">
+                                <label class="form-label">End Date</label>
+                                <input type="date" class="form-control t-bg-input-readonly" id="editIpmsEndDate" readonly>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Budget (₱)</label>
+                            <input type="text" class="form-control t-bg-input-readonly" id="editIpmsBudget" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Start Address</label>
+                            <input type="text" class="form-control t-bg-input-readonly" id="editIpmsStartAddress" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">End Address</label>
+                            <input type="text" class="form-control t-bg-input-readonly" id="editIpmsEndAddress" readonly>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h6><i class="fas fa-tasks"></i> Editable Fields</h6>
+                        <div style="display: flex; gap: 15px;">
+                            <div class="form-group" style="flex: 1;">
+                                <label class="form-label">Status *</label>
+                                <select class="form-control" name="status" id="editIpmsStatus" required>
+                                    <option value="approved">Approved</option>
+                                    <option value="in-progress">In Progress</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="flex: 1;">
+                                <label class="form-label">Priority</label>
+                                <select class="form-control t-bg-input-readonly" id="editIpmsPriority" disabled>
+                                    <option value="low">Low</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="high">High</option>
+                                </select>
+                            </div>
+                        </div>
+                        <?php if ($user_role !== 'system_admin'): ?>
+                        <div style="margin-top: 15px;">
+                            <button type="button" class="btn-action" onclick="openAssignUserModal()">
+                                <i class="fas fa-user-plus"></i> Assign Staff to Project
+                            </button>
+                        </div>
+                        <?php endif; ?>
+                        <div style="margin-top: 15px;">
+                            <label class="form-label">Assigned Staff</label>
+                            <div id="assignedUsersListIpms" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px;">
+                                <div style="color: #6b7280; font-size: 13px;">Loading assigned staff...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer" style="justify-content: space-between;">
+                    <span id="ipmsEditIndicator" class="t-text-secondary" style="font-size: 12px;"></span>
+                    <div style="display: flex; gap: 10px;">
+                        <button type="button" class="btn-secondary-custom" onclick="closeModal('editIpmsModal')">Cancel</button>
+                        <button type="submit" class="btn-primary-custom" id="ipmsEditSubmitBtn">
                             <i class="fas fa-save"></i> Save Changes
                         </button>
                     </div>
@@ -8131,7 +8213,18 @@ if ($focus_id > 0) {
         // Infrastructure (IPMS) edit
         function editIpmsProject(id) {
             var r = infraIpmsDataMap[id];
-            if (!r) return;
+            if (!r) {
+                if (typeof showNotification === 'function') {
+                    showNotification('Project data not found.', 'error');
+                }
+                return;
+            }
+            if (!document.getElementById('editIpmsModal') || !document.getElementById('editIpmsReportId')) {
+                if (typeof showNotification === 'function') {
+                    showNotification('Edit form is not available.', 'error');
+                }
+                return;
+            }
             document.getElementById('editIpmsReportId').value = r.id;
             document.getElementById('editIpmsRepNumber').value = r.report_id || '';
             document.getElementById('editIpmsTitle').value = r.title || '';
@@ -8141,7 +8234,21 @@ if ($focus_id > 0) {
             document.getElementById('editIpmsBudget').value = (r.budget != null && r.budget !== '' && Number(r.budget) !== 0) ? r.budget : '';
             document.getElementById('editIpmsStartAddress').value = r.start_address || '';
             document.getElementById('editIpmsEndAddress').value = r.end_address || '';
-            document.getElementById('editIpmsStatus').value = (r.status && r.status !== '—') ? r.status : 'approved';
+            var ipmsStatusSelect = document.getElementById('editIpmsStatus');
+            var currentIpmsStatus = (r.status && r.status !== '—') ? r.status : 'approved';
+            while (ipmsStatusSelect.querySelector('option[data-current="1"]')) {
+                ipmsStatusSelect.removeChild(ipmsStatusSelect.querySelector('option[data-current="1"]'));
+            }
+            var allowedIpmsStatuses = ['approved', 'in-progress'];
+            if (allowedIpmsStatuses.indexOf(currentIpmsStatus) === -1) {
+                var curOpt = document.createElement('option');
+                curOpt.value = currentIpmsStatus;
+                curOpt.textContent = currentIpmsStatus.replace(/-/g, ' ').replace(/\b\w/g, function(m) { return m.toUpperCase(); });
+                curOpt.disabled = true;
+                curOpt.setAttribute('data-current', '1');
+                ipmsStatusSelect.appendChild(curOpt);
+            }
+            ipmsStatusSelect.value = currentIpmsStatus;
             document.getElementById('editIpmsPriority').value = (r.priority && r.priority !== '—') ? r.priority : 'medium';
             document.getElementById('editIpmsReportTable').value = 'ipms_road_projects';
             document.getElementById('ipmsEditIndicator').textContent = '';
@@ -8172,7 +8279,8 @@ if ($focus_id > 0) {
         }
 
         // Infrastructure (IPMS) edit form submission
-        document.getElementById('editIpmsForm').addEventListener('submit', function(e) {
+        var editIpmsFormEl = document.getElementById('editIpmsForm');
+        if (editIpmsFormEl) editIpmsFormEl.addEventListener('submit', function(e) {
             e.preventDefault();
             var formData = new FormData(this);
             var submitBtn = document.getElementById('ipmsEditSubmitBtn');

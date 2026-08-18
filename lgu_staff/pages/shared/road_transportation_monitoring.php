@@ -252,7 +252,8 @@ function getEnhancedStats() {
 //     panel), and LGU Transportation reports
 //     (report_category='transportation') do not require CIMM verification and
 //     appear once approved
-//   - Infrastructure Projects (ipms_road_projects) that are locally APPROVED
+//   - Infrastructure Projects (ipms_road_projects): locally APPROVED on
+//     Active Monitoring, or status = 'completed' on Completed Projects
 //   - CIMM reports whose verification_status is 'Verified'
 function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter = 'all', $transport_only = false, $road_only = false, $assigned_to_user_id = null, $completed_only = false) {
     global $conn;
@@ -276,6 +277,10 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
     $cimm_status_sql = $completed_only
         ? "verification_status = 'Completed'"
         : "verification_status IN ('Approved', 'In Progress')";
+
+    $ipms_status_sql = $completed_only
+        ? "status = 'completed'"
+        : "status = 'approved'";
 
     // Helper to append shared WHERE/ORDER/LIMIT clauses and run a query
     $fetch = function ($sql, $status_filter, $type_filter, $limit) use ($conn, $completed_only) {
@@ -338,9 +343,10 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
             $status_filter, $type_filter, $limit
         ));
 
-        // 2. Infrastructure Projects (ipms_road_projects, locally approved).
-        //    Excluded for Transportation Operations Supervisors and Completed view.
-        if (!$transport_only && !$completed_only) {
+        // 2. Infrastructure Projects (ipms_road_projects).
+        //    Active Monitoring: locally approved. Completed Projects: status = completed.
+        //    Excluded for Transportation Operations Supervisors.
+        if (!$transport_only) {
             $reports = array_merge($reports, $fetch(
                 "SELECT project_id AS id,
                         CAST(project_id AS CHAR) AS report_id,
@@ -352,6 +358,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                         'medium' AS priority,
                         NULL AS severity,
                         created_at,
+                        NULL AS completed_at,
                         road_status AS description,
                         start_lat AS latitude,
                         start_lng AS longitude,
@@ -364,7 +371,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                         NULL AS cimm_verified_by,
                         'ipms_road_projects' AS _source_table
                  FROM ipms_road_projects
-                 WHERE status = 'approved'",
+                 WHERE {$ipms_status_sql}",
                 $status_filter, $type_filter, $limit
             ));
         }
@@ -678,6 +685,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
         while ($row = $res->fetch_assoc()) {
             $markers[] = $row;
         }
+
+        if (!$is_transport_supervisor) {
+            $ipms_sql = "SELECT project_id AS id,
+                                CAST(project_id AS CHAR) AS report_id,
+                                project_name AS title,
+                                COALESCE(NULLIF(road_type, ''), 'infrastructure_issue') AS report_type,
+                                road_status AS description,
+                                status,
+                                'medium' AS priority,
+                                NULL AS severity,
+                                start_lat AS latitude,
+                                start_lng AS longitude,
+                                NULL AS detected_district,
+                                NULL AS barangay,
+                                road_name AS street_name,
+                                created_at
+                         FROM ipms_road_projects
+                         WHERE start_lat IS NOT NULL AND start_lng IS NOT NULL
+                           AND status IN ('approved', 'in-progress', 'completed')
+                         ORDER BY created_at DESC";
+            $ipms_res = $conn->query($ipms_sql);
+            if ($ipms_res) {
+                while ($row = $ipms_res->fetch_assoc()) {
+                    $markers[] = $row;
+                }
+            }
+        }
     }
     echo json_encode($markers);
     exit;
@@ -982,7 +1016,7 @@ function resolve_recent_focus_row(int $id, string $source_hint = ''): ?array {
                     return $r;
                 }
             } elseif ($src === 'maintenance' || $src === 'infrastructure') {
-                $stmt = $conn->prepare("SELECT project_id AS id, CAST(project_id AS CHAR) AS report_id, project_name AS title, COALESCE(NULLIF(road_type, ''), 'infrastructure_issue') AS report_type, 'road' AS report_category, status, 'medium' AS priority, NULL AS severity, created_at, road_status AS description, start_lat AS latitude, start_lng AS longitude, COALESCE(NULLIF(road_name, ''), project_name) AS location, NULL AS reporter_name, NULL AS attachments, NULL AS image_path, NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by FROM ipms_road_projects WHERE project_id = ? AND status = 'approved'");
+                $stmt = $conn->prepare("SELECT project_id AS id, CAST(project_id AS CHAR) AS report_id, project_name AS title, COALESCE(NULLIF(road_type, ''), 'infrastructure_issue') AS report_type, 'road' AS report_category, status, 'medium' AS priority, NULL AS severity, created_at, NULL AS completed_at, road_status AS description, start_lat AS latitude, start_lng AS longitude, COALESCE(NULLIF(road_name, ''), project_name) AS location, NULL AS reporter_name, NULL AS attachments, NULL AS image_path, NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by FROM ipms_road_projects WHERE project_id = ? AND status IN ('approved', 'completed')");
                 $stmt->bind_param("i", $id);
                 $stmt->execute();
                 $r = $stmt->get_result()->fetch_assoc();
@@ -4070,11 +4104,11 @@ if ($is_system_admin) {
                                 <?php endif; ?>
                             </td>
                             <td class="action-cell">
-                                <button class="table-action-btn btn-view" title="View Details" onclick="viewReportDetails(<?php echo $rr['id']; ?>, '<?php echo $rr['source']; ?>')"><i class="fas fa-eye"></i> View</button>
-                                <button class="table-action-btn view-map" onclick="focusReportOnMap(<?php echo $rr['id']; ?>)"><i class="fas fa-map-pin"></i> Map</button>
-                                <button class="table-action-btn btn-updates" onclick="viewReportUpdates(<?php echo $rr['id']; ?>, '<?php echo $rr['report_type']; ?>', '<?php echo $rr['source']; ?>', '<?php echo htmlspecialchars($rr['status'] ?? '', ENT_QUOTES); ?>')"><i class="fas fa-timeline"></i> Updates</button>
+                                <button class="table-action-btn btn-view" title="View Details" onclick="viewReportDetails(<?php echo (int)$rr['id']; ?>, '<?php echo htmlspecialchars($rr['source'] ?? '', ENT_QUOTES); ?>')"><i class="fas fa-eye"></i> View</button>
+                                <button class="table-action-btn view-map" onclick="focusReportOnMap(<?php echo (int)$rr['id']; ?>, '<?php echo htmlspecialchars($rr['source'] ?? '', ENT_QUOTES); ?>')"><i class="fas fa-map-pin"></i> Map</button>
+                                <button class="table-action-btn btn-updates" onclick="viewReportUpdates(<?php echo (int)$rr['id']; ?>, '<?php echo htmlspecialchars($rr['report_type'] ?? '', ENT_QUOTES); ?>', '<?php echo htmlspecialchars($rr['source'] ?? '', ENT_QUOTES); ?>', '<?php echo htmlspecialchars($rr['status'] ?? '', ENT_QUOTES); ?>')"><i class="fas fa-timeline"></i> Updates</button>
                                 <?php if (strtolower((string)($rr['status'] ?? '')) === 'completed' && in_array($_SESSION['role'] ?? '', ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor'], true)): ?>
-                                <button class="table-action-btn btn-archive" title="Archive" onclick="archiveReport(<?php echo $rr['id']; ?>, '<?php echo $rr['source']; ?>')"><i class="fas fa-archive"></i> Archive</button>
+                                <button class="table-action-btn btn-archive" title="Archive" onclick="archiveReport(<?php echo (int)$rr['id']; ?>, '<?php echo htmlspecialchars($rr['source'] ?? '', ENT_QUOTES); ?>')"><i class="fas fa-archive"></i> Archive</button>
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -4547,16 +4581,38 @@ if ($is_system_admin) {
             setTimeout(() => map.invalidateSize(), 300);
         }
 
-        // Focus map on a specific report by ID
-        function focusReportOnMap(reportId) {
-            // First try to find in existing markers (fast path)
-            const found = allMarkerObjects.find(m => m._reportId === reportId);
+        // Focus map on a specific report by ID (and optional source, so
+        // infrastructure project_id does not collide with another table's id).
+        function focusReportOnMap(reportId, source) {
+            var rowSelector = '#recentReportsTable .report-table-row[data-id="' + reportId + '"]';
+            if (source) rowSelector += '[data-source="' + source + '"]';
+            var row = document.querySelector(rowSelector) || document.querySelector('#recentReportsTable .report-table-row[data-id="' + reportId + '"]');
+            var lat = null;
+            var lng = null;
+            try {
+                if (row && row.dataset.details) {
+                    var d = JSON.parse(row.dataset.details);
+                    lat = parseFloat(d.latitude);
+                    lng = parseFloat(d.longitude);
+                }
+            } catch (e) {}
+
+            function openAt(latVal, lngVal) {
+                if (!latVal || !lngVal || isNaN(latVal) || isNaN(lngVal) || latVal === 0 || lngVal === 0) return false;
+                map.setView([latVal, lngVal], 16);
+                var found = allMarkerObjects.find(function(m) { return m._reportId == reportId; });
+                if (found) found.openPopup();
+                return true;
+            }
+
+            if (openAt(lat, lng)) return;
+
+            const found = allMarkerObjects.find(function(m) { return m._reportId == reportId; });
             if (found) {
                 map.setView(found.getLatLng(), 16);
                 found.openPopup();
                 return;
             }
-            // Not in current markers — fetch all markers directly and locate it
             activeFilter = 'all';
             document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
             const allBtn = document.querySelector('.filter-btn[data-filter="all"]');
@@ -4566,10 +4622,11 @@ if ($is_system_admin) {
                 .then(markers => {
                     const report = markers.find(m => m.id == reportId);
                     if (report && report.latitude && report.longitude) {
-                        const lat = parseFloat(report.latitude);
-                        const lng = parseFloat(report.longitude);
-                        map.setView([lat, lng], 16);
-                        // Also refresh markers on map with all filter
+                        const mlat = parseFloat(report.latitude);
+                        const mlng = parseFloat(report.longitude);
+                        if (!openAt(mlat, mlng)) {
+                            showNotification('Report has no location data on the map.', 'info');
+                        }
                         loadMarkers('all');
                     } else {
                         showNotification('Report has no location data on the map.', 'info');
@@ -4870,7 +4927,8 @@ if ($is_system_admin) {
         // Citizen / LGU Monitoring → road_transportation_reports
         // CIMM → cimm_verification_reports
         function viewReportDetails(id, source) {
-            const row = document.querySelector(`#recentReportsTable .report-table-row[data-id="${id}"]`);
+            const row = document.querySelector(`#recentReportsTable .report-table-row[data-id="${id}"][data-source="${source || ''}"]`)
+                || document.querySelector(`#recentReportsTable .report-table-row[data-id="${id}"]`);
             if (!row || !row.dataset.details) {
                 showNotification('Report details not available.', 'error');
                 return;
@@ -5703,7 +5761,8 @@ if ($is_system_admin) {
             currentUpdatesReportStatus = status || '';
             currentUpdatesReportDetails = null;
             try {
-                var row = document.querySelector('#recentReportsTable .report-table-row[data-id="' + id + '"]');
+                var row = document.querySelector('#recentReportsTable .report-table-row[data-id="' + id + '"][data-source="' + (source || '') + '"]')
+                    || document.querySelector('#recentReportsTable .report-table-row[data-id="' + id + '"]');
                 if (row && row.dataset.details) {
                     currentUpdatesReportDetails = JSON.parse(row.dataset.details);
                 }
@@ -6480,20 +6539,6 @@ if ($is_system_admin) {
                 return 0;
             }
         }
-
-        // Complete button handler
-        document.addEventListener('click', function(e) {
-            if (e.target && e.target.closest && e.target.closest('#completeBtn')) {
-                completeReport();
-            }
-        });
-
-        // Cancel button handler
-        document.addEventListener('click', function(e) {
-            if (e.target && e.target.closest && e.target.closest('#cancelBtn')) {
-                cancelReport();
-            }
-        });
 
         function renderUpdateFilePreviews() {
             var preview = document.getElementById('updateFilePreviews');
@@ -8209,7 +8254,7 @@ if ($is_system_admin) {
             </td>
             <td class="action-cell">
                 <button class="table-action-btn btn-view" title="View Details" onclick="viewReportDetails(${report.id}, '${report.source}')"><i class="fas fa-eye"></i> View</button>
-                <button class="table-action-btn view-map" onclick="focusReportOnMap(${report.id})"><i class="fas fa-map-pin"></i> Map</button>
+                <button class="table-action-btn view-map" onclick="focusReportOnMap(${report.id}, '${report.source}')"><i class="fas fa-map-pin"></i> Map</button>
                 <button class="table-action-btn btn-updates" onclick="viewReportUpdates(${report.id}, '${report.report_type}', '${report.source}', '${(report.status || '').replace(/'/g, "\\'")}')"><i class="fas fa-timeline"></i> Updates</button>
                 ${(report.status || '').toLowerCase() === 'completed' && canArchiveCompleted ?
                     `<button class="table-action-btn btn-archive" title="Archive" onclick="archiveReport(${report.id}, '${report.source}')"><i class="fas fa-archive"></i> Archive</button>` : ''}

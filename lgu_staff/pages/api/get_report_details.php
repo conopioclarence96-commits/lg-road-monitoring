@@ -38,7 +38,7 @@ if (in_array($explicit_table, ['road_transportation_reports', 'road_maintenance_
 }
 
 try {
-    // IPMS approved projects — keyed by project_id (not autoincrement id).
+    // IPMS projects — keyed by project_id (not autoincrement id).
     if ($table === 'ipms_road_projects') {
         $stmt = $conn->prepare(
             "SELECT project_id AS id,
@@ -78,7 +78,7 @@ try {
                     end_lng,
                     polyline_json
              FROM ipms_road_projects
-             WHERE project_id = ? AND status = 'approved'"
+             WHERE project_id = ?"
         );
         $stmt->bind_param("i", $report_id);
         $stmt->execute();

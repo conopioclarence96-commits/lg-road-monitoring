@@ -108,6 +108,28 @@ function rgmap_ensure_ipms_road_projects_table(PDO $pdo): void {
     }
 }
 
+function rgmap_ensure_ipms_skip_tables(PDO $pdo): void {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ipms_road_projects_archive LIKE ipms_road_projects");
+    foreach ([
+        "previous_status VARCHAR(50) NULL DEFAULT NULL",
+        "archived_at DATETIME NULL DEFAULT NULL",
+        "archive_status VARCHAR(50) NULL DEFAULT NULL",
+    ] as $def) {
+        try {
+            $pdo->exec("ALTER TABLE ipms_road_projects_archive ADD COLUMN IF NOT EXISTS $def");
+        } catch (Throwable $e) {
+            error_log('rgmap_ensure_ipms_skip_tables archive col: ' . $e->getMessage());
+        }
+    }
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ipms_sync_exclusions (
+        project_id INT UNSIGNED NOT NULL,
+        excluded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        excluded_by VARCHAR(180) NULL DEFAULT NULL,
+        reason VARCHAR(100) NULL DEFAULT NULL,
+        PRIMARY KEY (project_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
+
 /**
  * Upsert a single road project row from the IPMS feed shape (see
  * ipms-road-projects-pull.php for the exact fields IPMS sends).
@@ -116,6 +138,18 @@ function rgmap_upsert_ipms_road_project(PDO $pdo, array $road): bool {
     $projectId = (int)($road['project_id'] ?? 0);
     if ($projectId <= 0) {
         return false;
+    }
+
+    rgmap_ensure_ipms_skip_tables($pdo);
+    $skip = $pdo->prepare("SELECT 1 FROM ipms_sync_exclusions WHERE project_id = ? LIMIT 1");
+    $skip->execute([$projectId]);
+    if ($skip->fetchColumn()) {
+        return true;
+    }
+    $skip = $pdo->prepare("SELECT 1 FROM ipms_road_projects_archive WHERE project_id = ? LIMIT 1");
+    $skip->execute([$projectId]);
+    if ($skip->fetchColumn()) {
+        return true;
     }
 
     $toDate = function ($v) {
@@ -356,14 +390,21 @@ function rgmap_fetch_ipms_road_projects(PDO $pdo, array $opts = []): array {
  *
  * @return array<int, array<string, mixed>>
  */
-function rgmap_infra_panel_rows(?PDO $pdo = null, string $workflowStatus = 'pending'): array {
+function rgmap_infra_panel_rows(?PDO $pdo = null, string|array $workflowStatus = 'pending'): array {
     $pdo = $pdo ?? rgmap_ipms_pdo();
     $raw = rgmap_fetch_ipms_road_projects($pdo);
     $rows = [];
-    $workflowStatus = trim($workflowStatus);
+    $allowed = is_array($workflowStatus) ? $workflowStatus : [$workflowStatus];
+    $allowed = array_values(array_filter(array_map(static function ($s) {
+        return strtolower(trim((string)$s));
+    }, $allowed), static fn($s) => $s !== ''));
+    if (empty($allowed)) {
+        $allowed = ['pending'];
+    }
 
     foreach ($raw as $proj) {
-        if ((string)($proj['status'] ?? '') !== $workflowStatus) {
+        $st = strtolower(trim((string)($proj['status'] ?? '')));
+        if (!in_array($st, $allowed, true)) {
             continue;
         }
 
@@ -382,7 +423,7 @@ function rgmap_infra_panel_rows(?PDO $pdo = null, string $workflowStatus = 'pend
             'report_type'      => trim((string)($proj['road_type'] ?? '')) ?: 'infrastructure_issue',
             'department'       => 'Engineering',
             'priority'         => trim((string)($proj['priority'] ?? '')) ?: '—',
-            'status'           => (string)($proj['status'] ?? $workflowStatus),
+            'status'           => (string)($proj['status'] ?? ($allowed[0] ?? '')),
             'location'         => (is_array($proj['barangays_covered'] ?? null) && count($proj['barangays_covered']))
                 ? implode(', ', array_filter(array_map('trim', array_map('strval', $proj['barangays_covered'])), fn($b) => $b !== ''))
                 : trim((string)($proj['road_name'] ?? '')),

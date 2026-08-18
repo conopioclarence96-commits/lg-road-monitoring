@@ -2,6 +2,7 @@
 require_once '../../includes/session_config.php';
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
+require_once __DIR__ . '/progress_archive_helpers.php';
 
 // Only Road Operations Supervisors can export an archived report as Word.
 if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'road_ops_supervisor') {
@@ -10,20 +11,19 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'road_ops_supe
 }
 
 $archive_id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+$archive_table = (string)($_GET['table'] ?? 'road_transportation_reports_archive');
 if ($archive_id <= 0) {
     die('Invalid archive ID.');
 }
 
-// Same source-system classification used on archive.php.
-$source_case = "CASE
-        WHEN report_source = 'external' THEN 'cimm'
-        WHEN report_type IN ('infrastructure_issue','maintenance','maintenance_request') THEN 'infrastructure'
-        WHEN report_source = 'local' AND COALESCE(created_by, 0) != 0 THEN 'lgu'
-        ELSE 'citizen'
-    END";
+rgmap_archive_ensure_table();
+if (!rgmap_archive_allowed_table($archive_table)) {
+    $archive_table = 'road_transportation_reports_archive';
+}
 
-$stmt = $conn->prepare("SELECT *, $source_case AS source_system FROM road_transportation_reports_archive WHERE id = ?");
-$stmt->bind_param('i', $archive_id);
+$from_sql = rgmap_archive_union_sql(true, true);
+$stmt = $conn->prepare("SELECT * FROM $from_sql WHERE id = ? AND archive_table = ? LIMIT 1");
+$stmt->bind_param('is', $archive_id, $archive_table);
 $stmt->execute();
 $row = $stmt->get_result()->fetch_assoc();
 if (!$row) {

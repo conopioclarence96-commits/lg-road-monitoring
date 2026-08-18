@@ -37,6 +37,11 @@ function rgmap_progress_resolve_table(string $source = ''): ?array {
     return ['table' => 'road_transportation_reports', 'id_column' => 'id'];
 }
 
+function rgmap_progress_is_ipms_source(string $source): bool {
+    $resolved = rgmap_progress_resolve_table($source);
+    return ($resolved['table'] ?? '') === 'ipms_road_projects';
+}
+
 /**
  * Confirm the report exists. When $source is set, only that table is checked.
  * When empty, probe transport → IPMS → CIMM (no road_maintenance_reports).
@@ -53,7 +58,7 @@ function rgmap_progress_find_report($conn, int $report_id, string $source = ''):
     foreach ($probe as $table) {
         if ($table === 'ipms_road_projects') {
             $row = fetch_one(
-                "SELECT project_id AS id, CAST(project_id AS CHAR) AS report_id FROM ipms_road_projects WHERE project_id = ? AND status = 'approved'",
+                "SELECT project_id AS id, CAST(project_id AS CHAR) AS report_id FROM ipms_road_projects WHERE project_id = ?",
                 [$report_id],
                 'i'
             );
@@ -334,7 +339,7 @@ if ($method === 'GET') {
             $report_table = 'cimm_verification_reports';
         } elseif ($source === 'infrastructure' || $source === 'maintenance' || $source === 'ipms') {
             $report = fetch_one(
-                "SELECT project_id AS id, CAST(project_id AS CHAR) AS report_id FROM ipms_road_projects WHERE project_id = ? AND status = 'approved'",
+                "SELECT project_id AS id, CAST(project_id AS CHAR) AS report_id FROM ipms_road_projects WHERE project_id = ?",
                 [$report_id],
                 "i"
             );
@@ -532,6 +537,8 @@ if ($method === 'GET') {
         try {
             if ($source === 'cimm') {
                 $archived = rgmap_archive_cimm_report($conn, $report_id, 'cancelled');
+            } elseif (rgmap_progress_is_ipms_source($source)) {
+                $archived = rgmap_archive_ipms_project($conn, $report_id, 'cancelled');
             } else {
                 $table = rgmap_resolve_report_table($conn, $report_id);
                 $archived = $table ? rgmap_archive_report($conn, $table, $report_id, 'cancelled') : false;
@@ -633,12 +640,26 @@ if ($method === 'GET') {
         if ($report_id <= 0) json_response(['success' => false, 'message' => 'Invalid report ID']);
 
         try {
-            rgmap_ensure_auto_archive_column();
+            $ipms_complete = rgmap_progress_is_ipms_source($source);
             if ($source === 'cimm') {
+                rgmap_ensure_auto_archive_column();
                 $stmt = $conn->prepare("UPDATE cimm_verification_reports SET verification_status = 'Completed', auto_archive_at = COALESCE(auto_archive_at, DATE_ADD(NOW(), INTERVAL 7 DAY)) WHERE id = ?");
                 $stmt->bind_param("i", $report_id);
                 $stmt->execute();
+            } elseif ($ipms_complete) {
+                require_once __DIR__ . '/ipms_road_projects_data.php';
+                $pdo = rgmap_ipms_pdo();
+                $stmt = $pdo->prepare("UPDATE ipms_road_projects SET status = 'completed' WHERE project_id = ?");
+                $stmt->execute([$report_id]);
+                if ($stmt->rowCount() === 0) {
+                    $chk = $pdo->prepare("SELECT project_id FROM ipms_road_projects WHERE project_id = ?");
+                    $chk->execute([$report_id]);
+                    if (!$chk->fetch()) {
+                        json_response(['success' => false, 'message' => 'Report not found'], 404);
+                    }
+                }
             } else {
+                rgmap_ensure_auto_archive_column();
                 $table = rgmap_resolve_report_table($conn, $report_id);
                 if (!$table) json_response(['success' => false, 'message' => 'Report not found'], 404);
                 $stmt = $conn->prepare("UPDATE $table SET status = 'completed', completed_at = COALESCE(completed_at, NOW()), auto_archive_at = COALESCE(auto_archive_at, DATE_ADD(NOW(), INTERVAL 7 DAY)) WHERE id = ?");
@@ -654,12 +675,18 @@ if ($method === 'GET') {
             if (!$report_row) {
                 $report_row = fetch_one("SELECT reference_code AS report_id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
             }
+            if (!$report_row && $ipms_complete) {
+                $report_row = ['report_id' => (string)$report_id];
+            }
             rgmap_notify_requestor($conn, $report_id, 'complete', $user_id, $report_row['report_id'] ?? null);
             // Notify the acting supervisor so the completion result appears in
             // their notifications feed (notifications.php).
             rgmap_notify_supervisor_action($conn, $report_id, 'complete', $user_id, $report_row['report_id'] ?? null);
             log_audit_action($user_id, "Completed report", "Report ID: {$report_id}, Status: completed");
-            json_response(['success' => true, 'message' => 'Report completed. It will stay in Completed Projects until it is archived.']);
+            $complete_msg = $ipms_complete
+                ? 'Infrastructure project marked as completed.'
+                : 'Report completed. It will stay in Completed Projects until it is archived.';
+            json_response(['success' => true, 'message' => $complete_msg]);
         } catch (Exception $e) {
             error_log("Complete status error: " . $e->getMessage());
             json_response(['success' => false, 'message' => 'Failed to complete the report: ' . $e->getMessage()], 500);
@@ -689,6 +716,15 @@ if ($method === 'GET') {
                 if (!$row) json_response(['success' => false, 'message' => 'Report not found'], 404);
                 $status = strtolower(trim((string)($row['status'] ?? 'approved')));
                 $archived = rgmap_archive_cimm_report($conn, $report_id, $status);
+            } elseif (rgmap_progress_is_ipms_source($source)) {
+                require_once __DIR__ . '/ipms_road_projects_data.php';
+                $pdo = rgmap_ipms_pdo();
+                $chk = $pdo->prepare("SELECT status FROM ipms_road_projects WHERE project_id = ?");
+                $chk->execute([$report_id]);
+                $ipms_row = $chk->fetch(PDO::FETCH_ASSOC);
+                if (!$ipms_row) json_response(['success' => false, 'message' => 'Report not found'], 404);
+                $status = strtolower(trim((string)($ipms_row['status'] ?? 'completed')));
+                $archived = rgmap_archive_ipms_project($conn, $report_id, $status);
             } else {
                 $table = rgmap_resolve_report_table($conn, $report_id);
                 if (!$table) json_response(['success' => false, 'message' => 'Report not found'], 404);

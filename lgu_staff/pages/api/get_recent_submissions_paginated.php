@@ -70,6 +70,10 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
         ? "verification_status = 'Completed'"
         : "verification_status IN ('Approved', 'In Progress')";
 
+    $ipms_status_sql = $completed_only
+        ? "status = 'completed'"
+        : "status = 'approved'";
+
     // Helper to append shared WHERE clauses and run a query (no pagination at query level)
     $fetch = function ($sql, $status_filter) use ($conn, $completed_only) {
         $params = [];
@@ -114,19 +118,22 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
             $status_filter
         ));
 
-        // 2. Infrastructure Projects (ipms_road_projects, locally approved).
-        //    Excluded for Transportation Operations Supervisors and Completed view.
-        if (!$transport_only && !$completed_only) {
+        // 2. Infrastructure Projects (ipms_road_projects).
+        //    Active Monitoring: locally approved. Completed Projects: status = completed.
+        //    Excluded for Transportation Operations Supervisors.
+        if (!$transport_only) {
             $reports = array_merge($reports, $fetch(
             "SELECT project_id AS id,
                     CAST(project_id AS CHAR) AS report_id,
                     project_name AS title,
                     COALESCE(NULLIF(road_type, ''), 'infrastructure_issue') AS report_type,
+                    'road' AS report_category,
                     'infrastructure' AS source,
                     status,
                     'medium' AS priority,
                     NULL AS severity,
                     created_at,
+                    NULL AS completed_at,
                     road_status AS description,
                     start_lat AS latitude,
                     start_lng AS longitude,
@@ -139,7 +146,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
                     NULL AS cimm_verified_by,
                     'ipms_road_projects' AS _source_table
              FROM ipms_road_projects
-             WHERE status = 'approved'",
+             WHERE {$ipms_status_sql}",
             $status_filter
         ));
         }

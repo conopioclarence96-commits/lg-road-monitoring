@@ -66,7 +66,7 @@ function rgmap_archive_ensure_table() {
                       WHERE source_pk IS NULL
                         AND archived_from IN ('road_transportation_reports','road_maintenance_reports')");
         $conn->query("UPDATE road_transportation_reports_archive a
-                      JOIN cimm_verification_reports c ON c.reference_code = a.report_id
+                      JOIN cimm_verification_reports c ON c.reference_code COLLATE utf8mb4_unicode_ci = a.report_id
                       SET a.source_pk = c.id
                       WHERE a.source_pk IS NULL
                         AND a.archived_from = 'cimm_verification_reports'");
@@ -85,6 +85,143 @@ function rgmap_archive_ensure_table() {
             error_log("rgmap_archive_ensure_table $col: " . $e->getMessage());
         }
     }
+    rgmap_archive_ensure_split_tables();
+}
+
+function rgmap_archive_ensure_split_tables() {
+    global $conn;
+    try {
+        require_once __DIR__ . '/cimm_verification_data.php';
+        if (function_exists('rgmap_verification_pdo') && function_exists('rgmap_ensure_cimm_verification_table')) {
+            rgmap_ensure_cimm_verification_table(rgmap_verification_pdo());
+        }
+    } catch (Throwable $e) {
+        error_log('rgmap_archive_ensure_split_tables cimm live: ' . $e->getMessage());
+    }
+    try {
+        require_once __DIR__ . '/ipms_road_projects_data.php';
+        rgmap_ensure_ipms_road_projects_table(rgmap_ipms_pdo());
+    } catch (Throwable $e) {
+        error_log('rgmap_archive_ensure_split_tables ipms live: ' . $e->getMessage());
+    }
+    try {
+        $conn->query("CREATE TABLE IF NOT EXISTS cimm_verification_reports_archive LIKE cimm_verification_reports");
+        $conn->query("ALTER TABLE cimm_verification_reports_archive ADD COLUMN IF NOT EXISTS previous_status VARCHAR(50) NULL DEFAULT NULL");
+        $conn->query("ALTER TABLE cimm_verification_reports_archive ADD COLUMN IF NOT EXISTS archived_at DATETIME NULL DEFAULT NULL");
+        $conn->query("ALTER TABLE cimm_verification_reports_archive ADD COLUMN IF NOT EXISTS archive_status VARCHAR(50) NULL DEFAULT NULL");
+        $conn->query("ALTER TABLE cimm_verification_reports_archive DROP INDEX IF EXISTS uq_cimm_req");
+        $conn->query("ALTER TABLE cimm_verification_reports_archive ADD INDEX IF NOT EXISTS idx_cimm_req_arch (cimm_req_id)");
+        $conn->query("ALTER TABLE cimm_verification_reports_archive ADD INDEX IF NOT EXISTS idx_archive_status (archive_status)");
+        try {
+            $conn->query("ALTER TABLE cimm_verification_reports_archive MODIFY priority VARCHAR(32) NULL DEFAULT 'medium'");
+        } catch (Throwable $e) { /* already wide enough */ }
+        $collRes = $conn->query("SHOW TABLE STATUS LIKE 'cimm_verification_reports_archive'");
+        $collRow = $collRes ? $collRes->fetch_assoc() : null;
+        if ($collRow && stripos((string)($collRow['Collation'] ?? ''), 'unicode') === false) {
+            $conn->query("ALTER TABLE cimm_verification_reports_archive CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+        }
+    } catch (Throwable $e) {
+        error_log('rgmap_archive_ensure_split_tables cimm: ' . $e->getMessage());
+    }
+    try {
+        $conn->query("CREATE TABLE IF NOT EXISTS ipms_road_projects_archive LIKE ipms_road_projects");
+        $conn->query("ALTER TABLE ipms_road_projects_archive ADD COLUMN IF NOT EXISTS previous_status VARCHAR(50) NULL DEFAULT NULL");
+        $conn->query("ALTER TABLE ipms_road_projects_archive ADD COLUMN IF NOT EXISTS archived_at DATETIME NULL DEFAULT NULL");
+        $conn->query("ALTER TABLE ipms_road_projects_archive ADD COLUMN IF NOT EXISTS archive_status VARCHAR(50) NULL DEFAULT NULL");
+        $conn->query("ALTER TABLE ipms_road_projects_archive ADD INDEX IF NOT EXISTS idx_ipms_arch_status (archive_status)");
+    } catch (Throwable $e) {
+        error_log('rgmap_archive_ensure_split_tables ipms: ' . $e->getMessage());
+    }
+    try {
+        $conn->query("CREATE TABLE IF NOT EXISTS ipms_sync_exclusions (
+            project_id INT UNSIGNED NOT NULL,
+            excluded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            excluded_by VARCHAR(180) NULL DEFAULT NULL,
+            reason VARCHAR(100) NULL DEFAULT NULL,
+            PRIMARY KEY (project_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Throwable $e) {
+        error_log('rgmap_archive_ensure_split_tables exclusions: ' . $e->getMessage());
+    }
+}
+
+function rgmap_archive_table_columns($conn, $table) {
+    $cols = [];
+    $res = $conn->query("SHOW COLUMNS FROM `$table`");
+    if ($res) {
+        while ($row = $res->fetch_assoc()) {
+            $cols[$row['Field']] = true;
+        }
+    }
+    return $cols;
+}
+
+function rgmap_archive_insert_native($conn, $dest_table, array $row, array $exclude = []) {
+    $dest_cols = rgmap_archive_table_columns($conn, $dest_table);
+    $fields = [];
+    $values = [];
+    foreach ($row as $field => $value) {
+        if (isset($exclude[$field]) || $field === '') {
+            continue;
+        }
+        if (!isset($dest_cols[$field])) {
+            continue;
+        }
+        $fields[] = $field;
+        $values[] = $value;
+    }
+    if (empty($fields)) {
+        throw new Exception("No matching columns for $dest_table");
+    }
+    $field_list = '`' . implode('`, `', $fields) . '`';
+    $placeholders = implode(', ', array_fill(0, count($fields), '?'));
+    $stmt = $conn->prepare("INSERT INTO `$dest_table` ($field_list) VALUES ($placeholders)");
+    $stmt->execute($values);
+    $stmt->close();
+}
+
+function rgmap_archive_normalize_status($status, $fallback = 'rejected') {
+    $valid = ['pending', 'in-progress', 'completed', 'cancelled', 'approved', 'rejected'];
+    $archive_status = strtolower(trim((string)$status));
+    if (!in_array($archive_status, $valid, true)) {
+        return $fallback;
+    }
+    return $archive_status;
+}
+
+function rgmap_ipms_exclude_project($conn, $project_id, $reason = 'delete_forever') {
+    $project_id = (int)$project_id;
+    if ($project_id <= 0) {
+        return;
+    }
+    rgmap_archive_ensure_split_tables();
+    $by = $_SESSION['email'] ?? ($_SESSION['full_name'] ?? null);
+    $stmt = $conn->prepare("INSERT INTO ipms_sync_exclusions (project_id, excluded_by, reason) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE excluded_at = excluded_at");
+    $stmt->bind_param('iss', $project_id, $by, $reason);
+    $stmt->execute();
+    $stmt->close();
+}
+
+function rgmap_ipms_is_sync_skipped($conn, $project_id) {
+    $project_id = (int)$project_id;
+    if ($project_id <= 0) {
+        return false;
+    }
+    rgmap_archive_ensure_split_tables();
+    $stmt = $conn->prepare("SELECT project_id FROM ipms_sync_exclusions WHERE project_id = ? LIMIT 1");
+    $stmt->bind_param('i', $project_id);
+    $stmt->execute();
+    $found = (bool)$stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if ($found) {
+        return true;
+    }
+    $stmt = $conn->prepare("SELECT project_id FROM ipms_road_projects_archive WHERE project_id = ? LIMIT 1");
+    $stmt->bind_param('i', $project_id);
+    $stmt->execute();
+    $found = (bool)$stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $found;
 }
 
 // Ensure the restored_from_archive marker column exists on every live report
@@ -281,107 +418,58 @@ function rgmap_archive_report($conn, $table, $report_id, $status) {
     }
 }
 
-// Archive a CIMM report (stored in cimm_verification_reports). The row is
-// mapped into the archive table with report_source 'external' (so archive.php
-// labels it CIMM) and the given terminal status, then removed from the CIMM
-// table — mirroring archive_cimm_rejected_report().
-function rgmap_archive_cimm_report($conn, $cimm_req_id, $status) {
+// Archive a CIMM report: native copy into cimm_verification_reports_archive,
+// then remove the live row. $lookup may be the local PK or cimm_req_id.
+function rgmap_archive_cimm_report($conn, $lookup, $status, $rejection_reason = null) {
     try {
         rgmap_archive_ensure_table();
+        $cimm_report = rgmap_archive_load_cimm_live($conn, $lookup);
+        if (!$cimm_report) {
+            return false;
+        }
 
-        $stmt = $conn->prepare("SELECT * FROM cimm_verification_reports WHERE id = ?");
-        $stmt->bind_param("i", $cimm_req_id);
-        $stmt->execute();
-        $cimm_report = $stmt->get_result()->fetch_assoc();
-        if (!$cimm_report) return false;
-
+        $archive_status = rgmap_archive_normalize_status($status, 'rejected');
+        if ($archive_status === 'rejected' && in_array(strtolower(trim((string)$status)), ['approved', 'verified'], true)) {
+            $archive_status = 'approved';
+        }
         $now = date('Y-m-d H:i:s');
+        $live_id = (int)$cimm_report['id'];
+        $cimm_req = (string)($cimm_report['cimm_req_id'] ?? '');
+
         $conn->begin_transaction();
 
-        // Normalise the free-text CIMM status/priority down to values the
-        // archive enum columns accept. CIMM stores title-case and non-enum
-        // values ('Pending Review', 'Verified', 'Critical', ...) that would
-        // otherwise trigger "Data truncated for column ..." and roll back the
-        // whole archive — which surfaced as a broken Archive button.
-        $archive_priority = strtolower(trim((string)($cimm_report['priority'] ?? 'medium')));
-        if (!in_array($archive_priority, ['high', 'medium', 'low'], true)) {
-            $archive_priority = ($archive_priority === 'critical') ? 'high' : 'medium';
-        }
-        $valid_archive_statuses = ['pending', 'in-progress', 'completed', 'cancelled', 'approved', 'rejected'];
-        $archive_status = strtolower(trim((string)$status));
-        if (!in_array($archive_status, $valid_archive_statuses, true)) {
-            $archive_status = in_array($archive_status, ['approved', 'verified'], true) ? 'approved' : 'completed';
+        if ($archive_status === 'rejected') {
+            $reason = ($rejection_reason !== null && $rejection_reason !== '')
+                ? $rejection_reason
+                : (string)($cimm_report['rejection_reason'] ?? 'Rejected by admin');
+            $upd = $conn->prepare("UPDATE cimm_verification_reports SET verification_status = 'Rejected', rejection_reason = ?, verified_at = NOW() WHERE id = ?");
+            $upd->bind_param('si', $reason, $live_id);
+            $upd->execute();
+            $upd->close();
+            $cimm_report['rejection_reason'] = $reason;
         }
 
-$timestamp_key = ($archive_status === 'cancelled') ? 'rejected_at' : 'completed_at';
-            // Preserve the CIMM evidence photos (absolute URLs in
-            // evidence_json) in the archive's attachments column so the
-            // archive View modal can render the same evidence photos.
-            $this_cimm_archive_attachments_json = null;
-            $this_cimm_archive_evidence = json_decode((string)($cimm_report['evidence_json'] ?? '[]'), true);
-            if (is_array($this_cimm_archive_evidence) && count($this_cimm_archive_evidence) > 0) {
-                $this_cimm_archive_items = [];
-                foreach ($this_cimm_archive_evidence as $this_cimm_archive_url) {
-                    if (is_string($this_cimm_archive_url) && $this_cimm_archive_url !== '') {
-                        $this_cimm_archive_items[] = ['type' => 'image', 'file_path' => $this_cimm_archive_url];
-                    }
-                }
-                if (count($this_cimm_archive_items) > 0) {
-                    $this_cimm_archive_attachments_json = json_encode($this_cimm_archive_items, JSON_UNESCAPED_SLASHES);
-                }
-            }
-            // Preserve ALL original CIMM information so a later restore brings
-            // the report back exactly as it was — start/end dates, engineer,
-            // budget and the rest are stored in the archive's cimm_* columns.
-            $insert_fields = [
-                'report_id' => $cimm_report['reference_code'] ?? ('CIMM-' . $cimm_req_id),
-                'title' => $cimm_report['infrastructure'] ?? 'CIMM Report',
-                'report_type' => 'infrastructure_issue',
-                'report_category' => 'road',
-                'report_source' => 'external',
-                'department' => 'engineering',
-                'priority' => $archive_priority,
-                'status' => $archive_status,
-                'previous_status' => $cimm_report['verification_status'] ?? null,
-                'archived_from' => 'cimm_verification_reports',
-                'source_pk' => (int)$cimm_req_id,
-                'created_date' => (!empty($cimm_report['submitted_at'])) ? date('Y-m-d', strtotime($cimm_report['submitted_at'])) : date('Y-m-d'),
-                'description' => $cimm_report['issue'] ?? '',
-                'location' => $cimm_report['location'] ?? '',
-                'latitude' => $cimm_report['coord_lat'] ?? null,
-                'longitude' => $cimm_report['coord_lng'] ?? null,
-                'reporter_name' => $cimm_report['reporter_name'] ?? null,
-                'district' => $cimm_report['district'] ?? null,
-                'created_at' => $cimm_report['submitted_at'] ?? $now,
-                'updated_at' => $now,
-                $timestamp_key => $now,
-                'approved_at' => null,
-                'engineer' => $cimm_report['engineer'] ?? null,
-                'budget_allocation' => $cimm_report['budget_allocation'] ?? null,
-                'cimm_engineer_name' => $cimm_report['engineer'] ?? null,
-                'cimm_budget' => $cimm_report['budget'] ?? $cimm_report['budget_allocation'] ?? null,
-                'cimm_starting_date' => $cimm_report['starting_date'] ?? null,
-                'cimm_estimated_end_date' => $cimm_report['estimated_end_date'] ?? null,
-                'cimm_status' => $cimm_report['verification_status'] ?? null,
-                'cimm_district' => $cimm_report['district'] ?? null,
-                'approval_status' => $cimm_report['approval_status'] ?? null,
-                'cimm_report_url' => $cimm_report['portal_url'] ?? null,
-                'reporter_email' => $cimm_report['email'] ?? null,
-                'reporter_phone' => $cimm_report['contact_number'] ?? null,
-                'attachments' => $this_cimm_archive_attachments_json,
-            ];
+        $row = $cimm_report;
+        // Keep the live id. Archive.id is NOT NULL without AUTO_INCREMENT, so
+        // omitting it makes the INSERT fail ("Field 'id' doesn't have a default value").
+        $row['previous_status'] = $cimm_report['verification_status'] ?? null;
+        if ($archive_status === 'rejected') {
+            $row['verification_status'] = 'Rejected';
+        }
+        $row['archived_at'] = $now;
+        $row['archive_status'] = $archive_status;
 
-        $fields = array_keys($insert_fields);
-        $placeholders = array_fill(0, count($fields), '?');
-        $field_list = '`' . implode('`, `', $fields) . '`';
-        $placeholder_list = implode(', ', $placeholders);
+        $dup = $conn->prepare("DELETE FROM cimm_verification_reports_archive WHERE id = ? OR (cimm_req_id IS NOT NULL AND cimm_req_id = ? AND cimm_req_id != '')");
+        $dup->bind_param('is', $live_id, $cimm_req);
+        $dup->execute();
+        $dup->close();
 
-        $insert = "INSERT INTO road_transportation_reports_archive ($field_list) VALUES ($placeholder_list)";
-        $stmt = $conn->prepare($insert);
-        $stmt->execute(array_values($insert_fields));
+        rgmap_archive_insert_native($conn, 'cimm_verification_reports_archive', $row);
 
         $delete = $conn->prepare("DELETE FROM cimm_verification_reports WHERE id = ?");
-        $delete->execute([$cimm_req_id]);
+        $delete->bind_param('i', $live_id);
+        $delete->execute();
+        $delete->close();
 
         $conn->commit();
         return true;
@@ -392,10 +480,38 @@ $timestamp_key = ($archive_status === 'cancelled') ? 'rejected_at' : 'completed_
     }
 }
 
-// Archive an IPMS infrastructure project: copy every field the verification
-// View modal needs into road_transportation_reports_archive, then remove the
-// row from ipms_road_projects. Used when a project is rejected on
-// verification_monitoring.php or deleted on report_management.php.
+function rgmap_archive_load_cimm_live($conn, $lookup) {
+    $lookup_int = (int)$lookup;
+    if ($lookup_int > 0) {
+        $stmt = $conn->prepare("SELECT * FROM cimm_verification_reports WHERE id = ?");
+        $stmt->bind_param('i', $lookup_int);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if ($row) {
+            return $row;
+        }
+        $stmt = $conn->prepare("SELECT * FROM cimm_verification_reports WHERE cimm_req_id = ?");
+        $lookup_str = (string)$lookup;
+        $stmt->bind_param('s', $lookup_str);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if ($row) {
+            return $row;
+        }
+    }
+    $lookup_str = (string)$lookup;
+    $stmt = $conn->prepare("SELECT * FROM cimm_verification_reports WHERE cimm_req_id = ? OR reference_code = ? LIMIT 1");
+    $stmt->bind_param('ss', $lookup_str, $lookup_str);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ?: null;
+}
+
+// Archive an IPMS infrastructure project: native copy into
+// ipms_road_projects_archive, then remove the live mirror row.
 function rgmap_archive_ipms_project($conn, $project_id, $status) {
     $project_id = (int)$project_id;
     if ($project_id <= 0) {
@@ -414,103 +530,29 @@ function rgmap_archive_ipms_project($conn, $project_id, $status) {
             return false;
         }
 
+        $archive_status = rgmap_archive_normalize_status($status, 'rejected');
         $now = date('Y-m-d H:i:s');
-        $valid_archive_statuses = ['pending', 'in-progress', 'completed', 'cancelled', 'approved', 'rejected'];
-        $archive_status = strtolower(trim((string)$status));
-        if (!in_array($archive_status, $valid_archive_statuses, true)) {
-            $archive_status = 'rejected';
-        }
-
-        $archive_priority = strtolower(trim((string)($row['priority'] ?? 'medium')));
-        if (!in_array($archive_priority, ['high', 'medium', 'low'], true)) {
-            $archive_priority = 'medium';
-        }
-
-        $engineers = json_decode((string)($row['assigned_engineers_json'] ?? '[]'), true) ?: [];
-        $engineer = implode(', ', array_filter(
-            array_map('trim', array_map('strval', is_array($engineers) ? $engineers : [])),
-            static fn($n) => $n !== ''
-        ));
-
-        $barangays = json_decode((string)($row['barangays_json'] ?? '[]'), true) ?: [];
-        $location = '';
-        if (is_array($barangays) && count($barangays) > 0) {
-            $location = implode(', ', array_filter(
-                array_map('trim', array_map('strval', $barangays)),
-                static fn($b) => $b !== ''
-            ));
-        }
-        if ($location === '') {
-            $location = trim((string)($row['road_name'] ?? ''));
-        }
-
-        $road_type = trim((string)($row['road_type'] ?? ''));
-        $report_type = $road_type !== '' ? $road_type : 'infrastructure_issue';
-        $start_date = $row['start_date'] ?? null;
-        $end_date = $row['end_date'] ?? null;
-        $report_code = 'IPMS-' . $project_id;
-
-        $insert_fields = [
-            'report_id' => $report_code,
-            'title' => $row['project_name'] ?? 'Infrastructure Project',
-            'report_type' => $report_type,
-            'report_category' => 'road',
-            'report_source' => 'local',
-            'department' => 'engineering',
-            'priority' => $archive_priority,
-            'status' => $archive_status,
-            'previous_status' => $row['status'] ?? null,
-            'archived_from' => 'ipms_road_projects',
-            'source_pk' => $project_id,
-            'created_date' => (!empty($start_date)) ? date('Y-m-d', strtotime($start_date)) : date('Y-m-d'),
-            'due_date' => $end_date,
-            'description' => $row['road_status'] ?? '',
-            'location' => $location,
-            'latitude' => $row['start_lat'] ?? null,
-            'longitude' => $row['start_lng'] ?? null,
-            'created_at' => $row['created_at'] ?? $now,
-            'updated_at' => $now,
-            'rejected_at' => in_array($archive_status, ['rejected', 'cancelled'], true) ? $now : null,
-            'engineer' => ($engineer !== '') ? $engineer : null,
-            'assigned_to' => ($engineer !== '') ? $engineer : null,
-            'budget_allocation' => $row['budget'] ?? null,
-            'cimm_budget' => $row['budget'] ?? null,
-            'cimm_starting_date' => $start_date,
-            'cimm_estimated_end_date' => $end_date,
-            'start_address' => $row['start_address'] ?? null,
-            'end_address' => $row['end_address'] ?? null,
-            'ipms_polyline_json' => $row['polyline_json'] ?? null,
-        ];
+        $previous_status = $row['status'] ?? null;
+        unset($row['id']);
+        $row['previous_status'] = $previous_status;
+        $row['archived_at'] = $now;
+        $row['archive_status'] = $archive_status;
+        $row['status'] = $archive_status;
 
         $conn->begin_transaction();
 
-        $dup = $conn->prepare("SELECT id FROM road_transportation_reports_archive WHERE report_id = ? LIMIT 1");
-        $dup->bind_param('s', $report_code);
+        $dup = $conn->prepare("SELECT id FROM ipms_road_projects_archive WHERE project_id = ? LIMIT 1");
+        $dup->bind_param('i', $project_id);
         $dup->execute();
         $existing = $dup->get_result()->fetch_assoc();
         $dup->close();
-
         if ($existing) {
-            $set_parts = [];
-            $vals = [];
-            foreach ($insert_fields as $field => $val) {
-                $set_parts[] = "`$field` = ?";
-                $vals[] = $val;
-            }
-            $vals[] = (int)$existing['id'];
-            $upd_sql = "UPDATE road_transportation_reports_archive SET " . implode(', ', $set_parts) . " WHERE id = ?";
-            $upd = $conn->prepare($upd_sql);
-            $upd->execute($vals);
-            $upd->close();
-        } else {
-            $fields = array_keys($insert_fields);
-            $placeholders = array_fill(0, count($fields), '?');
-            $field_list = '`' . implode('`, `', $fields) . '`';
-            $insert = "INSERT INTO road_transportation_reports_archive ($field_list) VALUES (" . implode(', ', $placeholders) . ")";
-            $ins = $conn->prepare($insert);
-            $ins->execute(array_values($insert_fields));
-            $ins->close();
+            $del_old = $conn->prepare("DELETE FROM ipms_road_projects_archive WHERE id = ?");
+            $del_old->bind_param('i', $existing['id']);
+            $del_old->execute();
+            $del_old->close();
         }
+        rgmap_archive_insert_native($conn, 'ipms_road_projects_archive', $row);
 
         $del = $pdo->prepare("DELETE FROM ipms_road_projects WHERE project_id = ?");
         $del->execute([$project_id]);
@@ -774,60 +816,20 @@ function rgmap_notify_supervisor_action($conn, $report_id, $action, $supervisor_
 function rgmap_archive_copy_cimm_report($conn, $cimm_req_id, $status) {
     try {
         rgmap_archive_ensure_table();
+        $cimm_report = rgmap_archive_load_cimm_live($conn, $cimm_req_id);
+        if (!$cimm_report) {
+            return false;
+        }
 
-        $stmt = $conn->prepare("SELECT * FROM cimm_verification_reports WHERE id = ?");
-        $stmt->bind_param("i", $cimm_req_id);
-        $stmt->execute();
-        $cimm_report = $stmt->get_result()->fetch_assoc();
-        if (!$cimm_report) return false;
-
+        $archive_status = rgmap_archive_normalize_status($status, 'completed');
         $now = date('Y-m-d H:i:s');
-        $timestamp_key = ($status === 'cancelled') ? 'rejected_at' : 'completed_at';
-        // Preserve ALL original CIMM information so a later restore brings
-        // the report back exactly as it was — start/end dates, engineer,
-        // budget and the rest are stored in the archive's cimm_* columns.
-        $insert_fields = [
-            'report_id' => $cimm_report['reference_code'] ?? ('CIMM-' . $cimm_req_id),
-            'title' => $cimm_report['infrastructure'] ?? 'CIMM Report',
-            'report_type' => 'infrastructure_issue',
-            'report_category' => 'road',
-            'report_source' => 'external',
-            'department' => 'engineering',
-            'priority' => $cimm_report['priority'] ?? 'medium',
-            'status' => $status,
-            'previous_status' => $cimm_report['verification_status'] ?? null,
-            'archived_from' => 'cimm_verification_reports',
-            'source_pk' => (int)$cimm_req_id,
-            'created_date' => (!empty($cimm_report['submitted_at'])) ? date('Y-m-d', strtotime($cimm_report['submitted_at'])) : date('Y-m-d'),
-            'description' => $cimm_report['issue'] ?? '',
-            'location' => $cimm_report['location'] ?? '',
-            'latitude' => $cimm_report['coord_lat'] ?? null,
-            'longitude' => $cimm_report['coord_lng'] ?? null,
-            'reporter_name' => $cimm_report['reporter_name'] ?? null,
-            'district' => $cimm_report['district'] ?? null,
-            'created_at' => $cimm_report['submitted_at'] ?? $now,
-            'updated_at' => $now,
-            $timestamp_key => $now,
-            'approved_at' => null,
-            'engineer' => $cimm_report['engineer'] ?? null,
-            'budget_allocation' => $cimm_report['budget_allocation'] ?? null,
-            'cimm_engineer_name' => $cimm_report['engineer'] ?? null,
-            'cimm_budget' => $cimm_report['budget'] ?? $cimm_report['budget_allocation'] ?? null,
-            'cimm_starting_date' => $cimm_report['starting_date'] ?? null,
-            'cimm_estimated_end_date' => $cimm_report['estimated_end_date'] ?? null,
-            'cimm_status' => $cimm_report['verification_status'] ?? null,
-            'cimm_district' => $cimm_report['district'] ?? null,
-        ];
-
-        $fields = array_keys($insert_fields);
-        $placeholders = array_fill(0, count($fields), '?');
-        $field_list = '`' . implode('`, `', $fields) . '`';
-        $placeholder_list = implode(', ', $placeholders);
+        unset($cimm_report['id']);
+        $cimm_report['previous_status'] = $cimm_report['verification_status'] ?? null;
+        $cimm_report['archived_at'] = $now;
+        $cimm_report['archive_status'] = $archive_status;
 
         $conn->begin_transaction();
-        $insert = "INSERT INTO road_transportation_reports_archive ($field_list) VALUES ($placeholder_list)";
-        $stmt = $conn->prepare($insert);
-        $stmt->execute(array_values($insert_fields));
+        rgmap_archive_insert_native($conn, 'cimm_verification_reports_archive', $cimm_report);
         $conn->commit();
         return true;
     } catch (Exception $e) {
@@ -863,4 +865,324 @@ function rgmap_ensure_auto_archive_column() {
 // is kept so existing callers do not break.
 function rgmap_auto_archive_completed($conn) {
     return 0;
+}
+
+function rgmap_archive_union_sql($include_cimm, $include_ipms) {
+    $source_case = "CASE
+        WHEN report_source = 'external' THEN 'cimm'
+        WHEN report_type IN ('infrastructure_issue','maintenance','maintenance_request') THEN 'infrastructure'
+        WHEN report_source = 'local' AND COALESCE(created_by, 0) != 0 THEN 'lgu'
+        ELSE 'citizen'
+    END";
+
+    $road = "
+        SELECT
+            id,
+            'road_transportation_reports_archive' AS archive_table,
+            $source_case AS source_system,
+            report_id,
+            title,
+            report_type,
+            report_category,
+            report_source,
+            created_by,
+            department,
+            priority,
+            status,
+            created_date,
+            due_date,
+            description,
+            location,
+            attachments,
+            latitude,
+            longitude,
+            created_at,
+            updated_at,
+            approved_at,
+            rejected_at,
+            completed_at,
+            previous_status,
+            archived_from,
+            source_pk,
+            engineer,
+            budget_allocation,
+            approval_status,
+            start_address,
+            end_address,
+            ipms_polyline_json,
+            reporter_name,
+            district,
+            cimm_starting_date,
+            cimm_estimated_end_date,
+            cimm_budget,
+            cimm_engineer_name,
+            cimm_district,
+            cimm_status,
+            cimm_report_url,
+            reporter_email,
+            reporter_phone,
+            assigned_to,
+            NULL AS assigned_engineers_json,
+            NULL AS polyline_json
+        FROM road_transportation_reports_archive
+    ";
+
+    $parts = [$road];
+
+    if ($include_cimm) {
+        $parts[] = "
+            SELECT
+                id,
+                'cimm_verification_reports_archive' AS archive_table,
+                'cimm' AS source_system,
+                reference_code AS report_id,
+                infrastructure AS title,
+                'infrastructure_issue' AS report_type,
+                'road' AS report_category,
+                'external' AS report_source,
+                0 AS created_by,
+                'engineering' AS department,
+                LOWER(COALESCE(priority, 'medium')) AS priority,
+                COALESCE(archive_status, 'rejected') AS status,
+                DATE(COALESCE(submitted_at, created_at)) AS created_date,
+                estimated_end_date AS due_date,
+                issue AS description,
+                location,
+                evidence_json AS attachments,
+                coord_lat AS latitude,
+                coord_lng AS longitude,
+                COALESCE(submitted_at, created_at) AS created_at,
+                COALESCE(synced_at, created_at) AS updated_at,
+                verified_at AS approved_at,
+                CASE WHEN COALESCE(archive_status, '') IN ('rejected', 'cancelled') THEN archived_at ELSE NULL END AS rejected_at,
+                CASE WHEN COALESCE(archive_status, '') = 'completed' THEN archived_at ELSE NULL END AS completed_at,
+                previous_status,
+                'cimm_verification_reports' AS archived_from,
+                id AS source_pk,
+                engineer,
+                budget AS budget_allocation,
+                approval_status,
+                NULL AS start_address,
+                NULL AS end_address,
+                NULL AS ipms_polyline_json,
+                reporter_name,
+                district,
+                starting_date AS cimm_starting_date,
+                estimated_end_date AS cimm_estimated_end_date,
+                budget AS cimm_budget,
+                engineer AS cimm_engineer_name,
+                district AS cimm_district,
+                verification_status AS cimm_status,
+                portal_url AS cimm_report_url,
+                email AS reporter_email,
+                contact_number AS reporter_phone,
+                NULL AS assigned_to,
+                NULL AS assigned_engineers_json,
+                NULL AS polyline_json
+            FROM cimm_verification_reports_archive
+        ";
+    }
+
+    if ($include_ipms) {
+        $parts[] = "
+            SELECT
+                id,
+                'ipms_road_projects_archive' AS archive_table,
+                'infrastructure' AS source_system,
+                CONCAT('IPMS-', project_id) AS report_id,
+                project_name AS title,
+                COALESCE(NULLIF(road_type, ''), 'infrastructure_issue') AS report_type,
+                'road' AS report_category,
+                'local' AS report_source,
+                0 AS created_by,
+                'engineering' AS department,
+                LOWER(COALESCE(priority, 'medium')) AS priority,
+                COALESCE(archive_status, status, 'rejected') AS status,
+                start_date AS created_date,
+                end_date AS due_date,
+                road_status AS description,
+                COALESCE(NULLIF(road_name, ''), project_name) AS location,
+                NULL AS attachments,
+                start_lat AS latitude,
+                start_lng AS longitude,
+                created_at,
+                synced_at AS updated_at,
+                NULL AS approved_at,
+                CASE WHEN COALESCE(archive_status, status, '') IN ('rejected', 'cancelled') THEN archived_at ELSE NULL END AS rejected_at,
+                CASE WHEN COALESCE(archive_status, status, '') = 'completed' THEN archived_at ELSE NULL END AS completed_at,
+                previous_status,
+                'ipms_road_projects' AS archived_from,
+                project_id AS source_pk,
+                NULL AS engineer,
+                budget AS budget_allocation,
+                NULL AS approval_status,
+                start_address,
+                end_address,
+                polyline_json AS ipms_polyline_json,
+                NULL AS reporter_name,
+                NULL AS district,
+                start_date AS cimm_starting_date,
+                end_date AS cimm_estimated_end_date,
+                budget AS cimm_budget,
+                NULL AS cimm_engineer_name,
+                NULL AS cimm_district,
+                NULL AS cimm_status,
+                NULL AS cimm_report_url,
+                NULL AS reporter_email,
+                NULL AS reporter_phone,
+                NULL AS assigned_to,
+                assigned_engineers_json,
+                polyline_json
+            FROM ipms_road_projects_archive
+        ";
+    }
+
+    return '(' . implode(' UNION ALL ', $parts) . ') AS archive_rows';
+}
+
+function rgmap_archive_allowed_table($table) {
+    return in_array($table, [
+        'road_transportation_reports_archive',
+        'cimm_verification_reports_archive',
+        'ipms_road_projects_archive',
+    ], true);
+}
+
+function rgmap_archive_fetch_row($conn, $table, $id) {
+    $id = (int)$id;
+    if ($id <= 0 || !rgmap_archive_allowed_table($table)) {
+        return null;
+    }
+    $stmt = $conn->prepare("SELECT * FROM `$table` WHERE id = ? LIMIT 1");
+    $stmt->bind_param('i', $id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ?: null;
+}
+
+function rgmap_restore_cimm_from_native_archive($conn, array $row, $archive_id) {
+    $archive_status = strtolower(trim((string)($row['archive_status'] ?? $row['verification_status'] ?? '')));
+    $cimm_status_map = [
+        'completed' => 'Completed',
+        'cancelled' => 'Cancelled',
+        'rejected' => 'Pending Review',
+        'approved' => 'Approved',
+        'pending' => 'Pending Review',
+        'in-progress' => 'In Progress',
+        'in progress' => 'In Progress',
+        'pending review' => 'Pending Review',
+        'verified' => 'Verified',
+    ];
+    $restore_status = $cimm_status_map[$archive_status] ?? ($row['previous_status'] ?? ($row['verification_status'] ?? 'Pending Review'));
+    $rfa = (strtolower($restore_status) === 'cancelled') ? 1 : 0;
+
+    $live = $row;
+    unset($live['id'], $live['previous_status'], $live['archived_at'], $live['archive_status']);
+    $live['verification_status'] = $restore_status;
+    $live['restored_from_archive'] = $rfa;
+
+    $cimm_req_id = $row['cimm_req_id'] ?? null;
+    $existing = null;
+    if ($cimm_req_id !== null && $cimm_req_id !== '') {
+        $dup = $conn->prepare("SELECT id FROM cimm_verification_reports WHERE cimm_req_id = ? LIMIT 1");
+        $dup->bind_param('s', $cimm_req_id);
+        $dup->execute();
+        $existing = $dup->get_result()->fetch_assoc();
+        $dup->close();
+    }
+
+    if ($existing) {
+        $live_cols = rgmap_archive_table_columns($conn, 'cimm_verification_reports');
+        $sets = [];
+        $vals = [];
+        foreach ($live as $field => $value) {
+            if (!isset($live_cols[$field]) || $field === 'id') {
+                continue;
+            }
+            $sets[] = "`$field` = ?";
+            $vals[] = $value;
+        }
+        $vals[] = (int)$existing['id'];
+        $upd = $conn->prepare("UPDATE cimm_verification_reports SET " . implode(', ', $sets) . " WHERE id = ?");
+        $upd->execute($vals);
+        $upd->close();
+    } else {
+        $original_pk = (int)($row['id'] ?? 0);
+        if ($original_pk > 0 && rgmap_pk_is_free($conn, 'cimm_verification_reports', $original_pk)) {
+            $live = ['id' => $original_pk] + $live;
+        }
+        rgmap_archive_insert_native($conn, 'cimm_verification_reports', $live);
+    }
+
+    $delete = $conn->prepare("DELETE FROM cimm_verification_reports_archive WHERE id = ?");
+    $delete->bind_param('i', $archive_id);
+    $delete->execute();
+    $delete->close();
+    return true;
+}
+
+function rgmap_restore_ipms_from_native_archive($conn, array $row, $archive_id) {
+    require_once __DIR__ . '/ipms_road_projects_data.php';
+    $pdo = rgmap_ipms_pdo();
+    $project_id = (int)($row['project_id'] ?? 0);
+    if ($project_id <= 0) {
+        return false;
+    }
+
+    $restore_status = trim((string)($row['archive_status'] ?? ''));
+    if ($restore_status === '') {
+        $restore_status = trim((string)($row['status'] ?? ''));
+    }
+    if ($restore_status === '' && !empty($row['previous_status'])) {
+        $restore_status = (string)$row['previous_status'];
+    }
+
+    $chk = $pdo->prepare("SELECT project_id FROM ipms_road_projects WHERE project_id = ? LIMIT 1");
+    $chk->execute([$project_id]);
+    if ($chk->fetch()) {
+        if ($restore_status !== '') {
+            $upd = $pdo->prepare("UPDATE ipms_road_projects SET status = ? WHERE project_id = ?");
+            $upd->execute([$restore_status, $project_id]);
+        }
+        $del = $conn->prepare("DELETE FROM ipms_road_projects_archive WHERE id = ?");
+        $del->bind_param('i', $archive_id);
+        $del->execute();
+        $del->close();
+        return true;
+    }
+
+    $live = $row;
+    unset($live['id'], $live['previous_status'], $live['archived_at'], $live['archive_status']);
+    if ($restore_status !== '') {
+        $live['status'] = $restore_status;
+    }
+
+    $dest_cols = [];
+    $col_res = $pdo->query("SHOW COLUMNS FROM ipms_road_projects");
+    foreach ($col_res as $c) {
+        $dest_cols[$c['Field']] = true;
+    }
+    $fields = [];
+    $values = [];
+    foreach ($live as $field => $value) {
+        if (!isset($dest_cols[$field]) || $field === 'id') {
+            continue;
+        }
+        $fields[] = $field;
+        $values[] = $value;
+    }
+    if (empty($fields)) {
+        return false;
+    }
+    $field_list = '`' . implode('`, `', $fields) . '`';
+    $placeholders = implode(', ', array_fill(0, count($fields), '?'));
+    $ins = $pdo->prepare("INSERT INTO ipms_road_projects ($field_list) VALUES ($placeholders)");
+    $ins->execute($values);
+
+    $delete = $conn->prepare("DELETE FROM ipms_road_projects_archive WHERE id = ?");
+    $delete->bind_param('i', $archive_id);
+    $delete->execute();
+    $delete->close();
+    return true;
 }

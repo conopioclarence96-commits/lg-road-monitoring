@@ -5,6 +5,7 @@ require_once '../../includes/functions.php';
 require_once __DIR__ . '/../../api/cimm_verification_data.php';
 require_once __DIR__ . '/../api/ipms_road_projects_data.php';
 require_once __DIR__ . '/../api/progress_archive_helpers.php';
+require_once __DIR__ . '/verification_panel_pagination.php';
 
 // Session timeout configuration
 $session_timeout = 30 * 60; // 30 minutes in seconds
@@ -603,122 +604,9 @@ function archive_cancelled_report($conn, $table, $report_id) {
     }
 }
 
-// Archive a rejected CIMM report by copying it to the archive table and removing from cimm_verification_reports
-function archive_cimm_rejected_report($conn, $cimm_req_id) {
-    try {
-        // Ensure archive table exists and has required columns
-        ensure_archive_for_archive_cancel($conn);
-        
-        // First, get the CIMM report data
-        $pdo = rgmap_verification_pdo();
-        rgmap_ensure_cimm_verification_table($pdo);
-        
-        $stmt = $pdo->prepare("SELECT * FROM cimm_verification_reports WHERE cimm_req_id = ?");
-        $stmt->execute([$cimm_req_id]);
-        $cimm_report = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if (!$cimm_report) {
-            error_log("CIMM report not found for archiving: $cimm_req_id");
-            return false;
-        }
-        
-        $conn->begin_transaction();
-
-        // Normalise the free-text CIMM priority/status down to values the
-        // archive enum columns accept. CIMM stores title-case and non-enum
-        // values ('Critical', ...) that would otherwise trigger
-        // "Data truncated for column 'priority'" and roll back the whole
-        // reject — which surfaced as a broken Reject (X) button. Mirrors the
-        // guard in rgmap_archive_cimm_report().
-        $archive_priority = strtolower(trim((string)($cimm_report['priority'] ?? 'medium')));
-        if (!in_array($archive_priority, ['high', 'medium', 'low'], true)) {
-            $archive_priority = ($archive_priority === 'critical') ? 'high' : 'medium';
-        }
-        $archive_status = 'rejected';
-
-        // Preserve the CIMM evidence photos. They are stored as plain absolute
-        // URLs in evidence_json (e.g. https://cimm.../uploads/evidence/x.jpg);
-        // the archive's attachments column holds a JSON array of
-        // {type, file_path} entries, so map each URL onto that shape so the
-        // archive View modal can render the same evidence photos.
-        $this_cimm_attachments_json = null;
-        $this_cimm_evidence = json_decode((string)($cimm_report['evidence_json'] ?? '[]'), true);
-        if (is_array($this_cimm_evidence) && count($this_cimm_evidence) > 0) {
-            $this_cimm_attach_items = [];
-            foreach ($this_cimm_evidence as $this_cimm_url) {
-                if (is_string($this_cimm_url) && $this_cimm_url !== '') {
-                    $this_cimm_attach_items[] = ['type' => 'image', 'file_path' => $this_cimm_url];
-                }
-            }
-            if (count($this_cimm_attach_items) > 0) {
-                $this_cimm_attachments_json = json_encode($this_cimm_attach_items, JSON_UNESCAPED_SLASHES);
-            }
-        }
-
-        // Map CIMM columns to road_transportation_reports_archive columns. Preserve
-        // ALL original CIMM information so a later restore brings the report
-        // back exactly as it was — start/end dates, engineer, budget and the
-        // rest are stored in the archive's cimm_* columns.
-        $insert_fields = [
-            'report_id'       => $cimm_report['reference_code'] ?? 'CIMM-' . $cimm_req_id,
-            'title'           => $cimm_report['infrastructure'] ?? 'CIMM Report',
-            'report_type'     => 'infrastructure_issue',
-            'report_category' => 'road',
-            'report_source'   => 'external',
-            'department'      => 'engineering',
-            'priority'        => $archive_priority,
-            'status'          => $archive_status,
-            'archived_from'   => 'cimm_verification_reports',
-            'source_pk'       => (int)$cimm_req_id,
-            'created_date'    => (!empty($cimm_report['submitted_at'])) ? date('Y-m-d', strtotime($cimm_report['submitted_at'])) : date('Y-m-d'),
-            'description'     => $cimm_report['issue'] ?? '',
-            'location'        => $cimm_report['location'] ?? '',
-            'latitude'        => $cimm_report['coord_lat'] ?? null,
-            'longitude'       => $cimm_report['coord_lng'] ?? null,
-            'reporter_name'   => $cimm_report['reporter_name'] ?? null,
-            'district'        => $cimm_report['district'] ?? null,
-            'created_at'      => $cimm_report['submitted_at'] ?? date('Y-m-d H:i:s'),
-            'updated_at'      => date('Y-m-d H:i:s'),
-            'rejected_at'     => date('Y-m-d H:i:s'),
-            'approved_at'     => null,
-            'engineer'        => $cimm_report['engineer'] ?? null,
-            'budget_allocation' => $cimm_report['budget_allocation'] ?? null,
-            'cimm_engineer_name'   => $cimm_report['engineer'] ?? null,
-            'cimm_budget'          => $cimm_report['budget'] ?? $cimm_report['budget_allocation'] ?? null,
-            'cimm_starting_date'   => $cimm_report['starting_date'] ?? null,
-            'cimm_estimated_end_date' => $cimm_report['estimated_end_date'] ?? null,
-            'cimm_status'          => $cimm_report['verification_status'] ?? null,
-            'cimm_district'        => $cimm_report['district'] ?? null,
-            'approval_status'      => $cimm_report['approval_status'] ?? null,
-            'cimm_report_url'      => $cimm_report['portal_url'] ?? null,
-            'reporter_email'       => $cimm_report['email'] ?? null,
-            'reporter_phone'       => $cimm_report['contact_number'] ?? null,
-            'attachments'          => $this_cimm_attachments_json,
-        ];
-        
-        // Build INSERT query dynamically
-        $fields = array_keys($insert_fields);
-        $placeholders = array_fill(0, count($fields), '?');
-        $field_list = '`' . implode('`, `', $fields) . '`';
-        $placeholder_list = implode(', ', $placeholders);
-        
-        $insert = "INSERT INTO road_transportation_reports_archive ($field_list) VALUES ($placeholder_list)";
-        $stmt = $conn->prepare($insert);
-        $stmt->execute(array_values($insert_fields));
-        
-        // Delete from cimm_verification_reports (matched by cimm_req_id, the
-        // unique CIMM request identifier — the same key rgmap_update_verification_status
-        // uses, and what the Reject form posts).
-        $delete = $conn->prepare("DELETE FROM cimm_verification_reports WHERE cimm_req_id = ?");
-        $delete->execute([$cimm_req_id]);
-        
-        $conn->commit();
-        return true;
-    } catch (Exception $e) {
-        $conn->rollback();
-        error_log('archive_cimm_rejected_report failed: ' . $e->getMessage());
-        return false;
-    }
+// Archive a rejected CIMM report by copying it to cimm_verification_reports_archive
+function archive_cimm_rejected_report($conn, $cimm_req_id, $rejection_reason = null) {
+    return rgmap_archive_cimm_report($conn, $cimm_req_id, 'rejected', $rejection_reason);
 }
 
 // Handle verification actions
@@ -877,7 +765,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Handle CIMM report verification/rejection
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && in_array($_POST['action'], ['approve_cimm', 'reject_cimm']) && isset($_POST['cimm_req_id'])) {
-    $cimm_req_id = (int) $_POST['cimm_req_id'];
+    $cimm_req_id = trim((string)$_POST['cimm_req_id']);
     $action = $_POST['action'];
     $pdo = rgmap_verification_pdo();
 
@@ -889,18 +777,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && in_array
             $_SESSION['verification_message'] = 'Failed to approve CIMM report #' . $cimm_req_id . '.';
         }
     } else {
-        $reason = trim($_POST['rejection_reason'] ?? '');
-        // Move the rejected CIMM report to the archive (status 'rejected') and
-        // remove it from this page. The source row is deleted by archiving, so
-        // updating its verification_status first is unnecessary — and 'Rejected'
-        // is not an accepted upstream value, so gating on that update would
-        // prevent the rejection from ever happening. The archived copy carries
-        // status 'rejected'.
-        $archived = archive_cimm_rejected_report($conn, $cimm_req_id);
+        $reason = trim($_POST['rejection_reason'] ?? 'Rejected by admin');
+        $archived = archive_cimm_rejected_report($conn, $cimm_req_id, $reason);
         if ($archived) {
             $_SESSION['verification_message'] = 'CIMM report #' . $cimm_req_id . ' rejected and moved to archive.';
         } else {
-            $_SESSION['verification_message'] = 'CIMM report #' . $cimm_req_id . ' rejected, but archiving failed.';
+            $_SESSION['verification_message'] = 'Failed to reject CIMM report #' . $cimm_req_id . '.';
         }
     }
 
@@ -918,42 +800,264 @@ if (isset($_SESSION['verification_message'])) {
 $status_filter = $_GET['status'] ?? 'all';
 $source_filter = $_GET['source'] ?? 'all';
 
+$panel_per_page = 10;
+
+// AJAX panel pagination — return rows + controls without a full page reload.
+if (($_GET['ajax'] ?? '') === 'panel_page') {
+    header('Content-Type: application/json; charset=utf-8');
+    $panel = preg_replace('/[^a-z_]/', '', strtolower((string)($_GET['panel'] ?? '')));
+    $ajax_page = max(1, (int)($_GET['page'] ?? 1));
+
+    if ($panel === 'lgu') {
+        $search_q = trim((string)($_GET['q'] ?? ''));
+        $lgu_result = getLguReportsForVerification(
+            $conn,
+            $is_transport_supervisor,
+            $is_road_supervisor,
+            $panel_per_page,
+            ($ajax_page - 1) * $panel_per_page,
+            $search_q
+        );
+        $total = (int)$lgu_result['total'];
+        $max_page = max(1, (int)ceil($total / max(1, $panel_per_page)));
+        if ($ajax_page > $max_page) {
+            $ajax_page = $max_page;
+            $lgu_result = getLguReportsForVerification(
+                $conn,
+                $is_transport_supervisor,
+                $is_road_supervisor,
+                $panel_per_page,
+                ($ajax_page - 1) * $panel_per_page,
+                $search_q
+            );
+            $total = (int)$lgu_result['total'];
+        }
+        $rows = $lgu_result['rows'];
+        $creator_map = vm_lookup_creator_map($conn, $rows);
+        $pagination_html = ($total > $panel_per_page)
+            ? vm_build_panel_pagination('lgu', $ajax_page, $panel_per_page, $total)['html']
+            : '';
+        echo json_encode([
+            'success' => true,
+            'panel' => 'lgu',
+            'page' => $ajax_page,
+            'total' => $total,
+            'per_page' => $panel_per_page,
+            'q' => $search_q,
+            'rows_html' => vm_render_lgu_panel_tbody($rows, $is_transport_supervisor),
+            'rows_json' => vm_build_lgu_rows_json($rows, $creator_map, $is_transport_supervisor, $is_road_supervisor),
+            'pagination_html' => $pagination_html,
+            'badge_text' => $total . ' Reports',
+        ]);
+        exit;
+    }
+
+    if ($panel === 'citizen') {
+        if ($is_road_supervisor) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Forbidden']);
+            exit;
+        }
+        $search_q = trim((string)($_GET['q'] ?? ''));
+        $citizen_result = getCitizenReportsForVerification(
+            $conn,
+            $panel_per_page,
+            ($ajax_page - 1) * $panel_per_page,
+            $search_q
+        );
+        $total = (int)$citizen_result['total'];
+        $max_page = max(1, (int)ceil($total / max(1, $panel_per_page)));
+        if ($ajax_page > $max_page) {
+            $ajax_page = $max_page;
+            $citizen_result = getCitizenReportsForVerification(
+                $conn,
+                $panel_per_page,
+                ($ajax_page - 1) * $panel_per_page,
+                $search_q
+            );
+            $total = (int)$citizen_result['total'];
+        }
+        $rows = $citizen_result['rows'];
+        $pagination_html = ($total > $panel_per_page)
+            ? vm_build_panel_pagination('citizen', $ajax_page, $panel_per_page, $total)['html']
+            : '';
+        echo json_encode([
+            'success' => true,
+            'panel' => 'citizen',
+            'page' => $ajax_page,
+            'total' => $total,
+            'per_page' => $panel_per_page,
+            'q' => $search_q,
+            'rows_html' => vm_render_citizen_panel_tbody($rows),
+            'rows_json' => vm_build_citizen_rows_json($rows),
+            'pagination_html' => $pagination_html,
+            'badge_text' => $total . ' Reports',
+        ]);
+        exit;
+    }
+
+    if ($panel === 'cimm') {
+        if ($is_transport_supervisor) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Forbidden']);
+            exit;
+        }
+        $search_q = trim((string)($_GET['q'] ?? ''));
+        $cimm_filter = $_GET['cimm_filter'] ?? 'all';
+        $cimm_result = getCimmReportsPaginated(
+            $cimm_filter,
+            $panel_per_page,
+            ($ajax_page - 1) * $panel_per_page,
+            $search_q
+        );
+        $total = (int)$cimm_result['total'];
+        $max_page = max(1, (int)ceil($total / max(1, $panel_per_page)));
+        if ($ajax_page > $max_page) {
+            $ajax_page = $max_page;
+            $cimm_result = getCimmReportsPaginated(
+                $cimm_filter,
+                $panel_per_page,
+                ($ajax_page - 1) * $panel_per_page,
+                $search_q
+            );
+            $total = (int)$cimm_result['total'];
+        }
+        $rows = $cimm_result['rows'];
+        $sql_reports_ajax = ($ajax_page === 1) ? getSqlReports($conn) : null;
+        $pagination_html = ($total > $panel_per_page)
+            ? vm_build_panel_pagination('cimm', $ajax_page, $panel_per_page, $total)['html']
+            : '';
+        echo json_encode([
+            'success' => true,
+            'panel' => 'cimm',
+            'page' => $ajax_page,
+            'total' => $total,
+            'per_page' => $panel_per_page,
+            'q' => $search_q,
+            'rows_html' => vm_render_cimm_panel_tbody($rows, $sql_reports_ajax, $ajax_page === 1),
+            'rows_json' => vm_build_cimm_rows_json($rows),
+            'pagination_html' => $pagination_html,
+            'badge_text' => $total . ' Reports',
+        ]);
+        exit;
+    }
+
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'Unknown panel']);
+    exit;
+}
+
 // Get data
 $stats = getVerificationStatistics($conn);
 $pending_verifications = getPendingVerifications($conn);
 $approved_reports = getApprovedReports($conn);
 $rejected_reports = getRejectedReports($conn);
-$all_reports = getAllReports($conn, $status_filter, $source_filter, $is_transport_supervisor, $is_road_supervisor);
 $recent_approvals = getRecentApprovals($conn);
 $activity_timeline = getActivityTimeline($conn);
 
-// For trans_ops_supervisor, the LGU Monitoring panel shows only
-// Transportation reports — road/maintenance reports are not rendered and
-// are excluded from the badge count.
-$lgu_badge_count = $all_reports->num_rows;
-$lgu_has_reports = ($all_reports->num_rows > 0);
-if ($is_transport_supervisor && $all_reports->num_rows > 0) {
-    $all_reports->data_seek(0);
-    $lgu_badge_count = 0;
-    $lgu_has_reports = false;
-    while ($_r = $all_reports->fetch_assoc()) {
-        if (($_r['source'] ?? '') === 'maintenance') continue;
-        $lgu_badge_count++;
-        $lgu_has_reports = true;
-    }
-    $all_reports->data_seek(0);
+// LGU Monitoring panel — independent query + LIMIT/OFFSET per panel.
+$lgu_page = vm_panel_page('lgu');
+$lgu_search = trim((string)($_GET['lgu_q'] ?? ''));
+$lgu_pagination_html = '';
+$lgu_result = getLguReportsForVerification(
+    $conn,
+    $is_transport_supervisor,
+    $is_road_supervisor,
+    $panel_per_page,
+    vm_panel_offset('lgu', $panel_per_page),
+    $lgu_search
+);
+$lgu_reports_total = (int)$lgu_result['total'];
+$lgu_reports_list = $lgu_result['rows'];
+$lgu_max_page = max(1, (int)ceil($lgu_reports_total / max(1, $panel_per_page)));
+if ($lgu_page > $lgu_max_page) {
+    $lgu_page = $lgu_max_page;
+    $lgu_result = getLguReportsForVerification(
+        $conn,
+        $is_transport_supervisor,
+        $is_road_supervisor,
+        $panel_per_page,
+        ($lgu_page - 1) * $panel_per_page,
+        $lgu_search
+    );
+    $lgu_reports_total = (int)$lgu_result['total'];
+    $lgu_reports_list = $lgu_result['rows'];
 }
+if ($lgu_reports_total > $panel_per_page) {
+    $lgu_pagination_html = vm_build_panel_pagination('lgu', $lgu_page, $panel_per_page, $lgu_reports_total)['html'];
+}
+$lgu_badge_count = $lgu_reports_total;
+$lgu_has_reports = $lgu_reports_total > 0;
+$lgu_creator_map = vm_lookup_creator_map($conn, $lgu_reports_list);
 
-// CIMM reports data (live, via RGMAO sync)
+// CIMM reports data (live, via RGMAO sync) — paginated independently.
 $cimm_filter = $_GET['cimm_filter'] ?? 'all';
-$cimm_reports = getCimmReports($cimm_filter);
+$cimm_page = vm_panel_page('cimm');
+$cimm_search = trim((string)($_GET['cimm_q'] ?? ''));
+$cimm_pagination_html = '';
+$cimm_reports = [];
+$cimm_reports_total = 0;
+if (!$is_transport_supervisor) {
+    $cimm_result = getCimmReportsPaginated(
+        $cimm_filter,
+        $panel_per_page,
+        vm_panel_offset('cimm', $panel_per_page),
+        $cimm_search
+    );
+    $cimm_reports_total = (int)$cimm_result['total'];
+    $cimm_reports = $cimm_result['rows'];
+    $cimm_max_page = max(1, (int)ceil($cimm_reports_total / max(1, $panel_per_page)));
+    if ($cimm_page > $cimm_max_page) {
+        $cimm_page = $cimm_max_page;
+        $cimm_result = getCimmReportsPaginated(
+            $cimm_filter,
+            $panel_per_page,
+            ($cimm_page - 1) * $panel_per_page,
+            $cimm_search
+        );
+        $cimm_reports_total = (int)$cimm_result['total'];
+        $cimm_reports = $cimm_result['rows'];
+    }
+    if ($cimm_reports_total > $panel_per_page) {
+        $cimm_pagination_html = vm_build_panel_pagination('cimm', $cimm_page, $panel_per_page, $cimm_reports_total)['html'];
+    }
+}
 $cimm_counts = getCimmReportCounts();
 
-// Reports from reports.sql table
+// Reports from reports.sql table (legacy rows appended on CIMM page 1)
 $sql_reports = getSqlReports($conn);
 
-// Citizen-submitted reports
-$citizen_reports = getCitizenReports($conn);
+// Citizen-submitted reports — paginated independently.
+$citizen_page = vm_panel_page('citizen');
+$citizen_search = trim((string)($_GET['citizen_q'] ?? ''));
+$citizen_pagination_html = '';
+$citizen_reports_list = [];
+$citizen_reports_total = 0;
+if (!$is_road_supervisor) {
+    $citizen_result = getCitizenReportsForVerification(
+        $conn,
+        $panel_per_page,
+        vm_panel_offset('citizen', $panel_per_page),
+        $citizen_search
+    );
+    $citizen_reports_total = (int)$citizen_result['total'];
+    $citizen_reports_list = $citizen_result['rows'];
+    $citizen_max_page = max(1, (int)ceil($citizen_reports_total / max(1, $panel_per_page)));
+    if ($citizen_page > $citizen_max_page) {
+        $citizen_page = $citizen_max_page;
+        $citizen_result = getCitizenReportsForVerification(
+            $conn,
+            $panel_per_page,
+            ($citizen_page - 1) * $panel_per_page,
+            $citizen_search
+        );
+        $citizen_reports_total = (int)$citizen_result['total'];
+        $citizen_reports_list = $citizen_result['rows'];
+    }
+    if ($citizen_reports_total > $panel_per_page) {
+        $citizen_pagination_html = vm_build_panel_pagination('citizen', $citizen_page, $panel_per_page, $citizen_reports_total)['html'];
+    }
+}
 
 // Infrastructure project records come from the read-only ipms_road_projects
 // mirror (see lgu_staff/pages/api/ipms_road_projects_data.php), not the empty
@@ -5359,6 +5463,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             border-color: #5a4e78;
             box-shadow: 0 0 0 3px rgba(90, 78, 120, 0.14);
         }
+
+        .vm-panel-pagination {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 16px;
+            border-top: 1px solid rgba(55, 98, 200, 0.12);
+            flex-wrap: wrap;
+        }
+        .vm-panel-pagination-info {
+            font-size: 13px;
+            color: #4b5563;
+        }
+        body.dark-mode .vm-panel-pagination-info {
+            color: #9ca3af;
+        }
+        .vm-panel-pagination-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .vm-page-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 34px;
+            height: 34px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+            color: #fff;
+            cursor: pointer;
+            padding: 0;
+        }
+        .vm-page-btn:hover:not(.disabled) {
+            box-shadow: 0 4px 12px rgba(55, 98, 200, 0.3);
+        }
+        .vm-page-btn.disabled {
+            opacity: 0.4;
+            pointer-events: none;
+            cursor: default;
+        }
+        .vm-panel-pagination-slot.is-loading {
+            opacity: 0.55;
+            pointer-events: none;
+        }
+        .vm-page-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #1e3c72;
+        }
+        body.dark-mode .vm-page-label {
+            color: #93c5fd;
+        }
+        .vm-dash .vm-panel-pagination { padding: 12px 16px; }
         .vm-dash .lgu-sort-btn,
         .vm-dash .citizen-sort-btn,
         .vm-dash .dept-sort-btn,
@@ -5984,7 +6144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <div>
                         <div class="lgu-reports-title-group">
                             <h2 class="lgu-reports-title">LGU Monitoring Reports</h2>
-                            <span class="lgu-reports-badge"><?php echo $lgu_badge_count; ?> Reports</span>
+                            <span class="lgu-reports-badge" id="lguReportsBadge"><?php echo $lgu_badge_count; ?> Reports</span>
                         </div>
                         <p class="lgu-reports-subtitle">Reports submitted by the LGU Road &amp; Transportation Department.</p>
                     </div>
@@ -5994,7 +6154,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <div class="lgu-reports-search">
                 <div class="lgu-search-wrapper">
                     <i class="fas fa-search"></i>
-                    <input type="text" class="lgu-search-input" id="lguSearchInput" placeholder="Search by Report #, Title, Type, Source, Status...">
+                    <input type="text" class="lgu-search-input" id="lguSearchInput" placeholder="Search by Report #..." value="<?php echo htmlspecialchars($lgu_search); ?>" oninput="onPanelServerSearch('lgu')">
                 </div>
                 <button class="lgu-sort-btn" onclick="toggleLguSort()">
                     <i class="fas fa-sort"></i> Sort
@@ -6015,237 +6175,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         </tr>
                     </thead>
                     <tbody>
-                        <?php
-                        // Reset pointer and display all reports
-                        $all_reports->data_seek(0);
-                        if ($lgu_has_reports): 
-                        ?>
-                            <?php while ($report = $all_reports->fetch_assoc()): 
-                                if ($is_transport_supervisor && ($report['source'] ?? '') === 'maintenance') continue;
-                                $lgu_status_class = '';
-                                if ($report['status'] === 'approved') $lgu_status_class = 'approved';
-                                elseif ($report['status'] === 'cancelled') $lgu_status_class = 'cancelled';
-                                elseif ($report['status'] === 'pending') $lgu_status_class = 'pending';
-                                elseif ($report['status'] === 'in-progress') $lgu_status_class = 'in-progress';
-                                elseif ($report['status'] === 'completed') $lgu_status_class = 'completed';
-
-                                // Check if this report can be verified locally
-                                $report_category = $report['report_category'] ?? null;
-                                $report_source = $report['report_source'] ?? null;
-                                $can_verify = canVerifyReport($report_category, $report_source);
-                                // Reports not yet scheduled/verified by CIMM show as awaiting external verification.
-                                // Once CIMM has scheduled a report (cimm_status = 'scheduled') and its local
-                                // status is pending, show the check/X buttons for final approval.
-                                $pending_ext_verify = strtolower(trim((string)($report['cimm_status'] ?? ''))) !== 'scheduled' && ($report['cimm_sync_status'] ?? '') !== 'verified' && !$can_verify && $report['status'] === 'pending';
-                                // Transportation reports can be approved directly; road reports show the
-                                // check/X buttons once CIMM has scheduled them (cimm_status = 'scheduled').
-                                $ready_for_approval = ($report_category === 'transportation') ? true : (strtolower(trim((string)($report['cimm_status'] ?? ''))) === 'scheduled' && $report['status'] === 'pending');
-
-                                $lgu_type_labels = [
-                                    'traffic_jam' => 'Traffic Jam',
-                                    'accident' => 'Vehicle Accident',
-                                    'road_closure' => 'Road Closure',
-                                    'traffic_light_outage' => 'Traffic Light',
-                                    'congestion' => 'Congestion',
-                                    'parking_violation' => 'Parking Violation',
-                                    'public_transport_issue' => 'Public Transport',
-                                    'potholes' => 'Potholes',
-                                    'road_damage' => 'Road Damage',
-                                    'cracks' => 'Road Cracks',
-                                    'erosion' => 'Road Erosion',
-                                    'flooding' => 'Street Flooding',
-                                    'debris' => 'Road Debris',
-                                    'shoulder_damage' => 'Shoulder Damage',
-                                    'marking_fade' => 'Marking Fade',
-                                ];
-
-                                $lgu_source_labels = [
-                                    'lgu' => 'LGU Staff',
-                                    'external' => 'External (CIMM)',
-                                    'transport' => 'Citizen',
-                                    'cimm' => 'CIMM',
-                                    'maintenance' => 'Infrastructure',
-                                ];
-
-                                $lgu_filter_status = 'pending';
-                                if (in_array($report['status'], ['approved', 'completed'])) $lgu_filter_status = 'approved';
-                                elseif (in_array($report['status'], ['cancelled'])) $lgu_filter_status = 'rejected';
-                            ?>
-                            <tr data-id="<?php echo (int)$report['id']; ?>" data-report-id="<?php echo (int)$report['id']; ?>" data-status="<?php echo $lgu_filter_status; ?>" data-source="<?php echo htmlspecialchars($report['source']); ?>">
-                                <td>
-                                    <div class="lgu-action-group">
-                                        <button class="lgu-action-btn" onclick="viewLguReport(<?php echo $report['id']; ?>)">
-                                            <i class="fas fa-eye" id="icon-<?php echo $report['id']; ?>"></i> View
-                                        </button>
-                                        <?php if ($pending_ext_verify): ?>
-                                            <span class="lgu-status-badge t-badge t-badge-pending" style="font-size:10px;padding:3px 8px;">Ext. Verify</span>
-                                        <?php elseif ($ready_for_approval): ?>
-                                            <form method="POST" class="lgu-action-form">
-                                                <input type="hidden" name="report_id" value="<?php echo $report['id']; ?>">
-                                                <input type="hidden" name="source" value="<?php echo htmlspecialchars($report['source']); ?>">
-                                                <button type="submit" name="action" value="cimm_approve" class="lgu-verify-btn" title="Approve CIMM verified report">
-                                                    <i class="fas fa-check-circle"></i> Approve
-                                                </button>
-                                            </form>
-                                            <form method="POST" class="lgu-action-form" onsubmit="return confirm('Are you sure you want to reject this report?');">
-                                                <input type="hidden" name="report_id" value="<?php echo $report['id']; ?>">
-                                                <input type="hidden" name="source" value="<?php echo htmlspecialchars($report['source']); ?>">
-                                                <button type="submit" name="action" value="reject" class="lgu-reject-btn" title="Reject report">
-                                                    <i class="fas fa-times"></i> Reject
-                                                </button>
-                                            </form>
-                                        <?php endif; ?>
-                                    </div>
-                                    <!-- Expandable Details Section -->
-                                    <div class="expanded-details" id="details-<?php echo $report['id']; ?>" style="display:none;margin-top:12px;padding-top:12px;border-top:2px solid rgba(30,60,114,0.1);">
-                                        <div class="detail-grid">
-                                            <div class="detail-item">
-                                                <strong>Report ID:</strong> <?php echo htmlspecialchars($report['report_id'] ?? 'N/A'); ?>
-                                            </div>
-                                            <div class="detail-item">
-                                                <strong>Type:</strong> 
-                                                <?php 
-                                                $lgu_type = $report['report_type'] ?? '';
-                                                echo htmlspecialchars($lgu_type_labels[$lgu_type] ?? ucfirst($lgu_type));
-                                                ?>
-                                            </div>
-                                            <div class="detail-item">
-                                                <strong>Priority:</strong> <span class="lgu-status-badge <?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?>"><?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?></span>
-                                            </div>
-                                            <div class="detail-item">
-                                                <strong>Status:</strong> 
-                                                <?php if ($pending_ext_verify): ?>
-                                                <span class="lgu-status-badge t-badge t-badge-pending">Awaiting CIMM Verification</span>
-                                                <?php elseif ($ready_for_approval): ?>
-                                                <span class="lgu-status-badge t-badge t-badge-info">Ready for Final Approval</span>
-                                                <?php else: ?>
-                                                <span class="lgu-status-badge <?php echo $lgu_status_class; ?>"><?php echo htmlspecialchars($report['status'] ?? 'N/A'); ?></span>
-                                                <?php endif; ?>
-                                            </div>
-                                            <div class="detail-item full-width">
-                                                <strong>Full Description:</strong>
-                                                <div class="t-bg-primary" style="margin-top:8px;padding:12px;border-radius:8px;">
-                                                    <?php echo nl2br(htmlspecialchars($report['description'] ?? 'No description provided')); ?>
-                                                </div>
-                                            </div>
-                                            <div class="detail-item full-width">
-                                                <strong>Location Address:</strong>
-                                                <div style="margin-top:8px;">
-                                                    <?php echo htmlspecialchars($report['location'] ?? 'N/A'); ?>
-                                                </div>
-                                            </div>
-                                            <?php if (!empty($report['latitude']) && !empty($report['longitude'])): ?>
-                                            <div class="detail-item full-width">
-                                                <strong>Location Coordinates:</strong>
-                                                <div style="margin-top:8px;">
-                                                    Latitude: <?php echo htmlspecialchars($report['latitude']); ?>, 
-                                                    Longitude: <?php echo htmlspecialchars($report['longitude']); ?>
-                                                    <a href="https://www.google.com/maps?q=<?php echo htmlspecialchars($report['latitude']); ?>,<?php echo htmlspecialchars($report['longitude']); ?>" target="_blank" class="t-text-link" style="margin-left:10px;">
-                                                        <i class="fas fa-map-marker-alt"></i> View on Map
-                                                    </a>
-                                                </div>
-                                            </div>
-                                            <?php endif; ?>
-                                            <?php if (!empty($report['attachments'])): 
-                                                $attachments = json_decode($report['attachments'], true);
-                                                if (is_array($attachments) && !empty($attachments)): ?>
-                                            <div class="detail-item full-width">
-                                                <strong>Attached Images:</strong>
-                                                <div style="margin-top:12px;display:flex;gap:15px;flex-wrap:wrap;">
-                                                    <?php foreach ($attachments as $attachment): 
-                                                        if (isset($attachment['type']) && $attachment['type'] === 'image' && isset($attachment['file_path'])): ?>
-                                                        <img src="../../<?php echo htmlspecialchars($attachment['file_path']); ?>" 
-                                                             alt="Report Image" 
-                                                             style="max-width:300px;max-height:300px;border-radius:8px;border:1px solid rgba(55,98,200,0.3);cursor:pointer;" 
-                                                             onclick="window.open(this.src, '_blank')" 
-                                                             onerror="this.style.display='none'" 
-                                                             title="Click to view full size" />
-                                                    <?php endif; endforeach; ?>
-                                                </div>
-                                            </div>
-                                            <?php endif; endif; ?>
-                                            <div class="detail-item">
-                                                <strong>Created:</strong> <?php echo htmlspecialchars($report['created_at'] ?? 'N/A'); ?>
-                                            </div>
-                                            <?php if (!empty($report['updated_at']) && $report['updated_at'] !== $report['created_at']): ?>
-                                            <div class="detail-item">
-                                                <strong>Last Updated:</strong> <?php echo htmlspecialchars($report['updated_at']); ?>
-                                            </div>
-                                            <?php endif; ?>
-                                            <?php if (!empty($report['approved_at'])): ?>
-                                            <div class="detail-item">
-                                                <strong>Approved At:</strong> <?php echo htmlspecialchars($report['approved_at']); ?>
-                                            </div>
-                                            <?php endif; ?>
-                                            <?php if (!empty($report['rejected_at'])): ?>
-                                            <div class="detail-item">
-                                                <strong>Rejected At:</strong> <?php echo htmlspecialchars($report['rejected_at']); ?>
-                                            </div>
-                                            <?php endif; ?>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td><?php echo htmlspecialchars($report['report_id']); ?></td>
-                                <td><?php echo htmlspecialchars(strlen($report['title'] ?? '') > 35 ? substr($report['title'], 0, 35) . '...' : ($report['title'] ?? '')); ?></td>
-                                <td><?php if (($report['location'] ?? '') !== ''): ?><span title="<?php echo htmlspecialchars($report['location']); ?>"><?php echo htmlspecialchars(strlen($report['location']) > 40 ? substr($report['location'], 0, 40) . '...' : $report['location']); ?></span><?php else: ?>—<?php endif; ?></td>
-                                <td><span class="lgu-status-badge <?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'] ?? 'medium')); ?></span></td>
-                                <td>
-                                    <?php
-                                    // Once CIMM has verified this report and turned it into a real
-                                    // CIMM report, cimm_status carries CIMM's own resolution status
-                                    // (the same value that decides whether a report shows on CIMM's
-                                    // Pending / Current / Archive Reports pages) — show that instead
-                                    // of this system's local workflow status, so the two systems
-                                    // never disagree about where a report actually stands. Only
-                                    // reports CIMM hasn't verified yet (no cimm_status) fall back to
-                                    // the local "Awaiting Ext." / RGMAP-native status below.
-                                    //
-                                    // CIMM-owned status labels stay the same; badge colors
-                                    // use theme-aware classes so Light/Dark Mode both contrast.
-                                    $cimmStatusRaw = trim((string)($report['cimm_status'] ?? ''));
-                                    if ($cimmStatusRaw !== ''):
-                                        $cimmStatusLc = strtolower($cimmStatusRaw);
-                                        $cimmStatusMeta = [
-                                            'pending'                => ['Scheduled',         'cimm-st-scheduled'],
-                                            'scheduled'              => ['Scheduled',         'cimm-st-scheduled'],
-                                            'awaiting engineer'      => ['Awaiting Engineer',  'cimm-st-awaiting'],
-                                            ''                       => ['Awaiting Engineer',  'cimm-st-awaiting'],
-                                            'pending acceptance'     => ['Pending Acceptance', 'cimm-st-acceptance'],
-                                            'pending admin approval' => ['Pending Approval',   'cimm-st-approval'],
-                                            'approved'               => ['Validated',          'cimm-st-validated'],
-                                            'in progress'            => ['In Progress',        'cimm-st-progress'],
-                                            'pending completion'     => ['Pending Completion', 'cimm-st-pending'],
-                                            'completed'              => ['Completed',          'cimm-st-completed'],
-                                            'archived'               => ['Archived',           'cimm-st-archived'],
-                                            'cancelled'              => ['Cancelled',          'cimm-st-cancelled'],
-                                            'rejected'               => ['Rejected',           'cimm-st-cancelled'],
-                                        ];
-                                        [$cimmDisplayLabel, $cimmStatusClass] = $cimmStatusMeta[$cimmStatusLc]
-                                            ?? [$cimmStatusRaw, 'cimm-st-pending'];
-                                    ?>
-                                    <span class="lgu-status-badge <?php echo $cimmStatusClass; ?>" title="CIMM report status"><?php echo htmlspecialchars($cimmDisplayLabel); ?></span>
-                                    <?php elseif ($pending_ext_verify): ?>
-                                    <span class="lgu-status-badge t-badge t-badge-pending">Awaiting Ext.</span>
-                                    <?php else: ?>
-                                    <span class="lgu-status-badge <?php echo $lgu_status_class; ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $report['status']))); ?></span>
-                                    <?php endif; ?>
-                                </td>
-                                <td><?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?></td>
-                            </tr>
-                            <?php endwhile; ?>
-                        <?php else: ?>
-                            <tr>
-                                <td colspan="7">
-                                    <div class="lgu-empty-state">
-                                        <div class="lgu-empty-icon"><i class="fas fa-clipboard-list"></i></div>
-                                        <h4>No LGU reports yet</h4>
-                                        <p>New monitoring reports will appear here when they are submitted.</p>
-                                    </div>
-                                </td>
-                            </tr>
-                        <?php endif; ?>
+                        <?php echo vm_render_lgu_panel_tbody($lgu_reports_list, $is_transport_supervisor); ?>
                     </tbody>
                 </table>
+            </div>
+            <div id="lguPagination" class="vm-panel-pagination-slot">
+                <?php echo $lgu_pagination_html; ?>
             </div>
         </div>
 
@@ -6260,7 +6195,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <div>
                         <div class="citizen-reports-title-group">
                             <h2 class="citizen-reports-title">Citizen Reports</h2>
-                            <span class="citizen-reports-badge"><?php echo $citizen_reports ? $citizen_reports->num_rows : 0; ?> Reports</span>
+                            <span class="citizen-reports-badge" id="citizenReportsBadge"><?php echo $citizen_reports_total; ?> Reports</span>
                         </div>
                         <p class="citizen-reports-subtitle">Reports submitted by citizens via the public portal</p>
                     </div>
@@ -6270,7 +6205,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <div class="citizen-reports-search">
                 <div class="citizen-search-wrapper">
                     <i class="fas fa-search"></i>
-                    <input type="text" class="citizen-search-input" id="citizenSearchInput" placeholder="Search by Report #, Title, Type, Location, Reporter...">
+                    <input type="text" class="citizen-search-input" id="citizenSearchInput" placeholder="Search by Report #..." value="<?php echo htmlspecialchars($citizen_search); ?>" oninput="onPanelServerSearch('citizen')">
                 </div>
                 <button class="citizen-sort-btn" onclick="toggleCitizenSort()">
                     <i class="fas fa-sort"></i> Sort
@@ -6291,69 +6226,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         </tr>
                     </thead>
                     <tbody>
-                        <?php
-                        $hasCitizenReports = false;
-                        if ($citizen_reports && $citizen_reports->num_rows > 0):
-                            while ($crow = $citizen_reports->fetch_assoc()):
-                                $hasCitizenReports = true;
-                                $c_status_class = '';
-                                if ($crow['status'] === 'approved') $c_status_class = 'approved';
-                                elseif ($crow['status'] === 'cancelled') $c_status_class = 'cancelled';
-                                elseif ($crow['status'] === 'pending') $c_status_class = 'pending';
-                                elseif ($crow['status'] === 'in-progress') $c_status_class = 'in-progress';
-                                elseif ($crow['status'] === 'completed') $c_status_class = 'completed';
-                                $citizen_filter_status = 'pending';
-                                if (in_array($crow['status'], ['approved', 'completed'])) $citizen_filter_status = 'approved';
-                                elseif (in_array($crow['status'], ['cancelled'])) $citizen_filter_status = 'rejected';
-                        ?>
-                        <tr data-id="<?php echo (int)$crow['id']; ?>" data-report-id="<?php echo (int)$crow['id']; ?>" data-status="<?php echo $citizen_filter_status; ?>" data-source="citizen">
-                            <td>
-                                <div class="citizen-action-group">
-                                    <button class="citizen-action-btn" onclick="viewCitizenReport(<?php echo $crow['id']; ?>)">
-                                        <i class="fas fa-eye"></i> View
-                                    </button>
-                                    <?php if ($crow['status'] === 'pending'): ?>
-                                    <form method="POST" class="citizen-action-form" onsubmit="return confirm('Are you sure you want to approve this citizen report?');">
-                                        <input type="hidden" name="report_id" value="<?php echo (int)$crow['id']; ?>">
-                                        <input type="hidden" name="source" value="transport">
-                                        <button type="submit" name="action" value="approve" class="citizen-verify-btn" title="Approve report">
-                                            <i class="fas fa-check"></i> Approve
-                                        </button>
-                                    </form>
-                                    <form method="POST" class="citizen-action-form" onsubmit="return confirm('Are you sure you want to reject this citizen report?');">
-                                        <input type="hidden" name="report_id" value="<?php echo (int)$crow['id']; ?>">
-                                        <input type="hidden" name="source" value="transport">
-                                        <button type="submit" name="action" value="reject" class="citizen-reject-btn" title="Reject report">
-                                            <i class="fas fa-times"></i> Reject
-                                        </button>
-                                    </form>
-                                    <?php endif; ?>
-                                </div>
-                            </td>
-                            <td><?php echo htmlspecialchars($crow['report_id']); ?></td>
-                            <td><?php echo htmlspecialchars(strlen($crow['title'] ?? '') > 35 ? substr($crow['title'], 0, 35) . '...' : ($crow['title'] ?? '')); ?></td>
-                            <td><?php echo htmlspecialchars($crow['location'] ?? '—'); ?></td>
-                            <td><span class="citizen-status-badge <?php echo htmlspecialchars($crow['priority']); ?>"><?php echo ucfirst(htmlspecialchars($crow['priority'])); ?></span></td>
-                            <td><span class="citizen-status-badge <?php echo $c_status_class; ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $crow['status']))); ?></span></td>
-                            <td><?php echo $crow['created_at'] ? date('M d, Y', strtotime($crow['created_at'])) : '—'; ?></td>
-                        </tr>
-                        <?php
-                            endwhile;
-                        endif;
-                        ?>
-                        <?php if (!$hasCitizenReports): ?>
-                        <tr>
-                            <td colspan="7">
-                                <div class="citizen-empty-state">
-                                    <div class="citizen-empty-icon"><i class="fas fa-users"></i></div>
-                                    <h4>No citizen reports yet</h4>
-                                    <p>Public portal submissions will show up here for review.</p>
-                                </div>
-                            </td>
-                        </tr>
-                        <?php endif; ?>
+                        <?php echo vm_render_citizen_panel_tbody($citizen_reports_list); ?>
                     </tbody>
                 </table>
+            </div>
+            <div id="citizenPagination" class="vm-panel-pagination-slot">
+                <?php echo $citizen_pagination_html; ?>
             </div>
         </div>
         <?php endif; ?>
@@ -6369,7 +6247,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <div>
                         <div class="dept-reports-title-group">
                             <h2 class="dept-reports-title">CIMM Reports</h2>
-                            <span class="dept-reports-badge in-progress"><?php echo count($cimm_reports) + ($sql_reports ? $sql_reports->num_rows : 0); ?> Reports</span>
+                            <span class="dept-reports-badge in-progress" id="cimmReportsBadge"><?php echo $cimm_reports_total + ($sql_reports ? $sql_reports->num_rows : 0); ?> Reports</span>
                         </div>
                         <p class="dept-reports-subtitle">Department-submitted infrastructure Projects from CIMM</p>
                     </div>
@@ -6379,7 +6257,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <div class="dept-reports-search">
                 <div class="dept-search-wrapper">
                     <i class="fas fa-search"></i>
-                    <input type="text" class="dept-search-input" id="deptSearchInput" placeholder="Search by Rep #, Infrastructure, Location, Engineer, Priority...">
+                    <input type="text" class="dept-search-input" id="deptSearchInput" placeholder="Search by Rep #..." value="<?php echo htmlspecialchars($cimm_search); ?>" oninput="onPanelServerSearch('cimm')">
                 </div>
                 <button class="dept-sort-btn" onclick="toggleDeptSort()">
                     <i class="fas fa-sort"></i> Sort
@@ -6400,100 +6278,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         </tr>
                     </thead>
                     <tbody>
-                        <?php 
-                        // Dept panel reuses the same filtered $cimm_reports array (no data_seek needed for plain arrays)
-                        $hasAnyReports = false;
-                        if (!empty($cimm_reports)): 
-                        ?>
-                        <?php foreach ($cimm_reports as $row): 
-                            $hasAnyReports = true;
-                            // Map CIMM status to filter categories
-                            $cimm_filter_status = 'pending';
-                            if (in_array($row['status'], ['completed', 'approved', 'verified'])) $cimm_filter_status = 'approved';
-                            elseif (in_array($row['status'], ['resolved', 'dismissed'])) $cimm_filter_status = 'rejected';
-                        ?>
-                        <tr data-id="<?php echo (int)$row['id']; ?>" data-report-id="<?php echo (int)$row['id']; ?>" data-status="<?php echo $cimm_filter_status; ?>" data-source="cimm">
-                            <td>
-                                <div class="dept-action-group">
-                                    <button class="dept-action-btn" onclick="viewCimmReport(<?php echo $row['id']; ?>)">
-                                        <i class="fas fa-eye"></i> View
-                                    </button>
-                                    <form method="POST" class="dept-action-form" onsubmit="return confirm('Are you sure you want to approve this CIMM report?');">
-                                        <input type="hidden" name="cimm_req_id" value="<?php echo (int)$row['cimm_req_id']; ?>">
-                                        <button type="submit" name="action" value="approve_cimm" class="dept-verify-btn" title="Approve report">
-                                            <i class="fas fa-check"></i> Approve
-                                        </button>
-                                    </form>
-                                    <form method="POST" class="dept-action-form" onsubmit="return confirm('Are you sure you want to reject this CIMM report?');">
-                                        <input type="hidden" name="cimm_req_id" value="<?php echo (int)$row['cimm_req_id']; ?>">
-                                        <input type="hidden" name="rejection_reason" value="Rejected by admin">
-                                        <button type="submit" name="action" value="reject_cimm" class="dept-reject-btn" title="Reject report">
-                                            <i class="fas fa-times"></i> Reject
-                                        </button>
-                                    </form>
-                                </div>
-                            </td>
-                            <td><?php echo htmlspecialchars($row['rep_number']); ?></td>
-                            <td><?php echo htmlspecialchars($row['infrastructure']); ?></td>
-                            <td><?php echo htmlspecialchars($row['location']); ?></td>
-                            <td><?php echo htmlspecialchars(strlen($row['issue_notes'] ?? '') > 40 ? substr($row['issue_notes'], 0, 40) . '...' : ($row['issue_notes'] ?? '')); ?></td>
-                            <td><span class="dept-status-badge <?php echo htmlspecialchars($row['priority']); ?>"><?php echo ucfirst(htmlspecialchars($row['priority'])); ?></span></td>
-                            <td><span class="dept-status-badge <?php echo htmlspecialchars($row['status']); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $row['status']))); ?></span></td>
-                        </tr>
-                        <?php endforeach; ?>
-                        <?php endif; ?>
-
-                        <?php 
-                        // Display reports from reports.sql table
-                        if ($sql_reports && $sql_reports->num_rows > 0):
-                            while ($row = $sql_reports->fetch_assoc()):
-                                $hasAnyReports = true;
-                                $status = 'pending';
-                                if ($row['engineer_accepted'] == 1) {
-                                    $status = 'completed';
-                                } elseif (!empty($row['decline_reason'])) {
-                                    $status = 'cancelled';
-                                } elseif (!empty($row['decline_reviewed'])) {
-                                    $status = $row['decline_reviewed'] == 1 ? 'in-progress' : 'cancelled';
-                                }
-                                // Map SQL report status to filter categories
-                                $sql_filter_status = 'pending';
-                                if (in_array($status, ['completed'])) $sql_filter_status = 'approved';
-                                elseif (in_array($status, ['cancelled'])) $sql_filter_status = 'rejected';
-                        ?>
-                        <tr data-id="<?php echo (int)$row['rep_id']; ?>" data-report-id="<?php echo (int)$row['rep_id']; ?>" data-status="<?php echo $sql_filter_status; ?>" data-source="cimm_sql">
-                            <td>
-                                <button class="dept-action-btn" onclick="viewSqlReport(<?php echo $row['rep_id']; ?>)">
-                                    <i class="fas fa-eye"></i> View
-                                </button>
-                            </td>
-                            <td>REP-<?php echo $row['rep_id']; ?></td>
-                            <td><?php echo htmlspecialchars($row['res_id']); ?></td>
-                            <td>—</td>
-                            <td><?php echo htmlspecialchars(strlen($row['decline_reason'] ?? '') > 40 ? substr($row['decline_reason'], 0, 40) . '...' : ($row['decline_reason'] ?? '—')); ?></td>
-                            <td><span class="dept-status-badge <?php echo strtolower(htmlspecialchars($row['priority_lvl'])); ?>"><?php echo ucfirst(htmlspecialchars($row['priority_lvl'])); ?></span></td>
-                            <td><span class="dept-status-badge <?php echo $status; ?>"><?php echo ucfirst(htmlspecialchars($status)); ?></span></td>
-                        </tr>
-                        <?php 
-                            endwhile;
-                        endif;
-                        ?>
-
-                        <?php if (!$hasAnyReports): ?>
-                        <tr>
-                            <td colspan="7">
-                                <div class="dept-empty-state">
-                                    <div class="dept-empty-icon">
-                                        <i class="fas fa-building"></i>
-                                    </div>
-                                    <h4>No CIMM reports yet</h4>
-                                    <p>Department infrastructure reports will appear here when received.</p>
-                                </div>
-                            </td>
-                        </tr>
-                        <?php endif; ?>
+                        <?php echo vm_render_cimm_panel_tbody($cimm_reports, $sql_reports, $cimm_page === 1); ?>
                     </tbody>
                 </table>
+            </div>
+            <div id="cimmPagination" class="vm-panel-pagination-slot">
+                <?php echo $cimm_pagination_html; ?>
             </div>
         </div>
         <?php endif; ?>
@@ -6636,6 +6426,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             const url = new URL(window.location);
             url.searchParams.delete('status');
             url.searchParams.delete('source');
+            url.searchParams.delete('lgu_page');
+            url.searchParams.delete('citizen_page');
+            url.searchParams.delete('cimm_page');
+            url.searchParams.delete('lgu_q');
+            url.searchParams.delete('citizen_q');
+            url.searchParams.delete('cimm_q');
             window.location.href = url.toString();
         }
 
@@ -6746,14 +6542,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     if (sf && focusTarget.filterValue) sf.value = focusTarget.filterValue;
                     var stf = document.getElementById('statusFilter');
                     if (stf) stf.value = 'all';
-                    // Clear any client-side search filters so the row is visible.
-                    var searchInputs = document.querySelectorAll('.lgu-search-input, .citizen-search-input, .dept-search-input, .infra-search-input');
-                    searchInputs.forEach(function(inp) {
-                        if (inp) {
-                            inp.value = '';
-                            inp.dispatchEvent(new Event('input', { bubbles: true }));
-                        }
-                    });
                     row.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     row.classList.add('vm-row-focus');
                     setTimeout(function() { row.classList.remove('vm-row-focus'); }, 5000);
@@ -6811,19 +6599,95 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         showNotification('<?php echo htmlspecialchars($success_message); ?>', 'success');
         <?php endif; ?>
 
-        // CIMM Reports panel is now always visible (no tab filtering)
+        // AJAX panel pagination + server-side search (LGU, Citizen, CIMM).
+        let vmPanelPageLoading = false;
+        const vmPanelSearchTimers = {};
+        const vmPanelDom = {
+            lgu: { table: '#lguTable', pagination: 'lguPagination', badge: 'lguReportsBadge', search: 'lguSearchInput' },
+            citizen: { table: '#citizenTable', pagination: 'citizenPagination', badge: 'citizenReportsBadge', search: 'citizenSearchInput' },
+            cimm: { table: '#deptTable', pagination: 'cimmPagination', badge: 'cimmReportsBadge', search: 'deptSearchInput' }
+        };
 
-        // CIMM search functionality
-        document.getElementById('cimmSearchInput')?.addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase();
-            const table = document.getElementById('cimmTable');
-            if (!table) return;
-            const rows = table.querySelectorAll('tbody tr');
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(searchTerm) ? '' : 'none';
+        function mergePanelRowsJson(targetMap, rowsJson) {
+            if (!rowsJson || typeof rowsJson !== 'object') return;
+            Object.keys(rowsJson).forEach(function(key) {
+                targetMap[key] = rowsJson[key];
             });
+        }
+
+        function onPanelServerSearch(panel) {
+            if (!vmPanelDom[panel]) return;
+            clearTimeout(vmPanelSearchTimers[panel]);
+            vmPanelSearchTimers[panel] = setTimeout(function trySearch() {
+                if (vmPanelPageLoading) {
+                    vmPanelSearchTimers[panel] = setTimeout(trySearch, 150);
+                    return;
+                }
+                loadPanelPage(panel, 1);
+            }, 300);
+        }
+
+        async function loadPanelPage(panel, page) {
+            if (!panel || vmPanelPageLoading) return;
+            const dom = vmPanelDom[panel];
+            if (!dom) return;
+            const pageNum = Math.max(1, parseInt(page, 10) || 1);
+            const searchInput = document.getElementById(dom.search);
+            const q = searchInput ? searchInput.value.trim() : '';
+            const url = new URL(window.location.href);
+            url.searchParams.set('ajax', 'panel_page');
+            url.searchParams.set('panel', panel);
+            url.searchParams.set('page', String(pageNum));
+            url.searchParams.delete('lgu_q');
+            url.searchParams.delete('citizen_q');
+            url.searchParams.delete('cimm_q');
+            url.searchParams.delete('q');
+            if (q) url.searchParams.set('q', q);
+
+            const tbody = document.querySelector(dom.table + ' tbody');
+            const pagSlot = document.getElementById(dom.pagination);
+            const badge = document.getElementById(dom.badge);
+            if (!tbody || !pagSlot) return;
+
+            vmPanelPageLoading = true;
+            pagSlot.classList.add('is-loading');
+            try {
+                const res = await fetch(url.toString(), {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                    credentials: 'same-origin'
+                });
+                const data = await res.json();
+                if (!data || !data.success) throw new Error((data && data.message) || 'Failed to load page');
+                tbody.innerHTML = data.rows_html || '';
+                pagSlot.innerHTML = data.pagination_html || '';
+                if (badge && data.badge_text) badge.textContent = data.badge_text;
+                if (panel === 'lgu' && data.rows_json) mergePanelRowsJson(lguDataMap, data.rows_json);
+                if (panel === 'citizen' && data.rows_json) mergePanelRowsJson(citizenDataMap, data.rows_json);
+                if (panel === 'cimm' && data.rows_json) mergePanelRowsJson(cimmDataMap, data.rows_json);
+
+                const hist = new URL(window.location.href);
+                hist.searchParams.set(panel + '_page', String(data.page || pageNum));
+                if (q) hist.searchParams.set(panel + '_q', q);
+                else hist.searchParams.delete(panel + '_q');
+                hist.searchParams.delete('ajax');
+                hist.searchParams.delete('q');
+                window.history.replaceState({}, '', hist.toString());
+            } catch (err) {
+                console.error('Panel pagination failed:', err);
+            } finally {
+                pagSlot.classList.remove('is-loading');
+                vmPanelPageLoading = false;
+            }
+        }
+
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('.vm-page-btn[data-panel]');
+            if (!btn || btn.disabled || btn.classList.contains('disabled')) return;
+            e.preventDefault();
+            loadPanelPage(btn.getAttribute('data-panel'), btn.getAttribute('data-page'));
         });
+
+        // CIMM Reports panel is now always visible (no tab filtering)
 
         // LGU sort functionality
         let lguSortAsc = true;
@@ -6858,18 +6722,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         // CIMM & SQL report data maps (populated from PHP)
-        var cimmDataMap = {};
-        try {
-            console.log('Initializing cimmDataMap...');
-            var cimmDataRaw = JSON.parse('<?php echo addslashes(json_encode(array_column($cimm_reports, null, 'id'))); ?>');
-            if (typeof cimmDataRaw === 'object' && cimmDataRaw !== null) {
-                cimmDataMap = cimmDataRaw;
-            }
-            console.log('cimmDataMap initialized successfully');
-        } catch(e) {
-            console.error('Error initializing cimmDataMap:', e);
-            cimmDataMap = {};
-        }
+        var cimmDataMap = <?php echo json_encode(vm_build_cimm_rows_json($cimm_reports), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
         var sqlDataMap = {};
         <?php
         if ($sql_reports && method_exists($sql_reports, 'data_seek')):
@@ -7356,18 +7209,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             openCimmDetailModal();
         }
 
-        // Dept Reports search functionality
-        document.getElementById('deptSearchInput')?.addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase();
-            const table = document.getElementById('deptTable');
-            if (!table) return;
-            const rows = table.querySelectorAll('tbody tr');
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(searchTerm) ? '' : 'none';
-            });
-        });
-
         // Dept Reports sort functionality
         let deptSortAsc = true;
         function toggleDeptSort() {
@@ -7577,7 +7418,7 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
 
             if (!reports.length) {
                 tbody.innerHTML =
-                    '<tr><td colspan="10"><div class="infra-empty-state">' +
+                    '<tr><td colspan="6"><div class="infra-empty-state">' +
                     '<div class="infra-empty-icon"><i class="fas fa-hard-hat"></i></div>' +
                     '<h4>No infrastructure projects yet</h4>' +
                     '<p>Synced IPMS projects will appear here for verification.</p>' +
@@ -7593,10 +7434,11 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
                 var statusLabel = status.replace(/[-_]/g, ' ');
                 statusLabel = statusLabel ? statusLabel.charAt(0).toUpperCase() + statusLabel.slice(1) : '—';
                 var notes = truncateInfraText(row.issue_notes, 40);
-                var budget = (row.budget != null && row.budget !== '' && Number(row.budget) !== 0)
-                    ? formatCurrency(row.budget)
-                    : '—';
                 var canAct = ['approved', 'cancelled'].indexOf(status) === -1;
+                var locRaw = row.start_address || '';
+                var locCell = locRaw
+                    ? '<span title="' + escapeInfraHtml(locRaw) + '">' + escapeInfraHtml(truncateInfraText(locRaw, 40)) + '</span>'
+                    : '—';
 
                 infraDataMap[id + '_' + source] = {
                     id: id,
@@ -7617,7 +7459,11 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
                     actual_cost: row.actual_cost || null,
                     maintenance_team: row.maintenance_team || '—',
                     attachments: row.attachments || null,
-                    polyline: row.polyline || null
+                    polyline: row.polyline || null,
+                    engineer: row.engineer || null,
+                    start_date: row.start_date || null,
+                    end_date: row.end_date || null,
+                    budget: row.budget || null
                 };
 
                 html += '<tr data-id="' + id + '" data-report-id="' + id + '" data-status="' + escapeInfraHtml(infraFilterStatus(status)) + '" data-source="maintenance">';
@@ -7638,12 +7484,8 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
                 html += '</div></td>';
                 html += '<td>' + escapeInfraHtml(row.report_id || '—') + '</td>';
                 html += '<td>' + escapeInfraHtml(row.infrastructure || '—') + '</td>';
-                html += '<td>' + escapeInfraHtml(row.location || '—') + '</td>';
+                html += '<td>' + locCell + '</td>';
                 html += '<td>' + escapeInfraHtml(notes) + '</td>';
-                html += '<td>' + escapeInfraHtml(row.engineer || '—') + '</td>';
-                html += '<td>' + escapeInfraHtml(formatDate(row.start_date)) + '</td>';
-                html += '<td>' + escapeInfraHtml(formatDate(row.end_date)) + '</td>';
-                html += '<td>' + escapeInfraHtml(budget) + '</td>';
                 html += '<td><span class="infra-status-badge ' + escapeInfraHtml(infraStatusClass(status)) + '">' + escapeInfraHtml(statusLabel) + '</span></td>';
                 html += '</tr>';
             });
@@ -7849,133 +7691,12 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
             }
         }
 
-        // Citizen Reports data map
-        var citizenDataMap = {};
-        <?php
-        if ($citizen_reports && method_exists($citizen_reports, 'data_seek') && $citizen_reports->num_rows > 0):
-            $citizen_reports->data_seek(0);
-            while ($cr = $citizen_reports->fetch_assoc()):
-        ?>
-        (function() {
-            try {
-                citizenDataMap[<?php echo (int)$cr['id']; ?>] = {
-                    id: <?php echo (int)$cr['id']; ?>,
-                    report_id: <?php echo json_encode($cr['report_id']); ?>,
-                    title: <?php echo json_encode($cr['title']); ?>,
-                    report_type: <?php echo json_encode($cr['report_type']); ?>,
-                    report_category: <?php echo json_encode($cr['report_category']); ?>,
-                    department: <?php echo json_encode($cr['department']); ?>,
-                    priority: <?php echo json_encode($cr['priority']); ?>,
-                    status: <?php echo json_encode($cr['status']); ?>,
-                    location: <?php echo json_encode($cr['location']); ?>,
-                    latitude: <?php echo json_encode($cr['latitude'] ?? null); ?>,
-                    longitude: <?php echo json_encode($cr['longitude'] ?? null); ?>,
-                    description: <?php echo json_encode($cr['description']); ?>,
-                    created_at: <?php echo json_encode($cr['created_at']); ?>,
-                    updated_at: <?php echo json_encode($cr['updated_at']); ?>,
-                    approved_at: <?php echo json_encode($cr['approved_at']); ?>,
-                    rejected_at: <?php echo json_encode($cr['rejected_at']); ?>,
-                    reporter_name: <?php echo json_encode($cr['reporter_name'] ?? '—'); ?>,
-                    reporter_email: <?php echo json_encode($cr['reporter_email'] ?? '—'); ?>,
-                    reporter_phone: <?php echo json_encode($cr['reporter_phone'] ?? '—'); ?>,
-                    image_path: <?php echo json_encode($cr['image_path'] ?? null); ?>,
-                    attachments: <?php echo json_encode($cr['attachments'] ?? null); ?>
-                };
-            } catch(e) {
-                console.error('Error adding citizen report to map:', e);
-            }
-        })();
-        <?php
-            endwhile;
-            $citizen_reports->data_seek(0);
-        endif;
-        ?>
+        // Citizen Reports data map (current page; AJAX merges additional pages)
+        var citizenDataMap = <?php echo json_encode(vm_build_citizen_rows_json($citizen_reports_list), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
 
-        // LGU Reports data map
-        var lguDataMap = {};
-        <?php
-        // Resolve the staff member who created each report (users.full_name joined
-        // to road_transportation_reports.created_by) so the View modal can show
-        // "Created By". A single lookup covers every row in the panel.
-        $creator_map = [];
-        if ($all_reports && method_exists($all_reports, 'data_seek') && $all_reports->num_rows > 0):
-            $creator_ids = [];
-            $all_reports->data_seek(0);
-            while ($__cref = $all_reports->fetch_assoc()) {
-                $__cb = (int)($__cref['created_by'] ?? 0);
-                if ($__cb > 0) $creator_ids[$__cb] = true;
-            }
-            if ($creator_ids) {
-                try {
-                    $__in = implode(',', array_map('intval', array_keys($creator_ids)));
-                    $__res = $conn->query("SELECT id, full_name FROM users WHERE id IN ({$__in})");
-                    if ($__res) {
-                        while ($__u = $__res->fetch_assoc()) {
-                            $creator_map[(int)$__u['id']] = $__u;
-                        }
-                    }
-                } catch (Exception $e) {
-                    error_log("LGU creator lookup error: " . $e->getMessage());
-                }
-            }
-            $all_reports->data_seek(0);
-            while ($lr = $all_reports->fetch_assoc()):
-        ?>
-        (function() {
-            try {
-                lguDataMap[<?php echo (int)$lr['id']; ?>] = {
-                    id: <?php echo (int)$lr['id']; ?>,
-                    report_id: <?php echo json_encode($lr['report_id']); ?>,
-                    title: <?php echo json_encode($lr['title']); ?>,
-                    report_type: <?php echo json_encode($lr['report_type']); ?>,
-                    report_category: <?php echo json_encode($lr['report_category'] ?? null); ?>,
-                    source: <?php echo json_encode($lr['source']); ?>,
-                    department: <?php echo json_encode($lr['department']); ?>,
-                    priority: <?php echo json_encode($lr['priority']); ?>,
-                    status: <?php echo json_encode($lr['status']); ?>,
-                    location: <?php echo json_encode($lr['location']); ?>,
-                    latitude: <?php echo json_encode($lr['latitude'] ?? null); ?>,
-                    longitude: <?php echo json_encode($lr['longitude'] ?? null); ?>,
-                    detected_district: <?php echo json_encode($lr['detected_district'] ?? null); ?>,
-                    description: <?php echo json_encode($lr['description']); ?>,
-                    attachments: <?php echo json_encode($lr['attachments'] ?? null); ?>,
-                    created_at: <?php echo json_encode($lr['created_at']); ?>,
-                    updated_at: <?php echo json_encode($lr['updated_at']); ?>,
-                    approved_at: <?php echo json_encode($lr['approved_at']); ?>,
-                    rejected_at: <?php echo json_encode($lr['rejected_at']); ?>,
-                    created_by: <?php echo (int)($lr['created_by'] ?? 0); ?>,
-                    created_by_name: <?php echo json_encode(($creator_map[(int)($lr['created_by'] ?? 0)] ?? [])['full_name'] ?? null); ?>,
-                    engineer: <?php echo json_encode($lr['engineer'] ?? $lr['cimm_engineer_name'] ?? null); ?>,
-                    budget_allocation: <?php echo json_encode($lr['budget_allocation'] ?? $lr['cimm_budget'] ?? null); ?>,
-                    cimm_starting_date: <?php echo json_encode($lr['cimm_starting_date'] ?? null); ?>,
-                    cimm_estimated_end_date: <?php echo json_encode($lr['cimm_estimated_end_date'] ?? null); ?>
-                    <?php if ($is_road_supervisor): ?>,
-                    creator_full_name: <?php echo json_encode($lr['creator_full_name'] ?? null); ?>,
-                    creator_phone: <?php echo json_encode($lr['creator_phone'] ?? null); ?>,
-                    creator_email: <?php echo json_encode($lr['creator_email'] ?? null); ?>
-                    <?php endif; ?>
-                };
-            } catch(e) {
-                console.error('Error adding LGU report to map:', e);
-            }
-        })();
-        <?php
-            endwhile;
-            $all_reports->data_seek(0);
-        endif;
-        ?>
+        // LGU Reports data map (current page; AJAX merges additional pages)
+        var lguDataMap = <?php echo json_encode(vm_build_lgu_rows_json($lgu_reports_list, $lgu_creator_map, $is_transport_supervisor, $is_road_supervisor), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
 
-        // Citizen Reports search functionality
-        document.getElementById('citizenSearchInput')?.addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase();
-            const table = document.getElementById('citizenTable');
-            if (!table) return;
-            const rows = table.querySelectorAll('tbody tr');
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(searchTerm) ? '' : 'none';
-            });
-        });
 
         // Citizen Reports sort functionality
         let citizenSortAsc = true;
@@ -8557,12 +8278,7 @@ function getTimeAgo($datetime) {
 // Determine if a report can be verified locally
 // Road reports created by this LGU (local source) must go to external Engineering Office
 // Transportation reports and external reports can be verified here
-function canVerifyReport($category, $source) {
-    // Local road reports (category='road', source='local') must be verified
-    // by the external Engineering Office (CIMM) and cannot be directly
-    // approved by local admin staff
-    return !($category === 'road' && $source === 'local');
-}
+// (canVerifyReport lives in verification_panel_pagination.php)
 
 function getActivityTitle($activity) {
     $status = $activity['status'];

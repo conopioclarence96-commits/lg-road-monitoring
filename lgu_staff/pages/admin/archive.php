@@ -50,73 +50,49 @@ if ($is_trans_role && ($source_filter === 'cimm' || $source_filter === 'infrastr
     $source_filter = 'all';
 }
 
-// Source system classification. Every archived report is assigned to exactly
-// one source bucket using the existing archive columns.
-//   - cimm           : report_source = external (CIMM rows also carry a
-//                       report_type of 'infrastructure_issue', so this is the
-//                       distinguishing marker and takes precedence)
-//   - infrastructure : report_type in (infrastructure_issue, maintenance, maintenance_request)
-//   - lgu            : report_source = local AND created_by != 0  (LGU Monitoring)
-//   - citizen        : everything else (created_by = 0 / public submissions)
-$source_case = "CASE
-        WHEN report_source = 'external' THEN 'cimm'
-        WHEN report_type IN ('infrastructure_issue','maintenance','maintenance_request') THEN 'infrastructure'
-        WHEN report_source = 'local' AND COALESCE(created_by, 0) != 0 THEN 'lgu'
-        ELSE 'citizen'
-    END";
+$include_cimm = !$is_trans_role;
+$include_ipms = !$is_trans_role;
+$archive_from_sql = rgmap_archive_union_sql($include_cimm, $include_ipms);
 
-// Per-source WHERE condition (matches the Source System dropdown values)
 switch ($source_filter) {
     case 'lgu':
-        $source_where = "report_type NOT IN ('infrastructure_issue','maintenance','maintenance_request') AND report_source = 'local' AND COALESCE(created_by, 0) != 0";
+        $source_where = "source_system = 'lgu'";
         break;
     case 'citizen':
-        $source_where = "report_type NOT IN ('infrastructure_issue','maintenance','maintenance_request') AND COALESCE(created_by, 0) = 0";
+        $source_where = "source_system = 'citizen'";
         break;
     case 'cimm':
-        $source_where = "report_source = 'external'";
+        $source_where = "source_system = 'cimm'";
         break;
     case 'infrastructure':
-        $source_where = "report_type IN ('infrastructure_issue','maintenance','maintenance_request') AND (report_source IS NULL OR report_source != 'external')";
+        $source_where = "source_system = 'infrastructure'";
         break;
     default:
         $source_where = '';
         break;
 }
 
-// Trans roles (trans_ops_supervisor, trans_monitoring_officer) may only see
-// the Road & Transportation (LGU Monitoring) and Citizen archives. CIMM and
-// Infrastructure reports are always excluded for them — both in the dropdown
-// and, critically, in the query itself (so tampering with the source filter
-// cannot surface those reports).
 $trans_source_restrict = '';
 if ($is_trans_role) {
-    $trans_source_restrict = "report_type NOT IN ('infrastructure_issue','maintenance','maintenance_request') AND (report_source IS NULL OR report_source != 'external')";
+    $trans_source_restrict = "source_system IN ('lgu', 'citizen')";
 }
 
-// trans_monitoring_officer may only see the archived reports that were
-// assigned to them (mirrors the officer archive's assignment join).
 $trans_officer_restrict = '';
 if ($is_trans_officer) {
     $trans_officer_restrict = "EXISTS (
         SELECT 1 FROM report_assignments ra
         WHERE ra.user_id = " . (int)$_SESSION['user_id'] . " AND ra.status = 'active'
-          AND (road_transportation_reports_archive.id = ra.report_id
+          AND (archive_rows.id = ra.report_id
                OR (
-                   road_transportation_reports_archive.report_id IS NOT NULL
-                   AND road_transportation_reports_archive.report_id != ''
-                   AND road_transportation_reports_archive.report_id = (SELECT r.report_id FROM road_transportation_reports r WHERE r.id = ra.report_id LIMIT 1)
+                   archive_rows.report_id IS NOT NULL
+                   AND archive_rows.report_id != ''
+                   AND archive_rows.report_id = (SELECT r.report_id FROM road_transportation_reports r WHERE r.id = ra.report_id LIMIT 1)
                ))
     )";
 }
 
-// Build WHERE clause
 $where_clauses = [];
 
-// Status filter. The archive's classic entries are completed / rejected /
-// cancelled reports, but the Road Supervisor portal can also archive a report
-// while keeping its current status (approved / in-progress / pending), so the
-// "All Status" view shows every status rather than only terminal ones.
 if ($status_filter === 'completed') {
     $where_clauses[] = "status = 'completed'";
 } elseif ($status_filter === 'rejected') {
@@ -143,9 +119,16 @@ if ($trans_officer_restrict !== '') {
     $where_clauses[] = $trans_officer_restrict;
 }
 
-// ID search filter
 if (!empty($id_search)) {
-    $where_clauses[] = "(id = " . (int)$id_search . " OR report_id LIKE '%" . $conn->real_escape_string($id_search) . "%' OR id LIKE '%" . $conn->real_escape_string($id_search) . "%')";
+    $esc_id = $conn->real_escape_string($id_search);
+    $where_clauses[] = "("
+        . "(archive_table = 'cimm_verification_reports_archive' AND report_id LIKE '%{$esc_id}%')"
+        . " OR (archive_table = 'ipms_road_projects_archive' AND ("
+            . "CAST(source_pk AS CHAR) LIKE '%{$esc_id}%'"
+            . " OR report_id LIKE '%{$esc_id}%'"
+        . "))"
+        . " OR (archive_table = 'road_transportation_reports_archive' AND report_id LIKE '%{$esc_id}%')"
+        . ")";
 }
 
 $where_sql = '';
@@ -155,11 +138,9 @@ if (!empty($where_clauses)) {
 
 $order_dir = ($sort_order === 'earliest') ? 'ASC' : 'DESC';
 
-// Total count of the *filtered* result set (used for the badge)
-$count_result = $conn->query("SELECT COUNT(*) AS total FROM road_transportation_reports_archive $where_sql");
+$count_result = $conn->query("SELECT COUNT(*) AS total FROM $archive_from_sql $where_sql");
 $total_archives = $count_result ? (int)$count_result->fetch_assoc()['total'] : 0;
 
-// Display labels for the four source systems
 $source_labels = [
     'lgu'            => 'LGU Monitoring',
     'citizen'        => 'Citizen',
@@ -167,8 +148,12 @@ $source_labels = [
     'infrastructure' => 'Infrastructure',
 ];
 
-$sql = "SELECT *, $source_case AS source_system FROM road_transportation_reports_archive $where_sql ORDER BY created_at $order_dir";
+$sql = "SELECT * FROM $archive_from_sql $where_sql ORDER BY created_at $order_dir";
 $archives = $conn->query($sql);
+if ($archives === false) {
+    error_log('archive.php union query failed: ' . $conn->error);
+    $archives = $conn->query("SELECT *, 'road_transportation_reports_archive' AS archive_table, 'citizen' AS source_system FROM road_transportation_reports_archive WHERE 1 = 0");
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     // trans_monitoring_officer and road_monitoring_officer are view-only
@@ -181,6 +166,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
     if ($_POST['action'] === 'restore' && isset($_POST['archive_id'])) {
         $archive_id = (int) $_POST['archive_id'];
+        $archive_table = (string)($_POST['archive_table'] ?? 'road_transportation_reports_archive');
+        if (!rgmap_archive_allowed_table($archive_table)) {
+            $archive_table = 'road_transportation_reports_archive';
+        }
+        if ($is_trans_role && $archive_table !== 'road_transportation_reports_archive') {
+            $_SESSION['archive_message'] = 'You are not authorized to restore this archived report.';
+            header('Location: archive.php');
+            exit();
+        }
+
+        if ($archive_table === 'cimm_verification_reports_archive') {
+            $row = rgmap_archive_fetch_row($conn, $archive_table, $archive_id);
+            if (!$row) {
+                $_SESSION['archive_message'] = 'Restore failed – record not found in archive.';
+                header('Location: archive.php');
+                exit();
+            }
+            try {
+                rgmap_restore_cimm_from_native_archive($conn, $row, $archive_id);
+                $_SESSION['archive_message'] = 'Report restored successfully.';
+            } catch (Throwable $e) {
+                error_log('CIMM restore failed: ' . $e->getMessage());
+                $_SESSION['archive_message'] = 'Restore failed – the CIMM report may already exist.';
+            }
+            header('Location: archive.php');
+            exit();
+        }
+
+        if ($archive_table === 'ipms_road_projects_archive') {
+            $row = rgmap_archive_fetch_row($conn, $archive_table, $archive_id);
+            if (!$row) {
+                $_SESSION['archive_message'] = 'Restore failed – record not found in archive.';
+                header('Location: archive.php');
+                exit();
+            }
+            try {
+                if (rgmap_restore_ipms_from_native_archive($conn, $row, $archive_id)) {
+                    $_SESSION['archive_message'] = 'Report restored successfully.';
+                } else {
+                    $_SESSION['archive_message'] = 'Restore failed – the infrastructure project may already exist.';
+                }
+            } catch (Throwable $e) {
+                error_log('IPMS restore failed: ' . $e->getMessage());
+                $_SESSION['archive_message'] = 'Restore failed – the infrastructure project may already exist.';
+            }
+            header('Location: archive.php');
+            exit();
+        }
+
         $arch = $conn->prepare("SELECT * FROM road_transportation_reports_archive WHERE id = ?");
         $arch->bind_param('i', $archive_id);
         $arch->execute();
@@ -518,7 +552,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
     if ($_POST['action'] === 'delete_forever' && isset($_POST['archive_id'])) {
         $archive_id = (int) $_POST['archive_id'];
-        $delete = "DELETE FROM road_transportation_reports_archive WHERE id = ?";
+        $archive_table = (string)($_POST['archive_table'] ?? 'road_transportation_reports_archive');
+        if (!rgmap_archive_allowed_table($archive_table)) {
+            $archive_table = 'road_transportation_reports_archive';
+        }
+        if ($is_trans_role && $archive_table !== 'road_transportation_reports_archive') {
+            $_SESSION['archive_message'] = 'You are not authorized to delete this archived report.';
+            header('Location: archive.php');
+            exit();
+        }
+        if ($archive_table === 'ipms_road_projects_archive') {
+            $ipms_row = rgmap_archive_fetch_row($conn, $archive_table, $archive_id);
+            $project_id = (int)($ipms_row['project_id'] ?? 0);
+            if ($project_id > 0) {
+                rgmap_ipms_exclude_project($conn, $project_id, 'delete_forever');
+            }
+        }
+        $delete = "DELETE FROM `$archive_table` WHERE id = ?";
         $stmt = $conn->prepare($delete);
         $stmt->bind_param('i', $archive_id);
         $stmt->execute();
@@ -536,14 +586,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 if (isset($_GET['ajax']) && $_GET['ajax'] === 'export_updates') {
     header('Content-Type: application/json; charset=utf-8');
     $arch_id = intval($_GET['id'] ?? 0);
+    $arch_table = (string)($_GET['table'] ?? 'road_transportation_reports_archive');
     if ($arch_id <= 0) {
         echo json_encode(['success' => false, 'message' => 'Invalid archive ID.']);
         exit;
     }
-    $arch_stmt = $conn->prepare("SELECT * FROM road_transportation_reports_archive WHERE id = ?");
-    $arch_stmt->bind_param('i', $arch_id);
-    $arch_stmt->execute();
-    $arch_row = $arch_stmt->get_result()->fetch_assoc();
+    if (!rgmap_archive_allowed_table($arch_table)) {
+        $arch_table = 'road_transportation_reports_archive';
+    }
+    $arch_row = rgmap_archive_fetch_row($conn, $arch_table, $arch_id);
+    if (!$arch_row && $arch_table !== 'road_transportation_reports_archive') {
+        $arch_row = rgmap_archive_fetch_row($conn, 'road_transportation_reports_archive', $arch_id);
+        $arch_table = 'road_transportation_reports_archive';
+    }
     if (!$arch_row) {
         echo json_encode(['success' => false, 'message' => 'Archived report not found.']);
         exit;
@@ -1390,7 +1445,7 @@ if (isset($_SESSION['archive_message'])) {
                 </h3>
             </div>
 
-            <?php if ($archives->num_rows > 0): ?>
+            <?php if ($archives && $archives->num_rows > 0): ?>
                 <?php while ($row = $archives->fetch_assoc()): ?>
                     <div class="archive-item">
                         <div class="archive-icon">
@@ -1411,20 +1466,22 @@ if (isset($_SESSION['archive_message'])) {
                                 </span>
                             </div>
                             <div class="archive-actions">
-                                <button type="button" class="btn-view" onclick="viewArchive(<?php echo $row['id']; ?>)">
+                                <button type="button" class="btn-view" onclick="viewArchive(<?php echo (int)$row['id']; ?>, '<?php echo htmlspecialchars($row['archive_table'] ?? 'road_transportation_reports_archive', ENT_QUOTES); ?>')">
                                     <i class="fas fa-eye"></i> View
                                 </button>
                                 <?php if (!$is_trans_officer && !$is_road_officer): ?>
                                 <?php if (strtolower((string)$row['status']) !== 'rejected'): ?>
                                 <form method="POST" style="display: inline-flex;" onsubmit="return confirm('Restore this report back to active table?');">
-                                    <input type="hidden" name="archive_id" value="<?php echo $row['id']; ?>">
+                                    <input type="hidden" name="archive_id" value="<?php echo (int)$row['id']; ?>">
+                                    <input type="hidden" name="archive_table" value="<?php echo htmlspecialchars($row['archive_table'] ?? 'road_transportation_reports_archive'); ?>">
                                     <button type="submit" name="action" value="restore" class="btn-restore">
                                         <i class="fas fa-undo"></i> Restore
                                     </button>
                                 </form>
                                 <?php endif; ?>
                                 <form method="POST" style="display: inline-flex;" onsubmit="return confirm('Permanently delete this archived report? This cannot be undone.');">
-                                    <input type="hidden" name="archive_id" value="<?php echo $row['id']; ?>">
+                                    <input type="hidden" name="archive_id" value="<?php echo (int)$row['id']; ?>">
+                                    <input type="hidden" name="archive_table" value="<?php echo htmlspecialchars($row['archive_table'] ?? 'road_transportation_reports_archive'); ?>">
                                     <button type="submit" name="action" value="delete_forever" class="btn-delete-forever">
                                         <i class="fas fa-trash"></i> Delete Forever
                                     </button>
@@ -1528,10 +1585,12 @@ if (isset($_SESSION['archive_message'])) {
 
     <script>
         var archiveData = <?php
-            $archives->data_seek(0);
             $rows = [];
-            while ($r = $archives->fetch_assoc()) {
-                $rows[] = $r;
+            if ($archives) {
+                $archives->data_seek(0);
+                while ($r = $archives->fetch_assoc()) {
+                    $rows[] = $r;
+                }
             }
             // Resolve the staff member who created each report (users.full_name
             // joined to created_by) so the View modal can show "Created By" for
@@ -1557,16 +1616,27 @@ if (isset($_SESSION['archive_message'])) {
             }
             foreach ($rows as &$__ar) {
                 $__ar['created_by_name'] = $arch_creator_map[(int)($__ar['created_by'] ?? 0)] ?? null;
-                // IPMS infrastructure archives: decode fields the verification
-                // View modal uses so the archive View button can render the same layout.
-                if (($__ar['archived_from'] ?? '') === 'ipms_road_projects') {
+                if (($__ar['archived_from'] ?? '') === 'cimm_verification_reports' || ($__ar['archive_table'] ?? '') === 'cimm_verification_reports_archive') {
+                    $ev = json_decode((string)($__ar['attachments'] ?? '[]'), true);
+                    if (is_array($ev) && isset($ev[0]) && is_string($ev[0])) {
+                        $items = [];
+                        foreach ($ev as $url) {
+                            if (is_string($url) && $url !== '') {
+                                $items[] = ['type' => 'image', 'file_path' => $url];
+                            }
+                        }
+                        $__ar['attachments'] = json_encode($items, JSON_UNESCAPED_SLASHES);
+                    }
+                }
+                if (($__ar['archived_from'] ?? '') === 'ipms_road_projects' || ($__ar['archive_table'] ?? '') === 'ipms_road_projects_archive') {
                     $__ar['start_date'] = $__ar['cimm_starting_date'] ?? null;
                     $__ar['end_date'] = $__ar['cimm_estimated_end_date'] ?? ($__ar['due_date'] ?? null);
                     $__ar['budget'] = $__ar['budget_allocation'] ?? ($__ar['cimm_budget'] ?? null);
-                    if (!empty($__ar['ipms_polyline_json'])) {
-                        $__ar['polyline'] = json_decode((string)$__ar['ipms_polyline_json'], true) ?: [];
-                    } else {
-                        $__ar['polyline'] = [];
+                    $poly = $__ar['ipms_polyline_json'] ?? $__ar['polyline_json'] ?? '';
+                    $__ar['polyline'] = $poly ? (json_decode((string)$poly, true) ?: []) : [];
+                    $eng = json_decode((string)($__ar['assigned_engineers_json'] ?? '[]'), true);
+                    if (is_array($eng) && empty($__ar['engineer'])) {
+                        $__ar['engineer'] = implode(', ', array_filter(array_map('strval', $eng)));
                     }
                 }
             }
@@ -1649,8 +1719,14 @@ if (isset($_SESSION['archive_message'])) {
             return '<div class="rm-info-item"><div class="rm-info-icon"><i class="fas fa-' + icon + '"></i></div><div><div class="rm-info-label">' + label + '</div><div class="rm-info-value">' + displayVal + '</div></div></div>';
         }
 
-        function viewArchive(id) {
-            var row = archiveData.find(function(r) { return r.id == id; });
+        function viewArchive(id, archiveTable) {
+            archiveTable = archiveTable || 'road_transportation_reports_archive';
+            var row = archiveData.find(function(r) {
+                return r.id == id && (r.archive_table || 'road_transportation_reports_archive') === archiveTable;
+            });
+            if (!row) {
+                row = archiveData.find(function(r) { return r.id == id; });
+            }
             if (!row) return;
             currentArchiveRow = row;
 
@@ -2019,7 +2095,8 @@ if (isset($_SESSION['archive_message'])) {
                 return;
             }
             var archiveId = currentArchiveRow.id;
-            fetch('?ajax=export_updates&id=' + archiveId)
+            var archiveTable = encodeURIComponent(currentArchiveRow.archive_table || 'road_transportation_reports_archive');
+            fetch('?ajax=export_updates&id=' + archiveId + '&table=' + archiveTable)
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data && data.success) {
