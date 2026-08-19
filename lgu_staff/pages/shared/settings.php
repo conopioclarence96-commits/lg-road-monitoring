@@ -194,32 +194,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    if ($action === 'save_restrictions') {
-        $settings = [
-            'landing_page_private' => $_POST['landing_page_private'] ?? '0',
-            'hide_hero' => $_POST['hide_hero'] ?? '0',
-            'hide_updates' => $_POST['hide_updates'] ?? '0',
-            'hide_stats' => $_POST['hide_stats'] ?? '0',
-            'hide_about' => $_POST['hide_about'] ?? '0',
-            'hide_contact' => $_POST['hide_contact'] ?? '0',
-            'disable_signup' => $_POST['disable_signup'] ?? '0',
-            'hide_contact_form' => $_POST['hide_contact_form'] ?? '0',
-            'disable_search' => $_POST['disable_search'] ?? '0',
-            'custom_message' => sanitize_input($_POST['custom_message'] ?? ''),
-            'redirect_url' => sanitize_input($_POST['redirect_url'] ?? ''),
-        ];
-
-        foreach ($settings as $key => $value) {
-            $stmt = $conn->prepare("INSERT INTO site_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
-            $stmt->bind_param("sss", $key, $value, $value);
-            $stmt->execute();
-            $stmt->close();
-        }
-
-        log_audit_action($user_id, 'Restrictions Updated', 'Updated landing page access control settings');
-        $success_msg = 'Access restrictions applied successfully.';
-    }
-
     if ($action === 'upload_avatar') {
         if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
             $upload_dir = '../../uploads/profile_pictures';
@@ -319,6 +293,7 @@ if ($result) {
     }
 }
 
+
 // Get activity log with user info — filtered by current user only
 $activity_log = [];
 try {
@@ -352,7 +327,7 @@ try {
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../../css/theme-tokens.css">
     <link rel="stylesheet" href="../../css/theme-utilities.css">
-    <link rel="stylesheet" href="../../css/sidebar.css">
+    <link rel="stylesheet" href="../../css/sidebar.css?v=3">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
@@ -804,11 +779,6 @@ try {
                 <button class="tab-btn active" data-tab="account">
                     <i class="fas fa-user-shield"></i> Account
                 </button>
-                <?php if ($user_data['role'] === 'system_admin'): ?>
-                <button class="tab-btn" data-tab="access">
-                    <i class="fas fa-lock"></i> Access Control
-                </button>
-                <?php endif; ?>
                 <button class="tab-btn" data-tab="activity">
                     <i class="fas fa-history"></i> Activity Log
                 </button>
@@ -884,28 +854,28 @@ try {
                                 <input type="hidden" name="action" value="update_profile">
                                 <div class="form-grid-2">
                                     <div class="form-group">
-                                        <label>Full Name</label>
-                                        <input type="text" name="full_name" class="form-control" value="<?php echo htmlspecialchars($user_data['full_name'] ?? ''); ?>" required>
+                                        <label for="full_name">Full Name</label>
+                                        <input type="text" name="full_name" id="full_name" class="form-control" value="<?php echo htmlspecialchars($user_data['full_name'] ?? ''); ?>" required>
                                     </div>
                                     <div class="form-group">
-                                        <label>Email</label>
-                                        <input type="email" name="email" class="form-control" value="<?php echo htmlspecialchars($user_data['email'] ?? ''); ?>" required>
+                                        <label for="email">Email</label>
+                                        <input type="email" name="email" id="email" class="form-control" autocomplete="email" value="<?php echo htmlspecialchars($user_data['email'] ?? ''); ?>" required>
                                     </div>
                                     <div class="form-group">
-                                        <label>Role</label>
-                                        <input type="text" class="form-control" value="<?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $user_data['role'] ?? ''))); ?>" disabled>
+                                        <label for="roleAdmin">Role</label>
+                                        <input type="text" name="role" id="roleAdmin" class="form-control" value="<?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $user_data['role'] ?? ''))); ?>" disabled>
                                     </div>
                                     <div class="form-group">
-                                        <label>Address</label>
-                                        <input type="text" name="address" class="form-control" value="<?php echo htmlspecialchars($user_data['address'] ?? ''); ?>">
+                                        <label for="address">Address</label>
+                                        <input type="text" name="address" id="address" class="form-control" autocomplete="street-address" value="<?php echo htmlspecialchars($user_data['address'] ?? ''); ?>">
                                     </div>
                                     <div class="form-group">
-                                        <label>Birthday</label>
-                                        <input type="date" name="birthday" class="form-control" value="<?php echo htmlspecialchars($user_data['birthday'] ?? ''); ?>">
+                                        <label for="birthday">Birthday</label>
+                                        <input type="date" name="birthday" id="birthday" class="form-control" value="<?php echo htmlspecialchars($user_data['birthday'] ?? ''); ?>">
                                     </div>
                                     <div class="form-group">
-                                        <label>Civil Status</label>
-                                        <select name="civil_status" class="form-control">
+                                        <label for="civil_status">Civil Status</label>
+                                        <select name="civil_status" id="civil_status" class="form-control">
                                             <option value="">Select status</option>
                                             <option value="single" <?php echo ($user_data['civil_status'] ?? '') === 'single' ? 'selected' : ''; ?>>Single</option>
                                             <option value="married" <?php echo ($user_data['civil_status'] ?? '') === 'married' ? 'selected' : ''; ?>>Married</option>
@@ -914,12 +884,12 @@ try {
                                         </select>
                                     </div>
                                     <div class="form-group">
-                                        <label>Contact Number</label>
-                                        <input type="tel" name="phone_number" class="form-control" maxlength="20" pattern="[0-9+\-\s()]+" title="Enter a valid contact number" value="<?php echo htmlspecialchars($user_data['phone_number'] ?? ''); ?>">
+                                        <label for="phone_number">Contact Number</label>
+                                        <input type="tel" name="phone_number" id="phone_number" class="form-control" maxlength="20" pattern="[0-9+\-\s()]+" title="Enter a valid contact number" value="<?php echo htmlspecialchars($user_data['phone_number'] ?? ''); ?>">
                                     </div>
                                     <div class="form-group">
-                                        <label><i class="fas fa-id-card"></i> Upload ID</label>
-                                        <input type="file" name="id_file" accept="image/*,.pdf" class="form-control" style="padding:8px;">
+                                        <label for="id_file"><i class="fas fa-id-card"></i> Upload ID</label>
+                                        <input type="file" name="id_file" id="id_file" accept="image/*,.pdf" class="form-control" style="padding:8px;">
                                     </div>
                                 </div>
                                 <div class="form-actions">
@@ -947,28 +917,28 @@ try {
 
                                 <div class="form-grid-2">
                                     <div class="form-group">
-                                        <label>Full Name</label>
-                                        <input type="text" name="full_name" class="form-control" value="<?php echo htmlspecialchars($user_data['full_name'] ?? ''); ?>">
+                                        <label for="staffFullName">Full Name</label>
+                                        <input type="text" name="full_name" id="staffFullName" class="form-control" value="<?php echo htmlspecialchars($user_data['full_name'] ?? ''); ?>">
                                     </div>
                                     <div class="form-group">
-                                        <label>Email</label>
-                                        <input type="email" name="email" class="form-control" value="<?php echo htmlspecialchars($user_data['email'] ?? ''); ?>">
+                                        <label for="staffEmail">Email</label>
+                                        <input type="email" name="email" id="staffEmail" class="form-control" autocomplete="email" value="<?php echo htmlspecialchars($user_data['email'] ?? ''); ?>">
                                     </div>
                                     <div class="form-group">
-                                        <label>Role</label>
-                                        <input type="text" class="form-control" value="<?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $user_data['role'] ?? ''))); ?>" disabled>
+                                        <label for="roleStaff">Role</label>
+                                        <input type="text" name="role" id="roleStaff" class="form-control" value="<?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $user_data['role'] ?? ''))); ?>" disabled>
                                     </div>
                                     <div class="form-group">
-                                        <label>Address</label>
-                                        <input type="text" name="address" class="form-control" value="<?php echo htmlspecialchars($user_data['address'] ?? ''); ?>">
+                                        <label for="staffAddress">Address</label>
+                                        <input type="text" name="address" id="staffAddress" class="form-control" autocomplete="street-address" value="<?php echo htmlspecialchars($user_data['address'] ?? ''); ?>">
                                     </div>
                                     <div class="form-group">
-                                        <label>Birthday</label>
-                                        <input type="date" name="birthday" class="form-control" value="<?php echo htmlspecialchars($user_data['birthday'] ?? ''); ?>">
+                                        <label for="staffBirthday">Birthday</label>
+                                        <input type="date" name="birthday" id="staffBirthday" class="form-control" value="<?php echo htmlspecialchars($user_data['birthday'] ?? ''); ?>">
                                     </div>
                                     <div class="form-group">
-                                        <label>Civil Status</label>
-                                        <select name="civil_status" class="form-control">
+                                        <label for="staffCivilStatus">Civil Status</label>
+                                        <select name="civil_status" id="staffCivilStatus" class="form-control">
                                             <option value="">Select status</option>
                                             <option value="single" <?php echo ($user_data['civil_status'] ?? '') === 'single' ? 'selected' : ''; ?>>Single</option>
                                             <option value="married" <?php echo ($user_data['civil_status'] ?? '') === 'married' ? 'selected' : ''; ?>>Married</option>
@@ -977,12 +947,12 @@ try {
                                         </select>
                                     </div>
                                     <div class="form-group">
-                                        <label>Contact Number</label>
-                                        <input type="tel" name="phone_number" class="form-control" maxlength="20" pattern="[0-9+\-\s()]+" title="Enter a valid contact number" value="<?php echo htmlspecialchars($user_data['phone_number'] ?? ''); ?>">
+                                        <label for="staffPhoneNumber">Contact Number</label>
+                                        <input type="tel" name="phone_number" id="staffPhoneNumber" class="form-control" maxlength="20" pattern="[0-9+\-\s()]+" title="Enter a valid contact number" value="<?php echo htmlspecialchars($user_data['phone_number'] ?? ''); ?>">
                                     </div>
                                     <div class="form-group">
-                                        <label>Upload ID</label>
-                                        <input type="file" name="id_file" accept="image/*,.pdf" class="form-control" style="padding:8px;">
+                                        <label for="staffIdFile">Upload ID</label>
+                                        <input type="file" name="id_file" id="staffIdFile" accept="image/*,.pdf" class="form-control" style="padding:8px;">
                                         <?php if (!empty($user_data['id_file_path'])): ?>
                                             <div class="t-text-link" style="font-size:12px;margin-top:4px;">
                                                 <i class="fas fa-paperclip"></i> <?php echo htmlspecialchars(basename($user_data['id_file_path'])); ?>
@@ -991,8 +961,8 @@ try {
                                     </div>
                                 </div>
                                 <div class="form-group">
-                                    <label>Reason for Change</label>
-                                    <textarea name="reason" class="form-control" rows="3" placeholder="Explain why you need to update your information..." style="resize:vertical;"></textarea>
+                                    <label for="reason">Reason for Change</label>
+                                    <textarea name="reason" id="reason" class="form-control" rows="3" placeholder="Explain why you need to update your information..." style="resize:vertical;"></textarea>
                                 </div>
                                 <div class="form-actions">
                                     <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Request Change</button>
@@ -1016,21 +986,21 @@ try {
                                 <input type="hidden" name="action" value="change_password">
                                 <div class="form-grid-3">
                                     <div class="form-group">
-                                        <label>Current Password</label>
+                                        <label for="currentPassword">Current Password</label>
                                         <div class="password-wrapper">
                                             <input type="password" name="current_password" id="currentPassword" class="form-control" placeholder="Enter current password" required>
                                             <button type="button" class="password-toggle" onclick="togglePassword('currentPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
                                         </div>
                                     </div>
                                     <div class="form-group">
-                                        <label>New Password</label>
+                                        <label for="newPassword">New Password</label>
                                         <div class="password-wrapper">
                                             <input type="password" name="new_password" id="newPassword" class="form-control" placeholder="Min. 8 characters" required minlength="8">
                                             <button type="button" class="password-toggle" onclick="togglePassword('newPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
                                         </div>
                                     </div>
                                     <div class="form-group">
-                                        <label>Confirm New Password</label>
+                                        <label for="confirmPassword">Confirm New Password</label>
                                         <div class="password-wrapper">
                                             <input type="password" name="confirm_password" id="confirmPassword" class="form-control" placeholder="Repeat new password" required minlength="8">
                                             <button type="button" class="password-toggle" onclick="togglePassword('confirmPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
@@ -1046,21 +1016,21 @@ try {
                                 <input type="hidden" name="action" value="request_password_change">
                                 <div class="form-grid-3">
                                     <div class="form-group">
-                                        <label>Current Password</label>
+                                        <label for="staffCurrentPassword">Current Password</label>
                                         <div class="password-wrapper">
                                             <input type="password" name="current_password" id="staffCurrentPassword" class="form-control" placeholder="Enter current password" required>
                                             <button type="button" class="password-toggle" onclick="togglePassword('staffCurrentPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
                                         </div>
                                     </div>
                                     <div class="form-group">
-                                        <label>New Password</label>
+                                        <label for="staffNewPassword">New Password</label>
                                         <div class="password-wrapper">
                                             <input type="password" name="new_password" id="staffNewPassword" class="form-control" placeholder="Min. 8 characters" required minlength="8">
                                             <button type="button" class="password-toggle" onclick="togglePassword('staffNewPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
                                         </div>
                                     </div>
                                     <div class="form-group">
-                                        <label>Confirm New Password</label>
+                                        <label for="staffConfirmPassword">Confirm New Password</label>
                                         <div class="password-wrapper">
                                             <input type="password" name="confirm_password" id="staffConfirmPassword" class="form-control" placeholder="Repeat new password" required minlength="8">
                                             <button type="button" class="password-toggle" onclick="togglePassword('staffConfirmPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
@@ -1112,100 +1082,7 @@ try {
                 </div>
             </div>
 
-            <?php if ($user_data['role'] === 'system_admin'): ?>
-            <!-- Tab 2: Access Control -->
-            <div class="tab-content" id="tab-access">
-                <form method="POST">
-                    <input type="hidden" name="action" value="save_restrictions">
-
-                    <div class="form-section">
-                        <h3><i class="fas fa-globe"></i> Landing Page Visibility</h3>
-
-                        <div class="toggle-group">
-                            <div class="toggle-label">
-                                Private Landing Page
-                                <small>Entire landing page viewable only to logged-in users/admins</small>
-                            </div>
-                            <label class="switch">
-                                <input type="checkbox" name="landing_page_private" value="1" <?php echo ($settings['landing_page_private'] ?? '0') === '1' ? 'checked' : ''; ?>>
-                                <span class="slider"></span>
-                            </label>
-                        </div>
-
-                        <div id="sectionToggles">
-                            <div class="checkbox-group" style="margin-top:10px; padding-left:10px;">
-                                <div class="checkbox-item">
-                                    <input type="checkbox" name="hide_hero" value="1" id="hide_hero" <?php echo ($settings['hide_hero'] ?? '0') === '1' ? 'checked' : ''; ?>>
-                                    <label for="hide_hero">Hide Hero Section</label>
-                                </div>
-                                <div class="checkbox-item">
-                                    <input type="checkbox" name="hide_updates" value="1" id="hide_updates" <?php echo ($settings['hide_updates'] ?? '0') === '1' ? 'checked' : ''; ?>>
-                                    <label for="hide_updates">Hide Road Updates Section</label>
-                                </div>
-                                <div class="checkbox-item">
-                                    <input type="checkbox" name="hide_stats" value="1" id="hide_stats" <?php echo ($settings['hide_stats'] ?? '0') === '1' ? 'checked' : ''; ?>>
-                                    <label for="hide_stats">Hide Statistics Section</label>
-                                </div>
-                                <div class="checkbox-item">
-                                    <input type="checkbox" name="hide_about" value="1" id="hide_about" <?php echo ($settings['hide_about'] ?? '0') === '1' ? 'checked' : ''; ?>>
-                                    <label for="hide_about">Hide About Section</label>
-                                </div>
-                                <div class="checkbox-item">
-                                    <input type="checkbox" name="hide_contact" value="1" id="hide_contact" <?php echo ($settings['hide_contact'] ?? '0') === '1' ? 'checked' : ''; ?>>
-                                    <label for="hide_contact">Hide Contact Section</label>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="form-section">
-                        <h3><i class="fas fa-ban"></i> Feature Restrictions</h3>
-                        <div class="checkbox-group">
-                            <div class="checkbox-item">
-                                <input type="checkbox" name="disable_signup" value="1" id="disable_signup" <?php echo ($settings['disable_signup'] ?? '0') === '1' ? 'checked' : ''; ?>>
-                                <label for="disable_signup">Disable "Sign Up" Button</label>
-                            </div>
-                            <div class="checkbox-item">
-                                <input type="checkbox" name="hide_contact_form" value="1" id="hide_contact_form" <?php echo ($settings['hide_contact_form'] ?? '0') === '1' ? 'checked' : ''; ?>>
-                                <label for="hide_contact_form">Hide Contact Form</label>
-                            </div>
-                            <div class="checkbox-item">
-                                <input type="checkbox" name="disable_search" value="1" id="disable_search" <?php echo ($settings['disable_search'] ?? '0') === '1' ? 'checked' : ''; ?>>
-                                <label for="disable_search">Disable Search Functionality</label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="form-section">
-                        <h3><i class="fas fa-exclamation-triangle"></i> Custom Redirect / Message</h3>
-                        <div class="private-banner">
-                            <i class="fas fa-info-circle"></i>
-                            This message or redirect will be shown to restricted users who attempt to access blocked areas.
-                        </div>
-                        <div class="row" style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
-                            <div class="form-group">
-                                <label>Custom Message</label>
-                                <textarea name="custom_message" class="form-control" placeholder="e.g., This page is under maintenance. Please check back later."><?php echo htmlspecialchars($settings['custom_message'] ?? ''); ?></textarea>
-                                <small style="color:#888; font-size:12px;">Displayed to users when a section is restricted</small>
-                            </div>
-                            <div class="form-group">
-                                <label>Redirect URL</label>
-                                <input type="url" name="redirect_url" class="form-control" placeholder="e.g., https://example.com/maintenance" value="<?php echo htmlspecialchars($settings['redirect_url'] ?? ''); ?>">
-                                <small style="color:#888; font-size:12px;">Users will be redirected here if they access a restricted area</small>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="form-actions">
-                        <button type="submit" class="btn btn-success" style="font-size:15px; padding:12px 32px;">
-                            <i class="fas fa-shield-alt"></i> Apply Restrictions
-                        </button>
-                    </div>
-                </form>
-            </div>
-            <?php endif; ?>
-
-            <!-- Tab 3: Activity Log -->
+            <!-- Activity Log -->
             <div class="tab-content" id="tab-activity">
                 <div class="form-section">
                     <h3><i class="fas fa-history"></i> System Activity Log</h3>
@@ -1312,23 +1189,6 @@ try {
                 }
             });
         });
-
-        // Toggle section visibility when "Private Landing Page" is checked
-        const privateToggle = document.querySelector('input[name="landing_page_private"]');
-        const sectionToggles = document.getElementById('sectionToggles');
-        function toggleSectionVisibility() {
-            if (privateToggle.checked) {
-                sectionToggles.style.opacity = '0.5';
-                sectionToggles.querySelectorAll('input').forEach(cb => cb.disabled = true);
-            } else {
-                sectionToggles.style.opacity = '1';
-                sectionToggles.querySelectorAll('input').forEach(cb => cb.disabled = false);
-            }
-        }
-        if (privateToggle) {
-            privateToggle.addEventListener('change', toggleSectionVisibility);
-            toggleSectionVisibility();
-        }
 
         // Activity Log filter
         function filterActivityLog() {

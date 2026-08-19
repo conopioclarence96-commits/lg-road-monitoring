@@ -29,6 +29,12 @@ if (!isset($_SESSION['user_id']) || !is_admin_or_staff_role($_SESSION['role'] ??
 
 $is_admin = ($_SESSION['role'] === 'system_admin');
 
+// Set when the admin arrives here after approving a transparency upload request;
+// that project's data is then imported into the form for review.
+$prefill_request_id = ($is_admin && isset($_GET['transparency_request']))
+    ? max(0, (int)$_GET['transparency_request'])
+    : 0;
+
 // Handle AJAX requests
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json; charset=utf-8');
@@ -62,24 +68,46 @@ if ($conn) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../../css/theme-tokens.css">
     <link rel="stylesheet" href="../../css/theme-utilities.css">
-    <link rel="stylesheet" href="../../css/sidebar.css">
+    <link rel="stylesheet" href="../../css/sidebar.css?v=3">
     <link rel="stylesheet" href="../../css/public_transparency.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <style>
         body { background: #f7f5f0; min-height: 100vh; }
         body.dark-mode { background: var(--bg-page); }
-        body.dark-mode .form-group input,
+        body.dark-mode .form-group input:not(.publish-checkbox),
         body.dark-mode .form-group textarea,
         body.dark-mode .form-group select { background: var(--bg-input) !important; border-color: var(--border-input) !important; color: var(--text-primary) !important; }
-        body.dark-mode .form-group label { color: var(--text-secondary) !important; }
+        body.dark-mode .form-group > label:not(.publish-switch) { color: var(--text-secondary) !important; }
+        body.dark-mode .form-group label.publish-switch {
+            background: var(--bg-input) !important;
+            border-color: var(--border-default) !important;
+            color: var(--text-primary) !important;
+        }
+        body.dark-mode .form-group label.publish-switch:hover { border-color: var(--color-primary) !important; }
+        body.dark-mode .form-group label.publish-switch:has(.publish-checkbox:checked) {
+            background: var(--color-success-bg) !important;
+            border-color: var(--color-success) !important;
+        }
+        body.dark-mode .form-group label.publish-switch .toggle-slider {
+            background: var(--border-default) !important;
+        }
+        body.dark-mode .form-group label.publish-switch .toggle-slider::before {
+            background: #fff !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.25) !important;
+        }
+        body.dark-mode .form-group label.publish-switch:has(.publish-checkbox:checked) .toggle-slider {
+            background: var(--color-success) !important;
+        }
+        body.dark-mode .form-group label.publish-switch:has(.publish-checkbox:checked) .toggle-text {
+            color: var(--color-success) !important;
+        }
         body.dark-mode .project-preview .preview-handle::after { color: var(--text-primary) !important; }
         body.dark-mode .btn-cancel { background: var(--bg-input-readonly) !important; color: var(--text-primary) !important; border: 1px solid var(--border-default) !important; }
         body.dark-mode .btn-cancel:hover { background: var(--text-muted) !important; color: var(--text-inverse) !important; }
         body.dark-mode .projects-section { background: var(--bg-card) !important; border-color: var(--border-default) !important; }
         body.dark-mode .project-form-card { background: var(--bg-card) !important; border-color: var(--border-default) !important; }
         body.dark-mode .project-item { background: var(--bg-card) !important; border-color: var(--border-default) !important; }
-        body.dark-mode .toggle-slider::before { background: transparent !important; box-shadow: none !important; }
 
         .projects-section {
             background: #f0f4fa;
@@ -115,7 +143,7 @@ if ($conn) {
             grid-column: 1 / -1;
         }
 
-        .form-group label {
+        .form-group > label:not(.publish-switch) {
             display: block;
             font-size: 13px;
             font-weight: 600;
@@ -123,7 +151,7 @@ if ($conn) {
             margin-bottom: 6px;
         }
 
-        .form-group input,
+        .form-group input:not(.publish-checkbox),
         .form-group textarea,
         .form-group select {
             width: 100%;
@@ -136,7 +164,7 @@ if ($conn) {
             background: white;
         }
 
-        .form-group input:focus,
+        .form-group input:not(.publish-checkbox):focus,
         .form-group textarea:focus,
         .form-group select:focus {
             outline: none;
@@ -259,6 +287,41 @@ if ($conn) {
 
         .btn-cancel:hover {
             background: #5a6268;
+        }
+
+        .form-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-import {
+            padding: 12px 22px;
+            background: linear-gradient(135deg, #1e3c72, #3762c8);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+
+        .btn-import:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(55,98,200,0.3);
+        }
+
+        .btn-import:disabled {
+            opacity: 0.65;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
         }
 
         .projects-grid {
@@ -515,18 +578,43 @@ if ($conn) {
             font-size: 13px;
         }
 
+        .import-review-banner {
+            background: linear-gradient(135deg, rgba(76,175,80,0.10), rgba(56,142,60,0.10));
+            border-left: 4px solid #4CAF50;
+            border-radius: 12px;
+            padding: 20px 25px;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .import-review-banner .notice-icon {
+            font-size: 2.2rem;
+            color: #388E3C;
+        }
+
+        .import-review-banner h4 {
+            margin: 0 0 5px 0;
+            color: #1e3c72;
+            font-size: 16px;
+        }
+
+        .import-review-banner p {
+            margin: 0;
+            color: #666;
+            font-size: 13px;
+        }
+
         .publish-toggle {
             display: flex;
             flex-direction: column;
             gap: 8px;
         }
 
-        .publish-checkbox {
-            display: none;
-        }
-
-        .publish-label {
-            display: flex;
+        .form-group label.publish-switch {
+            position: relative;
+            display: inline-flex;
             align-items: center;
             gap: 12px;
             cursor: pointer;
@@ -536,27 +624,52 @@ if ($conn) {
             border-radius: 10px;
             transition: all 0.3s ease;
             width: fit-content;
+            max-width: 100%;
+            user-select: none;
+            margin-bottom: 0;
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
         }
 
-        .publish-label:hover {
+        .form-group label.publish-switch:hover {
             border-color: #3762c8;
         }
 
-        .publish-checkbox:checked + .publish-label {
+        .publish-checkbox {
+            position: absolute;
+            opacity: 0;
+            width: 1px;
+            height: 1px;
+            margin: -1px;
+            padding: 0;
+            border: 0;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            pointer-events: none;
+        }
+
+        .form-group label.publish-switch:has(.publish-checkbox:checked) {
             background: linear-gradient(135deg, rgba(76,175,80,0.1), rgba(56,142,60,0.1));
             border-color: #4CAF50;
+            color: #4CAF50;
         }
 
-        .toggle-slider {
+        .form-group label.publish-switch .toggle-slider {
             position: relative;
+            display: inline-block;
+            flex: 0 0 48px;
             width: 48px;
+            min-width: 48px;
             height: 26px;
+            min-height: 26px;
             background: #ccc;
             border-radius: 13px;
-            transition: all 0.3s ease;
+            transition: background 0.3s ease;
+            overflow: hidden;
         }
 
-        .toggle-slider::before {
+        .form-group label.publish-switch .toggle-slider::before {
             content: '';
             position: absolute;
             top: 3px;
@@ -565,32 +678,40 @@ if ($conn) {
             height: 20px;
             background: white;
             border-radius: 50%;
-            transition: all 0.3s ease;
+            transition: transform 0.3s ease;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
 
-        .publish-checkbox:checked + .publish-label .toggle-slider {
+        .form-group label.publish-switch:has(.publish-checkbox:checked) .toggle-slider {
             background: #4CAF50;
         }
 
-        .publish-checkbox:checked + .publish-label .toggle-slider::before {
+        .form-group label.publish-switch:has(.publish-checkbox:checked) .toggle-slider::before {
             transform: translateX(22px);
         }
 
-        .toggle-text {
+        .form-group label.publish-switch .toggle-text {
             font-size: 14px;
             font-weight: 600;
-            color: #333;
+            color: inherit;
+            line-height: 1.3;
         }
 
-        .publish-checkbox:checked + .publish-label .toggle-text {
+        .form-group label.publish-switch:has(.publish-checkbox:checked) .toggle-text {
             color: #4CAF50;
         }
 
         .publish-hint {
             font-size: 12px;
             color: #888;
-            margin-left: 4px;
+            margin: 0;
+        }
+
+        .field-hint {
+            display: block;
+            font-size: 11px;
+            color: #888;
+            margin-top: 4px;
         }
 
         .publish-badge {
@@ -673,17 +794,37 @@ if ($conn) {
         </div>
 
         <?php if ($is_admin): ?>
+        <!-- Approved transparency request being imported for review -->
+        <div class="import-review-banner" id="importReviewBanner" style="display:none">
+            <div class="notice-icon"><i class="fas fa-file-import"></i></div>
+            <div>
+                <h4 id="importReviewTitle">Imported from an approved transparency request</h4>
+                <p id="importReviewText">Review the fields below, then save or publish the project.</p>
+            </div>
+        </div>
+
         <!-- Add / Edit Form - Admin Only -->
         <div class="project-form-card" id="projectForm">
             <div class="section-header">
                 <h3 class="section-title" id="formTitle"><i class="fas fa-plus-circle"></i> Add New Project</h3>
-                <button class="btn-cancel" id="btnCancelEdit" style="display:none" onclick="resetForm()">
-                    <i class="fas fa-times"></i> Cancel Edit
-                </button>
+                <div class="form-header-actions">
+                    <button type="button" class="btn-import" id="btnImportExport" onclick="document.getElementById('progressExportInput').click()"
+                            title="Fill this form from a Progress Updates export (.doc)">
+                        <i class="fas fa-file-import"></i> Import from Export
+                    </button>
+                    <input type="file" id="progressExportInput" accept=".doc" style="display:none" onchange="handleProgressExportImport(this)">
+                    <button class="btn-cancel" id="btnCancelEdit" style="display:none" onclick="resetForm()">
+                        <i class="fas fa-times"></i> Cancel Edit
+                    </button>
+                </div>
             </div>
 
             <form id="projectFormEl" enctype="multipart/form-data">
                 <input type="hidden" id="projectId" value="">
+                <input type="hidden" id="sourceReportId" value="">
+                <input type="hidden" id="sourceReportSource" value="">
+                <input type="hidden" id="reporterName" value="">
+                <input type="hidden" id="reporterEmail" value="">
                 <div class="form-grid">
                     <div class="form-group full-width">
                         <label for="projectTitle">Project Title *</label>
@@ -701,6 +842,18 @@ if ($conn) {
                     </div>
 
                     <div class="form-group">
+                        <label for="projectStartDate">Start Date</label>
+                        <input type="date" id="projectStartDate">
+                        <span class="field-hint">From the first progress update in the import</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="projectEndDate">End Date</label>
+                        <input type="date" id="projectEndDate">
+                        <span class="field-hint">From the last progress update in the import</span>
+                    </div>
+
+                    <div class="form-group">
                         <label for="projectDate">Completion Date</label>
                         <input type="date" id="projectDate">
                     </div>
@@ -713,6 +866,13 @@ if ($conn) {
                     <div class="form-group">
                         <label for="projectCompletedBy">Completed By</label>
                         <input type="text" id="projectCompletedBy" placeholder="e.g. DPWH, Private Contractor">
+                        <span class="field-hint">The report's engineer when imported</span>
+                    </div>
+
+                    <div class="form-group full-width">
+                        <label for="projectConductedBy">Progress Updates Conducted By</label>
+                        <input type="text" id="projectConductedBy" placeholder="e.g. Engr. Ramon Cruz, Officer Dela Cruz">
+                        <span class="field-hint">Staff who posted the progress updates for this project</span>
                     </div>
 
                     <div class="form-group">
@@ -740,14 +900,13 @@ if ($conn) {
                     </div>
 
                     <div class="form-group full-width">
-                        <label>Publish to Public</label>
                         <div class="publish-toggle">
-                            <input type="checkbox" id="isPublished" class="publish-checkbox">
-                            <label for="isPublished" class="publish-label">
-                                <span class="toggle-slider"></span>
-                                <span class="toggle-text" data-off="Save as Draft" data-on="Publish to Public">Save as Draft</span>
+                            <label class="publish-switch" for="isPublished">
+                                <input type="checkbox" id="isPublished" class="publish-checkbox" role="switch" aria-describedby="publishHint">
+                                <span class="toggle-slider" aria-hidden="true"></span>
+                                <span class="toggle-text" id="publishToggleText" data-off="Save as Draft" data-on="Publish to Public">Save as Draft</span>
                             </label>
-                            <span class="publish-hint" id="publishHint">Project will be saved but not visible to the public</span>
+                            <p class="publish-hint" id="publishHint">Project will be saved but not visible to the public</p>
                         </div>
                     </div>
                 </div>
@@ -863,47 +1022,59 @@ if ($conn) {
     <!-- Toast -->
     <div class="toast" id="toast"></div>
 
+    <script src="../../js/progress-export-import.js?v=<?php echo filemtime(__DIR__ . '/../../js/progress-export-import.js'); ?>"></script>
     <script>
     const API = '../../pages/api/completed_projects_api.php';
     let isEditing = false;
 
     // ─── Photo Upload ─────────────────────────────────────
-    function handlePhotoSelect(input, type) {
-        const file = input.files[0];
-        if (!file) return;
-
-        const formData = new FormData();
-        formData.append('action', 'upload_photo');
-        formData.append('field', type === 'before' ? 'before_photo' : 'photo');
-        formData.append(type === 'before' ? 'before_photo' : 'photo', file);
-
+    function applyUploadedPhoto(type, path) {
         const area = document.getElementById(type + 'PhotoArea');
         const preview = document.getElementById(type + 'PhotoPreview');
         const pathInput = document.getElementById(type + 'PhotoPath');
-        const removeBtn = area.querySelector('.remove-photo');
+        if (!area || !preview || !pathInput) return;
 
-        area.style.opacity = '0.5';
+        pathInput.value = path;
+        preview.src = '../../../' + path;
+        preview.style.display = 'block';
+        area.querySelector('.upload-icon').style.display = 'none';
+        area.querySelector('.upload-text').style.display = 'none';
+        area.classList.add('has-image');
+        area.querySelector('.remove-photo').style.display = 'flex';
+    }
 
-        fetch(API, { method: 'POST', body: formData })
+    function uploadPhotoFile(type, file) {
+        const field = type === 'before' ? 'before_photo' : 'photo';
+        const formData = new FormData();
+        formData.append('action', 'upload_photo');
+        formData.append('field', field);
+        formData.append(field, file);
+
+        const area = document.getElementById(type + 'PhotoArea');
+        if (area) area.style.opacity = '0.5';
+
+        return fetch(API, { method: 'POST', body: formData })
             .then(r => r.json())
             .then(data => {
-                area.style.opacity = '1';
+                if (area) area.style.opacity = '1';
                 if (data.success) {
-                    pathInput.value = data.path;
-                    preview.src = '../../../' + data.path;
-                    preview.style.display = 'block';
-                    area.querySelector('.upload-icon').style.display = 'none';
-                    area.querySelector('.upload-text').style.display = 'none';
-                    area.classList.add('has-image');
-                    removeBtn.style.display = 'flex';
-                } else {
-                    showToast(data.message || 'Upload failed', 'error');
+                    applyUploadedPhoto(type, data.path);
+                    return true;
                 }
+                showToast(data.message || 'Upload failed', 'error');
+                return false;
             })
             .catch(() => {
-                area.style.opacity = '1';
+                if (area) area.style.opacity = '1';
                 showToast('Upload error', 'error');
+                return false;
             });
+    }
+
+    function handlePhotoSelect(input, type) {
+        const file = input.files[0];
+        if (!file) return;
+        uploadPhotoFile(type, file);
     }
 
     function removePhoto(type) {
@@ -923,25 +1094,310 @@ if ($conn) {
         removeBtn.style.display = 'none';
     }
 
-    // ─── Publish Toggle Text ───────────────────────────────
-    const publishCheckbox = document.getElementById('isPublished');
-    const publishHint = document.getElementById('publishHint');
-    const toggleText = document.querySelector('.toggle-text');
+    // ─── Import from Progress Updates Export ──────────────
+    // Reads the .doc export shared by completed_projects.php, archive.php and
+    // road_transportation_monitoring.php and pre-fills this form from it.
+    const IMPORT_IMAGE_EXT = { 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' };
 
-    if (publishCheckbox) {
-        publishCheckbox.addEventListener('change', function() {
-            if (this.checked) {
-                toggleText.textContent = 'Publish to Public';
-                publishHint.textContent = 'Project will be visible on the public transparency page';
+    function dataUrlToFile(dataUrl, baseName) {
+        let raw = String(dataUrl || '').trim();
+        const dataIdx = raw.toLowerCase().indexOf('data:image');
+        if (dataIdx > 0) raw = raw.slice(dataIdx);
+        const comma = raw.indexOf(',');
+        if (comma < 0) return null;
+        const header = raw.slice(0, comma).replace(/\s+/g, '');
+        const payload = raw.slice(comma + 1).replace(/\s+/g, '');
+        const mimeMatch = /^data:([^;,]+)/i.exec(header);
+        if (!mimeMatch || !payload) return null;
+        const mime = mimeMatch[1].toLowerCase();
+        const ext = IMPORT_IMAGE_EXT[mime];
+        if (!ext) return null;
+        let bytes;
+        try {
+            const binary = atob(payload);
+            bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        } catch (e) {
+            return null;
+        }
+        return new File([bytes], baseName + '.' + ext, { type: mime });
+    }
+
+    function setHiddenField(id, value) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.value = value == null ? '' : String(value);
+    }
+
+    function setImportedField(id, value) {
+        const el = document.getElementById(id);
+        if (!el || !value) return false;
+        el.value = value;
+        return true;
+    }
+
+    function showImportedPhotoPreview(type, dataUrl) {
+        const area = document.getElementById(type + 'PhotoArea');
+        const preview = document.getElementById(type + 'PhotoPreview');
+        if (!area || !preview || !dataUrl) return;
+        preview.src = dataUrl;
+        preview.style.display = 'block';
+        const icon = area.querySelector('.upload-icon');
+        const text = area.querySelector('.upload-text');
+        if (icon) icon.style.display = 'none';
+        if (text) text.style.display = 'none';
+        area.classList.add('has-image');
+        const removeBtn = area.querySelector('.remove-photo');
+        if (removeBtn) removeBtn.style.display = 'flex';
+    }
+
+    function importPhotoFromExport(type, dataUrl) {
+        showImportedPhotoPreview(type, dataUrl);
+        const file = dataUrlToFile(dataUrl, 'imported-' + type + '-' + Date.now());
+        if (!file) return Promise.resolve(false);
+        return uploadPhotoFile(type, file);
+    }
+
+    function importPhotosFromExportDoc(data) {
+        const jobs = [];
+        if (data.beforeImage) jobs.push(importPhotoFromExport('before', data.beforeImage));
+        if (data.afterImage) jobs.push(importPhotoFromExport('after', data.afterImage));
+        if (!jobs.length) return Promise.resolve(0);
+        return Promise.all(jobs).then(results => results.filter(Boolean).length);
+    }
+
+    function fetchReportPhotosForImport(reportId, source) {
+        const url = API + '?action=import_report_photos&report_id=' + encodeURIComponent(reportId)
+            + '&source=' + encodeURIComponent(source || 'transport');
+        return fetch(url)
+            .then(r => r.json())
+            .then(resp => {
+                if (!resp || !resp.success || !resp.data) return 0;
+                let count = 0;
+                if (resp.data.before_photo) {
+                    applyUploadedPhoto('before', resp.data.before_photo);
+                    count++;
+                }
+                if (resp.data.photo) {
+                    applyUploadedPhoto('after', resp.data.photo);
+                    count++;
+                }
+                return count;
+            })
+            .catch(() => 0);
+    }
+
+    function loadImportedPhotos(data) {
+        if (data.sourceReportId) {
+            return fetchReportPhotosForImport(data.sourceReportId, data.sourceReportSource || 'transport')
+                .then(count => {
+                    if (count > 0) return { count: count, fromServer: true };
+                    return importPhotosFromExportDoc(data).then(fallback => ({ count: fallback, fromServer: false }));
+                });
+        }
+        return importPhotosFromExportDoc(data).then(count => ({ count: count, fromServer: false }));
+    }
+
+    function applyImportedProject(data) {
+        let imported = 0;
+        if (setImportedField('projectTitle', data.title)) imported++;
+        if (setImportedField('projectDesc', data.description)) imported++;
+        if (setImportedField('projectLocation', data.location)) imported++;
+        // Start/End come from the first and last progress update in the export.
+        if (setImportedField('projectStartDate', data.actualStartDate)) imported++;
+        if (setImportedField('projectEndDate', data.actualEndDate)) imported++;
+        if (setImportedField('projectDate', data.completionDate || data.actualEndDate)) imported++;
+        if (setImportedField('projectCost', data.cost)) imported++;
+        if (setImportedField('projectCompletedBy', data.completedBy)) imported++;
+
+        if (data.sourceReportId) {
+            setHiddenField('sourceReportId', data.sourceReportId);
+            setHiddenField('sourceReportSource', data.sourceReportSource || 'transport');
+            setHiddenField('reporterName', data.reporterName || '');
+            setHiddenField('reporterEmail', data.reporterEmail || '');
+            showCitizenImportBanner(data.sourceReportCode || data.reportId || '', data.reporterName);
+        }
+
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+
+        return loadImportedPhotos(data).then(photoResult => {
+            imported += photoResult.count;
+            if (!imported && !data.sourceReportId) {
+                showToast('This export had no fields that apply to a project', 'error');
             } else {
-                toggleText.textContent = 'Save as Draft';
-                publishHint.textContent = 'Project will be saved but not visible to the public';
+                let msg = data.sourceReportId
+                    ? 'Imported from citizen report ' + (data.sourceReportCode || data.reportId || '') + ' — review, then save or publish'
+                    : 'Imported ' + imported + ' field(s) — review, then save';
+                if (data.sourceReportId && photoResult.fromServer) {
+                    msg = 'Imported with full-resolution photos from progress updates — review, then save or publish';
+                }
+                showToast(msg, 'success');
             }
         });
     }
 
+    function mergeCitizenReportIntoImport(data, report) {
+        if (!report) return data;
+        data.sourceReportId = report.id || '';
+        data.sourceReportCode = report.report_id || data.reportId || '';
+        data.sourceReportSource = 'transport';
+        data.reporterName = report.reporter_name || '';
+        data.reporterEmail = report.reporter_email || '';
+        if (!data.title && report.title) data.title = report.title;
+        if (!data.description && report.description) data.description = report.description;
+        if (!data.location && report.location) data.location = report.location;
+        if (!data.cost && report.budget_allocation) {
+            const n = parseFloat(String(report.budget_allocation).replace(/[^\d.-]/g, ''));
+            if (isFinite(n) && n >= 0) data.cost = n.toFixed(2);
+        }
+        if (!data.completedBy && report.engineer) data.completedBy = report.engineer;
+        return data;
+    }
+
+    function lookupCitizenReportForImport(reportId) {
+        return fetch(API + '?action=lookup_citizen_report&report_id=' + encodeURIComponent(reportId))
+            .then(r => r.json())
+            .then(resp => (resp && resp.success && resp.data) ? resp.data : null)
+            .catch(() => null);
+    }
+
+    function showCitizenImportBanner(reportId, reporterName) {
+        const banner = document.getElementById('importReviewBanner');
+        if (!banner) return;
+        const who = reporterName ? reporterName : 'the citizen reporter';
+        document.getElementById('importReviewTitle').textContent = 'Linked to citizen report ' + reportId;
+        document.getElementById('importReviewText').textContent =
+            'This export is tied to ' + reportId + '. Text fields come from the export; before/after photos use full-resolution progress-update files when available. '
+            + who + ' will be emailed when you publish (not when saving as draft).';
+        banner.style.display = 'flex';
+    }
+
+    function handleProgressExportImport(input) {
+        const file = input.files && input.files[0];
+        input.value = ''; // let the same file be picked again
+        if (!file) return;
+
+        if (!window.ProgressExportImport) {
+            showToast('Import helper failed to load — refresh and try again', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('btnImportExport');
+        const btnLabel = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importing...';
+        }
+
+        window.ProgressExportImport.readExportFile(file)
+            .then(data => {
+                const reportId = (data.reportId || '').trim();
+                if (reportId.toUpperCase().startsWith('CIT-')) {
+                    return lookupCitizenReportForImport(reportId).then(report => mergeCitizenReportIntoImport(data, report));
+                }
+                return data;
+            })
+            .then(applyImportedProject)
+            .catch(err => showToast(err && err.message ? err.message : 'Could not import this file', 'error'))
+            .then(() => {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = btnLabel;
+                }
+            });
+    }
+
+    // ─── Auto-import an approved transparency request ─────
+    // The admin lands here straight from approving the request, so the approved
+    // project's own progress-update data is pulled from the server instead of
+    // making the admin download and re-upload an export. Nothing is written
+    // until the admin reviews the fields and submits the form.
+    const TRANSPARENCY_REQUEST_API = '../api/transparency_request_api.php';
+    const PREFILL_REQUEST_ID = <?php echo (int)$prefill_request_id; ?>;
+
+    function showImportReviewBanner(req) {
+        const banner = document.getElementById('importReviewBanner');
+        if (!banner) return;
+        const id = (req && req.id) ? req.id : PREFILL_REQUEST_ID;
+        const who = (req && req.requested_by_name) ? req.requested_by_name : 'the Road Operations Supervisor';
+        const project = (req && req.report_title) ? '"' + req.report_title + '"' : 'the approved project';
+        document.getElementById('importReviewTitle').textContent = 'Imported from approved request #' + id;
+        document.getElementById('importReviewText').textContent =
+            'Progress update data for ' + project + ', requested by ' + who
+            + ', has been filled in below. Review every field, then save as draft or publish.';
+        banner.style.display = 'flex';
+    }
+
+    function applyPrefilledProject(data) {
+        setImportedField('projectTitle', data.title);
+        setImportedField('projectDesc', data.description);
+        setImportedField('projectLocation', data.location);
+        setImportedField('projectStartDate', data.first_update_date);
+        setImportedField('projectEndDate', data.last_update_date);
+        setImportedField('projectDate', data.completed_date || data.last_update_date);
+        setImportedField('projectCost', data.cost ? Number(data.cost).toFixed(2) : '');
+        setImportedField('projectCompletedBy', data.completed_by);
+        setImportedField('projectConductedBy', data.progress_conducted_by);
+
+        // Photos were copied into the completed-projects folder server-side, so
+        // the form only needs to point at them.
+        if (data.before_photo) applyUploadedPhoto('before', data.before_photo);
+        if (data.photo) applyUploadedPhoto('after', data.photo);
+    }
+
+    function loadApprovedTransparencyPrefill() {
+        if (!PREFILL_REQUEST_ID || !document.getElementById('projectFormEl')) return;
+
+        fetch(TRANSPARENCY_REQUEST_API + '?action=prefill&request_id=' + encodeURIComponent(PREFILL_REQUEST_ID))
+            .then(r => r.json())
+            .then(resp => {
+                if (!resp || !resp.success || !resp.data) {
+                    showToast((resp && resp.message) || 'Could not import the approved project', 'error');
+                    return;
+                }
+                applyPrefilledProject(resp.data);
+                showImportReviewBanner(resp.request);
+                // Drop the parameter so the reload after saving does not re-import.
+                if (window.history && window.history.replaceState) {
+                    window.history.replaceState({}, '', 'public_transparency.php');
+                }
+                showToast('Approved project imported — review, then save', 'success');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            })
+            .catch(() => showToast('Network error while importing the approved project', 'error'));
+    }
+
+    loadApprovedTransparencyPrefill();
+
+    // ─── Publish Toggle Text ───────────────────────────────
+    const publishCheckbox = document.getElementById('isPublished');
+    const publishHint = document.getElementById('publishHint');
+    const toggleText = document.getElementById('publishToggleText');
+
+    function syncPublishToggleUI(checked) {
+        if (!publishCheckbox) return;
+        publishCheckbox.checked = !!checked;
+        const on = publishCheckbox.checked;
+        if (toggleText) {
+            toggleText.textContent = on
+                ? (toggleText.dataset.on || 'Publish to Public')
+                : (toggleText.dataset.off || 'Save as Draft');
+        }
+        if (publishHint) {
+            publishHint.textContent = on
+                ? 'Project will be visible on the public transparency page. Linked citizen reporters are emailed on first publish.'
+                : 'Project will be saved but not visible to the public';
+        }
+    }
+
+    if (publishCheckbox) {
+        publishCheckbox.addEventListener('change', function() {
+            syncPublishToggleUI(this.checked);
+        });
+    }
+
     // ─── Form Submit ──────────────────────────────────────
-    document.getElementById('projectFormEl').addEventListener('submit', function(e) {
+    function onProjectFormSubmit(e) {
         e.preventDefault();
 
         const title = document.getElementById('projectTitle').value.trim();
@@ -956,10 +1412,17 @@ if ($conn) {
         formData.append('description', document.getElementById('projectDesc').value.trim());
         formData.append('location', document.getElementById('projectLocation').value.trim());
         formData.append('completed_date', document.getElementById('projectDate').value);
+        formData.append('start_date', document.getElementById('projectStartDate').value);
+        formData.append('end_date', document.getElementById('projectEndDate').value);
         formData.append('cost', document.getElementById('projectCost').value || 0);
         formData.append('completed_by', document.getElementById('projectCompletedBy').value.trim());
+        formData.append('progress_conducted_by', document.getElementById('projectConductedBy').value.trim());
         formData.append('photo', afterPath);
         formData.append('before_photo', document.getElementById('beforePhotoPath').value);
+        formData.append('source_report_id', document.getElementById('sourceReportId').value.trim());
+        formData.append('source_report_source', document.getElementById('sourceReportSource').value.trim());
+        formData.append('reporter_name', document.getElementById('reporterName').value.trim());
+        formData.append('reporter_email', document.getElementById('reporterEmail').value.trim());
 
         if (publishCheckbox && publishCheckbox.checked) {
             formData.append('is_published', '1');
@@ -987,7 +1450,12 @@ if ($conn) {
                 btnSave.disabled = false;
                 showToast('Network error', 'error');
             });
-    });
+    }
+
+    const projectFormEl = document.getElementById('projectFormEl');
+    if (projectFormEl) {
+        projectFormEl.addEventListener('submit', onProjectFormSubmit);
+    }
 
     // ─── Edit ─────────────────────────────────────────────
     function editProject(project) {
@@ -1001,23 +1469,17 @@ if ($conn) {
         document.getElementById('projectDesc').value = project.description || '';
         document.getElementById('projectLocation').value = project.location || '';
         document.getElementById('projectDate').value = project.completed_date || '';
+        document.getElementById('projectStartDate').value = project.start_date || '';
+        document.getElementById('projectEndDate').value = project.end_date || '';
         document.getElementById('projectCost').value = project.cost || '';
         document.getElementById('projectCompletedBy').value = project.completed_by || '';
+        document.getElementById('projectConductedBy').value = project.progress_conducted_by || '';
+        document.getElementById('sourceReportId').value = project.source_report_id || '';
+        document.getElementById('sourceReportSource').value = project.source_report_source || '';
+        document.getElementById('reporterName').value = project.reporter_name || '';
+        document.getElementById('reporterEmail').value = project.reporter_email || '';
 
-        // Set publish status
-        const publishCheckbox = document.getElementById('isPublished');
-        const toggleText = document.querySelector('.toggle-text');
-        const publishHint = document.getElementById('publishHint');
-        if (publishCheckbox) {
-            publishCheckbox.checked = project.is_published == 1;
-            if (publishCheckbox.checked) {
-                toggleText.textContent = 'Publish to Public';
-                publishHint.textContent = 'Project will be visible on the public transparency page';
-            } else {
-                toggleText.textContent = 'Save as Draft';
-                publishHint.textContent = 'Project will be saved but not visible to the public';
-            }
-        }
+        syncPublishToggleUI(project.is_published == 1);
 
         // Set after photo
         if (project.photo) {
@@ -1077,21 +1539,19 @@ if ($conn) {
         isEditing = false;
         document.getElementById('projectFormEl').reset();
         document.getElementById('projectId').value = '';
+        document.getElementById('sourceReportId').value = '';
+        document.getElementById('sourceReportSource').value = '';
+        document.getElementById('reporterName').value = '';
+        document.getElementById('reporterEmail').value = '';
+        const importBanner = document.getElementById('importReviewBanner');
+        if (importBanner) importBanner.style.display = 'none';
         document.getElementById('formTitle').innerHTML = '<i class="fas fa-plus-circle"></i> Add New Project';
         document.getElementById('btnCancelEdit').style.display = 'none';
         document.getElementById('btnSave').innerHTML = '<i class="fas fa-save"></i> Save Project';
         removePhoto('before');
         removePhoto('after');
 
-        // Reset publish toggle
-        const publishCheckbox = document.getElementById('isPublished');
-        const toggleText = document.querySelector('.toggle-text');
-        const publishHint = document.getElementById('publishHint');
-        if (publishCheckbox) {
-            publishCheckbox.checked = false;
-            toggleText.textContent = 'Save as Draft';
-            publishHint.textContent = 'Project will be saved but not visible to the public';
-        }
+        syncPublishToggleUI(false);
     }
 
     // ─── Toggle Publish Status ────────────────────────────

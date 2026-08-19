@@ -2,20 +2,41 @@
 // Enable mysqli error reporting for proper exception handling
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
+/**
+ * Read a config value from the root .env file (same convention as the
+ * TOMTOM_API_KEY / BREVO_* reads below) falling back to a real process env
+ * var of the same name, then to $default. Parsing is cached so repeated calls
+ * only read the file once per request.
+ *
+ * Note: .env comment lines must use ";" not "#" — parse_ini_file() throws on
+ * "#" lines containing parentheses (see .env.example).
+ */
+function env_get(string $key, string $default = '') {
+    static $envVariables = null;
+    if ($envVariables === null) {
+        $envFile = __DIR__ . '/../../.env';
+        $envVariables = file_exists($envFile) ? (parse_ini_file($envFile) ?: []) : [];
+    }
+    $value = $envVariables[$key] ?? getenv($key);
+    return ($value !== false && $value !== null && trim((string)$value) !== '') ? trim((string)$value) : $default;
+}
+
 // Environment detection
 $server_name = $_SERVER['SERVER_NAME'] ?? 'localhost';
 $is_local = ($server_name === 'localhost' || $server_name === '127.0.0.1' || strpos($server_name, '.local') !== false);
 
-// Database configuration based on environment
+// Database configuration based on environment.
+// Local: .env DB_* (or the previous zero-config defaults).
+// Live: always live_db_config.php. A copied .env is needed on the server for
+// API keys (TOMTOM/BREVO/IPMS), but those same DB_* values are local creds
+// and must not override the live connection.
 if ($is_local) {
-    // Local development environment
-    define('DB_HOST', 'localhost');
-    define('DB_USER', 'root');
-    define('DB_PASS', '');
-    define('DB_NAME', 'rgmap_lg_road_monitoring');
+    define('DB_HOST', env_get('DB_HOST', 'localhost'));
+    define('DB_USER', env_get('DB_USER', 'root'));
+    define('DB_PASS', env_get('DB_PASS', ''));
+    define('DB_NAME', env_get('DB_NAME', 'rgmap_lg_road_monitoring'));
 } else {
-    // Live server environment
-    $live_config = require_once __DIR__ . '/live_db_config.php';
+    $live_config = require __DIR__ . '/live_db_config.php';
     define('DB_HOST', $live_config['host']);
     define('DB_USER', $live_config['user']);
     define('DB_PASS', $live_config['pass']);
@@ -40,6 +61,20 @@ try {
         $conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP NULL AFTER updated_at");
     } catch (Exception $e) {
         // Column may already exist, ignore
+    }
+
+    // Ensure last_activity column exists (tracks live user activity, not just logins)
+    try {
+        $conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_activity TIMESTAMP NULL AFTER last_login");
+    } catch (Exception $e) {
+        // Column may already exist, ignore
+    }
+
+    // Backfill last_activity from last_login for accounts with no activity tracked yet
+    try {
+        $conn->query("UPDATE users SET last_activity = last_login WHERE last_activity IS NULL AND last_login IS NOT NULL");
+    } catch (Exception $e) {
+        // Best-effort backfill, ignore
     }
     
     // Ensure report_updates table exists
@@ -88,6 +123,22 @@ try {
         error_log("report_update_media table creation: " . $e->getMessage());
     }
     
+    // Same dump-restore damage as report_notifications below: without the key and
+    // AUTO_INCREMENT, every progress-update image insert fails and updates end up
+    // with no media at all.
+    try {
+        $rum_id = $conn->query("SELECT COLUMN_KEY, EXTRA FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '" . DB_NAME . "' AND TABLE_NAME = 'report_update_media' AND COLUMN_NAME = 'id'");
+        $rum_id_row = $rum_id ? $rum_id->fetch_assoc() : null;
+        if ($rum_id_row && stripos((string)$rum_id_row['EXTRA'], 'auto_increment') === false) {
+            if (strtoupper((string)$rum_id_row['COLUMN_KEY']) !== 'PRI') {
+                $conn->query("ALTER TABLE report_update_media ADD PRIMARY KEY (id)");
+            }
+            $conn->query("ALTER TABLE report_update_media MODIFY id INT NOT NULL AUTO_INCREMENT");
+        }
+    } catch (Exception $e) {
+        error_log("report_update_media.id auto_increment repair: " . $e->getMessage());
+    }
+
     try {
         $conn->query("CREATE TABLE IF NOT EXISTS report_notifications (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -125,6 +176,22 @@ try {
         $conn->query("ALTER TABLE report_notifications ADD COLUMN IF NOT EXISTS recipient_role VARCHAR(50) DEFAULT NULL AFTER recipient_email");
     } catch (Exception $e) {
         error_log("report_notifications.recipient_role migration: " . $e->getMessage());
+    }
+
+    // Databases restored from a dump can come back with `id` stripped of its key
+    // and AUTO_INCREMENT, which makes every notification INSERT fail under strict
+    // mode ("Field 'id' doesn't have a default value").
+    try {
+        $rn_id = $conn->query("SELECT COLUMN_KEY, EXTRA FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '" . DB_NAME . "' AND TABLE_NAME = 'report_notifications' AND COLUMN_NAME = 'id'");
+        $rn_id_row = $rn_id ? $rn_id->fetch_assoc() : null;
+        if ($rn_id_row && stripos((string)$rn_id_row['EXTRA'], 'auto_increment') === false) {
+            if (strtoupper((string)$rn_id_row['COLUMN_KEY']) !== 'PRI') {
+                $conn->query("ALTER TABLE report_notifications ADD PRIMARY KEY (id)");
+            }
+            $conn->query("ALTER TABLE report_notifications MODIFY id INT NOT NULL AUTO_INCREMENT");
+        }
+    } catch (Exception $e) {
+        error_log("report_notifications.id auto_increment repair: " . $e->getMessage());
     }
     
     // Ensure citizen report columns exist
@@ -306,9 +373,7 @@ define('MAX_FILE_SIZE', 5 * 1024 * 1024); // 5MB
 define('ALLOWED_FILE_TYPES', ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'jpg', 'jpeg', 'png']);
 
 // TomTom API Key - Load from .env or environment variable
-$envFile = __DIR__ . '/../../.env';
-$envVariables = file_exists($envFile) ? parse_ini_file($envFile) : [];
-define('TOMTOM_API_KEY', $envVariables['TOMTOM_API_KEY'] ?? getenv('TOMTOM_API_KEY'));
+define('TOMTOM_API_KEY', env_get('TOMTOM_API_KEY', ''));
 
 // TomTom API Services
 require_once __DIR__ . '/tomtom/autoload.php';
@@ -328,6 +393,26 @@ define('FROM_NAME', APP_NAME);
 // password and must_change_password = 1, so they may only reach change_password.php
 // until they set their own password. config.php is required before any output on
 // every page, so this runs early enough for a clean redirect.
+
+// Track live user activity: persist a lightweight last_activity timestamp in the
+// DB on each page load, throttled to once per minute per session to avoid
+// excessive writes. Runs for every authenticated request (regular pages and AJAX).
+if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['user_id'])) {
+    try {
+        $la_now = time();
+        if (!isset($_SESSION['last_db_activity']) || ($la_now - $_SESSION['last_db_activity']) >= 60) {
+            $la_stmt = $conn->prepare("UPDATE users SET last_activity = NOW() WHERE id = ?");
+            $la_stmt->bind_param("i", $_SESSION['user_id']);
+            $la_stmt->execute();
+            $la_stmt->close();
+            $_SESSION['last_db_activity'] = $la_now;
+        }
+    } catch (Exception $e) {
+        // Non-fatal; activity tracking is best-effort
+        error_log("last_activity update: " . $e->getMessage());
+    }
+}
+
 if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['user_id'])) {
     $mcp_page = basename($_SERVER['PHP_SELF'] ?? '');
     if ($mcp_page !== 'change_password.php' && $mcp_page !== 'logout.php') {

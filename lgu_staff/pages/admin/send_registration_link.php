@@ -183,7 +183,7 @@ try {
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../../css/theme-tokens.css">
     <link rel="stylesheet" href="../../css/theme-utilities.css">
-    <link rel="stylesheet" href="../../css/sidebar.css">
+    <link rel="stylesheet" href="../../css/sidebar.css?v=3">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <style>
@@ -443,6 +443,17 @@ try {
         .status-badge.danger {
             background: #fee2e2;
             color: #991b1b;
+        }
+
+        /* Dark-mode only fix for the status badges on this system_admin page */
+        body.dark-mode .status-badge.ok {
+            background: var(--color-success-bg) !important;
+            color: var(--color-success) !important;
+        }
+
+        body.dark-mode .status-badge.danger {
+            background: var(--color-danger-bg) !important;
+            color: var(--color-danger) !important;
         }
 
         .row-btn {

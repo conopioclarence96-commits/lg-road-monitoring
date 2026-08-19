@@ -118,7 +118,6 @@ $__ns_base = isset($basePath) ? $basePath : '';
     var pages = [
         { title: 'Home', url: 'index.php', icon: 'fa-home', kw: 'home landing page start welcome' },
         { title: 'Road Updates', url: 'road-updates.php', icon: 'fa-newspaper', kw: 'news updates announcements latest' },
-        { title: 'Road Projects', url: 'index.php#road-projects', icon: 'fa-road', kw: 'projects ongoing upcoming infrastructure ipms' },
         { title: 'Road Status', url: 'public_reports.php', icon: 'fa-map-marked-alt', kw: 'reports status browse reports issues problems' },
         { title: 'Transparency', url: 'public_transparency_view.php', icon: 'fa-balance-scale', kw: 'transparency portal documents reports' },
         { title: 'About', url: 'about.php', icon: 'fa-info-circle', kw: 'about us mission department' },

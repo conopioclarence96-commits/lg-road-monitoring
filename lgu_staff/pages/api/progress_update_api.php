@@ -17,6 +17,73 @@ $user_id = $_SESSION['user_id'];
 $method = $_SERVER['REQUEST_METHOD'];
 
 /**
+ * Resolve which live table a progress-update report_id belongs to.
+ * Prefer explicit $source so the same numeric id in transport / IPMS / CIMM
+ * does not collide (first-match would pick the wrong row).
+ *
+ * @return array{table:string,id_column:string}|null
+ */
+function rgmap_progress_resolve_table(string $source = ''): ?array {
+    $source = strtolower(trim($source));
+    if ($source === 'cimm' || $source === 'external') {
+        return ['table' => 'cimm_verification_reports', 'id_column' => 'id'];
+    }
+    if ($source === 'infrastructure' || $source === 'maintenance' || $source === 'ipms') {
+        return ['table' => 'ipms_road_projects', 'id_column' => 'project_id'];
+    }
+    if ($source === '') {
+        return null;
+    }
+    return ['table' => 'road_transportation_reports', 'id_column' => 'id'];
+}
+
+function rgmap_progress_is_ipms_source(string $source): bool {
+    $resolved = rgmap_progress_resolve_table($source);
+    return ($resolved['table'] ?? '') === 'ipms_road_projects';
+}
+
+/**
+ * Confirm the report exists. When $source is set, only that table is checked.
+ * When empty, probe transport → IPMS → CIMM (no road_maintenance_reports).
+ */
+function rgmap_progress_find_report($conn, int $report_id, string $source = ''): ?array {
+    $resolved = rgmap_progress_resolve_table($source);
+    $probe = [];
+    if ($resolved) {
+        $probe[] = $resolved['table'];
+    } else {
+        $probe = ['road_transportation_reports', 'ipms_road_projects', 'cimm_verification_reports'];
+    }
+
+    foreach ($probe as $table) {
+        if ($table === 'ipms_road_projects') {
+            $row = fetch_one(
+                "SELECT project_id AS id, CAST(project_id AS CHAR) AS report_id FROM ipms_road_projects WHERE project_id = ?",
+                [$report_id],
+                'i'
+            );
+        } elseif ($table === 'cimm_verification_reports') {
+            $row = fetch_one(
+                "SELECT id, reference_code AS report_id FROM cimm_verification_reports WHERE id = ?",
+                [$report_id],
+                'i'
+            );
+        } else {
+            $row = fetch_one(
+                "SELECT id, report_id FROM road_transportation_reports WHERE id = ?",
+                [$report_id],
+                'i'
+            );
+        }
+        if ($row) {
+            $row['_source_table'] = $table;
+            return $row;
+        }
+    }
+    return null;
+}
+
+/**
  * Role-based assignment restriction for posting progress updates.
  *
  * When a staff member is assigned to a report via the "Assign Staff" feature,
@@ -38,11 +105,11 @@ function rgmap_can_post_progress_update($conn, $report_id, $source, $user_id, $c
     }
 
     $source = strtolower(trim($source));
-    $table = $source === 'cimm'
-        ? 'cimm_verification_reports'
-        : 'road_transportation_reports';
-    if (!$table) {
-        return false;
+    $resolved = rgmap_progress_resolve_table($source !== '' ? $source : 'lgu');
+    $table = $resolved['table'] ?? 'road_transportation_reports';
+    if ($table === 'ipms_road_projects') {
+        // IPMS projects are not assigned via report_assignments today.
+        return true;
     }
 
     try {
@@ -197,16 +264,13 @@ if ($method === 'GET') {
         // Allow read-only access without login for public timeline
         if ($action === 'get_updates') {
             $report_id = intval($_GET['report_id'] ?? 0);
+            $source = sanitize_input($_GET['source'] ?? '');
             if ($report_id <= 0) {
                 json_response(['success' => false, 'message' => 'Invalid report ID']);
             }
-            $report = fetch_one("SELECT id FROM road_transportation_reports WHERE id = ?", [$report_id], "i");
-            if (!$report) {
-                $report = fetch_one("SELECT id FROM road_maintenance_reports WHERE id = ?", [$report_id], "i");
-            }
-            if (!$report) {
-                $report = fetch_one("SELECT id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
-            }
+            // Prefer source so id collisions across transport / IPMS / CIMM
+            // do not resolve to the wrong report.
+            $report = rgmap_progress_find_report($conn, $report_id, $source);
             if (!$report) {
                 json_response(['success' => false, 'message' => 'Report not found']);
             }
@@ -269,9 +333,17 @@ if ($method === 'GET') {
         if (empty($description)) json_response(['success' => false, 'message' => 'Description is required']);
 
         $report = null;
-        if ($source === 'cimm') {
+        $report_table = 'road_transportation_reports';
+        if ($source === 'cimm' || $source === 'external') {
             $report = fetch_one("SELECT id, reference_code AS report_id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
             $report_table = 'cimm_verification_reports';
+        } elseif ($source === 'infrastructure' || $source === 'maintenance' || $source === 'ipms') {
+            $report = fetch_one(
+                "SELECT project_id AS id, CAST(project_id AS CHAR) AS report_id FROM ipms_road_projects WHERE project_id = ?",
+                [$report_id],
+                "i"
+            );
+            $report_table = 'ipms_road_projects';
         } else {
             $report = fetch_one("SELECT id, report_id FROM road_transportation_reports WHERE id = ?", [$report_id], "i");
             $report_table = 'road_transportation_reports';
@@ -280,6 +352,7 @@ if ($method === 'GET') {
 
         // The report's status column depends on which table it lives in.
         $status_column = ($report_table === 'cimm_verification_reports') ? 'verification_status' : 'status';
+        $status_id_column = ($report_table === 'ipms_road_projects') ? 'project_id' : 'id';
 
         // Role-based assignment restriction — enforced in the backend so it
         // covers report_management.php and road_transportation_monitoring.php
@@ -296,20 +369,18 @@ if ($method === 'GET') {
             $update_id = $conn->insert_id;
 
             // Automatically advance an Approved report to In Progress once an
-            // update is added (report_management.php and
-            // road_transportation_monitoring.php both post updates here).
-            // This runs on every update (not just the first), so reports
-            // restored from the archive still advance even though they carry
-            // prior updates. CIMM reports store their status as title-case
-            // (e.g. 'Approved', 'In Progress') in verification_status, so
-            // compare and write the correct casing per table.
-            $cur = $conn->query("SELECT `{$status_column}` AS st FROM `{$report_table}` WHERE id = {$report_id}")->fetch_assoc();
-            $current_status = strtolower((string)($cur['st'] ?? ''));
-            if ($current_status === 'approved') {
-                $target_status = ($report_table === 'cimm_verification_reports') ? 'In Progress' : 'in-progress';
-                $s_stmt = $conn->prepare("UPDATE `{$report_table}` SET `{$status_column}` = ? WHERE id = ?");
-                $s_stmt->bind_param("si", $target_status, $report_id);
-                $s_stmt->execute();
+            // update is added. Skip IPMS projects — their local workflow
+            // status stays approved/rejected/completed and is not driven by
+            // progress posts the same way.
+            if ($report_table !== 'ipms_road_projects') {
+                $cur = $conn->query("SELECT `{$status_column}` AS st FROM `{$report_table}` WHERE `{$status_id_column}` = {$report_id}")->fetch_assoc();
+                $current_status = strtolower((string)($cur['st'] ?? ''));
+                if ($current_status === 'approved') {
+                    $target_status = ($report_table === 'cimm_verification_reports') ? 'In Progress' : 'in-progress';
+                    $s_stmt = $conn->prepare("UPDATE `{$report_table}` SET `{$status_column}` = ? WHERE `{$status_id_column}` = ?");
+                    $s_stmt->bind_param("si", $target_status, $report_id);
+                    $s_stmt->execute();
+                }
             }
 
             // Handle media uploads
@@ -412,16 +483,39 @@ if ($method === 'GET') {
 
         try {
             if ($source === 'cimm') {
-                // Update cimm_verification_reports table
-                $stmt = $conn->prepare("UPDATE cimm_verification_reports SET verification_status = ? WHERE id = ?");
-                $stmt->bind_param("si", $status, $report_id);
+                // Update cimm_verification_reports table. When the status is set
+                // to Completed (the report_management.php Complete flow), stamp
+                // the same 7-day auto-archive marker used by the supervisor
+                // portal's Complete button (complete_status) so the existing
+                // sweep (rgmap_auto_archive_completed) moves the report to the
+                // archive after 7 days. CIMM reports have no completed_at
+                // column, so auto_archive_at doubles as the completion marker.
+                rgmap_ensure_auto_archive_column();
+                if (strtolower($status) === 'completed') {
+                    $stmt = $conn->prepare("UPDATE cimm_verification_reports SET verification_status = ?, auto_archive_at = COALESCE(auto_archive_at, DATE_ADD(NOW(), INTERVAL 7 DAY)) WHERE id = ?");
+                    $stmt->bind_param("si", $status, $report_id);
+                } else {
+                    $stmt = $conn->prepare("UPDATE cimm_verification_reports SET verification_status = ? WHERE id = ?");
+                    $stmt->bind_param("si", $status, $report_id);
+                }
                 $stmt->execute();
                 log_audit_action($user_id, "Updated CIMM report status", "Report ID: {$report_id}, Status: {$status}");
                 json_response(['success' => true, 'message' => 'Status updated successfully']);
             } else {
-                // Update road_transportation_reports table
-                $stmt = $conn->prepare("UPDATE road_transportation_reports SET status = ? WHERE id = ?");
-                $stmt->bind_param("si", $status, $report_id);
+                // Update road_transportation_reports table. When the status is
+                // set to completed (the report_management.php Complete flow),
+                // stamp the same 7-day auto-archive marker used by the
+                // supervisor portal's Complete button (complete_status) so the
+                // existing sweep (rgmap_auto_archive_completed) moves the
+                // report to the archive after 7 days.
+                rgmap_ensure_auto_archive_column();
+                if (strtolower($status) === 'completed') {
+                    $stmt = $conn->prepare("UPDATE road_transportation_reports SET status = ?, completed_at = COALESCE(completed_at, NOW()), auto_archive_at = COALESCE(auto_archive_at, DATE_ADD(NOW(), INTERVAL 7 DAY)) WHERE id = ?");
+                    $stmt->bind_param("si", $status, $report_id);
+                } else {
+                    $stmt = $conn->prepare("UPDATE road_transportation_reports SET status = ? WHERE id = ?");
+                    $stmt->bind_param("si", $status, $report_id);
+                }
                 $stmt->execute();
                 log_audit_action($user_id, "Updated report status", "Report ID: {$report_id}, Status: {$status}");
                 json_response(['success' => true, 'message' => 'Status updated successfully']);
@@ -443,6 +537,8 @@ if ($method === 'GET') {
         try {
             if ($source === 'cimm') {
                 $archived = rgmap_archive_cimm_report($conn, $report_id, 'cancelled');
+            } elseif (rgmap_progress_is_ipms_source($source)) {
+                $archived = rgmap_archive_ipms_project($conn, $report_id, 'cancelled');
             } else {
                 $table = rgmap_resolve_report_table($conn, $report_id);
                 $archived = $table ? rgmap_archive_report($conn, $table, $report_id, 'cancelled') : false;
@@ -536,27 +632,34 @@ if ($method === 'GET') {
         }
     } elseif ($action === 'complete_status') {
         // Supervisor Complete button on road_transportation_monitoring.php.
-        // Marks the report completed but KEEPS it on the monitoring page: a
-        // 7-day auto-archive deadline is stamped instead of moving the row to
-        // the archive immediately (unlike the old complete_archive_move). The
-        // background sweep (auto_archive_completed / rgmap_auto_archive_completed)
-        // moves it to the archive once the deadline passes, and the Recent
-        // Submissions query shows completed reports until then. The sweep
-        // measures the deadline from the actual completion timestamp
-        // (completed_at + 7 days), so the stamped auto_archive_at is only used
-        // as a "completed via portal" marker.
+        // Marks the report completed and keeps it on Completed Projects until
+        // Archive is clicked. It does not move the row to the archive.
         $report_id = intval($_POST['report_id'] ?? 0);
         $source = sanitize_input($_POST['source'] ?? '');
 
         if ($report_id <= 0) json_response(['success' => false, 'message' => 'Invalid report ID']);
 
         try {
-            rgmap_ensure_auto_archive_column();
+            $ipms_complete = rgmap_progress_is_ipms_source($source);
             if ($source === 'cimm') {
+                rgmap_ensure_auto_archive_column();
                 $stmt = $conn->prepare("UPDATE cimm_verification_reports SET verification_status = 'Completed', auto_archive_at = COALESCE(auto_archive_at, DATE_ADD(NOW(), INTERVAL 7 DAY)) WHERE id = ?");
                 $stmt->bind_param("i", $report_id);
                 $stmt->execute();
+            } elseif ($ipms_complete) {
+                require_once __DIR__ . '/ipms_road_projects_data.php';
+                $pdo = rgmap_ipms_pdo();
+                $stmt = $pdo->prepare("UPDATE ipms_road_projects SET status = 'completed' WHERE project_id = ?");
+                $stmt->execute([$report_id]);
+                if ($stmt->rowCount() === 0) {
+                    $chk = $pdo->prepare("SELECT project_id FROM ipms_road_projects WHERE project_id = ?");
+                    $chk->execute([$report_id]);
+                    if (!$chk->fetch()) {
+                        json_response(['success' => false, 'message' => 'Report not found'], 404);
+                    }
+                }
             } else {
+                rgmap_ensure_auto_archive_column();
                 $table = rgmap_resolve_report_table($conn, $report_id);
                 if (!$table) json_response(['success' => false, 'message' => 'Report not found'], 404);
                 $stmt = $conn->prepare("UPDATE $table SET status = 'completed', completed_at = COALESCE(completed_at, NOW()), auto_archive_at = COALESCE(auto_archive_at, DATE_ADD(NOW(), INTERVAL 7 DAY)) WHERE id = ?");
@@ -572,12 +675,18 @@ if ($method === 'GET') {
             if (!$report_row) {
                 $report_row = fetch_one("SELECT reference_code AS report_id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
             }
+            if (!$report_row && $ipms_complete) {
+                $report_row = ['report_id' => (string)$report_id];
+            }
             rgmap_notify_requestor($conn, $report_id, 'complete', $user_id, $report_row['report_id'] ?? null);
             // Notify the acting supervisor so the completion result appears in
             // their notifications feed (notifications.php).
             rgmap_notify_supervisor_action($conn, $report_id, 'complete', $user_id, $report_row['report_id'] ?? null);
-            log_audit_action($user_id, "Completed report", "Report ID: {$report_id}, Status: completed (auto-archive in 7 days)");
-            json_response(['success' => true, 'message' => 'Report completed. It will stay on this page for 7 days, then move to the archive automatically.']);
+            log_audit_action($user_id, "Completed report", "Report ID: {$report_id}, Status: completed");
+            $complete_msg = $ipms_complete
+                ? 'Infrastructure project marked as completed.'
+                : 'Report completed. It will stay in Completed Projects until it is archived.';
+            json_response(['success' => true, 'message' => $complete_msg]);
         } catch (Exception $e) {
             error_log("Complete status error: " . $e->getMessage());
             json_response(['success' => false, 'message' => 'Failed to complete the report: ' . $e->getMessage()], 500);
@@ -587,8 +696,8 @@ if ($method === 'GET') {
         // road_transportation_monitoring.php. The button is only rendered for
         // reports whose status is COMPLETED (all other statuses hide it), and
         // it moves the report into road_transportation_reports_archive keeping
-        // its current status — the report leaves Recent Submissions immediately
-        // instead of waiting out the 7-day auto-archive window.
+        // its current status — the report leaves Completed Projects only when
+        // Archive is clicked.
         // Available to any admin/staff role that can access the monitoring page.
         if (!is_admin_or_staff_role($_SESSION['role'] ?? '')) {
             json_response(['success' => false, 'message' => 'You are not authorized to archive reports.'], 403);
@@ -607,6 +716,15 @@ if ($method === 'GET') {
                 if (!$row) json_response(['success' => false, 'message' => 'Report not found'], 404);
                 $status = strtolower(trim((string)($row['status'] ?? 'approved')));
                 $archived = rgmap_archive_cimm_report($conn, $report_id, $status);
+            } elseif (rgmap_progress_is_ipms_source($source)) {
+                require_once __DIR__ . '/ipms_road_projects_data.php';
+                $pdo = rgmap_ipms_pdo();
+                $chk = $pdo->prepare("SELECT status FROM ipms_road_projects WHERE project_id = ?");
+                $chk->execute([$report_id]);
+                $ipms_row = $chk->fetch(PDO::FETCH_ASSOC);
+                if (!$ipms_row) json_response(['success' => false, 'message' => 'Report not found'], 404);
+                $status = strtolower(trim((string)($ipms_row['status'] ?? 'completed')));
+                $archived = rgmap_archive_ipms_project($conn, $report_id, $status);
             } else {
                 $table = rgmap_resolve_report_table($conn, $report_id);
                 if (!$table) json_response(['success' => false, 'message' => 'Report not found'], 404);
@@ -624,18 +742,9 @@ if ($method === 'GET') {
             json_response(['success' => false, 'message' => 'Failed to archive the report: ' . $e->getMessage()], 500);
         }
     } elseif ($action === 'auto_archive_completed') {
-        // Move every completed report whose 7-day retention window has passed
-        // into the archive. Only reports completed through the supervisor
-        // portal's Complete button carry auto_archive_at, so report_management
-        // completions are never touched. Fired by the portal on page load.
-        $moved = 0;
-        try {
-            $moved = rgmap_auto_archive_completed($conn);
-            json_response(['success' => true, 'archived' => $moved, 'message' => "Auto-archived {$moved} completed report(s)"]);
-        } catch (Exception $e) {
-            error_log("Auto archive completed error: " . $e->getMessage());
-            json_response(['success' => false, 'message' => 'Failed to archive completed reports: ' . $e->getMessage()], 500);
-        }
+        // Automatic archive of completed projects is disabled. They remain on
+        // Completed Projects until Archive is clicked.
+        json_response(['success' => true, 'archived' => 0, 'message' => 'Automatic archive of completed projects is disabled.']);
     } elseif ($action === 'submit_review_request') {
         // Road/Transportation Monitoring Officers request a completion or
         // cancellation of a project. This ONLY creates a role-targeted
@@ -745,25 +854,25 @@ if ($method === 'GET') {
             ];
             $message = "{$request_label} — " . implode(' | ', $details);
 
-            // Transportation requests only: a trans monitoring officer re-submitting
-            // the same completion/cancellation request (double-click, page refresh,
-            // or reopening the monitoring page) must not spawn a duplicate
-            // notification for the trans_ops_supervisor. The request is uniquely
-            // identified by report ID + request type + requesting officer, and is
-            // only blocked while the previous request is still pending review
-            // (unread). Road requests keep their existing behavior untouched.
-            if ($recipient_role === 'trans_ops_supervisor') {
-                $dup = fetch_one(
-                    "SELECT id FROM report_notifications
-                     WHERE report_id = ? AND type = ? AND recipient_role = ? AND recipient_email = ? AND is_read = 0
-                     ORDER BY id DESC LIMIT 1",
-                    [$report_id, $request_type, $recipient_role, $user_id],
-                    "isss"
-                );
-                if ($dup) {
-                    log_audit_action($user_id, "Duplicate {$request_label} blocked", "Report ID: {$report_id}, Category: {$category}");
-                    json_response(['success' => true, 'message' => "{$request_label} already submitted for review. The report status is unchanged."]);
-                }
+            // Road and transportation requests both guard against duplicates: a
+            // monitoring officer re-submitting the same completion/cancellation
+            // request (double-click, page refresh, or reopening the monitoring
+            // page) must not spawn a duplicate notification for the matching
+            // supervisor (road_ops_supervisor for road projects,
+            // trans_ops_supervisor for transportation projects). The request is
+            // uniquely identified by report ID + request type + requesting
+            // officer, and is only blocked while the previous request is still
+            // pending review (unread).
+            $dup = fetch_one(
+                "SELECT id FROM report_notifications
+                 WHERE report_id = ? AND type = ? AND recipient_role = ? AND recipient_email = ? AND is_read = 0
+                 ORDER BY id DESC LIMIT 1",
+                [$report_id, $request_type, $recipient_role, $user_id],
+                "isss"
+            );
+            if ($dup) {
+                log_audit_action($user_id, "Duplicate {$request_label} blocked", "Report ID: {$report_id}, Category: {$category}");
+                json_response(['success' => true, 'message' => "{$request_label} already submitted for review. The report status is unchanged."]);
             }
 
             // Role-targeted notification (visible only to the matching supervisor

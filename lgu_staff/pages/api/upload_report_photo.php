@@ -68,5 +68,6 @@ try {
     ], 'Photo uploaded successfully');
 } catch (Exception $e) {
     $conn->rollback();
-    json_error('Failed to save photo: ' . $e->getMessage());
+    error_log("upload_report_photo save error: " . $e->getMessage());
+    json_error('Failed to save photo. Please try again.');
 }

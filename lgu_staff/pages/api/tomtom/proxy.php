@@ -4,13 +4,17 @@ require_once __DIR__ . '/../../../includes/config.php';
 require_once __DIR__ . '/../../../includes/functions.php';
 require_once __DIR__ . '/../../../includes/tomtom/autoload.php';
 
+$service = $_GET['service'] ?? '';
+
 if (!isset($_SESSION['user_id'])) {
-    json_error('Unauthorized', 401);
+    $publicServices = ['reverse_geocode', 'poi_search'];
+    if (!in_array($service, $publicServices)) {
+        json_error('Unauthorized', 401);
+    }
 }
 
 header('Content-Type: application/json');
 
-$service = $_GET['service'] ?? '';
 $action = $_GET['action'] ?? '';
 
 // Strip internal params before forwarding to TomTom API

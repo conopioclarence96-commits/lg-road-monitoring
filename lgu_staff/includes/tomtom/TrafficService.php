@@ -38,9 +38,12 @@ class TrafficService {
     }
 
     public function trafficIncidentDetails(float $lat, float $lng, float $radius = 10, array $params = []): array {
-        $bbox = $this->getBoundingBox($lat, $lng, $radius);
-        $params['bbox'] = $bbox;
-        return $this->client->request('/traffic/services/4/incidentDetails.json', $params);
+        unset($params['lat'], $params['lng'], $params['radius'], $params['service'], $params['action']);
+        $params['bbox'] = $params['bbox'] ?? $this->getBoundingBox($lat, $lng, $radius);
+        $params['fields'] = $params['fields'] ?? '{incidents{type,geometry{type,coordinates},properties{id,iconCategory,magnitudeOfDelay,events{description,code,iconCategory},startTime,from,to,length,delay,roadNumbers}}}';
+        $params['language'] = $params['language'] ?? 'en-GB';
+        $params['timeValidityFilter'] = $params['timeValidityFilter'] ?? 'present';
+        return $this->client->request('/traffic/services/5/incidentDetails', $params);
     }
 
     public function trafficIncidentViewport(
@@ -60,6 +63,7 @@ class TrafficService {
         $north = $lat + $latChange;
         $west = $lng - $lngChange;
         $east = $lng + $lngChange;
-        return $south . ',' . $west . ',' . $north . ',' . $east;
+        // Incident Details v5 expects minLon,minLat,maxLon,maxLat
+        return $west . ',' . $south . ',' . $east . ',' . $north;
     }
 }

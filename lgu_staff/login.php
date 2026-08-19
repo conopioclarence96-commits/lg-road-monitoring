@@ -56,59 +56,55 @@ if ($conn) {
     } catch (Exception $e) {}
 }
 
-// Create dump LGU staff account (for testing purposes)
-if (isset($_GET['create_dump_account']) && $_GET['create_dump_account'] === 'lgu_staff') {
-    try {
-        // Check if dump account already exists
-        $checkStmt = $conn->prepare("SELECT id FROM users WHERE email = 'staff@lgu.gov.ph'");
-        $checkStmt->execute();
-        $existing = $checkStmt->get_result();
-        
-        if ($existing->num_rows === 0) {
-            // Create dump LGU staff account
-            $hashedPassword = password_hash('staff123', PASSWORD_DEFAULT);
-            
-            $stmt = $conn->prepare("
-                INSERT INTO users (
-                    username, email, password, full_name, role, department, 
-                    address, birthday, civil_status, id_file_path, account_status, is_active, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'verified', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            ");
-            
-            $username = 'lgu_staff';
-            $email = 'staff@lgu.gov.ph';
-            $full_name = 'LGU Staff Test Account';
-            $role = 'lgu_staff';
-            $department = 'Road and Transportation';
-            $address = 'City Hall, Main Street';
-            $birthday = '1990-01-01';
-            $civil_status = 'Single';
-            $idFilePath = '';
-            
-            $stmt->bind_param("ssssssssss", 
-                $username, $email, $hashedPassword, $full_name, $role, $department,
-                $address, $birthday, $civil_status, $idFilePath
-            );
-            
-            if ($stmt->execute()) {
-                $loginMessage = 'Dump LGU Staff account created successfully!<br>Email: staff@lgu.gov.ph<br>Password: staff123<br>Role: lgu_staff<br><a href="login.php">Click here to login</a>';
-                $messageType = 'success';
-            } else {
-                $loginMessage = 'Error creating dump account';
-                $messageType = 'error';
-            }
-            $stmt->close();
-        } else {
-            $loginMessage = 'Dump LGU Staff account already exists!<br>Email: staff@lgu.gov.ph<br>Password: staff123<br><a href="login.php">Click here to login</a>';
-            $messageType = 'info';
-        }
-        $checkStmt->close();
-        
-    } catch (Exception $e) {
-        $loginMessage = 'Database error: ' . $e->getMessage();
-        $messageType = 'error';
-    }
+// Access-token entry (emailed magic link). The login page is ONLY reachable
+// through a valid login token, so any request without one (or with an invalid
+// or disabled token) is sent back to the public homepage. When the login token
+// is valid, the register action is only offered while the register token is
+// still active (not used and not expired).
+$token_email = '';
+$token_valid = false;
+$register_token_disabled = false;
+$loginTokenParam = trim($_GET['login_token'] ?? ($_GET['token'] ?? ''));
+$registerTokenParam = trim($_GET['register_token'] ?? '');
+if ($loginTokenParam === '') {
+    header('Location: ' . $basePath . 'index.php');
+    exit;
 }
+try {
+    $tokStmt = $conn->prepare("SELECT email, login_token_active, register_token, register_token_used_at, register_token_expires_at FROM user_tokens WHERE login_token = ?");
+    $tokStmt->bind_param("s", $loginTokenParam);
+    $tokStmt->execute();
+    $tokRow = $tokStmt->get_result()->fetch_assoc();
+    $tokStmt->close();
+
+    if (!$tokRow || empty($tokRow['login_token_active'])) {
+        header('Location: ' . $basePath . 'index.php');
+        exit;
+    }
+
+    $token_email = $tokRow['email'];
+    $token_valid = true;
+    if ($registerTokenParam !== '') {
+        // A register_token is supplied in the URL: registration is only offered
+        // while it matches the stored register token AND is unused and unexpired.
+        $register_token_disabled = !(
+            hash_equals($registerTokenParam, rtrim((string) $tokRow['register_token']))
+            && empty($tokRow['register_token_used_at'])
+            && !empty($tokRow['register_token_expires_at'])
+            && strtotime($tokRow['register_token_expires_at']) >= time()
+        );
+    } else {
+        // No register_token in the URL: fall back to the stored token's state.
+        $register_token_disabled = !empty($tokRow['register_token_used_at'])
+            || (!empty($tokRow['register_token_expires_at']) && strtotime($tokRow['register_token_expires_at']) < time());
+    }
+} catch (Exception $e) {
+    error_log("Login token validation error: " . $e->getMessage());
+    header('Location: ' . $basePath . 'index.php');
+    exit;
+}
+
+$signup_allowed = !$disable_signup && !$register_token_disabled;
 
 // Check if user is already logged in and show logout option
 if (isset($_SESSION['user_id'])) {
@@ -257,49 +253,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['resend_otp'])) {
 
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_register'])) {
-    $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL);
-    $password = $_POST['password'] ?? '';
-    
-    // Validate input
-    if (empty($email) || empty($password)) {
-        $registerMessage = 'Please fill in all fields';
-        $registerMessageType = 'error';
-    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $registerMessage = 'Invalid email format';
-        $registerMessageType = 'error';
-    } elseif (strlen($password) < 6) {
-        $registerMessage = 'Password must be at least 6 characters';
+    if (!$signup_allowed) {
+        $registerMessage = 'Registration is currently disabled.';
         $registerMessageType = 'error';
     } else {
-        try {
-            // Check if email already exists
-            $checkStmt = $conn->prepare("SELECT id FROM users WHERE email = ?");
-            $checkStmt->bind_param("s", $email);
-            $checkStmt->execute();
-            $existingUser = $checkStmt->get_result()->num_rows > 0;
-            $checkStmt->close();
-            
-            if ($existingUser) {
-                $registerMessage = 'Email address already registered';
-                $registerMessageType = 'error';
-            } else {
-                // Store registration data in session for step 2
-                $_SESSION['registration_data'] = [
-                    'email' => $email,
-                    'password' => password_hash($password, PASSWORD_DEFAULT)
-                ];
-                
-                // Generate and send OTP
-                handle_registration_otp($email);
-                
-                $registerMessage = 'A verification code has been sent to your email. Please check your inbox.';
-                $registerMessageType = 'success';
-                $showOTPModal = true;
-            }
-        } catch (Exception $e) {
-            error_log("Registration error: " . $e->getMessage());
-            $registerMessage = 'An error occurred during registration';
+        $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL);
+        $password = $_POST['password'] ?? '';
+
+        // Validate input
+        if (empty($email) || empty($password)) {
+            $registerMessage = 'Please fill in all fields';
             $registerMessageType = 'error';
+        } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $registerMessage = 'Invalid email format';
+            $registerMessageType = 'error';
+        } elseif (strlen($password) < 6) {
+            $registerMessage = 'Password must be at least 6 characters';
+            $registerMessageType = 'error';
+        } else {
+            try {
+                // Check if email already exists
+                $checkStmt = $conn->prepare("SELECT id FROM users WHERE email = ?");
+                $checkStmt->bind_param("s", $email);
+                $checkStmt->execute();
+                $existingUser = $checkStmt->get_result()->num_rows > 0;
+                $checkStmt->close();
+
+                if ($existingUser) {
+                    $registerMessage = 'Email address already registered';
+                    $registerMessageType = 'error';
+                } else {
+                    // Store registration data in session for step 2
+                    $_SESSION['registration_data'] = [
+                        'email' => $email,
+                        'password' => password_hash($password, PASSWORD_DEFAULT)
+                    ];
+
+                    // Generate and send OTP
+                    handle_registration_otp($email);
+
+                    $registerMessage = 'A verification code has been sent to your email. Please check your inbox.';
+                    $registerMessageType = 'success';
+                    $showOTPModal = true;
+                }
+            } catch (Exception $e) {
+                error_log("Registration error: " . $e->getMessage());
+                $registerMessage = 'An error occurred during registration';
+                $registerMessageType = 'error';
+            }
         }
     }
 }
@@ -405,6 +406,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
                         $fileMessage = $idFilePath ? ' ID file uploaded successfully.' : '';
                         $additionalMessage = 'Account created successfully!' . $fileMessage . ' Please wait for admin approval.';
                         $additionalMessageType = 'success';
+
+                        if ($token_email !== '') {
+                            try {
+                                $usedStmt = $conn->prepare("UPDATE user_tokens SET register_token_used_at = NOW() WHERE email = ?");
+                                $usedStmt->bind_param("s", $token_email);
+                                $usedStmt->execute();
+                                $usedStmt->close();
+                                $register_token_disabled = true;
+                                $signup_allowed = false;
+                            } catch (Exception $e) {
+                                error_log("Failed to mark register token used: " . $e->getMessage());
+                            }
+                        }
                         
                         // Clear registration session data
                         unset($_SESSION['registration_data']);
@@ -608,7 +622,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                 </div>
             <?php endif; ?>
 
-            <form method="POST" onsubmit="return confirm('Are you sure you want to sign in?')">
+            <form method="POST">
               <div class="input-box">
                 <label>Email Address</label>
                 <input type="email" name="email" placeholder="name@lgu.gov.ph" value="<?php echo isset($_POST['email']) && !isset($_POST['submit_register']) && !isset($_POST['submit_additional']) ? htmlspecialchars($_POST['email']) : ''; ?>" />
@@ -632,7 +646,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
 
               <button class="btn-primary">Sign In</button>
 
-              <?php if (!$disable_signup): ?>
+              <?php if ($signup_allowed): ?>
               <p class="small-text">
                 Don't have an account?
                 <a href="#" class="link" onclick="showPanel('register')"
@@ -649,7 +663,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
         </div>
 
         <!-- REGISTER STEP 1 -->
-        <div class="panel register" <?php echo $disable_signup ? 'style="display:none"' : ''; ?>>
+        <div class="panel register" <?php echo !$signup_allowed ? 'style="display:none"' : ''; ?>>
           <div class="card">
             <h2 class="title">Create Account - Step 1</h2>
             <p class="subtitle">Enter your email and password.</p>
@@ -996,10 +1010,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
     <script>
       function showPanel(panel) {
         const wrapper = document.querySelector(".wrapper");
+        const signupAllowed = <?php echo $signup_allowed ? 'true' : 'false'; ?>;
 
         wrapper.classList.remove("show-register", "show-additional");
 
-        if (panel === "register") wrapper.classList.add("show-register");
+        if (panel === "register") {
+          if (!signupAllowed) return;
+          wrapper.classList.add("show-register");
+        }
         if (panel === "additional") wrapper.classList.add("show-additional");
       }
       

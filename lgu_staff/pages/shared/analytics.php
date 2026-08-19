@@ -11,6 +11,9 @@ if (!is_logged_in()) {
 $user_id = $_SESSION['user_id'];
 $user_role = $_SESSION['role'] ?? 'citizen';
 
+// Font color overrides below apply to the system admin only.
+$is_system_admin = ($user_role === 'system_admin');
+
 $period = sanitize_input($_GET['period'] ?? '30');
 
 // Date range applied to every card, chart and table on the page.
@@ -193,12 +196,33 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../../css/theme-tokens.css">
     <link rel="stylesheet" href="../../css/theme-utilities.css">
-    <link rel="stylesheet" href="../../css/sidebar.css">
+    <link rel="stylesheet" href="../../css/sidebar.css?v=3">
     <link rel="stylesheet" href="../../css/enhanced-reports.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        <?php if (in_array($user_role, ['road_monitoring_officer', 'road_ops_supervisor', 'trans_ops_supervisor', 'trans_monitoring_officer'], true) && !empty($_SESSION['darkmode'])): ?>
+        body.dark-mode {
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+        }
+        <?php endif; ?>
+        <?php if ($is_system_admin): ?>
+        /* Match the admin portal font colors (system_admin only) */
+        .page-header h1 { color: #1e3c72; }
+        .stat-card .stat-value { color: #1e3c72; }
+        .panel-title { color: #1e3c72; }
+        body.dark-mode .page-header h1 { color: #e4e6ea !important; }
+        body.dark-mode .page-header p { color: #9ca3af !important; }
+        body.dark-mode .stat-card .stat-value { color: #e4e6ea !important; }
+        body.dark-mode .stat-card .stat-label { color: #9ca3af !important; }
+        body.dark-mode .chart-card h4 { color: #9ca3af !important; }
+        body.dark-mode .panel-title { color: #e4e6ea !important; }
+        body.dark-mode .panel-body .data-table th { color: #9ca3af !important; }
+        body.dark-mode .panel-body .data-table td { color: #e4e6ea !important; }
+        body.dark-mode .stat-card .stat-trend { color: #9ca3af !important; }
+        <?php endif; ?>
         @media print {
             body > aside.sidebar,
             body > nav,
@@ -215,14 +239,14 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
     <?php include '../../includes/sidebar_nav.php'; ?>
 
-    <div class="analytics-main" style="margin-left: 250px; padding: 28px; position: relative; z-index: 1;">
+    <div class="analytics-main main-content" style="padding: 28px; position: relative; z-index: 1;">
         <div class="page-header">
             <div>
                 <h1><i class="fas fa-chart-pie"></i> Analytics Dashboard</h1>
                 <p>Comprehensive data analysis and reporting insights</p>
             </div>
             <div class="header-actions print-hide">
-                <select onchange="window.location='?period='+this.value" style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--card-bg);color:var(--text-primary);font-size:13px;">
+                <select id="period-select" name="period" onchange="window.location='?period='+this.value" style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--card-bg);color:var(--text-primary);font-size:13px;">
                     <option value="7" <?php echo $period === '7' ? 'selected' : ''; ?>>Last 7 days</option>
                     <option value="30" <?php echo $period === '30' ? 'selected' : ''; ?>>Last 30 days</option>
                     <option value="90" <?php echo $period === '90' ? 'selected' : ''; ?>>Last 90 days</option>

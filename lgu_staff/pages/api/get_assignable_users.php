@@ -32,6 +32,9 @@ if ($report_type === 'road_transportation_reports') {
 } elseif ($report_type === 'cimm_verification_reports') {
     $report_category = 'road';
     error_log("Debug get_assignable_users: report_id=$report_id, report_type=$report_type, report_category='$report_category' (cimm)");
+} elseif ($report_type === 'ipms_road_projects') {
+    $report_category = 'road';
+    error_log("Debug get_assignable_users: report_id=$report_id, report_type=$report_type, report_category='$report_category' (ipms)");
 } else {
     error_log("Debug get_assignable_users: report_id=$report_id, report_type=$report_type, report_category='' (unknown type)");
 }
@@ -74,6 +77,8 @@ try {
                     ON ra.report_id = c.id AND ra.report_type = 'cimm_verification_reports'
                 LEFT JOIN road_maintenance_reports m
                     ON ra.report_id = m.id AND ra.report_type = 'road_maintenance_reports'
+                LEFT JOIN ipms_road_projects ip
+                    ON ra.report_id = ip.project_id AND ra.report_type = 'ipms_road_projects'
                 WHERE ra.user_id = ? AND ra.status = 'active'
                   AND (
                     (ra.report_type = 'road_transportation_reports'
@@ -86,6 +91,9 @@ try {
                     OR (ra.report_type = 'road_maintenance_reports'
                         AND m.id IS NOT NULL
                         AND m.status NOT IN ('completed','cancelled','rejected'))
+                    OR (ra.report_type = 'ipms_road_projects'
+                        AND ip.project_id IS NOT NULL
+                        AND COALESCE(ip.status,'') NOT IN ('completed','cancelled','rejected'))
                   )
             ");
             $count_stmt->bind_param("i", $row['id']);

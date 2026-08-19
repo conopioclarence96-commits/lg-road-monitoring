@@ -26,7 +26,7 @@
         </div>
         <button class="a11y-reset" onclick="resetAccessibility()"><i class="fas fa-undo"></i> Reset All</button>
     </div>
-    <button class="a11y-fab-btn" id="a11yBtn" aria-label="Accessibility Options" title="Accessibility Options">
+    <button class="a11y-fab-btn" id="a11yBtn" aria-label="Accessibility Options" title="Accessibility Options" aria-expanded="false" aria-controls="a11yPanel">
         <i class="fas fa-universal-access"></i>
     </button>
 </div>

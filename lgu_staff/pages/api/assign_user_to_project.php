@@ -36,6 +36,8 @@ if ($report_type === 'road_transportation_reports') {
     $report_exists = fetch_one("SELECT id FROM road_maintenance_reports WHERE id = ?", [$report_id], "i");
 } elseif ($report_type === 'cimm_verification_reports') {
     $report_exists = fetch_one("SELECT id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
+} elseif ($report_type === 'ipms_road_projects') {
+    $report_exists = fetch_one("SELECT project_id FROM ipms_road_projects WHERE project_id = ?", [$report_id], "i");
 }
 
 if (!$report_exists) {
