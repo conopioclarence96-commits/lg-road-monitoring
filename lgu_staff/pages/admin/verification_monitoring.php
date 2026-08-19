@@ -6176,11 +6176,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     </thead>
                     <tbody>
                         <?php
-                        // Reset pointer and display all reports
-                        $all_reports->data_seek(0);
-                        if ($lgu_has_reports): 
+                        // $lgu_reports_list is the paginated array from
+                        // getLguReportsForVerification() (see near the top of
+                        // this file). This loop used to iterate the old
+                        // page-level $all_reports mysqli result instead, which
+                        // stopped being assigned when the panel was switched to
+                        // server-side pagination — referencing it here threw
+                        // "Call to a member function data_seek() on null" on
+                        // every load, a fatal error that cut the page off
+                        // mid-render (so nothing after this table — Citizen,
+                        // CIMM, Infrastructure — ever rendered either).
+                        if ($lgu_has_reports):
                         ?>
-                            <?php while ($report = $all_reports->fetch_assoc()): 
+                            <?php foreach ($lgu_reports_list as $report):
                                 if ($is_transport_supervisor && ($report['source'] ?? '') === 'maintenance') continue;
                                 $lgu_status_class = '';
                                 if ($report['status'] === 'approved') $lgu_status_class = 'approved';
@@ -6411,7 +6419,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 </td>
                                 <td><?php echo $report['created_at'] ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?></td>
                             </tr>
-                            <?php endwhile; ?>
+                            <?php endforeach; ?>
                         <?php else: ?>
                             <tr>
                                 <td colspan="11">
