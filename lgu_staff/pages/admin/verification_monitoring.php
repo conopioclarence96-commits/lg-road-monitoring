@@ -5254,7 +5254,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                             'archived'               => ['Archived',           'rgba(46,125,50,.12)',  '#1b5e20', '1px solid rgba(46,125,50,.28)'],
                                             'cancelled'              => ['Cancelled',          '#ffcdd2',              '#b71c1c', 'none'],
                                             'rejected'               => ['Rejected',           '#ffcdd2',              '#b71c1c', 'none'],
+                                            'delayed'                => ['Delayed',            '#ffebee',              '#c62828', '1.5px solid rgba(198,40,40,.3)'],
                                         ];
+
+                                        // "Delayed" is NOT a status CIMM ever stores — request_resolutions.status
+                                        // only ever holds Scheduled/In Progress/Completed/etc. CIMM derives
+                                        // "Delayed" at render time in statusPill() (pending_reports.php) whenever
+                                        // today is past the estimated end date and the report is still active.
+                                        // So it can never arrive through the sync as a value; deriving it here the
+                                        // same way is also what keeps it correct over time, since nothing fires a
+                                        // CIMM event (and therefore no sync) when a deadline simply lapses.
+                                        // Non-delayable list mirrors CIMM's, plus this map's own terminal states.
+                                        $cimmNonDelayable = ['completed', 'cancelled', 'pending completion', 'pending admin approval', 'archived', 'rejected'];
+                                        $cimmEndDateRaw = trim((string)($report['cimm_estimated_end_date'] ?? ''));
+                                        if ($cimmEndDateRaw !== '' && !in_array($cimmStatusLc, $cimmNonDelayable, true)) {
+                                            try {
+                                                $todayMnl = new DateTime('today', new DateTimeZone('Asia/Manila'));
+                                                $endMnl   = new DateTime($cimmEndDateRaw, new DateTimeZone('Asia/Manila'));
+                                                if ($todayMnl > $endMnl) {
+                                                    $cimmStatusLc = 'delayed';
+                                                }
+                                            } catch (Exception $e) {
+                                                // Unparseable date — leave the synced status as-is.
+                                            }
+                                        }
+
                                         [$cimmDisplayLabel, $cimmBg, $cimmFg, $cimmBorder] = $cimmStatusStyles[$cimmStatusLc]
                                             ?? [$cimmStatusRaw, '#fff59d', '#f57f17', 'none'];
                                     ?>
