@@ -14,6 +14,12 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../includes/config.php';
 require_once __DIR__ . '/rgmap_cimm_sync.php';
+// rgmap_verification_pdo() / rgmap_ensure_cimm_verification_table() live here,
+// NOT in rgmap_cimm_sync.php. Without this the handler dies with
+// "Call to undefined function rgmap_verification_pdo()", which the catch-all
+// turns into a generic 500 — so every verify callback from CIMM fails and
+// road_transportation_reports never gets marked verified on this side.
+require_once __DIR__ . '/cimm_verification_data.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
@@ -97,22 +103,25 @@ if ($reportPk <= 0 && $reportIdStr === '') {
         $pdo = rgmap_verification_pdo();
         rgmap_ensure_cimm_verification_table($pdo);
 
-        // Look up engineer and budget_allocation that CIMM stored in
-        // cimm_verification_reports for this LGU report (matched via the
-        // rgmap_report_pk that CIMM echoes back in payload_json).
+        // Look up engineer and budget that CIMM stored in cimm_verification_reports
+        // for this LGU report (matched via the rgmap_report_pk that CIMM echoes
+        // back in payload_json).
+        // NOTE: the column is named `budget`, not `budget_allocation` — selecting
+        // budget_allocation raised "Unknown column" on every callback, turning it
+        // into a generic 500 that silently broke all verify callbacks.
         $engineer = null;
         $budgetAllocation = null;
         $cimmLookup = $pdo->prepare(
-            "SELECT engineer, budget_allocation
+            "SELECT engineer, budget
                FROM cimm_verification_reports
               WHERE JSON_EXTRACT(payload_json, '$.rgmap_report_pk') = ?
               LIMIT 1"
         );
         $cimmLookup->execute([$reportPk]);
         $cimmRow = $cimmLookup->fetch(PDO::FETCH_ASSOC);
-        if ($cimmRow) {
+        if (is_array($cimmRow)) {
             $engineer = $cimmRow['engineer'] ?? null;
-            $budgetAllocation = $cimmRow['budget_allocation'] ?? null;
+            $budgetAllocation = $cimmRow['budget'] ?? null;
         }
 
         if ($reportPk > 0) {
@@ -124,18 +133,21 @@ if ($reportPk <= 0 && $reportIdStr === '') {
             );
             $stmt->bind_param('sssi', $verifiedBy, $engineer, $budgetAllocation, $reportPk);
         } else {
-            // Look up engineer/budget_allocation via report_reference (the LGU
-            // report_id CIMM echoes back in payload_json) for the string-ID path.
+            // Look up engineer/budget via report_reference (the LGU report_id
+            // CIMM echoes back in payload_json) for the string-ID path.
+            // Column is `budget`, not `budget_allocation` (same fix as above).
             $cimmLookup2 = $pdo->prepare(
-                "SELECT engineer, budget_allocation
+                "SELECT engineer, budget
                    FROM cimm_verification_reports
                   WHERE report_reference = ? OR JSON_EXTRACT(payload_json, '$.rgmap_report_id') = ?
                   LIMIT 1"
             );
             $cimmLookup2->execute([$reportIdStr, $reportIdStr]);
             $cimmRow2 = $cimmLookup2->fetch(PDO::FETCH_ASSOC);
-            $engineer2 = $cimmRow2['engineer'] ?? null;
-            $budgetAllocation2 = $cimmRow2['budget_allocation'] ?? null;
+            // fetch() returns false when there's no match; guard against indexing
+            // a non-array which would emit a warning into the JSON response body.
+            $engineer2 = is_array($cimmRow2) ? ($cimmRow2['engineer'] ?? null) : null;
+            $budgetAllocation2 = is_array($cimmRow2) ? ($cimmRow2['budget'] ?? null) : null;
 
             $stmt = $conn->prepare(
                 "UPDATE road_transportation_reports
@@ -143,7 +155,8 @@ if ($reportPk <= 0 && $reportIdStr === '') {
                      engineer = ?, budget_allocation = ?
                  WHERE report_id = ? AND report_category = 'road'"
             );
-            $stmt->bind_param('sssa', $verifiedBy, $engineer2, $budgetAllocation2, $reportIdStr);
+            // 'a' is not a valid mysqli bind type — report_id is VARCHAR so 's'.
+            $stmt->bind_param('ssss', $verifiedBy, $engineer2, $budgetAllocation2, $reportIdStr);
         }
 
     if (!$stmt) {
