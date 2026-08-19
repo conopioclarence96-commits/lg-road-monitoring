@@ -1,8 +1,10 @@
 /* Progress Updates Management */
 
-let currentUpdatesReportId = null;
-let currentUpdatesReportType = null;
-let currentUpdatesReportSource = null;
+var currentUpdatesReportId = null;
+var currentUpdatesReportType = null;
+var currentUpdatesReportSource = null;
+var currentUpdatesReportStatus = null;
+var currentUpdatesReportDetails = null;
 
 function loadUpdates(reportId, reportType) {
     currentUpdatesReportId = reportId;
@@ -11,7 +13,8 @@ function loadUpdates(reportId, reportType) {
     if (!container) return;
     container.innerHTML = '<div style="text-align:center;padding:30px;"><i class="fas fa-spinner fa-spin fa-2x" style="color:#3762c8;"></i></div>';
 
-    fetch(`../api/progress_update_api.php?action=get_updates&report_id=${reportId}&report_type=${reportType}`)
+    const source = encodeURIComponent(currentUpdatesReportSource || '');
+    fetch(`../api/progress_update_api.php?action=get_updates&report_id=${reportId}&report_type=${encodeURIComponent(reportType || '')}&source=${source}`)
         .then(r => r.json())
         .then(data => {
             if (data.success) {

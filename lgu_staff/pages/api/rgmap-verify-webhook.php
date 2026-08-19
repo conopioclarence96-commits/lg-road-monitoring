@@ -15,10 +15,10 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../includes/config.php';
 require_once __DIR__ . '/rgmap_cimm_sync.php';
 // rgmap_verification_pdo() / rgmap_ensure_cimm_verification_table() live here,
-// NOT in rgmap_cimm_sync.php. Without this require the handler below died with
+// NOT in rgmap_cimm_sync.php. Without this the handler dies with
 // "Call to undefined function rgmap_verification_pdo()", which the catch-all
-// turned into a generic 500 — so every verify callback from CIMM failed and
-// road_transportation_reports never got marked verified on this side.
+// turns into a generic 500 — so every verify callback from CIMM fails and
+// road_transportation_reports never gets marked verified on this side.
 require_once __DIR__ . '/cimm_verification_data.php';
 
 header('Content-Type: application/json; charset=utf-8');
@@ -103,15 +103,12 @@ if ($reportPk <= 0 && $reportIdStr === '') {
         $pdo = rgmap_verification_pdo();
         rgmap_ensure_cimm_verification_table($pdo);
 
-        // Look up the engineer and budget CIMM stored in
-        // cimm_verification_reports for this LGU report (matched via the
-        // rgmap_report_pk that CIMM echoes back in payload_json).
-        //
-        // The budget column here is `budget`, not `budget_allocation` — see the
-        // schema in cimm_verification_data.php. Selecting budget_allocation
-        // raised "Unknown column" on every callback, which the catch-all below
-        // reported as a generic 500. `budget_allocation` is the name of the
-        // destination column on road_transportation_reports, hence the mismatch.
+        // Look up engineer and budget that CIMM stored in cimm_verification_reports
+        // for this LGU report (matched via the rgmap_report_pk that CIMM echoes
+        // back in payload_json).
+        // NOTE: the column is named `budget`, not `budget_allocation` — selecting
+        // budget_allocation raised "Unknown column" on every callback, turning it
+        // into a generic 500 that silently broke all verify callbacks.
         $engineer = null;
         $budgetAllocation = null;
         $cimmLookup = $pdo->prepare(
@@ -122,7 +119,7 @@ if ($reportPk <= 0 && $reportIdStr === '') {
         );
         $cimmLookup->execute([$reportPk]);
         $cimmRow = $cimmLookup->fetch(PDO::FETCH_ASSOC);
-        if ($cimmRow) {
+        if (is_array($cimmRow)) {
             $engineer = $cimmRow['engineer'] ?? null;
             $budgetAllocation = $cimmRow['budget'] ?? null;
         }
@@ -138,6 +135,7 @@ if ($reportPk <= 0 && $reportIdStr === '') {
         } else {
             // Look up engineer/budget via report_reference (the LGU report_id
             // CIMM echoes back in payload_json) for the string-ID path.
+            // Column is `budget`, not `budget_allocation` (same fix as above).
             $cimmLookup2 = $pdo->prepare(
                 "SELECT engineer, budget
                    FROM cimm_verification_reports
@@ -145,11 +143,9 @@ if ($reportPk <= 0 && $reportIdStr === '') {
                   LIMIT 1"
             );
             $cimmLookup2->execute([$reportIdStr, $reportIdStr]);
-            // fetch() returns false when there's no match; indexing that emits
-            // "Trying to access array offset on value of type bool", which would
-            // print into this endpoint's JSON body and break parsing on CIMM's
-            // side. Guarded the same way the rgmap_report_pk lookup above is.
             $cimmRow2 = $cimmLookup2->fetch(PDO::FETCH_ASSOC);
+            // fetch() returns false when there's no match; guard against indexing
+            // a non-array which would emit a warning into the JSON response body.
             $engineer2 = is_array($cimmRow2) ? ($cimmRow2['engineer'] ?? null) : null;
             $budgetAllocation2 = is_array($cimmRow2) ? ($cimmRow2['budget'] ?? null) : null;
 
@@ -159,9 +155,7 @@ if ($reportPk <= 0 && $reportIdStr === '') {
                      engineer = ?, budget_allocation = ?
                  WHERE report_id = ? AND report_category = 'road'"
             );
-            // 'a' is not a valid mysqli bind type (only i/d/s/b exist) — this
-            // threw ArgumentCountError/"Undefined fieldtype" and took the whole
-            // string-ID fallback path down. report_id is a VARCHAR, so 's'.
+            // 'a' is not a valid mysqli bind type — report_id is VARCHAR so 's'.
             $stmt->bind_param('ssss', $verifiedBy, $engineer2, $budgetAllocation2, $reportIdStr);
         }
 

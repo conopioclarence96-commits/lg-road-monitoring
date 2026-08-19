@@ -8,9 +8,9 @@
 .sidebar {
     position: fixed;
     top: 0;
+    bottom: 0;
     left: 0;
     width: 250px;
-    height: 100vh;
     display: flex;
     flex-direction: column;
     background: #ffffff;
@@ -69,7 +69,11 @@
 
 .sidebar-menu {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     padding: 6px 0;
 }
 
@@ -344,4 +348,24 @@ body.dark-mode .sidebar-menu::-webkit-scrollbar-thumb {
     .main-content {
         margin-left: 0 !important;
     }
+}
+
+/* Managing Accounts collapsible dropdown */
+.sidebar-menu .menu-label.managing-accounts-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+}
+.sidebar-menu .managing-accounts-toggle .managing-accounts-chevron {
+    font-size: 11px;
+    color: #9ca3af;
+    transition: transform 0.2s ease;
+}
+.sidebar-menu .managing-accounts-toggle[aria-expanded="true"] .managing-accounts-chevron {
+    transform: rotate(180deg);
+}
+.sidebar-menu .managing-accounts-submenu {
+    display: none;
 }

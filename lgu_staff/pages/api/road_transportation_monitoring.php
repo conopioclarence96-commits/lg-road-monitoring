@@ -818,7 +818,7 @@ if ($focus_report_id > 0) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../../css/theme-tokens.css">
     <link rel="stylesheet" href="../../css/theme-utilities.css">
-    <link rel="stylesheet" href="../../css/sidebar.css">
+    <link rel="stylesheet" href="../../css/sidebar.css?v=3">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="../../css/progress-updates.css">
@@ -1982,7 +1982,7 @@ if ($focus_report_id > 0) {
                                 <?php if (($rr['report_category'] ?? '') === 'transportation'): ?>
                                     <span class="cimm-verify-badge cimm-verify-badge-none">—</span>
                                 <?php elseif (($rr['cimm_sync_status'] ?? '') === 'verified'): ?>
-                                    <span class="cimm-verify-badge cimm-verify-badge-verified" title="Verified by <?php echo htmlspecialchars($rr['cimm_verified_by'] ?? 'CIMM staff'); ?><?php echo !empty($rr['cimm_verified_at']) ? ' on ' . date('M d, Y', strtotime($rr['cimm_verified_at'])) : ''; ?>">
+                                    <span class="cimm-verify-badge cimm-verify-badge-verified" title="Verified<?php echo !empty($rr['cimm_verified_by']) ? ' by ' . htmlspecialchars($rr['cimm_verified_by']) : ''; ?><?php echo !empty($rr['cimm_verified_at']) ? ' on ' . date('M d, Y', strtotime($rr['cimm_verified_at'])) : ''; ?>">
                                         <i class="fas fa-check-circle"></i> Verified
                                     </span>
                                 <?php elseif (($rr['cimm_sync_status'] ?? '') === 'pushed'): ?>
@@ -3619,7 +3619,7 @@ if ($focus_report_id > 0) {
             <td>${formatDate(report.created_at)}</td>
             <td>
                 ${report.cimm_sync_status === 'verified' ? 
-                    `<span class="cimm-verify-badge cimm-verify-badge-verified" title="Verified by ${escapeHtml(report.cimm_verified_by || 'CIMM staff')}${report.cimm_verified_at ? ' on ' + formatDate(report.cimm_verified_at) : ''}">
+                    `<span class="cimm-verify-badge cimm-verify-badge-verified" title="Verified${report.cimm_verified_by ? ' by ' + escapeHtml(report.cimm_verified_by) : ''}${report.cimm_verified_at ? ' on ' + formatDate(report.cimm_verified_at) : ''}">
                         <i class="fas fa-check-circle"></i> Verified
                     </span>` : 
                     (report.cimm_sync_status === 'pushed' ? 

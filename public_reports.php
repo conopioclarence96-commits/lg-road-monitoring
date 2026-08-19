@@ -6,46 +6,127 @@ $status_filter = isset($_GET['status']) ? sanitize_input($_GET['status']) : 'all
 $type_filter = isset($_GET['type']) ? sanitize_input($_GET['type']) : 'all';
 $focus_report_id = isset($_GET['report_id']) ? intval($_GET['report_id']) : 0;
 
-$transport_reports = [];
-$maintenance_reports = [];
+$all_reports = [];
 $stats = ['total_reports' => 0, 'problem_roads' => 0, 'under_construction' => 0, 'resolved_issues' => 0];
 
 if ($conn) {
     try {
-        $transport_query = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, severity, image_path, attachments, reporter_name, reported_date, created_at, department, 'transportation' as source FROM road_transportation_reports";
-        $conditions = [];
-        $params = [];
-        $types = '';
+        $cimm_status_sql = "CASE
+            WHEN resolution_status = 'Completed' THEN 'completed'
+            WHEN resolution_status IN ('In Progress', 'Pending Completion') THEN 'in-progress'
+            WHEN resolution_status = 'Cancelled' THEN 'cancelled'
+            WHEN resolution_status = 'Rejected' THEN 'cancelled'
+            WHEN resolution_status IN ('Scheduled', 'Approved') THEN 'pending'
+            WHEN approval_status = 'Rejected' THEN 'cancelled'
+            ELSE 'pending'
+        END";
 
+        // 1. Transportation Reports (citizen + lgu) — source is computed via CASE
+        if ($type_filter === 'all' || $type_filter === 'citizen') {
+            $t_conditions = [];
+            $t_params   = [];
+            $t_types    = '';
+
+            if ($status_filter !== 'all') {
+                $t_conditions[] = "status = ?";
+                $t_params[]     = $status_filter;
+                $t_types       .= "s";
+            }
+            if ($type_filter === 'citizen') {
+                $t_conditions[] = "(created_by IS NULL OR created_by = 0)";
+            }
+            $t_where = !empty($t_conditions) ? " WHERE " . implode(' AND ', $t_conditions) : '';
+
+            $t_query = "SELECT id, report_id, title, description, location, latitude, longitude,
+                    priority, status, severity, image_path, attachments, reporter_name,
+                    reported_date, created_at, department,
+                    CASE WHEN created_by IS NULL OR created_by = 0 THEN 'citizen' ELSE 'lgu' END AS source
+                FROM road_transportation_reports" . $t_where . " ORDER BY created_at DESC LIMIT 50";
+
+            $transport = !empty($t_params) ? fetch_all($t_query, $t_params, $t_types) : fetch_all($t_query);
+            $all_reports = array_merge($all_reports, $transport ?: []);
+        }
+
+        // 2. Maintenance Reports — only when viewing all types
+        if ($type_filter === 'all') {
+            $m_conditions = [];
+            $m_params   = [];
+            $m_types    = '';
+            if ($status_filter !== 'all') {
+                $m_conditions[] = "status = ?";
+                $m_params[]     = $status_filter;
+                $m_types       .= "s";
+            }
+            $m_where = !empty($m_conditions) ? " WHERE " . implode(' AND ', $m_conditions) : '';
+
+            $m_query = "SELECT id, report_id, title, description, location, priority, status,
+                    created_at, department, 'maintenance' AS source
+                FROM road_maintenance_reports" . $m_where . " ORDER BY created_at DESC LIMIT 50";
+
+            $maintenance = !empty($m_params) ? fetch_all($m_query, $m_params, $m_types) : fetch_all($m_query);
+            $all_reports = array_merge($all_reports, $maintenance ?: []);
+        }
+
+        // 3. Infrastructure Projects (ipms_road_projects)
+        if ($type_filter === 'all' || $type_filter === 'infrastructure') {
+            $has_ipms = fetch_one("SHOW TABLES LIKE 'ipms_road_projects'");
+            if ($has_ipms) {
+                $i_query = "SELECT project_id AS id,
+                        CAST(project_id AS CHAR) AS report_id,
+                        project_name AS title,
+                        COALESCE(NULLIF(road_status, ''), 'No description') AS description,
+                        COALESCE(NULLIF(road_name, ''), project_name) AS location,
+                        start_lat AS latitude, start_lng AS longitude,
+                        priority, budget,
+                        CASE
+                            WHEN LOWER(road_status) LIKE '%completed%' THEN 'completed'
+                            WHEN LOWER(road_status) LIKE '%progress%' THEN 'in-progress'
+                            ELSE 'pending'
+                        END AS status,
+                        created_at, 'infrastructure' AS source
+                    FROM ipms_road_projects
+                    WHERE status = 'approved'
+                    ORDER BY created_at DESC LIMIT 50";
+                $infra = fetch_all($i_query);
+                $all_reports = array_merge($all_reports, $infra ?: []);
+            }
+        }
+
+        // 4. CIMM Reports (cimm_verification_reports)
+        if ($type_filter === 'all' || $type_filter === 'cimm') {
+            $has_cimm = fetch_one("SHOW TABLES LIKE 'cimm_verification_reports'");
+            if ($has_cimm) {
+                $c_query = "SELECT id, reference_code AS report_id, infrastructure AS title,
+                        issue AS description, location,
+                        coord_lat AS latitude, coord_lng AS longitude,
+                        priority, {$cimm_status_sql} AS status,
+                        COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at,
+                        'cimm' AS source
+                    FROM cimm_verification_reports
+                    WHERE infrastructure = 'Roads'
+                    ORDER BY created_at DESC LIMIT 50";
+                $cimm = fetch_all($c_query);
+                $all_reports = array_merge($all_reports, $cimm ?: []);
+            }
+        }
+
+        // Apply status filter for infrastructure & CIMM (transport/maintenance already filtered in SQL)
         if ($status_filter !== 'all') {
-            $conditions[] = "status = ?";
-            $params[] = $status_filter;
-            $types .= "s";
+            $all_reports = array_values(array_filter($all_reports, function($r) use ($status_filter) {
+                return ($r['status'] ?? '') === $status_filter;
+            }));
         }
 
-        if (!empty($conditions)) {
-            $transport_query .= " WHERE " . implode(' AND ', $conditions);
-        }
-        $transport_query .= " ORDER BY created_at DESC LIMIT 50";
-        $transport_reports = !empty($params) ? fetch_all($transport_query, $params, $types) : fetch_all($transport_query);
-
-        $maintenance_query = "SELECT id, report_id, title, description, location, priority, status, created_at, department, 'maintenance' as source FROM road_maintenance_reports";
-        if (!empty($conditions)) {
-            $maintenance_query .= " WHERE " . implode(' AND ', $conditions);
-        }
-        $maintenance_query .= " ORDER BY created_at DESC LIMIT 50";
-        $maintenance_reports = !empty($params) ? fetch_all($maintenance_query, $params, $types) : fetch_all($maintenance_query);
-
-        $stats['total_reports'] = fetch_one("SELECT COUNT(*) as c FROM road_transportation_reports")['c'] + fetch_one("SELECT COUNT(*) as c FROM road_maintenance_reports")['c'];
-        $stats['problem_roads'] = fetch_one("SELECT COUNT(*) as c FROM road_transportation_reports WHERE status IN ('pending','in-progress') AND priority IN ('high','critical')")['c'] ?? 0;
-        $stats['under_construction'] = fetch_one("SELECT COUNT(*) as c FROM road_transportation_reports WHERE status = 'in-progress'")['c'] ?? 0;
-        $stats['resolved_issues'] = fetch_one("SELECT COUNT(*) as c FROM road_transportation_reports WHERE status = 'completed'")['c'] ?? 0;
+        // Stats (always from the main tables, unaffected by type filter)
+        $stats['total_reports']       = fetch_one("SELECT COUNT(*) as c FROM road_transportation_reports")['c'] + fetch_one("SELECT COUNT(*) as c FROM road_maintenance_reports")['c'];
+        $stats['problem_roads']       = fetch_one("SELECT COUNT(*) as c FROM road_transportation_reports WHERE status IN ('pending','in-progress') AND priority IN ('high','critical')")['c'] ?? 0;
+        $stats['under_construction']  = fetch_one("SELECT COUNT(*) as c FROM road_transportation_reports WHERE status = 'in-progress'")['c'] ?? 0;
+        $stats['resolved_issues']     = fetch_one("SELECT COUNT(*) as c FROM road_transportation_reports WHERE status = 'completed'")['c'] ?? 0;
     } catch (Exception $e) {
         error_log("Public reports error: " . $e->getMessage());
     }
 }
 
-$all_reports = array_merge($transport_reports ?: [], $maintenance_reports ?: []);
 usort($all_reports, function($a, $b) {
     return strtotime($b['created_at'] ?? 'now') - strtotime($a['created_at'] ?? 'now');
 });
@@ -280,10 +361,6 @@ function getTimeAgoShort($datetime) {
         }
         footer.qc-footer a { color: #fff; text-decoration: none; }
         .footer-top-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 20px; }
-        .footer-follow-label { font-weight: 600; font-size: 0.9rem; margin-bottom: 8px; color: rgba(255,255,255,0.95); }
-        .footer-social-row { display: flex; gap: 10px; }
-        .footer-social-circle { width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,0.92); color: #165b79; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; transition: transform 0.2s ease, color 0.2s ease; }
-        .footer-social-circle:hover { transform: translateY(-2px); color: #0e2f43; }
         .footer-contact-row { display: flex; align-items: center; gap: 14px; font-size: 14px; }
         .footer-contact-item { display: inline-flex; align-items: center; gap: 8px; color: #fff; }
         .footer-contact-item:hover { color: #fff; }
@@ -302,7 +379,6 @@ function getTimeAgoShort($datetime) {
             .hero-bar { padding: 96px 0 64px; }
             .hero-bar h1 { font-size: 1.5rem; }
             .footer-top-row { flex-direction: column; text-align: center; }
-            .footer-social-row { justify-content: center; }
             .footer-contact-row { justify-content: center; flex-wrap: wrap; }
             .footer-links-row { justify-content: center; gap: 16px; }
         }
@@ -356,6 +432,8 @@ function getTimeAgoShort($datetime) {
         </div>
     </nav>
 
+    <?php include __DIR__ . '/includes/mobile_navbar_css.php'; ?>
+
     <?php include __DIR__ . '/includes/hamburger_menu.php'; ?>
 
     <div class="hero-bar">
@@ -399,9 +477,9 @@ function getTimeAgoShort($datetime) {
             </select>
             <select id="typeFilter" onchange="applyFilters()">
                 <option value="all" <?php echo $type_filter === 'all' ? 'selected' : ''; ?>>All Types</option>
-                <option value="citizen_reports" <?php echo $type_filter === 'citizen_reports' ? 'selected' : ''; ?>>Citizen Reports</option>
-                <option value="cimm_reports" <?php echo $type_filter === 'cimm_reports' ? 'selected' : ''; ?>>CIMM Reports</option>
-                <option value="infrastructure_projects" <?php echo $type_filter === 'infrastructure_projects' ? 'selected' : ''; ?>>Infrastructure Projects</option>
+                <option value="citizen" <?php echo $type_filter === 'citizen' ? 'selected' : ''; ?>>Citizen Reports</option>
+                <option value="cimm" <?php echo $type_filter === 'cimm' ? 'selected' : ''; ?>>CIMM Reports</option>
+                <option value="infrastructure" <?php echo $type_filter === 'infrastructure' ? 'selected' : ''; ?>>Infrastructure Projects</option>
             </select>
             <span class="result-count"><i class="fas fa-list"></i> <?php echo count($all_reports); ?> report(s) found</span>
         </div>
@@ -505,15 +583,6 @@ function getTimeAgoShort($datetime) {
     <footer class="qc-footer">
         <div class="container">
             <div class="footer-top-row">
-                <div>
-                    <div class="footer-follow-label">FOLLOW US</div>
-                    <div class="footer-social-row">
-                        <a href="#" aria-label="Facebook" class="footer-social-circle"><i class="fab fa-facebook-f"></i></a>
-                        <a href="#" aria-label="X" class="footer-social-circle"><i class="fab fa-twitter"></i></a>
-                        <a href="#" aria-label="YouTube" class="footer-social-circle"><i class="fab fa-youtube"></i></a>
-                        <a href="#" aria-label="Instagram" class="footer-social-circle"><i class="fab fa-instagram"></i></a>
-                    </div>
-                </div>
                 <div class="footer-contact-row">
                     <a href="tel:+63289881234" class="footer-contact-item"><i class="fas fa-phone-alt"></i> (02) 8988-1234</a>
                     <span class="contact-separator"></span>

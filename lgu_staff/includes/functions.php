@@ -122,28 +122,64 @@ function handle_file_upload($file, $upload_dir, $allowed_types = null) {
     
     // Check if file was uploaded
     if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+        error_log("Upload rejected: tmp_name missing or not an uploaded file");
         return ['success' => false, 'error' => 'No file uploaded or upload error'];
     }
     
     // Check file size
+    if (isset($file['error']) && $file['error'] === UPLOAD_ERR_INI_SIZE) {
+        error_log("Upload rejected: file exceeds upload_max_filesize (PHP INI limit)");
+        return ['success' => false, 'error' => 'File size exceeds the server limit'];
+    }
     if ($file['size'] > MAX_FILE_SIZE) {
+        error_log("Upload rejected: file too large ({$file['size']} bytes, limit " . MAX_FILE_SIZE . ")");
         return ['success' => false, 'error' => 'File size exceeds maximum limit'];
     }
     
-    // Check file type
+    // Extension whitelist check
     $file_ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
     if (!in_array($file_ext, $allowed_types)) {
+        error_log("Upload rejected: disallowed extension '{$file_ext}' for file '{$file['name']}'");
         return ['success' => false, 'error' => 'File type not allowed'];
     }
     
-    // Generate unique filename
-    $filename = uniqid() . '.' . $file_ext;
+    // Strict content validation for images: verify the real MIME type with
+    // getimagesize() instead of trusting the client-provided type/extension,
+    // preventing polyglot/arbitrary-file uploads disguised as images.
+    $image_exts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    if (in_array($file_ext, $image_exts)) {
+        $img_info = @getimagesize($file['tmp_name']);
+        if ($img_info === false) {
+            error_log("Upload rejected: '{$file['name']}' is not a valid image (getimagesize failed)");
+            return ['success' => false, 'error' => 'Invalid image file'];
+        }
+        $mime_to_ext = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/gif' => 'gif',
+            'image/webp' => 'webp',
+        ];
+        $detected_ext = $mime_to_ext[$img_info['mime']] ?? null;
+        if ($detected_ext === null) {
+            error_log("Upload rejected: '{$file['name']}' reports unhandled image MIME '{$img_info['mime']}'");
+            return ['success' => false, 'error' => 'Invalid image type'];
+        }
+        // Re-anchor the stored extension to what the file actually contains so
+        // the final filename always matches the true image format.
+        $file_ext = $detected_ext;
+    }
+    
+    // Generate a unique, sanitized filename. The name is fully server-generated
+    // (never derived from the client filename) to avoid path traversal / name
+    // collisions; only the whitelisted extension comes from the upload.
+    $filename = uniqid('', true) . bin2hex(random_bytes(4)) . '.' . $file_ext;
     $filepath = $upload_dir . '/' . $filename;
     
     // Create upload directory if it doesn't exist
     if (!is_dir($upload_dir)) {
         if (!mkdir($upload_dir, 0777, true)) {
-            return ['success' => false, 'error' => 'Failed to create upload directory: ' . $upload_dir];
+            error_log("Upload failed: could not create upload directory {$upload_dir}");
+            return ['success' => false, 'error' => 'Upload directory is not writable'];
         }
         // Try to set permissions
         chmod($upload_dir, 0777);
@@ -151,7 +187,8 @@ function handle_file_upload($file, $upload_dir, $allowed_types = null) {
     
     // Check if directory is writable
     if (!is_writable($upload_dir)) {
-        return ['success' => false, 'error' => 'Upload directory is not writable: ' . $upload_dir];
+        error_log("Upload failed: upload directory is not writable ({$upload_dir})");
+        return ['success' => false, 'error' => 'Upload directory is not writable'];
     }
     
     // Move file
@@ -160,7 +197,8 @@ function handle_file_upload($file, $upload_dir, $allowed_types = null) {
         chmod($filepath, 0644);
         return ['success' => true, 'filename' => $filename, 'filepath' => $filepath];
     } else {
-        return ['success' => false, 'error' => 'Failed to move uploaded file to: ' . $filepath];
+        error_log("Upload failed: move_uploaded_file could not write to {$filepath}");
+        return ['success' => false, 'error' => 'Failed to save the uploaded file. Please try again.'];
     }
 }
 
@@ -399,11 +437,9 @@ function verify_otp_code($enteredOTP, $purpose = null) {
 }
 
 function send_otp_to_email($email, $otpCode) {
-    $envFile = __DIR__ . '/../../.env';
-    $envVariables = file_exists($envFile) ? parse_ini_file($envFile) : [];
-    $apiKey = $envVariables['BREVO_API_KEY'] ?? getenv('BREVO_API_KEY');
-    $senderName = $envVariables['BREVO_SENDER_NAME'] ?? getenv('BREVO_SENDER_NAME');
-    $senderEmail = $envVariables['BREVO_SENDER_EMAIL'] ?? getenv('BREVO_SENDER_EMAIL');
+    $apiKey = env_get('BREVO_API_KEY');
+    $senderName = env_get('BREVO_SENDER_NAME');
+    $senderEmail = env_get('BREVO_SENDER_EMAIL');
 
     $ch = curl_init('https://api.brevo.com/v3/smtp/email');
     curl_setopt($ch, CURLOPT_POST, true);
@@ -503,11 +539,9 @@ function generate_secure_temporary_password($length = 12) {
 
 // Sends the "staff account created" email with the temporary password and login link.
 function send_staff_account_email($toEmail, $firstName, $temporaryPassword, $loginUrl) {
-    $envFile = __DIR__ . '/../../.env';
-    $envVariables = file_exists($envFile) ? parse_ini_file($envFile) : [];
-    $apiKey = $envVariables['BREVO_API_KEY'] ?? getenv('BREVO_API_KEY');
-    $senderName = $envVariables['BREVO_SENDER_NAME'] ?? getenv('BREVO_SENDER_NAME');
-    $senderEmail = $envVariables['BREVO_SENDER_EMAIL'] ?? getenv('BREVO_SENDER_EMAIL');
+    $apiKey = env_get('BREVO_API_KEY');
+    $senderName = env_get('BREVO_SENDER_NAME');
+    $senderEmail = env_get('BREVO_SENDER_EMAIL');
 
     $firstNameSafe = htmlspecialchars($firstName);
     $emailSafe = htmlspecialchars($toEmail);
@@ -613,6 +647,87 @@ function create_user_login_tokens($email, $withRegister = true) {
     ];
 }
 
+// Return the set of report keys (report_type:report_id) with an active
+// assignment to the given user. Used so Road Monitoring Officers only see the
+// reports assigned to them. Matches the report_type / report_id naming used by
+// annotate_report_assignment_status() below ('_source_table' + 'id').
+function get_assigned_report_keys($conn, $user_id) {
+    $keys = [];
+    if (!$conn || !$user_id) return $keys;
+    try {
+        $stmt = $conn->prepare(
+            "SELECT report_type, report_id FROM report_assignments
+             WHERE user_id = ? AND status = 'active'"
+        );
+        $stmt->bind_param('i', $user_id);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        while ($row = $res->fetch_assoc()) {
+            $keys[$row['report_type'] . ':' . $row['report_id']] = true;
+        }
+        $stmt->close();
+    } catch (Exception $e) {
+        error_log("get_assigned_report_keys error: " . $e->getMessage());
+    }
+    return $keys;
+}
+
+// Keep only report rows actively assigned to $user_id. Rows must carry their
+// source table in '_source_table' and their primary key in 'id' (same contract
+// as annotate_report_assignment_status()). Pass $user_id = 0/null to disable.
+function filter_reports_assigned_to_user($conn, array $reports, $user_id) {
+    if (!$user_id) return $reports;
+    $assigned = get_assigned_report_keys($conn, $user_id);
+    if (empty($assigned)) return [];
+    $filtered = array_filter($reports, function ($r) use ($assigned) {
+        $table = $r['_source_table'] ?? 'road_transportation_reports';
+        $id = $r['id'] ?? 0;
+        return isset($assigned[$table . ':' . $id]);
+    });
+    return array_values($filtered);
+}
+
+// Keys of reports that currently have any active assignment (any officer).
+function get_active_assignment_keys($conn) {
+    $keys = [];
+    if (!$conn) {
+        return $keys;
+    }
+    try {
+        $chk = $conn->query("SHOW TABLES LIKE 'report_assignments'");
+        if (!$chk || $chk->num_rows === 0) {
+            return $keys;
+        }
+        $res = $conn->query("SELECT report_type, report_id FROM report_assignments WHERE status = 'active'");
+        if ($res) {
+            while ($row = $res->fetch_assoc()) {
+                $keys[(string)$row['report_type'] . ':' . (int)$row['report_id']] = true;
+            }
+        }
+    } catch (Exception $e) {
+        error_log('get_active_assignment_keys error: ' . $e->getMessage());
+    }
+    return $keys;
+}
+
+// Keep only reports that have an active assigned monitoring officer.
+// Same '_ as filter_reports_assigned_to_user() ('_source_table' + 'id').
+function filter_reports_with_active_assignment($conn, array $reports) {
+    if (empty($reports)) {
+        return $reports;
+    }
+    $assigned = get_active_assignment_keys($conn);
+    if (empty($assigned)) {
+        return [];
+    }
+    $filtered = array_filter($reports, function ($r) use ($assigned) {
+        $table = $r['_source_table'] ?? 'road_transportation_reports';
+        $id = $r['id'] ?? 0;
+        return isset($assigned[$table . ':' . $id]);
+    });
+    return array_values($filtered);
+}
+
 // Annotate a list of report rows with a display-only "Assignment Status".
 // The report_assignments table is the single source of truth updated by the
 // Assign/Unassign Staff features, so this reflects assignments live on every
@@ -628,14 +743,18 @@ function annotate_report_assignment_status($conn, array &$reports) {
     $assigned = [];
     try {
         $res = $conn->query(
-            "SELECT ra.report_id, ra.report_type, u.full_name AS officer_name
+            "SELECT ra.report_id, ra.report_type, u.full_name AS officer_name, ab.full_name AS assigner_name
              FROM report_assignments ra
              LEFT JOIN users u ON u.id = ra.user_id
+             LEFT JOIN users ab ON ab.id = ra.assigned_by
              WHERE ra.status = 'active'"
         );
         if ($res) {
             while ($row = $res->fetch_assoc()) {
-                $assigned[$row['report_type'] . ':' . $row['report_id']] = $row['officer_name'] ?? '';
+                $assigned[$row['report_type'] . ':' . $row['report_id']] = [
+                    'officer' => $row['officer_name'] ?? '',
+                    'assigner' => $row['assigner_name'] ?? '',
+                ];
             }
         }
     } catch (Exception $e) {
@@ -645,19 +764,292 @@ function annotate_report_assignment_status($conn, array &$reports) {
         $table = $rr['_source_table'] ?? 'road_transportation_reports';
         $key = $table . ':' . ($rr['id'] ?? 0);
         $rr['assignment_status'] = isset($assigned[$key]) ? 'assigned' : 'unassigned';
-        $rr['assignment_officer'] = $assigned[$key] ?? '';
+        $rr['assignment_officer'] = $assigned[$key]['officer'] ?? '';
+        $rr['assigned_by'] = $assigned[$key]['assigner'] ?? '';
         unset($rr['_source_table']);
     }
     unset($rr);
 }
 
+// Annotate a list of report rows with the state of their latest Transparency
+// Upload Request, so the Completed Projects table can flag the projects an
+// administrator still has to act on. Each row must carry its primary key in
+// 'id' and its source in 'source' ('lgu', 'citizen' or 'cimm'), which together
+// are how transparency_upload_requests identifies a report. Sets
+// 'transparency_request_status' to '' (never requested), 'pending', 'approved'
+// or 'rejected'. Display-only — it never touches a report's own status.
+function annotate_transparency_request_status($conn, array &$reports) {
+    if (empty($reports)) {
+        return;
+    }
+    $latest = [];
+    try {
+        $exists = $conn->query("SHOW TABLES LIKE 'transparency_upload_requests'");
+        if ($exists && $exists->num_rows > 0) {
+            // Highest id per report/source wins, matching the single-report
+            // lookup the transparency request API uses.
+            $res = $conn->query(
+                "SELECT t.report_id, t.report_source, t.status
+                 FROM transparency_upload_requests t
+                 JOIN (SELECT report_id, report_source, MAX(id) AS id
+                         FROM transparency_upload_requests
+                        GROUP BY report_id, report_source) latest
+                   ON latest.id = t.id"
+            );
+            if ($res) {
+                while ($row = $res->fetch_assoc()) {
+                    $key = strtolower((string)($row['report_source'] ?? '')) . ':' . (int)($row['report_id'] ?? 0);
+                    $latest[$key] = (string)($row['status'] ?? '');
+                }
+            }
+        }
+    } catch (Exception $e) {
+        error_log('annotate_transparency_request_status error: ' . $e->getMessage());
+    }
+    foreach ($reports as &$rr) {
+        $key = strtolower((string)($rr['source'] ?? '')) . ':' . (int)($rr['id'] ?? 0);
+        $rr['transparency_request_status'] = $latest[$key] ?? '';
+    }
+    unset($rr);
+}
+
+// Display-only: when a report last received a progress update (or never has).
+// Sets last_progress_update_at and no_update_stale (true when 10+ days have
+// passed since the last update, or since the report was created if none exist).
+// Does not write to the database or change report status.
+function annotate_last_progress_update($conn, array &$reports) {
+    if (empty($reports)) {
+        return;
+    }
+    $latest = [];
+    try {
+        $exists = $conn->query("SHOW TABLES LIKE 'report_updates'");
+        if ($exists && $exists->num_rows > 0) {
+            $res = $conn->query(
+                "SELECT report_id, MAX(created_at) AS last_at
+                   FROM report_updates
+               GROUP BY report_id"
+            );
+            if ($res) {
+                while ($row = $res->fetch_assoc()) {
+                    $latest[(int)($row['report_id'] ?? 0)] = (string)($row['last_at'] ?? '');
+                }
+            }
+        }
+    } catch (Exception $e) {
+        error_log('annotate_last_progress_update error: ' . $e->getMessage());
+    }
+    $threshold = 10 * 24 * 60 * 60;
+    $now = time();
+    foreach ($reports as &$rr) {
+        $id = (int)($rr['id'] ?? 0);
+        $last = $latest[$id] ?? '';
+        $rr['last_progress_update_at'] = $last;
+        $anchor = $last !== '' ? $last : (string)($rr['created_at'] ?? '');
+        $ts = $anchor !== '' ? strtotime($anchor) : false;
+        $rr['no_update_stale'] = ($ts !== false) && (($now - $ts) >= $threshold);
+    }
+    unset($rr);
+}
+
+/**
+ * When an in-progress/approved report has had no progress update for $days
+ * days, notify the System Admin, the supervisor who assigned the officer, and
+ * the assigned monitoring officer. Uses the existing report_notifications
+ * table (type 'no_update_stale') — no schema change.
+ *
+ * Duplicate-safe for the current 10-day window: a row already sent to the same
+ * email since the last progress update (or report created_at if none) is not
+ * sent again. Posting a new progress update moves that window, so the next
+ * gap of 10 days can alert once more. Never changes report status.
+ */
+function dispatch_no_update_stale_notifications($conn, $days = 10) {
+    static $ran = false;
+    if ($ran || !$conn) {
+        return;
+    }
+    $ran = true;
+    $days = max(1, (int)$days);
+
+    try {
+        $has_n = $conn->query("SHOW TABLES LIKE 'report_notifications'");
+        if (!$has_n || $has_n->num_rows === 0) {
+            return;
+        }
+
+        $stale = [];
+        $res = $conn->query(
+            "SELECT t.id,
+                    t.report_id AS report_code,
+                    t.title,
+                    t.location,
+                    'road_transportation_reports' AS report_table,
+                    COALESCE(u.last_at, t.created_at) AS last_activity
+               FROM road_transportation_reports t
+          LEFT JOIN (
+                    SELECT report_id, MAX(created_at) AS last_at
+                      FROM report_updates
+                  GROUP BY report_id
+                    ) u ON u.report_id = t.id
+              WHERE LOWER(t.status) IN ('approved', 'in-progress')
+                AND COALESCE(u.last_at, t.created_at) <= DATE_SUB(NOW(), INTERVAL {$days} DAY)"
+        );
+        if ($res) {
+            while ($row = $res->fetch_assoc()) {
+                $stale[] = $row;
+            }
+        }
+
+        $has_maint = $conn->query("SHOW TABLES LIKE 'road_maintenance_reports'");
+        if ($has_maint && $has_maint->num_rows > 0) {
+            $mres = $conn->query(
+                "SELECT t.id,
+                        t.report_id AS report_code,
+                        t.title,
+                        t.location,
+                        'road_maintenance_reports' AS report_table,
+                        COALESCE(u.last_at, t.created_at) AS last_activity
+                   FROM road_maintenance_reports t
+              LEFT JOIN (
+                        SELECT report_id, MAX(created_at) AS last_at
+                          FROM report_updates
+                      GROUP BY report_id
+                        ) u ON u.report_id = t.id
+                  WHERE LOWER(t.status) IN ('approved', 'in-progress')
+                    AND COALESCE(u.last_at, t.created_at) <= DATE_SUB(NOW(), INTERVAL {$days} DAY)"
+            );
+            if ($mres) {
+                while ($row = $mres->fetch_assoc()) {
+                    $stale[] = $row;
+                }
+            }
+        }
+
+        $has_cimm = $conn->query("SHOW TABLES LIKE 'cimm_verification_reports'");
+        if ($has_cimm && $has_cimm->num_rows > 0) {
+            $cres = $conn->query(
+                "SELECT t.id,
+                        t.reference_code AS report_code,
+                        t.infrastructure AS title,
+                        t.location,
+                        'cimm_verification_reports' AS report_table,
+                        COALESCE(u.last_at, COALESCE(t.submitted_at, t.verified_at, t.synced_at, NOW())) AS last_activity
+                   FROM cimm_verification_reports t
+              LEFT JOIN (
+                        SELECT report_id, MAX(created_at) AS last_at
+                          FROM report_updates
+                      GROUP BY report_id
+                        ) u ON u.report_id = t.id
+                  WHERE t.verification_status IN ('Approved', 'In Progress')
+                    AND COALESCE(u.last_at, COALESCE(t.submitted_at, t.verified_at, t.synced_at, NOW())) <= DATE_SUB(NOW(), INTERVAL {$days} DAY)"
+            );
+            if ($cres) {
+                while ($row = $cres->fetch_assoc()) {
+                    $stale[] = $row;
+                }
+            }
+        }
+
+        if (empty($stale)) {
+            return;
+        }
+
+        $admins = [];
+        $ares = $conn->query(
+            "SELECT id, email, role FROM users
+              WHERE role = 'system_admin'
+                AND email IS NOT NULL AND TRIM(email) <> ''"
+        );
+        if ($ares) {
+            while ($row = $ares->fetch_assoc()) {
+                $email = trim((string)($row['email'] ?? ''));
+                if ($email !== '') {
+                    $admins[$email] = (string)($row['role'] ?? 'system_admin');
+                }
+            }
+        }
+
+        $has_asg = $conn->query("SHOW TABLES LIKE 'report_assignments'");
+
+        foreach ($stale as $report) {
+            $report_id = (int)($report['id'] ?? 0);
+            if ($report_id <= 0) {
+                continue;
+            }
+            $table = (string)($report['report_table'] ?? 'road_transportation_reports');
+            $last_activity = (string)($report['last_activity'] ?? '');
+            if ($last_activity === '') {
+                continue;
+            }
+
+            $code = trim((string)($report['report_code'] ?? '')) ?: ('#' . $report_id);
+            $title = trim((string)($report['title'] ?? 'Untitled')) ?: 'Untitled';
+            $location = trim((string)($report['location'] ?? ''));
+            $message = 'No progress update for 10 days — Report: ' . $code
+                . ' | Title: ' . $title
+                . ($location !== '' ? (' | Location: ' . $location) : '');
+
+            $recipients = $admins;
+
+            if ($has_asg && $has_asg->num_rows > 0) {
+                $asg = $conn->prepare(
+                    "SELECT ou.email AS officer_email, ou.role AS officer_role,
+                            su.email AS supervisor_email, su.role AS supervisor_role
+                       FROM report_assignments ra
+                  LEFT JOIN users ou ON ou.id = ra.user_id
+                  LEFT JOIN users su ON su.id = ra.assigned_by
+                      WHERE ra.report_id = ? AND ra.report_type = ? AND ra.status = 'active'"
+                );
+                $asg->bind_param('is', $report_id, $table);
+                $asg->execute();
+                $asg_res = $asg->get_result();
+                while ($asg_res && ($ar = $asg_res->fetch_assoc())) {
+                    $off = trim((string)($ar['officer_email'] ?? ''));
+                    if ($off !== '') {
+                        $recipients[$off] = (string)($ar['officer_role'] ?? 'road_monitoring_officer');
+                    }
+                    $sup = trim((string)($ar['supervisor_email'] ?? ''));
+                    if ($sup !== '') {
+                        $recipients[$sup] = (string)($ar['supervisor_role'] ?? 'road_ops_supervisor');
+                    }
+                }
+                $asg->close();
+            }
+
+            foreach ($recipients as $email => $role) {
+                $dup = $conn->prepare(
+                    "SELECT id FROM report_notifications
+                      WHERE report_id = ? AND type = 'no_update_stale'
+                        AND recipient_email = ? AND created_at >= ?
+                      LIMIT 1"
+                );
+                $dup->bind_param('iss', $report_id, $email, $last_activity);
+                $dup->execute();
+                $already = $dup->get_result()->fetch_assoc();
+                $dup->close();
+                if ($already) {
+                    continue;
+                }
+
+                $ins = $conn->prepare(
+                    "INSERT INTO report_notifications (report_id, type, message, recipient_email, recipient_role, is_read)
+                     VALUES (?, 'no_update_stale', ?, ?, ?, 0)"
+                );
+                $ins->bind_param('isss', $report_id, $message, $email, $role);
+                $ins->execute();
+                $ins->close();
+            }
+        }
+    } catch (Exception $e) {
+        error_log('dispatch_no_update_stale_notifications error: ' . $e->getMessage());
+    }
+}
+
 // Send an email containing a magic login URL carrying the login token.
 function send_login_link_email($toEmail, $loginUrl) {
-    $envFile = __DIR__ . '/../../.env';
-    $envVariables = file_exists($envFile) ? parse_ini_file($envFile) : [];
-    $apiKey = $envVariables['BREVO_API_KEY'] ?? getenv('BREVO_API_KEY');
-    $senderName = $envVariables['BREVO_SENDER_NAME'] ?? getenv('BREVO_SENDER_NAME');
-    $senderEmail = $envVariables['BREVO_SENDER_EMAIL'] ?? getenv('BREVO_SENDER_EMAIL');
+    $apiKey = env_get('BREVO_API_KEY');
+    $senderName = env_get('BREVO_SENDER_NAME');
+    $senderEmail = env_get('BREVO_SENDER_EMAIL');
 
     $emailSafe = htmlspecialchars($toEmail);
     $urlSafe = htmlspecialchars($loginUrl);
@@ -708,5 +1100,74 @@ function send_login_link_email($toEmail, $loginUrl) {
     error_log("Login link email response: " . $response);
 
     return json_decode($response, true);
+}
+
+// Notify a citizen reporter that their completed report appears on the public transparency page.
+function send_transparency_published_email($toEmail, $reporterName, $transparencyUrl, $projectTitle) {
+    $apiKey = env_get('BREVO_API_KEY');
+    $senderName = env_get('BREVO_SENDER_NAME');
+    $senderEmail = env_get('BREVO_SENDER_EMAIL');
+
+    if ($apiKey === '' || $senderEmail === '') {
+        error_log('Transparency published email: Brevo is not configured (BREVO_API_KEY / BREVO_SENDER_EMAIL).');
+        return false;
+    }
+
+    $nameSafe = htmlspecialchars(trim($reporterName) !== '' ? $reporterName : 'Citizen Reporter');
+    $emailSafe = htmlspecialchars($toEmail);
+    $titleSafe = htmlspecialchars(trim($projectTitle) !== '' ? $projectTitle : 'your report');
+    $urlSafe = htmlspecialchars($transparencyUrl);
+
+    $htmlContent = "
+    <html>
+        <body style='font-family: Arial, sans-serif; color: #333;'>
+            <div style='max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;'>
+                <h2 style='color: #0066cc;'>Hello {$nameSafe},</h2>
+                <p>Thank you for submitting your road report. We are pleased to let you know that work related to <strong>{$titleSafe}</strong> has been completed and is now featured on our public transparency page.</p>
+                <p>You can view the before-and-after progress and other completed projects here:</p>
+                <p style='text-align: center; margin: 25px 0;'>
+                    <a href='{$urlSafe}' style='background-color: #0066cc; color: #fff; padding: 12px 28px; text-decoration: none; border-radius: 6px; display: inline-block;'>View Public Transparency Page</a>
+                </p>
+                <p>Or copy this link into your browser:</p>
+                <p style='font-family: monospace; font-size: 12px; word-break: break-all; background: #f4f4f4; padding: 10px; border-radius: 5px;'>{$urlSafe}</p>
+                <p style='font-size: 12px; color: #999; margin-top: 30px;'>Regards,<br>Road and Transportation Department</p>
+            </div>
+        </body>
+    </html>";
+
+    $ch = curl_init('https://api.brevo.com/v3/smtp/email');
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'accept: application/json',
+        'api-key: ' . $apiKey,
+        'content-type: application/json'
+    ]);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+        'sender' => [
+            'name' => $senderName,
+            'email' => $senderEmail
+        ],
+        'to' => [
+            [
+                'email' => $toEmail,
+                'name' => $emailSafe
+            ]
+        ],
+        'subject' => 'Your report is now on the Public Transparency page',
+        'htmlContent' => $htmlContent
+    ]));
+
+    $response = curl_exec($ch);
+    $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    error_log('Transparency published email response (' . $httpCode . '): ' . $response);
+
+    if ($httpCode >= 200 && $httpCode < 300) {
+        return true;
+    }
+
+    return false;
 }
 ?>

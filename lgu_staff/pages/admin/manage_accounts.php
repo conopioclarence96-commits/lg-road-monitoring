@@ -37,6 +37,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $userId = $_POST['user_id'] ?? null;
     $remarks = $_POST['remarks'] ?? '';
 
+    // Lightweight endpoint: return the freshest last_activity for verified accounts
+    // so the page can keep the activity indicators accurate without a full reload.
+    if ($action === 'get_activity') {
+        $activity = [];
+        try {
+            $act_stmt = $conn->prepare("
+                SELECT id, last_activity
+                FROM users
+                WHERE role IN ('lgu_staff', 'citizen', 'road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer') AND account_status = 'verified'
+            ");
+            $act_stmt->execute();
+            $act_res = $act_stmt->get_result();
+            while ($row = $act_res->fetch_assoc()) {
+                $activity[$row['id']] = !empty($row['last_activity']) ? date('c', strtotime($row['last_activity'])) : null;
+            }
+            $act_stmt->close();
+        } catch (Exception $e) {
+            error_log("get_activity error: " . $e->getMessage());
+        }
+        echo json_encode(['success' => true, 'activity' => $activity]);
+        exit;
+    }
+
     if (!$action || !$userId) {
         echo json_encode(['success' => false, 'message' => 'Invalid request']);
         exit;
@@ -120,7 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Get verified accounts only
 $stmt = $conn->prepare("
-    SELECT id, username, email, full_name, role, department, address, birthday, civil_status, phone_number, is_active, created_at, updated_at, approved_at, rejected_at, id_file_path 
+    SELECT id, username, email, full_name, role, department, address, birthday, civil_status, phone_number, is_active, last_activity, created_at, updated_at, approved_at, rejected_at, id_file_path 
     FROM users 
     WHERE role IN ('lgu_staff', 'citizen', 'road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer') AND account_status = 'verified'
     ORDER BY created_at DESC
@@ -151,6 +174,26 @@ $stmt3->execute();
 $deactivated_users = $stmt3->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt3->close();
 
+// Get verified users inactive for 2+ weeks
+$inactive_2weeks_users = [];
+try {
+    $inactive_stmt = $conn->prepare("
+        SELECT id, username, email, full_name, role, department, last_login, created_at, updated_at
+        FROM users 
+        WHERE account_status = 'verified' 
+        AND is_active = 1
+        AND last_login IS NOT NULL 
+        AND last_login < DATE_SUB(NOW(), INTERVAL 14 DAY)
+        ORDER BY last_login ASC
+    ");
+    $inactive_stmt->execute();
+    $inactive_2weeks_users = $inactive_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $inactive_stmt->close();
+} catch (Exception $e) {
+    error_log("Inactive users query error: " . $e->getMessage());
+    $inactive_2weeks_users = [];
+}
+
 // Calculate stats
 $active_accounts = 0;
 $inactive_accounts = 0;
@@ -180,6 +223,45 @@ try {
     error_log("Audit log query error: " . $e->getMessage());
     $audit_log = [];
 }
+
+// Format a timestamp into a human-friendly relative "last active" string.
+// Used as a server-side fallback for the Verified Accounts activity indicator.
+function formatLastActive($timestamp) {
+    if (empty($timestamp) || $timestamp === '0000-00-00 00:00:00') {
+        return 'Never active';
+    }
+    $ts = strtotime($timestamp);
+    if (!$ts) {
+        return 'Never active';
+    }
+    $diff = max(0, time() - $ts);
+
+    if ($diff < 60) {
+        return 'Active just now';
+    }
+    $mins = floor($diff / 60);
+    if ($mins < 60) {
+        return 'Active ' . $mins . ' min' . ($mins > 1 ? 's' : '') . ' ago';
+    }
+    $hours = floor($mins / 60);
+    if ($hours < 24) {
+        return 'Active ' . $hours . ' hour' . ($hours > 1 ? 's' : '') . ' ago';
+    }
+    $days = floor($hours / 24);
+    if ($days < 7) {
+        return 'Active ' . $days . ' day' . ($days > 1 ? 's' : '') . ' ago';
+    }
+    $weeks = floor($days / 7);
+    if ($weeks < 5) {
+        return 'Active ' . $weeks . ' week' . ($weeks > 1 ? 's' : '') . ' ago';
+    }
+    $months = floor($days / 30);
+    if ($months < 12) {
+        return 'Active ' . $months . ' month' . ($months > 1 ? 's' : '') . ' ago';
+    }
+    $years = floor($days / 365);
+    return 'Active ' . $years . ' year' . ($years > 1 ? 's' : '') . ' ago';
+}
 ?>
 
 <!DOCTYPE html>
@@ -193,7 +275,7 @@ try {
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../../css/theme-tokens.css">
     <link rel="stylesheet" href="../../css/theme-utilities.css">
-    <link rel="stylesheet" href="../../css/sidebar.css">
+    <link rel="stylesheet" href="../../css/sidebar.css?v=3">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <style>
@@ -436,6 +518,46 @@ try {
             color: white;
         }
 
+        .activity-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+            line-height: 1.2;
+        }
+
+        .activity-indicator .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            background: currentColor;
+        }
+
+        .activity-recent {
+            background: var(--color-success-bg);
+            color: var(--color-success-text);
+        }
+
+        .activity-moderate {
+            background: var(--color-warning-bg);
+            color: var(--color-warning-text);
+        }
+
+        .activity-idle {
+            background: var(--color-info-bg);
+            color: var(--color-info-text);
+        }
+
+        .activity-never {
+            background: var(--bg-input-readonly);
+            color: var(--text-secondary);
+        }
+
         .action-buttons {
             display: flex;
             gap: 8px;
@@ -633,8 +755,6 @@ try {
                     </div>
                 </div>
                 <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
-                    <button type="button" id="editButton" class="btn-sm btn-edit" onclick="toggleEditFields()"><i class="fas fa-edit"></i> Edit</button>
-                    <button type="button" id="saveButton" class="btn-sm btn-save" onclick="saveUser()" style="display:none;"><i class="fas fa-save"></i> Save</button>
                     <button type="button" id="actionButton" class="btn-sm btn-approve"></button>
                     <button type="button" class="btn-sm btn-placeholder" onclick="closeUserModal()">Close</button>
                 </div>
@@ -812,6 +932,7 @@ try {
                                     <th>Department</th>
                                     <th>Status</th>
                                     <th>Active</th>
+                                    <th>Last Active</th>
                                     <th>Registered</th>
                                     <th>Actions</th>
                                 </tr>
@@ -819,7 +940,7 @@ try {
                             <tbody>
                                 <?php if (empty($users)): ?>
                                     <tr>
-                                        <td colspan="8" style="text-align: center;" class="t-text-secondary">No verified accounts found</td>
+                                        <td colspan="9" style="text-align: center;" class="t-text-secondary">No verified accounts found</td>
                                     </tr>
                                 <?php else: ?>
                                     <?php foreach ($users as $user): ?>
@@ -836,85 +957,16 @@ try {
                                                     <?php echo $user['is_active'] ? 'Yes' : 'No'; ?>
                                                 </span>
                                             </td>
-                                            <td><?php echo date('M d, Y', strtotime($user['created_at'])); ?></td>
                                             <td>
-                                                <div class="action-buttons">
-                                                    <button class="btn-sm btn-placeholder" onclick="showUserModal(<?php echo $user['id']; ?>)">Manage</button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Pending/Rejected Accounts -->
-            <div class="workflow-card">
-                <div class="workflow-header">
-                    <h3 class="workflow-title">
-                        <i class="fas fa-user-clock"></i>
-                        <span>Pending/Rejected Accounts</span>
-                        <span class="workflow-badge"><?php echo count($unverified_users); ?></span>
-                    </h3>
-                    <div class="filter-section">
-                        <label for="unverifiedStatusFilter" style="font-size: 14px;" class="t-text-secondary">Filter by:</label>
-                        <select id="unverifiedStatusFilter" class="filter-dropdown">
-                            <option value="all">All</option>
-                            <option value="pending">Pending</option>
-                            <option value="rejected">Rejected</option>
-                        </select>
-                        <button class="filter-button" onclick="applyUnverifiedFilter()">Go</button>
-                    </div>
-                </div>
-                
-                <div class="workflow-content">
-                    <div class="table-container">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Email</th>
-                                    <th>Role</th>
-                                    <th>Department</th>
-                                    <th>Status</th>
-                                    <th>Registered</th>
-                                    <th>Last Action</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php if (empty($unverified_users)): ?>
-                                    <tr>
-                                        <td colspan="8" style="text-align: center;" class="t-text-secondary">No pending or rejected accounts found</td>
-                                    </tr>
-                                <?php else: ?>
-                                    <?php foreach ($unverified_users as $user): ?>
-                                        <tr>
-                                            <td><?php echo htmlspecialchars($user['full_name']); ?></td>
-                                            <td><?php echo htmlspecialchars($user['email']); ?></td>
-                                            <td><?php echo htmlspecialchars($user['role']); ?></td>
-                                            <td><?php echo htmlspecialchars($user['department'] ?? 'N/A'); ?></td>
-                                            <td>
-                                                <span class="status-badge status-<?php echo $user['account_status'] === 'pending' ? 'pending' : 'rejected'; ?>">
-                                                    <?php echo ucfirst($user['account_status']); ?>
+                                                <span class="activity-indicator activity-recent" data-user-id="<?php echo $user['id']; ?>" data-last-active="<?php echo !empty($user['last_activity']) ? date('c', strtotime($user['last_activity'])) : ''; ?>" title="<?php echo !empty($user['last_activity']) ? date('M d, Y h:i A', strtotime($user['last_activity'])) : 'No activity recorded'; ?>">
+                                                    <span class="dot"></span>
+                                                    <span class="activity-text"><?php echo formatLastActive($user['last_activity']); ?></span>
                                                 </span>
                                             </td>
                                             <td><?php echo date('M d, Y', strtotime($user['created_at'])); ?></td>
                                             <td>
-                                                <?php if ($user['account_status'] === 'rejected' && !empty($user['rejected_at'])): ?>
-                                                    <span style="font-size: 12px; color: #ef4444;"><i class="fas fa-times-circle"></i> <?php echo date('M d, Y g:i A', strtotime($user['rejected_at'])); ?></span>
-                                                <?php elseif ($user['account_status'] === 'pending'): ?>
-                                                    <span style="font-size: 12px; color: #9ca3af;">Awaiting action</span>
-                                                <?php else: ?>
-                                                    <span style="font-size: 12px; color: #9ca3af;">N/A</span>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td>
                                                 <div class="action-buttons">
-                                                    <button class="btn-sm btn-placeholder" onclick="showUnverifiedUserModal(<?php echo $user['id']; ?>)">Manage</button>
+                                                    <button class="btn-sm btn-placeholder" onclick="showUserModal(<?php echo $user['id']; ?>)">Manage</button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -980,6 +1032,74 @@ try {
                 </div>
             </div>
 
+            <!-- Inactive Users (2+ Weeks) -->
+            <div class="workflow-card">
+                <div class="workflow-header">
+                    <h3 class="workflow-title">
+                        <i class="fas fa-user-slash"></i>
+                        <span>Inactive Users (2+ Weeks)</span>
+                        <span class="workflow-badge"><?php echo count($inactive_2weeks_users); ?></span>
+                    </h3>
+                </div>
+                
+                <div class="workflow-content">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Department</th>
+                                    <th>Last Login</th>
+                                    <th>Registered</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (empty($inactive_2weeks_users)): ?>
+                                    <tr>
+                                        <td colspan="7" style="text-align: center;" class="t-text-secondary">No inactive users found</td>
+                                    </tr>
+                                <?php else: ?>
+                                    <?php foreach ($inactive_2weeks_users as $user): ?>
+                                        <tr id="inactive-row-<?php echo $user['id']; ?>">
+                                            <td><?php echo htmlspecialchars($user['full_name']); ?></td>
+                                            <td><?php echo htmlspecialchars($user['email']); ?></td>
+                                            <td><?php echo htmlspecialchars($user['role']); ?></td>
+                                            <td><?php echo htmlspecialchars($user['department'] ?? 'N/A'); ?></td>
+                                            <td><?php echo $user['last_login'] ? date('M d, Y', strtotime($user['last_login'])) : 'Never'; ?></td>
+                                            <td><?php echo date('M d, Y', strtotime($user['created_at'])); ?></td>
+                                            <td>
+                                                <button class="btn-sm btn-deactivate" onclick="confirmDeactivate(<?php echo $user['id']; ?>, '<?php echo htmlspecialchars(addslashes($user['full_name'])); ?>')">
+                                                    <i class="fas fa-user-slash"></i> Deactivate
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    <!-- Deactivate Confirmation Modal -->
+    <div id="deactivateModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" style="color:#dc2626;"><i class="fas fa-exclamation-triangle"></i> Confirm Deactivation</h3>
+                <span class="close" onclick="closeDeactivateModal()">&times;</span>
+            </div>
+            <p id="deactivateModalBody">Are you sure you want to deactivate this account?</p>
+            <p style="font-size: 13px; color: #64748b; margin-bottom: 20px;">The user will no longer be able to log in or access the system.</p>
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button type="button" class="btn-sm btn-deactivate" id="deactivateConfirmBtn" onclick="executeDeactivate()">
+                    <i class="fas fa-user-slash"></i> Deactivate Account
+                </button>
+                <button type="button" class="btn-sm btn-manage" onclick="closeDeactivateModal()">Cancel</button>
+            </div>
         </div>
     </div>
 
@@ -987,7 +1107,6 @@ try {
         let currentUserId = null;
         let isEditing = false;
         let usersData = <?php echo json_encode($users); ?>;
-        let unverifiedUsersData = <?php echo json_encode($unverified_users); ?>;
         
         const editableFields = ['modalFullName', 'modalRole', 'modalDepartment', 'modalAddress', 'modalBirthday', 'modalCivilStatus', 'modalPhoneNumber'];
 
@@ -1026,8 +1145,6 @@ try {
                 
                 // Reset edit mode
                 setFieldsDisabled(true);
-                document.getElementById('editButton').style.display = '';
-                document.getElementById('saveButton').style.display = 'none';
                 
                 // Set dynamic button
                 const actionButton = document.getElementById('actionButton');
@@ -1056,13 +1173,6 @@ try {
             });
         }
 
-        function toggleEditFields() {
-            isEditing = true;
-            setFieldsDisabled(false);
-            document.getElementById('editButton').style.display = 'none';
-            document.getElementById('saveButton').style.display = '';
-        }
-
         function closeUserModal() {
             const modal = document.getElementById('userModal');
             if (modal) {
@@ -1070,47 +1180,6 @@ try {
             }
             currentUserId = null;
             isEditing = false;
-        }
-
-        function saveUser() {
-            if (!currentUserId) return;
-
-            const formData = new FormData();
-            formData.append('action', 'update_user');
-            formData.append('user_id', currentUserId);
-            formData.append('full_name', document.getElementById('modalFullName').value.trim());
-            formData.append('role', document.getElementById('modalRole').value.trim());
-            formData.append('department', document.getElementById('modalDepartment').value.trim());
-            formData.append('address', document.getElementById('modalAddress').value.trim());
-            formData.append('birthday', document.getElementById('modalBirthday').value);
-            formData.append('civil_status', document.getElementById('modalCivilStatus').value);
-            formData.append('phone_number', document.getElementById('modalPhoneNumber').value.trim());
-
-            const saveBtn = document.getElementById('saveButton');
-            saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
-            saveBtn.disabled = true;
-
-            fetch('', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(result => {
-                saveBtn.innerHTML = '<i class="fas fa-save"></i> Save';
-                saveBtn.disabled = false;
-                if (result.success) {
-                    closeUserModal();
-                    location.reload();
-                } else {
-                    alert(result.message || 'Failed to update account.');
-                }
-            })
-            .catch(error => {
-                saveBtn.innerHTML = '<i class="fas fa-save"></i> Save';
-                saveBtn.disabled = false;
-                console.error('Error:', error);
-                alert('An error occurred. Please try again.');
-            });
         }
 
         function deactivateAccount() {
@@ -1230,71 +1299,6 @@ try {
             }
         }
 
-        function showUnverifiedUserModal(userId) {
-            currentUserId = userId;
-            isEditing = false;
-            const user = unverifiedUsersData.find(u => u.id == userId);
-            
-            if (user) {
-                document.getElementById('modalEmail').value = user.email;
-                document.getElementById('modalFullName').value = user.full_name;
-                document.getElementById('modalRole').value = user.role;
-                document.getElementById('modalDepartment').value = user.department || '';
-                document.getElementById('modalAddress').value = user.address || '';
-                document.getElementById('modalBirthday').value = user.birthday || '';
-                document.getElementById('modalCivilStatus').value = user.civil_status || '';
-                document.getElementById('modalPhoneNumber').value = user.phone_number || '';
-                document.getElementById('modalAccountStatus').value = user.account_status.charAt(0).toUpperCase() + user.account_status.slice(1);
-                document.getElementById('modalCreatedAt').value = user.created_at;
-                document.getElementById('modalApprovedAt').value = user.approved_at || 'N/A';
-                document.getElementById('modalRejectedAt').value = user.rejected_at || 'N/A';
-                
-                const idFileImg = document.getElementById('modalIdFile');
-                const idFileNone = document.getElementById('modalIdFileNone');
-                if (user.id_file_path) {
-                    idFileImg.src = '../../' + user.id_file_path;
-                    idFileImg.style.display = 'block';
-                    idFileNone.style.display = 'none';
-                } else {
-                    idFileImg.style.display = 'none';
-                    idFileNone.style.display = 'block';
-                }
-                
-                setFieldsDisabled(true);
-                document.getElementById('editButton').style.display = '';
-                document.getElementById('saveButton').style.display = 'none';
-                
-                const actionButton = document.getElementById('actionButton');
-                actionButton.style.display = 'none';
-                
-                const modal = document.getElementById('userModal');
-                modal.style.display = 'block';
-            }
-        }
-
-        function applyUnverifiedFilter() {
-            const filterValue = document.getElementById('unverifiedStatusFilter').value;
-            const table = document.querySelectorAll('.workflow-card')[1].querySelector('tbody');
-            if (!table) return;
-            const rows = table.querySelectorAll('tr');
-            
-            rows.forEach(row => {
-                if (filterValue === 'all') {
-                    row.style.display = '';
-                } else {
-                    const statusCell = row.querySelector('td:nth-child(5)');
-                    const status = statusCell ? statusCell.textContent.trim().toLowerCase() : '';
-                    row.style.display = (status === filterValue) ? '' : 'none';
-                }
-            });
-            
-            const visibleRows = Array.from(rows).filter(row => row.style.display !== 'none');
-            const badges = document.querySelectorAll('.workflow-badge');
-            if (badges[1]) {
-                badges[1].textContent = visibleRows.length;
-            }
-        }
-
         function updateDateTime() {
             const now = new Date();
             const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
@@ -1306,6 +1310,148 @@ try {
         
         updateDateTime();
         setInterval(updateDateTime, 1000);
+
+        function lastActiveDiff(iso) {
+            if (!iso) return null;
+            const last = new Date(iso);
+            if (isNaN(last.getTime())) return null;
+            return Math.max(0, Date.now() - last.getTime());
+        }
+
+        function formatLastActiveJS(ms) {
+            if (ms === null) return 'Never active';
+            const sec = Math.floor(ms / 1000);
+            if (sec < 60) return 'Active just now';
+            const min = Math.floor(sec / 60);
+            if (min < 60) return 'Active ' + min + ' min' + (min > 1 ? 's' : '') + ' ago';
+            const hr = Math.floor(min / 60);
+            if (hr < 24) return 'Active ' + hr + ' hour' + (hr > 1 ? 's' : '') + ' ago';
+            const day = Math.floor(hr / 24);
+            if (day < 7) return 'Active ' + day + ' day' + (day > 1 ? 's' : '') + ' ago';
+            const wk = Math.floor(day / 7);
+            if (wk < 5) return 'Active ' + wk + ' week' + (wk > 1 ? 's' : '') + ' ago';
+            const mo = Math.floor(day / 30);
+            if (mo < 12) return 'Active ' + mo + ' month' + (mo > 1 ? 's' : '') + ' ago';
+            const yr = Math.floor(day / 365);
+            return 'Active ' + yr + ' year' + (yr > 1 ? 's' : '') + ' ago';
+        }
+
+        function lastActiveClass(ms) {
+            if (ms === null) return 'activity-never';
+            const hr = ms / 3600000;
+            if (hr < 1) return 'activity-recent';
+            if (hr < 24) return 'activity-moderate';
+            return 'activity-idle';
+        }
+
+        function updateActivityIndicators() {
+            document.querySelectorAll('[data-last-active]').forEach(function(el) {
+                const ms = lastActiveDiff(el.getAttribute('data-last-active') || '');
+                const textEl = el.querySelector('.activity-text');
+                if (textEl) textEl.textContent = formatLastActiveJS(ms);
+                el.classList.remove('activity-recent', 'activity-moderate', 'activity-idle', 'activity-never');
+                el.classList.add(lastActiveClass(ms));
+            });
+        }
+
+        function formatAbsoluteTitle(iso) {
+            if (!iso) return 'No activity recorded';
+            const d = new Date(iso);
+            if (isNaN(d.getTime())) return 'No activity recorded';
+            const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            const pad = n => (n < 10 ? '0' : '') + n;
+            return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear() + ' ' +
+                   pad(d.getHours()) + ':' + pad(d.getMinutes());
+        }
+
+        function refreshActivityData() {
+            const formData = new FormData();
+            formData.append('action', 'get_activity');
+            fetch('', { method: 'POST', body: formData })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data || !data.success || !data.activity) return;
+                    const activity = data.activity;
+                    document.querySelectorAll('[data-last-active]').forEach(function(el) {
+                        const uid = el.getAttribute('data-user-id');
+                        if (uid && Object.prototype.hasOwnProperty.call(activity, uid)) {
+                            const iso = activity[uid] || '';
+                            if (el.getAttribute('data-last-active') !== iso) {
+                                el.setAttribute('data-last-active', iso);
+                                el.title = formatAbsoluteTitle(iso);
+                                const ms = lastActiveDiff(iso);
+                                const textEl = el.querySelector('.activity-text');
+                                if (textEl) textEl.textContent = formatLastActiveJS(ms);
+                                el.classList.remove('activity-recent', 'activity-moderate', 'activity-idle', 'activity-never');
+                                el.classList.add(lastActiveClass(ms));
+                            }
+                        }
+                    });
+                })
+                .catch(function() {
+                    // Silently ignore transient network failures; next poll will retry
+                });
+        }
+
+        updateActivityIndicators();
+        setInterval(updateActivityIndicators, 30000);
+        refreshActivityData();
+        setInterval(refreshActivityData, 30000);
+
+        // Deactivate Account - Modal and AJAX
+        let pendingDeactivateUserId = null;
+
+        function confirmDeactivate(userId, userName) {
+            pendingDeactivateUserId = userId;
+            document.getElementById('deactivateModalBody').innerHTML =
+                'Are you sure you want to deactivate the account for <strong>' + userName + '</strong>?';
+            document.getElementById('deactivateModal').style.display = 'flex';
+        }
+
+        function closeDeactivateModal() {
+            document.getElementById('deactivateModal').style.display = 'none';
+            pendingDeactivateUserId = null;
+        }
+
+        function executeDeactivate() {
+            if (!pendingDeactivateUserId) return;
+
+            const btn = document.getElementById('deactivateConfirmBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deactivating...';
+
+            const formData = new FormData();
+            formData.append('action', 'deactivate_user');
+            formData.append('user_id', pendingDeactivateUserId);
+            formData.append('remarks', 'Deactivated by admin from Manage Accounts (inactive users)');
+
+            fetch('', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(result => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-user-slash"></i> Deactivate Account';
+                if (result.success) {
+                    closeDeactivateModal();
+                    const row = document.getElementById('inactive-row-' + pendingDeactivateUserId);
+                    if (row) {
+                        row.style.transition = 'opacity 0.3s';
+                        row.style.opacity = '0';
+                        setTimeout(() => row.remove(), 300);
+                    }
+                } else {
+                    alert(result.message || 'Failed to deactivate account.');
+                }
+            })
+            .catch(error => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-user-slash"></i> Deactivate Account';
+                console.error('Error:', error);
+                alert('An error occurred. Please try again.');
+            });
+        }
     </script>
     
 

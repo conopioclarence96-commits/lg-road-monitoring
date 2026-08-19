@@ -3,6 +3,9 @@ require_once '../../includes/session_config.php';
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 require_once __DIR__ . '/../../api/cimm_verification_data.php';
+require_once __DIR__ . '/../api/ipms_road_projects_data.php';
+require_once __DIR__ . '/../api/progress_archive_helpers.php';
+require_once __DIR__ . '/verification_panel_pagination.php';
 
 // Session timeout configuration
 $session_timeout = 30 * 60; // 30 minutes in seconds
@@ -119,6 +122,10 @@ if ($check_arch_engineer && $check_arch_engineer->num_rows === 0) {
 $check_arch_budget = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE 'budget_allocation'");
 if ($check_arch_budget && $check_arch_budget->num_rows === 0) {
     $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN budget_allocation DECIMAL(15,2) NULL DEFAULT NULL");
+}
+$check_arch_approval = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE 'approval_status'");
+if ($check_arch_approval && $check_arch_approval->num_rows === 0) {
+    $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN approval_status VARCHAR(50) NULL DEFAULT NULL");
 }
 
 // Ensure reports table exists (from reports.sql)
@@ -259,23 +266,29 @@ function getAllReports($conn, $status_filter = 'all', $source_filter = 'all', $t
     if ($source_filter === 'transport') {
         $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}" : " WHERE {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}";
         $source_case = "CASE WHEN report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
-        $q = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at, cimm_engineer_name, cimm_budget, cimm_starting_date, cimm_estimated_end_date, cimm_status, cimm_district FROM road_transportation_reports{$where})";
+        $q = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, created_date, due_date, description, location, attachments, latitude, longitude, detected_district, created_at, updated_at, approved_at, rejected_at, cimm_engineer_name, cimm_budget, cimm_starting_date, cimm_estimated_end_date, cimm_status, cimm_district, created_by FROM road_transportation_reports{$where})";
         $parts[] = $q;
     } elseif ($source_filter === 'maintenance') {
         if (!$transport_only) {
-            $q = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at, NULL as cimm_engineer_name, NULL as cimm_budget, NULL as cimm_starting_date, NULL as cimm_estimated_end_date, NULL as cimm_status, NULL as cimm_district FROM road_maintenance_reports{$maintenance_where})";
+            $q = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, NULL as detected_district, created_at, updated_at, approved_at, rejected_at, NULL as cimm_engineer_name, NULL as cimm_budget, NULL as cimm_starting_date, NULL as cimm_estimated_end_date, NULL as cimm_status, NULL as cimm_district, NULL as created_by FROM road_maintenance_reports{$maintenance_where})";
             $parts[] = $q;
         }
+    } elseif ($source_filter === 'lgu_reports') {
+        // LGU Monitoring Reports filter (road_ops_supervisor only): show ONLY
+        // LGU monitoring reports — no maintenance/infrastructure rows.
+        $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}" : " WHERE {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}";
+        $source_case = "CASE WHEN report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
+        $parts[] = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, cimm_sync_status, created_date, due_date, description, location, attachments, latitude, longitude, detected_district, created_at, updated_at, approved_at, rejected_at, cimm_engineer_name, cimm_budget, cimm_starting_date, cimm_estimated_end_date, cimm_status, cimm_district, created_by FROM road_transportation_reports{$where})";
     } else {
         $where = $transport_where ? "{$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}" : " WHERE {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}";
         $source_case = "CASE WHEN report_source = 'external' THEN 'external' ELSE 'lgu' END as source";
-        $parts[] = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, cimm_sync_status, created_date, due_date, description, location, attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at, cimm_engineer_name, cimm_budget, cimm_starting_date, cimm_estimated_end_date, cimm_status, cimm_district FROM road_transportation_reports{$where})";
+        $parts[] = "(SELECT {$source_case}, id, report_id, title, report_type, report_category, report_source, department, priority, status, cimm_sync_status, created_date, due_date, description, location, attachments, latitude, longitude, detected_district, created_at, updated_at, approved_at, rejected_at, cimm_engineer_name, cimm_budget, cimm_starting_date, cimm_estimated_end_date, cimm_status, cimm_district, created_by FROM road_transportation_reports{$where})";
         if (!$transport_only) {
-            $parts[] = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, NULL as cimm_sync_status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, created_at, updated_at, approved_at, rejected_at, NULL as cimm_engineer_name, NULL as cimm_budget, NULL as cimm_starting_date, NULL as cimm_estimated_end_date, NULL as cimm_status, NULL as cimm_district FROM road_maintenance_reports{$maintenance_where})";
+            $parts[] = "(SELECT 'maintenance' as source, id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, NULL as cimm_sync_status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, NULL as detected_district, created_at, updated_at, approved_at, rejected_at, NULL as cimm_engineer_name, NULL as cimm_budget, NULL as cimm_starting_date, NULL as cimm_estimated_end_date, NULL as cimm_status, NULL as cimm_district, NULL as created_by FROM road_maintenance_reports{$maintenance_where})";
         }
     }
     if (empty($parts)) {
-        $query = "(SELECT 'transport' as source, 0 as id, '' as report_id, '' as title, '' as report_type, '' as report_category, '' as report_source, '' as department, '' as priority, '' as status, NULL as created_date, NULL as due_date, '' as description, '' as location, NULL as attachments, NULL as latitude, NULL as longitude, NULL as created_at, NULL as updated_at, NULL as approved_at, NULL as rejected_at, NULL as cimm_sync_status, NULL as cimm_engineer_name, NULL as cimm_budget, NULL as cimm_starting_date, NULL as cimm_estimated_end_date, NULL as cimm_status, NULL as cimm_district FROM road_transportation_reports WHERE 1 = 0)";
+        $query = "(SELECT 'transport' as source, 0 as id, '' as report_id, '' as title, '' as report_type, '' as report_category, '' as report_source, '' as department, '' as priority, '' as status, NULL as created_date, NULL as due_date, '' as description, '' as location, NULL as attachments, NULL as latitude, NULL as longitude, NULL as detected_district, NULL as created_at, NULL as updated_at, NULL as approved_at, NULL as rejected_at, NULL as cimm_sync_status, NULL as cimm_engineer_name, NULL as cimm_budget, NULL as cimm_starting_date, NULL as cimm_estimated_end_date, NULL as cimm_status, NULL as cimm_district, NULL as created_by FROM road_transportation_reports WHERE 1 = 0)";
     } else {
         $query = implode(' UNION ALL ', $parts) . " ORDER BY created_at DESC";
     }
@@ -373,6 +386,8 @@ function rgmap_map_cimm_row_for_display(array $row): array {
         'infrastructure'=> $row['infrastructure'] ?? '',
         'location'      => $row['location'] ?? '',
         'issue_notes'   => $row['issue'] ?? '',
+        'latitude'      => $row['coord_lat'] ?? null,
+        'longitude'     => $row['coord_lng'] ?? null,
         'engineer'      => $row['engineer'] ?? '—',
         'reported_by'   => $row['reporter_name'] ?? '—',
         'report_type'   => 'staff', // see gap #2 above
@@ -523,7 +538,8 @@ function ensure_archive_for_archive_cancel($conn) {
         $conn->query("ALTER TABLE road_transportation_reports_archive MODIFY report_type VARCHAR(255) NULL DEFAULT NULL");
     } catch (Exception $e) { error_log('archive report_type widen: ' . $e->getMessage()); }
     foreach (['previous_status' => "VARCHAR(50) DEFAULT NULL",
-              'archived_from' => "VARCHAR(100) DEFAULT NULL"] as $col => $def) {
+              'archived_from' => "VARCHAR(100) DEFAULT NULL",
+              'approval_status' => "VARCHAR(50) DEFAULT NULL"] as $col => $def) {
         $chk = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE '$col'");
         if ($chk && $chk->num_rows === 0) {
             $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN $col $def");
@@ -588,74 +604,9 @@ function archive_cancelled_report($conn, $table, $report_id) {
     }
 }
 
-// Archive a rejected CIMM report by copying it to the archive table and removing from cimm_verification_reports
-function archive_cimm_rejected_report($conn, $cimm_req_id) {
-    try {
-        // Ensure archive table exists and has required columns
-        ensure_archive_for_archive_cancel($conn);
-        
-        // First, get the CIMM report data
-        $pdo = rgmap_verification_pdo();
-        rgmap_ensure_cimm_verification_table($pdo);
-        
-        $stmt = $pdo->prepare("SELECT * FROM cimm_verification_reports WHERE cimm_req_id = ?");
-        $stmt->execute([$cimm_req_id]);
-        $cimm_report = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if (!$cimm_report) {
-            error_log("CIMM report not found for archiving: $cimm_req_id");
-            return false;
-        }
-        
-        $conn->begin_transaction();
-        
-        // Map CIMM columns to road_transportation_reports_archive columns
-        $insert_fields = [
-            'report_id'       => $cimm_report['reference_code'] ?? 'CIMM-' . $cimm_req_id,
-            'title'           => $cimm_report['infrastructure'] ?? 'CIMM Report',
-            'report_type'     => 'infrastructure_issue',
-            'report_category' => 'road',
-            'report_source'   => 'external',
-            'department'      => 'engineering',
-            'priority'        => $cimm_report['priority'] ?? 'medium',
-            'status'          => 'rejected',
-            'archived_from'   => 'cimm_verification_reports',
-            'created_date'    => (!empty($cimm_report['submitted_at'])) ? date('Y-m-d', strtotime($cimm_report['submitted_at'])) : date('Y-m-d'),
-            'description'     => $cimm_report['issue'] ?? '',
-            'location'        => $cimm_report['location'] ?? '',
-            'latitude'        => $cimm_report['coord_lat'] ?? null,
-            'longitude'       => $cimm_report['coord_lng'] ?? null,
-            'created_at'      => $cimm_report['submitted_at'] ?? date('Y-m-d H:i:s'),
-            'updated_at'      => date('Y-m-d H:i:s'),
-            'rejected_at'     => date('Y-m-d H:i:s'),
-            'approved_at'     => null,
-            'engineer'        => $cimm_report['engineer'] ?? null,
-            'budget_allocation' => $cimm_report['budget_allocation'] ?? null,
-        ];
-        
-        // Build INSERT query dynamically
-        $fields = array_keys($insert_fields);
-        $placeholders = array_fill(0, count($fields), '?');
-        $field_list = '`' . implode('`, `', $fields) . '`';
-        $placeholder_list = implode(', ', $placeholders);
-        
-        $insert = "INSERT INTO road_transportation_reports_archive ($field_list) VALUES ($placeholder_list)";
-        $stmt = $conn->prepare($insert);
-        $stmt->execute(array_values($insert_fields));
-        
-        // Delete from cimm_verification_reports (matched by cimm_req_id, the
-        // unique CIMM request identifier — the same key rgmap_update_verification_status
-        // uses, and what the Reject form posts).
-        $delete = $conn->prepare("DELETE FROM cimm_verification_reports WHERE cimm_req_id = ?");
-        $delete->execute([$cimm_req_id]);
-        
-        $conn->commit();
-        return true;
-    } catch (Exception $e) {
-        $conn->rollback();
-        error_log('archive_cimm_rejected_report failed: ' . $e->getMessage());
-        return false;
-    }
+// Archive a rejected CIMM report by copying it to cimm_verification_reports_archive
+function archive_cimm_rejected_report($conn, $cimm_req_id, $rejection_reason = null) {
+    return rgmap_archive_cimm_report($conn, $cimm_req_id, 'rejected', $rejection_reason);
 }
 
 // Handle verification actions
@@ -665,6 +616,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $source = $_POST['source'];
         $action = $_POST['action'];
         $table = in_array($source, ['transport', 'lgu', 'external']) ? 'road_transportation_reports' : 'road_maintenance_reports';
+
+        // Infrastructure Projects (IPMS mirror): approve updates local workflow
+        // status; reject archives the full project then removes it from
+        // ipms_road_projects (same detail preserved for archive View modal).
+        if ($source === 'infra' && in_array($action, ['approve', 'reject'])) {
+            if ($action === 'approve') {
+                // ✓ Approve: mark local status approved (hides from this panel).
+                // Stay in ipms_road_projects only — do not copy into report tables.
+                $infra_pdo = rgmap_ipms_pdo();
+                $infra_upd = $infra_pdo->prepare("UPDATE ipms_road_projects SET status = 'approved' WHERE project_id = ?");
+                $infra_upd->execute([$report_id]);
+                $vm_message = 'Infrastructure project approved.';
+            } else {
+                // X Reject: copy every project field into the archive, then drop
+                // the live IPMS row so it leaves this panel.
+                $archived = rgmap_archive_ipms_project($conn, $report_id, 'rejected');
+                if ($archived) {
+                    $vm_message = 'Infrastructure project rejected and moved to archive.';
+                } else {
+                    $vm_message = 'Infrastructure project rejected, but archiving failed.';
+                }
+            }
+
+            $audit_query = "INSERT INTO audit_trails (audit_id, title, audit_type, status, auditor, description, created_at)
+                            VALUES (?, ?, ?, ?, ?, ?, NOW())";
+            $audit_stmt = $conn->prepare($audit_query);
+            $audit_id = 'VR-' . date('Y-m-d-His');
+            $title = ucfirst($action) . ' Infrastructure Project #' . $report_id;
+            $audit_type = 'compliance';
+            $auditor = $_SESSION['email'] ?? 'Unknown';
+            $description = "Infrastructure project #$report_id has been " . $action . "d by $auditor";
+            $audit_status = ($action === 'approve') ? 'approved' : 'rejected';
+            $audit_stmt->bind_param('ssssss', $audit_id, $title, $audit_type, $audit_status, $auditor, $description);
+            $audit_stmt->execute();
+
+            $_SESSION['verification_message'] = $vm_message;
+            header('Location: ../admin/verification_monitoring.php');
+            exit();
+        }
         
         // Archive report then remove from active table
         if ($action === 'delete') {
@@ -691,13 +681,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         // Check verification rules: block approve for road+local reports
         // unless they have been verified by CIMM (cimm_sync_status = 'verified')
+        // or are Scheduled LGU monitoring reports (cimm_status = 'Scheduled')
         if (in_array($action, ['approve', 'cimm_approve']) && in_array($source, ['transport', 'lgu', 'external'])) {
-            $check = $conn->prepare("SELECT report_category, report_source, cimm_sync_status FROM road_transportation_reports WHERE id = ?");
+            $check = $conn->prepare("SELECT report_category, report_source, cimm_sync_status, cimm_status FROM road_transportation_reports WHERE id = ?");
             $check->bind_param('i', $report_id);
             $check->execute();
             $r = $check->get_result()->fetch_assoc();
-            // Only block if not verified by CIMM AND cannot be verified locally
-            if ($r && ($r['cimm_sync_status'] ?? '') !== 'verified' && !canVerifyReport($r['report_category'], $r['report_source'])) {
+            // Only block if not verified by CIMM, not a Scheduled LGU monitoring report,
+            // AND cannot be verified locally
+            $cimmVerified = (($r['cimm_sync_status'] ?? '') === 'verified')
+                || strtolower(trim((string)($r['cimm_status'] ?? ''))) === 'scheduled';
+            if ($r && !$cimmVerified && !canVerifyReport($r['report_category'], $r['report_source'])) {
                 $_SESSION['verification_message'] = 'Road reports created by your LGU cannot be approved here. They must be verified by the external Engineering Office.';
                 header('Location: ../admin/verification_monitoring.php');
                 exit();
@@ -771,7 +765,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Handle CIMM report verification/rejection
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && in_array($_POST['action'], ['approve_cimm', 'reject_cimm']) && isset($_POST['cimm_req_id'])) {
-    $cimm_req_id = (int) $_POST['cimm_req_id'];
+    $cimm_req_id = trim((string)$_POST['cimm_req_id']);
     $action = $_POST['action'];
     $pdo = rgmap_verification_pdo();
 
@@ -783,18 +777,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && in_array
             $_SESSION['verification_message'] = 'Failed to approve CIMM report #' . $cimm_req_id . '.';
         }
     } else {
-        $reason = trim($_POST['rejection_reason'] ?? '');
-        // Move the rejected CIMM report to the archive (status 'rejected') and
-        // remove it from this page. The source row is deleted by archiving, so
-        // updating its verification_status first is unnecessary — and 'Rejected'
-        // is not an accepted upstream value, so gating on that update would
-        // prevent the rejection from ever happening. The archived copy carries
-        // status 'rejected'.
-        $archived = archive_cimm_rejected_report($conn, $cimm_req_id);
+        $reason = trim($_POST['rejection_reason'] ?? 'Rejected by admin');
+        $archived = archive_cimm_rejected_report($conn, $cimm_req_id, $reason);
         if ($archived) {
             $_SESSION['verification_message'] = 'CIMM report #' . $cimm_req_id . ' rejected and moved to archive.';
         } else {
-            $_SESSION['verification_message'] = 'CIMM report #' . $cimm_req_id . ' rejected, but archiving failed.';
+            $_SESSION['verification_message'] = 'Failed to reject CIMM report #' . $cimm_req_id . '.';
         }
     }
 
@@ -812,45 +800,275 @@ if (isset($_SESSION['verification_message'])) {
 $status_filter = $_GET['status'] ?? 'all';
 $source_filter = $_GET['source'] ?? 'all';
 
+$panel_per_page = 10;
+
+// AJAX panel pagination — return rows + controls without a full page reload.
+if (($_GET['ajax'] ?? '') === 'panel_page') {
+    header('Content-Type: application/json; charset=utf-8');
+    $panel = preg_replace('/[^a-z_]/', '', strtolower((string)($_GET['panel'] ?? '')));
+    $ajax_page = max(1, (int)($_GET['page'] ?? 1));
+
+    if ($panel === 'lgu') {
+        $search_q = trim((string)($_GET['q'] ?? ''));
+        $lgu_result = getLguReportsForVerification(
+            $conn,
+            $is_transport_supervisor,
+            $is_road_supervisor,
+            $panel_per_page,
+            ($ajax_page - 1) * $panel_per_page,
+            $search_q
+        );
+        $total = (int)$lgu_result['total'];
+        $max_page = max(1, (int)ceil($total / max(1, $panel_per_page)));
+        if ($ajax_page > $max_page) {
+            $ajax_page = $max_page;
+            $lgu_result = getLguReportsForVerification(
+                $conn,
+                $is_transport_supervisor,
+                $is_road_supervisor,
+                $panel_per_page,
+                ($ajax_page - 1) * $panel_per_page,
+                $search_q
+            );
+            $total = (int)$lgu_result['total'];
+        }
+        $rows = $lgu_result['rows'];
+        $creator_map = vm_lookup_creator_map($conn, $rows);
+        $pagination_html = ($total > $panel_per_page)
+            ? vm_build_panel_pagination('lgu', $ajax_page, $panel_per_page, $total)['html']
+            : '';
+        echo json_encode([
+            'success' => true,
+            'panel' => 'lgu',
+            'page' => $ajax_page,
+            'total' => $total,
+            'per_page' => $panel_per_page,
+            'q' => $search_q,
+            'rows_html' => vm_render_lgu_panel_tbody($rows, $is_transport_supervisor),
+            'rows_json' => vm_build_lgu_rows_json($rows, $creator_map, $is_transport_supervisor, $is_road_supervisor),
+            'pagination_html' => $pagination_html,
+            'badge_text' => $total . ' Reports',
+        ]);
+        exit;
+    }
+
+    if ($panel === 'citizen') {
+        if ($is_road_supervisor) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Forbidden']);
+            exit;
+        }
+        $search_q = trim((string)($_GET['q'] ?? ''));
+        $citizen_result = getCitizenReportsForVerification(
+            $conn,
+            $panel_per_page,
+            ($ajax_page - 1) * $panel_per_page,
+            $search_q
+        );
+        $total = (int)$citizen_result['total'];
+        $max_page = max(1, (int)ceil($total / max(1, $panel_per_page)));
+        if ($ajax_page > $max_page) {
+            $ajax_page = $max_page;
+            $citizen_result = getCitizenReportsForVerification(
+                $conn,
+                $panel_per_page,
+                ($ajax_page - 1) * $panel_per_page,
+                $search_q
+            );
+            $total = (int)$citizen_result['total'];
+        }
+        $rows = $citizen_result['rows'];
+        $pagination_html = ($total > $panel_per_page)
+            ? vm_build_panel_pagination('citizen', $ajax_page, $panel_per_page, $total)['html']
+            : '';
+        echo json_encode([
+            'success' => true,
+            'panel' => 'citizen',
+            'page' => $ajax_page,
+            'total' => $total,
+            'per_page' => $panel_per_page,
+            'q' => $search_q,
+            'rows_html' => vm_render_citizen_panel_tbody($rows),
+            'rows_json' => vm_build_citizen_rows_json($rows),
+            'pagination_html' => $pagination_html,
+            'badge_text' => $total . ' Reports',
+        ]);
+        exit;
+    }
+
+    if ($panel === 'cimm') {
+        if ($is_transport_supervisor) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Forbidden']);
+            exit;
+        }
+        $search_q = trim((string)($_GET['q'] ?? ''));
+        $cimm_filter = $_GET['cimm_filter'] ?? 'all';
+        $cimm_result = getCimmReportsPaginated(
+            $cimm_filter,
+            $panel_per_page,
+            ($ajax_page - 1) * $panel_per_page,
+            $search_q
+        );
+        $total = (int)$cimm_result['total'];
+        $max_page = max(1, (int)ceil($total / max(1, $panel_per_page)));
+        if ($ajax_page > $max_page) {
+            $ajax_page = $max_page;
+            $cimm_result = getCimmReportsPaginated(
+                $cimm_filter,
+                $panel_per_page,
+                ($ajax_page - 1) * $panel_per_page,
+                $search_q
+            );
+            $total = (int)$cimm_result['total'];
+        }
+        $rows = $cimm_result['rows'];
+        $sql_reports_ajax = ($ajax_page === 1) ? getSqlReports($conn) : null;
+        $pagination_html = ($total > $panel_per_page)
+            ? vm_build_panel_pagination('cimm', $ajax_page, $panel_per_page, $total)['html']
+            : '';
+        echo json_encode([
+            'success' => true,
+            'panel' => 'cimm',
+            'page' => $ajax_page,
+            'total' => $total,
+            'per_page' => $panel_per_page,
+            'q' => $search_q,
+            'rows_html' => vm_render_cimm_panel_tbody($rows, $sql_reports_ajax, $ajax_page === 1),
+            'rows_json' => vm_build_cimm_rows_json($rows),
+            'pagination_html' => $pagination_html,
+            'badge_text' => $total . ' Reports',
+        ]);
+        exit;
+    }
+
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'Unknown panel']);
+    exit;
+}
+
 // Get data
 $stats = getVerificationStatistics($conn);
 $pending_verifications = getPendingVerifications($conn);
 $approved_reports = getApprovedReports($conn);
 $rejected_reports = getRejectedReports($conn);
-$all_reports = getAllReports($conn, $status_filter, $source_filter, $is_transport_supervisor, $is_road_supervisor);
 $recent_approvals = getRecentApprovals($conn);
 $activity_timeline = getActivityTimeline($conn);
 
-// For trans_ops_supervisor, the LGU Monitoring panel shows only
-// Transportation reports — road/maintenance reports are not rendered and
-// are excluded from the badge count.
-$lgu_badge_count = $all_reports->num_rows;
-$lgu_has_reports = ($all_reports->num_rows > 0);
-if ($is_transport_supervisor && $all_reports->num_rows > 0) {
-    $all_reports->data_seek(0);
-    $lgu_badge_count = 0;
-    $lgu_has_reports = false;
-    while ($_r = $all_reports->fetch_assoc()) {
-        if (($_r['source'] ?? '') === 'maintenance') continue;
-        $lgu_badge_count++;
-        $lgu_has_reports = true;
-    }
-    $all_reports->data_seek(0);
+// LGU Monitoring panel — independent query + LIMIT/OFFSET per panel.
+$lgu_page = vm_panel_page('lgu');
+$lgu_search = trim((string)($_GET['lgu_q'] ?? ''));
+$lgu_pagination_html = '';
+$lgu_result = getLguReportsForVerification(
+    $conn,
+    $is_transport_supervisor,
+    $is_road_supervisor,
+    $panel_per_page,
+    vm_panel_offset('lgu', $panel_per_page),
+    $lgu_search
+);
+$lgu_reports_total = (int)$lgu_result['total'];
+$lgu_reports_list = $lgu_result['rows'];
+$lgu_max_page = max(1, (int)ceil($lgu_reports_total / max(1, $panel_per_page)));
+if ($lgu_page > $lgu_max_page) {
+    $lgu_page = $lgu_max_page;
+    $lgu_result = getLguReportsForVerification(
+        $conn,
+        $is_transport_supervisor,
+        $is_road_supervisor,
+        $panel_per_page,
+        ($lgu_page - 1) * $panel_per_page,
+        $lgu_search
+    );
+    $lgu_reports_total = (int)$lgu_result['total'];
+    $lgu_reports_list = $lgu_result['rows'];
 }
+if ($lgu_reports_total > $panel_per_page) {
+    $lgu_pagination_html = vm_build_panel_pagination('lgu', $lgu_page, $panel_per_page, $lgu_reports_total)['html'];
+}
+$lgu_badge_count = $lgu_reports_total;
+$lgu_has_reports = $lgu_reports_total > 0;
+$lgu_creator_map = vm_lookup_creator_map($conn, $lgu_reports_list);
 
-// CIMM reports data (live, via RGMAO sync)
+// CIMM reports data (live, via RGMAO sync) — paginated independently.
 $cimm_filter = $_GET['cimm_filter'] ?? 'all';
-$cimm_reports = getCimmReports($cimm_filter);
+$cimm_page = vm_panel_page('cimm');
+$cimm_search = trim((string)($_GET['cimm_q'] ?? ''));
+$cimm_pagination_html = '';
+$cimm_reports = [];
+$cimm_reports_total = 0;
+if (!$is_transport_supervisor) {
+    $cimm_result = getCimmReportsPaginated(
+        $cimm_filter,
+        $panel_per_page,
+        vm_panel_offset('cimm', $panel_per_page),
+        $cimm_search
+    );
+    $cimm_reports_total = (int)$cimm_result['total'];
+    $cimm_reports = $cimm_result['rows'];
+    $cimm_max_page = max(1, (int)ceil($cimm_reports_total / max(1, $panel_per_page)));
+    if ($cimm_page > $cimm_max_page) {
+        $cimm_page = $cimm_max_page;
+        $cimm_result = getCimmReportsPaginated(
+            $cimm_filter,
+            $panel_per_page,
+            ($cimm_page - 1) * $panel_per_page,
+            $cimm_search
+        );
+        $cimm_reports_total = (int)$cimm_result['total'];
+        $cimm_reports = $cimm_result['rows'];
+    }
+    if ($cimm_reports_total > $panel_per_page) {
+        $cimm_pagination_html = vm_build_panel_pagination('cimm', $cimm_page, $panel_per_page, $cimm_reports_total)['html'];
+    }
+}
 $cimm_counts = getCimmReportCounts();
 
-// Reports from reports.sql table
+// Reports from reports.sql table (legacy rows appended on CIMM page 1)
 $sql_reports = getSqlReports($conn);
 
-// Citizen-submitted reports
-$citizen_reports = getCitizenReports($conn);
+// Citizen-submitted reports — paginated independently.
+$citizen_page = vm_panel_page('citizen');
+$citizen_search = trim((string)($_GET['citizen_q'] ?? ''));
+$citizen_pagination_html = '';
+$citizen_reports_list = [];
+$citizen_reports_total = 0;
+if (!$is_road_supervisor) {
+    $citizen_result = getCitizenReportsForVerification(
+        $conn,
+        $panel_per_page,
+        vm_panel_offset('citizen', $panel_per_page),
+        $citizen_search
+    );
+    $citizen_reports_total = (int)$citizen_result['total'];
+    $citizen_reports_list = $citizen_result['rows'];
+    $citizen_max_page = max(1, (int)ceil($citizen_reports_total / max(1, $panel_per_page)));
+    if ($citizen_page > $citizen_max_page) {
+        $citizen_page = $citizen_max_page;
+        $citizen_result = getCitizenReportsForVerification(
+            $conn,
+            $panel_per_page,
+            ($citizen_page - 1) * $panel_per_page,
+            $citizen_search
+        );
+        $citizen_reports_total = (int)$citizen_result['total'];
+        $citizen_reports_list = $citizen_result['rows'];
+    }
+    if ($citizen_reports_total > $panel_per_page) {
+        $citizen_pagination_html = vm_build_panel_pagination('citizen', $citizen_page, $panel_per_page, $citizen_reports_total)['html'];
+    }
+}
 
-// Infrastructure-specific reports
-$infra_reports = getInfraReports($conn, $is_road_supervisor);
+// Infrastructure project records come from the read-only ipms_road_projects
+// mirror (see lgu_staff/pages/api/ipms_road_projects_data.php), not the empty
+// road_maintenance_reports source previously used here.
+require_once __DIR__ . '/../api/ipms_road_projects_data.php';
+$infra_reports = [];
+try {
+    $infra_reports = rgmap_infra_panel_rows();
+} catch (Exception $e) {
+    error_log("IPMS road projects fetch failed: " . $e->getMessage());
+}
 
 // Deep-link focus: ?source= + ?id= (or the notifications-specific
 // ?focus_report_id=, see below) from a notification "View" button. The
@@ -1109,9 +1327,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="../../css/theme-tokens.css">
     <link rel="stylesheet" href="../../css/theme-utilities.css">
-    <link rel="stylesheet" href="../../css/sidebar.css">
+    <link rel="stylesheet" href="../../css/sidebar.css?v=3">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <style>
@@ -2540,6 +2759,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
         }
 
+        .infra-sync-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 18px;
+            background: linear-gradient(135deg, #f97316, #ea580c);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+
+        .infra-sync-btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #ea580c, #c2410c);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+        }
+
+        .infra-sync-btn:disabled {
+            opacity: 0.75;
+            cursor: wait;
+            transform: none;
+            box-shadow: none;
+        }
+
         .infra-table-wrapper {
             overflow-x: auto;
             padding: 0;
@@ -3351,18 +3599,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 gap: 12px;
             }
 
-            .dept-reports-search {
-                flex-direction: column;
-            }
-
             .infra-reports-header {
                 flex-direction: column;
                 align-items: flex-start;
                 gap: 12px;
-            }
-
-            .infra-reports-search {
-                flex-direction: column;
             }
 
             .citizen-reports-header {
@@ -3371,8 +3611,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 gap: 12px;
             }
 
+            .lgu-reports-search,
+            .dept-reports-search,
+            .infra-reports-search,
             .citizen-reports-search {
-                flex-direction: column;
+                flex-direction: row;
             }
         }
 
@@ -4335,6 +4578,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             background: rgba(249, 115, 22, 0.2);
         }
 
+        .infra-view-map-btn,
+        .cimm-view-map-btn,
+        .citizen-view-map-btn,
+        .lgu-view-map-btn {
+            margin-left: auto;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            background: rgba(249, 115, 22, 0.1);
+            color: #f97316;
+            border: 1px solid rgba(249, 115, 22, 0.3);
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .infra-view-map-btn:hover,
+        .cimm-view-map-btn:hover,
+        .citizen-view-map-btn:hover,
+        .lgu-view-map-btn:hover {
+            background: rgba(249, 115, 22, 0.2);
+        }
+
+        .road-map-container {
+            display: none;
+            margin-top: 12px;
+            height: 320px;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid rgba(249, 115, 22, 0.15);
+        }
+
+        .road-map-container.road-map-visible {
+            display: block;
+        }
+
         @media (max-width: 640px) {
             .infra-info-grid {
                 grid-template-columns: 1fr;
@@ -4920,35 +5203,899 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         body.dark-mode .lgu-modal-body::-webkit-scrollbar-thumb {
             background: rgba(255,255,255,0.15) !important;
         }
+
+        /* ── Verification dashboard refresh (theme-aware, UI only) ── */
+        body { background: #f5f3ee; color: var(--text-primary); }
+        body.dark-mode { background: var(--bg-page); }
+        .vm-dash { padding: 24px 28px; max-width: 100%; overflow-x: hidden; }
+
+        .vm-dash .section-panel,
+        .vm-dash .lgu-reports-panel,
+        .vm-dash .citizen-reports-panel,
+        .vm-dash .dept-reports-panel,
+        .vm-dash .infra-reports-panel {
+            background: #f4f7fb;
+            border: 1px solid #d5dce8;
+            border-radius: 14px;
+            box-shadow: var(--shadow-card);
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+        .vm-dash .lgu-reports-panel {
+            background: #f4f7fb;
+            border-color: #c8d0e0;
+            border-left: 3px solid #1e3c72;
+            box-shadow: 0 2px 10px rgba(30, 60, 114, 0.07);
+        }
+        .vm-dash .citizen-reports-panel {
+            background: #f4faf6;
+            border-color: #cce0d4;
+            border-left: 3px solid #16a34a;
+            box-shadow: 0 2px 10px rgba(22, 163, 74, 0.07);
+        }
+        .vm-dash .dept-reports-panel {
+            background: #f5f3f8;
+            border-color: #d4cfe0;
+            border-left: 3px solid #4f4568;
+            box-shadow: 0 2px 10px rgba(79, 69, 104, 0.08);
+        }
+        .vm-dash .infra-reports-panel {
+            background: #fff9f4;
+            border-color: #f0e0cc;
+            border-left: 3px solid #f97316;
+            box-shadow: 0 2px 10px rgba(249, 115, 22, 0.07);
+        }
+        .vm-dash .verification-header {
+            background: transparent;
+            padding: 20px 22px;
+        }
+        .vm-dash .header-content { margin-bottom: 0; gap: 16px; }
+        .vm-dash .header-title h1 {
+            color: var(--text-primary);
+            font-size: 22px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 4px;
+        }
+        .vm-dash .header-icon {
+            width: 40px; height: 40px; border-radius: 10px;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: var(--color-primary-bg);
+            color: var(--color-primary);
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+        .vm-dash .header-title p { color: var(--text-secondary); font-size: 13px; margin: 0; }
+
+        .vm-dash .workflow-stats {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 14px;
+            margin: 0 0 16px;
+        }
+        .vm-dash .workflow-stat {
+            position: relative;
+            overflow: hidden;
+            min-width: 0;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            border-radius: 14px;
+            padding: 16px 18px;
+            background: #f4f7fb;
+            border: 1px solid #d5dce8;
+            box-shadow: var(--shadow-card);
+        }
+        .vm-dash .workflow-stat::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+            background: var(--border-default);
+        }
+        .vm-dash .workflow-stat-icon {
+            width: 40px; height: 40px; border-radius: 10px;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 15px; flex-shrink: 0;
+            background: var(--bg-hover);
+            color: var(--text-secondary);
+        }
+        .vm-dash .workflow-number {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: -0.03em;
+            line-height: 1.15;
+            margin-bottom: 2px;
+        }
+        .vm-dash .workflow-label {
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            text-transform: uppercase;
+        }
+        .vm-dash .workflow-stat.accent-amber::before { background: var(--color-warning); }
+        .vm-dash .workflow-stat.accent-violet::before { background: var(--color-primary); }
+        .vm-dash .workflow-stat.accent-rose::before { background: var(--color-success); }
+        .vm-dash .workflow-stat.accent-amber .workflow-stat-icon { background: var(--color-warning-bg); color: var(--color-warning); }
+        .vm-dash .workflow-stat.accent-violet .workflow-stat-icon { background: var(--color-primary-bg); color: var(--color-primary); }
+        .vm-dash .workflow-stat.accent-rose .workflow-stat-icon { background: var(--color-success-bg); color: var(--color-success); }
+        .vm-dash .workflow-stat.accent-amber,
+        .vm-dash .workflow-stat.accent-violet,
+        .vm-dash .workflow-stat.accent-rose { background: #f4f7fb; }
+
+        .vm-dash .filters-section { background: transparent; padding: 16px 20px; }
+        .vm-dash .form-label { color: var(--text-secondary); font-weight: 600; }
+        .vm-dash .filter-select {
+            background: var(--bg-input);
+            color: var(--text-primary);
+            border: 1px solid var(--border-input);
+            border-radius: 8px;
+        }
+        .vm-dash .btn-secondary-custom {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .vm-dash .btn-secondary-custom:hover {
+            background: var(--color-primary-bg);
+            color: var(--color-primary);
+            border-color: var(--color-primary);
+        }
+
+        .vm-dash .lgu-reports-header,
+        .vm-dash .citizen-reports-header,
+        .vm-dash .dept-reports-header,
+        .vm-dash .infra-reports-header {
+            background: transparent;
+            padding: 16px 20px;
+        }
+        .vm-dash .lgu-reports-header { border-bottom: 1px solid rgba(30, 60, 114, 0.12); }
+        .vm-dash .citizen-reports-header { border-bottom: 1px solid rgba(22, 163, 74, 0.14); }
+        .vm-dash .dept-reports-header { border-bottom: 1px solid rgba(79, 69, 104, 0.14); }
+        .vm-dash .infra-reports-header { border-bottom: 1px solid rgba(249, 115, 22, 0.16); }
+        .vm-dash .lgu-reports-title,
+        .vm-dash .dept-reports-title {
+            color: #1e3c72;
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+        }
+        .vm-dash .dept-reports-title { color: #3f3658; }
+        .vm-dash .citizen-reports-title {
+            color: #15803d;
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+        }
+        .vm-dash .infra-reports-title {
+            color: #c2410c;
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+        }
+        .vm-dash .lgu-reports-subtitle { color: #4a5b82; }
+        .vm-dash .citizen-reports-subtitle { color: #166534; }
+        .vm-dash .dept-reports-subtitle { color: #6b6380; }
+        .vm-dash .infra-reports-subtitle { color: #92400e; }
+        .vm-dash .lgu-reports-icon,
+        .vm-dash .citizen-reports-icon,
+        .vm-dash .dept-reports-icon,
+        .vm-dash .infra-reports-icon {
+            width: 40px; height: 40px; border-radius: 10px;
+            color: #fff !important;
+        }
+        .vm-dash .lgu-reports-icon { background: linear-gradient(135deg, #1e3c72, #0f274a) !important; }
+        .vm-dash .citizen-reports-icon { background: linear-gradient(135deg, #16a34a, #15803d) !important; }
+        .vm-dash .dept-reports-icon { background: linear-gradient(135deg, #5a4e78, #3f3658) !important; }
+        .vm-dash .infra-reports-icon { background: linear-gradient(135deg, #f97316, #ea580c) !important; }
+
+        .vm-dash .lgu-reports-badge {
+            background: #3762c8 !important;
+            color: #fff !important;
+        }
+        .vm-dash .citizen-reports-badge {
+            background: #16a34a !important;
+            color: #fff !important;
+        }
+        .vm-dash .dept-reports-badge,
+        .vm-dash .dept-reports-badge.in-progress {
+            background: #5a4e78 !important;
+            color: #fff !important;
+        }
+        .vm-dash .infra-reports-badge,
+        .vm-dash .infra-reports-badge.in-progress {
+            background: #f97316 !important;
+            color: #fff !important;
+        }
+
+        .vm-dash .lgu-reports-search,
+        .vm-dash .citizen-reports-search,
+        .vm-dash .dept-reports-search,
+        .vm-dash .infra-reports-search {
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border-light);
+            background: transparent;
+        }
+        .vm-dash .lgu-search-wrapper,
+        .vm-dash .citizen-search-wrapper,
+        .vm-dash .dept-search-wrapper,
+        .vm-dash .infra-search-wrapper {
+            background: var(--bg-input);
+            border: 1px solid var(--border-input);
+            border-radius: 8px;
+        }
+        .vm-dash .lgu-search-wrapper:focus-within {
+            border-color: #1e3c72;
+            box-shadow: 0 0 0 3px rgba(30, 60, 114, 0.12);
+        }
+        .vm-dash .citizen-search-wrapper:focus-within {
+            border-color: #16a34a;
+            box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
+        }
+        .vm-dash .infra-search-wrapper:focus-within {
+            border-color: #f97316;
+            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12);
+        }
+        .vm-dash .lgu-search-input,
+        .vm-dash .citizen-search-input,
+        .vm-dash .infra-search-input {
+            background: transparent;
+            color: var(--text-primary);
+            border: none;
+        }
+        .vm-dash .dept-search-input {
+            background: var(--bg-input);
+            color: var(--text-primary);
+            border: 1px solid var(--border-input);
+            border-radius: 8px;
+        }
+        .vm-dash .dept-search-input:focus {
+            border-color: #5a4e78;
+            box-shadow: 0 0 0 3px rgba(90, 78, 120, 0.14);
+        }
+
+        .vm-panel-pagination {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 16px;
+            border-top: 1px solid rgba(55, 98, 200, 0.12);
+            flex-wrap: wrap;
+        }
+        .vm-panel-pagination-info {
+            font-size: 13px;
+            color: #4b5563;
+        }
+        body.dark-mode .vm-panel-pagination-info {
+            color: #9ca3af;
+        }
+        .vm-panel-pagination-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .vm-page-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 34px;
+            height: 34px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+            color: #fff;
+            cursor: pointer;
+            padding: 0;
+        }
+        .vm-page-btn:hover:not(.disabled) {
+            box-shadow: 0 4px 12px rgba(55, 98, 200, 0.3);
+        }
+        .vm-page-btn.disabled {
+            opacity: 0.4;
+            pointer-events: none;
+            cursor: default;
+        }
+        .vm-panel-pagination-slot.is-loading {
+            opacity: 0.55;
+            pointer-events: none;
+        }
+        .vm-page-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #1e3c72;
+        }
+        body.dark-mode .vm-page-label {
+            color: #93c5fd;
+        }
+        .vm-dash .vm-panel-pagination { padding: 12px 16px; }
+        .vm-dash .lgu-sort-btn,
+        .vm-dash .citizen-sort-btn,
+        .vm-dash .dept-sort-btn,
+        .vm-dash .infra-sort-btn,
+        .vm-dash .infra-sync-btn {
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            color: #fff !important;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .vm-dash .lgu-sort-btn { background: linear-gradient(135deg, #1e3c72, #0f274a) !important; }
+        .vm-dash .citizen-sort-btn { background: linear-gradient(135deg, #16a34a, #15803d) !important; }
+        .vm-dash .dept-sort-btn { background: linear-gradient(135deg, #5a4e78, #3f3658) !important; }
+        .vm-dash .infra-sort-btn,
+        .vm-dash .infra-sync-btn { background: linear-gradient(135deg, #f97316, #ea580c) !important; }
+        .vm-dash .lgu-sort-btn:hover { background: linear-gradient(135deg, #0f274a, #0a1d35) !important; }
+        .vm-dash .citizen-sort-btn:hover { background: linear-gradient(135deg, #15803d, #166534) !important; }
+        .vm-dash .dept-sort-btn:hover { background: linear-gradient(135deg, #3f3658, #2e2742) !important; }
+        .vm-dash .infra-sort-btn:hover,
+        .vm-dash .infra-sync-btn:hover:not(:disabled) { background: linear-gradient(135deg, #ea580c, #c2410c) !important; }
+
+        .vm-dash .lgu-table,
+        .vm-dash .citizen-table,
+        .vm-dash .dept-table,
+        .vm-dash .infra-table { width: 100%; border-collapse: collapse; }
+        .vm-dash .lgu-table thead th,
+        .vm-dash .citizen-table thead th,
+        .vm-dash .dept-table thead th,
+        .vm-dash .infra-table thead th {
+            font-size: 11px;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+            padding: 12px 16px;
+            border-bottom: none;
+        }
+        .vm-dash .lgu-table thead th {
+            background: linear-gradient(135deg, #1e3c72, #0f274a) !important;
+            color: #fff !important;
+        }
+        .vm-dash .citizen-table thead th {
+            background: linear-gradient(135deg, #16a34a, #15803d) !important;
+            color: #fff !important;
+        }
+        .vm-dash .dept-table thead th {
+            background: linear-gradient(135deg, #5a4e78, #3f3658) !important;
+            color: #fff !important;
+        }
+        .vm-dash .infra-table thead th {
+            background: linear-gradient(135deg, #f97316, #ea580c) !important;
+            color: #fff !important;
+        }
+        .vm-dash .lgu-table td,
+        .vm-dash .citizen-table td,
+        .vm-dash .dept-table td,
+        .vm-dash .infra-table td {
+            color: var(--text-primary);
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-light);
+            font-size: 13px;
+            white-space: normal;
+            vertical-align: middle;
+        }
+        .vm-dash .lgu-table td:first-child,
+        .vm-dash .citizen-table td:first-child,
+        .vm-dash .dept-table td:first-child,
+        .vm-dash .infra-table td:first-child { white-space: nowrap; }
+        .vm-dash .lgu-table td:nth-child(2),
+        .vm-dash .citizen-table td:nth-child(2),
+        .vm-dash .dept-table td:nth-child(2),
+        .vm-dash .infra-table td:nth-child(2) {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        .vm-dash .lgu-table tbody tr,
+        .vm-dash .citizen-table tbody tr,
+        .vm-dash .dept-table tbody tr,
+        .vm-dash .infra-table tbody tr { transition: background 0.15s ease; }
+        .vm-dash .lgu-table tbody tr:hover,
+        .vm-dash .citizen-table tbody tr:hover,
+        .vm-dash .dept-table tbody tr:hover,
+        .vm-dash .infra-table tbody tr:hover { background: var(--bg-hover); }
+
+        .vm-dash .lgu-status-badge,
+        .vm-dash .citizen-status-badge,
+        .vm-dash .dept-status-badge,
+        .vm-dash .infra-status-badge,
+        .vm-dash .cimm-status-badge,
+        .vm-dash .t-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 600;
+            border: none;
+        }
+        .vm-dash .lgu-status-badge.pending,
+        .vm-dash .citizen-status-badge.pending,
+        .vm-dash .dept-status-badge.pending,
+        .vm-dash .infra-status-badge.pending,
+        .vm-dash .cimm-status-badge.pending,
+        .vm-dash .t-badge-pending,
+        .vm-dash .cimm-st-awaiting,
+        .vm-dash .lgu-status-badge.medium,
+        .vm-dash .citizen-status-badge.medium,
+        .vm-dash .dept-status-badge.medium {
+            background: var(--badge-pending-bg) !important;
+            color: var(--badge-pending-text) !important;
+        }
+        .vm-dash .lgu-status-badge.in-progress,
+        .vm-dash .citizen-status-badge.in-progress,
+        .vm-dash .dept-status-badge.in-progress,
+        .vm-dash .infra-status-badge.in-progress,
+        .vm-dash .cimm-status-badge.in-progress,
+        .vm-dash .t-badge-info,
+        .vm-dash .cimm-st-scheduled,
+        .vm-dash .cimm-st-pending,
+        .vm-dash .cimm-st-acceptance,
+        .vm-dash .cimm-st-approval,
+        .vm-dash .cimm-st-progress {
+            background: var(--badge-in-progress-bg) !important;
+            color: var(--badge-in-progress-text) !important;
+        }
+        .vm-dash .lgu-status-badge.approved,
+        .vm-dash .lgu-status-badge.completed,
+        .vm-dash .lgu-status-badge.resolved,
+        .vm-dash .lgu-status-badge.verified,
+        .vm-dash .citizen-status-badge.approved,
+        .vm-dash .citizen-status-badge.completed,
+        .vm-dash .citizen-status-badge.resolved,
+        .vm-dash .dept-status-badge.approved,
+        .vm-dash .dept-status-badge.completed,
+        .vm-dash .dept-status-badge.resolved,
+        .vm-dash .dept-status-badge.verified,
+        .vm-dash .infra-status-badge.approved,
+        .vm-dash .infra-status-badge.completed,
+        .vm-dash .infra-status-badge.resolved,
+        .vm-dash .cimm-st-validated,
+        .vm-dash .cimm-st-completed,
+        .vm-dash .cimm-st-archived {
+            background: var(--badge-approved-bg) !important;
+            color: var(--badge-approved-text) !important;
+        }
+        .vm-dash .lgu-status-badge.cancelled,
+        .vm-dash .citizen-status-badge.cancelled,
+        .vm-dash .dept-status-badge.cancelled,
+        .vm-dash .dept-status-badge.dismissed,
+        .vm-dash .infra-status-badge.cancelled,
+        .vm-dash .cimm-st-cancelled,
+        .vm-dash .lgu-status-badge.high,
+        .vm-dash .lgu-status-badge.critical,
+        .vm-dash .citizen-status-badge.high,
+        .vm-dash .citizen-status-badge.critical,
+        .vm-dash .dept-status-badge.high,
+        .vm-dash .dept-status-badge.critical {
+            background: var(--badge-cancelled-bg) !important;
+            color: var(--badge-cancelled-text) !important;
+        }
+        .vm-dash .lgu-status-badge.low,
+        .vm-dash .citizen-status-badge.low,
+        .vm-dash .dept-status-badge.low {
+            background: var(--bg-hover) !important;
+            color: var(--text-secondary) !important;
+        }
+
+        .vm-dash .lgu-action-group,
+        .vm-dash .citizen-action-group,
+        .vm-dash .dept-action-group,
+        .vm-dash .infra-action-group { gap: 6px; flex-wrap: wrap; }
+        .vm-dash .lgu-action-btn,
+        .vm-dash .citizen-action-btn,
+        .vm-dash .dept-action-btn,
+        .vm-dash .infra-action-btn {
+            background: var(--color-primary-bg);
+            color: var(--color-primary);
+            border: 1px solid transparent;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 12px;
+            padding: 6px 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+        .vm-dash .lgu-action-btn:hover,
+        .vm-dash .citizen-action-btn:hover,
+        .vm-dash .dept-action-btn:hover,
+        .vm-dash .infra-action-btn:hover {
+            background: var(--color-primary);
+            color: #fff;
+        }
+        .vm-dash .lgu-verify-btn,
+        .vm-dash .citizen-verify-btn,
+        .vm-dash .dept-verify-btn,
+        .vm-dash .infra-verify-btn {
+            background: var(--color-success-bg) !important;
+            color: var(--color-success-text) !important;
+            border: none;
+            border-radius: 8px;
+            padding: 6px 10px;
+            display: inline-flex; align-items: center; gap: 5px;
+            font-weight: 600;
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+        .vm-dash .lgu-verify-btn:hover,
+        .vm-dash .citizen-verify-btn:hover,
+        .vm-dash .dept-verify-btn:hover,
+        .vm-dash .infra-verify-btn:hover {
+            background: var(--color-success) !important;
+            color: #fff !important;
+        }
+        .vm-dash .lgu-reject-btn,
+        .vm-dash .citizen-reject-btn,
+        .vm-dash .dept-reject-btn,
+        .vm-dash .infra-reject-btn {
+            background: var(--color-danger-bg) !important;
+            color: var(--color-danger-text) !important;
+            border: none;
+            border-radius: 8px;
+            padding: 6px 10px;
+            display: inline-flex; align-items: center; gap: 5px;
+            font-weight: 600;
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+        .vm-dash .lgu-reject-btn:hover,
+        .vm-dash .citizen-reject-btn:hover,
+        .vm-dash .dept-reject-btn:hover,
+        .vm-dash .infra-reject-btn:hover {
+            background: var(--color-danger) !important;
+            color: #fff !important;
+        }
+        .vm-dash .lgu-action-btn i,
+        .vm-dash .citizen-action-btn i,
+        .vm-dash .dept-action-btn i,
+        .vm-dash .infra-action-btn i,
+        .vm-dash .lgu-verify-btn i,
+        .vm-dash .citizen-verify-btn i,
+        .vm-dash .dept-verify-btn i,
+        .vm-dash .infra-verify-btn i,
+        .vm-dash .lgu-reject-btn i,
+        .vm-dash .citizen-reject-btn i,
+        .vm-dash .dept-reject-btn i,
+        .vm-dash .infra-reject-btn i { pointer-events: none; }
+
+        .vm-dash .lgu-empty-state,
+        .vm-dash .citizen-empty-state,
+        .vm-dash .dept-empty-state,
+        .vm-dash .infra-empty-state,
+        .vm-dash .cimm-empty-state {
+            padding: 40px 16px;
+            color: var(--text-secondary);
+        }
+        .vm-dash .lgu-empty-state h4,
+        .vm-dash .citizen-empty-state h4,
+        .vm-dash .dept-empty-state h4,
+        .vm-dash .infra-empty-state h4 { color: var(--text-primary); margin-bottom: 6px; font-size: 15px; }
+        .vm-dash .lgu-empty-icon { background: rgba(30, 60, 114, 0.10) !important; }
+        .vm-dash .lgu-empty-icon i { color: #1e3c72 !important; }
+        .vm-dash .citizen-empty-icon { background: rgba(22, 163, 74, 0.10) !important; }
+        .vm-dash .citizen-empty-icon i { color: #16a34a !important; }
+        .vm-dash .dept-empty-icon { background: rgba(90, 78, 120, 0.10) !important; }
+        .vm-dash .dept-empty-icon i { color: #5a4e78 !important; }
+        .vm-dash .infra-empty-icon,
+        .vm-dash .cimm-empty-state .refresh-icon { background: rgba(249, 115, 22, 0.10) !important; }
+        .vm-dash .infra-empty-icon i { color: #f97316 !important; }
+
+        .citizen-modal-content,
+        .cimm-modal-content,
+        .infra-modal-content,
+        .lgu-modal-content {
+            background: var(--bg-card) !important;
+            color: var(--text-primary);
+            border: 1px solid var(--border-default) !important;
+            max-width: min(680px, 94vw);
+            max-height: 86vh;
+            box-shadow: var(--shadow-lg);
+        }
+        .citizen-modal-header,
+        .cimm-modal-header,
+        .infra-modal-header,
+        .lgu-modal-header {
+            background: var(--bg-card) !important;
+            padding: 16px 20px 14px !important;
+            border-bottom: 1px solid var(--border-light) !important;
+        }
+        .citizen-modal-body,
+        .cimm-modal-body,
+        .infra-modal-body,
+        .lgu-modal-body { padding: 14px 20px !important; }
+        .citizen-modal-footer,
+        .cimm-modal-footer,
+        .infra-modal-footer,
+        .lgu-modal-footer {
+            padding: 12px 20px !important;
+            background: var(--bg-hover) !important;
+            border-top: 1px solid var(--border-light) !important;
+        }
+        .citizen-modal-title,
+        .cimm-modal-title,
+        .infra-modal-title,
+        .lgu-modal-title {
+            color: var(--text-primary) !important;
+            font-size: 18px !important;
+            margin-bottom: 8px !important;
+        }
+        .citizen-modal-report-id,
+        .cimm-modal-report-id,
+        .infra-modal-report-id,
+        .lgu-modal-report-id { color: var(--text-secondary) !important; }
+        .citizen-modal-section,
+        .cimm-modal-section,
+        .infra-modal-section,
+        .lgu-modal-section {
+            background: var(--bg-hover) !important;
+            border: 1px solid var(--border-light) !important;
+            border-radius: 10px;
+            padding: 14px 16px !important;
+            margin-bottom: 12px;
+            box-shadow: none;
+        }
+        .citizen-modal-section-title,
+        .cimm-modal-section-title,
+        .infra-modal-section-title,
+        .lgu-modal-section-title {
+            color: var(--text-secondary) !important;
+            border-bottom-color: var(--border-light) !important;
+            font-size: 12px !important;
+        }
+        .citizen-modal-section-title i,
+        .cimm-modal-section-title i,
+        .infra-modal-section-title i,
+        .lgu-modal-section-title i { color: var(--color-primary) !important; }
+        .citizen-info-label,
+        .cimm-info-label,
+        .infra-info-label,
+        .lgu-info-label { color: var(--text-muted) !important; }
+        .citizen-info-value,
+        .cimm-info-value,
+        .infra-info-value,
+        .lgu-info-value,
+        .citizen-description-text,
+        .cimm-description-text,
+        .infra-description-text,
+        .lgu-description-text { color: var(--text-primary) !important; }
+        .citizen-info-icon,
+        .cimm-info-icon,
+        .infra-info-icon,
+        .lgu-info-icon {
+            background: var(--color-primary-bg) !important;
+            color: var(--color-primary) !important;
+        }
+        .citizen-modal-btn-close,
+        .cimm-modal-btn-close,
+        .infra-modal-btn-close,
+        .lgu-modal-btn-close {
+            background: var(--color-primary-bg) !important;
+            color: var(--color-primary) !important;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+        .citizen-modal-btn-close:hover,
+        .cimm-modal-btn-close:hover,
+        .infra-modal-btn-close:hover,
+        .lgu-modal-btn-close:hover { background: var(--color-primary) !important; color: #fff !important; }
+        .citizen-view-map-btn,
+        .cimm-view-map-btn,
+        .infra-view-map-btn,
+        .lgu-view-map-btn {
+            background: var(--color-primary-bg) !important;
+            color: var(--color-primary) !important;
+            border-color: transparent !important;
+        }
+        .citizen-view-map-btn:hover,
+        .cimm-view-map-btn:hover,
+        .infra-view-map-btn:hover,
+        .lgu-view-map-btn:hover { background: var(--color-primary) !important; color: #fff !important; }
+        .vm-map-link { color: var(--text-link); text-decoration: none; font-size: 12px; }
+        .vm-map-link:hover { text-decoration: underline; }
+
+        body.dark-mode .vm-dash .section-panel,
+        body.dark-mode .vm-dash .lgu-reports-panel,
+        body.dark-mode .vm-dash .citizen-reports-panel,
+        body.dark-mode .vm-dash .dept-reports-panel,
+        body.dark-mode .vm-dash .infra-reports-panel,
+        body.dark-mode .vm-dash .workflow-stat {
+            background: #1c2432 !important;
+        }
+        body.dark-mode .vm-dash .section-panel,
+        body.dark-mode .vm-dash .workflow-stat {
+            border-color: rgba(147, 179, 224, 0.22) !important;
+        }
+        body.dark-mode .vm-dash .lgu-reports-panel {
+            border-color: rgba(147, 179, 224, 0.28) !important;
+            border-left-color: #93b3e0 !important;
+        }
+        body.dark-mode .vm-dash .citizen-reports-panel {
+            border-color: rgba(74, 222, 128, 0.28) !important;
+            border-left-color: #4ade80 !important;
+        }
+        body.dark-mode .vm-dash .dept-reports-panel {
+            border-color: rgba(167, 154, 196, 0.30) !important;
+            border-left-color: #a79ac4 !important;
+        }
+        body.dark-mode .vm-dash .infra-reports-panel {
+            border-color: rgba(251, 146, 60, 0.30) !important;
+            border-left-color: #fb923c !important;
+        }
+        body.dark-mode .vm-dash .lgu-reports-header { border-bottom-color: rgba(147, 179, 224, 0.16) !important; }
+        body.dark-mode .vm-dash .citizen-reports-header { border-bottom-color: rgba(74, 222, 128, 0.16) !important; }
+        body.dark-mode .vm-dash .dept-reports-header { border-bottom-color: rgba(167, 154, 196, 0.16) !important; }
+        body.dark-mode .vm-dash .infra-reports-header { border-bottom-color: rgba(251, 146, 60, 0.18) !important; }
+        body.dark-mode .vm-dash .header-title h1,
+        body.dark-mode .vm-dash .workflow-number { color: var(--text-primary) !important; }
+        body.dark-mode .vm-dash .lgu-reports-title { color: #93b3e0 !important; }
+        body.dark-mode .vm-dash .citizen-reports-title { color: #86efac !important; }
+        body.dark-mode .vm-dash .dept-reports-title { color: #c5bdd8 !important; }
+        body.dark-mode .vm-dash .infra-reports-title { color: #fdba74 !important; }
+        body.dark-mode .vm-dash .header-title p,
+        body.dark-mode .vm-dash .workflow-label { color: var(--text-secondary) !important; }
+        body.dark-mode .vm-dash .lgu-reports-subtitle { color: #8aa3c8 !important; }
+        body.dark-mode .vm-dash .citizen-reports-subtitle { color: #6ee7b7 !important; }
+        body.dark-mode .vm-dash .dept-reports-subtitle { color: #a39bb8 !important; }
+        body.dark-mode .vm-dash .infra-reports-subtitle { color: #fdba74 !important; }
+        body.dark-mode .vm-dash .lgu-table thead th {
+            background: linear-gradient(135deg, #1e3c72, #0f274a) !important;
+            color: #fff !important;
+        }
+        body.dark-mode .vm-dash .citizen-table thead th {
+            background: linear-gradient(135deg, #16a34a, #15803d) !important;
+            color: #fff !important;
+        }
+        body.dark-mode .vm-dash .dept-table thead th {
+            background: linear-gradient(135deg, #5a4e78, #3f3658) !important;
+            color: #fff !important;
+        }
+        body.dark-mode .vm-dash .infra-table thead th {
+            background: linear-gradient(135deg, #f97316, #ea580c) !important;
+            color: #fff !important;
+        }
+        body.dark-mode .vm-dash .lgu-empty-icon { background: rgba(147, 179, 224, 0.14) !important; }
+        body.dark-mode .vm-dash .lgu-empty-icon i { color: #93b3e0 !important; }
+        body.dark-mode .vm-dash .citizen-empty-icon { background: rgba(74, 222, 128, 0.14) !important; }
+        body.dark-mode .vm-dash .citizen-empty-icon i { color: #86efac !important; }
+        body.dark-mode .vm-dash .dept-empty-icon { background: rgba(167, 154, 196, 0.14) !important; }
+        body.dark-mode .vm-dash .dept-empty-icon i { color: #c5bdd8 !important; }
+        body.dark-mode .vm-dash .infra-empty-icon,
+        body.dark-mode .vm-dash .cimm-empty-state .refresh-icon { background: rgba(251, 146, 60, 0.14) !important; }
+        body.dark-mode .vm-dash .infra-empty-icon i { color: #fdba74 !important; }
+        body.dark-mode .vm-dash .lgu-table td,
+        body.dark-mode .vm-dash .citizen-table td,
+        body.dark-mode .vm-dash .dept-table td,
+        body.dark-mode .vm-dash .infra-table td { color: var(--text-primary) !important; }
+        body.dark-mode .vm-dash .lgu-action-btn,
+        body.dark-mode .vm-dash .citizen-action-btn,
+        body.dark-mode .vm-dash .dept-action-btn,
+        body.dark-mode .vm-dash .infra-action-btn {
+            background: var(--color-primary-bg) !important;
+            color: var(--color-primary) !important;
+        }
+        body.dark-mode .vm-dash .lgu-action-btn:hover,
+        body.dark-mode .vm-dash .citizen-action-btn:hover,
+        body.dark-mode .vm-dash .dept-action-btn:hover,
+        body.dark-mode .vm-dash .infra-action-btn:hover {
+            background: var(--color-primary) !important;
+            color: #fff !important;
+        }
+        body.dark-mode .vm-dash .lgu-verify-btn,
+        body.dark-mode .vm-dash .citizen-verify-btn,
+        body.dark-mode .vm-dash .dept-verify-btn,
+        body.dark-mode .vm-dash .infra-verify-btn {
+            background: var(--color-success-bg) !important;
+            color: var(--color-success-text) !important;
+        }
+        body.dark-mode .vm-dash .lgu-reject-btn,
+        body.dark-mode .vm-dash .citizen-reject-btn,
+        body.dark-mode .vm-dash .dept-reject-btn,
+        body.dark-mode .vm-dash .infra-reject-btn {
+            background: var(--color-danger-bg) !important;
+            color: var(--color-danger-text) !important;
+        }
+        body.dark-mode .citizen-modal-content,
+        body.dark-mode .cimm-modal-content,
+        body.dark-mode .infra-modal-content,
+        body.dark-mode .lgu-modal-content,
+        body.dark-mode .citizen-modal-header,
+        body.dark-mode .cimm-modal-header,
+        body.dark-mode .infra-modal-header,
+        body.dark-mode .lgu-modal-header { background: var(--bg-card) !important; }
+        body.dark-mode .citizen-modal-title,
+        body.dark-mode .cimm-modal-title,
+        body.dark-mode .infra-modal-title,
+        body.dark-mode .lgu-modal-title { color: var(--text-primary) !important; }
+        body.dark-mode .citizen-modal-report-id,
+        body.dark-mode .cimm-modal-report-id,
+        body.dark-mode .infra-modal-report-id,
+        body.dark-mode .lgu-modal-report-id { color: var(--text-secondary) !important; }
+        body.dark-mode .citizen-modal-section-title,
+        body.dark-mode .cimm-modal-section-title,
+        body.dark-mode .infra-modal-section-title,
+        body.dark-mode .lgu-modal-section-title { color: var(--text-secondary) !important; }
+        body.dark-mode .citizen-info-icon,
+        body.dark-mode .cimm-info-icon,
+        body.dark-mode .infra-info-icon,
+        body.dark-mode .lgu-info-icon {
+            background: var(--color-primary-bg) !important;
+            color: var(--color-primary) !important;
+        }
+        body.dark-mode .citizen-modal-btn-close,
+        body.dark-mode .cimm-modal-btn-close,
+        body.dark-mode .infra-modal-btn-close,
+        body.dark-mode .lgu-modal-btn-close {
+            background: var(--color-primary-bg) !important;
+            color: var(--color-primary) !important;
+        }
+        body.dark-mode .vm-map-link { color: var(--text-link); }
+
+        @media (max-width: 768px) {
+            .vm-dash { padding: 16px; }
+            .vm-dash .header-content { flex-direction: column; align-items: flex-start; }
+            .vm-dash .workflow-stats { width: 100%; grid-template-columns: 1fr; }
+            .vm-dash .lgu-reports-search,
+            .vm-dash .citizen-reports-search,
+            .vm-dash .dept-reports-search,
+            .vm-dash .infra-reports-search { flex-wrap: wrap; }
+            .citizen-modal-content,
+            .cimm-modal-content,
+            .infra-modal-content,
+            .lgu-modal-content { max-width: 96vw; max-height: 96vh; }
+        }
+        @media (max-width: 480px) {
+            .vm-dash .header-icon { width: 36px; height: 36px; }
+            .vm-dash .header-title h1 { font-size: 20px; }
+        }
+
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
     <!-- SIDEBAR -->
     <?php include '../../includes/sidebar_nav.php'; ?>
 
-    <div class="main-content">
+    <div class="main-content vm-dash">
         <!-- Verification Header Panel -->
         <div class="section-panel">
             <div class="verification-header" style="margin-bottom:0; box-shadow:none; border:none; border-radius:0;">
                 <div class="header-content">
                     <div class="header-title">
-                        <h1>Verification & Monitoring Reports</h1>
+                        <h1><span class="header-icon"><i class="fas fa-clipboard-check"></i></span> Verification & Monitoring Reports</h1>
                         <p>Review and approve infrastructure Projects and monitoring data</p>
                     </div>
-                    <div class="workflow-stats">
-                        <div class="workflow-stat">
-                            <div class="workflow-number"><?php echo number_format($stats['pending']); ?></div>
-                            <div class="workflow-label">Pending</div>
-                        </div>
-                        <div class="workflow-stat">
-                            <div class="workflow-number"><?php echo number_format($stats['in_review']); ?></div>
-                            <div class="workflow-label">In Review</div>
-                        </div>
-                        <div class="workflow-stat">
-                            <div class="workflow-number"><?php echo number_format($stats['approved']); ?></div>
-                            <div class="workflow-label">Approved</div>
-                        </div>
-                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="workflow-stats">
+            <div class="workflow-stat accent-amber">
+                <div class="workflow-stat-icon"><i class="fas fa-hourglass-half"></i></div>
+                <div>
+                    <div class="workflow-number"><?php echo number_format($stats['pending']); ?></div>
+                    <div class="workflow-label">Pending</div>
+                </div>
+            </div>
+            <div class="workflow-stat accent-violet">
+                <div class="workflow-stat-icon"><i class="fas fa-clipboard-list"></i></div>
+                <div>
+                    <div class="workflow-number"><?php echo number_format($stats['in_review']); ?></div>
+                    <div class="workflow-label">In Review</div>
+                </div>
+            </div>
+            <div class="workflow-stat accent-rose">
+                <div class="workflow-stat-icon"><i class="fas fa-check-circle"></i></div>
+                <div>
+                    <div class="workflow-number"><?php echo number_format($stats['approved']); ?></div>
+                    <div class="workflow-label">Approved</div>
                 </div>
             </div>
         </div>
@@ -4958,15 +6105,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <div class="filters-section" style="margin-bottom:0; box-shadow:none; border:none; border-radius:0;">
                 <div class="filter-group">
                     <div>
-                        <label class="form-label">Status Filter</label>
+                        <label class="form-label" for="statusFilter">Status Filter</label>
                         <select class="filter-select" id="statusFilter" onchange="filterReports()">
                             <option value="pending" selected>Pending</option>
                         </select>
                     </div>
                     <div>
-                        <label class="form-label">Source System</label>
+                        <label class="form-label" for="sourceFilter">Source System</label>
                         <select class="filter-select" id="sourceFilter" onchange="filterReports()">
                             <option value="all" <?php echo $source_filter === 'all' ? 'selected' : ''; ?>>All Sources</option>
+                            <option value="lgu_reports" <?php echo $source_filter === 'lgu_reports' ? 'selected' : ''; ?>>LGU Monitoring Reports</option>
                             <?php if (!$is_road_supervisor): ?>
                             <option value="transport" <?php echo $source_filter === 'transport' ? 'selected' : ''; ?>>Citizen Reports</option>
                             <?php endif; ?>
@@ -4975,9 +6123,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         </select>
                     </div>
                     <div>
-                        <label class="form-label">&nbsp;</label>
+                        <span class="form-label" aria-hidden="true">&nbsp;</span>
                         <div>
-                            <button class="btn-secondary-custom" onclick="resetFilters()">
+                            <button class="btn-secondary-custom" type="button" onclick="resetFilters()">
                                 <i class="fas fa-arrow-clockwise"></i> Reset
                             </button>
                         </div>
@@ -4996,7 +6144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <div>
                         <div class="lgu-reports-title-group">
                             <h2 class="lgu-reports-title">LGU Monitoring Reports</h2>
-                            <span class="lgu-reports-badge"><?php echo $lgu_badge_count; ?> Reports</span>
+                            <span class="lgu-reports-badge" id="lguReportsBadge"><?php echo $lgu_badge_count; ?> Reports</span>
                         </div>
                         <p class="lgu-reports-subtitle">Reports submitted by the LGU Road &amp; Transportation Department.</p>
                     </div>
@@ -5006,7 +6154,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <div class="lgu-reports-search">
                 <div class="lgu-search-wrapper">
                     <i class="fas fa-search"></i>
-                    <input type="text" class="lgu-search-input" id="lguSearchInput" placeholder="Search by Report #, Title, Type, Source, Status...">
+                    <input type="text" class="lgu-search-input" id="lguSearchInput" placeholder="Search by Report #..." value="<?php echo htmlspecialchars($lgu_search); ?>" oninput="onPanelServerSearch('lgu')">
                 </div>
                 <button class="lgu-sort-btn" onclick="toggleLguSort()">
                     <i class="fas fa-sort"></i> Sort
@@ -5020,12 +6168,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <th>Action</th>
                             <th>Report #</th>
                             <th>Title</th>
-                            <th>Type</th>
-                            <th>Source</th>
-                            <th>District</th>
+                            <th>Location</th>
                             <th>Priority</th>
-                            <th>Engineer</th>
-                            <th>Budget Allocation</th>
                             <th>Status</th>
                             <th>Date</th>
                         </tr>
@@ -5281,6 +6425,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     </tbody>
                 </table>
             </div>
+            <div id="lguPagination" class="vm-panel-pagination-slot">
+                <?php echo $lgu_pagination_html; ?>
+            </div>
         </div>
 
         <!-- Citizen Reports Panel (Transportation-only — hidden for Road Operations Supervisors) -->
@@ -5294,7 +6441,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <div>
                         <div class="citizen-reports-title-group">
                             <h2 class="citizen-reports-title">Citizen Reports</h2>
-                            <span class="citizen-reports-badge"><?php echo $citizen_reports ? $citizen_reports->num_rows : 0; ?> Reports</span>
+                            <span class="citizen-reports-badge" id="citizenReportsBadge"><?php echo $citizen_reports_total; ?> Reports</span>
                         </div>
                         <p class="citizen-reports-subtitle">Reports submitted by citizens via the public portal</p>
                     </div>
@@ -5304,7 +6451,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <div class="citizen-reports-search">
                 <div class="citizen-search-wrapper">
                     <i class="fas fa-search"></i>
-                    <input type="text" class="citizen-search-input" id="citizenSearchInput" placeholder="Search by Report #, Title, Type, Location, Reporter...">
+                    <input type="text" class="citizen-search-input" id="citizenSearchInput" placeholder="Search by Report #..." value="<?php echo htmlspecialchars($citizen_search); ?>" oninput="onPanelServerSearch('citizen')">
                 </div>
                 <button class="citizen-sort-btn" onclick="toggleCitizenSort()">
                     <i class="fas fa-sort"></i> Sort
@@ -5318,90 +6465,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <th>Action</th>
                             <th>Report #</th>
                             <th>Title</th>
-                            <th>Type</th>
                             <th>Location</th>
-                            <th>Reporter</th>
                             <th>Priority</th>
                             <th>Status</th>
                             <th>Date</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php
-                        $hasCitizenReports = false;
-                        if ($citizen_reports && $citizen_reports->num_rows > 0):
-                            while ($crow = $citizen_reports->fetch_assoc()):
-                                $hasCitizenReports = true;
-                                $c_status_class = '';
-                                if ($crow['status'] === 'approved') $c_status_class = 'approved';
-                                elseif ($crow['status'] === 'cancelled') $c_status_class = 'cancelled';
-                                elseif ($crow['status'] === 'pending') $c_status_class = 'pending';
-                                elseif ($crow['status'] === 'in-progress') $c_status_class = 'in-progress';
-                                elseif ($crow['status'] === 'completed') $c_status_class = 'completed';
-                                $citizen_filter_status = 'pending';
-                                if (in_array($crow['status'], ['approved', 'completed'])) $citizen_filter_status = 'approved';
-                                elseif (in_array($crow['status'], ['cancelled'])) $citizen_filter_status = 'rejected';
-                        ?>
-                        <tr data-id="<?php echo (int)$crow['id']; ?>" data-report-id="<?php echo (int)$crow['id']; ?>" data-status="<?php echo $citizen_filter_status; ?>" data-source="citizen">
-                            <td>
-                                <div class="citizen-action-group">
-                                    <button class="citizen-action-btn" onclick="viewCitizenReport(<?php echo $crow['id']; ?>)">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                    <?php if ($crow['status'] === 'pending'): ?>
-                                    <form method="POST" class="citizen-action-form" onsubmit="return confirm('Are you sure you want to approve this citizen report?');">
-                                        <input type="hidden" name="report_id" value="<?php echo (int)$crow['id']; ?>">
-                                        <input type="hidden" name="source" value="transport">
-                                        <button type="submit" name="action" value="approve" class="citizen-verify-btn" title="Approve report">
-                                            <i class="fas fa-check"></i>
-                                        </button>
-                                    </form>
-                                    <form method="POST" class="citizen-action-form" onsubmit="return confirm('Are you sure you want to reject this citizen report?');">
-                                        <input type="hidden" name="report_id" value="<?php echo (int)$crow['id']; ?>">
-                                        <input type="hidden" name="source" value="transport">
-                                        <button type="submit" name="action" value="reject" class="citizen-reject-btn" title="Reject report">
-                                            <i class="fas fa-times"></i>
-                                        </button>
-                                    </form>
-                                    <?php endif; ?>
-                                </div>
-                            </td>
-                            <td><?php echo htmlspecialchars($crow['report_id']); ?></td>
-                            <td><?php echo htmlspecialchars(strlen($crow['title'] ?? '') > 35 ? substr($crow['title'], 0, 35) . '...' : ($crow['title'] ?? '')); ?></td>
-                            <td><?php
-                                $c_type_labels = [
-                                    'traffic_jam' => 'Traffic Jam',
-                                    'accident' => 'Accident',
-                                    'road_closure' => 'Road Closure',
-                                    'traffic_light_outage' => 'Traffic Light',
-                                    'congestion' => 'Congestion',
-                                    'parking_violation' => 'Parking Violation',
-                                    'public_transport_issue' => 'Public Transport',
-                                ];
-                                echo htmlspecialchars($c_type_labels[$crow['report_type']] ?? ucfirst($crow['report_type']));
-                            ?></td>
-                            <td><?php echo htmlspecialchars($crow['location'] ?? '—'); ?></td>
-                            <td><?php echo htmlspecialchars($crow['reporter_name'] ?? '—'); ?></td>
-                            <td><span class="citizen-status-badge <?php echo htmlspecialchars($crow['priority']); ?>"><?php echo ucfirst(htmlspecialchars($crow['priority'])); ?></span></td>
-                            <td><span class="citizen-status-badge <?php echo $c_status_class; ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $crow['status']))); ?></span></td>
-                            <td><?php echo $crow['created_at'] ? date('M d, Y', strtotime($crow['created_at'])) : '—'; ?></td>
-                        </tr>
-                        <?php
-                            endwhile;
-                        endif;
-                        ?>
-                        <?php if (!$hasCitizenReports): ?>
-                        <tr>
-                            <td colspan="9">
-                                <div class="citizen-empty-state">
-                                    <div class="citizen-empty-icon"><i class="fas fa-users"></i></div>
-                                    <p>No citizen reports at this time.</p>
-                                </div>
-                            </td>
-                        </tr>
-                        <?php endif; ?>
+                        <?php echo vm_render_citizen_panel_tbody($citizen_reports_list); ?>
                     </tbody>
                 </table>
+            </div>
+            <div id="citizenPagination" class="vm-panel-pagination-slot">
+                <?php echo $citizen_pagination_html; ?>
             </div>
         </div>
         <?php endif; ?>
@@ -5417,7 +6493,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <div>
                         <div class="dept-reports-title-group">
                             <h2 class="dept-reports-title">CIMM Reports</h2>
-                            <span class="dept-reports-badge in-progress"><?php echo count($cimm_reports) + ($sql_reports ? $sql_reports->num_rows : 0); ?> Reports</span>
+                            <span class="dept-reports-badge in-progress" id="cimmReportsBadge"><?php echo $cimm_reports_total + ($sql_reports ? $sql_reports->num_rows : 0); ?> Reports</span>
                         </div>
                         <p class="dept-reports-subtitle">Department-submitted infrastructure Projects from CIMM</p>
                     </div>
@@ -5427,7 +6503,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <div class="dept-reports-search">
                 <div class="dept-search-wrapper">
                     <i class="fas fa-search"></i>
-                    <input type="text" class="dept-search-input" id="deptSearchInput" placeholder="Search by Rep #, Infrastructure, Location, Engineer, Priority...">
+                    <input type="text" class="dept-search-input" id="deptSearchInput" placeholder="Search by Rep #..." value="<?php echo htmlspecialchars($cimm_search); ?>" oninput="onPanelServerSearch('cimm')">
                 </div>
                 <button class="dept-sort-btn" onclick="toggleDeptSort()">
                     <i class="fas fa-sort"></i> Sort
@@ -5443,119 +6519,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <th>Infrastructure</th>
                             <th>Location</th>
                             <th>Issue / Notes</th>
-                            <th>Engineer</th>
-                            <th>Reported By</th>
-                            <th>Start Date</th>
-                            <th>End Date</th>
                             <th>Priority</th>
-                            <th>Budget</th>
                             <th>Status</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php 
-                        // Dept panel reuses the same filtered $cimm_reports array (no data_seek needed for plain arrays)
-                        $hasAnyReports = false;
-                        if (!empty($cimm_reports)): 
-                        ?>
-                        <?php foreach ($cimm_reports as $row): 
-                            $hasAnyReports = true;
-                            // Map CIMM status to filter categories
-                            $cimm_filter_status = 'pending';
-                            if (in_array($row['status'], ['completed', 'approved', 'verified'])) $cimm_filter_status = 'approved';
-                            elseif (in_array($row['status'], ['resolved', 'dismissed'])) $cimm_filter_status = 'rejected';
-                        ?>
-                        <tr data-id="<?php echo (int)$row['id']; ?>" data-report-id="<?php echo (int)$row['id']; ?>" data-status="<?php echo $cimm_filter_status; ?>" data-source="cimm">
-                            <td>
-                                <div class="dept-action-group">
-                                    <button class="dept-action-btn" onclick="viewCimmReport(<?php echo $row['id']; ?>)">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                    <form method="POST" class="dept-action-form" onsubmit="return confirm('Are you sure you want to approve this CIMM report?');">
-                                        <input type="hidden" name="cimm_req_id" value="<?php echo (int)$row['cimm_req_id']; ?>">
-                                        <button type="submit" name="action" value="approve_cimm" class="dept-verify-btn" title="Approve report">
-                                            <i class="fas fa-check"></i>
-                                        </button>
-                                    </form>
-                                    <form method="POST" class="dept-action-form" onsubmit="return confirm('Are you sure you want to reject this CIMM report?');">
-                                        <input type="hidden" name="cimm_req_id" value="<?php echo (int)$row['cimm_req_id']; ?>">
-                                        <input type="hidden" name="rejection_reason" value="Rejected by admin">
-                                        <button type="submit" name="action" value="reject_cimm" class="dept-reject-btn" title="Reject report">
-                                            <i class="fas fa-times"></i>
-                                        </button>
-                                    </form>
-                                </div>
-                            </td>
-                            <td><?php echo htmlspecialchars($row['rep_number']); ?></td>
-                            <td><?php echo htmlspecialchars($row['infrastructure']); ?></td>
-                            <td><?php echo htmlspecialchars($row['location']); ?></td>
-                            <td><?php echo htmlspecialchars(strlen($row['issue_notes'] ?? '') > 40 ? substr($row['issue_notes'], 0, 40) . '...' : ($row['issue_notes'] ?? '')); ?></td>
-                            <td><?php echo htmlspecialchars($row['engineer']); ?></td>
-                            <td><?php echo htmlspecialchars($row['reported_by']); ?></td>
-                            <td><?php echo $row['start_date'] ? date('M d, Y', strtotime($row['start_date'])) : '—'; ?></td>
-                            <td><?php echo $row['end_date'] ? date('M d, Y', strtotime($row['end_date'])) : '—'; ?></td>
-                            <td><span class="dept-status-badge <?php echo htmlspecialchars($row['priority']); ?>"><?php echo ucfirst(htmlspecialchars($row['priority'])); ?></span></td>
-                            <td><?php echo $row['budget'] ? '₱' . number_format($row['budget'], 2) : '—'; ?></td>
-                            <td><span class="dept-status-badge <?php echo htmlspecialchars($row['status']); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $row['status']))); ?></span></td>
-                        </tr>
-                        <?php endforeach; ?>
-                        <?php endif; ?>
-
-                        <?php 
-                        // Display reports from reports.sql table
-                        if ($sql_reports && $sql_reports->num_rows > 0):
-                            while ($row = $sql_reports->fetch_assoc()):
-                                $hasAnyReports = true;
-                                $status = 'pending';
-                                if ($row['engineer_accepted'] == 1) {
-                                    $status = 'completed';
-                                } elseif (!empty($row['decline_reason'])) {
-                                    $status = 'cancelled';
-                                } elseif (!empty($row['decline_reviewed'])) {
-                                    $status = $row['decline_reviewed'] == 1 ? 'in-progress' : 'cancelled';
-                                }
-                                // Map SQL report status to filter categories
-                                $sql_filter_status = 'pending';
-                                if (in_array($status, ['completed'])) $sql_filter_status = 'approved';
-                                elseif (in_array($status, ['cancelled'])) $sql_filter_status = 'rejected';
-                        ?>
-                        <tr data-id="<?php echo (int)$row['rep_id']; ?>" data-report-id="<?php echo (int)$row['rep_id']; ?>" data-status="<?php echo $sql_filter_status; ?>" data-source="cimm_sql">
-                            <td>
-                                <button class="dept-action-btn" onclick="viewSqlReport(<?php echo $row['rep_id']; ?>)">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                            </td>
-                            <td>REP-<?php echo $row['rep_id']; ?></td>
-                            <td><?php echo htmlspecialchars($row['res_id']); ?></td>
-                            <td>—</td>
-                            <td><?php echo htmlspecialchars(strlen($row['decline_reason'] ?? '') > 40 ? substr($row['decline_reason'], 0, 40) . '...' : ($row['decline_reason'] ?? '—')); ?></td>
-                            <td><?php echo $row['engineer_id'] ? 'Engineer #' . htmlspecialchars($row['engineer_id']) : '—'; ?></td>
-                            <td><?php echo htmlspecialchars($row['reporter_name'] ?? 'User #' . $row['report_by']); ?></td>
-                            <td><?php echo $row['starting_date'] ? date('M d, Y', strtotime($row['starting_date'])) : '—'; ?></td>
-                            <td><?php echo $row['estimated_end_date'] ? date('M d, Y', strtotime($row['estimated_end_date'])) : '—'; ?></td>
-                            <td><span class="dept-status-badge <?php echo strtolower(htmlspecialchars($row['priority_lvl'])); ?>"><?php echo ucfirst(htmlspecialchars($row['priority_lvl'])); ?></span></td>
-                            <td><?php echo $row['budget'] ? '₱' . number_format($row['budget'], 2) : '—'; ?></td>
-                            <td><span class="dept-status-badge <?php echo $status; ?>"><?php echo ucfirst(htmlspecialchars($status)); ?></span></td>
-                        </tr>
-                        <?php 
-                            endwhile;
-                        endif;
-                        ?>
-
-                        <?php if (!$hasAnyReports): ?>
-                        <tr>
-                            <td colspan="12">
-                                <div class="dept-empty-state">
-                                    <div class="dept-empty-icon">
-                                        <i class="fas fa-sync-alt"></i>
-                                    </div>
-                                    <p>No department reports at this time.</p>
-                                </div>
-                            </td>
-                        </tr>
-                        <?php endif; ?>
+                        <?php echo vm_render_cimm_panel_tbody($cimm_reports, $sql_reports, $cimm_page === 1); ?>
                     </tbody>
                 </table>
+            </div>
+            <div id="cimmPagination" class="vm-panel-pagination-slot">
+                <?php echo $cimm_pagination_html; ?>
             </div>
         </div>
         <?php endif; ?>
@@ -5571,17 +6545,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <div>
                         <div class="infra-reports-title-group">
                             <h2 class="infra-reports-title">Infrastructure Projects</h2>
-                            <span class="infra-reports-badge in-progress"><?php echo $infra_reports ? $infra_reports->num_rows : 0; ?> Reports</span>
+                            <span class="infra-reports-badge in-progress" id="infraReportsBadge"><?php echo is_array($infra_reports) ? count($infra_reports) : 0; ?> Reports</span>
                         </div>
                         <p class="infra-reports-subtitle">Infrastructure maintenance and infrastructure issue reports</p>
                     </div>
                 </div>
+                <button type="button" class="infra-sync-btn" id="infraSyncBtn" onclick="syncInfraProjects(this)" title="Pull latest projects from IPMS">
+                    <i class="fas fa-sync-alt"></i> Sync
+                </button>
             </div>
 
             <div class="infra-reports-search">
                 <div class="infra-search-wrapper">
                     <i class="fas fa-search"></i>
-                    <input type="text" class="infra-search-input" id="infraSearchInput" placeholder="Search by Report #, Title, Type, Location, Department...">
+                    <input type="text" class="infra-search-input" id="infraSearchInput" placeholder="Search by Rep #, Infrastructure, Location, Engineer...">
                 </div>
                 <button class="infra-sort-btn" onclick="toggleInfraSort()">
                     <i class="fas fa-sort"></i> Sort
@@ -5593,21 +6570,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <thead>
                         <tr>
                             <th>Action</th>
-                            <th>Report #</th>
-                            <th>Title</th>
-                            <th>Type</th>
+                            <th>Rep #</th>
+                            <th>Infrastructure</th>
                             <th>Location</th>
-                            <th>Department</th>
-                            <th>Priority</th>
+                            <th>Issue / Notes</th>
                             <th>Status</th>
-                            <th>Created Date</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php
                         $hasInfraReports = false;
-                        if ($infra_reports && $infra_reports->num_rows > 0):
-                            while ($irow = $infra_reports->fetch_assoc()):
+                        if (!empty($infra_reports)):
+                            foreach ($infra_reports as $irow):
                                 $hasInfraReports = true;
                                 $istatus_class = '';
                                 if ($irow['status'] === 'approved') $istatus_class = 'approved';
@@ -5624,58 +6598,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <td>
                                 <div class="infra-action-group">
                                     <button class="infra-action-btn" onclick="viewInfraReport(<?php echo $irow['id']; ?>, '<?php echo htmlspecialchars($irow['source'], ENT_QUOTES); ?>')">
-                                        <i class="fas fa-eye"></i>
+                                        <i class="fas fa-eye"></i> View
                                     </button>
-                                    <?php if ($irow['status'] === 'pending'): ?>
-                                    <form method="POST" class="infra-action-form" onsubmit="return confirm('Are you sure you want to verify this infrastructure report?');">
+                                    <?php if (!in_array($irow['status'], ['approved', 'cancelled'], true)): ?>
+                                    <form method="POST" class="infra-action-form" onsubmit="return confirm('Are you sure you want to approve this infrastructure project?');">
                                         <input type="hidden" name="report_id" value="<?php echo (int)$irow['id']; ?>">
-                                        <input type="hidden" name="source" value="<?php echo htmlspecialchars($irow['source'], ENT_QUOTES); ?>">
-                                        <button type="submit" name="action" value="approve" class="infra-verify-btn" title="Verify report">
-                                            <i class="fas fa-check"></i>
+                                        <input type="hidden" name="source" value="infra">
+                                        <button type="submit" name="action" value="approve" class="infra-verify-btn" title="Approve infrastructure project">
+                                            <i class="fas fa-check"></i> Approve
                                         </button>
                                     </form>
-                                    <form method="POST" class="infra-action-form" onsubmit="return confirm('Are you sure you want to reject this infrastructure report?');">
+                                    <form method="POST" class="infra-action-form" onsubmit="return confirm('Are you sure you want to reject this infrastructure project?');">
                                         <input type="hidden" name="report_id" value="<?php echo (int)$irow['id']; ?>">
-                                        <input type="hidden" name="source" value="<?php echo htmlspecialchars($irow['source'], ENT_QUOTES); ?>">
-                                        <button type="submit" name="action" value="reject" class="infra-reject-btn" title="Reject report">
-                                            <i class="fas fa-times"></i>
+                                        <input type="hidden" name="source" value="infra">
+                                        <button type="submit" name="action" value="reject" class="infra-reject-btn" title="Reject infrastructure project">
+                                            <i class="fas fa-times"></i> Reject
                                         </button>
                                     </form>
                                     <?php endif; ?>
                                 </div>
                             </td>
                             <td><?php echo htmlspecialchars($irow['report_id']); ?></td>
-                            <td><?php echo htmlspecialchars(strlen($irow['title'] ?? '') > 35 ? substr($irow['title'], 0, 35) . '...' : ($irow['title'] ?? '')); ?></td>
-                            <td><?php
-                                $type_labels = [
-                                    'infrastructure_issue' => 'Infrastructure Issue',
-                                    'routine' => 'Routine Maintenance',
-                                    'emergency' => 'Emergency Repair',
-                                    'preventive' => 'Preventive Maintenance',
-                                    'corrective' => 'Corrective Maintenance',
-                                    'scheduled' => 'Scheduled Maintenance'
-                                ];
-                                echo htmlspecialchars($type_labels[$irow['report_type']] ?? ucfirst($irow['report_type']));
-                            ?></td>
-                            <td><?php echo htmlspecialchars($irow['location'] ?? '—'); ?></td>
-                            <td><?php echo htmlspecialchars(ucfirst($irow['department'])); ?></td>
-                            <td><span class="infra-status-badge <?php echo htmlspecialchars($irow['priority']); ?>"><?php echo ucfirst(htmlspecialchars($irow['priority'])); ?></span></td>
-                            <td><span class="infra-status-badge <?php echo $istatus_class; ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $irow['status']))); ?></span></td>
-                            <td><?php echo $irow['created_at'] ? date('M d, Y', strtotime($irow['created_at'])) : '—'; ?></td>
+                            <td><?php echo htmlspecialchars($irow['infrastructure'] ?: '—'); ?></td>
+                            <td><?php if (($irow['start_address'] ?? '') !== ''): ?><span title="<?php echo htmlspecialchars($irow['start_address']); ?>"><?php echo htmlspecialchars(strlen($irow['start_address']) > 40 ? substr($irow['start_address'], 0, 40) . '...' : $irow['start_address']); ?></span><?php else: ?>—<?php endif; ?></td>
+                            <td><?php echo htmlspecialchars(strlen($irow['issue_notes'] ?? '') > 40 ? substr($irow['issue_notes'], 0, 40) . '...' : ($irow['issue_notes'] ?? '—')); ?></td>
+                            <td><span class="infra-status-badge <?php echo $istatus_class; ?>"><?php echo ucfirst(htmlspecialchars(str_replace(['-', '_'], ' ', $irow['status']))); ?></span></td>
                         </tr>
                         <?php
-                            endwhile;
+                            endforeach;
                         endif;
                         ?>
 
                         <?php if (!$hasInfraReports): ?>
                         <tr>
-                            <td colspan="9">
+                            <td colspan="6">
                                 <div class="infra-empty-state">
                                     <div class="infra-empty-icon">
                                         <i class="fas fa-hard-hat"></i>
                                     </div>
-                                    <p>No infrastructure projects at this time.</p>
+                                    <h4>No infrastructure projects yet</h4>
+                                    <p>Synced IPMS projects will appear here for verification.</p>
                                 </div>
                             </td>
                         </tr>
@@ -5710,6 +6672,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             const url = new URL(window.location);
             url.searchParams.delete('status');
             url.searchParams.delete('source');
+            url.searchParams.delete('lgu_page');
+            url.searchParams.delete('citizen_page');
+            url.searchParams.delete('cimm_page');
+            url.searchParams.delete('lgu_q');
+            url.searchParams.delete('citizen_q');
+            url.searchParams.delete('cimm_q');
             window.location.href = url.toString();
         }
 
@@ -5729,6 +6697,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 if (allReportsPanel) allReportsPanel.style.display = 'none';
                 if (cimmPanel) cimmPanel.style.display = 'none';
                 if (infraPanel) infraPanel.style.display = '';
+                if (citizenPanel) citizenPanel.style.display = 'none';
+            } else if (source === 'lgu_reports') {
+                // LGU Monitoring Reports filter: show ONLY the LGU Monitoring
+                // Reports panel. CIMM, Infrastructure and Citizen panels are
+                // hidden so only LGU monitoring reports are shown.
+                if (allReportsPanel) allReportsPanel.style.display = '';
+                if (cimmPanel) cimmPanel.style.display = 'none';
+                if (infraPanel) infraPanel.style.display = 'none';
                 if (citizenPanel) citizenPanel.style.display = 'none';
             } else if (source === 'transport') {
                 // Citizen Reports filter: show ONLY the Citizen Reports panel.
@@ -5812,14 +6788,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     if (sf && focusTarget.filterValue) sf.value = focusTarget.filterValue;
                     var stf = document.getElementById('statusFilter');
                     if (stf) stf.value = 'all';
-                    // Clear any client-side search filters so the row is visible.
-                    var searchInputs = document.querySelectorAll('.lgu-search-input, .citizen-search-input, .dept-search-input, .infra-search-input');
-                    searchInputs.forEach(function(inp) {
-                        if (inp) {
-                            inp.value = '';
-                            inp.dispatchEvent(new Event('input', { bubbles: true }));
-                        }
-                    });
                     row.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     row.classList.add('vm-row-focus');
                     setTimeout(function() { row.classList.remove('vm-row-focus'); }, 5000);
@@ -5877,19 +6845,95 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         showNotification('<?php echo htmlspecialchars($success_message); ?>', 'success');
         <?php endif; ?>
 
-        // CIMM Reports panel is now always visible (no tab filtering)
+        // AJAX panel pagination + server-side search (LGU, Citizen, CIMM).
+        let vmPanelPageLoading = false;
+        const vmPanelSearchTimers = {};
+        const vmPanelDom = {
+            lgu: { table: '#lguTable', pagination: 'lguPagination', badge: 'lguReportsBadge', search: 'lguSearchInput' },
+            citizen: { table: '#citizenTable', pagination: 'citizenPagination', badge: 'citizenReportsBadge', search: 'citizenSearchInput' },
+            cimm: { table: '#deptTable', pagination: 'cimmPagination', badge: 'cimmReportsBadge', search: 'deptSearchInput' }
+        };
 
-        // CIMM search functionality
-        document.getElementById('cimmSearchInput')?.addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase();
-            const table = document.getElementById('cimmTable');
-            if (!table) return;
-            const rows = table.querySelectorAll('tbody tr');
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(searchTerm) ? '' : 'none';
+        function mergePanelRowsJson(targetMap, rowsJson) {
+            if (!rowsJson || typeof rowsJson !== 'object') return;
+            Object.keys(rowsJson).forEach(function(key) {
+                targetMap[key] = rowsJson[key];
             });
+        }
+
+        function onPanelServerSearch(panel) {
+            if (!vmPanelDom[panel]) return;
+            clearTimeout(vmPanelSearchTimers[panel]);
+            vmPanelSearchTimers[panel] = setTimeout(function trySearch() {
+                if (vmPanelPageLoading) {
+                    vmPanelSearchTimers[panel] = setTimeout(trySearch, 150);
+                    return;
+                }
+                loadPanelPage(panel, 1);
+            }, 300);
+        }
+
+        async function loadPanelPage(panel, page) {
+            if (!panel || vmPanelPageLoading) return;
+            const dom = vmPanelDom[panel];
+            if (!dom) return;
+            const pageNum = Math.max(1, parseInt(page, 10) || 1);
+            const searchInput = document.getElementById(dom.search);
+            const q = searchInput ? searchInput.value.trim() : '';
+            const url = new URL(window.location.href);
+            url.searchParams.set('ajax', 'panel_page');
+            url.searchParams.set('panel', panel);
+            url.searchParams.set('page', String(pageNum));
+            url.searchParams.delete('lgu_q');
+            url.searchParams.delete('citizen_q');
+            url.searchParams.delete('cimm_q');
+            url.searchParams.delete('q');
+            if (q) url.searchParams.set('q', q);
+
+            const tbody = document.querySelector(dom.table + ' tbody');
+            const pagSlot = document.getElementById(dom.pagination);
+            const badge = document.getElementById(dom.badge);
+            if (!tbody || !pagSlot) return;
+
+            vmPanelPageLoading = true;
+            pagSlot.classList.add('is-loading');
+            try {
+                const res = await fetch(url.toString(), {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                    credentials: 'same-origin'
+                });
+                const data = await res.json();
+                if (!data || !data.success) throw new Error((data && data.message) || 'Failed to load page');
+                tbody.innerHTML = data.rows_html || '';
+                pagSlot.innerHTML = data.pagination_html || '';
+                if (badge && data.badge_text) badge.textContent = data.badge_text;
+                if (panel === 'lgu' && data.rows_json) mergePanelRowsJson(lguDataMap, data.rows_json);
+                if (panel === 'citizen' && data.rows_json) mergePanelRowsJson(citizenDataMap, data.rows_json);
+                if (panel === 'cimm' && data.rows_json) mergePanelRowsJson(cimmDataMap, data.rows_json);
+
+                const hist = new URL(window.location.href);
+                hist.searchParams.set(panel + '_page', String(data.page || pageNum));
+                if (q) hist.searchParams.set(panel + '_q', q);
+                else hist.searchParams.delete(panel + '_q');
+                hist.searchParams.delete('ajax');
+                hist.searchParams.delete('q');
+                window.history.replaceState({}, '', hist.toString());
+            } catch (err) {
+                console.error('Panel pagination failed:', err);
+            } finally {
+                pagSlot.classList.remove('is-loading');
+                vmPanelPageLoading = false;
+            }
+        }
+
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('.vm-page-btn[data-panel]');
+            if (!btn || btn.disabled || btn.classList.contains('disabled')) return;
+            e.preventDefault();
+            loadPanelPage(btn.getAttribute('data-panel'), btn.getAttribute('data-page'));
         });
+
+        // CIMM Reports panel is now always visible (no tab filtering)
 
         // LGU sort functionality
         let lguSortAsc = true;
@@ -5924,18 +6968,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         // CIMM & SQL report data maps (populated from PHP)
-        var cimmDataMap = {};
-        try {
-            console.log('Initializing cimmDataMap...');
-            var cimmDataRaw = JSON.parse('<?php echo addslashes(json_encode(array_column($cimm_reports, null, 'id'))); ?>');
-            if (typeof cimmDataRaw === 'object' && cimmDataRaw !== null) {
-                cimmDataMap = cimmDataRaw;
-            }
-            console.log('cimmDataMap initialized successfully');
-        } catch(e) {
-            console.error('Error initializing cimmDataMap:', e);
-            cimmDataMap = {};
-        }
+        var cimmDataMap = <?php echo json_encode(vm_build_cimm_rows_json($cimm_reports), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
         var sqlDataMap = {};
         <?php
         if ($sql_reports && method_exists($sql_reports, 'data_seek')):
@@ -6006,12 +7039,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         function statusBadgeHtml(status, label) {
             var colors = {
-                'pending':        'background:rgba(251,191,36,0.15);color:#f59e0b;',
-                'in-progress':    'background:rgba(59,130,246,0.15);color:#3b82f6;',
-                'completed':      'background:rgba(34,197,94,0.15);color:#22c55e;',
-                'resolved':       'background:rgba(34,197,94,0.15);color:#22c55e;',
-                'approved':       'background:rgba(34,197,94,0.15);color:#22c55e;',
-                'cancelled':      'background:rgba(220,53,69,0.15);color:#ef4444;'
+                'pending':        'background:rgba(249,115,22,0.1);color:#c2410c;',
+                'in-progress':    'background:rgba(55,98,200,0.1);color:#3762c8;',
+                'completed':      'background:rgba(5,150,105,0.1);color:#047857;',
+                'resolved':       'background:rgba(5,150,105,0.1);color:#047857;',
+                'approved':       'background:rgba(5,150,105,0.1);color:#047857;',
+                'cancelled':      'background:rgba(220,38,38,0.08);color:#dc2626;'
             };
             var c = colors[status] || '';
             return '<span style="display:inline-block;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;text-transform:capitalize;' + c + '">' + (label || status || '—') + '</span>';
@@ -6019,9 +7052,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         function priorityBadgeHtml(priority) {
             var colors = {
-                'high':   'background:rgba(220,53,69,0.15);color:#ef4444;',
-                'medium': 'background:rgba(251,191,36,0.15);color:#f59e0b;',
-                'low':    'background:rgba(34,197,94,0.15);color:#22c55e;'
+                'high':   'background:rgba(220,38,38,0.1);color:#dc2626;',
+                'medium': 'background:rgba(217,119,6,0.1);color:#d97706;',
+                'low':    'background:rgba(107,114,128,0.12);color:#4b5563;'
             };
             var p = (priority || 'medium').toLowerCase();
             var c = colors[p] || '';
@@ -6070,16 +7103,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             };
 
             var statusStyles = {
-                'pending':    {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
-                'approved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
-                'completed':  {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
-                'cancelled':  {bg:'rgba(220,53,69,0.15)',  color:'#ef4444'},
-                'in-progress':{bg:'rgba(59,130,246,0.15)', color:'#3b82f6'}
+                'pending':    {bg:'rgba(249,115,22,0.1)', color:'#c2410c'},
+                'approved':   {bg:'rgba(5,150,105,0.1)', color:'#047857'},
+                'completed':  {bg:'rgba(5,150,105,0.1)', color:'#047857'},
+                'cancelled':  {bg:'rgba(220,38,38,0.08)', color:'#dc2626'},
+                'in-progress':{bg:'rgba(55,98,200,0.1)', color:'#3762c8'}
             };
             var pStyles = {
-                'high':   {bg:'rgba(220,53,69,0.15)', color:'#ef4444'},
-                'medium': {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
-                'low':    {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'}
+                'high':   {bg:'rgba(220,38,38,0.1)', color:'#dc2626'},
+                'medium': {bg:'rgba(217,119,6,0.1)', color:'#d97706'},
+                'low':    {bg:'rgba(107,114,128,0.12)', color:'#4b5563'}
             };
 
             // Header
@@ -6093,9 +7126,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
             var badgesHtml = lguBadge(r.status || '—', ss.bg, ss.color);
             badgesHtml += lguBadge(r.priority || '—', ps.bg, ps.color);
+            var sourceColors = {
+                lgu: {bg:'rgba(55,98,200,0.1)', color:'#3762c8'},
+                transport: {bg:'rgba(55,98,200,0.1)', color:'#3762c8'},
+                cimm: {bg:'rgba(55,98,200,0.1)', color:'#3762c8'},
+                external: {bg:'rgba(55,98,200,0.1)', color:'#3762c8'},
+                maintenance: {bg:'rgba(55,98,200,0.1)', color:'#3762c8'}
+            };
+            var sc = sourceColors[(r.source || '').toLowerCase()] || {bg:'rgba(55,98,200,0.1)', color:'#3762c8'};
+            var sourceLabel = r.source === 'lgu' ? 'LGU Monitoring' : r.source === 'external' ? 'External (CIMM)' : r.source === 'transport' ? 'Citizen' : r.source === 'maintenance' ? 'Infrastructure' : (r.source || '—');
+            badgesHtml += lguBadge(sourceLabel, sc.bg, sc.color);
             var reportType = typeLabels[r.report_type] || r.report_type || '—';
             if (reportType !== '—') {
-                badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(55,98,200,0.12);color:#3762c8;">' + reportType + '</span>';
+                badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(55,98,200,0.1);color:#3762c8;">' + reportType + '</span>';
             }
             document.getElementById('lgu-badges').innerHTML = badgesHtml;
 
@@ -6109,9 +7152,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
             // Source & Department
             var sourceGrid = '';
-            var sourceLabel = r.source === 'lgu' ? 'LGU Staff' : r.source === 'external' ? 'External (CIMM)' : r.source === 'transport' ? 'Transportation' : r.source === 'maintenance' ? 'Maintenance' : r.source;
-            sourceGrid += lguInfoItem('server', 'Source', sourceLabel);
+            sourceGrid += lguInfoItem('server', 'Source', lguBadge(sourceLabel, sc.bg, sc.color));
             sourceGrid += lguInfoItem('building', 'Department', r.department);
+            if (r.created_by_name) {
+                sourceGrid += lguInfoItem('user', 'Created By', r.created_by_name);
+            }
             if (r.approved_at) {
                 sourceGrid += lguInfoItem('thumbs-up', 'Approved At', formatDate(r.approved_at));
             }
@@ -6120,11 +7165,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
             if (r.report_category === 'road') {
                 if (r.engineer) {
-                    sourceGrid += lguInfoItem('hard-hat', 'CIMM Engineer', r.engineer);
+                    sourceGrid += lguInfoItem('hard-hat', 'Engineer', r.engineer);
                 }
                 if (r.budget_allocation) {
-                    sourceGrid += lguInfoItem('money-bill-wave', 'CIMM Budget Allocation', '₱ ' + Number(r.budget_allocation).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+                    sourceGrid += lguInfoItem('money-bill-wave', 'Budget', '₱ ' + Number(r.budget_allocation).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
                 }
+                <?php if (!$is_road_supervisor): ?>
+                if (r.detected_district) {
+                    sourceGrid += lguInfoItem('map-pin', 'District', r.detected_district);
+                }
+                <?php endif; ?>
+                sourceGrid += lguInfoItem('calendar-plus', 'CIMM Starting Date', formatDate(r.cimm_starting_date));
+                sourceGrid += lguInfoItem('calendar-check', 'CIMM Estimated End Date', formatDate(r.cimm_estimated_end_date));
             }
             document.getElementById('lgu-source-grid').innerHTML = sourceGrid;
 
@@ -6147,13 +7199,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             var locationGrid = '';
             var locVal = r.location || '—';
             if (r.latitude && r.longitude) {
-                locVal += '<br><a href="https://www.google.com/maps?q=' + r.latitude + ',' + r.longitude + '" target="_blank" style="color:#3762c8;font-size:12px;text-decoration:none;"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map</a>';
+                locVal += '<br><a href="https://www.google.com/maps?q=' + r.latitude + ',' + r.longitude + '" target="_blank" class="vm-map-link"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map</a>';
             }
             locationGrid += '<div class="lgu-info-item lgu-info-value-full"><div class="lgu-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="lgu-info-label">Location</div><div class="lgu-info-value">' + locVal + '</div></div></div>';
             <?php if ($is_road_supervisor): ?>
             locationGrid += lguInfoItem('map-pin', 'District', r.detected_district);
             <?php endif; ?>
             document.getElementById('lgu-location-grid').innerHTML = locationGrid;
+
+            // View Map button: only shown when the report has a saved
+            // coordinate point (latitude / longitude).
+            currentLguPoint = (r.latitude != null && r.longitude != null)
+                ? [[parseFloat(r.latitude), parseFloat(r.longitude)]]
+                : null;
+            var lguMapBtn = document.getElementById('lgu-view-map-btn');
+            if (lguMapBtn) lguMapBtn.style.display = currentLguPoint ? '' : 'none';
+            var lguMapContainer = document.getElementById('lgu-map-container');
+            if (lguMapContainer) lguMapContainer.classList.remove('road-map-visible');
 
             // Description
             document.getElementById('lgu-description').textContent = r.description || 'No description provided.';
@@ -6176,7 +7238,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if (images.length > 0) {
                 attachHtml = '<div style="display:flex;gap:12px;flex-wrap:wrap;">';
                 images.forEach(function(path) {
-                    attachHtml += '<div style="border-radius:8px;overflow:hidden;max-width:200px;"><img src="../../' + path + '" alt="Report Photo" style="width:100%;height:auto;cursor:pointer;" onclick="openLightbox(this.src)" loading="lazy"></div>';
+                    attachHtml += '<div style="border-radius:8px;overflow:hidden;max-width:200px;"><img src="../../' + path + '" alt="Report Photo" style="width:100%;height:auto;cursor:pointer;" onclick="openLightbox(this.src)" loading="lazy" onerror="this.closest(\'div\').style.display=\'none\'"></div>';
                 });
                 attachHtml += '</div>';
             } else {
@@ -6234,17 +7296,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if (!r) { alert('Report data not found.'); return; }
 
             var statusStyles = {
-                'pending':    {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
-                'approved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
-                'completed':  {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
-                'cancelled':  {bg:'rgba(220,53,69,0.15)',  color:'#ef4444'},
-                'in-progress':{bg:'rgba(59,130,246,0.15)', color:'#3b82f6'},
-                'resolved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'}
+                'pending':    {bg:'rgba(249,115,22,0.1)', color:'#c2410c'},
+                'approved':   {bg:'rgba(5,150,105,0.1)', color:'#047857'},
+                'completed':  {bg:'rgba(5,150,105,0.1)', color:'#047857'},
+                'cancelled':  {bg:'rgba(220,38,38,0.08)', color:'#dc2626'},
+                'in-progress':{bg:'rgba(55,98,200,0.1)', color:'#3762c8'},
+                'resolved':   {bg:'rgba(5,150,105,0.1)', color:'#047857'}
             };
             var pStyles = {
-                'high':   {bg:'rgba(220,53,69,0.15)', color:'#ef4444'},
-                'medium': {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
-                'low':    {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'}
+                'high':   {bg:'rgba(220,38,38,0.1)', color:'#dc2626'},
+                'medium': {bg:'rgba(217,119,6,0.1)', color:'#d97706'},
+                'low':    {bg:'rgba(107,114,128,0.12)', color:'#4b5563'}
             };
 
             // Header
@@ -6258,13 +7320,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
             var badgesHtml = cimmBadge(r.status || '—', ss.bg, ss.color);
             if (r.verification_status && r.verification_status !== r.status) {
-                badgesHtml += cimmBadge(r.verification_status, 'rgba(55,98,200,0.12)', '#3762c8');
+                badgesHtml += cimmBadge(r.verification_status, 'rgba(55,98,200,0.1)', '#3762c8');
             }
             if (r.approval_status) {
-                badgesHtml += cimmBadge(r.approval_status, 'rgba(16,185,129,0.12)', '#10b981');
+                badgesHtml += cimmBadge(r.approval_status, 'rgba(5,150,105,0.1)', '#047857');
             }
             if (r.cimm_req_id) {
-                badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(55,98,200,0.12);color:#3762c8;">ID: ' + r.cimm_req_id + '</span>';
+                badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(107,114,128,0.12);color:#4b5563;">ID: ' + r.cimm_req_id + '</span>';
             }
             badgesHtml += cimmBadge(r.priority || '—', ps.bg, ps.color);
             document.getElementById('cimm-badges').innerHTML = badgesHtml;
@@ -6291,6 +7353,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             var locationGrid = '';
             locationGrid += '<div class="cimm-info-item cimm-info-value-full"><div class="cimm-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="cimm-info-label">Location</div><div class="cimm-info-value">' + (r.location || '—') + '</div></div></div>';
             document.getElementById('cimm-location-grid').innerHTML = locationGrid;
+
+            // View Map button: only shown when the report has a saved
+            // coordinate point (coord_lat / coord_lng).
+            currentCimmPoint = (r.latitude != null && r.longitude != null)
+                ? [[parseFloat(r.latitude), parseFloat(r.longitude)]]
+                : null;
+            var cimmMapBtn = document.getElementById('cimm-view-map-btn');
+            if (cimmMapBtn) cimmMapBtn.style.display = currentCimmPoint ? '' : 'none';
+            var cimmMapContainer = document.getElementById('cimm-map-container');
+            if (cimmMapContainer) cimmMapContainer.classList.remove('road-map-visible');
 
             // Issue / Notes
             document.getElementById('cimm-issue').textContent = r.issue_notes || 'No notes provided.';
@@ -6383,18 +7455,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             openCimmDetailModal();
         }
 
-        // Dept Reports search functionality
-        document.getElementById('deptSearchInput')?.addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase();
-            const table = document.getElementById('deptTable');
-            if (!table) return;
-            const rows = table.querySelectorAll('tbody tr');
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(searchTerm) ? '' : 'none';
-            });
-        });
-
         // Dept Reports sort functionality
         let deptSortAsc = true;
         function toggleDeptSort() {
@@ -6414,9 +7474,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         // Infra Reports data map (populated from PHP)
         var infraDataMap = {};
         <?php
-        if ($infra_reports && method_exists($infra_reports, 'data_seek') && $infra_reports->num_rows > 0):
-            $infra_reports->data_seek(0);
-            while ($ir = $infra_reports->fetch_assoc()):
+        if (!empty($infra_reports)):
+            foreach ($infra_reports as $ir):
         ?>
         (function() {
             try {
@@ -6427,27 +7486,113 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     title: <?php echo json_encode($ir['title']); ?>,
                     report_type: <?php echo json_encode($ir['report_type']); ?>,
                     department: <?php echo json_encode($ir['department']); ?>,
-                    priority: <?php echo json_encode($ir['priority']); ?>,
                     status: <?php echo json_encode($ir['status']); ?>,
                     location: <?php echo json_encode($ir['location']); ?>,
+                    start_address: <?php echo json_encode($ir['start_address'] ?? null); ?>,
+                    end_address: <?php echo json_encode($ir['end_address'] ?? null); ?>,
                     description: <?php echo json_encode($ir['description']); ?>,
                     created_date: <?php echo json_encode($ir['created_date']); ?>,
                     created_at: <?php echo json_encode($ir['created_at']); ?>,
                     due_date: <?php echo json_encode($ir['due_date']); ?>,
-                    reporter_name: <?php echo json_encode($ir['reporter_name'] ?? '—'); ?>,
                     estimated_cost: <?php echo json_encode($ir['estimated_cost'] ?? null); ?>,
                     actual_cost: <?php echo json_encode($ir['actual_cost'] ?? null); ?>,
-                    maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
-                    attachments: <?php echo json_encode($ir['attachments'] ?? null); ?>
+                    engineer: <?php echo json_encode($ir['engineer'] ?? null); ?>,
+                    start_date: <?php echo json_encode($ir['start_date'] ?? null); ?>,
+                    end_date: <?php echo json_encode($ir['end_date'] ?? null); ?>,
+                    budget: <?php echo json_encode($ir['budget'] ?? null); ?>,
+maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
+                    attachments: <?php echo json_encode($ir['attachments'] ?? null); ?>,
+                    polyline: <?php echo json_encode($ir['polyline'] ?? null); ?>
                 };
             } catch(e) {
                 console.error('Error adding infra report to map:', e);
             }
         })();
         <?php
-            endwhile;
+            endforeach;
         endif;
         ?>
+
+        // View Map — draws the report's saved location onto a Leaflet map with
+        // TomTom tiles, instead of showing raw data. Infrastructure Projects
+        // carry a polyline path (ipms_road_projects.polyline_json); CIMM reports
+        // carry a single coordinate point (coord_lat / coord_lng).
+        const TOMTOM_API_KEY = '<?php echo TOMTOM_API_KEY; ?>';
+        let currentInfraPolyline = null;
+        let currentCimmPoint = null;
+        let currentCitizenPoint = null;
+        let currentLguPoint = null;
+        let roadMapInstances = {};
+
+        // Shared map renderer for the Infrastructure and CIMM report modals.
+        // When asLine is true the points are drawn as a polyline path; otherwise
+        // the first point is drawn as a marker.
+        function openRoadPathMap(containerId, points, asLine) {
+            var container = document.getElementById(containerId);
+            if (!container) return;
+
+            if (!Array.isArray(points) || points.length < 1) {
+                alert('No map data available for this report.');
+                return;
+            }
+            if (typeof L === 'undefined') {
+                alert('Map library failed to load.');
+                return;
+            }
+
+            // Make the container visible first so Leaflet measures the correct
+            // size when the map is created (display:none containers report 0x0).
+            container.classList.add('road-map-visible');
+
+            var map = roadMapInstances[containerId];
+            if (!map) {
+                map = L.map(containerId, { zoomControl: true })
+                    .setView([14.6760, 121.0437], 12);
+                L.tileLayer('https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
+                    attribution: '© TomTom',
+                    maxZoom: 18
+                }).addTo(map);
+                roadMapInstances[containerId] = map;
+            }
+
+            // Remove any path/marker drawn for a previously-viewed report.
+            map.eachLayer(function(layer) {
+                if (layer instanceof L.Polyline || layer instanceof L.CircleMarker || layer instanceof L.Marker) {
+                    map.removeLayer(layer);
+                }
+            });
+
+            if (asLine && points.length >= 2) {
+                L.polyline(points, { color: '#f97316', weight: 5, opacity: 0.9 }).addTo(map);
+                map.fitBounds(L.latLngBounds(points).pad(0.25));
+            } else {
+                var pt = points[0];
+                L.circleMarker(pt, { radius: 8, color: '#f97316', fillColor: '#f97316', fillOpacity: 0.85, weight: 2 }).addTo(map);
+                map.setView(pt, 14);
+            }
+
+            // The modal animates open, which can leave the map with a stale
+            // size; force a refresh once the transition has finished.
+            setTimeout(function() {
+                if (map) map.invalidateSize();
+            }, 250);
+        }
+
+        function openInfraMap() {
+            openRoadPathMap('infra-map-container', currentInfraPolyline, true);
+        }
+
+        function openCimmMap() {
+            openRoadPathMap('cimm-map-container', currentCimmPoint, false);
+        }
+
+        function openCitizenMap() {
+            openRoadPathMap('cm-map-container', currentCitizenPoint, false);
+        }
+
+        function openLguMap() {
+            openRoadPathMap('lgu-map-container', currentLguPoint, false);
+        }
 
         // Infra Reports search functionality
         document.getElementById('infraSearchInput')?.addEventListener('input', function() {
@@ -6477,6 +7622,166 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             rows.forEach(row => tbody.appendChild(row));
         }
 
+        function escapeInfraHtml(str) {
+            return String(str == null ? '' : str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function truncateInfraText(str, maxLen) {
+            var text = String(str == null ? '' : str);
+            if (!text) return '—';
+            return text.length > maxLen ? text.slice(0, maxLen) + '...' : text;
+        }
+
+        function infraStatusClass(status) {
+            if (status === 'approved') return 'approved';
+            if (status === 'cancelled') return 'cancelled';
+            if (status === 'pending') return 'pending';
+            if (status === 'in-progress') return 'in-progress';
+            if (status === 'completed') return 'completed';
+            return '';
+        }
+
+        function infraFilterStatus(status) {
+            if (['approved', 'completed'].indexOf(status) !== -1) return 'approved';
+            if (status === 'cancelled') return 'rejected';
+            return 'pending';
+        }
+
+        function rebuildInfraTable(reports) {
+            var table = document.getElementById('infraTable');
+            if (!table) return;
+            var tbody = table.querySelector('tbody');
+            if (!tbody) return;
+
+            infraDataMap = {};
+            var badge = document.getElementById('infraReportsBadge');
+            if (badge) badge.textContent = (reports.length || 0) + ' Reports';
+
+            if (!reports.length) {
+                tbody.innerHTML =
+                    '<tr><td colspan="6"><div class="infra-empty-state">' +
+                    '<div class="infra-empty-icon"><i class="fas fa-hard-hat"></i></div>' +
+                    '<h4>No infrastructure projects yet</h4>' +
+                    '<p>Synced IPMS projects will appear here for verification.</p>' +
+                    '</div></td></tr>';
+                return;
+            }
+
+            var html = '';
+            reports.forEach(function(row) {
+                var id = parseInt(row.id, 10) || 0;
+                var source = row.source || 'maintenance';
+                var status = String(row.status || '');
+                var statusLabel = status.replace(/[-_]/g, ' ');
+                statusLabel = statusLabel ? statusLabel.charAt(0).toUpperCase() + statusLabel.slice(1) : '—';
+                var notes = truncateInfraText(row.issue_notes, 40);
+                var canAct = ['approved', 'cancelled'].indexOf(status) === -1;
+                var locRaw = row.start_address || '';
+                var locCell = locRaw
+                    ? '<span title="' + escapeInfraHtml(locRaw) + '">' + escapeInfraHtml(truncateInfraText(locRaw, 40)) + '</span>'
+                    : '—';
+
+                infraDataMap[id + '_' + source] = {
+                    id: id,
+                    source: source,
+                    report_id: row.report_id,
+                    title: row.title,
+                    report_type: row.report_type,
+                    department: row.department,
+                    status: row.status,
+                    location: row.location,
+                    start_address: row.start_address || null,
+                    end_address: row.end_address || null,
+                    description: row.description,
+                    created_date: row.created_date,
+                    created_at: row.created_at,
+                    due_date: row.due_date,
+                    estimated_cost: row.estimated_cost || null,
+                    actual_cost: row.actual_cost || null,
+                    maintenance_team: row.maintenance_team || '—',
+                    attachments: row.attachments || null,
+                    polyline: row.polyline || null,
+                    engineer: row.engineer || null,
+                    start_date: row.start_date || null,
+                    end_date: row.end_date || null,
+                    budget: row.budget || null
+                };
+
+                html += '<tr data-id="' + id + '" data-report-id="' + id + '" data-status="' + escapeInfraHtml(infraFilterStatus(status)) + '" data-source="maintenance">';
+                html += '<td><div class="infra-action-group">';
+                html += '<button class="infra-action-btn" onclick="viewInfraReport(' + id + ', \'' + escapeInfraHtml(source) + '\')"><i class="fas fa-eye"></i> View</button>';
+                if (canAct) {
+                    html += '<form method="POST" class="infra-action-form" onsubmit="return confirm(\'Are you sure you want to approve this infrastructure project?\');">';
+                    html += '<input type="hidden" name="report_id" value="' + id + '">';
+                    html += '<input type="hidden" name="source" value="infra">';
+                    html += '<button type="submit" name="action" value="approve" class="infra-verify-btn" title="Approve infrastructure project"><i class="fas fa-check"></i> Approve</button>';
+                    html += '</form>';
+                    html += '<form method="POST" class="infra-action-form" onsubmit="return confirm(\'Are you sure you want to reject this infrastructure project?\');">';
+                    html += '<input type="hidden" name="report_id" value="' + id + '">';
+                    html += '<input type="hidden" name="source" value="infra">';
+                    html += '<button type="submit" name="action" value="reject" class="infra-reject-btn" title="Reject infrastructure project"><i class="fas fa-times"></i> Reject</button>';
+                    html += '</form>';
+                }
+                html += '</div></td>';
+                html += '<td>' + escapeInfraHtml(row.report_id || '—') + '</td>';
+                html += '<td>' + escapeInfraHtml(row.infrastructure || '—') + '</td>';
+                html += '<td>' + locCell + '</td>';
+                html += '<td>' + escapeInfraHtml(notes) + '</td>';
+                html += '<td><span class="infra-status-badge ' + escapeInfraHtml(infraStatusClass(status)) + '">' + escapeInfraHtml(statusLabel) + '</span></td>';
+                html += '</tr>';
+            });
+
+            tbody.innerHTML = html;
+
+            var searchInput = document.getElementById('infraSearchInput');
+            if (searchInput && searchInput.value) {
+                searchInput.dispatchEvent(new Event('input'));
+            }
+        }
+
+        function syncInfraProjects(btn) {
+            if (!btn || btn.disabled) return;
+            var originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
+
+            fetch('../api/ipms-road-projects-pull.php', { credentials: 'same-origin' })
+                .then(function(r) {
+                    return r.json().then(function(j) {
+                        return { ok: r.ok, j: j };
+                    });
+                })
+                .then(function(res) {
+                    if (!res.ok || !res.j || !res.j.success) {
+                        throw new Error((res.j && res.j.message) || 'Sync failed');
+                    }
+                    return fetch('../api/ipms-infra-panel-data.php', { credentials: 'same-origin' });
+                })
+                .then(function(r) {
+                    return r.json().then(function(j) {
+                        return { ok: r.ok, j: j };
+                    });
+                })
+                .then(function(res) {
+                    if (!res.ok || !res.j || !res.j.success) {
+                        throw new Error((res.j && res.j.message) || 'Failed to refresh infrastructure projects');
+                    }
+                    rebuildInfraTable(Array.isArray(res.j.reports) ? res.j.reports : []);
+                    btn.disabled = false;
+                    btn.innerHTML = originalHtml;
+                })
+                .catch(function(err) {
+                    alert(err.message || 'Sync failed');
+                    btn.disabled = false;
+                    btn.innerHTML = originalHtml;
+                });
+        }
+
         // Helper: build an infra info item with icon
         function infraInfoItem(icon, label, value) {
             var displayVal = (value && value !== '—' && value !== null) ? value : '—';
@@ -6504,16 +7809,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             };
 
             var statusStyles = {
-                'pending':    {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
-                'approved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
-                'completed':  {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
-                'cancelled':  {bg:'rgba(220,53,69,0.15)',  color:'#ef4444'},
-                'in-progress':{bg:'rgba(59,130,246,0.15)', color:'#3b82f6'}
-            };
-            var pStyles = {
-                'high':   {bg:'rgba(220,53,69,0.15)', color:'#ef4444'},
-                'medium': {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
-                'low':    {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'}
+                'pending':    {bg:'rgba(249,115,22,0.1)', color:'#c2410c'},
+                'approved':   {bg:'rgba(5,150,105,0.1)', color:'#047857'},
+                'completed':  {bg:'rgba(5,150,105,0.1)', color:'#047857'},
+                'cancelled':  {bg:'rgba(220,38,38,0.08)', color:'#dc2626'},
+                'in-progress':{bg:'rgba(55,98,200,0.1)', color:'#3762c8'}
             };
 
             // Header
@@ -6522,13 +7822,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
             var st = (r.status || 'pending').toLowerCase();
             var ss = statusStyles[st] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
-            var pp = (r.priority || 'medium').toLowerCase();
-            var ps = pStyles[pp] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
 
             var sourceLabel = source === 'transport' ? 'Road & Transportation' : 'Maintenance';
             var badgesHtml = infraBadge(r.status || '—', ss.bg, ss.color);
-            badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(249,115,22,0.12);color:#f97316;">' + sourceLabel + '</span>';
-            badgesHtml += infraBadge(r.priority || '—', ps.bg, ps.color);
+            badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(55,98,200,0.1);color:#3762c8;">' + sourceLabel + '</span>';
             document.getElementById('infra-badges').innerHTML = badgesHtml;
 
             // Project Information
@@ -6547,16 +7844,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
             document.getElementById('infra-project-grid').innerHTML = projectGrid;
 
+            // Assigned Engineer & Schedule
+            var scheduleGrid = '';
+            scheduleGrid += infraInfoItem('hard-hat', 'Engineer', r.engineer || '—');
+            scheduleGrid += infraInfoItem('calendar-plus', 'Start Date', formatDate(r.start_date));
+            scheduleGrid += infraInfoItem('calendar-minus', 'End Date', formatDate(r.end_date));
+            scheduleGrid += infraInfoItem('money-bill-wave', 'Budget', r.budget ? formatCurrency(r.budget) : '—');
+            document.getElementById('infra-schedule-grid').innerHTML = scheduleGrid;
+
             // Reporter & Department
             var peopleGrid = '';
-            peopleGrid += infraInfoItem('user', 'Reported By', r.reporter_name);
             peopleGrid += infraInfoItem('hard-hat', 'Maintenance Team', r.maintenance_team);
             document.getElementById('infra-people-grid').innerHTML = peopleGrid;
 
-            // Location
+            // Location — start/end addresses from TomTom reverse geocode
             var locationGrid = '';
-            locationGrid += '<div class="infra-info-item infra-info-value-full"><div class="infra-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="infra-info-label">Location</div><div class="infra-info-value">' + (r.location || '—') + '</div></div></div>';
+            locationGrid += infraInfoItem('map-marker-alt', 'Start Address', r.start_address || '—');
+            locationGrid += infraInfoItem('map-marker', 'End Address', r.end_address || '—');
             document.getElementById('infra-location-grid').innerHTML = locationGrid;
+
+            // View Map button: only shown when the project has a saved road
+            // path (polyline_json). Stores the drawn path for the map.
+            currentInfraPolyline = (Array.isArray(r.polyline) && r.polyline.length >= 2)
+                ? r.polyline.map(function(pt) { return [pt[0], pt[1]]; })
+                : null;
+            var mapBtn = document.getElementById('infra-view-map-btn');
+            if (mapBtn) mapBtn.style.display = currentInfraPolyline ? '' : 'none';
+            var mapContainer = document.getElementById('infra-map-container');
+            if (mapContainer) mapContainer.classList.remove('road-map-visible');
 
             // Description
             document.getElementById('infra-description').textContent = r.description || 'No description provided.';
@@ -6579,7 +7894,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if (images.length > 0) {
                 attachHtml = '<div class="citizen-photo-gallery">';
                 images.forEach(function(path) {
-                    attachHtml += '<div class="citizen-photo-item"><img src="../../' + path + '" alt="Report Photo" onclick="openLightbox(this.src)" loading="lazy"></div>';
+                    attachHtml += '<div class="citizen-photo-item"><img src="../../' + path + '" alt="Report Photo" onclick="openLightbox(this.src)" loading="lazy" onerror="this.closest(\'.citizen-photo-item\').style.display=\'none\'"></div>';
                 });
                 attachHtml += '</div>';
             } else {
@@ -6622,106 +7937,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
         }
 
-        // Citizen Reports data map
-        var citizenDataMap = {};
-        <?php
-        if ($citizen_reports && method_exists($citizen_reports, 'data_seek') && $citizen_reports->num_rows > 0):
-            $citizen_reports->data_seek(0);
-            while ($cr = $citizen_reports->fetch_assoc()):
-        ?>
-        (function() {
-            try {
-                citizenDataMap[<?php echo (int)$cr['id']; ?>] = {
-                    id: <?php echo (int)$cr['id']; ?>,
-                    report_id: <?php echo json_encode($cr['report_id']); ?>,
-                    title: <?php echo json_encode($cr['title']); ?>,
-                    report_type: <?php echo json_encode($cr['report_type']); ?>,
-                    report_category: <?php echo json_encode($cr['report_category']); ?>,
-                    department: <?php echo json_encode($cr['department']); ?>,
-                    priority: <?php echo json_encode($cr['priority']); ?>,
-                    status: <?php echo json_encode($cr['status']); ?>,
-                    location: <?php echo json_encode($cr['location']); ?>,
-                    latitude: <?php echo json_encode($cr['latitude'] ?? null); ?>,
-                    longitude: <?php echo json_encode($cr['longitude'] ?? null); ?>,
-                    description: <?php echo json_encode($cr['description']); ?>,
-                    created_at: <?php echo json_encode($cr['created_at']); ?>,
-                    updated_at: <?php echo json_encode($cr['updated_at']); ?>,
-                    approved_at: <?php echo json_encode($cr['approved_at']); ?>,
-                    rejected_at: <?php echo json_encode($cr['rejected_at']); ?>,
-                    reporter_name: <?php echo json_encode($cr['reporter_name'] ?? '—'); ?>,
-                    reporter_email: <?php echo json_encode($cr['reporter_email'] ?? '—'); ?>,
-                    reporter_phone: <?php echo json_encode($cr['reporter_phone'] ?? '—'); ?>,
-                    image_path: <?php echo json_encode($cr['image_path'] ?? null); ?>,
-                    attachments: <?php echo json_encode($cr['attachments'] ?? null); ?>
-                };
-            } catch(e) {
-                console.error('Error adding citizen report to map:', e);
-            }
-        })();
-        <?php
-            endwhile;
-            $citizen_reports->data_seek(0);
-        endif;
-        ?>
+        // Citizen Reports data map (current page; AJAX merges additional pages)
+        var citizenDataMap = <?php echo json_encode(vm_build_citizen_rows_json($citizen_reports_list), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
 
-        // LGU Reports data map
-        var lguDataMap = {};
-        <?php
-        if ($all_reports && method_exists($all_reports, 'data_seek') && $all_reports->num_rows > 0):
-            $all_reports->data_seek(0);
-            while ($lr = $all_reports->fetch_assoc()):
-        ?>
-        (function() {
-            try {
-                lguDataMap[<?php echo (int)$lr['id']; ?>] = {
-                    id: <?php echo (int)$lr['id']; ?>,
-                    report_id: <?php echo json_encode($lr['report_id']); ?>,
-                    title: <?php echo json_encode($lr['title']); ?>,
-                    report_type: <?php echo json_encode($lr['report_type']); ?>,
-                    report_category: <?php echo json_encode($lr['report_category'] ?? null); ?>,
-                    source: <?php echo json_encode($lr['source']); ?>,
-                    department: <?php echo json_encode($lr['department']); ?>,
-                    priority: <?php echo json_encode($lr['priority']); ?>,
-                    status: <?php echo json_encode($lr['status']); ?>,
-                    location: <?php echo json_encode($lr['location']); ?>,
-                    latitude: <?php echo json_encode($lr['latitude'] ?? null); ?>,
-                    longitude: <?php echo json_encode($lr['longitude'] ?? null); ?>,
-                    detected_district: <?php echo json_encode($lr['detected_district'] ?? null); ?>,
-                    description: <?php echo json_encode($lr['description']); ?>,
-                    attachments: <?php echo json_encode($lr['attachments'] ?? null); ?>,
-                    created_at: <?php echo json_encode($lr['created_at']); ?>,
-                    updated_at: <?php echo json_encode($lr['updated_at']); ?>,
-                    approved_at: <?php echo json_encode($lr['approved_at']); ?>,
-                    rejected_at: <?php echo json_encode($lr['rejected_at']); ?>,
-                    engineer: <?php echo json_encode($lr['engineer'] ?? null); ?>,
-                    budget_allocation: <?php echo json_encode($lr['budget_allocation'] ?? null); ?>
-                    <?php if ($is_road_supervisor): ?>,
-                    creator_full_name: <?php echo json_encode($lr['creator_full_name'] ?? null); ?>,
-                    creator_phone: <?php echo json_encode($lr['creator_phone'] ?? null); ?>,
-                    creator_email: <?php echo json_encode($lr['creator_email'] ?? null); ?>
-                    <?php endif; ?>
-                };
-            } catch(e) {
-                console.error('Error adding LGU report to map:', e);
-            }
-        })();
-        <?php
-            endwhile;
-            $all_reports->data_seek(0);
-        endif;
-        ?>
+        // LGU Reports data map (current page; AJAX merges additional pages)
+        var lguDataMap = <?php echo json_encode(vm_build_lgu_rows_json($lgu_reports_list, $lgu_creator_map, $is_transport_supervisor, $is_road_supervisor), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
 
-        // Citizen Reports search functionality
-        document.getElementById('citizenSearchInput')?.addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase();
-            const table = document.getElementById('citizenTable');
-            if (!table) return;
-            const rows = table.querySelectorAll('tbody tr');
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(searchTerm) ? '' : 'none';
-            });
-        });
 
         // Citizen Reports sort functionality
         let citizenSortAsc = true;
@@ -6756,6 +7977,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if (!r) { alert('Report data not found.'); return; }
 
             var typeLabels = {
+                'traffic_jam': 'Traffic Jam',
+                'accident': 'Accident',
+                'road_closure': 'Road Closure',
+                'traffic_light_outage': 'Traffic Light',
+                'congestion': 'Congestion',
+                'parking_violation': 'Parking Violation',
+                'public_transport_issue': 'Public Transport',
                 'pothole': 'Pothole',
                 'flooding': 'Flooding',
                 'road_damage': 'Road Damage',
@@ -6766,16 +7994,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             };
 
             var statusStyles = {
-                'pending':    {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
-                'approved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
-                'completed':  {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
-                'cancelled':  {bg:'rgba(220,53,69,0.15)',  color:'#ef4444'},
-                'in-progress':{bg:'rgba(59,130,246,0.15)', color:'#3b82f6'}
+                'pending':    {bg:'rgba(249,115,22,0.1)', color:'#c2410c'},
+                'approved':   {bg:'rgba(5,150,105,0.1)', color:'#047857'},
+                'completed':  {bg:'rgba(5,150,105,0.1)', color:'#047857'},
+                'cancelled':  {bg:'rgba(220,38,38,0.08)', color:'#dc2626'},
+                'in-progress':{bg:'rgba(55,98,200,0.1)', color:'#3762c8'}
             };
             var pStyles = {
-                'high':   {bg:'rgba(220,53,69,0.15)', color:'#ef4444'},
-                'medium': {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
-                'low':    {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'}
+                'high':   {bg:'rgba(220,38,38,0.1)', color:'#dc2626'},
+                'medium': {bg:'rgba(217,119,6,0.1)', color:'#d97706'},
+                'low':    {bg:'rgba(107,114,128,0.12)', color:'#4b5563'}
             };
 
             // Header
@@ -6791,13 +8019,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             badgesHtml += cmBadge(r.priority || '—', ps.bg, ps.color);
             var reportType = typeLabels[r.report_type] || r.report_type || '—';
             if (reportType !== '—') {
-                badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(22,163,74,0.12);color:#16a34a;">' + reportType + '</span>';
+                badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(55,98,200,0.1);color:#3762c8;">' + reportType + '</span>';
             }
             document.getElementById('cm-badges').innerHTML = badgesHtml;
 
             // Report Information
             var reportGrid = '';
-            reportGrid += cmInfoItem('folder', 'Report Category', r.report_category);
+            reportGrid += cmInfoItem('folder', 'Report Type', reportType);
+            reportGrid += cmInfoItem('tag', 'Report Category', r.report_category);
             reportGrid += cmInfoItem('building', 'Department', r.department);
             reportGrid += cmInfoItem('calendar-alt', 'Created Date', formatDate(r.created_at));
             reportGrid += cmInfoItem('sync-alt', 'Last Updated', formatDate(r.updated_at));
@@ -6814,10 +8043,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             var locationGrid = '';
             var locVal = r.location || '—';
             if (r.latitude && r.longitude) {
-                locVal += '<br><a href="https://www.google.com/maps?q=' + r.latitude + ',' + r.longitude + '" target="_blank" style="color:#16a34a;font-size:12px;text-decoration:none;"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map</a>';
+                locVal += '<br><a href="https://www.google.com/maps?q=' + r.latitude + ',' + r.longitude + '" target="_blank" class="vm-map-link"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map</a>';
             }
             locationGrid += '<div class="citizen-info-item citizen-info-value-full"><div class="citizen-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="citizen-info-label">Location</div><div class="citizen-info-value">' + locVal + '</div></div></div>';
             document.getElementById('cm-location-grid').innerHTML = locationGrid;
+
+            // View Map button: only shown when the report has a saved
+            // coordinate point (latitude / longitude).
+            currentCitizenPoint = (r.latitude != null && r.longitude != null)
+                ? [[parseFloat(r.latitude), parseFloat(r.longitude)]]
+                : null;
+            var cmMapBtn = document.getElementById('cm-view-map-btn');
+            if (cmMapBtn) cmMapBtn.style.display = currentCitizenPoint ? '' : 'none';
+            var cmMapContainer = document.getElementById('cm-map-container');
+            if (cmMapContainer) cmMapContainer.classList.remove('road-map-visible');
 
             // Description
             document.getElementById('cm-description').textContent = r.description || 'No description provided.';
@@ -6843,7 +8082,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if (images.length > 0) {
                 attachHtml = '<div class="citizen-photo-gallery">';
                 images.forEach(function(path) {
-                    attachHtml += '<div class="citizen-photo-item"><img src="../../' + path + '" alt="Report Photo" onclick="openLightbox(this.src)" loading="lazy"></div>';
+                    attachHtml += '<div class="citizen-photo-item"><img src="../../' + path + '" alt="Report Photo" onclick="openLightbox(this.src)" loading="lazy" onerror="this.closest(\'.citizen-photo-item\').style.display=\'none\'"></div>';
                 });
                 attachHtml += '</div>';
             } else {
@@ -6999,8 +8238,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 </div>
                 <!-- Location -->
                 <div class="citizen-modal-section" id="cm-section-location">
-                    <div class="citizen-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location</div>
+                    <div class="citizen-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location
+                        <button type="button" id="cm-view-map-btn" class="citizen-view-map-btn" style="display:none;" onclick="openCitizenMap()">
+                            <i class="fas fa-map-marked-alt"></i> View Map
+                        </button>
+                    </div>
                     <div class="citizen-info-grid" id="cm-location-grid"></div>
+                    <div class="road-map-container" id="cm-map-container"></div>
                 </div>
                 <!-- Description -->
                 <div class="citizen-modal-section" id="cm-section-description">
@@ -7052,8 +8296,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 </div>
                 <!-- Location -->
                 <div class="cimm-modal-section">
-                    <div class="cimm-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location</div>
+                    <div class="cimm-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location
+                        <button type="button" id="cimm-view-map-btn" class="cimm-view-map-btn" style="display:none;" onclick="openCimmMap()">
+                            <i class="fas fa-map-marked-alt"></i> View Map
+                        </button>
+                    </div>
                     <div class="cimm-info-grid" id="cimm-location-grid"></div>
+                    <div class="road-map-container" id="cimm-map-container"></div>
                 </div>
                 <!-- Issue / Notes -->
                 <div class="cimm-modal-section">
@@ -7098,6 +8347,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <div class="infra-modal-section-title"><i class="fas fa-info-circle"></i> Project Information</div>
                     <div class="infra-info-grid" id="infra-project-grid"></div>
                 </div>
+                <!-- Engineer & Schedule -->
+                <div class="infra-modal-section">
+                    <div class="infra-modal-section-title"><i class="fas fa-calendar-alt"></i> Engineer &amp; Schedule</div>
+                    <div class="infra-info-grid" id="infra-schedule-grid"></div>
+                </div>
                 <!-- Reporter / Department -->
                 <div class="infra-modal-section">
                     <div class="infra-modal-section-title"><i class="fas fa-user"></i> Reporter &amp; Department</div>
@@ -7105,8 +8359,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 </div>
                 <!-- Location -->
                 <div class="infra-modal-section">
-                    <div class="infra-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location</div>
+                    <div class="infra-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location
+                        <button type="button" id="infra-view-map-btn" class="infra-view-map-btn" style="display:none;" onclick="openInfraMap()">
+                            <i class="fas fa-map-marked-alt"></i> View Map
+                        </button>
+                    </div>
                     <div class="infra-info-grid" id="infra-location-grid"></div>
+                    <div class="road-map-container" id="infra-map-container"></div>
                 </div>
                 <!-- Description -->
                 <div class="infra-modal-section">
@@ -7163,8 +8422,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 </div>
                 <!-- Location -->
                 <div class="lgu-modal-section">
-                    <div class="lgu-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location</div>
+                    <div class="lgu-modal-section-title"><i class="fas fa-map-marker-alt"></i> Location
+                        <button type="button" id="lgu-view-map-btn" class="lgu-view-map-btn" style="display:none;" onclick="openLguMap()">
+                            <i class="fas fa-map-marked-alt"></i> View Map
+                        </button>
+                    </div>
                     <div class="lgu-info-grid" id="lgu-location-grid"></div>
+                    <div class="road-map-container" id="lgu-map-container"></div>
                 </div>
                 <!-- Description -->
                 <div class="lgu-modal-section">
@@ -7208,6 +8472,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
     <!-- Session timeout data -->
     <script id="sessionTimeoutData" data-timeout="<?php echo $session_timeout; ?>"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="../../js/session-timeout.js"></script>
 </body>
 </html>
@@ -7259,12 +8524,7 @@ function getTimeAgo($datetime) {
 // Determine if a report can be verified locally
 // Road reports created by this LGU (local source) must go to external Engineering Office
 // Transportation reports and external reports can be verified here
-function canVerifyReport($category, $source) {
-    // Local road reports (category='road', source='local') must be verified
-    // by the external Engineering Office (CIMM) and cannot be directly
-    // approved by local admin staff
-    return !($category === 'road' && $source === 'local');
-}
+// (canVerifyReport lives in verification_panel_pagination.php)
 
 function getActivityTitle($activity) {
     $status = $activity['status'];

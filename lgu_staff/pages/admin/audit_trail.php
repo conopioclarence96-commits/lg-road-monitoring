@@ -11,6 +11,9 @@ if (!is_logged_in()) {
 $user_id = $_SESSION['user_id'];
 $user_role = $_SESSION['role'] ?? 'citizen';
 
+// Font color overrides below apply to the system admin only.
+$is_system_admin = ($user_role === 'system_admin');
+
 $page = max(1, intval($_GET['page'] ?? 1));
 $per_page = 25;
 $offset = ($page - 1) * $per_page;
@@ -25,8 +28,8 @@ $params = [];
 $types = '';
 
 if ($action_filter) {
-    $where[] = "a.action LIKE ?";
-    $params[] = "%{$action_filter}%";
+    $where[] = "a.action = ?";
+    $params[] = $action_filter;
     $types .= "s";
 }
 
@@ -37,14 +40,14 @@ if ($user_filter > 0) {
 }
 
 if ($date_from) {
-    $where[] = "DATE(a.created_at) >= ?";
-    $params[] = $date_from;
+    $where[] = "a.created_at >= ?";
+    $params[] = $date_from . ' 00:00:00';
     $types .= "s";
 }
 
 if ($date_to) {
-    $where[] = "DATE(a.created_at) <= ?";
-    $params[] = $date_to;
+    $where[] = "a.created_at <= ?";
+    $params[] = $date_to . ' 23:59:59';
     $types .= "s";
 }
 
@@ -140,21 +143,46 @@ function getActionColor($action) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../../css/theme-tokens.css">
     <link rel="stylesheet" href="../../css/theme-utilities.css">
-    <link rel="stylesheet" href="../../css/sidebar.css">
+    <link rel="stylesheet" href="../../css/sidebar.css?v=3">
     <link rel="stylesheet" href="../../css/enhanced-reports.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
+    <style>
+        <?php if ($is_system_admin): ?>
+        /* Match the admin portal font colors (system_admin only) */
+        .page-header h1 { color: #1e3c72; }
+        .panel-title { color: #1e3c72; }
+        body.dark-mode .page-header h1 { color: #e4e6ea !important; }
+        body.dark-mode .page-header p { color: #9ca3af !important; }
+        body.dark-mode .panel-title { color: #e4e6ea !important; }
+        body.dark-mode .header-actions span { color: #9ca3af !important; }
+        body.dark-mode .panel-header span { color: #9ca3af !important; }
+        body.dark-mode .filter-bar label { color: #9ca3af !important; }
+        body.dark-mode .filter-bar select,
+        body.dark-mode .filter-bar input { color: #e4e6ea !important; }
+        body.dark-mode .timeline-time { color: #9ca3af !important; }
+        body.dark-mode .timeline-title { color: #e4e6ea !important; }
+        body.dark-mode .timeline-title span { color: #9ca3af !important; }
+        body.dark-mode .timeline-desc { color: #9ca3af !important; }
+        body.dark-mode .panel-body > div { color: #9ca3af !important; }
+        body.dark-mode .pagination a,
+        body.dark-mode .pagination span { color: #9ca3af !important; }
+        <?php endif; ?>
+    </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
     <?php include '../../includes/sidebar_nav.php'; ?>
 
-    <div style="margin-left: 250px; padding: 28px; position: relative; z-index: 1;">
+    <div class="main-content" style="padding: 28px; position: relative; z-index: 1;">
         <div class="page-header">
             <div>
                 <h1><i class="fas fa-history"></i> Audit Trail</h1>
                 <p>Comprehensive system activity log with filtering and search</p>
             </div>
             <div class="header-actions">
+                <a class="btn btn-outline" href="../api/export_audit_trail.php" style="text-decoration:none;">
+                    <i class="fas fa-file-export"></i> Export
+                </a>
                 <button class="btn btn-outline" onclick="location.reload()">
                     <i class="fas fa-sync-alt"></i> Refresh
                 </button>
@@ -171,8 +199,8 @@ function getActionColor($action) {
             <div class="panel-body">
                 <form method="GET" class="filter-bar">
                     <div>
-                        <label style="font-size: 11px; color: var(--text-secondary); font-weight: 500; display: block; margin-bottom: 4px;">Action</label>
-                        <select name="action">
+                        <label for="action" style="font-size: 11px; color: var(--text-secondary); font-weight: 500; display: block; margin-bottom: 4px;">Action</label>
+                        <select name="action" id="action">
                             <option value="">All Actions</option>
                             <?php foreach ($actions_list as $a): ?>
                             <option value="<?php echo htmlspecialchars($a['action']); ?>" <?php echo $action_filter === $a['action'] ? 'selected' : ''; ?>>
@@ -182,8 +210,8 @@ function getActionColor($action) {
                         </select>
                     </div>
                     <div>
-                        <label style="font-size: 11px; color: var(--text-secondary); font-weight: 500; display: block; margin-bottom: 4px;">User</label>
-                        <select name="user_id">
+                        <label for="user_id" style="font-size: 11px; color: var(--text-secondary); font-weight: 500; display: block; margin-bottom: 4px;">User</label>
+                        <select name="user_id" id="user_id">
                             <option value="">All Users</option>
                             <?php foreach ($users as $u): ?>
                             <option value="<?php echo $u['id']; ?>" <?php echo $user_filter === intval($u['id']) ? 'selected' : ''; ?>>
@@ -193,12 +221,12 @@ function getActionColor($action) {
                         </select>
                     </div>
                     <div>
-                        <label style="font-size: 11px; color: var(--text-secondary); font-weight: 500; display: block; margin-bottom: 4px;">From</label>
-                        <input type="date" name="date_from" value="<?php echo htmlspecialchars($date_from); ?>">
+                        <label for="date_from" style="font-size: 11px; color: var(--text-secondary); font-weight: 500; display: block; margin-bottom: 4px;">From</label>
+                        <input type="date" name="date_from" id="date_from" value="<?php echo htmlspecialchars($date_from); ?>">
                     </div>
                     <div>
-                        <label style="font-size: 11px; color: var(--text-secondary); font-weight: 500; display: block; margin-bottom: 4px;">To</label>
-                        <input type="date" name="date_to" value="<?php echo htmlspecialchars($date_to); ?>">
+                        <label for="date_to" style="font-size: 11px; color: var(--text-secondary); font-weight: 500; display: block; margin-bottom: 4px;">To</label>
+                        <input type="date" name="date_to" id="date_to" value="<?php echo htmlspecialchars($date_to); ?>">
                     </div>
                     <div style="align-self: flex-end;">
                         <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> Apply</button>

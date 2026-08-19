@@ -145,6 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($action === 'approve_change' && $user_id > 0) {
         $request_id = intval($_POST['request_id'] ?? 0);
         $cr_user_id = intval($_POST['cr_user_id'] ?? 0);
+        $new_full_name = sanitize_input($_POST['new_full_name'] ?? '');
         $new_email = sanitize_input($_POST['new_email'] ?? '');
         $new_address = sanitize_input($_POST['new_address'] ?? '');
         $new_civil_status = sanitize_input($_POST['new_civil_status'] ?? '');
@@ -156,9 +157,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $admin_notes = sanitize_input($_POST['admin_notes'] ?? '');
 
         if ($request_id > 0 && $cr_user_id > 0) {
-            $sql = "UPDATE users SET email = ?, address = ?, civil_status = ?, birthday = ?, phone_number = ?";
-            $params = [$new_email, $new_address, $new_civil_status, $new_birthday, $new_phone_number];
-            $types = "sssss";
+            $sql = "UPDATE users SET full_name = ?, email = ?, address = ?, civil_status = ?, birthday = ?, phone_number = ?";
+            $params = [$new_full_name, $new_email, $new_address, $new_civil_status, $new_birthday, $new_phone_number];
+            $types = "ssssss";
 
             if (!empty($new_password)) {
                 $sql .= ", password = ?";
@@ -300,7 +301,7 @@ if ($focus_cr_id > 0) {
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../../css/theme-tokens.css">
     <link rel="stylesheet" href="../../css/theme-utilities.css">
-    <link rel="stylesheet" href="../../css/sidebar.css">
+    <link rel="stylesheet" href="../../css/sidebar.css?v=3">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <style>
@@ -582,8 +583,9 @@ if ($focus_cr_id > 0) {
                                         $req_data = json_decode($cr['requested_data'], true);
                                     ?>
                                         <?php
-                                            $fields = ['email', 'address', 'civil_status', 'birthday', 'phone_number'];
+                                            $fields = ['full_name', 'email', 'address', 'civil_status', 'birthday', 'phone_number'];
                                             $current_map = [
+                                                'full_name' => $cr['user_name'],
                                                 'email' => $cr['user_email'],
                                                 'address' => $cr['user_address'],
                                                 'civil_status' => $cr['user_civil_status'],
@@ -716,6 +718,7 @@ if ($focus_cr_id > 0) {
                 <input type="hidden" id="crRequestId" name="request_id">
                 <input type="hidden" id="crUserId" name="cr_user_id">
                 <input type="hidden" id="crAdminUserId" name="user_id" value="<?php echo $_SESSION['user_id']; ?>">
+                <input type="hidden" id="crFullName" name="new_full_name">
                 <input type="hidden" id="crIdFilePath" name="new_id_file_path">
                 <input type="hidden" id="crProfilePicture" name="new_profile_picture">
                 <input type="hidden" id="crEmail" name="new_email">
@@ -733,6 +736,10 @@ if ($focus_cr_id > 0) {
                 <div class="cr-modal-section cr-requested">
                     <div class="cr-modal-section-title"><i class="fas fa-pen"></i> Requested Changes</div>
                     <div class="cr-compare-grid">
+                        <div class="cr-compare-item">
+                            <span class="cr-compare-label">Full Name</span>
+                            <div class="cr-compare-new" id="crFullNameDisplay">--</div>
+                        </div>
                         <div class="cr-compare-item">
                             <span class="cr-compare-label">Email</span>
                             <div class="cr-compare-new" id="crEmailDisplay">--</div>
@@ -875,6 +882,7 @@ if ($focus_cr_id > 0) {
             // Current information grid
             var currentHtml = '';
             var fields = [
+                { key: 'full_name', label: 'Full Name', value: cr.user_name },
                 { key: 'email', label: 'Email', value: cr.user_email },
                 { key: 'address', label: 'Address', value: cr.user_address },
                 { key: 'civil_status', label: 'Civil Status', value: cr.user_civil_status ? cr.user_civil_status.charAt(0).toUpperCase() + cr.user_civil_status.slice(1) : 'N/A' },
@@ -893,6 +901,10 @@ if ($focus_cr_id > 0) {
             document.getElementById('crCurrentGrid').innerHTML = currentHtml;
 
             // Requested changes
+            document.getElementById('crFullName').value = data.full_name || cr.user_name || '';
+            document.getElementById('crFullNameDisplay').textContent = data.full_name || 'N/A';
+            document.getElementById('crFullNameDisplay').className = (data.full_name && data.full_name !== cr.user_name) ? 'cr-compare-new' : 'cr-compare-new no-change';
+
             document.getElementById('crEmail').value = data.email || cr.user_email || '';
             document.getElementById('crEmailDisplay').textContent = data.email || 'N/A';
             document.getElementById('crEmailDisplay').className = (data.email && data.email !== cr.user_email) ? 'cr-compare-new' : 'cr-compare-new no-change';
@@ -1043,8 +1055,9 @@ if ($focus_cr_id > 0) {
         function renderChangeRequestRow(cr) {
             var reqData = {};
             try { reqData = JSON.parse(cr.requested_data); } catch(e) {}
-            var fields = ['email', 'address', 'civil_status', 'birthday', 'phone_number'];
+            var fields = ['full_name', 'email', 'address', 'civil_status', 'birthday', 'phone_number'];
             var currentMap = {
+                'full_name': cr.user_name,
                 'email': cr.user_email,
                 'address': cr.user_address,
                 'civil_status': cr.user_civil_status,

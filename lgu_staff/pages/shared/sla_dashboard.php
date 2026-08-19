@@ -111,7 +111,7 @@ log_audit_action($user_id, "Viewed SLA dashboard", "Tracked reports: " . count($
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../../css/theme-tokens.css">
     <link rel="stylesheet" href="../../css/theme-utilities.css">
-    <link rel="stylesheet" href="../../css/sidebar.css">
+    <link rel="stylesheet" href="../../css/sidebar.css?v=3">
     <link rel="stylesheet" href="../../css/enhanced-reports.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
@@ -120,7 +120,7 @@ log_audit_action($user_id, "Viewed SLA dashboard", "Tracked reports: " . count($
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
     <?php include '../../includes/sidebar_nav.php'; ?>
 
-    <div style="margin-left: 250px; padding: 28px; position: relative; z-index: 1;">
+    <div class="main-content" style="padding: 28px; position: relative; z-index: 1;">
         <div class="page-header">
             <div>
                 <h1><i class="fas fa-gavel"></i> SLA Compliance Dashboard</h1>

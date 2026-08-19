@@ -9,6 +9,15 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../../includes/config.php';
 require_once __DIR__ . '/../../includes/functions.php';
 
+// CSRF protection: every action on this endpoint must carry a token matching
+// the one stored in the session (generated when the landing page renders).
+$csrf_token = $_POST['csrf_token'] ?? '';
+if (empty($csrf_token) || empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $csrf_token)) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => 'Your session has expired. Please refresh the page and try again.']);
+    exit;
+}
+
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
 switch ($action) {
@@ -160,6 +169,7 @@ function handleSubmitReport() {
     $allowed = ['jpg', 'jpeg', 'png'];
 
     $totalFiles = count($_FILES['photos']['name']);
+    $uploadErrors = [];
     for ($i = 0; $i < $totalFiles; $i++) {
         $file = [
             'name' => $_FILES['photos']['name'][$i],
@@ -180,7 +190,20 @@ function handleSubmitReport() {
             if ($imagePath === null) {
                 $imagePath = 'uploads/report_images/' . $result['filename'];
             }
+        } else {
+            $uploadErrors[] = $result['error'];
         }
+    }
+
+    if (count($attachments) < 2) {
+        // Remove any partial uploads so orphaned files are not left behind.
+        foreach ($attachments as $a) {
+            $partial = $uploadDir . '/' . $a['filename'];
+            if (file_exists($partial)) @unlink($partial);
+        }
+        $detail = $uploadErrors ? ' ' . implode(' ', array_unique($uploadErrors)) : '';
+        echo json_encode(['success' => false, 'message' => 'Please upload at least 2 valid photos before submitting your report.' . $detail]);
+        return;
     }
 
     global $conn;
@@ -188,7 +211,9 @@ function handleSubmitReport() {
         try {
             $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS reporter_name VARCHAR(100) AFTER reporter_email");
             $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS reporter_phone VARCHAR(20) AFTER reporter_name");
-        } catch (Exception $e) {}
+        } catch (Exception $e) {
+            error_log("citizen_report column migration: " . $e->getMessage());
+        }
 
         $stmt = $conn->prepare("INSERT INTO road_transportation_reports 
             (report_id, report_type, report_category, report_source, title, description, 
@@ -232,7 +257,13 @@ function handleSubmitReport() {
 
         $stmt->close();
     } catch (Exception $e) {
-        echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+        error_log("citizen_report submit_report insert error: " . $e->getMessage());
+        // Clean up uploaded files so a failed submission does not leave orphans.
+        foreach ($attachments as $a) {
+            $orphan = $uploadDir . '/' . $a['filename'];
+            if (file_exists($orphan)) @unlink($orphan);
+        }
+        echo json_encode(['success' => false, 'message' => 'We could not submit your report due to a temporary issue. Please try again later.']);
     }
 }
 

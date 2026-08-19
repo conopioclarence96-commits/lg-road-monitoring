@@ -62,20 +62,72 @@ function rgmap_ensure_ipms_road_projects_table(PDO $pdo): void {
         end_lng             DECIMAL(10,7) NULL,
         barangays_json      TEXT         NULL,
         districts_json      TEXT         NULL,
+        budget              DECIMAL(15,2) NULL,
+        assigned_engineers_json TEXT     NULL,
         payload_json        LONGTEXT     NULL,
         synced_at           TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        status              VARCHAR(50)  NULL DEFAULT NULL,
+        priority            VARCHAR(20)  NULL DEFAULT NULL,
+        start_address       VARCHAR(100) NULL DEFAULT NULL,
+        end_address         VARCHAR(100) NULL DEFAULT NULL,
         UNIQUE KEY uq_ipms_project (project_id),
         INDEX idx_project_status (project_status),
         INDEX idx_status_bucket (status_bucket)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
-    // Idempotent add-on for installs created before status_bucket existed —
+    // Idempotent add-ons for installs created before these columns existed —
     // same convention IPMS itself uses for its own schema evolution.
     $existing = $pdo->query("SHOW COLUMNS FROM ipms_road_projects LIKE 'status_bucket'")->fetchAll();
     if (empty($existing)) {
         $pdo->exec("ALTER TABLE ipms_road_projects ADD COLUMN status_bucket VARCHAR(16) NULL AFTER project_status, ADD INDEX idx_status_bucket (status_bucket)");
     }
+    $existingBudget = $pdo->query("SHOW COLUMNS FROM ipms_road_projects LIKE 'budget'")->fetchAll();
+    if (empty($existingBudget)) {
+        $pdo->exec("ALTER TABLE ipms_road_projects ADD COLUMN budget DECIMAL(15,2) NULL AFTER districts_json");
+    }
+    $existingEngineers = $pdo->query("SHOW COLUMNS FROM ipms_road_projects LIKE 'assigned_engineers_json'")->fetchAll();
+    if (empty($existingEngineers)) {
+        $pdo->exec("ALTER TABLE ipms_road_projects ADD COLUMN assigned_engineers_json TEXT NULL AFTER budget");
+    }
+    $existingStatus = $pdo->query("SHOW COLUMNS FROM ipms_road_projects LIKE 'status'")->fetchAll();
+    if (empty($existingStatus)) {
+        $pdo->exec("ALTER TABLE ipms_road_projects ADD COLUMN status VARCHAR(50) NULL DEFAULT NULL AFTER created_at");
+    }
+    $existingStartAddr = $pdo->query("SHOW COLUMNS FROM ipms_road_projects LIKE 'start_address'")->fetchAll();
+    if (empty($existingStartAddr)) {
+        $pdo->exec("ALTER TABLE ipms_road_projects ADD COLUMN start_address VARCHAR(100) NULL DEFAULT NULL AFTER status");
+    }
+    $existingEndAddr = $pdo->query("SHOW COLUMNS FROM ipms_road_projects LIKE 'end_address'")->fetchAll();
+    if (empty($existingEndAddr)) {
+        $pdo->exec("ALTER TABLE ipms_road_projects ADD COLUMN end_address VARCHAR(100) NULL DEFAULT NULL AFTER start_address");
+    }
+    $existingPriority = $pdo->query("SHOW COLUMNS FROM ipms_road_projects LIKE 'priority'")->fetchAll();
+    if (empty($existingPriority)) {
+        $pdo->exec("ALTER TABLE ipms_road_projects ADD COLUMN priority VARCHAR(20) NULL DEFAULT NULL AFTER status");
+    }
+}
+
+function rgmap_ensure_ipms_skip_tables(PDO $pdo): void {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ipms_road_projects_archive LIKE ipms_road_projects");
+    foreach ([
+        "previous_status VARCHAR(50) NULL DEFAULT NULL",
+        "archived_at DATETIME NULL DEFAULT NULL",
+        "archive_status VARCHAR(50) NULL DEFAULT NULL",
+    ] as $def) {
+        try {
+            $pdo->exec("ALTER TABLE ipms_road_projects_archive ADD COLUMN IF NOT EXISTS $def");
+        } catch (Throwable $e) {
+            error_log('rgmap_ensure_ipms_skip_tables archive col: ' . $e->getMessage());
+        }
+    }
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ipms_sync_exclusions (
+        project_id INT UNSIGNED NOT NULL,
+        excluded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        excluded_by VARCHAR(180) NULL DEFAULT NULL,
+        reason VARCHAR(100) NULL DEFAULT NULL,
+        PRIMARY KEY (project_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 }
 
 /**
@@ -86,6 +138,18 @@ function rgmap_upsert_ipms_road_project(PDO $pdo, array $road): bool {
     $projectId = (int)($road['project_id'] ?? 0);
     if ($projectId <= 0) {
         return false;
+    }
+
+    rgmap_ensure_ipms_skip_tables($pdo);
+    $skip = $pdo->prepare("SELECT 1 FROM ipms_sync_exclusions WHERE project_id = ? LIMIT 1");
+    $skip->execute([$projectId]);
+    if ($skip->fetchColumn()) {
+        return true;
+    }
+    $skip = $pdo->prepare("SELECT 1 FROM ipms_road_projects_archive WHERE project_id = ? LIMIT 1");
+    $skip->execute([$projectId]);
+    if ($skip->fetchColumn()) {
+        return true;
     }
 
     $toDate = function ($v) {
@@ -107,16 +171,54 @@ function rgmap_upsert_ipms_road_project(PDO $pdo, array $road): bool {
     // older IPMS deployment that hasn't picked up the status_bucket field yet).
     $statusBucket = (string)($road['status_bucket'] ?? '') ?: rgmap_ipms_status_bucket((string)($road['project_status'] ?? ''));
 
+    $budget = $toFloatOrNull($road['budget'] ?? null);
+
+    // assigned_engineers is a list (0, 1, or many names) — never assume a
+    // single engineer, and tolerate it being absent/malformed on older feed
+    // responses by falling back to an empty list.
+    $assignedEngineers = [];
+    $ae = $road['assigned_engineers'] ?? null;
+    if (is_array($ae)) {
+        foreach ($ae as $name) {
+            $name = trim((string)$name);
+            if ($name !== '') {
+                $assignedEngineers[] = $name;
+            }
+        }
+    } elseif (is_string($ae) && trim($ae) !== '') {
+        // Tolerate a comma-separated string from older partners
+        foreach (array_map('trim', explode(',', $ae)) as $name) {
+            if ($name !== '') $assignedEngineers[] = $name;
+        }
+    }
+
+    // Local workflow status: new rows are 'pending', unless IPMS marks the
+    // project completed (status_bucket). On update leave status alone except
+    // when status_bucket becomes completed — then force status = completed.
+    $localStatus = ($statusBucket === 'completed') ? 'completed' : 'pending';
+
+    $clipAddr = static function ($v): ?string {
+        $v = trim((string)($v ?? ''));
+        if ($v === '') {
+            return null;
+        }
+        return mb_substr($v, 0, 100);
+    };
+    $startAddress = $clipAddr($road['start_address'] ?? null);
+    $endAddress = $clipAddr($road['end_address'] ?? null);
+
     $stmt = $pdo->prepare("
         INSERT INTO ipms_road_projects (
             project_id, project_name, project_status, status_bucket, progress_percent,
             start_date, end_date, road_name, road_type, road_status,
             polyline_json, road_length_meters, start_lat, start_lng, end_lat, end_lng,
-            barangays_json, districts_json, payload_json
+            barangays_json, districts_json, budget, assigned_engineers_json, payload_json,
+            status, start_address, end_address
         ) VALUES (
             ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?,
             ?, ?, ?
         )
         ON DUPLICATE KEY UPDATE
@@ -137,7 +239,12 @@ function rgmap_upsert_ipms_road_project(PDO $pdo, array $road): bool {
             end_lng = VALUES(end_lng),
             barangays_json = VALUES(barangays_json),
             districts_json = VALUES(districts_json),
+            budget = VALUES(budget),
+            assigned_engineers_json = VALUES(assigned_engineers_json),
             payload_json = VALUES(payload_json),
+            status = IF(VALUES(status_bucket) = 'completed', 'completed', status),
+            start_address = COALESCE(NULLIF(start_address, ''), VALUES(start_address)),
+            end_address = COALESCE(NULLIF(end_address, ''), VALUES(end_address)),
             synced_at = CURRENT_TIMESTAMP
     ");
 
@@ -160,7 +267,12 @@ function rgmap_upsert_ipms_road_project(PDO $pdo, array $road): bool {
         $toFloatOrNull($end['lng'] ?? null),
         json_encode($road['barangays_covered'] ?? [], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         json_encode($road['districts_covered'] ?? [], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        $budget,
+        json_encode($assignedEngineers, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         json_encode($road, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        $localStatus,
+        $startAddress,
+        $endAddress,
     ]);
 }
 
@@ -216,8 +328,9 @@ function rgmap_ipms_status_bucket(string $status): string {
  * @param PDO   $pdo  Database connection
  * @param array $opts Optional: ['limit' => int, 'status' => string, 'bucket' => string]
  * @return array Rows with polyline_coordinates / start_coordinate /
- *               end_coordinate / barangays_covered / districts_covered
- *               decoded back into arrays, plus a 'scope_bucket' field
+ *               end_coordinate / barangays_covered / districts_covered /
+ *               assigned_engineers decoded back into arrays, budget cast to
+ *               float (or null), plus a 'scope_bucket' field
  *               (new/ongoing/completed/cancelled).
  */
 function rgmap_fetch_ipms_road_projects(PDO $pdo, array $opts = []): array {
@@ -255,6 +368,8 @@ function rgmap_fetch_ipms_road_projects(PDO $pdo, array $opts = []): array {
         $row['polyline_coordinates'] = json_decode((string)($row['polyline_json'] ?? '[]'), true) ?: [];
         $row['barangays_covered'] = json_decode((string)($row['barangays_json'] ?? '[]'), true) ?: [];
         $row['districts_covered'] = json_decode((string)($row['districts_json'] ?? '[]'), true) ?: [];
+        $row['assigned_engineers'] = json_decode((string)($row['assigned_engineers_json'] ?? '[]'), true) ?: [];
+        $row['budget'] = $row['budget'] !== null ? (float)$row['budget'] : null;
         $row['start_coordinate'] = ($row['start_lat'] !== null && $row['start_lng'] !== null)
             ? ['lat' => (float)$row['start_lat'], 'lng' => (float)$row['start_lng']]
             : null;
@@ -264,6 +379,76 @@ function rgmap_fetch_ipms_road_projects(PDO $pdo, array $opts = []): array {
         $row['scope_bucket'] = !empty($row['status_bucket']) ? $row['status_bucket'] : rgmap_ipms_status_bucket((string)$row['project_status']);
     }
     unset($row);
+
+    return $rows;
+}
+
+/**
+ * Map cached IPMS projects into the shape used by verification / report
+ * management Infrastructure panels. Filters by local workflow `status`
+ * (e.g. pending on verification, approved on report management).
+ *
+ * @return array<int, array<string, mixed>>
+ */
+function rgmap_infra_panel_rows(?PDO $pdo = null, string|array $workflowStatus = 'pending'): array {
+    $pdo = $pdo ?? rgmap_ipms_pdo();
+    $raw = rgmap_fetch_ipms_road_projects($pdo);
+    $rows = [];
+    $allowed = is_array($workflowStatus) ? $workflowStatus : [$workflowStatus];
+    $allowed = array_values(array_filter(array_map(static function ($s) {
+        return strtolower(trim((string)$s));
+    }, $allowed), static fn($s) => $s !== ''));
+    if (empty($allowed)) {
+        $allowed = ['pending'];
+    }
+
+    foreach ($raw as $proj) {
+        $st = strtolower(trim((string)($proj['status'] ?? '')));
+        if (!in_array($st, $allowed, true)) {
+            continue;
+        }
+
+        $infraEngineers = $proj['assigned_engineers'] ?? [];
+        $infraEngineer = is_array($infraEngineers)
+            ? implode(', ', array_filter(array_map('trim', array_map('strval', $infraEngineers)), fn($n) => $n !== ''))
+            : trim((string)$infraEngineers);
+
+        $rows[] = [
+            'id'               => (int)$proj['project_id'],
+            'source'           => 'maintenance',
+            'source_system'    => 'maintenance',
+            'report_id'        => (string)$proj['project_id'],
+            'title'            => trim((string)($proj['project_name'] ?? '')),
+            'infrastructure'   => trim((string)($proj['road_type'] ?? '')),
+            'report_type'      => trim((string)($proj['road_type'] ?? '')) ?: 'infrastructure_issue',
+            'department'       => 'Engineering',
+            'priority'         => trim((string)($proj['priority'] ?? '')) ?: '—',
+            'status'           => (string)($proj['status'] ?? ($allowed[0] ?? '')),
+            'location'         => (is_array($proj['barangays_covered'] ?? null) && count($proj['barangays_covered']))
+                ? implode(', ', array_filter(array_map('trim', array_map('strval', $proj['barangays_covered'])), fn($b) => $b !== ''))
+                : trim((string)($proj['road_name'] ?? '')),
+            'start_address'    => trim((string)($proj['start_address'] ?? '')) ?: null,
+            'end_address'      => trim((string)($proj['end_address'] ?? '')) ?: null,
+            'description'      => trim((string)($proj['road_status'] ?? '')),
+            'created_date'     => null,
+            'created_at'       => $proj['created_at'] ?? null,
+            'updated_at'       => $proj['synced_at'] ?? ($proj['created_at'] ?? null),
+            'due_date'         => $proj['end_date'] ?? null,
+            'reporter_name'    => null,
+            'estimated_cost'   => null,
+            'actual_cost'      => null,
+            'maintenance_team' => null,
+            'attachments'      => null,
+            'issue_notes'      => trim((string)($proj['road_status'] ?? '')),
+            'engineer'         => $infraEngineer,
+            'assigned_to'      => $infraEngineer,
+            'start_date'       => $proj['start_date'] ?? null,
+            'end_date'         => $proj['end_date'] ?? null,
+            'budget'           => $proj['budget'] ?? null,
+            'polyline'         => $proj['polyline_coordinates'] ?? null,
+            'from_ipms'        => true,
+        ];
+    }
 
     return $rows;
 }

@@ -135,10 +135,6 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
         }
         footer.qc-footer a { color: #fff; text-decoration: none; }
         .footer-top-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 20px; }
-        .footer-follow-label { font-weight: 600; font-size: 0.9rem; margin-bottom: 8px; color: rgba(255,255,255,0.95); }
-        .footer-social-row { display: flex; gap: 10px; }
-        .footer-social-circle { width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,0.92); color: #165b79; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; transition: transform 0.2s ease, color 0.2s ease; }
-        .footer-social-circle:hover { transform: translateY(-2px); color: #0e2f43; }
         .footer-contact-row { display: flex; align-items: center; gap: 14px; font-size: 14px; }
         .footer-contact-item { display: inline-flex; align-items: center; gap: 8px; color: #fff; }
         .footer-contact-item:hover { color: #fff; }
@@ -157,7 +153,6 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
             .hero-bar h1 { font-size: 1.5rem; }
             .section-title { font-size: 1.4rem; }
             .footer-top-row { flex-direction: column; text-align: center; }
-            .footer-social-row { justify-content: center; }
             .footer-contact-row { justify-content: center; flex-wrap: wrap; }
             .footer-links-row { justify-content: center; gap: 16px; }
         }
@@ -178,6 +173,8 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
             <?php include __DIR__ . '/includes/navbar_quicklinks.php'; ?>
         </div>
     </nav>
+
+    <?php include __DIR__ . '/includes/mobile_navbar_css.php'; ?>
 
     <?php include __DIR__ . '/includes/hamburger_menu.php'; ?>
 
@@ -229,15 +226,6 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
     <footer class="qc-footer">
         <div class="container">
             <div class="footer-top-row">
-                <div>
-                    <div class="footer-follow-label">FOLLOW US</div>
-                    <div class="footer-social-row">
-                        <a href="#" aria-label="Facebook" class="footer-social-circle"><i class="fab fa-facebook-f"></i></a>
-                        <a href="#" aria-label="X" class="footer-social-circle"><i class="fab fa-twitter"></i></a>
-                        <a href="#" aria-label="YouTube" class="footer-social-circle"><i class="fab fa-youtube"></i></a>
-                        <a href="#" aria-label="Instagram" class="footer-social-circle"><i class="fab fa-instagram"></i></a>
-                    </div>
-                </div>
                 <div class="footer-contact-row">
                     <a href="tel:+63289881234" class="footer-contact-item"><i class="fas fa-phone-alt"></i> (02) 8988-1234</a>
                     <span class="contact-separator"></span>
