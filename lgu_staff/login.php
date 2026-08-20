@@ -473,7 +473,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
         try {
             // Prepare statement to prevent SQL injection
             $stmt = $conn->prepare("
-                SELECT id, email, password, full_name, role, is_active, account_status, twofa, darkmode
+                SELECT id, email, password, full_name, role, is_active, account_status, twofa, darkmode,
+                       failed_attempts, lock_until, lock_level
                 FROM users 
                 WHERE email = ?
             ");
@@ -488,9 +489,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
             
             if ($result->num_rows === 1) {
                 $user = $result->fetch_assoc();
-                
+
+                // Temporary lockout (failed password attempts). Does not change
+                // account_status — locked verified users show in Manage Accounts
+                // → Locked Accounts until unlock or lock_until expires.
+                $isLocked = false;
+                $lockRemainingText = '';
+                if (!empty($user['lock_until'])) {
+                    $nowTs = time();
+                    $lockUntilTs = strtotime($user['lock_until']);
+                    if ($lockUntilTs && $nowTs < $lockUntilTs) {
+                        $isLocked = true;
+                        $remainingSecs = $lockUntilTs - $nowTs;
+                        $mm = str_pad((string)floor($remainingSecs / 60), 2, '0', STR_PAD_LEFT);
+                        $ss = str_pad((string)($remainingSecs % 60), 2, '0', STR_PAD_LEFT);
+                        $lockRemainingText = $mm . ' minutes ' . $ss . ' seconds';
+                    } else {
+                        $unlockStmt = $conn->prepare("UPDATE users SET lock_until = NULL, failed_attempts = 0 WHERE id = ?");
+                        $unlockStmt->bind_param("i", $user['id']);
+                        $unlockStmt->execute();
+                        $unlockStmt->close();
+                    }
+                }
+
+                if ($isLocked) {
+                    $loginMessage = 'Your account is temporarily locked. Try again in ' . $lockRemainingText . '.';
+                    $messageType = 'error';
+                }
                 // Verify password
-                if (password_verify($password, $user['password'])) {
+                elseif (password_verify($password, $user['password'])) {
+                    // Successful login clears lockout counters
+                    $resetLockStmt = $conn->prepare("UPDATE users SET failed_attempts = 0, lock_until = NULL, lock_level = 0 WHERE id = ?");
+                    $resetLockStmt->bind_param("i", $user['id']);
+                    $resetLockStmt->execute();
+                    $resetLockStmt->close();
                     
                     // Check account status
                     if ($user['account_status'] === 'pending') {
@@ -564,9 +596,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                         }
                     }
                 } else {
-                    // Invalid password
-                    $loginMessage = 'Invalid email or password';
-                    $messageType = 'error';
+                    // Password verification failed — escalate temporary lockout
+                    $newAttempts = intval($user['failed_attempts'] ?? 0) + 1;
+                    $lockLevel = intval($user['lock_level'] ?? 0);
+
+                    if ($lockLevel == 0 && $newAttempts >= 3) {
+                        $lockStmt = $conn->prepare("UPDATE users SET failed_attempts = 0, lock_until = CURRENT_TIMESTAMP + INTERVAL 15 MINUTE, lock_level = 1 WHERE id = ?");
+                        $lockStmt->bind_param("i", $user['id']);
+                        $lockStmt->execute();
+                        $lockStmt->close();
+                        $loginMessage = 'Your account has been temporarily locked for 15 minutes due to multiple failed login attempts.';
+                        $messageType = 'error';
+                    } elseif ($lockLevel == 1 && $newAttempts >= 3) {
+                        $lockStmt = $conn->prepare("UPDATE users SET failed_attempts = 0, lock_until = CURRENT_TIMESTAMP + INTERVAL 30 MINUTE, lock_level = 2 WHERE id = ?");
+                        $lockStmt->bind_param("i", $user['id']);
+                        $lockStmt->execute();
+                        $lockStmt->close();
+                        $loginMessage = 'Your account has been temporarily locked for 30 minutes due to repeated failed login attempts.';
+                        $messageType = 'error';
+                    } elseif ($lockLevel >= 2 && $newAttempts >= 3) {
+                        $lockStmt = $conn->prepare("UPDATE users SET failed_attempts = 0, lock_until = CURRENT_TIMESTAMP + INTERVAL 30 MINUTE, lock_level = 2 WHERE id = ?");
+                        $lockStmt->bind_param("i", $user['id']);
+                        $lockStmt->execute();
+                        $lockStmt->close();
+                        $loginMessage = 'Your account has been temporarily locked for 30 minutes due to repeated failed login attempts.';
+                        $messageType = 'error';
+                    } else {
+                        $attemptStmt = $conn->prepare("UPDATE users SET failed_attempts = ? WHERE id = ?");
+                        $attemptStmt->bind_param("ii", $newAttempts, $user['id']);
+                        $attemptStmt->execute();
+                        $attemptStmt->close();
+                        $loginMessage = 'Invalid email or password';
+                        $messageType = 'error';
+                    }
                 }
             } else {
                 // User not found
