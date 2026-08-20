@@ -24,7 +24,13 @@ if ($report_id <= 0 || empty($report_type)) {
     json_response(['success' => false, 'error' => 'Invalid report parameters']);
 }
 
-$transport_types = ['potholes', 'road_damage', 'debris', 'shoulder_damage', 'traffic_jam', 'accident', 'congestion', 'traffic_light_outage', 'vehicle_breakdown', 'traffic_sign_issue', 'transportation', 'infrastructure_issue', 'road_closure', 'parking_violation', 'public_transport_issue'];
+$transport_types = [
+    'potholes', 'road_damage', 'debris', 'shoulder_damage', 'cracks', 'erosion',
+    'flooding', 'marking_fade', 'traffic_jam', 'accident', 'congestion',
+    'traffic_light_outage', 'vehicle_breakdown', 'traffic_sign_issue',
+    'transportation', 'infrastructure_issue', 'road_closure', 'parking_violation',
+    'public_transport_issue'
+];
 $table = in_array($report_type, $transport_types) ? 'road_transportation_reports' : 'road_maintenance_reports';
 
 // Optional explicit table from the caller. Road Operations Supervisor reports

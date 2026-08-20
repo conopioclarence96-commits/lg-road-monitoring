@@ -740,25 +740,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $barangay = sanitize_input($_POST['barangay'] ?? '');
                 $street_name = sanitize_input($_POST['street_name'] ?? '');
 
-                // Combine issue type and specific type for detailed reporting
+                // Combine issue type and specific type for detailed reporting.
+                // report_category (Road vs Transportation) is independent of the
+                // specific issue type — any issue type may be paired with either.
                 $full_issue_type = $specific_type ? $specific_type : $issue_type;
                 $report_category = ($issue_type === 'roads') ? 'road' : 'transportation';
                 $report_source = 'local';
 
-                // Server-side guard: Transportation Operations Supervisors may
-                // only submit Transportation category reports. This prevents
-                // bypassing the UI by crafting a request with category Roads.
-                if ($is_transport_supervisor && $report_category === 'road') {
-                    echo json_encode(['success' => false, 'message' => 'Transportation Operations Supervisors can only submit Transportation reports.']);
+                $allowed_categories = ['roads', 'transportation'];
+                $allowed_issue_types = [
+                    'traffic_jam', 'accident', 'road_closure', 'traffic_light_outage',
+                    'congestion', 'parking_violation', 'public_transport_issue',
+                    'vehicle_breakdown', 'traffic_sign_issue',
+                    'potholes', 'road_damage', 'cracks', 'erosion', 'flooding',
+                    'debris', 'shoulder_damage', 'marking_fade',
+                ];
+                if (!in_array($issue_type, $allowed_categories, true)) {
+                    echo json_encode(['success' => false, 'message' => 'Please select Road or Transportation as the report type.']);
                     exit;
                 }
-
-                // Also reject road-specific issue types that would otherwise
-                // slip through if a crafted request pairs a transportation
-                // category with a road issue type.
-                $road_issue_types = ['potholes', 'road_damage', 'cracks', 'erosion', 'flooding', 'debris', 'shoulder_damage', 'marking_fade'];
-                if ($is_transport_supervisor && in_array($specific_type, $road_issue_types, true)) {
-                    echo json_encode(['success' => false, 'message' => 'Transportation Operations Supervisors can only submit Transportation reports.']);
+                if ($specific_type === '' || !in_array($specific_type, $allowed_issue_types, true)) {
+                    echo json_encode(['success' => false, 'message' => 'Please select a valid issue type.']);
                     exit;
                 }
 
@@ -932,7 +934,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $severity_db = ($severity === 'severe') ? 'critical' : $severity;
                 $priority = ($severity_db === 'critical' || $severity_db === 'high') ? 'high' : ($severity_db === 'medium' ? 'medium' : 'low');
                 $report_id = 'RPT-' . date('Ymd-His') . '-' . substr(uniqid(), -5);
-                $title = str_replace('_', ' ', ucfirst($full_issue_type));
+                $issue_type_titles = [
+                    'traffic_jam' => 'Traffic Jam',
+                    'accident' => 'Vehicle Accident',
+                    'road_closure' => 'Road Closure',
+                    'traffic_light_outage' => 'Traffic Light Outage',
+                    'congestion' => 'Heavy Congestion',
+                    'parking_violation' => 'Illegal Parking',
+                    'public_transport_issue' => 'Public Transport Issue',
+                    'vehicle_breakdown' => 'Vehicle Breakdown',
+                    'traffic_sign_issue' => 'Traffic Sign Issue',
+                    'potholes' => 'Potholes',
+                    'road_damage' => 'Road Damage',
+                    'cracks' => 'Road Cracks',
+                    'erosion' => 'Road Erosion',
+                    'flooding' => 'Street Flooding',
+                    'debris' => 'Road Debris',
+                    'shoulder_damage' => 'Shoulder Damage',
+                    'marking_fade' => 'Faded Road Markings',
+                ];
+                $title = $issue_type_titles[$full_issue_type] ?? str_replace('_', ' ', ucfirst($full_issue_type));
                 $user_id = $_SESSION['user_id'] ?? null;
                 // Set department explicitly to prevent truncation
                 $department = 'Road and Transportation';
@@ -2702,6 +2723,36 @@ if ($is_system_admin) {
             gap: 10px;
         }
 
+        #statusConfirmModal.status-confirm-modal {
+            z-index: 10050;
+        }
+
+        #statusConfirmModal .status-confirm-content {
+            max-width: 440px;
+            margin: 18vh auto;
+        }
+
+        #statusConfirmModal .status-confirm-message {
+            margin: 0;
+            font-size: 15px;
+            line-height: 1.5;
+            color: #334155;
+        }
+
+        #statusConfirmModal .status-confirm-footer {
+            justify-content: flex-end;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        body.dark-mode #statusConfirmModal .status-confirm-message {
+            color: var(--text-primary, #e4e6ea);
+        }
+
+        body.dark-mode #statusConfirmModal .modal-footer {
+            border-top-color: rgba(255, 255, 255, 0.08);
+        }
+
         /* Progress Updates modal: the timeline can run long and its footer
            carries several rows of actions, so the dialog is capped to the
            viewport and only the timeline scrolls. The header and the footer
@@ -3956,23 +4007,17 @@ if ($is_system_admin) {
                             <div id="gis-location-details" style="font-size:12px;color:#555;line-height:1.7;"></div>
                         </div>
                         
-                        <label for="issue-type">Issue type</label>
-                        <?php if ($is_transport_supervisor): ?>
-                        <select id="issue-type" name="issue_type" required onchange="updateSpecificTypes()">
-                            <option value="transportation" selected>Transportation</option>
-                        </select>
-                        <?php else: ?>
+                        <label for="issue-type">Report type</label>
                         <select id="issue-type" name="issue_type" required onchange="updateSpecificTypes()">
                             <option value="">— Select —</option>
                             <option value="transportation">Transportation</option>
-                            <option value="roads">Roads</option>
+                            <option value="roads">Road</option>
                         </select>
-                        <?php endif; ?>
                         
-                        <label id="specific-type-label" for="specific-type" style="display: none; margin-top: 10px;">Specific Issue Type</label>
+                        <label id="specific-type-label" for="specific-type" style="display: none; margin-top: 10px;">Issue type</label>
                         <select id="specific-type" name="specific_type" style="display: none;" required>
-                            <!-- Transportation specific types -->
-                            <optgroup id="transportation-options" label="Transportation Issues" style="display: none;">
+                            <option value="">— Select issue type —</option>
+                            <optgroup id="transportation-options" label="Transportation Issues">
                                 <option value="traffic_jam">Traffic Jam</option>
                                 <option value="accident">Vehicle Accident</option>
                                 <option value="road_closure">Road Closure</option>
@@ -3983,10 +4028,7 @@ if ($is_system_admin) {
                                 <option value="vehicle_breakdown">Vehicle Breakdown</option>
                                 <option value="traffic_sign_issue">Traffic Sign Issue</option>
                             </optgroup>
-                            
-                            <!-- Roads specific types -->
-                            <?php if (!$is_transport_supervisor): ?>
-                            <optgroup id="roads-options" label="Road Issues" style="display: none;">
+                            <optgroup id="roads-options" label="Road Issues">
                                 <option value="potholes">Potholes</option>
                                 <option value="road_damage">Road Damage</option>
                                 <option value="cracks">Road Cracks</option>
@@ -3996,7 +4038,6 @@ if ($is_system_admin) {
                                 <option value="shoulder_damage">Shoulder Damage</option>
                                 <option value="marking_fade">Faded Road Markings</option>
                             </optgroup>
-                            <?php endif; ?>
                         </select>
                         <label for="severity">Severity</label>
                         <select id="severity" name="severity" required>
@@ -5169,11 +5210,22 @@ if ($is_system_admin) {
 
                     var typeLabels = {
                         'traffic_jam': 'Traffic Jam',
-                        'accident': 'Accident',
-                        'road_damage': 'Road Damage',
-                        'flooding': 'Flooding',
-                        'potholes': 'Potholes',
+                        'accident': 'Vehicle Accident',
                         'road_closure': 'Road Closure',
+                        'traffic_light_outage': 'Traffic Light Outage',
+                        'congestion': 'Heavy Congestion',
+                        'parking_violation': 'Illegal Parking',
+                        'public_transport_issue': 'Public Transport Issue',
+                        'vehicle_breakdown': 'Vehicle Breakdown',
+                        'traffic_sign_issue': 'Traffic Sign Issue',
+                        'potholes': 'Potholes',
+                        'road_damage': 'Road Damage',
+                        'cracks': 'Road Cracks',
+                        'erosion': 'Road Erosion',
+                        'flooding': 'Street Flooding',
+                        'debris': 'Road Debris',
+                        'shoulder_damage': 'Shoulder Damage',
+                        'marking_fade': 'Faded Road Markings',
                         'infrastructure_issue': 'Infrastructure Issue',
                         'street_light': 'Street Light',
                         'maintenance': 'Maintenance',
@@ -5409,27 +5461,16 @@ if ($is_system_admin) {
             }, 30000);
         }
 
-        // Function to update specific issue types based on main category
+        // Show all road + transportation issue types once a report type is chosen.
+        // Report type (Road / Transportation) does not filter the issue-type list.
         function updateSpecificTypes() {
             const issueType = document.getElementById('issue-type').value;
             const specificTypeLabel = document.getElementById('specific-type-label');
             const specificType = document.getElementById('specific-type');
-            const transportOptions = document.getElementById('transportation-options');
-            const roadOptions = document.getElementById('roads-options');
-            
-            // Hide all options first
-            if (transportOptions) transportOptions.style.display = 'none';
-            if (roadOptions) roadOptions.style.display = 'none';
-            
-            if (issueType === 'transportation') {
+
+            if (issueType === 'transportation' || issueType === 'roads') {
                 specificTypeLabel.style.display = 'block';
                 specificType.style.display = 'block';
-                if (transportOptions) transportOptions.style.display = 'block';
-                specificType.required = true;
-            } else if (issueType === 'roads' && roadOptions) {
-                specificTypeLabel.style.display = 'block';
-                specificType.style.display = 'block';
-                roadOptions.style.display = 'block';
                 specificType.required = true;
             } else {
                 specificTypeLabel.style.display = 'none';
@@ -5675,6 +5716,8 @@ if ($is_system_admin) {
             if (event.target.classList.contains('modal')) {
                 if (event.target.id === 'addUpdateModal') {
                     cancelUpdateForm();
+                } else if (event.target.id === 'statusConfirmModal') {
+                    closeStatusConfirmModal();
                 } else {
                     event.target.style.display = 'none';
                     document.body.style.overflow = 'auto';
@@ -6548,24 +6591,100 @@ if ($is_system_admin) {
         // Complete button handler
         document.addEventListener('click', function(e) {
             if (e.target && e.target.closest && e.target.closest('#completeBtn')) {
-                completeReport();
+                requestCompleteOrCancel('complete');
             }
         });
 
         // Cancel button handler
         document.addEventListener('click', function(e) {
             if (e.target && e.target.closest && e.target.closest('#cancelBtn')) {
-                cancelReport();
+                requestCompleteOrCancel('cancel');
             }
         });
 
         let isCompleting = false; // Flag to prevent multiple clicks
+        var pendingStatusAction = null; // 'complete' | 'cancel' while confirm modal is open
 
         function isOfficerRole() {
             var tag = document.getElementById('sessionTimeoutData');
             if (!tag) return false;
             var role = tag.getAttribute('data-role') || '';
             return (role === 'road_monitoring_officer' || role === 'trans_monitoring_officer');
+        }
+
+        function isSupervisorRole() {
+            return (typeof IS_ROAD_SUPERVISOR !== 'undefined' && IS_ROAD_SUPERVISOR)
+                || (typeof IS_TRANS_SUPERVISOR !== 'undefined' && IS_TRANS_SUPERVISOR);
+        }
+
+        /**
+         * Supervisors (road + transportation) must confirm before Complete/Cancel.
+         * Officers keep the request-submission flow (no status change here).
+         */
+        function requestCompleteOrCancel(action) {
+            if (!currentUpdatesReportId) return;
+            if (typeof IS_SYSTEM_ADMIN !== 'undefined' && IS_SYSTEM_ADMIN) return;
+
+            if (isOfficerRole()) {
+                submitReviewRequest(action === 'complete' ? 'completion' : 'cancellation');
+                return;
+            }
+
+            if (isSupervisorRole()) {
+                openStatusConfirmModal(action);
+                return;
+            }
+
+            // Other non-officer roles with Complete/Cancel: confirm as well for safety.
+            openStatusConfirmModal(action);
+        }
+
+        function openStatusConfirmModal(action) {
+            pendingStatusAction = action === 'cancel' ? 'cancel' : 'complete';
+            var titleEl = document.getElementById('statusConfirmTitle');
+            var msgEl = document.getElementById('statusConfirmMessage');
+            var iconEl = document.getElementById('statusConfirmIcon');
+            var confirmBtn = document.getElementById('statusConfirmSubmitBtn');
+            if (pendingStatusAction === 'complete') {
+                if (titleEl) titleEl.textContent = 'Confirm Completion';
+                if (msgEl) msgEl.textContent = 'Are you sure you want to mark this project as completed?';
+                if (iconEl) iconEl.innerHTML = '<i class="fas fa-circle-check"></i>';
+                if (confirmBtn) {
+                    confirmBtn.className = 'btn-success-custom';
+                    confirmBtn.innerHTML = '<i class="fas fa-check"></i> Confirm';
+                }
+            } else {
+                if (titleEl) titleEl.textContent = 'Confirm Cancellation';
+                if (msgEl) msgEl.textContent = 'Are you sure you want to cancel this project?';
+                if (iconEl) iconEl.innerHTML = '<i class="fas fa-ban"></i>';
+                if (confirmBtn) {
+                    confirmBtn.className = 'btn-danger-custom';
+                    confirmBtn.innerHTML = '<i class="fas fa-check"></i> Confirm';
+                }
+            }
+            var modal = document.getElementById('statusConfirmModal');
+            if (modal) modal.style.display = 'block';
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeStatusConfirmModal() {
+            pendingStatusAction = null;
+            var modal = document.getElementById('statusConfirmModal');
+            if (modal) modal.style.display = 'none';
+            var updates = document.getElementById('updatesModal');
+            if (!updates || updates.style.display !== 'block') {
+                document.body.style.overflow = 'auto';
+            }
+        }
+
+        function confirmStatusAction() {
+            var action = pendingStatusAction;
+            closeStatusConfirmModal();
+            if (action === 'complete') {
+                executeCompleteReport();
+            } else if (action === 'cancel') {
+                executeCancelReport();
+            }
         }
 
         // After completing/cancelling a report, reload the page in place.
@@ -6605,16 +6724,9 @@ if ($is_system_admin) {
             });
         }
 
-        function completeReport() {
+        function executeCompleteReport() {
             if (!currentUpdatesReportId) return;
             if (typeof IS_SYSTEM_ADMIN !== 'undefined' && IS_SYSTEM_ADMIN) return;
-            // Road/Transportation Monitoring Officers cannot directly complete a
-            // project. Instead they submit a completion request that is routed to
-            // the appropriate supervisor for review; the status is left unchanged.
-            if (isOfficerRole()) {
-                submitReviewRequest('completion');
-                return;
-            }
             if (isCompleting) return; // Prevent multiple clicks
             isCompleting = true;
             
@@ -6671,6 +6783,10 @@ if ($is_system_admin) {
             });
         }
 
+        function completeReport() {
+            requestCompleteOrCancel('complete');
+        }
+
         function updateStatusOnly() {
             // complete_status marks the report completed and leaves it on
             // Completed Projects until Archive is clicked.
@@ -6701,16 +6817,9 @@ if ($is_system_admin) {
             });
         }
 
-        function cancelReport() {
+        function executeCancelReport() {
             if (!currentUpdatesReportId) return;
             if (typeof IS_SYSTEM_ADMIN !== 'undefined' && IS_SYSTEM_ADMIN) return;
-            // Road/Transportation Monitoring Officers cannot directly cancel a
-            // project. Instead they submit a cancellation request that is routed
-            // to the appropriate supervisor for review; the status is left unchanged.
-            if (isOfficerRole()) {
-                submitReviewRequest('cancellation');
-                return;
-            }
             
             var newStatus = (currentUpdatesReportSource === 'cimm') ? 'Cancelled' : 'cancelled';
             var formData = new FormData();
@@ -6738,6 +6847,10 @@ if ($is_system_admin) {
                 showNotification('Network error', 'error');
                 console.error(e);
             });
+        }
+
+        function cancelReport() {
+            requestCompleteOrCancel('cancel');
         }
 
         // Submit a completion/cancellation request (officers only). The backend
@@ -9165,6 +9278,27 @@ if ($is_system_admin) {
                     </button>
                     <button type="button" class="btn-secondary-custom" onclick="closeModal('updatesModal')">Close</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Complete / Cancel (supervisors) -->
+    <div id="statusConfirmModal" class="modal status-confirm-modal" style="display:none;z-index:10050;">
+        <div class="modal-content status-confirm-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><span id="statusConfirmIcon"><i class="fas fa-circle-check"></i></span> <span id="statusConfirmTitle">Confirm</span></h5>
+                <button type="button" class="close" onclick="closeStatusConfirmModal()" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="statusConfirmMessage" class="status-confirm-message">Are you sure?</p>
+            </div>
+            <div class="modal-footer status-confirm-footer">
+                <button type="button" class="btn-secondary-custom" onclick="closeStatusConfirmModal()">
+                    <i class="fas fa-arrow-left"></i> Go Back
+                </button>
+                <button type="button" id="statusConfirmSubmitBtn" class="btn-success-custom" onclick="confirmStatusAction()">
+                    <i class="fas fa-check"></i> Confirm
+                </button>
             </div>
         </div>
     </div>

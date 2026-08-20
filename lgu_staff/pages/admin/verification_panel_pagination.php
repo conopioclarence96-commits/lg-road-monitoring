@@ -359,7 +359,7 @@ function vm_render_lgu_panel_tbody(array $reports, bool $is_transport_supervisor
                                 <i class="fas fa-check-circle"></i>
                             </button>
                         </form>
-                        <form method="POST" class="lgu-action-form" onsubmit="return confirm('Are you sure you want to reject this report?');">
+                        <form method="POST" class="lgu-action-form">
                             <input type="hidden" name="report_id" value="<?php echo (int)$report['id']; ?>">
                             <input type="hidden" name="source" value="<?php echo htmlspecialchars((string)($report['source'] ?? ''), ENT_QUOTES); ?>">
                             <button type="submit" name="action" value="reject" class="lgu-reject-btn" title="Reject report">
@@ -483,7 +483,7 @@ function vm_render_citizen_panel_tbody(array $reports): string {
                         <input type="hidden" name="source" value="transport">
                         <button type="submit" name="action" value="approve" class="citizen-verify-btn" title="Approve report"><i class="fas fa-check-circle"></i></button>
                     </form>
-                    <form method="POST" class="citizen-action-form" onsubmit="return confirm('Are you sure you want to reject this citizen report?');">
+                    <form method="POST" class="citizen-action-form">
                         <input type="hidden" name="report_id" value="<?php echo (int)$crow['id']; ?>">
                         <input type="hidden" name="source" value="transport">
                         <button type="submit" name="action" value="reject" class="citizen-reject-btn" title="Reject report"><i class="fas fa-times"></i></button>
@@ -535,7 +535,7 @@ function vm_render_cimm_panel_tbody(array $cimm_reports, $sql_reports = null, bo
                         <input type="hidden" name="cimm_req_id" value="<?php echo (int)$row['cimm_req_id']; ?>">
                         <button type="submit" name="action" value="approve_cimm" class="dept-verify-btn" title="Approve report"><i class="fas fa-check-circle"></i></button>
                     </form>
-                    <form method="POST" class="dept-action-form" onsubmit="return confirm('Are you sure you want to reject this CIMM report?');">
+                    <form method="POST" class="dept-action-form">
                         <input type="hidden" name="cimm_req_id" value="<?php echo (int)$row['cimm_req_id']; ?>">
                         <input type="hidden" name="rejection_reason" value="Rejected by admin">
                         <button type="submit" name="action" value="reject_cimm" class="dept-reject-btn" title="Reject report"><i class="fas fa-times"></i></button>

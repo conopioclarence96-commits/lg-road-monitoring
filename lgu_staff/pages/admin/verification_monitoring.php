@@ -4656,6 +4656,142 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             display: flex;
         }
 
+        /* Single reject confirmation dialog */
+        .reject-confirm-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.55);
+            z-index: 10050;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .reject-confirm-overlay.active {
+            display: flex;
+        }
+
+        .reject-confirm-dialog {
+            background: #f0f4fa;
+            border-radius: 16px;
+            max-width: 440px;
+            width: 100%;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.28);
+            border: 1px solid #c8d0e0;
+            overflow: hidden;
+        }
+
+        .reject-confirm-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            background: #fff;
+            padding: 18px 22px;
+            border-bottom: 2px solid rgba(55, 98, 200, 0.12);
+        }
+
+        .reject-confirm-title {
+            margin: 0;
+            font-size: 17px;
+            font-weight: 600;
+            color: #1e3c72;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .reject-confirm-title i {
+            color: #dc3545;
+        }
+
+        .reject-confirm-close {
+            border: none;
+            background: transparent;
+            font-size: 22px;
+            line-height: 1;
+            color: #64748b;
+            cursor: pointer;
+            padding: 0 4px;
+        }
+
+        .reject-confirm-close:hover {
+            color: #1e3c72;
+        }
+
+        .reject-confirm-body {
+            padding: 22px;
+            background: #fff;
+        }
+
+        .reject-confirm-message {
+            margin: 0;
+            font-size: 14px;
+            line-height: 1.55;
+            color: #334155;
+        }
+
+        .reject-confirm-footer {
+            display: flex;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 14px 22px 18px;
+            background: #fff;
+            border-top: 1px solid rgba(30, 60, 114, 0.1);
+        }
+
+        .reject-confirm-submit {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #dc3545, #c82333);
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .reject-confirm-submit:hover {
+            filter: brightness(0.96);
+        }
+
+        body.dark-mode .reject-confirm-dialog {
+            background: #1e2229;
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        body.dark-mode .reject-confirm-header,
+        body.dark-mode .reject-confirm-body,
+        body.dark-mode .reject-confirm-footer {
+            background: #252a33;
+        }
+
+        body.dark-mode .reject-confirm-header {
+            border-bottom-color: rgba(255, 255, 255, 0.08);
+        }
+
+        body.dark-mode .reject-confirm-footer {
+            border-top-color: rgba(255, 255, 255, 0.08);
+        }
+
+        body.dark-mode .reject-confirm-title {
+            color: #e4e6ea;
+        }
+
+        body.dark-mode .reject-confirm-message {
+            color: #cbd5e1;
+        }
+
+        body.dark-mode .reject-confirm-close {
+            color: #9ca3af;
+        }
+
         .lgu-modal-content {
             background: #f0f4fa;
             border-radius: 16px;
@@ -6271,7 +6407,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                     <i class="fas fa-check-circle"></i>
                                                 </button>
                                             </form>
-                                            <form method="POST" class="lgu-action-form" onsubmit="return confirm('Are you sure you want to reject this report?');">
+                                            <form method="POST" class="lgu-action-form">
                                                 <input type="hidden" name="report_id" value="<?php echo $report['id']; ?>">
                                                 <input type="hidden" name="source" value="<?php echo htmlspecialchars($report['source']); ?>">
                                                 <button type="submit" name="action" value="reject" class="lgu-reject-btn" title="Reject report">
@@ -6630,7 +6766,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                             <i class="fas fa-check-circle"></i>
                                         </button>
                                     </form>
-                                    <form method="POST" class="infra-action-form" onsubmit="return confirm('Are you sure you want to reject this infrastructure project?');">
+                                    <form method="POST" class="infra-action-form">
                                         <input type="hidden" name="report_id" value="<?php echo (int)$irow['id']; ?>">
                                         <input type="hidden" name="source" value="infra">
                                         <button type="submit" name="action" value="reject" class="infra-reject-btn" title="Reject infrastructure project">
@@ -6850,16 +6986,88 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }, 3000);
         }
 
-        // Handle form submissions with confirmation
-        document.querySelectorAll('form').forEach(form => {
-            form.addEventListener('submit', function(e) {
-                const action = this.querySelector('button[type="submit"]');
-                if (action && action.value === 'reject') {
-                    if (!confirm('Are you sure you want to reject this report?')) {
-                        e.preventDefault();
-                    }
-                }
-            });
+        // Single reject confirmation modal (no native confirm() stacking)
+        var pendingRejectForm = null;
+        var pendingRejectButton = null;
+
+        function getRejectConfirmMessage(form) {
+            if (!form) return 'Are you sure you want to reject this report?';
+            if (form.classList.contains('citizen-action-form')) {
+                return 'Are you sure you want to reject this citizen report?';
+            }
+            if (form.classList.contains('dept-action-form')) {
+                return 'Are you sure you want to reject this CIMM report?';
+            }
+            if (form.classList.contains('infra-action-form')) {
+                return 'Are you sure you want to reject this infrastructure project?';
+            }
+            return 'Are you sure you want to reject this report?';
+        }
+
+        function openRejectConfirmModal(form) {
+            var msgEl = document.getElementById('rejectConfirmMessage');
+            if (msgEl) msgEl.textContent = getRejectConfirmMessage(form);
+            var modal = document.getElementById('rejectConfirmModal');
+            if (modal) modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeRejectConfirmModal() {
+            pendingRejectForm = null;
+            pendingRejectButton = null;
+            var modal = document.getElementById('rejectConfirmModal');
+            if (modal) modal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        function confirmRejectAction() {
+            var form = pendingRejectForm;
+            var btn = pendingRejectButton;
+            if (!form) {
+                closeRejectConfirmModal();
+                return;
+            }
+            var actionValue = (btn && btn.value) ? btn.value : 'reject';
+            var actionInput = form.querySelector('input[type="hidden"][name="action"]');
+            if (!actionInput) {
+                actionInput = document.createElement('input');
+                actionInput.type = 'hidden';
+                actionInput.name = 'action';
+                form.appendChild(actionInput);
+            }
+            actionInput.value = actionValue;
+
+            pendingRejectForm = null;
+            pendingRejectButton = null;
+            var modal = document.getElementById('rejectConfirmModal');
+            if (modal) modal.classList.remove('active');
+            document.body.style.overflow = '';
+
+            // Native submit bypasses the confirmation listener and posts action via hidden input.
+            HTMLFormElement.prototype.submit.call(form);
+        }
+
+        document.addEventListener('submit', function(e) {
+            var form = e.target;
+            if (!form || form.tagName !== 'FORM') return;
+            var rejectBtn = form.querySelector(
+                'button[type="submit"][name="action"][value="reject"], button[type="submit"][name="action"][value="reject_cimm"]'
+            );
+            if (!rejectBtn) return;
+            var submitBtns = form.querySelectorAll('button[type="submit"][name="action"]');
+            if (submitBtns.length !== 1) return;
+            e.preventDefault();
+            pendingRejectForm = form;
+            pendingRejectButton = rejectBtn;
+            openRejectConfirmModal(form);
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key !== 'Escape') return;
+            var modal = document.getElementById('rejectConfirmModal');
+            if (modal && modal.classList.contains('active')) {
+                closeRejectConfirmModal();
+            }
         });
         
         // Show success message if available
@@ -7743,7 +7951,7 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
                     html += '<input type="hidden" name="source" value="infra">';
                     html += '<button type="submit" name="action" value="approve" class="infra-verify-btn" title="Approve infrastructure project"><i class="fas fa-check-circle"></i></button>';
                     html += '</form>';
-                    html += '<form method="POST" class="infra-action-form" onsubmit="return confirm(\'Are you sure you want to reject this infrastructure project?\');">';
+                    html += '<form method="POST" class="infra-action-form">';
                     html += '<input type="hidden" name="report_id" value="' + id + '">';
                     html += '<input type="hidden" name="source" value="infra">';
                     html += '<button type="submit" name="action" value="reject" class="infra-reject-btn" title="Reject infrastructure project"><i class="fas fa-times"></i></button>';
@@ -8477,6 +8685,29 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
     </div>
 
     <!-- Session Timeout Modal -->
+    <!-- Reject confirmation (single modal for all panels) -->
+    <div id="rejectConfirmModal" class="reject-confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="rejectConfirmTitle" onclick="if (event.target === this) closeRejectConfirmModal();">
+        <div class="reject-confirm-dialog">
+            <div class="reject-confirm-header">
+                <h5 id="rejectConfirmTitle" class="reject-confirm-title">
+                    <i class="fas fa-times-circle"></i> Confirm Rejection
+                </h5>
+                <button type="button" class="reject-confirm-close" onclick="closeRejectConfirmModal()" aria-label="Close">&times;</button>
+            </div>
+            <div class="reject-confirm-body">
+                <p id="rejectConfirmMessage" class="reject-confirm-message">Are you sure you want to reject this report?</p>
+            </div>
+            <div class="reject-confirm-footer">
+                <button type="button" class="btn-secondary-custom" onclick="closeRejectConfirmModal()">
+                    <i class="fas fa-arrow-left"></i> Go Back
+                </button>
+                <button type="button" class="reject-confirm-submit" onclick="confirmRejectAction()">
+                    <i class="fas fa-times"></i> Confirm Reject
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div id="sessionTimeoutOverlay" class="t-modal-overlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; z-index:10000;"></div>
     <div id="sessionTimeoutModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; border-radius:12px; padding:32px; z-index:10001; width:400px; max-width:90vw; box-shadow:0 16px 48px rgba(0,0,0,0.3); text-align:center;">
         <div class="t-text-danger" style="font-size:48px; margin-bottom:16px;">
