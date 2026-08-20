@@ -79,7 +79,7 @@ if ($conn) {
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <style>
-        body { background: #f7f5f0; min-height: 100vh; }
+        body { background: #f5f3ee; min-height: 100vh; }
         body.dark-mode { background: var(--bg-page); }
         body.dark-mode .form-group input:not(.publish-checkbox),
         body.dark-mode .form-group textarea,
@@ -114,25 +114,75 @@ if ($conn) {
         body.dark-mode .projects-section { background: var(--bg-card) !important; border-color: var(--border-default) !important; }
         body.dark-mode .project-form-card { background: var(--bg-card) !important; border-color: var(--border-default) !important; }
         body.dark-mode .project-item { background: var(--bg-card) !important; border-color: var(--border-default) !important; }
+        body.dark-mode .view-only-notice { background: var(--bg-input-readonly) !important; border-left-color: var(--color-primary) !important; }
+        body.dark-mode .view-only-notice h4 { color: var(--text-primary) !important; }
+        body.dark-mode .view-only-notice p { color: var(--text-secondary) !important; }
+        body.dark-mode .import-review-banner { background: var(--color-success-bg) !important; border-left-color: var(--color-success) !important; }
+        body.dark-mode .import-review-banner h4 { color: var(--text-primary) !important; }
+        body.dark-mode .import-review-banner p { color: var(--text-secondary) !important; }
+        body.dark-mode .empty-state { color: var(--text-muted) !important; }
+        body.dark-mode .empty-state i { color: var(--text-muted) !important; }
+        body.dark-mode .project-details h4 { color: var(--text-primary) !important; }
+        body.dark-mode .project-meta span { color: var(--text-secondary) !important; }
+        body.dark-mode .project-cost { background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark)) !important; }
 
         .projects-section {
-            background: #f0f4fa;
-            backdrop-filter: blur(15px);
-            border-radius: 16px;
+            background: #f4f7fb;
+            border: 1px solid #d5dce8;
+            box-shadow: 0 4px 20px rgba(30, 60, 114, 0.08);
+            border-radius: 14px;
             padding: 25px;
             margin-bottom: 25px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            border: 1px solid rgba(255,255,255,0.2);
         }
 
         .project-form-card {
-            background: #f0f4fa;
-            backdrop-filter: blur(15px);
-            border-radius: 16px;
+            background: #f4f7fb;
+            border: 1px solid #d5dce8;
+            box-shadow: 0 4px 20px rgba(30, 60, 114, 0.08);
+            border-radius: 14px;
             padding: 30px;
             margin-bottom: 25px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .panel-project {
+            position: relative;
+            overflow: hidden;
+        }
+        .panel-project::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: linear-gradient(180deg, #1e3c72, #0f274a);
+        }
+        .panel-project-header {
+            margin: -30px -30px 22px;
+            padding: 14px 18px 14px 22px;
+            background: rgba(30, 60, 114, 0.06);
+            border-bottom: 1px solid rgba(30, 60, 114, 0.12);
+            border-radius: 14px 14px 0 0;
+        }
+        .panel-project .section-title i {
+            width: 32px;
+            height: 32px;
+            border-radius: 9px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            flex-shrink: 0;
+            color: #fff;
+            background: linear-gradient(135deg, #1e3c72, #0f274a);
+            box-shadow: 0 4px 12px rgba(30, 60, 114, 0.35);
+        }
+        body.dark-mode .panel-project-header {
+            background: rgba(255, 255, 255, 0.04) !important;
+            border-bottom-color: var(--border-default) !important;
+        }
+        body.dark-mode .panel-project .section-title i {
+            background: linear-gradient(135deg, #3762c8, #1e3c72) !important;
         }
 
         .form-grid {
@@ -162,7 +212,7 @@ if ($conn) {
         .form-group select {
             width: 100%;
             padding: 10px 14px;
-            border: 1px solid #ddd;
+            border: 1px solid #d5dce8;
             border-radius: 8px;
             font-size: 14px;
             font-family: 'Poppins', sans-serif;
@@ -174,8 +224,8 @@ if ($conn) {
         .form-group textarea:focus,
         .form-group select:focus {
             outline: none;
-            border-color: #3762c8;
-            box-shadow: 0 0 0 3px rgba(55,98,200,0.15);
+            border-color: #1e3c72;
+            box-shadow: 0 0 0 3px rgba(30, 60, 114, 0.15);
         }
 
         .form-group textarea {
@@ -200,14 +250,14 @@ if ($conn) {
         }
 
         .photo-upload-area:hover {
-            border-color: #3762c8;
-            background: rgba(55,98,200,0.03);
+            border-color: #1e3c72;
+            background: rgba(30, 60, 114, 0.03);
         }
 
         .photo-upload-area.has-image {
             padding: 0;
             border-style: solid;
-            border-color: #4CAF50;
+            border-color: #059669;
         }
 
         .photo-upload-area input[type="file"] {
@@ -261,10 +311,10 @@ if ($conn) {
 
         .btn-save {
             padding: 12px 28px;
-            background: linear-gradient(135deg, #4CAF50, #388E3C);
+            background: linear-gradient(135deg, #16a34a, #15803d);
             color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: 10px;
             font-size: 14px;
             font-weight: 600;
             cursor: pointer;
@@ -272,27 +322,53 @@ if ($conn) {
             display: flex;
             align-items: center;
             gap: 8px;
+            box-shadow: 0 4px 14px rgba(22, 163, 74, 0.3);
+            letter-spacing: 0.01em;
         }
 
         .btn-save:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(76,175,80,0.3);
+            box-shadow: 0 8px 24px rgba(22, 163, 74, 0.4);
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+        }
+
+        .btn-save:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 8px rgba(22, 163, 74, 0.3);
+        }
+
+        .btn-save:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
         }
 
         .btn-cancel {
             padding: 12px 28px;
-            background: #6c757d;
+            background: linear-gradient(135deg, #64748b, #475569);
             color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: 10px;
             font-size: 14px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 12px rgba(71, 85, 105, 0.25);
         }
 
         .btn-cancel:hover {
-            background: #5a6268;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 18px rgba(71, 85, 105, 0.35);
+            background: linear-gradient(135deg, #475569, #334155);
+        }
+
+        .btn-cancel:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 6px rgba(71, 85, 105, 0.25);
         }
 
         .form-header-actions {
@@ -303,7 +379,7 @@ if ($conn) {
 
         .btn-import {
             padding: 12px 22px;
-            background: linear-gradient(135deg, #1e3c72, #3762c8);
+            background: linear-gradient(135deg, #1e3c72, #0f274a);
             color: white;
             border: none;
             border-radius: 8px;
@@ -316,11 +392,12 @@ if ($conn) {
             align-items: center;
             gap: 8px;
             white-space: nowrap;
+            box-shadow: 0 4px 12px rgba(30, 60, 114, 0.25);
         }
 
         .btn-import:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(55,98,200,0.3);
+            box-shadow: 0 6px 20px rgba(30, 60, 114, 0.35);
         }
 
         .btn-import:disabled {
@@ -431,8 +508,8 @@ if ($conn) {
             pointer-events: none;
         }
 
-        .project-preview .label-before { left: 8px; background: rgba(244,67,54,0.9); color: white; }
-        .project-preview .label-after { right: 8px; background: rgba(76,175,80,0.9); color: white; }
+        .project-preview .label-before { left: 8px; background: rgba(220, 38, 38, 0.9); color: white; }
+        .project-preview .label-after { right: 8px; background: rgba(5, 150, 105, 0.9); color: white; }
 
         .project-preview .no-before {
             position: absolute;
@@ -467,22 +544,23 @@ if ($conn) {
 
         .project-meta span {
             font-size: 12px;
-            color: #888;
+            color: #64748b;
         }
 
         .project-meta i {
-            color: #4CAF50;
+            color: #059669;
             margin-right: 3px;
         }
 
         .project-cost {
             display: inline-block;
-            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            background: linear-gradient(135deg, #1e3c72, #0f274a);
             color: white;
             padding: 3px 10px;
             border-radius: 12px;
             font-size: 11px;
             font-weight: 600;
+            box-shadow: 0 2px 8px rgba(30, 60, 114, 0.2);
         }
 
         .project-actions {
@@ -493,7 +571,7 @@ if ($conn) {
 
         .btn-edit {
             padding: 6px 14px;
-            background: #3762c8;
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
             color: white;
             border: none;
             border-radius: 6px;
@@ -506,11 +584,11 @@ if ($conn) {
             gap: 5px;
         }
 
-        .btn-edit:hover { background: #2a4fa8; }
+        .btn-edit:hover { background: #1e3c72; }
 
         .btn-delete {
             padding: 6px 14px;
-            background: #dc3545;
+            background: linear-gradient(135deg, #ef4444, #b91c1c);
             color: white;
             border: none;
             border-radius: 6px;
@@ -523,17 +601,17 @@ if ($conn) {
             gap: 5px;
         }
 
-        .btn-delete:hover { background: #c82333; }
+        .btn-delete:hover { background: #b91c1c; }
 
         .empty-state {
             text-align: center;
             padding: 50px 20px;
-            color: #999;
+            color: #5a6c7d;
         }
 
         .empty-state i {
             font-size: 3rem;
-            color: #ddd;
+            color: rgba(30, 60, 114, 0.3);
             margin-bottom: 15px;
         }
 
@@ -553,12 +631,12 @@ if ($conn) {
         }
 
         .toast.show { transform: translateX(0); }
-        .toast.success { background: #4CAF50; }
-        .toast.error { background: #dc3545; }
+        .toast.success { background: #16a34a; }
+        .toast.error { background: #dc2626; }
 
         .view-only-notice {
-            background: linear-gradient(135deg, rgba(55,98,200,0.08), rgba(30,60,114,0.08));
-            border-left: 4px solid #3762c8;
+            background: linear-gradient(135deg, rgba(30, 60, 114, 0.08), rgba(30, 60, 114, 0.05));
+            border-left: 4px solid #1e3c72;
             border-radius: 12px;
             padding: 20px 25px;
             margin-bottom: 25px;
@@ -569,7 +647,7 @@ if ($conn) {
 
         .view-only-notice .notice-icon {
             font-size: 2.5rem;
-            color: #3762c8;
+            color: #1e3c72;
         }
 
         .view-only-notice h4 {
@@ -580,13 +658,13 @@ if ($conn) {
 
         .view-only-notice p {
             margin: 0;
-            color: #666;
+            color: #5a6c7d;
             font-size: 13px;
         }
 
         .import-review-banner {
-            background: linear-gradient(135deg, rgba(76,175,80,0.10), rgba(56,142,60,0.10));
-            border-left: 4px solid #4CAF50;
+            background: linear-gradient(135deg, rgba(22, 163, 74, 0.10), rgba(21, 128, 61, 0.10));
+            border-left: 4px solid #16a34a;
             border-radius: 12px;
             padding: 20px 25px;
             margin-bottom: 25px;
@@ -597,7 +675,7 @@ if ($conn) {
 
         .import-review-banner .notice-icon {
             font-size: 2.2rem;
-            color: #388E3C;
+            color: #15803d;
         }
 
         .import-review-banner h4 {
@@ -608,7 +686,7 @@ if ($conn) {
 
         .import-review-banner p {
             margin: 0;
-            color: #666;
+            color: #5a6c7d;
             font-size: 13px;
         }
 
@@ -624,10 +702,10 @@ if ($conn) {
             align-items: center;
             gap: 12px;
             cursor: pointer;
-            padding: 12px 16px;
-            background: white;
-            border: 2px solid #ddd;
-            border-radius: 10px;
+            padding: 12px 18px;
+            background: #fff;
+            border: 2px solid #d5dce8;
+            border-radius: 12px;
             transition: all 0.3s ease;
             width: fit-content;
             max-width: 100%;
@@ -635,11 +713,14 @@ if ($conn) {
             margin-bottom: 0;
             font-size: 14px;
             font-weight: 600;
-            color: #333;
+            color: #1e3c72;
+            box-shadow: 0 2px 8px rgba(30, 60, 114, 0.06);
         }
 
         .form-group label.publish-switch:hover {
             border-color: #3762c8;
+            box-shadow: 0 3px 12px rgba(30, 60, 114, 0.12);
+            transform: translateY(-1px);
         }
 
         .publish-checkbox {
@@ -656,23 +737,25 @@ if ($conn) {
         }
 
         .form-group label.publish-switch:has(.publish-checkbox:checked) {
-            background: linear-gradient(135deg, rgba(76,175,80,0.1), rgba(56,142,60,0.1));
-            border-color: #4CAF50;
-            color: #4CAF50;
+            background: linear-gradient(135deg, rgba(22, 163, 74, 0.12), rgba(5, 150, 105, 0.08));
+            border-color: #059669;
+            color: #047857;
+            box-shadow: 0 4px 14px rgba(5, 150, 105, 0.18);
         }
 
         .form-group label.publish-switch .toggle-slider {
             position: relative;
             display: inline-block;
-            flex: 0 0 48px;
-            width: 48px;
-            min-width: 48px;
-            height: 26px;
-            min-height: 26px;
-            background: #ccc;
-            border-radius: 13px;
+            flex: 0 0 52px;
+            width: 52px;
+            min-width: 52px;
+            height: 28px;
+            min-height: 28px;
+            background: #cbd5e1;
+            border-radius: 14px;
             transition: background 0.3s ease;
             overflow: hidden;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15);
         }
 
         .form-group label.publish-switch .toggle-slider::before {
@@ -680,20 +763,20 @@ if ($conn) {
             position: absolute;
             top: 3px;
             left: 3px;
-            width: 20px;
-            height: 20px;
+            width: 22px;
+            height: 22px;
             background: white;
             border-radius: 50%;
             transition: transform 0.3s ease;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
         }
 
         .form-group label.publish-switch:has(.publish-checkbox:checked) .toggle-slider {
-            background: #4CAF50;
+            background: linear-gradient(135deg, #16a34a, #059669);
         }
 
         .form-group label.publish-switch:has(.publish-checkbox:checked) .toggle-slider::before {
-            transform: translateX(22px);
+            transform: translateX(24px);
         }
 
         .form-group label.publish-switch .toggle-text {
@@ -704,19 +787,19 @@ if ($conn) {
         }
 
         .form-group label.publish-switch:has(.publish-checkbox:checked) .toggle-text {
-            color: #4CAF50;
+            color: #047857;
         }
 
         .publish-hint {
             font-size: 12px;
-            color: #888;
+            color: #5a6c7d;
             margin: 0;
         }
 
         .field-hint {
             display: block;
             font-size: 11px;
-            color: #888;
+            color: #64748b;
             margin-top: 4px;
         }
 
@@ -732,18 +815,18 @@ if ($conn) {
         }
 
         .publish-badge.published {
-            background: rgba(76,175,80,0.15);
-            color: #4CAF50;
+            background: rgba(22, 163, 74, 0.15);
+            color: #15803d;
         }
 
         .publish-badge.draft {
-            background: rgba(255,152,0,0.15);
-            color: #F57C00;
+            background: rgba(245, 158, 11, 0.18);
+            color: #d97706;
         }
 
         .btn-publish {
             padding: 6px 14px;
-            background: #28a745;
+            background: linear-gradient(135deg, #16a34a, #15803d);
             color: white;
             border: none;
             border-radius: 6px;
@@ -756,7 +839,7 @@ if ($conn) {
             gap: 5px;
         }
 
-        .btn-publish:hover { background: #218838; }
+        .btn-publish:hover { background: #15803d; }
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
@@ -768,12 +851,15 @@ if ($conn) {
         <div class="transparency-header">
             <div class="header-content">
                 <div class="header-title">
-                    <h1><i class="fas fa-exchange-alt"></i> Public Transparency – Completed Projects</h1>
-                    <?php if ($is_admin): ?>
-                    <p>Manage before &amp; after project photos that appear on the landing page</p>
-                    <?php else: ?>
-                    <p>View completed projects with before &amp; after photos (View Only)</p>
-                    <?php endif; ?>
+                    <div class="header-icon"><i class="fas fa-exchange-alt"></i></div>
+                    <div>
+                        <h1>Public Transparency – Completed Projects</h1>
+                        <?php if ($is_admin): ?>
+                        <p>Manage before &amp; after project photos that appear on the landing page</p>
+                        <?php else: ?>
+                        <p>View completed projects with before &amp; after photos (View Only)</p>
+                        <?php endif; ?>
+                    </div>
                 </div>
                 <div class="header-actions"></div>
             </div>
@@ -785,15 +871,15 @@ if ($conn) {
                 <div class="stat-number" id="statTotal"><?php echo count($projects); ?></div>
                 <div class="stat-label">Total Projects</div>
             </div>
-            <div class="transparency-stat">
+            <div class="transparency-stat stat-amber">
                 <div class="stat-number" id="statWithBefore"><?php echo count(array_filter($projects, fn($p) => !empty($p['before_photo']))); ?></div>
                 <div class="stat-label">With Before Photo</div>
             </div>
-            <div class="transparency-stat">
+            <div class="transparency-stat stat-emerald">
                 <div class="stat-number" id="statWithAfter"><?php echo count(array_filter($projects, fn($p) => !empty($p['photo']))); ?></div>
                 <div class="stat-label">With After Photo</div>
             </div>
-            <div class="transparency-stat">
+            <div class="transparency-stat stat-violet">
                 <div class="stat-number" id="statTotalCost">₱<?php echo number_format(array_sum(array_column($projects, 'cost')), 0); ?></div>
                 <div class="stat-label">Total Project Cost</div>
             </div>
@@ -810,13 +896,13 @@ if ($conn) {
         </div>
 
         <!-- Add / Edit Form - Admin Only -->
-        <div class="project-form-card" id="projectForm">
-            <div class="section-header">
+        <div class="project-form-card panel-project" id="projectForm">
+            <div class="section-header panel-project-header">
                 <h3 class="section-title" id="formTitle"><i class="fas fa-plus-circle"></i> Add New Project</h3>
                 <div class="form-header-actions">
                     <button type="button" class="btn-import" id="btnImportExport" onclick="document.getElementById('progressExportInput').click()"
                             title="Fill this form from a Progress Updates export (.doc)">
-                        <i class="fas fa-file-import"></i> Import from Export
+                        <i class="fas fa-file-import"></i> Import
                     </button>
                     <input type="file" id="progressExportInput" accept=".doc" style="display:none" onchange="handleProgressExportImport(this)">
                     <button class="btn-cancel" id="btnCancelEdit" style="display:none" onclick="resetForm()">
@@ -956,19 +1042,21 @@ if ($conn) {
                     $after_img = !empty($proj['photo']) ? htmlspecialchars('../../../' . ltrim(str_replace(['../', '..\\'], '', $proj['photo']), '/\\')) : '';
                     $before_img = !empty($proj['before_photo']) ? htmlspecialchars('../../../' . ltrim(str_replace(['../', '..\\'], '', $proj['before_photo']), '/\\')) : '';
                     $has_before = !empty($proj['before_photo']);
+                    $ph_after = 'data:image/svg+xml;utf8,' . rawurlencode('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="375"><rect width="100%" height="100%" fill="#059669"/><g fill="#ffffff" font-family="Poppins, Arial, sans-serif" font-size="28" font-weight="600" text-anchor="middle"><text x="300" y="178">After Photo</text></g></svg>');
+                    $ph_before = 'data:image/svg+xml;utf8,' . rawurlencode('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="375"><rect width="100%" height="100%" fill="#b91c1c"/><g fill="#ffffff" font-family="Poppins, Arial, sans-serif" font-size="28" font-weight="600" text-anchor="middle"><text x="300" y="178">No Before Photo</text></g></svg>');
                 ?>
                 <div class="project-item" data-id="<?php echo $proj['id']; ?>">
                     <div class="project-preview" data-preview>
                         <?php if ($after_img): ?>
-                        <img src="<?php echo $after_img; ?>" alt="After" class="preview-after" onerror="this.src='https://via.placeholder.com/600x375/4CAF50/ffffff?text=After'">
+                        <img src="<?php echo $after_img; ?>" alt="After" class="preview-after" onerror="this.src='<?php echo $ph_after; ?>'">
                         <?php else: ?>
-                        <img src="https://via.placeholder.com/600x375/4CAF50/ffffff?text=After+Photo" alt="After" class="preview-after">
+                        <img src="<?php echo $ph_after; ?>" alt="After" class="preview-after">
                         <?php endif; ?>
 
                         <?php if ($has_before): ?>
-                        <img src="<?php echo $before_img; ?>" alt="Before" class="preview-before" onerror="this.src='https://via.placeholder.com/600x375/dc3545/ffffff?text=Before'">
+                        <img src="<?php echo $before_img; ?>" alt="Before" class="preview-before" onerror="this.src='<?php echo $ph_before; ?>'">
                         <?php else: ?>
-                        <img src="https://via.placeholder.com/600x375/dc3545/ffffff?text=No+Before+Photo" alt="Before" class="preview-before">
+                        <img src="<?php echo $ph_before; ?>" alt="Before" class="preview-before">
                         <?php endif; ?>
 
                         <div class="preview-handle"></div>

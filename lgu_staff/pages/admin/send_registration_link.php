@@ -187,332 +187,206 @@ try {
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Poppins', sans-serif;
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
+        body { background: #f5f3ee; min-height: 100vh; color: var(--text-primary); }
+        body.dark-mode { background: var(--bg-page); }
+
+        .main-content.reglink-dash {
+            margin-left: 250px; padding: 24px 28px; max-width: 100%; overflow-x: hidden;
+            position: relative; z-index: 1;
         }
 
-        body {
-            background: #f7f5f0;
-            min-height: 100vh;
-        }
-
-        .main-content {
-            margin-left: 250px;
-            padding: 20px;
-            position: relative;
-            z-index: 1;
-        }
-
+        /* Dashboard header */
         .dashboard-header {
-            background: #f0f4fa;
-            backdrop-filter: blur(15px);
-            padding: 25px;
-            border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            margin-bottom: 25px;
+            background: #f4f7fb; border-radius: 14px; padding: 20px 26px; margin-bottom: 22px;
+            border: 1px solid #d5dce8; box-shadow: var(--shadow-card);
+            display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;
         }
-
-        .welcome-section {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 20px;
+        .welcome-text h1 { font-size: 22px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; display: flex; align-items: center; gap: 12px; }
+        .header-icon {
+            width: 40px; height: 40px; border-radius: 10px;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #1e3c72, #0f274a); color: #fff; font-size: 16px;
+            box-shadow: 0 4px 12px rgba(30, 60, 114, 0.35);
         }
-
-        .welcome-text h1 {
-            font-size: 28px;
-            font-weight: 700;
-            color: #1e3c72;
-            margin-bottom: 8px;
+        .welcome-text p { color: var(--text-secondary); font-size: 13px; }
+        .date-time { color: var(--text-secondary); font-size: 13px; }
+        .dt-chip {
+            display: flex; align-items: center; gap: 10px;
+            background: var(--color-primary-bg); border: 1px solid var(--border-default);
+            border-radius: 14px; padding: 10px 14px;
         }
-
-        .welcome-text p {
-            color: #64748b;
-            font-size: 16px;
+        .dt-chip i {
+            color: #fff; font-size: 16px; width: 28px; height: 28px; border-radius: 8px;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #1e3c72, #0f274a);
         }
+        .dt-chip #currentDate { font-weight: 600; color: var(--text-primary); font-size: 13px; }
+        .dt-chip #currentTime { color: var(--text-secondary); font-size: 12px; margin-top: 1px; }
 
-        .workflow-container {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 25px;
-        }
-
+        /* Workflow cards */
+        .workflow-container { display: grid; grid-template-columns: 1fr; gap: 22px; }
         .workflow-card {
-            background: #f0f4fa;
-            backdrop-filter: blur(15px);
-            padding: 25px;
-            border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            width: 100%;
+            background: #f4f7fb; border-radius: 14px; padding: 22px;
+            border: 1px solid #d5dce8; box-shadow: var(--shadow-card);
+            position: relative; overflow: hidden;
         }
-
+        .workflow-card::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
+        .workflow-card.panel-send::after { background: linear-gradient(180deg, #d97706, #b45309); }
+        .workflow-card.panel-tokens::after { background: linear-gradient(180deg, #d97706, #b45309); }
         .workflow-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid rgba(55, 98, 200, 0.1);
+            display: flex; justify-content: space-between; align-items: center;
+            margin: -22px -22px 18px; padding: 14px 18px 14px 22px;
+            border-bottom: 1px solid var(--border-light);
         }
-
-        .workflow-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: #1e3c72;
-            display: flex;
-            align-items: center;
-            gap: 10px;
+        .workflow-card.panel-send .workflow-header { background: rgba(217,119,6,0.10); }
+        .workflow-card.panel-tokens .workflow-header { background: rgba(217,119,6,0.10); }
+        .workflow-title { font-size: 14px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
+        .workflow-card.panel-send .workflow-title { color: #b45309; }
+        .workflow-card.panel-tokens .workflow-title { color: #b45309; }
+        .title-icon {
+            width: 32px; height: 32px; border-radius: 9px;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 13px; flex-shrink: 0; color: #fff;
         }
+        .workflow-card.panel-send .title-icon { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .workflow-card.panel-tokens .title-icon { background: linear-gradient(135deg, #f59e0b, #d97706); }
 
-        .form-group {
-            margin-bottom: 16px;
-        }
-
-        .form-group label {
-            display: block;
-            font-size: 13px;
-            font-weight: 600;
-            color: #1e3c72;
-            margin-bottom: 6px;
-        }
-
+        /* Form */
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
         .form-group input {
-            width: 100%;
-            padding: 10px 14px;
-            border: 1px solid #d1d5db;
-            border-radius: 8px;
-            font-size: 14px;
-            color: #1e293b;
-            background: #f8fafc;
-            transition: border-color 0.2s, box-shadow 0.2s;
-            box-sizing: border-box;
+            width: 100%; padding: 9px 12px; border: 1px solid var(--border-default); border-radius: 8px;
+            font-size: 13px; color: var(--text-primary); background: var(--bg-input);
+            transition: border-color 0.2s, box-shadow 0.2s; box-sizing: border-box;
         }
-
         .form-group input:focus {
-            outline: none;
-            border-color: #3762c8;
-            box-shadow: 0 0 0 3px rgba(55, 98, 200, 0.15);
-            background: #fff;
+            outline: none; border-color: #d97706; box-shadow: 0 0 0 3px rgba(217,119,6,0.14); background: #fff;
         }
+        .field-hint { font-size: 12px; color: var(--text-muted); margin-top: 5px; }
 
-        .field-hint {
-            font-size: 12px;
-            color: #94a3b8;
-            margin-top: 5px;
-        }
+        .btn { padding: 10px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; }
+        .btn-primary { background: linear-gradient(135deg, #f59e0b, #b45309); color: #fff; box-shadow: 0 4px 12px rgba(217,119,6,0.35); }
+        .btn-primary:hover { filter: brightness(1.08); transform: translateY(-1px); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 
-        .btn {
-            padding: 10px 24px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-
-        .btn-primary {
-            background: #3762c8;
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: #2a4a9a;
-        }
-
+        /* Alerts */
         .success-box {
-            background: #d1fae5;
-            border: 1px solid #10b981;
-            border-radius: 8px;
-            padding: 16px 20px;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: flex-start;
-            gap: 12px;
+            background: linear-gradient(135deg, #d1fae5, #a7f3d0); border: 1px solid #10b981;
+            border-radius: 10px; padding: 16px 20px; margin-bottom: 20px;
+            display: flex; align-items: flex-start; gap: 12px;
         }
-
-        .success-box .icon {
-            color: #10b981;
-            font-size: 20px;
-            margin-top: 2px;
-        }
-
-        .success-box .content h4 {
-            color: #065f46;
-            font-size: 15px;
-            margin-bottom: 4px;
-        }
-
-        .success-box .content p {
-            color: #047857;
-            font-size: 13px;
-        }
-
+        .success-box .icon { color: #059669; font-size: 20px; margin-top: 2px; }
+        .success-box .content h4 { color: #065f46; font-size: 15px; margin-bottom: 4px; }
+        .success-box .content p { color: #047857; font-size: 13px; }
         .success-box .content .url-display {
-            background: #fff;
-            border: 1px dashed #10b981;
-            border-radius: 6px;
-            padding: 10px 14px;
-            margin-top: 10px;
-            font-family: monospace;
-            font-size: 12px;
-            color: #1e3c72;
-            word-break: break-all;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 10px;
+            background: #fff; border: 1px dashed #10b981; border-radius: 6px; padding: 10px 14px; margin-top: 10px;
+            font-family: monospace; font-size: 12px; color: #1e3c72; word-break: break-all;
+            display: flex; align-items: center; justify-content: space-between; gap: 10px;
         }
-
-        .success-box .content .url-display button {
-            background: none;
-            border: none;
-            color: #3762c8;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: 500;
-            white-space: nowrap;
-        }
-
-        .success-box .content .url-display button:hover {
-            text-decoration: underline;
-        }
-
+        .success-box .content .url-display button { background: none; border: none; color: #3762c8; cursor: pointer; font-size: 13px; font-weight: 500; white-space: nowrap; }
+        .success-box .content .url-display button:hover { text-decoration: underline; }
         .error-box {
-            background: #fee2e2;
-            border: 1px solid #ef4444;
-            border-radius: 8px;
-            padding: 16px 20px;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
+            background: linear-gradient(135deg, #fee2e2, #fecaca); border: 1px solid #ef4444;
+            border-radius: 10px; padding: 16px 20px; margin-bottom: 20px;
+            display: flex; align-items: center; gap: 12px;
         }
+        .error-box .icon { color: #dc2626; font-size: 20px; }
+        .error-box .content p { color: #991b1b; font-size: 14px; }
 
-        .error-box .icon {
-            color: #ef4444;
-            font-size: 20px;
+        /* Tokens table */
+        .table-container {
+            overflow-x: auto; border: 1px solid var(--border-light);
+            border-radius: 12px; background: #f4f7fb;
         }
-
-        .error-box .content p {
-            color: #991b1b;
-            font-size: 14px;
-        }
-
-        .tokens-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 14px;
-        }
-
+        .tokens-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .tokens-table th, .tokens-table td { padding: 11px 14px; text-align: left; }
         .tokens-table th {
-            text-align: left;
-            padding: 10px 12px;
-            color: #1e3c72;
-            font-size: 13px;
-            font-weight: 600;
-            background: rgba(55, 98, 200, 0.08);
-            border-bottom: 2px solid rgba(55, 98, 200, 0.2);
+            background: linear-gradient(135deg, #f59e0b, #b45309); color: #fff;
+            font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600;
         }
+        .tokens-table td { color: var(--text-primary); border-bottom: 1px solid var(--border-light); }
+        .tokens-table tbody tr:hover td { background: var(--bg-hover); }
+        .tokens-table tbody tr:last-child td { border-bottom: none; }
+        .empty-state { color: var(--text-muted); font-size: 14px; }
 
-        .tokens-table td {
-            padding: 10px 12px;
-            color: #1e293b;
-            border-bottom: 1px solid rgba(55, 98, 200, 0.08);
-        }
-
-        .status-badge {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        .status-badge.ok {
-            background: #d1fae5;
-            color: #065f46;
-        }
-
-        .status-badge.danger {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-
-        /* Dark-mode only fix for the status badges on this system_admin page */
-        body.dark-mode .status-badge.ok {
-            background: var(--color-success-bg) !important;
-            color: var(--color-success) !important;
-        }
-
-        body.dark-mode .status-badge.danger {
-            background: var(--color-danger-bg) !important;
-            color: var(--color-danger) !important;
-        }
+        .status-badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+        .status-badge.ok { background: var(--color-success-bg); color: var(--color-success-text); }
+        .status-badge.danger { background: var(--color-danger-bg); color: var(--color-danger-text); }
+        body.dark-mode .status-badge.ok { background: var(--color-success-bg) !important; color: var(--color-success) !important; }
+        body.dark-mode .status-badge.danger { background: var(--color-danger-bg) !important; color: var(--color-danger) !important; }
 
         .row-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            margin: 2px 3px 2px 0;
-            padding: 5px 10px;
-            border: 1px solid rgba(55, 98, 200, 0.3);
-            border-radius: 8px;
-            background: #ffffff;
-            color: #3762c8;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s, color 0.2s;
+            display: inline-flex; align-items: center; gap: 6px; margin: 2px 3px 2px 0;
+            padding: 6px 12px; border: none; border-radius: 8px;
+            background: var(--color-primary-bg); color: var(--color-primary);
+            font-size: 12px; font-weight: 600; cursor: pointer;
+            transition: all 0.2s; box-shadow: 0 2px 6px rgba(30, 60, 114, 0.12);
         }
-
-        .row-btn:hover {
-            background: #3762c8;
-            color: #ffffff;
+        .row-btn i { font-size: 11px; }
+        .row-btn:hover { background: linear-gradient(135deg, #3762c8, #1e3c72); color: #fff; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(30, 60, 114, 0.3); }
+        .row-btn-warn {
+            background: var(--color-warning-bg); color: var(--color-warning-text);
+            box-shadow: 0 2px 6px rgba(217, 119, 6, 0.14);
         }
-
+        .row-btn-warn:hover { background: linear-gradient(135deg, #f59e0b, #b45309); color: #fff; box-shadow: 0 4px 12px rgba(217, 119, 6, 0.3); }
         .row-btn-danger {
-            border-color: rgba(220, 38, 38, 0.35);
-            color: #dc2626;
+            background: var(--color-danger-bg); color: var(--color-danger-text);
+            box-shadow: 0 2px 6px rgba(220, 38, 38, 0.14);
         }
+        .row-btn-danger:hover { background: linear-gradient(135deg, #ef4444, #b91c1c); color: #fff; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3); }
 
-        .row-btn-danger:hover {
-            background: #dc2626;
-            color: #ffffff;
+        /* Dark mode */
+        body.dark-mode .dashboard-header,
+        body.dark-mode .workflow-card,
+        body.dark-mode .table-container {
+            background: #1c2432 !important; border-color: rgba(147, 179, 224, 0.22) !important;
         }
+        body.dark-mode .workflow-header { background: rgba(255,255,255,0.03) !important; border-color: var(--border-default) !important; }
+        body.dark-mode .workflow-card.panel-send .workflow-title { color: #fbbf24 !important; }
+        body.dark-mode .workflow-card.panel-tokens .workflow-title { color: #fbbf24 !important; }
+        body.dark-mode .dt-chip { background: var(--color-primary-bg); border-color: var(--border-default); }
+        body.dark-mode .dt-chip i { background: linear-gradient(135deg, #1e3c72, #0f274a); }
+        body.dark-mode .welcome-text h1 { color: var(--text-primary); }
+        body.dark-mode .welcome-text p,
+        body.dark-mode .date-time { color: var(--text-secondary) !important; }
+        body.dark-mode .form-group input {
+            background: #1c2432 !important; border-color: var(--border-default) !important; color: var(--text-primary) !important;
+        }
+        body.dark-mode .form-group input:focus {
+            border-color: #fbbf24 !important; box-shadow: 0 0 0 3px rgba(251,191,36,0.12) !important; background: #1c2432 !important;
+        }
+        body.dark-mode .tokens-table th { background: linear-gradient(135deg, #f59e0b, #b45309); }
+        body.dark-mode .tokens-table td { color: var(--text-primary); border-bottom-color: var(--border-default); }
+        body.dark-mode .row-btn { background: var(--color-primary-bg); color: var(--color-primary); }
+        body.dark-mode .row-btn-warn { background: var(--color-warning-bg); color: var(--color-warning-text); }
+        body.dark-mode .row-btn-danger { background: var(--color-danger-bg); color: var(--color-danger-text); }
+        body.dark-mode .success-box .content .url-display { background: #1c2432; color: var(--text-primary); }
 
         @media (max-width: 768px) {
-            .main-content {
-                margin-left: 0;
-                padding: 10px;
-            }
-
-            .welcome-section {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-        }
-    </style>
+            .main-content.reglink-dash { margin-left: 0; padding: 16px; }
+            .dashboard-header { flex-direction: column; align-items: flex-start; }
+            .welcome-section { flex-direction: column; align-items: flex-start; }
+            .date-time { text-align: left; }
+        }    </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
     <!-- SIDEBAR -->
     <?php include '../../includes/sidebar_nav.php'; ?>
 
-    <div class="main-content">
+    <div class="main-content reglink-dash">
         <!-- Dashboard Header -->
         <div class="dashboard-header">
-            <div class="welcome-section">
-                <div class="welcome-text">
-                    <h1><i class="fas fa-user-shield"></i> Send Registration Link</h1>
-                    <p>Email a sign-up link to a new user. A token is generated and sent, but no account is created until the user registers from the link.</p>
-                </div>
-                <div class="date-time">
+            <div class="welcome-text">
+                <h1>
+                    <span class="header-icon"><i class="fas fa-user-shield"></i></span>
+                    Send Registration Link
+                </h1>
+                <p>Email a sign-up link to a new user. A token is generated and sent, but no account is created until the user registers from the link.</p>
+            </div>
+            <div class="dt-chip">
+                <i class="fas fa-calendar-day"></i>
+                <div>
                     <div id="currentDate"></div>
                     <div id="currentTime"></div>
                 </div>
@@ -520,10 +394,10 @@ try {
         </div>
 
         <div class="workflow-container">
-            <div class="workflow-card">
+            <div class="workflow-card panel-send">
                 <div class="workflow-header">
                     <h3 class="workflow-title">
-                        <i class="fas fa-paper-plane"></i>
+                        <span class="title-icon"><i class="fas fa-paper-plane"></i></span>
                         <span>Send Registration Link</span>
                     </h3>
                 </div>
@@ -544,18 +418,18 @@ try {
             </div>
 
             <!-- Generated Tokens -->
-            <div class="workflow-card">
+            <div class="workflow-card panel-tokens">
                 <div class="workflow-header">
                     <h3 class="workflow-title">
-                        <i class="fas fa-key"></i>
+                        <span class="title-icon"><i class="fas fa-key"></i></span>
                         <span>Generated Tokens</span>
                     </h3>
                 </div>
 
                 <?php if (empty($tokensList)): ?>
-                    <p style="color: #94a3b8; font-size: 14px;">No tokens have been generated yet.</p>
+                    <p class="empty-state">No tokens have been generated yet.</p>
                 <?php else: ?>
-                <div style="overflow-x: auto;">
+                <div class="table-container">
                     <table class="tokens-table">
                         <thead>
                             <tr>
@@ -571,7 +445,7 @@ try {
                                 <td><span class="status-badge <?php echo (strpos($t['status'], 'disabled') !== false || strpos($t['status'], 'used') !== false || strpos($t['status'], 'expired') !== false) ? 'danger' : 'ok'; ?>"><?php echo htmlspecialchars($t['status']); ?></span></td>
                                 <td>
                                     <button type="button" class="row-btn" onclick="rowAction('turn_off_login', '<?php echo htmlspecialchars($t['email'], ENT_QUOTES); ?>')" title="Disable login link for this token"><i class="fas fa-sign-in-alt"></i> Off Login</button>
-                                    <button type="button" class="row-btn" onclick="rowAction('turn_off_register', '<?php echo htmlspecialchars($t['email'], ENT_QUOTES); ?>')" title="Disable registration on the login page"><i class="fas fa-user-plus"></i> Off Register</button>
+                                    <button type="button" class="row-btn row-btn-warn" onclick="rowAction('turn_off_register', '<?php echo htmlspecialchars($t['email'], ENT_QUOTES); ?>')" title="Disable registration on the login page"><i class="fas fa-user-plus"></i> Off Register</button>
                                     <button type="button" class="row-btn row-btn-danger" onclick="rowAction('delete', '<?php echo htmlspecialchars($t['email'], ENT_QUOTES); ?>')" title="Delete this token"><i class="fas fa-trash"></i> Delete</button>
                                 </td>
                             </tr>
@@ -676,7 +550,7 @@ try {
             const actionsTd = document.createElement('td');
             actionsTd.innerHTML =
                 '<button type="button" class="row-btn" onclick="rowAction(\'turn_off_login\', ' + JSON.stringify(email) + ')" title="Disable login link for this token"><i class="fas fa-sign-in-alt"></i> Off Login</button>' +
-                '<button type="button" class="row-btn" onclick="rowAction(\'turn_off_register\', ' + JSON.stringify(email) + ')" title="Disable registration on the login page"><i class="fas fa-user-plus"></i> Off Register</button>' +
+                '<button type="button" class="row-btn row-btn-warn" onclick="rowAction(\'turn_off_register\', ' + JSON.stringify(email) + ')" title="Disable registration on the login page"><i class="fas fa-user-plus"></i> Off Register</button>' +
                 '<button type="button" class="row-btn row-btn-danger" onclick="rowAction(\'delete\', ' + JSON.stringify(email) + ')" title="Delete this token"><i class="fas fa-trash"></i> Delete</button>';
             tr.appendChild(emailTd);
             tr.appendChild(statusTd);

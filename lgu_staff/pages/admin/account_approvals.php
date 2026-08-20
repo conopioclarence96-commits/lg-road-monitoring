@@ -212,7 +212,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $stmt = $conn->prepare("
-    SELECT id, username, email, full_name, role, department, address, birthday, civil_status, phone_number, is_active, created_at, updated_at, approved_at, rejected_at, id_file_path 
+    SELECT id, username, email, full_name, role, department, address, birthday, civil_status, phone_number, is_active, created_at, updated_at, approved_at, rejected_at, id_file_path, last_activity 
     FROM users 
     WHERE role IN ('lgu_staff', 'citizen', 'road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer') AND account_status = 'pending'
     ORDER BY created_at DESC
@@ -299,177 +299,460 @@ if ($focus_cr_id > 0) {
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <style>
-        body { background: #f7f5f0; min-height: 100vh; }
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
+        body { background: #f5f3ee; min-height: 100vh; color: var(--text-primary); }
+        body.dark-mode { background: var(--bg-page); }
 
-        .main-content { margin-left: 250px; padding: 20px; position: relative; z-index: 1; }
+        .main-content.approvals-dash {
+            margin-left: 250px;
+            padding: 28px 32px;
+            max-width: 100%;
+            overflow-x: hidden;
+            position: relative;
+            z-index: 1;
+        }
 
-        .dashboard-header {
-            background: #f0f4fa; backdrop-filter: blur(15px); padding: 25px 30px;
-            border-radius: 16px; margin-bottom: 25px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.2);
+        /* Dashboard header */
+        .approvals-dash .dashboard-header {
+            background: #f4f7fb;
+            border-radius: 14px;
+            padding: 20px 26px;
+            margin-bottom: 22px;
+            border: 1px solid #d5dce8;
+            box-shadow: var(--shadow-card);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
         }
-        .welcome-section { display: flex; justify-content: space-between; align-items: center; }
-        .welcome-text h1 { color: #1e3c72; font-size: 28px; font-weight: 700; }
-        .welcome-text p { color: #64748b; font-size: 15px; margin-top: 5px; }
-        .date-time { text-align: right; color: #3762c8; font-weight: 500; }
+        .approvals-dash .welcome-text h1 {
+            font-size: 22px; font-weight: 700; color: var(--text-primary);
+            margin-bottom: 4px; display: flex; align-items: center; gap: 12px;
+        }
+        .approvals-dash .header-icon {
+            width: 40px; height: 40px; border-radius: 10px;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: var(--color-primary-bg);
+            color: var(--color-primary); font-size: 16px;
+        }
+        .approvals-dash .welcome-text p { color: var(--text-secondary); font-size: 13px; }
+        .approvals-dash .date-time { color: var(--text-secondary); font-size: 13px; }
+        .approvals-dash .dt-chip {
+            display: flex; align-items: center; gap: 10px;
+            background: var(--color-primary-bg);
+            border: 1px solid var(--border-default);
+            border-radius: 14px; padding: 10px 14px;
+        }
+        .approvals-dash .dt-chip i {
+            color: var(--color-primary); font-size: 16px;
+            width: 28px; height: 28px; border-radius: 8px;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: #f4f7fb;
+        }
+        .approvals-dash #currentDate { font-weight: 600; color: var(--text-primary); font-size: 13px; }
+        .approvals-dash #currentTime { color: var(--text-secondary); font-size: 12px; margin-top: 1px; }
 
-        .quick-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 25px; }
-        .stat-card {
-            background: #f0f4fa; backdrop-filter: blur(15px); padding: 20px; border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.2);
-            text-align: center; transition: transform 0.2s;
+        .approvals-dash .sync-indicator {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 11px; color: var(--text-secondary);
+            margin-top: 6px;
         }
-        .stat-card:hover { transform: translateY(-5px); }
-        .stat-icon { width: 50px; height: 50px; background: linear-gradient(135deg, #3762c8, #1e3c72); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; font-size: 20px; margin: 0 auto 12px; }
-        .stat-number { font-size: 28px; font-weight: 700; color: #1e3c72; }
-        .stat-label { color: #64748b; font-size: 14px; font-weight: 500; }
-
-        .workflow-container { display: grid; grid-template-columns: 1fr; gap: 25px; }
-        .workflow-card {
-            background: #f0f4fa; backdrop-filter: blur(15px); padding: 25px; border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.2);
-        }
-        .workflow-header {
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid rgba(55,98,200,0.1);
-        }
-        .workflow-title { font-size: 18px; font-weight: 600; color: #1e3c72; display: flex; align-items: center; gap: 10px; }
-        .workflow-badge { background: #3762c8; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; }
-        .sync-indicator { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #64748b; }
-        .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; }
-        .sync-dot.syncing { animation: syncPulse 0.8s ease-in-out infinite; background: #f59e0b; }
+        .approvals-dash .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-success); }
+        .approvals-dash .sync-dot.syncing { animation: syncPulse 0.8s ease-in-out infinite; background: var(--color-warning); }
         @keyframes syncPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
-        .cr-modal-section { background: #f8fafc; border-radius: 10px; padding: 16px; margin-bottom: 16px; border: 1px solid #e2e8f0; }
-        .cr-modal-section.cr-requested { background: #eff6ff; border-color: #bfdbfe; }
-        .cr-modal-section.cr-requested .cr-modal-section-title { color: #1e40af; }
-        .cr-modal-section-title { font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
-        .cr-modal-section-title i { font-size: 14px; }
-        .cr-compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-        .cr-compare-item { display: flex; flex-direction: column; gap: 4px; }
-        .cr-compare-label { font-size: 11px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
-        .cr-compare-old { font-size: 13px; color: #64748b; padding: 8px 12px; background: #f1f5f9; border-radius: 6px; border-left: 3px solid #cbd5e1; }
-        .cr-compare-new { font-size: 13px; color: #1e3c72; padding: 8px 12px; background: #eff6ff; border-radius: 6px; border-left: 3px solid #3762c8; font-weight: 500; }
-        .cr-compare-new.no-change { color: #94a3b8; background: #f8fafc; border-left-color: #e2e8f0; font-weight: 400; }
-        .cr-media-preview { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: #f1f5f9; border-radius: 6px; border-left: 3px solid #3762c8; }
-        .cr-media-preview img { width: 70px; height: 70px; border-radius: 8px; object-fit: cover; border: 2px solid #e2e8f0; }
-        .cr-media-preview .cr-media-label { font-size: 12px; color: #64748b; }
-        .cr-staff-header { display: flex; align-items: center; gap: 14px; padding-bottom: 14px; border-bottom: 1px solid #e2e8f0; margin-bottom: 16px; }
-        .cr-staff-avatar { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, #3762c8, #1e3c72); display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; font-weight: 600; flex-shrink: 0; }
-        .cr-staff-info { flex: 1; }
-        .cr-staff-name { font-size: 16px; font-weight: 600; color: #1e3c72; }
-        .cr-staff-date { font-size: 12px; color: #94a3b8; margin-top: 2px; }
-        .cr-admin-notes textarea { width: 100%; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; resize: vertical; font-family: 'Poppins', sans-serif; transition: border-color 0.2s; }
-        .cr-admin-notes textarea:focus { outline: none; border-color: #3762c8; box-shadow: 0 0 0 3px rgba(55,98,200,0.1); }
-        .cr-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; padding-top: 16px; border-top: 1px solid #e2e8f0; }
-        .cr-btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 8px; }
-        .cr-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-        .cr-btn-reject { background: #ef4444; color: white; }
-        .cr-btn-approve { background: #22c55e; color: white; }
-        .cr-btn-close { background: #e2e8f0; color: #475569; }
-        .cr-btn-close:hover { background: #cbd5e1; }
-        .workflow-content { max-height: 500px; overflow-y: auto; padding-right: 10px; }
-        .workflow-content::-webkit-scrollbar { width: 6px; }
-        .workflow-content::-webkit-scrollbar-track { background: rgba(55,98,200,0.1); border-radius: 3px; }
-        .workflow-content::-webkit-scrollbar-thumb { background: rgba(55,98,200,0.3); border-radius: 3px; }
+        /* Summary cards */
+        .summary-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+        .summary-card {
+            background: #f4f7fb; border-radius: 14px; padding: 18px 18px 16px;
+            border: 1px solid #d5dce8; position: relative; overflow: hidden;
+            box-shadow: var(--shadow-card);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .summary-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; }
+        .summary-card.amber::before { background: #d97706; }
+        .summary-card.emerald::before { background: #059669; }
+        .summary-card.rose::before { background: #e11d48; }
+        .summary-card.violet::before { background: #3f3658; }
+        .summary-card.amber,
+        .summary-card.emerald,
+        .summary-card.rose,
+        .summary-card.violet { background: #f4f7fb; }
+        .summary-card .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+        .summary-card .card-icon {
+            width: 42px; height: 42px; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center; font-size: 16px;
+        }
+        .summary-card.amber .card-icon { background: rgba(217,119,6,0.18); color: #b45309; }
+        .summary-card.emerald .card-icon { background: rgba(5,150,105,0.18); color: #047857; }
+        .summary-card.rose .card-icon { background: rgba(225,29,72,0.16); color: #be123c; }
+        .summary-card.violet .card-icon { background: rgba(63,54,88,0.20); color: #3f3658; }
+        .summary-card .card-value { font-size: 28px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.03em; }
+        .summary-card .card-label { font-size: 12px; color: var(--text-secondary); font-weight: 600; margin-top: 2px; }
 
-        .table-container { overflow-x: auto; }
+        /* Workflow cards */
+        .workflow-container { display: grid; grid-template-columns: 1fr; gap: 20px; margin-bottom: 24px; }
+        .workflow-card {
+            background: #f4f7fb; border-radius: 14px; padding: 20px;
+            border: 1px solid #d5dce8; box-shadow: var(--shadow-card);
+            position: relative; overflow: hidden;
+        }
+        .workflow-card.panel-approvals::after { background: #d97706; }
+        .workflow-card.panel-changes::after { background: #4c1d95; }
+        .workflow-card::after {
+            content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+        }
+        .workflow-header {
+            display: flex; justify-content: space-between; align-items: center; gap: 10px;
+            margin: -20px -20px 16px; padding: 14px 18px 14px 20px;
+            border-bottom: 1px solid var(--border-light);
+            background: var(--bg-hover);
+        }
+        .workflow-card.panel-approvals .workflow-header { background: rgba(217,119,6,0.10); }
+        .workflow-card.panel-changes .workflow-header { background: rgba(76,29,149,0.12); }
+        .workflow-title {
+            font-size: 14px; font-weight: 600; color: var(--text-primary);
+            display: flex; align-items: center; gap: 10px;
+        }
+        .workflow-card.panel-approvals .workflow-title { color: #b45309; }
+        .workflow-card.panel-changes .workflow-title { color: #4c1d95; }
+        .workflow-title .title-icon {
+            width: 30px; height: 30px; border-radius: 9px;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 13px; flex-shrink: 0;
+        }
+        .workflow-card.panel-approvals .title-icon { background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; }
+        .workflow-card.panel-changes .title-icon { background: linear-gradient(135deg, #7c3aed, #4c1d95); color: #fff; }
+        .workflow-badge {
+            background: #d97706; color: #fff; padding: 2px 10px;
+            border-radius: 12px; font-size: 11px; font-weight: 600;
+        }
+        .workflow-card.panel-changes .workflow-badge { background: #4c1d95; }
+        .workflow-content { max-height: 600px; overflow-y: auto; padding-right: 4px; }
+        .workflow-content::-webkit-scrollbar { width: 6px; }
+        .workflow-content::-webkit-scrollbar-track { background: var(--border-light); border-radius: 3px; }
+        .workflow-content::-webkit-scrollbar-thumb { background: var(--color-primary-bg); border-radius: 3px; }
+
+        /* Tables */
+        .table-container {
+            overflow-x: auto; border: 1px solid var(--border-light);
+            border-radius: 12px; background: #f4f7fb;
+        }
         table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
-        th { background: #f8fafc; font-weight: 600; color: #475569; }
+        th, td {
+            padding: 11px 12px; text-align: left;
+            border-bottom: 1px solid var(--border-light); font-size: 13px;
+        }
+        th {
+            background: var(--bg-hover); font-weight: 600; color: var(--text-secondary);
+            font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px;
+        }
+        td { color: var(--text-primary); }
+        tbody tr { transition: background 0.15s ease; }
+        tbody tr:hover td { background: var(--bg-hover); }
+        tbody tr:last-child td { border-bottom: none; }
 
         .action-buttons { display: flex; gap: 8px; }
-        .btn-sm { padding: 6px 12px; font-size: 0.85em; border: none; border-radius: 5px; cursor: pointer; transition: all 0.2s; }
-        .btn-approve { background: #22c55e; color: white; }
-        .btn-reject { background: #ef4444; color: white; }
-        .btn-manage { background: #3b82f6; color: white; }
-        .btn-view { background: #3762c8; color: white; }
+        .btn-sm {
+            padding: 6px 11px; font-size: 11px; border: none; border-radius: 8px;
+            cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+            font-weight: 600; text-decoration: none; white-space: nowrap;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+        }
+        .btn-sm:hover { transform: translateY(-1px); }
+        .btn-approve { background: linear-gradient(135deg, #10b981, #059669); color: #fff; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3); }
+        .btn-approve:hover { filter: brightness(1.06); color: #fff; }
+        .btn-reject { background: linear-gradient(135deg, #f43f5e, #e11d48); color: #fff; box-shadow: 0 4px 12px rgba(225, 29, 72, 0.3); }
+        .btn-reject:hover { filter: brightness(1.06); color: #fff; }
+        .btn-manage {
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+            color: #fff; box-shadow: 0 4px 12px rgba(30, 60, 114, 0.3);
+        }
+        .btn-manage:hover { filter: brightness(1.06); color: #fff; }
+        .btn-view { background: linear-gradient(135deg, #3762c8, #1e3c72); color: #fff; }
 
         .cr-row-focus {
             animation: crFocusPulse 1.2s ease-in-out 4;
-            box-shadow: 0 0 0 3px #3762c8, 0 8px 32px rgba(55, 98, 200, 0.35);
-            border-left: 4px solid #3762c8;
-            background: rgba(55, 98, 200, 0.12);
+            box-shadow: 0 0 0 3px var(--color-primary), 0 8px 32px rgba(55, 98, 200, 0.35);
+            border-left: 4px solid var(--color-primary);
+            background: var(--color-primary-bg);
         }
-
         @keyframes crFocusPulse {
-            0%, 100% { background-color: rgba(55, 98, 200, 0.12); }
+            0%, 100% { background-color: var(--color-primary-bg); }
             50% { background-color: rgba(55, 98, 200, 0.28); }
         }
-
         body.dark-mode .cr-row-focus {
             box-shadow: 0 0 0 3px #6a9bff, 0 8px 32px rgba(106, 155, 255, 0.35);
             border-left: 4px solid #6a9bff;
             background: rgba(106, 155, 255, 0.14);
         }
 
-        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); overflow-y: auto; }
-        .modal-content { background-color: white; margin: 5% auto; padding: 30px; border-radius: 10px; width: 90%; max-width: 650px; position: relative; max-height: 85vh; overflow-y: auto; }
-        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .modal-title { margin: 0; color: #333; font-size: 20px; }
-        .close { font-size: 28px; font-weight: bold; cursor: pointer; }
-        .form-group { margin-bottom: 15px; }
-        .form-group label { display: block; margin-bottom: 5px; font-weight: 500; font-size: 13px; color: #333; }
-        .modal-form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; }
-        .modal-form-grid .form-group { margin-bottom: 0; }
-        input, select, textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 13px; }
+        /* Change request review modal */
+        .cr-modal-section { background: var(--bg-hover); border-radius: 10px; padding: 14px; margin-bottom: 14px; border: 1px solid var(--border-light); }
+        .cr-modal-section.cr-requested { background: var(--color-primary-bg); border-color: var(--color-primary-bg); }
+        .cr-modal-section.cr-requested .cr-modal-section-title { color: var(--color-primary); }
+        .cr-modal-section-title { font-size: 11px; font-weight: 700; color: var(--text-secondary); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .cr-modal-section-title i { font-size: 14px; }
+        .cr-compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .cr-compare-item { display: flex; flex-direction: column; gap: 4px; }
+        .cr-compare-label { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+        .cr-compare-old { font-size: 12px; color: var(--text-secondary); padding: 8px 12px; background: var(--bg-input-readonly); border-radius: 8px; border-left: 3px solid var(--border-default); }
+        .cr-compare-new { font-size: 12px; color: var(--text-primary); padding: 8px 12px; background: var(--color-primary-bg); border-radius: 8px; border-left: 3px solid var(--color-primary); font-weight: 500; }
+        .cr-compare-new.no-change { color: var(--text-muted); background: var(--bg-input-readonly); border-left-color: var(--border-default); font-weight: 400; }
+        .cr-media-preview { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: var(--bg-input-readonly); border-radius: 8px; border-left: 3px solid var(--color-primary); }
+        .cr-media-preview img { width: 60px; height: 60px; border-radius: 8px; object-fit: cover; border: 2px solid var(--border-light); }
+        .cr-media-preview .cr-media-label { font-size: 12px; color: var(--text-secondary); }
+        .cr-staff-header { display: flex; align-items: center; gap: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--border-light); margin-bottom: 16px; }
+        .cr-staff-avatar { width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark)); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px; font-weight: 600; flex-shrink: 0; box-shadow: 0 4px 12px rgba(55,98,200,0.3); }
+        .cr-staff-info { flex: 1; }
+        .cr-staff-name { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+        .cr-staff-date { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+        .cr-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-light); }
+        .cr-btn { padding: 8px 16px; border: none; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 8px; color: #fff; }
+        .cr-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .cr-btn-reject { background: linear-gradient(135deg, #f43f5e, #e11d48); }
+        .cr-btn-approve { background: linear-gradient(135deg, #10b981, #059669); }
+        .cr-btn-close { background: var(--text-muted); color: #fff; }
+        .cr-btn-close:hover { filter: brightness(1.1); }
 
-        @media (max-width: 768px) {
-            .main-content { margin-left: 0; padding: 15px; }
-            .welcome-section { flex-direction: column; align-items: flex-start; }
-            .date-time { text-align: left; margin-top: 10px; }
+        /* Enhanced user modal */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: var(--bg-overlay); align-items: center; justify-content: center; }
+        .modal-content { background-color: #f4f7fb; padding: 28px; border-radius: 14px; width: 90%; max-width: 620px; border: 1px solid #d5dce8; box-shadow: var(--shadow-lg); color: var(--text-primary); position: relative; top: auto; left: auto; transform: none; margin: 0 auto; }
+        .modal-content.user-modal-content {
+            max-width: 600px;
+            width: 92vw;
+            max-height: calc(100vh - 48px);
+            padding: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .modal-content.user-modal-content .user-modal-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 14px 20px; border-bottom: 1px solid var(--border-light);
+            background: var(--bg-hover); flex: 0 0 auto;
+        }
+        .modal-content.user-modal-content .user-modal-header .modal-title {
+            display: flex; align-items: center; gap: 10px; font-size: 15px;
+        }
+        .modal-content.user-modal-content .user-modal-header .modal-title-icon {
+            width: 32px; height: 32px; border-radius: 9px;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: var(--color-primary-bg); color: var(--color-primary); font-size: 13px;
+        }
+        .modal-content.user-modal-content .user-modal-body {
+            padding: 16px 20px;
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+        }
+        .modal-content.user-modal-content .user-modal-actions {
+            display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;
+            padding: 14px 20px; border-top: 1px solid var(--border-light);
+            background: var(--bg-hover); flex: 0 0 auto;
+        }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .modal-title { margin: 0; font-size: 16px; font-weight: 600; color: var(--text-primary); }
+        .close { font-size: 24px; cursor: pointer; color: var(--text-muted); }
+        .close:hover { color: var(--color-danger); }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: 600; color: var(--text-secondary); font-size: 12px; }
+        .modal-content input,
+        .modal-content select,
+        .modal-content textarea { width: 100%; padding: 9px 12px; border: 1px solid var(--border-default); border-radius: 8px; background: #f4f7fb; box-sizing: border-box; color: var(--text-primary); font-size: 13px; }
+        .modal-content input:disabled,
+        .modal-content select:disabled,
+        .modal-content textarea:disabled { background: var(--bg-input-readonly); color: var(--text-secondary); }
+        .modal-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .modal-form-grid .form-group { margin-bottom: 0; }
+
+        .profile-summary {
+            display: flex; align-items: center; gap: 14px;
+            padding: 12px 14px; margin-bottom: 14px;
+            background: #eef3fa; border: 1px solid var(--border-light);
+            border-radius: 12px;
+        }
+        .profile-avatar {
+            width: 48px; height: 48px; border-radius: 12px; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; font-weight: 700; color: #fff;
+            background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+            box-shadow: 0 4px 12px rgba(55, 98, 200, 0.3);
+        }
+        .profile-info { flex: 1; min-width: 0; }
+        .profile-name { font-size: 15px; font-weight: 700; color: var(--text-primary); margin-bottom: 2px; }
+        .profile-email { font-size: 12px; color: var(--text-secondary); margin-bottom: 7px; }
+        .profile-badges { display: flex; gap: 8px; flex-wrap: wrap; }
+        .profile-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 3px 10px; border-radius: 999px;
+            font-size: 11px; font-weight: 600;
+        }
+        .profile-badge i { font-size: 10px; }
+        .profile-badge-role { background: var(--color-primary-bg); color: var(--color-primary); }
+        .profile-badge-active { background: var(--color-success-bg); color: var(--color-success-text); }
+        .profile-badge-inactive { background: var(--color-warning-bg); color: var(--color-warning-text); }
+        .profile-badge-pending { background: var(--color-warning-bg); color: var(--color-warning-text); }
+        .profile-badge-locked { background: var(--color-danger-bg); color: var(--color-danger-text); }
+        .profile-badge-deactivated { background: var(--badge-cancelled-bg); color: var(--badge-cancelled-text); }
+        .profile-badge-rejected { background: var(--badge-cancelled-bg); color: var(--badge-cancelled-text); }
+
+        .modal-section-title {
+            font-size: 11px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.5px; color: var(--text-muted);
+            margin: 14px 0 10px; display: flex; align-items: center; gap: 8px;
+        }
+        .modal-section-title:first-child { margin-top: 0; }
+        .modal-section-title::after { content: ''; flex: 1; height: 1px; background: var(--border-light); }
+
+        .id-file-block {
+            display: flex; align-items: center; gap: 14px;
+            padding: 10px 12px; margin-top: 14px;
+            background: var(--bg-hover); border: 1px solid var(--border-light);
+            border-radius: 12px;
+        }
+        .id-file-thumb {
+            width: 56px; height: 56px; border-radius: 10px; overflow: hidden;
+            flex-shrink: 0; background: #e2e8f0; display: flex; align-items: center; justify-content: center;
+        }
+        .id-file-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .id-file-thumb .id-file-empty { font-size: 22px; color: var(--text-muted); opacity: 0.6; }
+        .id-file-meta { flex: 1; min-width: 0; }
+        .id-file-label { font-size: 12px; font-weight: 600; color: var(--text-primary); margin-bottom: 2px; }
+        .id-file-sub { font-size: 11px; color: var(--text-muted); }
+
+        #changeRequestModal .modal-content.cr-modal-content {
+            max-width: 560px;
+            width: 92vw;
+            max-height: calc(100vh - 48px);
+            padding: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        #changeRequestModal .cr-modal-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 14px 20px; border-bottom: 1px solid var(--border-light);
+            background: var(--bg-hover); flex: 0 0 auto;
+        }
+        #changeRequestModal .cr-modal-header .modal-title {
+            display: flex; align-items: center; gap: 10px; font-size: 15px;
+        }
+        #changeRequestModal .cr-modal-header .modal-title-icon {
+            width: 32px; height: 32px; border-radius: 9px;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: var(--color-primary-bg); color: var(--color-primary); font-size: 13px;
+        }
+        #changeRequestModal .cr-modal-body {
+            padding: 16px 20px;
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+        }
+        #changeRequestModal .cr-modal-footer {
+            display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;
+            padding: 14px 20px; border-top: 1px solid var(--border-light);
+            background: var(--bg-hover); flex: 0 0 auto;
         }
 
-        body.dark-mode .dashboard-header { background: #22262e; border-color: #2d323b; }
-        body.dark-mode .welcome-text h1 { color: #e4e6ea; }
-        body.dark-mode .welcome-text p { color: #9ca3af; }
-        body.dark-mode .date-time { color: #60a5fa; }
-        body.dark-mode .stat-card { background: #22262e; border-color: #2d323b; }
-        body.dark-mode .stat-number { color: #e4e6ea; }
-        body.dark-mode .stat-label { color: #9ca3af; }
-        body.dark-mode .workflow-card { background: #22262e; border-color: #2d323b; }
-        body.dark-mode .workflow-title { color: #e4e6ea; }
-        body.dark-mode th { background: #1a1d23; color: #9ca3af; }
-        body.dark-mode td { border-color: #2d323b; color: #d1d5db; }
-        body.dark-mode .modal-content { background: #1a1d23; }
-        body.dark-mode .modal-title { color: #e4e6ea; }
-        body.dark-mode .form-group label { color: #9ca3af; }
-        body.dark-mode input, body.dark-mode select, body.dark-mode textarea { background: #22262e; border-color: #2d323b; color: #e4e6ea; }
-        body.dark-mode .cr-modal-section { background: #1a1d23; border-color: #2d323b; }
-        body.dark-mode .cr-modal-section.cr-requested { background: #172033; border-color: #1e3a5f; }
-        body.dark-mode .cr-modal-section.cr-requested .cr-modal-section-title { color: #60a5fa; }
-        body.dark-mode .cr-modal-section-title { color: #9ca3af; }
-        body.dark-mode .cr-compare-old { background: #22262e; color: #9ca3af; border-left-color: #4b5563; }
-        body.dark-mode .cr-compare-new { background: #1e293b; color: #93c5fd; border-left-color: #60a5fa; }
-        body.dark-mode .cr-compare-new.no-change { color: #6b7280; background: #1a1d23; border-left-color: #2d323b; }
-        body.dark-mode .cr-media-preview { background: #22262e; }
-        body.dark-mode .cr-media-preview img { border-color: #2d323b; }
-        body.dark-mode .cr-staff-header { border-color: #2d323b; }
-        body.dark-mode .cr-staff-name { color: #e4e6ea; }
-        body.dark-mode .cr-admin-notes textarea { background: #22262e; border-color: #2d323b; color: #e4e6ea; }
-        body.dark-mode .cr-actions { border-color: #2d323b; }
-        body.dark-mode .cr-btn-close { background: #2d323b; color: #9ca3af; }
-        body.dark-mode .cr-btn-close:hover { background: #374151; }
+        /* Dark mode */
+        body.dark-mode .approvals-dash .dashboard-header,
+        body.dark-mode .approvals-dash .summary-card,
+        body.dark-mode .approvals-dash .workflow-card,
+        body.dark-mode .approvals-dash .table-container,
+        body.dark-mode .approvals-dash .modal-content {
+            background: #1c2432 !important;
+            border-color: rgba(147, 179, 224, 0.22) !important;
+        }
+        body.dark-mode .approvals-dash .workflow-header { background: rgba(255,255,255,0.03) !important; border-color: var(--border-default) !important; }
+        body.dark-mode .approvals-dash .panel-approvals .workflow-header { background: rgba(217,119,6,0.14) !important; }
+        body.dark-mode .approvals-dash .panel-changes .workflow-header { background: rgba(124,58,237,0.16) !important; }
+        body.dark-mode .approvals-dash .panel-approvals .workflow-title { color: #fbbf24 !important; }
+        body.dark-mode .approvals-dash .panel-changes .workflow-title { color: #c4b5fd !important; }
+        body.dark-mode .approvals-dash .dt-chip { background: var(--color-primary-bg); border-color: var(--border-default); }
+        body.dark-mode .approvals-dash .dt-chip i { background: #1c2432; }
+        body.dark-mode .approvals-dash .card-value,
+        body.dark-mode .approvals-dash .workflow-title,
+        body.dark-mode .approvals-dash th,
+        body.dark-mode .approvals-dash td { color: var(--text-primary); }
+        body.dark-mode .approvals-dash .card-label,
+        body.dark-mode .approvals-dash .welcome-text p { color: var(--text-secondary) !important; }
+        body.dark-mode .approvals-dash .profile-summary { background: rgba(255,255,255,0.04) !important; border-color: var(--border-default) !important; }
+        body.dark-mode .approvals-dash .profile-badge-role { background: var(--color-primary-bg); color: var(--color-primary); }
+        body.dark-mode .approvals-dash .profile-badge-active { background: var(--color-success-bg); color: var(--color-success-text); }
+        body.dark-mode .approvals-dash .profile-badge-inactive,
+        body.dark-mode .approvals-dash .profile-badge-pending { background: var(--color-warning-bg); color: var(--color-warning-text); }
+        body.dark-mode .approvals-dash .profile-badge-locked { background: var(--color-danger-bg); color: var(--color-danger-text); }
+        body.dark-mode .approvals-dash .modal-content { background: #1c2432 !important; border-color: rgba(147, 179, 224, 0.22) !important; }
+        body.dark-mode .approvals-dash .modal-content input,
+        body.dark-mode .approvals-dash .modal-content select,
+        body.dark-mode .approvals-dash .modal-content textarea { background: #1c2432 !important; border-color: var(--border-default) !important; color: var(--text-primary) !important; }
+        body.dark-mode .approvals-dash .modal-content input:disabled,
+        body.dark-mode .approvals-dash .modal-content select:disabled,
+        body.dark-mode .approvals-dash .modal-content textarea:disabled { background: var(--bg-input-readonly) !important; }
+        body.dark-mode .approvals-dash .cr-modal-section { background: rgba(255,255,255,0.03) !important; border-color: var(--border-default) !important; }
+        body.dark-mode .approvals-dash .cr-modal-section.cr-requested { background: var(--color-primary-bg) !important; border-color: var(--border-default) !important; }
+        body.dark-mode .approvals-dash .cr-modal-section.cr-requested .cr-modal-section-title { color: #93c5fd; }
+        body.dark-mode .approvals-dash .cr-modal-section-title { color: var(--text-secondary); }
+        body.dark-mode .approvals-dash .cr-compare-old { background: var(--bg-input-readonly) !important; color: var(--text-secondary); }
+        body.dark-mode .approvals-dash .cr-compare-new { background: var(--color-primary-bg) !important; color: var(--text-primary); }
+        body.dark-mode .approvals-dash .cr-compare-new.no-change { color: var(--text-muted); background: var(--bg-input-readonly) !important; }
+        body.dark-mode .approvals-dash .cr-media-preview { background: var(--bg-input-readonly) !important; }
+        body.dark-mode .approvals-dash .cr-staff-header { border-color: var(--border-default); }
+        body.dark-mode .approvals-dash .cr-staff-name { color: var(--text-primary); }
+        body.dark-mode .approvals-dash .cr-actions { border-color: var(--border-default); }
+        body.dark-mode .approvals-dash .cr-btn-close { background: var(--text-muted); color: #fff; }
+
+        @media (max-width: 1400px) {
+            .summary-row { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 768px) {
+            .main-content.approvals-dash { margin-left: 0; padding: 16px; }
+            .summary-row { grid-template-columns: repeat(2, 1fr); }
+            .approvals-dash .dashboard-header { flex-direction: column; align-items: flex-start; }
+            .approvals-dash .modal-content { max-width: 96vw; }
+            .modal-form-grid { grid-template-columns: 1fr; }
+            .cr-compare-grid { grid-template-columns: 1fr; }
+            .modal-content.user-modal-content {
+                max-height: calc(100vh - 24px);
+                width: 96vw;
+            }
+            .modal-content.user-modal-content .user-modal-body { padding: 12px 16px; }
+            .modal-content.user-modal-content .user-modal-header { padding: 12px 16px; }
+            .modal-content.user-modal-content .user-modal-actions { padding: 12px 16px; }
+            #changeRequestModal .cr-modal-body { padding: 12px 16px; }
+            #changeRequestModal .cr-modal-header,
+            #changeRequestModal .cr-modal-footer { padding: 12px 16px; }
+        }
+        @media (max-width: 480px) {
+            .summary-row { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
     <?php include '../../includes/sidebar_nav.php'; ?>
 
-    <div class="main-content">
+    <div class="main-content approvals-dash">
         <div class="dashboard-header">
-            <div class="welcome-section">
-                <div class="welcome-text">
-                    <h1><i class="fas fa-check-double"></i> Account Approvals</h1>
-                    <p>Review pending user registrations and staff change requests</p>
+            <div class="welcome-text">
+                <h1>
+                    <span class="header-icon"><i class="fas fa-check-double"></i></span>
+                    Account Approvals
+                </h1>
+                <p>Review pending user registrations and staff change requests</p>
+                <div class="sync-indicator" id="syncIndicator">
+                    <div class="sync-dot" id="syncDot"></div>
+                    <span id="syncText">Auto-sync on</span>
                 </div>
-                <div class="date-time">
+            </div>
+            <div class="dt-chip">
+                <i class="fas fa-calendar-day"></i>
+                <div>
                     <div id="currentDate"></div>
                     <div id="currentTime"></div>
-                    <div class="sync-indicator" id="syncIndicator">
-                        <div class="sync-dot" id="syncDot"></div>
-                        <span id="syncText">Auto-sync on</span>
-                    </div>
                 </div>
             </div>
         </div>
@@ -478,37 +761,45 @@ if ($focus_cr_id > 0) {
             <div class="alert alert-<?php echo $messageType; ?>"><?php echo htmlspecialchars($message); ?></div>
         <?php endif; ?>
 
-        <div class="quick-stats">
-            <div class="stat-card">
-                <div class="stat-icon"><i class="fas fa-user-clock"></i></div>
-                <div class="stat-number" id="statPendingUsers"><?php echo $stats['pending_users']; ?></div>
-                <div class="stat-label">Pending Users</div>
+        <div class="summary-row">
+            <div class="summary-card amber">
+                <div class="card-top">
+                    <div class="card-icon"><i class="fas fa-user-clock"></i></div>
+                </div>
+                <div class="card-value" id="statPendingUsers"><?php echo $stats['pending_users']; ?></div>
+                <div class="card-label">Pending Users</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon"><i class="fas fa-user-check"></i></div>
-                <div class="stat-number" id="statApprovedUsers"><?php echo $stats['approved_users']; ?></div>
-                <div class="stat-label">Approved Users</div>
+            <div class="summary-card emerald">
+                <div class="card-top">
+                    <div class="card-icon"><i class="fas fa-user-check"></i></div>
+                </div>
+                <div class="card-value" id="statApprovedUsers"><?php echo $stats['approved_users']; ?></div>
+                <div class="card-label">Approved Users</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon"><i class="fas fa-user-slash"></i></div>
-                <div class="stat-number" id="statDeactivated"><?php echo $stats['deactivated_users']; ?></div>
-                <div class="stat-label">Deactivated</div>
+            <div class="summary-card rose">
+                <div class="card-top">
+                    <div class="card-icon"><i class="fas fa-user-slash"></i></div>
+                </div>
+                <div class="card-value" id="statDeactivated"><?php echo $stats['deactivated_users']; ?></div>
+                <div class="card-label">Deactivated</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon"><i class="fas fa-user-edit"></i></div>
-                <div class="stat-number" id="statChangeRequests"><?php echo $pending_changes_count; ?></div>
-                <div class="stat-label">Change Requests</div>
+            <div class="summary-card violet">
+                <div class="card-top">
+                    <div class="card-icon"><i class="fas fa-user-edit"></i></div>
+                </div>
+                <div class="card-value" id="statChangeRequests"><?php echo $pending_changes_count; ?></div>
+                <div class="card-label">Change Requests</div>
             </div>
         </div>
 
         <div class="workflow-container">
-            <div class="workflow-card">
+            <div class="workflow-card panel-approvals">
                 <div class="workflow-header">
                     <h3 class="workflow-title">
-                        <i class="fas fa-user-clock"></i>
+                        <span class="title-icon"><i class="fas fa-user-clock"></i></span>
                         <span>Pending Account Approvals</span>
-                        <span class="workflow-badge" id="pendingUsersBadge"><?php echo count($users); ?></span>
                     </h3>
+                    <span class="workflow-badge" id="pendingUsersBadge"><?php echo count($users); ?></span>
                 </div>
                 <div class="workflow-content">
                     <div class="table-container">
@@ -548,13 +839,13 @@ if ($focus_cr_id > 0) {
                 </div>
             </div>
 
-            <div class="workflow-card">
+            <div class="workflow-card panel-changes">
                 <div class="workflow-header">
                     <h3 class="workflow-title">
-                        <i class="fas fa-user-edit"></i>
+                        <span class="title-icon"><i class="fas fa-user-edit"></i></span>
                         <span>Staff Change Requests</span>
-                        <span class="workflow-badge" id="changeRequestsBadge"><?php echo $pending_changes_count; ?></span>
                     </h3>
+                    <span class="workflow-badge" id="changeRequestsBadge"><?php echo $pending_changes_count; ?></span>
                 </div>
                 <div class="workflow-content">
                     <div class="table-container">
@@ -657,129 +948,156 @@ if ($focus_cr_id > 0) {
 
     <!-- User Management Modal -->
     <div id="userModal" class="modal">
-        <div class="modal-content" style="max-width: 500px;">
-            <div class="modal-header">
-                <h2 class="modal-title">User Details</h2>
+        <div class="modal-content user-modal-content">
+            <div class="user-modal-header">
+                <h2 class="modal-title">
+                    <span class="modal-title-icon"><i class="fas fa-user-check"></i></span>
+                    Review Account
+                </h2>
                 <span class="close" onclick="closeUserModal()">&times;</span>
             </div>
-            <div class="modal-form-grid">
-                <div class="form-group"><label>Email:</label><input type="email" id="modalEmail" disabled></div>
-                <div class="form-group"><label>Full Name:</label><input type="text" id="modalFullName" disabled></div>
-                <div class="form-group"><label>Role:</label><input type="text" id="modalRole" disabled></div>
-                <div class="form-group"><label>Department:</label><input type="text" id="modalDepartment" disabled></div>
-                <div class="form-group"><label>Address:</label><input type="text" id="modalAddress" disabled></div>
-                <div class="form-group"><label>Birthday:</label><input type="text" id="modalBirthday" disabled></div>
-                <div class="form-group"><label>Civil Status:</label><input type="text" id="modalCivilStatus" disabled></div>
-                <div class="form-group"><label>Contact Number:</label><input type="text" id="modalPhoneNumber" disabled></div>
-                <div class="form-group"><label>Account Status:</label><input type="text" id="modalAccountStatus" disabled></div>
-                <div class="form-group"><label>Created At:</label><input type="text" id="modalCreatedAt" disabled></div>
-                <div class="form-group"><label>Approved At:</label><input type="text" id="modalApprovedAt" disabled></div>
-                <div class="form-group"><label>Rejected At:</label><input type="text" id="modalRejectedAt" disabled></div>
-                <div class="form-group" style="grid-column:1/-1;">
-                    <label>ID File:</label>
-                    <div id="modalIdFileContainer">
-                        <img id="modalIdFile" src="" alt="ID File" style="max-width:200px; max-height:150px; border-radius:8px; border:1px solid #ddd; display:none;">
-                        <p id="modalIdFileNone" style="font-style:italic;" class="t-text-secondary">No ID file uploaded</p>
+            <div class="user-modal-body">
+                <div class="profile-summary">
+                    <div class="profile-avatar" id="modalProfileAvatar">?</div>
+                    <div class="profile-info">
+                        <div class="profile-name" id="modalProfileName">--</div>
+                        <div class="profile-email" id="modalProfileEmail">--</div>
+                        <div class="profile-badges">
+                            <span class="profile-badge profile-badge-role" id="modalProfileRole"><i class="fas fa-user-tag"></i> --</span>
+                            <span class="profile-badge profile-badge-pending" id="modalProfileStatus"><i class="fas fa-clock"></i> Pending</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-section-title"><i class="fas fa-user"></i> Basic Information</div>
+                <div class="modal-form-grid">
+                    <div class="form-group"><label>Full Name</label><input type="text" id="modalFullName" disabled></div>
+                    <div class="form-group"><label>Email</label><input type="email" id="modalEmail" disabled></div>
+                    <div class="form-group"><label>Role</label><input type="text" id="modalRole" disabled></div>
+                    <div class="form-group"><label>Department</label><input type="text" id="modalDepartment" disabled></div>
+                    <div class="form-group"><label>Contact Number</label><input type="text" id="modalPhoneNumber" disabled></div>
+                    <div class="form-group"><label>Birthday</label><input type="text" id="modalBirthday" disabled></div>
+                    <div class="form-group"><label>Civil Status</label><input type="text" id="modalCivilStatus" disabled></div>
+                    <div class="form-group"><label>Address</label><input type="text" id="modalAddress" disabled></div>
+                </div>
+
+                <div class="modal-section-title"><i class="fas fa-shield-alt"></i> Account Information</div>
+                <div class="modal-form-grid">
+                    <div class="form-group"><label>Account Status</label><input type="text" id="modalAccountStatus" disabled></div>
+                    <div class="form-group"><label>Created At</label><input type="text" id="modalCreatedAt" disabled></div>
+                    <div class="form-group"><label>Approved At</label><input type="text" id="modalApprovedAt" disabled></div>
+                    <div class="form-group"><label>Last Active</label><input type="text" id="modalLastActive" disabled></div>
+                </div>
+
+                <div class="modal-section-title"><i class="fas fa-id-card"></i> Government ID</div>
+                <div class="id-file-block">
+                    <div class="id-file-thumb">
+                        <img id="modalIdFile" src="" alt="ID File">
+                        <span class="id-file-empty" id="modalIdFileNone"><i class="fas fa-id-card"></i></span>
+                    </div>
+                    <div class="id-file-meta">
+                        <div class="id-file-label" id="modalIdFileLabel">No ID file uploaded</div>
+                        <div class="id-file-sub">Government-issued identification</div>
                     </div>
                 </div>
             </div>
-            <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:20px;">
-                <button type="button" class="btn-sm btn-approve" onclick="approveUser()">Approve</button>
-                <button type="button" class="btn-sm btn-reject" onclick="rejectUser()">Reject</button>
-                <button type="button" class="btn-sm btn-manage" onclick="closeUserModal()">Close</button>
+            <div class="user-modal-actions">
+                <button type="button" class="btn-sm btn-reject" onclick="rejectUser()"><i class="fas fa-times"></i> Reject</button>
+                <button type="button" class="btn-sm btn-approve" onclick="approveUser()"><i class="fas fa-check"></i> Approve</button>
+                <button type="button" class="btn-sm btn-manage" onclick="closeUserModal()"><i class="fas fa-times"></i> Close</button>
             </div>
         </div>
     </div>
 
     <!-- Change Request Review Modal (read-only review) -->
     <div id="changeRequestModal" class="modal">
-        <div class="modal-content" style="max-width: 680px;">
-            <div class="modal-header" style="border-bottom:none; padding-bottom:0;">
-                <h2 class="modal-title"><i class="fas fa-clipboard-check t-text-link" style="margin-right:8px;"></i>Review Change Request</h2>
+        <div class="modal-content cr-modal-content">
+            <div class="cr-modal-header">
+                <h2 class="modal-title">
+                    <span class="modal-title-icon"><i class="fas fa-clipboard-check"></i></span>
+                    Review Change Request
+                </h2>
                 <span class="close" onclick="closeChangeRequestModal()">&times;</span>
             </div>
 
-            <div class="cr-staff-header" id="crStaffHeader">
-                <div class="cr-staff-avatar" id="crStaffAvatar">S</div>
-                <div class="cr-staff-info">
-                    <div class="cr-staff-name" id="crStaffName">Staff Name</div>
-                    <div class="cr-staff-date" id="crStaffDate">Submitted on --</div>
-                </div>
-            </div>
-
-            <form id="changeRequestForm">
-                <input type="hidden" id="crAction" name="action">
-                <input type="hidden" id="crRequestId" name="request_id">
-                <input type="hidden" id="crUserId" name="cr_user_id">
-                <input type="hidden" id="crAdminUserId" name="user_id" value="<?php echo $_SESSION['user_id']; ?>">
-                <input type="hidden" id="crFullName" name="new_full_name">
-                <input type="hidden" id="crIdFilePath" name="new_id_file_path">
-                <input type="hidden" id="crProfilePicture" name="new_profile_picture">
-                <input type="hidden" id="crEmail" name="new_email">
-                <input type="hidden" id="crAddress" name="new_address">
-                <input type="hidden" id="crCivilStatus" name="new_civil_status">
-                <input type="hidden" id="crBirthday" name="new_birthday">
-                <input type="hidden" id="crPhoneNumber" name="new_phone_number">
-                <input type="hidden" id="crPassword" name="new_password">
-
-                <div class="cr-modal-section" id="crCurrentSection">
-                    <div class="cr-modal-section-title"><i class="fas fa-user"></i> Current Information</div>
-                    <div class="cr-compare-grid" id="crCurrentGrid"></div>
-                </div>
-
-                <div class="cr-modal-section cr-requested">
-                    <div class="cr-modal-section-title"><i class="fas fa-pen"></i> Requested Changes</div>
-                    <div class="cr-compare-grid">
-                        <div class="cr-compare-item">
-                            <span class="cr-compare-label">Full Name</span>
-                            <div class="cr-compare-new" id="crFullNameDisplay">--</div>
-                        </div>
-                        <div class="cr-compare-item">
-                            <span class="cr-compare-label">Email</span>
-                            <div class="cr-compare-new" id="crEmailDisplay">--</div>
-                        </div>
-                        <div class="cr-compare-item">
-                            <span class="cr-compare-label">Address</span>
-                            <div class="cr-compare-new" id="crAddressDisplay">--</div>
-                        </div>
-                        <div class="cr-compare-item">
-                            <span class="cr-compare-label">Civil Status</span>
-                            <div class="cr-compare-new" id="crCivilStatusDisplay">--</div>
-                        </div>
-                        <div class="cr-compare-item">
-                            <span class="cr-compare-label">Birthday</span>
-                            <div class="cr-compare-new" id="crBirthdayDisplay">--</div>
-                        </div>
-                        <div class="cr-compare-item">
-                            <span class="cr-compare-label">Contact Number</span>
-                            <div class="cr-compare-new" id="crPhoneNumberDisplay">--</div>
-                        </div>
-                        <div class="cr-compare-item">
-                            <span class="cr-compare-label">New Password</span>
-                            <div class="cr-compare-new" id="crPasswordDisplay">--</div>
-                        </div>
-                        <div class="cr-compare-item" id="crIdFileGroup" style="display:none;">
-                            <span class="cr-compare-label">New ID Photo</span>
-                            <div class="cr-media-preview" id="crIdFilePreview"></div>
-                        </div>
-                        <div class="cr-compare-item" id="crProfilePicGroup" style="display:none;">
-                            <span class="cr-compare-label">New Profile Picture</span>
-                            <div class="cr-media-preview" id="crProfilePicPreview"></div>
-                        </div>
+            <div class="cr-modal-body">
+                <div class="cr-staff-header" id="crStaffHeader">
+                    <div class="cr-staff-avatar" id="crStaffAvatar">S</div>
+                    <div class="cr-staff-info">
+                        <div class="cr-staff-name" id="crStaffName">Staff Name</div>
+                        <div class="cr-staff-date" id="crStaffDate">Submitted on --</div>
                     </div>
                 </div>
 
-                <div class="cr-modal-section cr-admin-notes">
-                    <div class="cr-modal-section-title"><i class="fas fa-sticky-note"></i> Admin Notes</div>
-                    <textarea id="crAdminNotes" name="admin_notes" rows="2" placeholder="Optional notes for the staff..."></textarea>
-                </div>
+                <form id="changeRequestForm">
+                    <input type="hidden" id="crAction" name="action">
+                    <input type="hidden" id="crRequestId" name="request_id">
+                    <input type="hidden" id="crUserId" name="cr_user_id">
+                    <input type="hidden" id="crAdminUserId" name="user_id" value="<?php echo $_SESSION['user_id']; ?>">
+                    <input type="hidden" id="crFullName" name="new_full_name">
+                    <input type="hidden" id="crIdFilePath" name="new_id_file_path">
+                    <input type="hidden" id="crProfilePicture" name="new_profile_picture">
+                    <input type="hidden" id="crEmail" name="new_email">
+                    <input type="hidden" id="crAddress" name="new_address">
+                    <input type="hidden" id="crCivilStatus" name="new_civil_status">
+                    <input type="hidden" id="crBirthday" name="new_birthday">
+                    <input type="hidden" id="crPhoneNumber" name="new_phone_number">
+                    <input type="hidden" id="crPassword" name="new_password">
 
-                <div class="cr-actions">
-                    <button type="button" class="cr-btn cr-btn-close" onclick="closeChangeRequestModal()"><i class="fas fa-times"></i> Close</button>
-                    <button type="button" class="cr-btn cr-btn-reject" onclick="rejectChangeRequest()"><i class="fas fa-times"></i> Reject</button>
-                    <button type="button" class="cr-btn cr-btn-approve" onclick="approveChangeRequest()"><i class="fas fa-check"></i> Approve & Update</button>
-                </div>
-            </form>
+                    <div class="cr-modal-section" id="crCurrentSection">
+                        <div class="cr-modal-section-title"><i class="fas fa-user"></i> Current Information</div>
+                        <div class="cr-compare-grid" id="crCurrentGrid"></div>
+                    </div>
+
+                    <div class="cr-modal-section cr-requested">
+                        <div class="cr-modal-section-title"><i class="fas fa-pen"></i> Requested Changes</div>
+                        <div class="cr-compare-grid">
+                            <div class="cr-compare-item">
+                                <span class="cr-compare-label">Full Name</span>
+                                <div class="cr-compare-new" id="crFullNameDisplay">--</div>
+                            </div>
+                            <div class="cr-compare-item">
+                                <span class="cr-compare-label">Email</span>
+                                <div class="cr-compare-new" id="crEmailDisplay">--</div>
+                            </div>
+                            <div class="cr-compare-item">
+                                <span class="cr-compare-label">Address</span>
+                                <div class="cr-compare-new" id="crAddressDisplay">--</div>
+                            </div>
+                            <div class="cr-compare-item">
+                                <span class="cr-compare-label">Civil Status</span>
+                                <div class="cr-compare-new" id="crCivilStatusDisplay">--</div>
+                            </div>
+                            <div class="cr-compare-item">
+                                <span class="cr-compare-label">Birthday</span>
+                                <div class="cr-compare-new" id="crBirthdayDisplay">--</div>
+                            </div>
+                            <div class="cr-compare-item">
+                                <span class="cr-compare-label">Contact Number</span>
+                                <div class="cr-compare-new" id="crPhoneNumberDisplay">--</div>
+                            </div>
+                            <div class="cr-compare-item">
+                                <span class="cr-compare-label">New Password</span>
+                                <div class="cr-compare-new" id="crPasswordDisplay">--</div>
+                            </div>
+                            <div class="cr-compare-item" id="crIdFileGroup" style="display:none;">
+                                <span class="cr-compare-label">New ID Photo</span>
+                                <div class="cr-media-preview" id="crIdFilePreview"></div>
+                            </div>
+                            <div class="cr-compare-item" id="crProfilePicGroup" style="display:none;">
+                                <span class="cr-compare-label">New Profile Picture</span>
+                                <div class="cr-media-preview" id="crProfilePicPreview"></div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <div class="cr-modal-footer">
+                <button type="button" class="cr-btn cr-btn-close" onclick="closeChangeRequestModal()"><i class="fas fa-times"></i> Close</button>
+                <button type="button" class="cr-btn cr-btn-reject" onclick="rejectChangeRequest()"><i class="fas fa-times"></i> Reject</button>
+                <button type="button" class="cr-btn cr-btn-approve" onclick="approveChangeRequest()"><i class="fas fa-check"></i> Approve & Update</button>
+            </div>
         </div>
     </div>
 
@@ -792,30 +1110,75 @@ if ($focus_cr_id > 0) {
             const user = usersData.find(u => u.id == userId);
             if (!user) return;
 
+            const status = user.is_active ? 'Active' : 'Inactive';
             document.getElementById('modalEmail').value = user.email;
             document.getElementById('modalFullName').value = user.full_name;
-            document.getElementById('modalRole').value = user.role;
+            document.getElementById('modalRole').value = roleLabel(user.role);
             document.getElementById('modalDepartment').value = user.department || 'N/A';
             document.getElementById('modalAddress').value = user.address || 'N/A';
-            document.getElementById('modalBirthday').value = user.birthday || 'N/A';
+            document.getElementById('modalBirthday').value = formatDateValue(user.birthday);
             document.getElementById('modalCivilStatus').value = user.civil_status ? user.civil_status.charAt(0).toUpperCase() + user.civil_status.slice(1) : 'N/A';
             document.getElementById('modalPhoneNumber').value = user.phone_number || 'N/A';
-            document.getElementById('modalAccountStatus').value = user.is_active ? 'Active' : 'Inactive';
-            document.getElementById('modalCreatedAt').value = user.created_at;
-            document.getElementById('modalApprovedAt').value = user.approved_at || 'N/A';
-            document.getElementById('modalRejectedAt').value = user.rejected_at || 'N/A';
+            document.getElementById('modalAccountStatus').value = status;
+            document.getElementById('modalCreatedAt').value = formatDateTimeValue(user.created_at);
+            document.getElementById('modalApprovedAt').value = user.approved_at ? formatDateTimeValue(user.approved_at) : 'N/A';
+            document.getElementById('modalLastActive').value = user.last_activity ? formatDateTimeValue(user.last_activity) : 'Never active';
+
+            document.getElementById('modalProfileAvatar').textContent = initialsOf(user.full_name);
+            document.getElementById('modalProfileName').textContent = user.full_name;
+            document.getElementById('modalProfileEmail').textContent = user.email;
+            document.getElementById('modalProfileRole').innerHTML = '<i class="fas fa-user-tag"></i> ' + roleLabel(user.role);
+
+            const statusEl = document.getElementById('modalProfileStatus');
+            statusEl.innerHTML = '<i class="fas fa-clock"></i> ' + status;
+            statusEl.className = 'profile-badge ' + (user.is_active ? 'profile-badge-active' : 'profile-badge-pending');
 
             const idFileImg = document.getElementById('modalIdFile');
             const idFileNone = document.getElementById('modalIdFileNone');
+            const idFileLabel = document.getElementById('modalIdFileLabel');
             if (user.id_file_path) {
                 idFileImg.src = '../../' + user.id_file_path;
                 idFileImg.style.display = 'block';
                 idFileNone.style.display = 'none';
+                idFileLabel.textContent = (user.id_file_path.split('/').pop() || 'ID file').split('?')[0];
             } else {
                 idFileImg.style.display = 'none';
-                idFileNone.style.display = 'block';
+                idFileNone.style.display = 'flex';
+                idFileLabel.textContent = 'No ID file uploaded';
             }
-            document.getElementById('userModal').style.display = 'block';
+            document.getElementById('userModal').style.display = 'flex';
+        }
+
+        function roleLabel(role) {
+            const map = {
+                'lgu_staff': 'LGU Staff',
+                'citizen': 'Citizen',
+                'road_ops_supervisor': 'Road Operations Supervisor',
+                'trans_ops_supervisor': 'Transportation Operations Supervisor',
+                'road_monitoring_officer': 'Road Monitoring Officer',
+                'trans_monitoring_officer': 'Transportation Monitoring Officer',
+                'system_admin': 'System Admin'
+            };
+            return map[role] || (role ? role.charAt(0).toUpperCase() + role.slice(1) : 'N/A');
+        }
+
+        function formatDateTimeValue(value) {
+            if (!value) return 'N/A';
+            const d = new Date(value);
+            if (isNaN(d)) return value;
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ', ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        }
+
+        function formatDateValue(value) {
+            if (!value) return 'N/A';
+            const d = new Date(value);
+            if (isNaN(d)) return value;
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        }
+
+        function initialsOf(name) {
+            if (!name) return '?';
+            return name.split(' ').map(w => w.charAt(0)).join('').substring(0, 2).toUpperCase();
         }
 
         function closeUserModal() {
@@ -930,7 +1293,6 @@ if ($focus_cr_id > 0) {
 
             document.getElementById('crIdFilePath').value = data.id_file_path || '';
             document.getElementById('crProfilePicture').value = data.profile_picture || '';
-            document.getElementById('crAdminNotes').value = '';
 
             // ID file preview
             var idFileGroup = document.getElementById('crIdFileGroup');
@@ -959,7 +1321,7 @@ if ($focus_cr_id > 0) {
                 profilePicPreview.innerHTML = '';
             }
 
-            document.getElementById('changeRequestModal').style.display = 'block';
+            document.getElementById('changeRequestModal').style.display = 'flex';
         }
 
         function closeChangeRequestModal() {
