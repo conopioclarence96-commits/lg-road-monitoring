@@ -16,6 +16,7 @@ session_start();
 
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/announcements.php';
 require_once __DIR__ . '/../api/cimm_verification_data.php';
 require_once __DIR__ . '/../api/ipms_road_projects_data.php';
 
@@ -420,6 +421,9 @@ try {
     error_log("Recent activity error: " . $e->getMessage());
 }
 
+// Posted announcements for dashboard (separate from reports / projects)
+$dashboard_announcements = announcements_fetch_published($conn, 6);
+
 // Quick insights data
 $quick_insights = [
     'new_reports_today' => 0,
@@ -684,6 +688,7 @@ try {
         .admin-dash .panel-chart::after { background: var(--color-primary); }
         .admin-dash .panel-awaiting::after { background: var(--color-info); }
         .admin-dash .panel-activity::after { background: var(--color-purple); }
+        .admin-dash .panel-announcements::after { background: #0ea5e9; }
         .admin-dash .panel-approvals::after { background: var(--color-warning); }
         .admin-dash .panel-priority::after { background: var(--color-danger); }
         .admin-dash .card-header {
@@ -696,6 +701,7 @@ try {
         .admin-dash .panel-priority .card-header { background: var(--color-danger-bg); }
         .admin-dash .panel-awaiting .card-header { background: var(--color-info-bg); }
         .admin-dash .panel-activity .card-header { background: var(--color-purple-bg); }
+        .admin-dash .panel-announcements .card-header { background: rgba(14, 165, 233, 0.12); }
         .admin-dash .card-title {
             font-size: 14px; font-weight: 600; color: var(--text-primary);
             display: flex; align-items: center; gap: 10px;
@@ -708,6 +714,7 @@ try {
         .admin-dash .panel-chart .title-icon { background: var(--color-primary-bg); color: var(--color-primary); }
         .admin-dash .panel-awaiting .title-icon { background: var(--color-info-bg); color: var(--color-info); }
         .admin-dash .panel-activity .title-icon { background: var(--color-purple-bg); color: var(--color-purple); }
+        .admin-dash .panel-announcements .title-icon { background: rgba(14, 165, 233, 0.15); color: #0284c7; }
         .admin-dash .panel-approvals .title-icon { background: var(--color-warning-bg); color: var(--color-warning); }
         .admin-dash .panel-priority .title-icon { background: var(--color-danger-bg); color: var(--color-danger); }
         .admin-dash .card-title i { color: inherit; font-size: 13px; }
@@ -823,6 +830,37 @@ try {
         }
         .widget-meta { font-size: 11px; color: var(--text-muted) !important; }
         .widget-badge { flex-shrink: 0; }
+
+        .ann-dash-item {
+            display: flex; gap: 12px; padding: 12px 8px;
+            border-bottom: 1px solid var(--border-light); border-radius: 10px;
+            align-items: flex-start; transition: background 0.15s ease;
+        }
+        .ann-dash-item:hover { background: var(--bg-hover); }
+        .ann-dash-item:last-child { border-bottom: none; }
+        .ann-dash-photo {
+            width: 52px; height: 52px; border-radius: 10px; overflow: hidden;
+            flex-shrink: 0; background: #e2e8f0;
+        }
+        .ann-dash-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .ann-dash-icon {
+            width: 36px; height: 36px; border-radius: 11px; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #0ea5e9, #0284c7); color: #fff; font-size: 13px;
+        }
+        .ann-dash-body { flex: 1; min-width: 0; }
+        .ann-dash-title {
+            font-size: 13px; font-weight: 600; color: var(--text-primary);
+            line-height: 1.35; margin-bottom: 4px;
+        }
+        .ann-dash-text {
+            font-size: 12px; color: var(--text-secondary); line-height: 1.45;
+            white-space: normal;
+        }
+        .ann-dash-date {
+            margin-top: 6px; font-size: 11px; color: var(--text-muted);
+            display: inline-flex; align-items: center; gap: 5px;
+        }
 
         .modal {
             display: none; position: fixed; z-index: 1000; left: 0; top: 0;
@@ -1140,6 +1178,48 @@ try {
 
             <!-- Right Column (30%) -->
             <div class="right-col">
+                <!-- Announcements -->
+                <div class="card panel-announcements">
+                    <div class="card-header">
+                        <h3 class="card-title"><span class="title-icon"><i class="fas fa-bullhorn"></i></span> Announcements</h3>
+                        <a href="announcements.php" class="btn-sm btn-review" title="Manage announcements"><i class="fas fa-pen"></i> Manage</a>
+                    </div>
+                    <div class="activity-list ann-dash-list">
+                        <?php if (empty($dashboard_announcements)): ?>
+                            <div class="empty-state"><i class="fas fa-bullhorn"></i>No announcements posted.</div>
+                        <?php else: ?>
+                            <?php foreach ($dashboard_announcements as $ann): ?>
+                                <?php
+                                    $ann_photo = !empty($ann['photo']) ? announcements_photo_src($ann['photo'], 'admin') : '';
+                                    $preview = trim((string)($ann['content'] ?? ''));
+                                    if (function_exists('mb_strlen') && mb_strlen($preview) > 140) {
+                                        $preview = mb_substr($preview, 0, 140) . '…';
+                                    } elseif (strlen($preview) > 140) {
+                                        $preview = substr($preview, 0, 140) . '…';
+                                    }
+                                ?>
+                                <div class="ann-dash-item">
+                                    <?php if ($ann_photo): ?>
+                                    <div class="ann-dash-photo">
+                                        <img src="<?php echo htmlspecialchars($ann_photo); ?>" alt="">
+                                    </div>
+                                    <?php else: ?>
+                                    <div class="ann-dash-icon"><i class="fas fa-bullhorn"></i></div>
+                                    <?php endif; ?>
+                                    <div class="ann-dash-body">
+                                        <div class="ann-dash-title"><?php echo htmlspecialchars($ann['title'] ?? ''); ?></div>
+                                        <div class="ann-dash-text"><?php echo htmlspecialchars($preview); ?></div>
+                                        <div class="ann-dash-date">
+                                            <i class="fas fa-calendar-day"></i>
+                                            <?php echo !empty($ann['posted_at']) ? date('M d, Y', strtotime($ann['posted_at'])) : ''; ?>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
                 <!-- Recent Activity -->
                 <div class="card panel-activity" data-source="audit_logs, users">
                     <div class="card-header">

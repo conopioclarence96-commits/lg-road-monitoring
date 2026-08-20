@@ -578,6 +578,7 @@ $nav_items = [
     ],
     'transparency' => [
         ['href' => $nav_base . 'pages/shared/public_transparency.php', 'icon' => 'eye', 'title' => 'Public Transparency', 'roles' => ['system_admin', 'lgu_staff']],
+        ['href' => $nav_base . 'pages/admin/announcements.php', 'icon' => 'bullhorn', 'title' => 'Announcements', 'roles' => ['system_admin']],
     ],
     'reports' => [
         ['href' => $nav_base . 'pages/shared/analytics.php', 'icon' => 'chart-line', 'title' => 'Analytics', 'roles' => ['system_admin', 'lgu_staff']],

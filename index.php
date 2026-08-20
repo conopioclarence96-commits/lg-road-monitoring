@@ -78,6 +78,7 @@ $conn = null;
 try {
     require_once 'lgu_staff/includes/config.php';
     require_once 'lgu_staff/includes/functions.php';
+    require_once 'lgu_staff/includes/public_announcements.php';
     $database_available = true;
 } catch (Exception $e) {
     error_log("index.php: failed to load database config: " . $e->getMessage());
@@ -235,6 +236,17 @@ if ($database_available && $conn) {
         // Log details internally, show the generic "projects coming soon" state
         error_log("index.php completed projects query: " . $e->getMessage());
         $before_after_projects = [];
+    }
+}
+
+// Public Transparency announcements (index.php only; not internal dashboards)
+$public_announcements = [];
+if ($database_available && $conn && function_exists('public_announcements_fetch_published')) {
+    try {
+        $public_announcements = public_announcements_fetch_published($conn, 12);
+    } catch (Exception $e) {
+        error_log("index.php public announcements query: " . $e->getMessage());
+        $public_announcements = [];
     }
 }
 
@@ -1179,6 +1191,87 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 justify-content: center;
                 gap: 16px;
             }
+        }
+
+        /* System Announcements (from Public Transparency) */
+        .announcements-public-section {
+            background: #ffffff;
+        }
+
+        .announcement-public-card {
+            background: #fff;
+            border: 1px solid var(--qc-card-border);
+            border-radius: 14px;
+            overflow: hidden;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .announcement-public-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 28px rgba(17, 82, 114, 0.12);
+        }
+
+        .announcement-public-photo {
+            width: 100%;
+            height: 240px;
+            background: #e8eef3;
+            overflow: hidden;
+        }
+
+        .announcement-public-photo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .announcement-public-body {
+            padding: 22px 22px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            flex: 1;
+        }
+
+        .announcement-public-body h3 {
+            margin: 0;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--qc-primary-900);
+            line-height: 1.35;
+        }
+
+        .announcement-public-message {
+            margin: 0;
+            color: #4a5c6a;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            flex: 1;
+        }
+
+        .announcement-public-date {
+            font-size: 0.85rem;
+            color: #6b7c8a;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .announcement-public-empty {
+            text-align: center;
+            padding: 36px 20px;
+            color: #6b7c8a;
+        }
+
+        .announcement-public-empty i {
+            font-size: 2.5rem;
+            margin-bottom: 12px;
+            color: var(--qc-primary-800);
+            opacity: 0.55;
         }
 
         /* Before & After Projects Section */
@@ -2769,7 +2862,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     <!-- Road Updates Section -->
     <section class="section" id="updates" <?php echo ($access_settings['hide_updates'] ?? '0') === '1' ? 'style="display:none"' : ''; ?>>
         <div class="container">
-            <h2 class="section-title">Road Updates & Announcements</h2>
+            <h2 class="section-title">Road Updates</h2>
             <p class="section-subtitle">Stay informed about the latest road conditions and maintenance activities</p>
             
             <div class="row g-4">
@@ -2895,6 +2988,55 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                     </div>
                 </div>
             </div>
+        </div>
+    </section>
+
+    <!-- System Announcements (published from Public Transparency) -->
+    <section class="section announcements-public-section" id="announcements">
+        <div class="container">
+            <h2 class="section-title">Announcements</h2>
+            <p class="section-subtitle">Official notices and updates from the local government unit</p>
+
+            <?php if (!empty($public_announcements)): ?>
+            <div class="row g-4">
+                <?php foreach ($public_announcements as $ann):
+                    $ann_title = (string)($ann['title'] ?? '');
+                    $ann_content = (string)($ann['content'] ?? '');
+                    $ann_photo = !empty($ann['photo'])
+                        ? road_updates_resolve_image_url($ann['photo'], $basePath)
+                        : '';
+                ?>
+                <div class="col-lg-4 col-md-6">
+                    <article class="announcement-public-card">
+                        <?php if ($ann_photo): ?>
+                        <div class="announcement-public-photo">
+                            <img src="<?php echo htmlspecialchars($ann_photo); ?>"
+                                 alt="<?php echo htmlspecialchars($ann_title !== '' ? $ann_title : 'Announcement photo'); ?>"
+                                 loading="lazy"
+                                 onclick="window.open(this.src, '_blank')"
+                                 style="cursor:pointer"
+                                 title="Click to view full size">
+                        </div>
+                        <?php endif; ?>
+                        <div class="announcement-public-body">
+                            <h3><?php echo htmlspecialchars($ann_title !== '' ? $ann_title : 'Announcement'); ?></h3>
+                            <p class="announcement-public-message"><?php echo nl2br(htmlspecialchars($ann_content)); ?></p>
+                            <div class="announcement-public-date">
+                                <i class="fas fa-calendar-day"></i>
+                                <?php echo safe_date_fmt($ann['posted_at'] ?? ''); ?>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+                <?php endforeach; ?>
+            </div>
+            <?php else: ?>
+            <div class="announcement-public-empty">
+                <i class="fas fa-bullhorn"></i>
+                <h5>No Announcements Yet</h5>
+                <p class="mb-0">Published announcements from the LGU will appear here.</p>
+            </div>
+            <?php endif; ?>
         </div>
     </section>
 

@@ -2,6 +2,7 @@
 require_once '../../includes/session_config.php';
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/announcements.php';
 require_once __DIR__ . '/../api/cimm_verification_data.php';
 
 // Check if user is logged in
@@ -769,6 +770,136 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
         }
         .act-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
         .act-time { font-size: 11.5px; color: var(--db-faint); }
+
+        /* Staff-only: larger, more noticeable Announcements panel */
+        .staff-announcements-panel {
+            --ds: #0ea5e9;
+            margin-bottom: 22px;
+            border: 1px solid rgba(14, 165, 233, 0.28);
+            box-shadow: 0 8px 28px rgba(14, 165, 233, 0.10);
+            background: linear-gradient(180deg, rgba(14, 165, 233, 0.06), transparent 120px),
+                        var(--db-card, #fff);
+        }
+        .staff-announcements-panel .dsh-header {
+            padding-bottom: 14px;
+            margin-bottom: 6px;
+            border-bottom: 1px solid rgba(14, 165, 233, 0.18);
+        }
+        .staff-announcements-panel .dsh-header h3 {
+            font-size: 18px;
+        }
+        .staff-announcements-panel .dsh-icon {
+            width: 44px;
+            height: 44px;
+            font-size: 18px;
+            background: rgba(14, 165, 233, 0.16);
+            color: #0284c7;
+        }
+        .staff-ann-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            padding: 8px 4px 4px;
+            max-height: none;
+        }
+        .staff-ann-card {
+            display: grid;
+            grid-template-columns: minmax(220px, 34%) 1fr;
+            gap: 18px;
+            align-items: stretch;
+            padding: 14px;
+            border-radius: 14px;
+            background: #fff;
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+        }
+        .staff-ann-card.no-photo {
+            grid-template-columns: 1fr;
+        }
+        .staff-ann-photo {
+            min-height: 180px;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #e8eef7;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .staff-ann-photo img {
+            width: 100%;
+            height: 100%;
+            min-height: 180px;
+            max-height: 260px;
+            object-fit: contain;
+            object-position: center;
+            display: block;
+            background: #f1f5f9;
+        }
+        .staff-ann-fallback {
+            min-height: 120px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #0ea5e9, #0284c7);
+            color: #fff;
+            font-size: 34px;
+        }
+        .staff-ann-body {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 8px;
+            padding: 4px 2px;
+        }
+        .staff-ann-title {
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--db-text, #0f172a);
+            line-height: 1.35;
+        }
+        .staff-ann-text {
+            font-size: 14px;
+            color: var(--db-muted, #475569);
+            line-height: 1.55;
+            white-space: pre-wrap;
+        }
+        .staff-ann-date {
+            margin-top: 4px;
+            font-size: 12.5px;
+            color: var(--db-faint, #64748b);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 500;
+        }
+        .dark-mode .staff-announcements-panel {
+            background: linear-gradient(180deg, rgba(14, 165, 233, 0.10), transparent 120px),
+                        var(--db-card, #1c2432);
+            border-color: rgba(125, 211, 252, 0.25);
+            box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
+        }
+        .dark-mode .staff-ann-card {
+            background: rgba(255, 255, 255, 0.03);
+            border-color: rgba(147, 179, 224, 0.18);
+        }
+        .dark-mode .staff-ann-photo,
+        .dark-mode .staff-ann-photo img {
+            background: rgba(15, 23, 42, 0.45);
+        }
+        .dark-mode .staff-ann-title { color: var(--text-primary, #e2e8f0); }
+        .dark-mode .staff-ann-text { color: var(--text-secondary, #cbd5e1); }
+        @media (max-width: 820px) {
+            .staff-ann-card,
+            .staff-ann-card.no-photo {
+                grid-template-columns: 1fr;
+            }
+            .staff-ann-photo img {
+                min-height: 200px;
+                max-height: 280px;
+            }
+        }
 
         .task-card {
             display: flex;
@@ -1714,6 +1845,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
     $activity_feed = getRecentActivityFeed($conn, $is_road_monitoring_officer, $is_supervisor, $is_transport_only_role, $is_transport_monitoring_officer ? $user_id : null);
     $task_cards = getPriorityTaskCards($conn, $is_road_monitoring_officer, $is_supervisor, $user_role);
     $dash_notifs = getDashboardNotifications($conn, $user_id, $user_email, $user_role, $my_assign_items, $is_road_monitoring_officer);
+    $dashboard_announcements = announcements_fetch_published($conn, 6);
     ?>
 
     <div class="main-content">
@@ -1732,6 +1864,56 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
             <div class="db-datetime">
                 <div id="currentDate"></div>
                 <div id="currentTime"></div>
+            </div>
+        </div>
+
+        <!-- Announcements (staff / non-admin roles only — larger panel) -->
+        <div class="dash-section staff-announcements-panel">
+            <div class="dsh-header">
+                <div class="dsh-left">
+                    <span class="dsh-icon"><i class="fas fa-bullhorn"></i></span>
+                    <div>
+                        <h3>Announcements</h3>
+                        <p>Latest posts from the administrator</p>
+                    </div>
+                </div>
+            </div>
+            <div class="staff-ann-list">
+                <?php if (empty($dashboard_announcements)): ?>
+                    <div class="db-empty">
+                        <i class="fas fa-bullhorn"></i>
+                        <p>No announcements posted</p>
+                    </div>
+                <?php else: ?>
+                    <?php foreach ($dashboard_announcements as $ann): ?>
+                        <?php
+                            $ann_photo = !empty($ann['photo']) ? announcements_photo_src($ann['photo'], 'lgu') : '';
+                            $preview = trim((string)($ann['content'] ?? ''));
+                            if (function_exists('mb_strlen') && mb_strlen($preview) > 280) {
+                                $preview = mb_substr($preview, 0, 280) . '…';
+                            } elseif (strlen($preview) > 280) {
+                                $preview = substr($preview, 0, 280) . '…';
+                            }
+                        ?>
+                        <article class="staff-ann-card<?php echo $ann_photo ? '' : ' no-photo'; ?>">
+                            <?php if ($ann_photo): ?>
+                            <div class="staff-ann-photo">
+                                <img src="<?php echo htmlspecialchars($ann_photo); ?>" alt="">
+                            </div>
+                            <?php else: ?>
+                            <div class="staff-ann-fallback" aria-hidden="true"><i class="fas fa-bullhorn"></i></div>
+                            <?php endif; ?>
+                            <div class="staff-ann-body">
+                                <div class="staff-ann-title"><?php echo htmlspecialchars($ann['title'] ?? ''); ?></div>
+                                <div class="staff-ann-text"><?php echo nl2br(htmlspecialchars($preview)); ?></div>
+                                <div class="staff-ann-date">
+                                    <i class="fas fa-calendar-day"></i>
+                                    <?php echo !empty($ann['posted_at']) ? date('M d, Y', strtotime($ann['posted_at'])) : ''; ?>
+                                </div>
+                            </div>
+                        </article>
+                    <?php endforeach; ?>
+                <?php endif; ?>
             </div>
         </div>
 

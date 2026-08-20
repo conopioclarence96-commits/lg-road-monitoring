@@ -11,6 +11,7 @@ ini_set('session.cookie_secure', 0);
 session_start();
 require_once __DIR__ . '/../../includes/config.php';
 require_once __DIR__ . '/../../includes/functions.php';
+require_once __DIR__ . '/../../includes/public_announcements.php';
 
 $session_timeout = 30 * 60;
 lgu_enforce_idle_timeout($session_timeout, '../../login.php?timeout=1');
@@ -47,6 +48,18 @@ if ($conn) {
         }
     } catch (Exception $e) {
         // Table might not exist yet
+    }
+}
+
+// Public landing-page announcements (independent from internal system_announcements)
+$announcements = [];
+if ($conn) {
+    try {
+        $announcements = $is_admin
+            ? public_announcements_fetch_all($conn)
+            : public_announcements_fetch_published($conn, 50);
+    } catch (Exception $e) {
+        $announcements = [];
     }
 }
 ?>
@@ -1010,6 +1023,133 @@ if ($conn) {
             </div>
             <?php endif; ?>
         </div>
+
+        <!-- Public Announcements → index.php only (separate from internal announcements.php) -->
+        <div class="announcements-section" id="announcementsSection">
+            <div class="section-header">
+                <h3 class="section-title"><i class="fas fa-bullhorn"></i> Public Announcements</h3>
+            </div>
+
+            <?php if ($is_admin): ?>
+            <div class="project-form-card announcement-form-card" id="ptAnnouncementFormCard">
+                <div class="section-header">
+                    <h3 class="section-title" id="ptAnnouncementFormTitle"><i class="fas fa-plus-circle"></i> Create Announcement</h3>
+                    <button type="button" class="btn-cancel" id="ptBtnCancelAnnouncementEdit" style="display:none" onclick="ptResetAnnouncementForm()">
+                        <i class="fas fa-times"></i> Cancel Edit
+                    </button>
+                </div>
+                <form id="ptAnnouncementFormEl">
+                    <input type="hidden" id="ptAnnouncementId" value="">
+                    <input type="hidden" id="ptAnnouncementPhotoPath" value="">
+                    <div class="form-grid">
+                        <div class="form-group full-width">
+                            <label for="ptAnnouncementTitle">Title *</label>
+                            <input type="text" id="ptAnnouncementTitle" required maxlength="255" placeholder="e.g. Road closure advisory">
+                        </div>
+                        <div class="form-group full-width">
+                            <label for="ptAnnouncementContent">Message *</label>
+                            <textarea id="ptAnnouncementContent" required rows="4" placeholder="Write the public announcement message..."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="ptAnnouncementPostedAt">Date Posted *</label>
+                            <input type="date" id="ptAnnouncementPostedAt" required value="<?php echo date('Y-m-d'); ?>">
+                        </div>
+                        <div class="form-group">
+                            <label class="publish-switch publish-switch--sm" for="ptAnnouncementPublished">
+                                <input type="checkbox" id="ptAnnouncementPublished" class="publish-checkbox" role="switch" checked>
+                                <span class="toggle-slider"></span>
+                                <span class="toggle-text" id="ptAnnPublishLabel">Published</span>
+                            </label>
+                        </div>
+                        <div class="form-group full-width">
+                            <label>Photo (optional)</label>
+                            <div class="photo-upload-area" id="ptAnnouncementPhotoArea" onclick="document.getElementById('ptAnnouncementPhotoInput').click()">
+                                <input type="file" id="ptAnnouncementPhotoInput" accept="image/*" onclick="event.stopPropagation()" onchange="ptHandleAnnouncementPhoto(this)">
+                                <i class="fas fa-image upload-icon"></i>
+                                <span class="upload-text">Click to upload a photo</span>
+                                <img id="ptAnnouncementPhotoPreview" alt="" style="display:none">
+                                <button type="button" class="remove-photo" id="ptAnnouncementPhotoRemove" style="display:none" onclick="event.stopPropagation(); ptRemoveAnnouncementPhoto()"><i class="fas fa-times"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="btn-row">
+                        <button type="submit" class="btn-save" id="ptBtnSaveAnnouncement">
+                            <i class="fas fa-bullhorn"></i> Publish Announcement
+                        </button>
+                        <button type="button" class="btn-cancel" onclick="ptResetAnnouncementForm()">Cancel</button>
+                    </div>
+                </form>
+            </div>
+            <?php else: ?>
+            <div class="view-only-notice announcement-view-notice">
+                <div class="notice-icon"><i class="fas fa-eye"></i></div>
+                <div>
+                    <h4><i class="fas fa-lock"></i> View Only</h4>
+                    <p>You can view announcements. Only administrators can create, edit, or delete them.</p>
+                </div>
+            </div>
+            <?php endif; ?>
+
+            <?php if (empty($announcements)): ?>
+            <div class="empty-state">
+                <i class="fas fa-bullhorn"></i>
+                <h5>No Announcements Yet</h5>
+                <p><?php echo $is_admin ? 'Create an announcement above to show it on the public landing page.' : 'There are no published announcements right now.'; ?></p>
+            </div>
+            <?php else: ?>
+            <div class="announcements-list">
+                <?php foreach ($announcements as $ann):
+                    $has_photo = !empty($ann['photo']);
+                    $photo_src = $has_photo ? public_announcements_photo_src($ann['photo'], 'shared') : '';
+                    $is_pub = $is_admin ? !empty($ann['is_published']) : true;
+                ?>
+                <article class="announcement-item<?php echo $has_photo ? ' has-photo' : ''; ?><?php echo $is_pub ? '' : ' is-draft'; ?>">
+                    <?php if ($has_photo): ?>
+                    <div class="announcement-thumb">
+                        <img src="<?php echo htmlspecialchars($photo_src); ?>" alt="">
+                    </div>
+                    <?php endif; ?>
+                    <div class="announcement-body">
+                        <div class="announcement-item-top">
+                            <h4><?php echo htmlspecialchars($ann['title'] ?? ''); ?></h4>
+                            <?php if ($is_admin): ?>
+                            <span class="publish-badge <?php echo $is_pub ? 'published' : 'draft'; ?>">
+                                <i class="fas <?php echo $is_pub ? 'fa-globe' : 'fa-file-alt'; ?>"></i>
+                                <?php echo $is_pub ? 'Published' : 'Draft'; ?>
+                            </span>
+                            <?php endif; ?>
+                        </div>
+                        <p class="announcement-content"><?php echo nl2br(htmlspecialchars($ann['content'] ?? '')); ?></p>
+                        <div class="announcement-meta">
+                            <span><i class="fas fa-calendar-day"></i> <?php echo !empty($ann['posted_at']) ? date('M d, Y', strtotime($ann['posted_at'])) : '—'; ?></span>
+                        </div>
+                        <?php if ($is_admin): ?>
+                        <div class="project-actions announcement-actions">
+                            <button type="button" class="btn-edit" onclick='ptEditAnnouncement(<?php echo htmlspecialchars(json_encode([
+                                'id' => (int)$ann['id'],
+                                'title' => (string)($ann['title'] ?? ''),
+                                'content' => (string)($ann['content'] ?? ''),
+                                'photo' => (string)($ann['photo'] ?? ''),
+                                'posted_at' => (string)($ann['posted_at'] ?? ''),
+                                'is_published' => $is_pub ? 1 : 0,
+                            ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT), ENT_QUOTES); ?>)'>
+                                <i class="fas fa-edit"></i> Edit
+                            </button>
+                            <button type="button" class="btn-publish" onclick="ptToggleAnnouncementPublish(<?php echo (int)$ann['id']; ?>)">
+                                <i class="fas <?php echo $is_pub ? 'fa-eye-slash' : 'fa-eye'; ?>"></i>
+                                <?php echo $is_pub ? 'Unpublish' : 'Publish'; ?>
+                            </button>
+                            <button type="button" class="btn-delete" onclick="ptDeleteAnnouncement(<?php echo (int)$ann['id']; ?>, <?php echo htmlspecialchars(json_encode((string)($ann['title'] ?? '')), ENT_QUOTES); ?>)">
+                                <i class="fas fa-trash"></i> Delete
+                            </button>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                </article>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+        </div>
     </div>
 
     <!-- Toast -->
@@ -1598,6 +1738,211 @@ if ($conn) {
         t.className = 'toast ' + type + ' show';
         setTimeout(() => t.classList.remove('show'), 3000);
     }
+
+    // ─── Announcements (public index.php) ─────────────────
+    const ANN_API = '../api/public_announcements_api.php';
+    let isEditingAnnouncement = false;
+
+    function ptApplyAnnouncementPhoto(path) {
+        const area = document.getElementById('ptAnnouncementPhotoArea');
+        const preview = document.getElementById('ptAnnouncementPhotoPreview');
+        const removeBtn = document.getElementById('ptAnnouncementPhotoRemove');
+        const pathInput = document.getElementById('ptAnnouncementPhotoPath');
+        if (!area || !preview || !pathInput) return;
+        pathInput.value = path || '';
+        if (path) {
+            preview.src = '../../../' + String(path).replace(/^\/+/, '');
+            preview.style.display = 'block';
+            area.querySelector('.upload-icon').style.display = 'none';
+            area.querySelector('.upload-text').style.display = 'none';
+            area.classList.add('has-image');
+            if (removeBtn) removeBtn.style.display = 'flex';
+        } else {
+            preview.removeAttribute('src');
+            preview.style.display = 'none';
+            area.querySelector('.upload-icon').style.display = '';
+            area.querySelector('.upload-text').style.display = '';
+            area.classList.remove('has-image');
+            if (removeBtn) removeBtn.style.display = 'none';
+        }
+    }
+
+    function ptRemoveAnnouncementPhoto() {
+        ptApplyAnnouncementPhoto('');
+        const input = document.getElementById('ptAnnouncementPhotoInput');
+        if (input) input.value = '';
+    }
+
+    function ptHandleAnnouncementPhoto(input) {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        if (!/^image\//i.test(file.type || '') && !/\.(jpe?g|png|gif|webp)$/i.test(file.name || '')) {
+            showToast('Please choose a JPG, PNG, GIF, or WebP image', 'error');
+            input.value = '';
+            return;
+        }
+        const fd = new FormData();
+        fd.append('action', 'upload_photo');
+        fd.append('photo', file);
+        const area = document.getElementById('ptAnnouncementPhotoArea');
+        if (area) area.style.opacity = '0.55';
+        showToast('Uploading photo…', 'success');
+        fetch(ANN_API + '?action=upload_photo', {
+            method: 'POST',
+            body: fd,
+            credentials: 'same-origin'
+        })
+            .then(async (r) => {
+                const text = await r.text();
+                let data;
+                try { data = JSON.parse(text); } catch (e) {
+                    throw new Error('Server returned an invalid response');
+                }
+                if (!r.ok && (!data || !data.message)) {
+                    throw new Error((data && data.message) || ('Upload failed (' + r.status + ')'));
+                }
+                return data;
+            })
+            .then(data => {
+                if (area) area.style.opacity = '1';
+                if (data && data.success && data.path) {
+                    ptApplyAnnouncementPhoto(data.path);
+                    showToast('Photo uploaded', 'success');
+                } else {
+                    showToast((data && data.message) || 'Upload failed', 'error');
+                    input.value = '';
+                }
+            })
+            .catch((err) => {
+                if (area) area.style.opacity = '1';
+                showToast(err && err.message ? err.message : 'Network error', 'error');
+                input.value = '';
+            });
+    }
+
+    function ptResetAnnouncementForm() {
+        const form = document.getElementById('ptAnnouncementFormEl');
+        if (!form) return;
+        isEditingAnnouncement = false;
+        form.reset();
+        document.getElementById('ptAnnouncementId').value = '';
+        document.getElementById('ptAnnouncementPostedAt').value = new Date().toISOString().slice(0, 10);
+        document.getElementById('ptAnnouncementPublished').checked = true;
+        document.getElementById('ptAnnPublishLabel').textContent = 'Published';
+        ptApplyAnnouncementPhoto('');
+        document.getElementById('ptAnnouncementFormTitle').innerHTML =
+            '<i class="fas fa-plus-circle"></i> Create Announcement';
+        document.getElementById('ptBtnSaveAnnouncement').innerHTML =
+            '<i class="fas fa-bullhorn"></i> Publish Announcement';
+        document.getElementById('ptBtnCancelAnnouncementEdit').style.display = 'none';
+    }
+
+    function ptEditAnnouncement(ann) {
+        if (!ann || !document.getElementById('ptAnnouncementFormEl')) return;
+        isEditingAnnouncement = true;
+        document.getElementById('ptAnnouncementId').value = ann.id || '';
+        document.getElementById('ptAnnouncementTitle').value = ann.title || '';
+        document.getElementById('ptAnnouncementContent').value = ann.content || '';
+        document.getElementById('ptAnnouncementPostedAt').value = String(ann.posted_at || '').slice(0, 10);
+        document.getElementById('ptAnnouncementPublished').checked = Number(ann.is_published) === 1;
+        document.getElementById('ptAnnPublishLabel').textContent =
+            Number(ann.is_published) === 1 ? 'Published' : 'Draft';
+        ptApplyAnnouncementPhoto(ann.photo || '');
+        document.getElementById('ptAnnouncementFormTitle').innerHTML =
+            '<i class="fas fa-edit"></i> Edit Announcement';
+        document.getElementById('ptBtnSaveAnnouncement').innerHTML =
+            '<i class="fas fa-save"></i> Update Announcement';
+        document.getElementById('ptBtnCancelAnnouncementEdit').style.display = 'inline-flex';
+        document.getElementById('ptAnnouncementFormCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function ptDeleteAnnouncement(id, title) {
+        if (!confirm('Delete announcement "' + (title || '') + '"? This cannot be undone.')) return;
+        const fd = new FormData();
+        fd.append('action', 'delete');
+        fd.append('id', String(id));
+        fetch(ANN_API + '?action=delete', { method: 'POST', body: fd, credentials: 'same-origin' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message || 'Deleted', 'success');
+                    setTimeout(() => location.reload(), 700);
+                } else {
+                    showToast(data.message || 'Delete failed', 'error');
+                }
+            })
+            .catch(() => showToast('Network error', 'error'));
+    }
+
+    function ptToggleAnnouncementPublish(id) {
+        const fd = new FormData();
+        fd.append('action', 'toggle_publish');
+        fd.append('id', String(id));
+        fetch(ANN_API + '?action=toggle_publish', { method: 'POST', body: fd, credentials: 'same-origin' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message || 'Updated', 'success');
+                    setTimeout(() => location.reload(), 700);
+                } else {
+                    showToast(data.message || 'Update failed', 'error');
+                }
+            })
+            .catch(() => showToast('Network error', 'error'));
+    }
+
+    (function initPtAnnouncements() {
+        const pub = document.getElementById('ptAnnouncementPublished');
+        if (pub) {
+            pub.addEventListener('change', function () {
+                document.getElementById('ptAnnPublishLabel').textContent = this.checked ? 'Published' : 'Draft';
+            });
+        }
+        const form = document.getElementById('ptAnnouncementFormEl');
+        if (!form) return;
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const title = document.getElementById('ptAnnouncementTitle').value.trim();
+            const content = document.getElementById('ptAnnouncementContent').value.trim();
+            const postedAt = document.getElementById('ptAnnouncementPostedAt').value;
+            if (!title || !content) {
+                showToast('Title and message are required', 'error');
+                return;
+            }
+            const fd = new FormData();
+            fd.append('title', title);
+            fd.append('content', content);
+            fd.append('posted_at', postedAt);
+            fd.append('photo', document.getElementById('ptAnnouncementPhotoPath').value.trim());
+            fd.append('is_published', document.getElementById('ptAnnouncementPublished').checked ? '1' : '0');
+            if (isEditingAnnouncement) {
+                fd.append('id', document.getElementById('ptAnnouncementId').value);
+            }
+            const action = isEditingAnnouncement ? 'update' : 'create';
+            const btn = document.getElementById('ptBtnSaveAnnouncement');
+            const prev = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+            fetch(ANN_API + '?action=' + action, { method: 'POST', body: fd, credentials: 'same-origin' })
+                .then(r => r.json())
+                .then(data => {
+                    btn.disabled = false;
+                    btn.innerHTML = prev;
+                    if (data.success) {
+                        showToast(data.message || 'Saved', 'success');
+                        setTimeout(() => location.reload(), 700);
+                    } else {
+                        showToast(data.message || 'Save failed', 'error');
+                    }
+                })
+                .catch(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = prev;
+                    showToast('Network error', 'error');
+                });
+        });
+    })();
+
     </script>
 
 

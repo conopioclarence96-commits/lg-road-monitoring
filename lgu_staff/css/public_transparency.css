@@ -1270,3 +1270,193 @@ body.dark-mode .project-form-card .form-group > label:not(.publish-switch) {
 body.dark-mode .project-item:hover {
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4) !important;
 }
+
+/* ─── Announcements (Public Transparency) ─── */
+.announcements-section {
+    margin-top: 28px;
+}
+
+.announcement-form-card {
+    margin-bottom: 20px;
+}
+
+/* Compact publish toggle (announcements only) */
+.announcement-form-card .publish-switch--sm,
+.form-group label.publish-switch.publish-switch--sm {
+    padding: 6px 10px;
+    gap: 8px;
+    border-width: 1px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.announcement-form-card .publish-switch--sm .toggle-slider,
+.form-group label.publish-switch.publish-switch--sm .toggle-slider {
+    flex: 0 0 34px;
+    width: 34px;
+    min-width: 34px;
+    height: 18px;
+    min-height: 18px;
+    border-radius: 9px;
+}
+
+.announcement-form-card .publish-switch--sm .toggle-slider::before,
+.form-group label.publish-switch.publish-switch--sm .toggle-slider::before {
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+}
+
+.announcement-form-card .publish-switch--sm:has(.publish-checkbox:checked) .toggle-slider::before,
+.form-group label.publish-switch.publish-switch--sm:has(.publish-checkbox:checked) .toggle-slider::before {
+    transform: translateX(16px);
+}
+
+.announcement-form-card .publish-switch--sm .toggle-text,
+.form-group label.publish-switch.publish-switch--sm .toggle-text {
+    font-size: 12px;
+}
+
+.announcement-view-notice {
+    margin-bottom: 18px;
+}
+
+.announcements-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.announcement-section-hint {
+    margin: -4px 0 18px;
+    color: #64748b;
+    font-size: 13px;
+}
+
+.announcement-item {
+    background: #fff;
+    border: 1px solid rgba(30, 60, 114, 0.1);
+    border-radius: 14px;
+    padding: 18px 20px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 16px;
+}
+
+.announcement-item.has-photo {
+    padding: 14px;
+}
+
+.announcement-item.is-draft {
+    opacity: 0.88;
+    border-style: dashed;
+}
+
+.announcement-thumb {
+    flex: 0 0 160px;
+    width: 160px;
+    min-height: 120px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #eef2f7;
+}
+
+.announcement-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.announcement-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.announcement-item-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.announcement-item-top h4 {
+    margin: 0;
+    color: #1e3c72;
+    font-size: 17px;
+    font-weight: 600;
+}
+
+.announcement-content {
+    margin: 0;
+    color: #475569;
+    font-size: 14px;
+    line-height: 1.55;
+}
+
+.announcement-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    font-size: 12px;
+    color: #64748b;
+}
+
+.announcement-meta span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.announcement-actions {
+    border-top: 1px solid #eef2f7;
+    padding-top: 12px;
+}
+
+@media (max-width: 640px) {
+    .announcement-item {
+        flex-direction: column;
+    }
+    .announcement-thumb {
+        flex: none;
+        width: 100%;
+        height: 180px;
+    }
+}
+
+body.dark-mode .announcement-item {
+    background: var(--bg-card, #1c2432) !important;
+    border-color: rgba(147, 179, 224, 0.22) !important;
+}
+
+body.dark-mode .announcement-item-top h4 {
+    color: var(--text-primary) !important;
+}
+
+body.dark-mode .announcement-content {
+    color: var(--text-secondary) !important;
+}
+
+body.dark-mode .announcement-meta {
+    color: var(--text-muted) !important;
+}
+
+body.dark-mode .announcement-actions {
+    border-top-color: rgba(147, 179, 224, 0.15) !important;
+}
+
+body.dark-mode .announcement-section-hint {
+    color: var(--text-muted) !important;
+}
+
+body.dark-mode .announcement-thumb {
+    background: rgba(147, 179, 224, 0.08) !important;
+}
+
