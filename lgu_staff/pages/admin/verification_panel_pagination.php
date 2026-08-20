@@ -8,6 +8,58 @@ function canVerifyReport($category, $source) {
     return !($category === 'road' && $source === 'local');
 }
 
+/**
+ * True once CIMM has scheduled the LGU road report (Scheduled or any later stage).
+ */
+function vm_is_lgu_road_report_scheduled(?string $cimm_status): bool {
+    $cimm = strtolower(trim((string)($cimm_status ?? '')));
+    if ($cimm === '') {
+        return false;
+    }
+    return in_array($cimm, [
+        'scheduled',
+        'approved',
+        'in progress',
+        'pending completion',
+    ], true);
+}
+
+/**
+ * LGU Monitoring → Road Reports: show ✓/✕ only after CIMM scheduling.
+ * Transportation reports keep the direct local approval path.
+ */
+function vm_show_lgu_approval_buttons(array $report): bool {
+    if (($report['status'] ?? '') !== 'pending') {
+        return false;
+    }
+    $category = $report['report_category'] ?? null;
+    if ($category === 'transportation') {
+        return true;
+    }
+    if ($category === 'road') {
+        return vm_is_lgu_road_report_scheduled($report['cimm_status'] ?? null);
+    }
+    return false;
+}
+
+/**
+ * LGU road reports awaiting CIMM scheduling — hide ✓/✕ until scheduled.
+ */
+function vm_show_lgu_pending_ext_verify(array $report): bool {
+    if (($report['status'] ?? '') !== 'pending') {
+        return false;
+    }
+    $category = $report['report_category'] ?? null;
+    $source = $report['report_source'] ?? null;
+    if ($category !== 'road' || canVerifyReport($category, $source)) {
+        return false;
+    }
+    if (vm_is_lgu_road_report_scheduled($report['cimm_status'] ?? null)) {
+        return false;
+    }
+    return ($report['cimm_sync_status'] ?? '') !== 'verified';
+}
+
 function vm_panel_page(string $panel): int {
     return max(1, (int)($_GET[$panel . '_page'] ?? 1));
 }
@@ -322,16 +374,8 @@ function vm_render_lgu_panel_tbody(array $reports, bool $is_transport_supervisor
         elseif ($report['status'] === 'in-progress') $lgu_status_class = 'in-progress';
         elseif ($report['status'] === 'completed') $lgu_status_class = 'completed';
 
-        $report_category = $report['report_category'] ?? null;
-        $report_source = $report['report_source'] ?? null;
-        $can_verify = canVerifyReport($report_category, $report_source);
-        $pending_ext_verify = strtolower(trim((string)($report['cimm_status'] ?? ''))) !== 'scheduled'
-            && ($report['cimm_sync_status'] ?? '') !== 'verified'
-            && !$can_verify
-            && ($report['status'] ?? '') === 'pending';
-        $ready_for_approval = ($report_category === 'transportation')
-            ? true
-            : (strtolower(trim((string)($report['cimm_status'] ?? ''))) === 'scheduled' && ($report['status'] ?? '') === 'pending');
+        $pending_ext_verify = vm_show_lgu_pending_ext_verify($report);
+        $ready_for_approval = vm_show_lgu_approval_buttons($report);
 
         $lgu_filter_status = 'pending';
         if (in_array($report['status'], ['approved', 'completed'], true)) $lgu_filter_status = 'approved';

@@ -679,20 +679,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit();
         }
         
-        // Check verification rules: block approve for road+local reports
-        // unless they have been verified by CIMM (cimm_sync_status = 'verified')
-        // or are Scheduled LGU monitoring reports (cimm_status = 'Scheduled')
-        if (in_array($action, ['approve', 'cimm_approve']) && in_array($source, ['transport', 'lgu', 'external'])) {
+        // Block approve/reject for road+local LGU reports until CIMM has scheduled them.
+        if (in_array($action, ['approve', 'cimm_approve', 'reject']) && in_array($source, ['transport', 'lgu', 'external'])) {
             $check = $conn->prepare("SELECT report_category, report_source, cimm_sync_status, cimm_status FROM road_transportation_reports WHERE id = ?");
             $check->bind_param('i', $report_id);
             $check->execute();
             $r = $check->get_result()->fetch_assoc();
-            // Only block if not verified by CIMM, not a Scheduled LGU monitoring report,
-            // AND cannot be verified locally
-            $cimmVerified = (($r['cimm_sync_status'] ?? '') === 'verified')
-                || strtolower(trim((string)($r['cimm_status'] ?? ''))) === 'scheduled';
-            if ($r && !$cimmVerified && !canVerifyReport($r['report_category'], $r['report_source'])) {
-                $_SESSION['verification_message'] = 'Road reports created by your LGU cannot be approved here. They must be verified by the external Engineering Office.';
+            if ($r
+                && ($r['report_category'] ?? '') === 'road'
+                && !canVerifyReport($r['report_category'], $r['report_source'])
+                && !vm_is_lgu_road_report_scheduled($r['cimm_status'] ?? null)
+                && (($r['cimm_sync_status'] ?? '') !== 'verified')
+            ) {
+                $_SESSION['verification_message'] = 'This road report cannot be verified yet. It must be scheduled by the external Engineering Office first.';
                 header('Location: ../admin/verification_monitoring.php');
                 exit();
             }
