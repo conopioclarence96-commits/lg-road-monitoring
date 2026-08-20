@@ -3110,6 +3110,567 @@ if ($focus_id > 0) {
         }
         body.dark-mode #addUpdateModal .file-preview-item { background: #2a2e36; border-color: #3a3f4a; }
 
+        /* ── Update Report / Assign To modal polish (UI only) ── */
+        #editReportModal.urm-modal .urm-content,
+        #assignUserModal.urm-modal .urm-content {
+            width: min(720px, 94vw);
+            max-width: 720px;
+            max-height: min(92vh, 900px);
+            margin: 2.5vh auto;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid rgba(30, 60, 114, 0.12);
+            box-shadow: 0 24px 64px rgba(15, 39, 74, 0.22);
+        }
+        #editReportModal.urm-modal .urm-content > form {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
+        }
+        #assignUserModal.urm-modal .asm-content {
+            width: min(640px, 94vw);
+            max-width: 640px;
+        }
+        #editReportModal .urm-header,
+        #assignUserModal .urm-header {
+            padding: 18px 22px;
+            background: linear-gradient(135deg, #1e3c72 0%, #3762c8 100%);
+            align-items: flex-start;
+        }
+        #editReportModal .urm-kicker,
+        #assignUserModal .urm-kicker {
+            margin: 0 0 4px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.72);
+        }
+        #editReportModal .urm-header .modal-title,
+        #assignUserModal .urm-header .modal-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.15rem;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+            color: #fff !important;
+        }
+        #editReportModal .urm-header .modal-title i,
+        #assignUserModal .urm-header .modal-title i {
+            color: #fff !important;
+        }
+        #editReportModal .urm-close,
+        #assignUserModal .urm-close {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.12);
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        #editReportModal .urm-close:hover,
+        #assignUserModal .urm-close:hover {
+            background: rgba(255, 255, 255, 0.22);
+            opacity: 1;
+        }
+        #editReportModal .urm-body,
+        #assignUserModal .urm-body {
+            padding: 20px 22px 8px;
+            max-height: none;
+            flex: 1;
+            overflow-y: auto;
+            background: #f7f9fc;
+        }
+        #editReportModal .urm-section,
+        #assignUserModal .urm-section {
+            background: #fff;
+            border: 1px solid #e6ebf2;
+            border-radius: 14px;
+            padding: 16px 18px;
+            margin-bottom: 14px;
+            box-shadow: 0 1px 2px rgba(15, 39, 74, 0.04);
+        }
+        #editReportModal .urm-section h6 {
+            margin: 0 0 14px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eef2f7;
+            color: #1e3c72;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+        }
+        #editReportModal .urm-section-head h6 {
+            margin-bottom: 6px;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+        #editReportModal .urm-section-hint,
+        #assignUserModal .urm-section-hint {
+            margin: 0 0 12px;
+            color: #64748b;
+            font-size: 12.5px;
+            line-height: 1.45;
+        }
+        #editReportModal .urm-section-readonly .form-control.urm-readonly,
+        #editReportModal .urm-section-readonly textarea.urm-readonly {
+            background: #eef2f7;
+            color: #475569;
+            border-color: #d5dde8;
+            cursor: default;
+            box-shadow: none;
+            resize: none;
+        }
+        #editReportModal .urm-section-readonly .form-control.urm-readonly:focus,
+        #editReportModal .urm-section-readonly textarea.urm-readonly:focus {
+            border-color: #d5dde8;
+            box-shadow: none;
+            outline: none;
+        }
+        #editReportModal .urm-section-readonly .form-label::after {
+            content: ' (read-only)';
+            font-weight: 500;
+            color: #94a3b8;
+            font-size: 11px;
+        }
+        #editReportModal .urm-field-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+        #editReportModal .urm-section .form-label,
+        #assignUserModal .form-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #334155;
+            margin-bottom: 6px;
+        }
+        #editReportModal .urm-section .form-control,
+        #assignUserModal .form-control {
+            border: 1px solid #d7dee8;
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 14px;
+            background: #fff;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        #editReportModal .urm-section .form-control:focus,
+        #assignUserModal .form-control:focus {
+            border-color: #3762c8;
+            box-shadow: 0 0 0 3px rgba(55, 98, 200, 0.14);
+        }
+        #editReportModal .urm-select-wrap {
+            position: relative;
+        }
+        #editReportModal .urm-select {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 100%;
+            cursor: pointer;
+            padding-right: 2.4rem;
+            background-color: #fff;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%231e3c72' viewBox='0 0 16 16'%3E%3Cpath d='M4.646 6.646a.5.5 0 0 1 .708 0L8 9.293l2.646-2.647a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.85rem center;
+            background-size: 14px;
+        }
+        #editReportModal .urm-assign-section {
+            background: linear-gradient(180deg, #f8fbff 0%, #ffffff 42%);
+            border-color: #d9e5f7;
+        }
+        #editReportModal .urm-assign-actions {
+            margin-bottom: 14px;
+        }
+        #editReportModal .urm-btn-assign {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border: 1px solid #c5d4ef;
+            border-radius: 10px;
+            background: #fff;
+            color: #1e3c72;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        #editReportModal .urm-btn-assign:hover {
+            background: #eef4ff;
+            border-color: #3762c8;
+            box-shadow: 0 4px 12px rgba(55, 98, 200, 0.12);
+        }
+        #editReportModal .urm-assigned-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 8px;
+            min-height: 48px;
+        }
+        #editReportModal .asg-card,
+        #editCimmModal .asg-card,
+        #editIpmsModal .asg-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        }
+        #editReportModal .asg-avatar,
+        #editCimmModal .asg-avatar,
+        #editIpmsModal .asg-avatar {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 16px;
+        }
+        #editReportModal .asg-meta,
+        #editCimmModal .asg-meta,
+        #editIpmsModal .asg-meta { flex: 1; min-width: 0; }
+        #editReportModal .asg-name,
+        #editCimmModal .asg-name,
+        #editIpmsModal .asg-name {
+            font-weight: 700;
+            font-size: 14px;
+            color: #0f172a;
+            line-height: 1.3;
+        }
+        #editReportModal .asg-role,
+        #editCimmModal .asg-role,
+        #editIpmsModal .asg-role {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 4px;
+            padding: 3px 9px;
+            border-radius: 999px;
+            background: rgba(55, 98, 200, 0.1);
+            color: #1e3c72;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+        #editReportModal .asg-date,
+        #editCimmModal .asg-date,
+        #editIpmsModal .asg-date {
+            margin-top: 4px;
+            font-size: 12px;
+            color: #64748b;
+        }
+        #editReportModal .asg-remove-btn,
+        #editCimmModal .asg-remove-btn,
+        #editIpmsModal .asg-remove-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 12px;
+            border: none;
+            border-radius: 8px;
+            background: #fee2e2;
+            color: #b91c1c;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        #editReportModal .asg-remove-btn:hover,
+        #editCimmModal .asg-remove-btn:hover,
+        #editIpmsModal .asg-remove-btn:hover {
+            background: #fecaca;
+        }
+        #editReportModal .asg-empty {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 16px;
+            background: #f8fafc;
+            border: 1px dashed #cbd5e1;
+            border-radius: 12px;
+            color: #64748b;
+            font-size: 13px;
+        }
+        #editReportModal .urm-photo-grid {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+        #editReportModal .urm-photo-preview { margin-top: 10px; margin-bottom: 0; }
+        #editReportModal .urm-btn-photo {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 9px 14px;
+            border: none;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        #editReportModal .urm-help {
+            display: block;
+            margin-top: 8px;
+            font-size: 12px;
+        }
+        #editReportModal .urm-footer,
+        #assignUserModal .urm-footer {
+            padding: 14px 22px;
+            background: #fff;
+            border-top: 1px solid #e6ebf2;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        #editReportModal .urm-footer-actions,
+        #assignUserModal .urm-footer-actions {
+            display: flex;
+            gap: 10px;
+            margin-left: auto;
+        }
+        #assignUserModal .urm-footer-actions-end { margin-left: auto; }
+        #editReportModal .urm-btn-cancel,
+        #assignUserModal .urm-btn-cancel {
+            min-width: 104px;
+            padding: 10px 18px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        #editReportModal .urm-btn-save,
+        #assignUserModal .urm-btn-save {
+            min-width: 140px;
+            padding: 10px 18px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        #editReportModal .urm-status-indicator { font-size: 12px; }
+        #editReportModal .urm-optional,
+        #assignUserModal .urm-optional {
+            font-weight: 500;
+            color: #94a3b8;
+        }
+
+        /* Assign staff picker */
+        #assignUserModal .asm-selected-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            margin-bottom: 14px;
+            border-radius: 12px;
+            border: 1px solid #bfdbfe;
+            background: #eff6ff;
+        }
+        #assignUserModal .asm-selected-bar[hidden] { display: none !important; }
+        #assignUserModal .asm-selected-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(55, 98, 200, 0.15);
+            color: #1e3c72;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #assignUserModal .asm-selected-meta {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        #assignUserModal .asm-selected-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        #assignUserModal .asm-selected-meta strong {
+            font-size: 14px;
+            color: #0f172a;
+        }
+        #assignUserModal .asm-selected-role {
+            font-size: 12px;
+            color: #1e3c72;
+            font-weight: 600;
+        }
+        #assignUserModal .asm-clear-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(15, 23, 42, 0.06);
+            color: #475569;
+            cursor: pointer;
+        }
+        #assignUserModal .asm-staff-list {
+            max-height: min(340px, 42vh);
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            background: #fff;
+            padding: 6px;
+        }
+        #assignUserModal .usr-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+            margin-bottom: 4px;
+        }
+        #assignUserModal .usr-card:last-child { margin-bottom: 0; }
+        #assignUserModal .usr-card:hover:not(.usr-disabled) {
+            background: #f8fafc;
+            border-color: #e2e8f0;
+        }
+        #assignUserModal .usr-card.usr-selected {
+            background: #eff6ff;
+            border-color: #93c5fd;
+            box-shadow: 0 0 0 2px rgba(55, 98, 200, 0.12);
+        }
+        #assignUserModal .usr-card.usr-disabled {
+            opacity: 0.72;
+            cursor: default;
+            background: #f8fafc;
+        }
+        #assignUserModal .usr-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 18px;
+            border: 2px solid transparent;
+        }
+        #assignUserModal .usr-meta { flex: 1; min-width: 0; }
+        #assignUserModal .usr-name {
+            font-weight: 700;
+            font-size: 14px;
+            color: #0f172a;
+        }
+        #assignUserModal .usr-email {
+            margin-top: 2px;
+            font-size: 12px;
+            color: #64748b;
+        }
+        #assignUserModal .usr-role {
+            display: inline-flex;
+            margin-top: 6px;
+            padding: 3px 9px;
+            border-radius: 999px;
+            background: rgba(55, 98, 200, 0.1);
+            color: #1e3c72;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        #assignUserModal .usr-side {
+            text-align: right;
+            flex-shrink: 0;
+        }
+        #assignUserModal .usr-active {
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 6px;
+        }
+        #assignUserModal .usr-badge-assigned,
+        #assignUserModal .usr-badge-assign {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        #assignUserModal .usr-badge-assigned {
+            background: #d1fae5;
+            color: #047857;
+        }
+        #assignUserModal .usr-badge-assign {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+        #assignUserModal .asm-list-loading,
+        #assignUserModal .usr-muted,
+        #assignUserModal .usr-error {
+            text-align: center;
+            padding: 28px 16px;
+            color: #64748b;
+            font-size: 13px;
+        }
+        #assignUserModal .usr-error { color: #dc2626; }
+
+        @media (max-width: 640px) {
+            #editReportModal.urm-modal .urm-content,
+            #assignUserModal.urm-modal .urm-content {
+                width: 100vw;
+                max-width: 100vw;
+                margin: 0;
+                max-height: 100vh;
+                border-radius: 0;
+                min-height: 100vh;
+            }
+            #editReportModal .urm-field-row {
+                grid-template-columns: 1fr;
+            }
+            #editReportModal .urm-footer,
+            #assignUserModal .urm-footer {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            #editReportModal .urm-footer-actions,
+            #assignUserModal .urm-footer-actions {
+                width: 100%;
+                margin-left: 0;
+            }
+            #editReportModal .urm-btn-cancel,
+            #editReportModal .urm-btn-save,
+            #assignUserModal .urm-btn-cancel,
+            #assignUserModal .urm-btn-save {
+                flex: 1;
+            }
+            #assignUserModal .usr-card {
+                flex-wrap: wrap;
+            }
+            #assignUserModal .usr-side {
+                width: 100%;
+                text-align: left;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+            }
+        }
+
         /* Dark-mode compatibility for the rm-edit-btn modals (Update Report /
            Edit CIMM Report / Assign Staff to Project) — Road / Transportation
            Operations Supervisors and System Admin only */
@@ -4961,6 +5522,64 @@ if ($focus_id > 0) {
             .rm-dash .stat-number { font-size: 20px; }
             .rm-dash .header-icon { width: 36px; height: 36px; }
         }
+
+        /* Update Report / Assign To — dark mode polish */
+        body.dark-mode #editReportModal .urm-body,
+        body.dark-mode #assignUserModal .urm-body { background: #1a1d23 !important; }
+        body.dark-mode #editReportModal .urm-section {
+            background: #22262e !important;
+            border-color: #2d323b !important;
+            box-shadow: none !important;
+        }
+        body.dark-mode #editReportModal .urm-assign-section {
+            background: linear-gradient(180deg, #1e293b 0%, #22262e 45%) !important;
+            border-color: #334155 !important;
+        }
+        body.dark-mode #editReportModal .urm-section-hint,
+        body.dark-mode #assignUserModal .urm-section-hint { color: #94a3b8 !important; }
+        body.dark-mode #editReportModal .urm-btn-assign {
+            background: #1e293b !important;
+            border-color: #334155 !important;
+            color: #93c5fd !important;
+        }
+        body.dark-mode #editReportModal .asg-name { color: #e2e8f0 !important; }
+        body.dark-mode #editReportModal .asg-date { color: #94a3b8 !important; }
+        body.dark-mode #editReportModal .asg-role {
+            background: rgba(147, 197, 253, 0.12) !important;
+            color: #93c5fd !important;
+        }
+        body.dark-mode #editReportModal .asg-remove-btn {
+            background: rgba(127, 29, 29, 0.35) !important;
+            color: #fca5a5 !important;
+        }
+        body.dark-mode #editReportModal .urm-footer,
+        body.dark-mode #assignUserModal .urm-footer {
+            background: #1e2229 !important;
+            border-top-color: #2d323b !important;
+        }
+        body.dark-mode #assignUserModal .asm-selected-bar {
+            background: #1e293b !important;
+            border-color: #334155 !important;
+        }
+        body.dark-mode #assignUserModal .asm-selected-meta strong { color: #e2e8f0 !important; }
+        body.dark-mode #assignUserModal .asm-selected-role { color: #93c5fd !important; }
+        body.dark-mode #assignUserModal .asm-staff-list {
+            background: #1a1d23 !important;
+            border-color: #3a3f4a !important;
+        }
+        body.dark-mode #assignUserModal .usr-name { color: #e2e8f0 !important; }
+        body.dark-mode #assignUserModal .usr-email,
+        body.dark-mode #assignUserModal .usr-active { color: #94a3b8 !important; }
+        body.dark-mode #assignUserModal .usr-role {
+            background: rgba(147, 197, 253, 0.12) !important;
+            color: #93c5fd !important;
+        }
+        body.dark-mode #editReportModal .urm-section-readonly .form-control.urm-readonly,
+        body.dark-mode #editReportModal .urm-section-readonly textarea.urm-readonly {
+            background: #1a1d23 !important;
+            color: #94a3b8 !important;
+            border-color: #3a3f4a !important;
+        }
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
@@ -5400,14 +6019,17 @@ if ($focus_id > 0) {
     </div>
 
     <!-- Edit Report Modal (Enhanced) -->
-    <div id="editReportModal" class="modal">
-        <div class="modal-content" style="max-width: 750px;">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-edit"></i> Update Report</h5>
-                <button class="close" onclick="closeModal('editReportModal')">&times;</button>
+    <div id="editReportModal" class="modal urm-modal">
+        <div class="modal-content urm-content">
+            <div class="modal-header urm-header">
+                <div class="urm-header-text">
+                    <p class="urm-kicker">Report Management</p>
+                    <h5 class="modal-title"><i class="fas fa-pen-to-square"></i> Update Report</h5>
+                </div>
+                <button type="button" class="close urm-close" onclick="closeModal('editReportModal')" aria-label="Close">&times;</button>
             </div>
             <form method="POST" id="editReportForm" enctype="multipart/form-data">
-                <div class="modal-body">
+                <div class="modal-body urm-body">
                     <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
                     <input type="hidden" name="action" value="update_report">
                     <input type="hidden" name="report_id" id="editReportId">
@@ -5415,89 +6037,99 @@ if ($focus_id > 0) {
                     <input type="hidden" name="report_type_from_db" id="editReportTypeFromDB">
                     <input type="hidden" name="report_table" id="editReportTable">
 
-                    <div class="form-section">
+                    <section class="form-section urm-section urm-section-readonly">
                         <h6><i class="fas fa-info-circle"></i> Basic Information</h6>
                         <div class="form-group">
                             <label for="editTitle" class="form-label">Title</label>
-                            <input type="text" class="form-control" name="title" id="editTitle" placeholder="Report title">
+                            <input type="text" class="form-control urm-readonly" name="title" id="editTitle" placeholder="Report title" readonly tabindex="-1">
                         </div>
                         <div class="form-group">
                             <label for="editDescription" class="form-label">Description</label>
-                            <textarea class="form-control" name="description" id="editDescription" rows="3" placeholder="Report description"></textarea>
+                            <textarea class="form-control urm-readonly" name="description" id="editDescription" rows="3" placeholder="Report description" readonly tabindex="-1"></textarea>
                         </div>
                         <div class="form-group">
                             <label for="editLocation" class="form-label">Location</label>
-                            <input type="text" class="form-control" name="location" id="editLocation" placeholder="Report location">
+                            <input type="text" class="form-control urm-readonly" name="location" id="editLocation" placeholder="Report location" readonly tabindex="-1">
                         </div>
-                    </div>
+                    </section>
 
-                    <div class="form-section">
-                        <h6><i class="fas fa-tasks"></i> Status & Assignment</h6>
-                        <div style="display: flex; gap: 15px;">
-                            <div class="form-group" style="flex: 1;">
+                    <section class="form-section urm-section">
+                        <h6><i class="fas fa-sliders"></i> Status &amp; Priority</h6>
+                        <div class="urm-field-row">
+                            <div class="form-group">
                                 <label for="editStatus" class="form-label">Status *</label>
-                                <select class="form-control" name="status" id="editStatus" required>
-                                    <option value="approved">Approved</option>
-                                    <option value="in-progress">In Progress</option>
-                                </select>
+                                <div class="urm-select-wrap">
+                                    <select class="form-control urm-select" name="status" id="editStatus" required>
+                                        <option value="approved">Approved</option>
+                                        <option value="in-progress">In Progress</option>
+                                    </select>
+                                </div>
                             </div>
-                            <div class="form-group" style="flex: 1;">
+                            <div class="form-group">
                                 <label for="editPriority" class="form-label">Priority *</label>
-                                <select class="form-control" name="priority" id="editPriority" required>
-                                    <option value="low">Low</option>
-                                    <option value="medium">Medium</option>
-                                    <option value="high">High</option>
-                                </select>
+                                <div class="urm-select-wrap">
+                                    <select class="form-control urm-select" name="priority" id="editPriority" required>
+                                        <option value="low">Low</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="high">High</option>
+                                    </select>
+                                </div>
                             </div>
+                        </div>
+                    </section>
+
+                    <section class="form-section urm-section urm-assign-section">
+                        <div class="urm-section-head">
+                            <h6><i class="fas fa-user-check"></i> Assign To</h6>
+                            <p class="urm-section-hint">Assign monitoring staff by name and role. Current assignees appear below.</p>
                         </div>
                         <?php if ($user_role !== 'system_admin'): ?>
-                        <div style="margin-top: 15px;">
-                            <button type="button" class="btn-action" onclick="openAssignUserModal()">
-                                <i class="fas fa-user-plus"></i> Assign Staff to Project
+                        <div class="urm-assign-actions">
+                            <button type="button" class="urm-btn-assign" onclick="openAssignUserModal()">
+                                <i class="fas fa-user-plus"></i>
+                                <span>Select Staff</span>
                             </button>
                         </div>
                         <?php endif; ?>
-                        <div style="margin-top: 15px;">
+                        <div class="urm-assigned-block">
                             <label class="form-label">Assigned Staff</label>
-                            <div id="assignedUsersListRegular" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px;">
-                                <div style="color: #6b7280; font-size: 13px;">Loading assigned staff...</div>
+                            <div id="assignedUsersListRegular" class="urm-assigned-list">
+                                <div class="asg-muted urm-loading">Loading assigned staff...</div>
                             </div>
                         </div>
-                    </div>
+                    </section>
 
-                    <div class="form-section">
+                    <section class="form-section urm-section">
                         <h6><i class="fas fa-images"></i> Report Photos</h6>
-                        <div id="existingPhotos" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;"></div>
+                        <div id="existingPhotos" class="urm-photo-grid"></div>
                         <div class="form-group" style="margin-bottom: 0;">
                             <label for="editPhotos" class="form-label">Add New Photos</label>
-                            <button type="button" id="add-edit-photos-btn" class="t-gradient-primary" style="padding:8px 16px;border:none;border-radius:6px;cursor:pointer;font-size:13px;"><i class="fas fa-camera"></i> Add Photos</button>
-                            <input type="file" name="report_photos[]" id="editPhotos" 
+                            <button type="button" id="add-edit-photos-btn" class="urm-btn-photo"><i class="fas fa-camera"></i> Add Photos</button>
+                            <input type="file" name="report_photos[]" id="editPhotos"
                                    accept="image/jpeg,image/png,image/gif,image/webp" multiple
                                    style="display:none;">
-                            <small class="t-text-secondary" style="font-size: 12px;">Accepted: JPG, PNG, GIF, WebP | Max: 5MB each</small>
-                            <div id="photoPreview" style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;"></div>
+                            <small class="t-text-secondary urm-help">Accepted: JPG, PNG, GIF, WebP | Max: 5MB each</small>
+                            <div id="photoPreview" class="urm-photo-grid urm-photo-preview"></div>
                         </div>
-                    </div>
+                    </section>
 
-                    <div class="form-section">
+                    <section class="form-section urm-section">
                         <h6><i class="fas fa-sticky-note"></i> Progress Notes</h6>
                         <div class="form-group" style="margin-bottom: 0;">
                             <label for="editNotes" class="form-label">Update Notes / Resolution Details</label>
-                            <textarea class="form-control" name="notes" id="editNotes" rows="4" 
+                            <textarea class="form-control" name="notes" id="editNotes" rows="4"
                                       placeholder="Describe the current status, actions taken, or resolution details..."></textarea>
-                            <small class="t-text-secondary" style="font-size: 12px;">
+                            <small class="t-text-secondary urm-help">
                                 <i class="fas fa-info-circle"></i> These notes will be visible to other staff members
                             </small>
                         </div>
-                    </div>
+                    </section>
                 </div>
-                <div class="modal-footer" style="justify-content: space-between;">
-                    <div>
-                        <span id="updateStatusIndicator" class="t-text-secondary" style="font-size: 12px;"></span>
-                    </div>
-                    <div style="display: flex; gap: 10px;">
-                        <button type="button" class="btn-secondary-custom" onclick="closeModal('editReportModal')">Cancel</button>
-                        <button type="submit" class="btn-primary-custom" id="updateSubmitBtn">
+                <div class="modal-footer urm-footer">
+                    <span id="updateStatusIndicator" class="t-text-secondary urm-status-indicator"></span>
+                    <div class="urm-footer-actions">
+                        <button type="button" class="btn-secondary-custom urm-btn-cancel" onclick="closeModal('editReportModal')">Cancel</button>
+                        <button type="submit" class="btn-primary-custom urm-btn-save" id="updateSubmitBtn">
                             <i class="fas fa-save"></i> Save Changes
                         </button>
                     </div>
@@ -5849,31 +6481,46 @@ if ($focus_id > 0) {
     </div>
 
     <!-- Assign User Modal -->
-    <div id="assignUserModal" class="modal">
-        <div class="modal-content" style="max-width: 600px;">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-user-plus"></i> Assign Staff to Project</h5>
-                <button class="close" onclick="closeModal('assignUserModal')">&times;</button>
+    <div id="assignUserModal" class="modal urm-modal asm-modal">
+        <div class="modal-content urm-content asm-content">
+            <div class="modal-header urm-header">
+                <div class="urm-header-text">
+                    <p class="urm-kicker">Staff Assignment</p>
+                    <h5 class="modal-title"><i class="fas fa-user-plus"></i> Assign To</h5>
+                </div>
+                <button type="button" class="close urm-close" onclick="closeModal('assignUserModal')" aria-label="Close">&times;</button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body urm-body">
+                <div class="asm-selected-bar" id="assignSelectedBar" hidden>
+                    <div class="asm-selected-avatar"><i class="fas fa-user"></i></div>
+                    <div class="asm-selected-meta">
+                        <span class="asm-selected-label">Selected</span>
+                        <strong id="assignSelectedName">—</strong>
+                        <span id="assignSelectedRole" class="asm-selected-role"></span>
+                    </div>
+                    <button type="button" class="asm-clear-btn" onclick="clearAssignSelection()" title="Clear selection">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
                 <div class="form-group">
                     <label class="form-label">Available Staff</label>
-                    <div id="availableUsersList" style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; border-radius: 6px; padding: 10px;">
-                        <div style="text-align: center; padding: 20px;">
-                            <i class="fas fa-spinner fa-spin"></i> Loading staff...
-                        </div>
+                    <p class="urm-section-hint">Choose a person below. Name and role are shown for each option.</p>
+                    <div id="availableUsersList" class="asm-staff-list">
+                        <div class="usr-muted asm-list-loading"><i class="fas fa-spinner fa-spin"></i> Loading staff...</div>
                     </div>
                 </div>
-                <div class="form-group" style="margin-top: 15px;">
-                    <label class="form-label">Notes (optional)</label>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="assignmentNotes">Notes <span class="urm-optional">(optional)</span></label>
                     <textarea class="form-control" id="assignmentNotes" rows="3" placeholder="Add notes about this assignment..."></textarea>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn-secondary-custom" onclick="closeModal('assignUserModal')">Cancel</button>
-                <button type="button" class="btn-action" onclick="assignUserToProject()">
-                    <i class="fas fa-check"></i> Assign
-                </button>
+            <div class="modal-footer urm-footer">
+                <div class="urm-footer-actions urm-footer-actions-end">
+                    <button type="button" class="btn-secondary-custom urm-btn-cancel" onclick="closeModal('assignUserModal')">Cancel</button>
+                    <button type="button" class="btn-primary-custom urm-btn-save" onclick="assignUserToProject()">
+                        <i class="fas fa-check"></i> Assign Staff
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -6452,6 +7099,52 @@ if ($focus_id > 0) {
                 .replace(/'/g, '&#039;');
         }
 
+        function formatStaffRoleLabel(role) {
+            return String(role || '')
+                .replace(/_/g, ' ')
+                .replace(/\b\w/g, (c) => c.toUpperCase())
+                .trim() || 'Staff';
+        }
+
+        function staffRoleVisual(role) {
+            let roleIcon = 'fa-user';
+            let roleColor = '#3762c8';
+            if (role === 'road_monitoring_officer') {
+                roleIcon = 'fa-road';
+                roleColor = '#f59e0b';
+            } else if (role === 'trans_monitoring_officer') {
+                roleIcon = 'fa-bus';
+                roleColor = '#10b981';
+            }
+            return { roleIcon, roleColor };
+        }
+
+        function updateAssignSelectedBar(name, roleLabel) {
+            const bar = document.getElementById('assignSelectedBar');
+            const nameEl = document.getElementById('assignSelectedName');
+            const roleEl = document.getElementById('assignSelectedRole');
+            if (!bar || !nameEl || !roleEl) return;
+            if (!name) {
+                bar.hidden = true;
+                nameEl.textContent = '—';
+                roleEl.textContent = '';
+                return;
+            }
+            bar.hidden = false;
+            nameEl.textContent = name;
+            roleEl.textContent = roleLabel || '';
+        }
+
+        function clearAssignSelection() {
+            selectedUserForAssignment = null;
+            updateAssignSelectedBar('', '');
+            const usersList = document.getElementById('availableUsersList');
+            if (!usersList) return;
+            Array.from(usersList.children).forEach(child => {
+                child.classList.remove('usr-selected');
+            });
+        }
+
         function loadAssignedUsers() {
             // Read the report id/table from whichever modal is currently open.
             const ipmsModal = document.getElementById('editIpmsModal');
@@ -6506,67 +7199,41 @@ if ($focus_id > 0) {
                         console.log('Assignments count:', data.assignments.length);
                         if (data.assignments.length === 0) {
                             container.innerHTML = `
-                                <div class="asg-empty" style="display: flex; align-items: center; gap: 8px; padding: 12px; background: #f9fafb; border-radius: 6px; border: 1px dashed #d1d5db;">
-                                    <i class="fas fa-user-slash" style="color: #9ca3af; font-size: 16px;"></i>
-                                    <span style="color: #6b7280; font-size: 13px;">No staff assigned yet</span>
+                                <div class="asg-empty">
+                                    <i class="fas fa-user-slash"></i>
+                                    <span>No staff assigned yet</span>
                                 </div>
                             `;
                         } else {
-                            console.log('Rendering', data.assignments.length, 'assignments');
                             container.innerHTML = '';
-                            console.log('Container cleared, innerHTML:', container.innerHTML);
                             try {
                                 data.assignments.forEach(assignment => {
-                                    console.log('Rendering assignment:', assignment);
                                     const userDiv = document.createElement('div');
                                     userDiv.className = 'asg-card';
-                                    userDiv.style.cssText = 'display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: linear-gradient(135deg, #f0f4fa 0%, #e8f0fe 100%); border-radius: 8px; border: 1px solid #dbeafe; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: all 0.2s;';
-                                    userDiv.onmouseover = function() { this.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'; this.style.transform = 'translateY(-1px)'; };
-                                    userDiv.onmouseout = function() { this.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)'; this.style.transform = 'translateY(0)'; };
-                                    
-                                    // Determine role icon and color
-                                    let roleIcon = 'fa-user';
-                                    let roleColor = '#3762c8';
-                                    if (assignment.role === 'road_monitoring_officer') {
-                                        roleIcon = 'fa-road';
-                                        roleColor = '#f59e0b';
-                                    } else if (assignment.role === 'trans_monitoring_officer') {
-                                        roleIcon = 'fa-bus';
-                                        roleColor = '#10b981';
-                                    }
-                                    
+                                    const { roleIcon, roleColor } = staffRoleVisual(assignment.role);
+                                    const roleLabel = formatStaffRoleLabel(assignment.role);
+                                    const assignedDate = new Date(assignment.assigned_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
                                     userDiv.innerHTML = `
-                                        <div style="width: 40px; height: 40px; background: ${roleColor}20; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                                            <i class="fas ${roleIcon}" style="color: ${roleColor}; font-size: 18px;"></i>
+                                        <div class="asg-avatar" style="background:${roleColor}20;color:${roleColor};">
+                                            <i class="fas ${roleIcon}"></i>
                                         </div>
-                                        <div style="flex: 1;">
-                                            <div style="font-weight: 600; font-size: 14px; color: #1f2937;">${escapeHtml(assignment.full_name)}</div>
-                                            <div style="font-size: 12px; color: #6b7280; margin-top: 2px;">
-                                                <i class="fas fa-calendar-alt" style="margin-right: 4px;"></i>
-                                                Assigned: ${new Date(assignment.assigned_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                            </div>
-                                            <div style="font-size: 11px; color: #9ca3af; margin-top: 2px;">
-                                                <i class="fas fa-id-badge" style="margin-right: 4px;"></i>
-                                                ${escapeHtml(assignment.role.replace('_', ' ').toUpperCase())}
-                                            </div>
+                                        <div class="asg-meta">
+                                            <div class="asg-name">${escapeHtml(assignment.full_name)}</div>
+                                            <div class="asg-role"><i class="fas fa-id-badge"></i> ${escapeHtml(roleLabel)}</div>
+                                            <div class="asg-date"><i class="fas fa-calendar-alt"></i> Assigned: ${assignedDate}</div>
                                         </div>
                                         ${canRemoveStaff ? `
-                                        <button type="button" onclick="removeAssignment(${assignment.id}, '${escapeHtml(assignment.full_name)}')" 
-                                                style="padding: 6px 12px; background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; display: flex; align-items: center; gap: 6px; transition: all 0.2s; box-shadow: 0 2px 4px rgba(220, 53, 69, 0.2);"
-                                                onmouseover="this.style.boxShadow='0 4px 8px rgba(220, 53, 69, 0.3)'; this.style.transform='translateY(-1px)';"
-                                                onmouseout="this.style.boxShadow='0 2px 4px rgba(220, 53, 69, 0.2)'; this.style.transform='translateY(0)';">
+                                        <button type="button" class="asg-remove-btn" onclick="removeAssignment(${assignment.id}, '${escapeHtml(assignment.full_name)}')">
                                             <i class="fas fa-user-minus"></i> Remove
                                         </button>
                                         ` : ''}
                                     `;
-                                    console.log('User div created, appending to container');
                                     container.appendChild(userDiv);
-                                    console.log('User div appended, container children count:', container.children.length);
                                 });
-                                console.log('Rendering complete, container children count:', container.children.length);
                             } catch (e) {
                                 console.error('Error rendering assignments:', e);
-                                container.innerHTML = `<div style="color: #dc3545; font-size: 13px;">Error rendering: ${e.message}</div>`;
+                                container.innerHTML = `<div class="asg-error">Error rendering: ${escapeHtml(e.message)}</div>`;
                             }
                         }
                     } else {
@@ -6660,7 +7327,9 @@ if ($focus_id > 0) {
             
             // Load available users
             const usersList = document.getElementById('availableUsersList');
-            usersList.innerHTML = '<div class="usr-muted" style="text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin"></i> Loading staff...</div>';
+            selectedUserForAssignment = null;
+            updateAssignSelectedBar('', '');
+            usersList.innerHTML = '<div class="usr-muted asm-list-loading"><i class="fas fa-spinner fa-spin"></i> Loading staff...</div>';
             
             fetch(`../api/get_assignable_users.php?report_id=${reportId}&report_type=${encodeURIComponent(reportType)}`)
                 .then(r => r.json())
@@ -6668,92 +7337,69 @@ if ($focus_id > 0) {
                     console.log('Report category debug:', data.report_category, 'Target role:', data.target_role);
                     if (data.success) {
                         if (data.users.length === 0) {
-                            usersList.innerHTML = '<div class="usr-muted" style="text-align: center; padding: 20px; color: #666;">No staff available for this project type</div>';
+                            usersList.innerHTML = '<div class="usr-muted">No staff available for this project type</div>';
                         } else {
                             usersList.innerHTML = '';
                             data.users.forEach(user => {
                                 const userDiv = document.createElement('div');
-                                userDiv.className = 'usr-card';
-                                userDiv.style.cssText = 'display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #e5e7eb; cursor: pointer; transition: all 0.2s;';
-                                userDiv.style.backgroundColor = user.already_assigned ? '#f3f4f6' : '#fff';
+                                userDiv.className = 'usr-card' + (user.already_assigned ? ' usr-disabled' : '');
+                                userDiv.dataset.userId = String(user.id);
+                                userDiv.dataset.userName = user.full_name || '';
+                                userDiv.dataset.userRole = user.role || '';
                                 userDiv.onclick = function() {
                                     if (!user.already_assigned) {
-                                        selectUserForAssignment(user.id, user.full_name);
+                                        selectUserForAssignment(user.id, user.full_name, user.role, userDiv);
                                     }
                                 };
-                                
-                                // Determine role icon and color
-                                let roleIcon = 'fa-user';
-                                let roleColor = '#3762c8';
-                                if (user.role === 'road_monitoring_officer') {
-                                    roleIcon = 'fa-road';
-                                    roleColor = '#f59e0b';
-                                } else if (user.role === 'trans_monitoring_officer') {
-                                    roleIcon = 'fa-bus';
-                                    roleColor = '#10b981';
-                                }
-                                
+
+                                const { roleIcon, roleColor } = staffRoleVisual(user.role);
+                                const roleLabel = formatStaffRoleLabel(user.role);
+
                                 userDiv.innerHTML = `
-                                    <div style="width: 44px; height: 44px; background: ${roleColor}15; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid ${roleColor}30;">
-                                        <i class="fas ${roleIcon}" style="color: ${roleColor}; font-size: 20px;"></i>
+                                    <div class="usr-avatar" style="background:${roleColor}15;color:${roleColor};border-color:${roleColor}30;">
+                                        <i class="fas ${roleIcon}"></i>
                                     </div>
-                                    <div style="flex: 1;">
-                                        <div style="font-weight: 600; font-size: 14px; color: #1f2937;">${escapeHtml(user.full_name)}</div>
-                                        <div style="font-size: 12px; color: #6b7280; margin-top: 2px;">
-                                            <i class="fas fa-envelope" style="margin-right: 4px;"></i>
-                                            ${escapeHtml(user.email)}
-                                        </div>
-                                        <div style="font-size: 11px; color: #9ca3af; margin-top: 2px;">
-                                            <i class="fas fa-id-badge" style="margin-right: 4px;"></i>
-                                            ${escapeHtml(user.role.replace('_', ' ').toUpperCase())}
-                                        </div>
+                                    <div class="usr-meta">
+                                        <div class="usr-name">${escapeHtml(user.full_name)}</div>
+                                        <div class="usr-email"><i class="fas fa-envelope"></i> ${escapeHtml(user.email)}</div>
+                                        <div class="usr-role"><i class="fas fa-id-badge"></i> ${escapeHtml(roleLabel)}</div>
                                     </div>
-                                    <div style="text-align: right; min-width: 80px;">
-                                        <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">
-                                            <i class="fas fa-tasks" style="margin-right: 4px;"></i>
-                                            Active: <strong>${user.active_assignments}</strong>
-                                        </div>
-                                        ${user.already_assigned 
-                                            ? '<span class="usr-badge-assigned" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: #d1fae5; color: #059669; border-radius: 12px; font-size: 11px; font-weight: 500;"><i class="fas fa-check-circle"></i> Assigned</span>' 
-                                            : '<span class="usr-badge-assign" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: #dbeafe; color: #2563eb; border-radius: 12px; font-size: 11px; font-weight: 500;"><i class="fas fa-plus-circle"></i> Assign</span>'}
+                                    <div class="usr-side">
+                                        <div class="usr-active"><i class="fas fa-tasks"></i> Active: <strong>${user.active_assignments}</strong></div>
+                                        ${user.already_assigned
+                                            ? '<span class="usr-badge-assigned"><i class="fas fa-check-circle"></i> Assigned</span>'
+                                            : '<span class="usr-badge-assign"><i class="fas fa-plus-circle"></i> Select</span>'}
                                     </div>
                                 `;
                                 usersList.appendChild(userDiv);
                             });
                         }
                     } else {
-                        usersList.innerHTML = `<div class="usr-error" style="text-align: center; padding: 20px; color: #dc3545;">${escapeHtml(data.message)}</div>`;
+                        usersList.innerHTML = `<div class="usr-error">${escapeHtml(data.message)}</div>`;
                     }
                 })
                 .catch(error => {
                     console.error('Error loading users:', error);
-                    usersList.innerHTML = '<div class="usr-error" style="text-align: center; padding: 20px; color: #dc3545;">Failed to load staff</div>';
+                    usersList.innerHTML = '<div class="usr-error">Failed to load staff</div>';
                 });
         }
 
-        function selectUserForAssignment(userId, userName) {
+        function selectUserForAssignment(userId, userName, userRole, cardEl) {
             // Check if already selected, if so deselect
             if (selectedUserForAssignment && selectedUserForAssignment.id === userId) {
-                selectedUserForAssignment = null;
-                // Update UI to remove selection
-                const usersList = document.getElementById('availableUsersList');
-                Array.from(usersList.children).forEach(child => {
-                    child.style.backgroundColor = '#fff';
-                    child.classList.remove('usr-selected');
-                });
+                clearAssignSelection();
                 return;
             }
 
-            selectedUserForAssignment = { id: userId, name: userName };
-            
-            // Update UI to show selected user
+            selectedUserForAssignment = { id: userId, name: userName, role: userRole || '' };
+            updateAssignSelectedBar(userName, formatStaffRoleLabel(userRole));
+
             const usersList = document.getElementById('availableUsersList');
             Array.from(usersList.children).forEach(child => {
-                child.style.backgroundColor = '#fff';
                 child.classList.remove('usr-selected');
             });
-            event.currentTarget.style.backgroundColor = '#e3f2fd';
-            event.currentTarget.classList.add('usr-selected');
+            const target = cardEl || (typeof event !== 'undefined' && event && event.currentTarget ? event.currentTarget : null);
+            if (target) target.classList.add('usr-selected');
         }
 
         function assignUserToProject() {
@@ -6803,6 +7449,7 @@ if ($focus_id > 0) {
                     closeModal('assignUserModal');
                     document.getElementById('assignmentNotes').value = '';
                     selectedUserForAssignment = null;
+                    updateAssignSelectedBar('', '');
                     
                     // Reopen the original modal
                     if (originalModalBeforeAssign === 'ipms') {

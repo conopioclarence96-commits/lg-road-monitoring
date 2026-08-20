@@ -62,10 +62,10 @@ try {
     $result = $stmt->get_result();
     
     while ($row = $result->fetch_assoc()) {
-        // Get count of active assignments for this user
-        // Only count currently active/in-progress assignments: the report must
-        // still exist in its live table (not archived) and not be in a terminal
-        // state (completed / cancelled / rejected).
+        // Active count = reports still assigned to this user that would appear
+        // on Active Monitoring (road_transportation_monitoring.php), i.e.
+        // assignment is active AND the linked report is still live/in progress.
+        // Recomputed on every request so it tracks status changes automatically.
         $active_count = 0;
         try {
             $count_stmt = $conn->prepare("
@@ -75,25 +75,27 @@ try {
                     ON ra.report_id = r.id AND ra.report_type = 'road_transportation_reports'
                 LEFT JOIN cimm_verification_reports c
                     ON ra.report_id = c.id AND ra.report_type = 'cimm_verification_reports'
-                LEFT JOIN road_maintenance_reports m
-                    ON ra.report_id = m.id AND ra.report_type = 'road_maintenance_reports'
                 LEFT JOIN ipms_road_projects ip
                     ON ra.report_id = ip.project_id AND ra.report_type = 'ipms_road_projects'
-                WHERE ra.user_id = ? AND ra.status = 'active'
+                WHERE ra.user_id = ?
+                  AND ra.status = 'active'
                   AND (
-                    (ra.report_type = 'road_transportation_reports'
+                    (
+                        ra.report_type = 'road_transportation_reports'
                         AND r.id IS NOT NULL
-                        AND r.status NOT IN ('completed','cancelled','rejected'))
-                    OR (ra.report_type = 'cimm_verification_reports'
+                        AND LOWER(REPLACE(TRIM(r.status), ' ', '-')) IN ('approved', 'in-progress')
+                    )
+                    OR (
+                        ra.report_type = 'cimm_verification_reports'
                         AND c.id IS NOT NULL
-                        AND c.approval_status <> 'Rejected'
-                        AND COALESCE(c.resolution_status,'') NOT IN ('Completed','Cancelled','Rejected'))
-                    OR (ra.report_type = 'road_maintenance_reports'
-                        AND m.id IS NOT NULL
-                        AND m.status NOT IN ('completed','cancelled','rejected'))
-                    OR (ra.report_type = 'ipms_road_projects'
+                        AND c.infrastructure = 'Roads'
+                        AND c.verification_status IN ('Approved', 'In Progress')
+                    )
+                    OR (
+                        ra.report_type = 'ipms_road_projects'
                         AND ip.project_id IS NOT NULL
-                        AND COALESCE(ip.status,'') NOT IN ('completed','cancelled','rejected'))
+                        AND LOWER(TRIM(ip.status)) = 'approved'
+                    )
                   )
             ");
             $count_stmt->bind_param("i", $row['id']);
@@ -101,8 +103,9 @@ try {
             $count_result = $count_stmt->get_result();
             $count_row = $count_result->fetch_assoc();
             $active_count = (int)($count_row['active_count'] ?? 0);
+            $count_stmt->close();
         } catch (Exception $e) {
-            // Table might not exist yet, default to 0
+            error_log('get_assignable_users active_count error: ' . $e->getMessage());
             $active_count = 0;
         }
         $row['active_assignments'] = $active_count;
