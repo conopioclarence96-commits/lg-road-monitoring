@@ -8,6 +8,11 @@ function canVerifyReport($category, $source) {
     return !($category === 'road' && $source === 'local');
 }
 
+/** LGU road report: CIMM has set resolution_status to Scheduled. */
+function vm_lgu_road_cimm_status_is_scheduled(?string $cimm_status): bool {
+    return strtolower(trim((string)($cimm_status ?? ''))) === 'scheduled';
+}
+
 function vm_panel_page(string $panel): int {
     return max(1, (int)($_GET[$panel . '_page'] ?? 1));
 }
@@ -330,8 +335,10 @@ function vm_render_lgu_panel_tbody(array $reports, bool $is_transport_supervisor
             && !$can_verify
             && ($report['status'] ?? '') === 'pending';
         $ready_for_approval = ($report_category === 'transportation')
-            ? true
-            : (strtolower(trim((string)($report['cimm_status'] ?? ''))) === 'scheduled' && ($report['status'] ?? '') === 'pending');
+            ? (($report['status'] ?? '') === 'pending')
+            : (($report_category === 'road')
+                && vm_lgu_road_cimm_status_is_scheduled($report['cimm_status'] ?? null)
+                && ($report['status'] ?? '') === 'pending');
 
         $lgu_filter_status = 'pending';
         if (in_array($report['status'], ['approved', 'completed'], true)) $lgu_filter_status = 'approved';
