@@ -9,17 +9,7 @@ require_once __DIR__ . '/verification_panel_pagination.php';
 
 // Session timeout configuration
 $session_timeout = 30 * 60; // 30 minutes in seconds
-
-// Check if session has expired
-if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
-    session_destroy();
-    setcookie(session_name(), '', time() - 3600, '/');
-    header('Location: ../../login.php?timeout=1');
-    exit();
-}
-
-// Update last activity time
-$_SESSION['last_activity'] = time();
+lgu_enforce_idle_timeout($session_timeout, '../../login.php?timeout=1');
 
 // NOTE: cimm_reports (the local mock table) has been retired. CIMM reports now
 // come live from the real cimm_verification_reports table, populated by the

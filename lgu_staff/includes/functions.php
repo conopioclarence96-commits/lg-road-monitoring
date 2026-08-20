@@ -23,6 +23,172 @@ function is_logged_in() {
     return isset($_SESSION['user_id']) && !empty($_SESSION['user_id']);
 }
 
+/** Idle window (seconds) after which a stored session lock is treated as expired. */
+function lgu_session_idle_seconds() {
+    return 30 * 60;
+}
+
+/**
+ * True when another device/browser already holds an active session for this account.
+ * Same PHP session id is allowed (re-login / refresh). Stale locks (no activity within
+ * the idle window) are cleared so accounts are not permanently locked.
+ */
+function lgu_account_has_active_session($user_id, $current_session_id = null) {
+    global $conn;
+    $user_id = (int)$user_id;
+    if ($user_id <= 0 || !$conn) {
+        return false;
+    }
+    if ($current_session_id === null && session_status() === PHP_SESSION_ACTIVE) {
+        $current_session_id = session_id();
+    }
+
+    $idle = (int)lgu_session_idle_seconds();
+    try {
+        // Drop expired locks so accounts become available again after inactivity.
+        $cleanup = $conn->prepare(
+            "UPDATE users
+             SET active_session_id = NULL
+             WHERE id = ?
+               AND active_session_id IS NOT NULL
+               AND active_session_id != ''
+               AND (last_activity IS NULL OR TIMESTAMPDIFF(SECOND, last_activity, NOW()) >= ?)"
+        );
+        if ($cleanup) {
+            $cleanup->bind_param('ii', $user_id, $idle);
+            $cleanup->execute();
+            $cleanup->close();
+        }
+
+        $stmt = $conn->prepare(
+            "SELECT active_session_id
+             FROM users
+             WHERE id = ?
+             LIMIT 1"
+        );
+        if (!$stmt) {
+            return false;
+        }
+        $stmt->bind_param('i', $user_id);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        $active_sid = trim((string)($row['active_session_id'] ?? ''));
+        if ($active_sid === '') {
+            return false;
+        }
+        if ($current_session_id !== null && $current_session_id !== '' && hash_equals($active_sid, (string)$current_session_id)) {
+            return false; // same browser/session
+        }
+        return true;
+    } catch (Exception $e) {
+        error_log('lgu_account_has_active_session: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/** Bind the account to the current PHP session (call after successful auth). */
+function lgu_claim_user_session($user_id) {
+    global $conn;
+    $user_id = (int)$user_id;
+    if ($user_id <= 0 || !$conn || session_status() !== PHP_SESSION_ACTIVE) {
+        return false;
+    }
+    $sid = session_id();
+    if ($sid === '') {
+        return false;
+    }
+    try {
+        $stmt = $conn->prepare(
+            "UPDATE users
+             SET active_session_id = ?, last_login = NOW(), last_activity = NOW()
+             WHERE id = ?"
+        );
+        if (!$stmt) {
+            return false;
+        }
+        $stmt->bind_param('si', $sid, $user_id);
+        $ok = $stmt->execute();
+        $stmt->close();
+        return (bool)$ok;
+    } catch (Exception $e) {
+        error_log('lgu_claim_user_session: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Clear the account session lock. If $only_session_id is provided, only clears
+ * when it still matches (so a newer session is not wiped by an old logout).
+ */
+function lgu_release_user_session($user_id, $only_session_id = null) {
+    global $conn;
+    $user_id = (int)$user_id;
+    if ($user_id <= 0 || !$conn) {
+        return false;
+    }
+    try {
+        if ($only_session_id !== null && $only_session_id !== '') {
+            $stmt = $conn->prepare(
+                "UPDATE users SET active_session_id = NULL WHERE id = ? AND active_session_id = ?"
+            );
+            if (!$stmt) {
+                return false;
+            }
+            $stmt->bind_param('is', $user_id, $only_session_id);
+        } else {
+            $stmt = $conn->prepare(
+                "UPDATE users SET active_session_id = NULL WHERE id = ?"
+            );
+            if (!$stmt) {
+                return false;
+            }
+            $stmt->bind_param('i', $user_id);
+        }
+        $ok = $stmt->execute();
+        $stmt->close();
+        return (bool)$ok;
+    } catch (Exception $e) {
+        error_log('lgu_release_user_session: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/** Release the current request's account lock (if any), then destroy the PHP session. */
+function lgu_logout_current_session() {
+    $user_id = (int)($_SESSION['user_id'] ?? 0);
+    $sid = (session_status() === PHP_SESSION_ACTIVE) ? session_id() : '';
+    if ($user_id > 0) {
+        lgu_release_user_session($user_id, $sid !== '' ? $sid : null);
+    }
+    $_SESSION = [];
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+            setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+        }
+        session_destroy();
+    }
+}
+
+/**
+ * If the PHP session has been idle longer than $timeout_seconds, release the
+ * single-session lock and redirect to login. Otherwise refresh last_activity.
+ */
+function lgu_enforce_idle_timeout($timeout_seconds, $redirect_url) {
+    $timeout_seconds = (int)$timeout_seconds;
+    if ($timeout_seconds > 0
+        && isset($_SESSION['last_activity'])
+        && (time() - (int)$_SESSION['last_activity'] > $timeout_seconds)
+    ) {
+        lgu_logout_current_session();
+        header('Location: ' . $redirect_url);
+        exit;
+    }
+    $_SESSION['last_activity'] = time();
+}
+
 function get_user_role($user_id) {
     global $conn;
     $stmt = $conn->prepare("SELECT role FROM users WHERE id = ?");

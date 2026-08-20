@@ -70,6 +70,13 @@ try {
         // Column may already exist, ignore
     }
 
+    // Single-session login: tracks the PHP session id currently holding the account.
+    try {
+        $conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS active_session_id VARCHAR(128) NULL DEFAULT NULL AFTER last_activity");
+    } catch (Exception $e) {
+        // Column may already exist, ignore
+    }
+
     // Backfill last_activity from last_login for accounts with no activity tracked yet
     try {
         $conn->query("UPDATE users SET last_activity = last_login WHERE last_activity IS NULL AND last_login IS NOT NULL");
@@ -404,8 +411,8 @@ define('FROM_NAME', APP_NAME);
 // DB on each page load, throttled to once per minute per session to avoid
 // excessive writes. Runs for every authenticated request (regular pages and AJAX).
 if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['user_id'])) {
+    $la_now = time();
     try {
-        $la_now = time();
         if (!isset($_SESSION['last_db_activity']) || ($la_now - $_SESSION['last_db_activity']) >= 60) {
             $la_stmt = $conn->prepare("UPDATE users SET last_activity = NOW() WHERE id = ?");
             $la_stmt->bind_param("i", $_SESSION['user_id']);
@@ -416,6 +423,23 @@ if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_ACTIVE && isset($_SES
     } catch (Exception $e) {
         // Non-fatal; activity tracking is best-effort
         error_log("last_activity update: " . $e->getMessage());
+    }
+
+    // Opportunistic cleanup of expired single-session locks (all accounts).
+    try {
+        if (!isset($_SESSION['last_session_lock_cleanup']) || ($la_now - (int)$_SESSION['last_session_lock_cleanup']) >= 300) {
+            $idle_secs = function_exists('lgu_session_idle_seconds') ? (int)lgu_session_idle_seconds() : 1800;
+            $conn->query(
+                "UPDATE users
+                 SET active_session_id = NULL
+                 WHERE active_session_id IS NOT NULL
+                   AND active_session_id != ''
+                   AND (last_activity IS NULL OR TIMESTAMPDIFF(SECOND, last_activity, NOW()) >= " . (int)$idle_secs . ")"
+            );
+            $_SESSION['last_session_lock_cleanup'] = $la_now;
+        }
+    } catch (Exception $e) {
+        error_log("active_session_id cleanup: " . $e->getMessage());
     }
 }
 

@@ -14,25 +14,14 @@ ini_set('session.cookie_secure', 0);
 
 session_start();
 
-// Session timeout configuration
-$session_timeout = 30 * 60; // 30 minutes in seconds
-
-// Check if session has expired
-if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
-    // Session expired, destroy and redirect to login
-    session_destroy();
-    setcookie(session_name(), '', time() - 3600, '/');
-    header('Location: ../../login.php?timeout=1');
-    exit();
-}
-
-// Update last activity time
-$_SESSION['last_activity'] = time();
-
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 require_once __DIR__ . '/../api/cimm_verification_data.php';
 require_once __DIR__ . '/../api/ipms_road_projects_data.php';
+
+// Session timeout configuration
+$session_timeout = 30 * 60; // 30 minutes in seconds
+lgu_enforce_idle_timeout($session_timeout, '../../login.php?timeout=1');
 
 // Ensure approved_at and rejected_at columns exist in users table
 if ($conn->connect_error === null) {

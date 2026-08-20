@@ -83,6 +83,12 @@ if (!$user) {
     $user = ['id' => $newId, 'email' => $email, 'full_name' => $fullName, 'role' => 'system_admin'];
 }
 
+require_once __DIR__ . '/includes/functions.php';
+
+if (lgu_account_has_active_session((int)$user['id'])) {
+    sso_reject('This account is already logged in on another session.');
+}
+
 session_regenerate_id(true);
 $_SESSION['sso_from_mainlgu'] = true;
 $_SESSION['user_id'] = $user['id'];
@@ -93,11 +99,7 @@ $_SESSION['darkmode'] = 0;
 $_SESSION['logged_in'] = true;
 $_SESSION['login_time'] = time();
 $_SESSION['last_activity'] = time();
-
-$loginUpdate = $conn->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
-$loginUpdate->bind_param('i', $user['id']);
-$loginUpdate->execute();
-$loginUpdate->close();
+lgu_claim_user_session((int)$user['id']);
 
 header('Location: pages/admin/admin_dashboard.php');
 exit;

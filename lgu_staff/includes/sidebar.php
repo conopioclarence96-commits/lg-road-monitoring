@@ -509,7 +509,6 @@ $notification_count = getNotificationCount($user_role, $_SESSION['user_id'] ?? 0
             <p>Road and Transportation Department</p>
             <div class="user-info">
                 <div class="user-name"><?php echo htmlspecialchars($user_info['full_name']); ?></div>
-                <div class="user-role"><?php echo htmlspecialchars(ucfirst($user_info['role'])); ?></div>
             </div>
         </div>
 

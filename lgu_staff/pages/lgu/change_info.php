@@ -5,16 +5,16 @@ ini_set('session.cookie_secure', 0);
 
 session_start();
 
+require_once '../../includes/config.php';
+require_once '../../includes/functions.php';
+
 if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > 1800)) {
-    session_destroy();
+    lgu_logout_current_session();
     header('Location: ../../login.php?timeout=1');
     exit();
 }
 
 $_SESSION['last_activity'] = time();
-
-require_once '../../includes/config.php';
-require_once '../../includes/functions.php';
 
 if (!isset($_SESSION['user_id']) || !is_staff_role($_SESSION['role'] ?? '')) {
     header('Location: ../../login.php');

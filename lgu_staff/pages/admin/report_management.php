@@ -15,17 +15,7 @@ rgmap_ensure_restored_from_archive_column();
 
 // Session timeout configuration
 $session_timeout = 30 * 60; // 30 minutes in seconds
-
-// Check if session has expired
-if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
-    session_destroy();
-    setcookie(session_name(), '', time() - 3600, '/');
-    header('Location: ../../login.php?timeout=1');
-    exit();
-}
-
-// Update last activity time
-$_SESSION['last_activity'] = time();
+lgu_enforce_idle_timeout($session_timeout, '../../login.php?timeout=1');
 
 // Check if user is logged in and check role (logout if invalid role)
 $allowed_roles = ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor'];

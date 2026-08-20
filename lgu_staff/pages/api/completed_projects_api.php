@@ -19,19 +19,19 @@ ini_set('session.cookie_secure', 0);
 
 session_start();
 
+require_once __DIR__ . '/../../includes/config.php';
+require_once __DIR__ . '/../../includes/functions.php';
+require_once __DIR__ . '/transparency_import_helpers.php';
+
 // Session timeout
 $session_timeout = 30 * 60;
 if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
-    session_destroy();
+    lgu_logout_current_session();
     http_response_code(401);
     echo json_encode(['success' => false, 'message' => 'Session expired']);
     exit;
 }
 $_SESSION['last_activity'] = time();
-
-require_once __DIR__ . '/../../includes/config.php';
-require_once __DIR__ . '/../../includes/functions.php';
-require_once __DIR__ . '/transparency_import_helpers.php';
 
 transparency_ensure_request_tables($conn);
 

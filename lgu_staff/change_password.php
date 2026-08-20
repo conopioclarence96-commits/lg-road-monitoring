@@ -41,8 +41,7 @@ if ($conn && isset($_SESSION['user_id'])) {
 
 if (!$user) {
     // Account no longer exists
-    session_destroy();
-    setcookie(session_name(), '', time() - 3600, '/');
+    lgu_logout_current_session();
     header('Location: ' . $basePath . 'lgu_staff/login.php');
     exit();
 }

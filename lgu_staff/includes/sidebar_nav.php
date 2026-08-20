@@ -616,7 +616,6 @@ foreach ($nav_items as $section => $items) {
         <p><?php echo htmlspecialchars(getPortalTitle($user_role)); ?></p>
         <div class="user-info">
             <div class="user-name"><?php echo htmlspecialchars($user_info['full_name']); ?></div>
-            <div class="user-role"><?php echo htmlspecialchars(ucfirst($user_info['role'])); ?></div>
         </div>
     </header>
 

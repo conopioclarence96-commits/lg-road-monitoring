@@ -9,18 +9,11 @@ ini_set('session.cookie_httponly', 1);
 ini_set('session.use_only_cookies', 1);
 ini_set('session.cookie_secure', 0);
 session_start();
-
-$session_timeout = 30 * 60;
-if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
-    session_destroy();
-    setcookie(session_name(), '', time() - 3600, '/');
-    header('Location: ../../login.php?timeout=1');
-    exit;
-}
-$_SESSION['last_activity'] = time();
-
 require_once __DIR__ . '/../../includes/config.php';
 require_once __DIR__ . '/../../includes/functions.php';
+
+$session_timeout = 30 * 60;
+lgu_enforce_idle_timeout($session_timeout, '../../login.php?timeout=1');
 
 if (!isset($_SESSION['user_id']) || !is_admin_or_staff_role($_SESSION['role'] ?? '')) {
     header('Location: ../../login.php');

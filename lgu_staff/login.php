@@ -7,23 +7,21 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Session timeout configuration
+require_once 'includes/config.php';
+require_once 'includes/functions.php';
+
+// Session timeout configuration (login page idle window)
 $session_timeout = 5 * 60; // 5 minutes in seconds
 
 // Check if session has expired
 if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
-    // Session expired, destroy and redirect to login
-    session_destroy();
-    setcookie(session_name(), '', time() - 3600, '/');
+    lgu_logout_current_session();
     header('Location: login.php?timeout=1');
     exit();
 }
 
 // Update last activity time
 $_SESSION['last_activity'] = time();
-
-require_once 'includes/config.php';
-require_once 'includes/functions.php';
 
 // Dynamic base path detection for live server
 $basePath = '';
@@ -110,9 +108,8 @@ $signup_allowed = !$disable_signup && !$register_token_disabled;
 if (isset($_SESSION['user_id'])) {
     // Allow logout if explicitly requested
     if (isset($_GET['logout'])) {
-        session_destroy();
-        setcookie(session_name(), '', time() - 3600, '/');
-        header('Location: login.php');
+        lgu_logout_current_session();
+        header('Location: login.php' . ($loginTokenParam !== '' ? ('?login_token=' . urlencode($loginTokenParam)) : ''));
         exit();
     }
     
@@ -178,43 +175,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_login_otp'])) 
         if ($result['success']) {
             $user = $_SESSION['login_verify_data'];
 
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['email'] = $user['email'];
-            $_SESSION['full_name'] = $user['full_name'];
-            $_SESSION['role'] = $user['role'];
-            $_SESSION['darkmode'] = $user['darkmode'] ?? 0;
-            $_SESSION['logged_in'] = true;
-            $_SESSION['login_time'] = time();
+            if (lgu_account_has_active_session((int)$user['id'])) {
+                $loginMessage = 'This account is already logged in on another session.';
+                $messageType = 'error';
+                $showLoginOTPModal = false;
+            } else {
+                session_regenerate_id(true);
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['email'] = $user['email'];
+                $_SESSION['full_name'] = $user['full_name'];
+                $_SESSION['role'] = $user['role'];
+                $_SESSION['darkmode'] = $user['darkmode'] ?? 0;
+                $_SESSION['logged_in'] = true;
+                $_SESSION['login_time'] = time();
+                lgu_claim_user_session((int)$user['id']);
 
-            // Remember Me — extend session cookie to 30 days
-            if (!empty($user['remember_me'])) {
-                $params = session_get_cookie_params();
-                setcookie(session_name(), session_id(), time() + (30 * 24 * 60 * 60), $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+                // Remember Me — extend session cookie to 30 days
+                if (!empty($user['remember_me'])) {
+                    $params = session_get_cookie_params();
+                    setcookie(session_name(), session_id(), time() + (30 * 24 * 60 * 60), $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+                }
+
+                unset($_SESSION['login_verify_data']);
+
+                switch ($user['role']) {
+                    case 'system_admin':
+                        $redirectUrl = $basePath . 'lgu_staff/pages/admin/admin_dashboard.php';
+                        break;
+                    case 'lgu_staff':
+                        $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
+                        break;
+                    case 'citizen':
+                        $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
+                        break;
+                    default:
+                        $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
+                }
+
+                header('Location: ' . $redirectUrl);
+                exit;
             }
-
-            $login_update = $conn->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
-            $login_update->bind_param("i", $user['id']);
-            $login_update->execute();
-            $login_update->close();
-
-            unset($_SESSION['login_verify_data']);
-
-            switch ($user['role']) {
-                case 'system_admin':
-                    $redirectUrl = $basePath . 'lgu_staff/pages/admin/admin_dashboard.php';
-                    break;
-                case 'lgu_staff':
-                    $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
-                    break;
-                case 'citizen':
-                    $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
-                    break;
-                default:
-                    $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
-            }
-
-            header('Location: ' . $redirectUrl);
-            exit;
         } else {
             $loginMessage = $result['message'];
             $messageType = 'error';
@@ -510,7 +510,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                         $messageType = 'error';
                     }
                     else {
-                        if (!empty($user['twofa']) && $user['twofa'] == 1) {
+                        if (lgu_account_has_active_session((int)$user['id'])) {
+                            $loginMessage = 'This account is already logged in on another session.';
+                            $messageType = 'error';
+                        } elseif (!empty($user['twofa']) && $user['twofa'] == 1) {
+                            // Claim this browser session while OTP is pending so a
+                            // second device cannot start another login in parallel.
+                            lgu_claim_user_session((int)$user['id']);
+
                             // 2FA enabled - send OTP for verification
                             handle_login_otp($user['email']);
 
@@ -522,6 +529,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                             $showLoginOTPModal = true;
                         } else {
                             // No 2FA - log in directly
+                            session_regenerate_id(true);
                             $_SESSION['user_id'] = $user['id'];
                             $_SESSION['email'] = $user['email'];
                             $_SESSION['full_name'] = $user['full_name'];
@@ -529,17 +537,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                             $_SESSION['darkmode'] = $user['darkmode'] ?? 0;
                             $_SESSION['logged_in'] = true;
                             $_SESSION['login_time'] = time();
+                            lgu_claim_user_session((int)$user['id']);
 
                             // Remember Me — extend session cookie to 30 days
                             if (!empty($_POST['remember_me'])) {
                                 $params = session_get_cookie_params();
                                 setcookie(session_name(), session_id(), time() + (30 * 24 * 60 * 60), $params['path'], $params['domain'], $params['secure'], $params['httponly']);
                             }
-
-                            $login_update = $conn->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
-                            $login_update->bind_param("i", $user['id']);
-                            $login_update->execute();
-                            $login_update->close();
 
                             switch ($user['role']) {
                                 case 'system_admin':

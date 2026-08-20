@@ -5,26 +5,19 @@ ini_set('session.use_only_cookies', 1);
 ini_set('session.cookie_secure', 0); // Set to 1 if using HTTPS
 
 // Start session
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/includes/functions.php';
 
 // If this session originated from a Main LGU SSO launch, send the admin
 // back to the SSO hub instead of this system's own login page.
 $returnToMainLgu = !empty($_SESSION['sso_from_mainlgu']);
 
-// Clear all session variables
-$_SESSION = array();
-
-// Destroy session cookie
-if (ini_get("session.use_cookies")) {
-    $params = session_get_cookie_params();
-    setcookie(session_name(), '', time() - 42000,
-        $params["path"], $params["domain"],
-        $params["secure"], $params["httponly"]
-    );
-}
-
-// Destroy all session data
-session_destroy();
+// Release single-session lock for this account, then destroy PHP session.
+lgu_logout_current_session();
 
 // Add cache-busting headers
 header('Cache-Control: no-cache, no-store, must-revalidate');
