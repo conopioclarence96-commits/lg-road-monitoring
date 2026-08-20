@@ -45,7 +45,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $act_stmt = $conn->prepare("
                 SELECT id, last_activity
                 FROM users
-                WHERE role IN ('lgu_staff', 'citizen', 'road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer') AND account_status = 'verified'
+                WHERE role IN ('lgu_staff', 'citizen', 'road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer')
+                  AND account_status = 'verified'
+                  AND (lock_until IS NULL OR lock_until <= NOW())
             ");
             $act_stmt->execute();
             $act_res = $act_stmt->get_result();
@@ -107,6 +109,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if ($action === 'unlock_user') {
+        // Clear password-lockout state only — account_status / is_active stay as-is
+        // so the user returns to Verified Accounts after unlock.
+        $stmt = $conn->prepare("
+            UPDATE users
+            SET failed_attempts = 0, lock_until = NULL, lock_level = 0
+            WHERE id = ?
+              AND account_status = 'verified'
+              AND lock_until IS NOT NULL
+              AND lock_until > NOW()
+        ");
+        $stmt->bind_param("i", $userId);
+        $stmt->execute();
+        $unlocked = $stmt->affected_rows > 0;
+        $stmt->close();
+
+        if ($unlocked) {
+            $log = $conn->prepare("INSERT INTO audit_logs (user_id, action, details, created_at) VALUES (?, 'Account Unlocked', ?, NOW())");
+            $details = $remarks !== '' ? $remarks : ('Unlocked account #' . (int)$userId);
+            $log->bind_param("is", $_SESSION['user_id'], $details);
+            $log->execute();
+            $log->close();
+            echo json_encode(['success' => true, 'message' => 'Account unlocked successfully.']);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Account is not currently locked.']);
+        }
+        exit;
+    }
+
     if ($action === 'update_user') {
         $full_name = $_POST['full_name'] ?? '';
         $role = $_POST['role'] ?? '';
@@ -141,22 +172,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-// Get verified accounts only
+// Roles managed on this page (same set for verified / locked / other panels).
+$managed_roles_sql = "role IN ('lgu_staff', 'citizen', 'road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer')";
+
+// Drop expired lockouts so only currently locked accounts remain locked.
+try {
+    $conn->query("
+        UPDATE users
+        SET failed_attempts = 0, lock_until = NULL
+        WHERE lock_until IS NOT NULL
+          AND lock_until <= NOW()
+          AND {$managed_roles_sql}
+    ");
+} catch (Exception $e) {
+    error_log("manage_accounts expired lock cleanup: " . $e->getMessage());
+}
+
+// Get verified accounts only (exclude accounts that are currently locked)
 $stmt = $conn->prepare("
     SELECT id, username, email, full_name, role, department, address, birthday, civil_status, phone_number, is_active, last_activity, created_at, updated_at, approved_at, rejected_at, id_file_path 
     FROM users 
-    WHERE role IN ('lgu_staff', 'citizen', 'road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer') AND account_status = 'verified'
+    WHERE {$managed_roles_sql}
+      AND account_status = 'verified'
+      AND (lock_until IS NULL OR lock_until <= NOW())
     ORDER BY created_at DESC
 ");
 $stmt->execute();
 $users = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
+// Currently locked verified accounts (lock_until still in the future)
+$locked_users = [];
+try {
+    $locked_stmt = $conn->prepare("
+        SELECT id, username, email, full_name, role, department, address, birthday, civil_status, phone_number,
+               is_active, account_status, last_activity, created_at, updated_at, approved_at, rejected_at,
+               id_file_path, failed_attempts, lock_until, lock_level
+        FROM users
+        WHERE {$managed_roles_sql}
+          AND account_status = 'verified'
+          AND lock_until IS NOT NULL
+          AND lock_until > NOW()
+        ORDER BY lock_until DESC
+    ");
+    $locked_stmt->execute();
+    $locked_users = $locked_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $locked_stmt->close();
+} catch (Exception $e) {
+    error_log("manage_accounts locked users query: " . $e->getMessage());
+    $locked_users = [];
+}
+
 // Get unverified/rejected accounts
 $stmt2 = $conn->prepare("
     SELECT id, username, email, full_name, role, department, address, birthday, civil_status, phone_number, is_active, account_status, created_at, updated_at, approved_at, rejected_at, id_file_path 
     FROM users 
-    WHERE role IN ('lgu_staff', 'citizen', 'road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer') AND account_status IN ('pending', 'rejected')
+    WHERE {$managed_roles_sql} AND account_status IN ('pending', 'rejected')
     ORDER BY created_at DESC
 ");
 $stmt2->execute();
@@ -167,14 +238,14 @@ $stmt2->close();
 $stmt3 = $conn->prepare("
     SELECT id, username, email, full_name, role, department, address, birthday, civil_status, phone_number, is_active, account_status, created_at, updated_at, approved_at, rejected_at, id_file_path 
     FROM users 
-    WHERE role IN ('lgu_staff', 'citizen', 'road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer') AND account_status = 'deactivated'
+    WHERE {$managed_roles_sql} AND account_status = 'deactivated'
     ORDER BY updated_at DESC
 ");
 $stmt3->execute();
 $deactivated_users = $stmt3->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt3->close();
 
-// Get verified users inactive for 2+ weeks
+// Get verified users inactive for 2+ weeks (not currently locked)
 $inactive_2weeks_users = [];
 try {
     $inactive_stmt = $conn->prepare("
@@ -182,8 +253,10 @@ try {
         FROM users 
         WHERE account_status = 'verified' 
         AND is_active = 1
+        AND (lock_until IS NULL OR lock_until <= NOW())
         AND last_login IS NOT NULL 
         AND last_login < DATE_SUB(NOW(), INTERVAL 14 DAY)
+        AND {$managed_roles_sql}
         ORDER BY last_login ASC
     ");
     $inactive_stmt->execute();
@@ -516,6 +589,29 @@ function formatLastActive($timestamp) {
         .status-deactivated {
             background: #6c757d;
             color: white;
+        }
+
+        .status-locked {
+            background: #dc2626;
+            color: white;
+        }
+
+        .btn-unlock {
+            background: #059669;
+            color: white;
+        }
+
+        .btn-unlock:hover {
+            background: #047857;
+        }
+
+        .btn-view {
+            background: #3762c8;
+            color: white;
+        }
+
+        .btn-view:hover {
+            background: #2a4a9a;
         }
 
         .activity-indicator {
@@ -899,6 +995,13 @@ function formatLastActive($timestamp) {
                 <div class="stat-number"><?php echo count($deactivated_users); ?></div>
                 <div class="stat-label">Deactivated Accounts</div>
             </div>
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-lock"></i>
+                </div>
+                <div class="stat-number"><?php echo count($locked_users); ?></div>
+                <div class="stat-label">Locked Accounts</div>
+            </div>
         </div>
 
         <div class="workflow-container">
@@ -967,6 +1070,67 @@ function formatLastActive($timestamp) {
                                             <td>
                                                 <div class="action-buttons">
                                                     <button class="btn-sm btn-placeholder" onclick="showUserModal(<?php echo $user['id']; ?>)">Manage</button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Locked Accounts (currently lock_until > NOW()) -->
+            <div class="workflow-card">
+                <div class="workflow-header">
+                    <h3 class="workflow-title">
+                        <i class="fas fa-lock"></i>
+                        <span>Locked Accounts</span>
+                        <span class="workflow-badge"><?php echo count($locked_users); ?></span>
+                    </h3>
+                </div>
+
+                <div class="workflow-content">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Department</th>
+                                    <th>Status</th>
+                                    <th>Locked Until</th>
+                                    <th>Registered</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (empty($locked_users)): ?>
+                                    <tr>
+                                        <td colspan="8" style="text-align: center;" class="t-text-secondary">No locked accounts found</td>
+                                    </tr>
+                                <?php else: ?>
+                                    <?php foreach ($locked_users as $user): ?>
+                                        <tr id="locked-row-<?php echo (int)$user['id']; ?>">
+                                            <td><?php echo htmlspecialchars($user['full_name']); ?></td>
+                                            <td><?php echo htmlspecialchars($user['email']); ?></td>
+                                            <td><?php echo htmlspecialchars($user['role']); ?></td>
+                                            <td><?php echo htmlspecialchars($user['department'] ?? 'N/A'); ?></td>
+                                            <td>
+                                                <span class="status-badge status-locked">Locked</span>
+                                            </td>
+                                            <td><?php echo !empty($user['lock_until']) ? date('M d, Y h:i A', strtotime($user['lock_until'])) : '—'; ?></td>
+                                            <td><?php echo date('M d, Y', strtotime($user['created_at'])); ?></td>
+                                            <td>
+                                                <div class="action-buttons">
+                                                    <button type="button" class="btn-sm btn-view" onclick="viewLockedUser(<?php echo (int)$user['id']; ?>)">
+                                                        <i class="fas fa-eye"></i> View
+                                                    </button>
+                                                    <button type="button" class="btn-sm btn-unlock" onclick="unlockAccount(<?php echo (int)$user['id']; ?>, '<?php echo htmlspecialchars(addslashes($user['full_name']), ENT_QUOTES); ?>')">
+                                                        <i class="fas fa-unlock"></i> Unlock
+                                                    </button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -1107,14 +1271,18 @@ function formatLastActive($timestamp) {
         let currentUserId = null;
         let isEditing = false;
         let usersData = <?php echo json_encode($users); ?>;
+        let lockedUsersData = <?php echo json_encode($locked_users); ?>;
         
         const editableFields = ['modalFullName', 'modalRole', 'modalDepartment', 'modalAddress', 'modalBirthday', 'modalCivilStatus', 'modalPhoneNumber'];
 
-        function showUserModal(userId) {
+        function showUserModal(userId, options) {
+            options = options || {};
+            const viewOnly = !!options.viewOnly;
             console.log('Opening modal for user ID:', userId);
             currentUserId = userId;
             isEditing = false;
-            const user = usersData.find(u => u.id == userId);
+            const user = usersData.find(u => u.id == userId)
+                || lockedUsersData.find(u => u.id == userId);
             
             if (user) {
                 // Display user info
@@ -1126,7 +1294,11 @@ function formatLastActive($timestamp) {
                 document.getElementById('modalBirthday').value = user.birthday || '';
                 document.getElementById('modalCivilStatus').value = user.civil_status || '';
                 document.getElementById('modalPhoneNumber').value = user.phone_number || '';
-                document.getElementById('modalAccountStatus').value = user.is_active ? 'Active' : 'Inactive';
+                if (viewOnly && user.lock_until) {
+                    document.getElementById('modalAccountStatus').value = 'Locked until ' + user.lock_until;
+                } else {
+                    document.getElementById('modalAccountStatus').value = user.is_active ? 'Active' : 'Inactive';
+                }
                 document.getElementById('modalCreatedAt').value = user.created_at;
                 document.getElementById('modalApprovedAt').value = user.approved_at || 'N/A';
                 document.getElementById('modalRejectedAt').value = user.rejected_at || 'N/A';
@@ -1148,21 +1320,57 @@ function formatLastActive($timestamp) {
                 
                 // Set dynamic button
                 const actionButton = document.getElementById('actionButton');
-                actionButton.style.display = '';
-                if (user.is_active) {
-                    actionButton.textContent = 'Deactivate Account';
-                    actionButton.className = 'btn-sm btn-deactivate';
-                    actionButton.onclick = deactivateAccount;
+                if (viewOnly) {
+                    actionButton.style.display = 'none';
+                    actionButton.onclick = null;
                 } else {
-                    actionButton.textContent = 'Activate Account';
-                    actionButton.className = 'btn-sm btn-approve';
-                    actionButton.onclick = activateAccount;
+                    actionButton.style.display = '';
+                    if (user.is_active) {
+                        actionButton.textContent = 'Deactivate Account';
+                        actionButton.className = 'btn-sm btn-deactivate';
+                        actionButton.onclick = deactivateAccount;
+                    } else {
+                        actionButton.textContent = 'Activate Account';
+                        actionButton.className = 'btn-sm btn-approve';
+                        actionButton.onclick = activateAccount;
+                    }
                 }
                 
                 // Show modal
                 const modal = document.getElementById('userModal');
                 modal.style.display = 'block';
             }
+        }
+
+        function viewLockedUser(userId) {
+            showUserModal(userId, { viewOnly: true });
+        }
+
+        function unlockAccount(userId, userName) {
+            if (!userId) return;
+            const label = userName || 'this account';
+            if (!confirm('Unlock the account for ' + label + '? They will return to Verified Accounts.')) {
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('action', 'unlock_user');
+            formData.append('user_id', userId);
+            formData.append('remarks', 'Unlocked by admin from Manage Accounts');
+
+            fetch('', { method: 'POST', body: formData })
+                .then(function (response) { return response.json(); })
+                .then(function (result) {
+                    if (result.success) {
+                        location.reload();
+                    } else {
+                        alert(result.message || 'Failed to unlock account.');
+                    }
+                })
+                .catch(function (error) {
+                    console.error('Error:', error);
+                    alert('An error occurred. Please try again.');
+                });
         }
 
         function setFieldsDisabled(disabled) {
@@ -1177,6 +1385,10 @@ function formatLastActive($timestamp) {
             const modal = document.getElementById('userModal');
             if (modal) {
                 modal.style.display = 'none';
+            }
+            const actionButton = document.getElementById('actionButton');
+            if (actionButton) {
+                actionButton.style.display = '';
             }
             currentUserId = null;
             isEditing = false;

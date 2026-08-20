@@ -3539,7 +3539,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     <script src="assets/js/qc-boundary.js?v=<?php echo $asset_version; ?>"></script>
 
     <!-- Citizen Report (map, OTP, photo upload, submit) -->
-    <script src="assets/js/citizen-report.js?v=<?php echo $asset_version; ?>"></script>
+    <script src="assets/js/citizen-report.js?v=<?php echo htmlspecialchars((string)(@filemtime(__DIR__ . '/assets/js/citizen-report.js') ?: $asset_version), ENT_QUOTES, 'UTF-8'); ?>"></script>
 
     <!-- Infrastructure Project Updates GIS Map (same engine/features as the staff & citizen GIS maps) -->
     <script>

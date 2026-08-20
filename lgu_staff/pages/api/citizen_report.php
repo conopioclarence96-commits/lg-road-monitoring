@@ -170,17 +170,38 @@ function handleSubmitReport() {
 
     $totalFiles = count($_FILES['photos']['name']);
     $uploadErrors = [];
+    // Content fingerprints seen in this submission — same photo bytes must only
+    // be stored once per report (duplicate picks of the same file are skipped).
+    $seenPhotoHashes = [];
     for ($i = 0; $i < $totalFiles; $i++) {
+        $name = $_FILES['photos']['name'][$i] ?? '';
+        if ($name === '' || $name === null) {
+            continue;
+        }
+        $tmpName = $_FILES['photos']['tmp_name'][$i] ?? '';
+        if ($tmpName === '' || !is_uploaded_file($tmpName)) {
+            continue;
+        }
+
+        // Skip identical file content already processed for this report.
+        $contentHash = @md5_file($tmpName);
+        if ($contentHash !== false && isset($seenPhotoHashes[$contentHash])) {
+            continue;
+        }
+
         $file = [
-            'name' => $_FILES['photos']['name'][$i],
+            'name' => $name,
             'type' => $_FILES['photos']['type'][$i],
-            'tmp_name' => $_FILES['photos']['tmp_name'][$i],
+            'tmp_name' => $tmpName,
             'error' => $_FILES['photos']['error'][$i],
             'size' => $_FILES['photos']['size'][$i],
         ];
 
         $result = handle_file_upload($file, $uploadDir, $allowed);
         if ($result['success']) {
+            if ($contentHash !== false) {
+                $seenPhotoHashes[$contentHash] = true;
+            }
             $entry = [
                 'filename' => $result['filename'],
                 'file_path' => 'uploads/report_images/' . $result['filename'],

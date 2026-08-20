@@ -16,9 +16,39 @@
     var citizenPin = null;
     var otpVerified = false;
     var photoFiles = [];
+    // Prevent re-entrant change handling when syncing/clearing the file input.
+    var photoInputSyncing = false;
 
     var modalEl = document.getElementById('citizenReportModal');
     var formEl = document.getElementById('citizenReportForm');
+
+    /**
+     * Same uploaded photo/file identity for this report.
+     * Uses name + size + type only — not lastModified — so a re-selected or
+     * DataTransfer-cloned File of the same photo is not treated as a new one.
+     */
+    function isSamePhotoFile(a, b) {
+        if (!a || !b) return false;
+        return a.name === b.name
+            && a.size === b.size
+            && (a.type || '') === (b.type || '');
+    }
+
+    function photoAlreadySelected(file) {
+        return photoFiles.some(function (f) { return isSamePhotoFile(f, file); });
+    }
+
+    /** Keep each distinct photo only once in the in-memory list. */
+    function dedupePhotoFiles(files) {
+        var unique = [];
+        (files || []).forEach(function (file) {
+            if (!file || !file.name) return;
+            if (!unique.some(function (f) { return isSamePhotoFile(f, file); })) {
+                unique.push(file);
+            }
+        });
+        return unique;
+    }
 
     function csrfToken() {
         var input = formEl ? formEl.querySelector('input[name="csrf_token"]') : null;
@@ -197,10 +227,18 @@
     }
 
     function syncPhotoFiles() {
-        var dt = new DataTransfer();
-        photoFiles.forEach(function (file) { dt.items.add(file); });
         var input = document.getElementById('crPhotos');
-        input.files = dt.files;
+        if (!input) return;
+        photoInputSyncing = true;
+        try {
+            var dt = new DataTransfer();
+            photoFiles.forEach(function (file) { dt.items.add(file); });
+            input.files = dt.files;
+        } finally {
+            // Allow the next user-driven change; programmatic assign must not
+            // re-run the change handler and re-add the same photos.
+            photoInputSyncing = false;
+        }
     }
 
     // OTP verification
@@ -407,6 +445,8 @@
         fd.append('reporter_name', document.getElementById('crName').value.trim());
         fd.append('phone', normalizePhone(document.getElementById('crPhone').value));
         fd.append('description', document.getElementById('crDescription').value.trim());
+        // One FormData entry per distinct photo — never re-append the same file.
+        photoFiles = dedupePhotoFiles(photoFiles);
         photoFiles.forEach(function (file) {
             fd.append('photos[]', file);
         });
@@ -501,16 +541,29 @@
     });
 
     document.getElementById('crPhotos').addEventListener('change', function (e) {
-        var files = Array.from(e.target.files);
+        // Ignore programmatic syncs — those must not re-add the same photos.
+        if (photoInputSyncing) return;
+
+        var files = Array.from(e.target.files || []);
         files.forEach(function (file) {
-            if (!photoFiles.some(function (f) { return f.name === file.name && f.size === file.size && f.lastModified === file.lastModified; })) {
+            if (!file || !file.name) return;
+            // Duplicate checker is for the same uploaded photo within this report,
+            // not for treating each pick as a separate report.
+            if (!photoAlreadySelected(file)) {
                 photoFiles.push(file);
             }
         });
+        photoFiles = dedupePhotoFiles(photoFiles);
         renderPhotoPreviews();
         document.getElementById('fileCount').textContent = photoFiles.length + ' file(s) selected';
-        syncPhotoFiles();
-        this.value = '';
+        // Clear the input so the user can pick additional files again; the
+        // canonical list lives in photoFiles (submit reads that, not the input).
+        photoInputSyncing = true;
+        try {
+            this.value = '';
+        } finally {
+            photoInputSyncing = false;
+        }
     });
 
     document.getElementById('sendOtpBtn').addEventListener('click', sendOtp);
