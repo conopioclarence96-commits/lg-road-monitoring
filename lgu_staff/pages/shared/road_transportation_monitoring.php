@@ -1071,7 +1071,12 @@ $hide_status_column = $is_system_admin && $is_completed_projects_view;
 // table and View modal can label it as Category (Road / Transportation)
 // without changing stored data. The live monitoring page is left as-is.
 $show_category_column = $is_completed_projects_view;
-$table_colspan = 9 + ($show_category_column ? 1 : 0) - ($hide_status_column ? 1 : 0);
+$show_public_column = defined('COMPLETED_PROJECTS_SHOW_PUBLIC_COLUMN') && COMPLETED_PROJECTS_SHOW_PUBLIC_COLUMN
+    && function_exists('completed_projects_public_column_header_html');
+$table_colspan = 9
+    + ($show_category_column ? 1 : 0)
+    + ($show_public_column ? 1 : 0)
+    - ($hide_status_column ? 1 : 0);
 
 if (!function_exists('completed_project_category_label')) {
     function completed_project_category_label($category, $source = '') {
@@ -1208,9 +1213,10 @@ if (!$is_completed_projects_view) {
     annotate_last_progress_update($conn, $recent_reports);
 }
 
-// System Admin only: flags projects whose Transparency Upload Request is still
-// waiting for a decision, so they stand out in the Completed Projects table.
-if ($is_system_admin) {
+// Transparency request + Public column status (display-only).
+// Completed Projects needs Public for every role; system admin also needs the
+// raw request status so awaiting-review rows can be flagged.
+if ($is_completed_projects_view || $is_system_admin) {
     annotate_transparency_request_status($conn, $recent_reports);
 }
 ?>
@@ -3443,10 +3449,13 @@ if ($is_system_admin) {
             border: 1px solid #d5dce8;
             border-radius: 14px;
             box-shadow: var(--shadow-card);
-            overflow: hidden;
             margin-bottom: 16px;
+            max-width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
         }
         body.completed-projects-view .mon-dash .monitoring-header {
+            overflow: hidden;
             padding: 20px 22px;
             backdrop-filter: none;
         }
@@ -3512,12 +3521,14 @@ if ($is_system_admin) {
         }
 
         body.completed-projects-view .mon-dash .reports-table-wrap {
-            overflow-x: auto;
+            overflow-x: hidden;
             max-width: 100%;
-            -webkit-overflow-scrolling: touch;
             padding: 0;
         }
-        body.completed-projects-view .mon-dash .reports-table-section table { min-width: 780px; width: 100%; }
+        body.completed-projects-view .mon-dash .reports-table-section table { min-width: 0; width: 100%; }
+        <?php if ($show_public_column && function_exists('completed_projects_public_column_css')): ?>
+        <?php echo completed_projects_public_column_css(); ?>
+        <?php endif; ?>
         body.completed-projects-view .mon-dash .reports-table-section th {
             background: var(--bg-hover) !important;
             color: var(--text-secondary) !important;
@@ -4201,7 +4212,7 @@ if ($is_system_admin) {
                     <input type="text" class="road-search" placeholder="Search by title or ID..." id="reportSearchInput" oninput="filterReportsTable(this.value)">
                 </div>
             </div>
-            <div class="reports-table-wrap">
+            <div class="reports-table-wrap<?php echo $show_public_column ? ' completed-reports-scroll' : ''; ?>">
                 <table id="recentReportsTable">
                     <thead>
                         <tr>
@@ -4218,6 +4229,9 @@ if ($is_system_admin) {
                             <th>Priority</th>
                             <th>Date</th>
                             <th>CIMM Verification</th>
+                            <?php if ($show_public_column): ?>
+                            <?php echo completed_projects_public_column_header_html(); ?>
+                            <?php endif; ?>
                             <th></th>
                         </tr>
                     </thead>
@@ -4337,6 +4351,9 @@ if ($is_system_admin) {
                                     <?php endif; ?>
                                 <?php endif; ?>
                             </td>
+                            <?php if ($show_public_column): ?>
+                            <?php echo completed_projects_public_column_cell_html($rr); ?>
+                            <?php endif; ?>
                             <td class="action-cell">
                                 <button class="table-action-btn btn-view" title="View Details" onclick="viewReportDetails(<?php echo (int)$rr['id']; ?>, '<?php echo htmlspecialchars($rr['source'] ?? '', ENT_QUOTES); ?>')"><i class="fas fa-eye"></i> View</button>
                                 <button class="table-action-btn view-map" onclick="focusReportOnMap(<?php echo (int)$rr['id']; ?>, '<?php echo htmlspecialchars($rr['source'] ?? '', ENT_QUOTES); ?>')"><i class="fas fa-map-pin"></i> Map</button>
@@ -4369,7 +4386,16 @@ if ($is_system_admin) {
         const IS_COMPLETED_PROJECTS_VIEW = <?php echo $is_completed_projects_view ? 'true' : 'false'; ?>;
         const HIDE_STATUS_COLUMN = <?php echo $hide_status_column ? 'true' : 'false'; ?>;
         const SHOW_CATEGORY_COLUMN = <?php echo $show_category_column ? 'true' : 'false'; ?>;
+        const SHOW_PUBLIC_COLUMN = <?php echo $show_public_column ? 'true' : 'false'; ?>;
         const TABLE_COLSPAN = <?php echo $table_colspan; ?>;
+        const COMPLETED_PROJECTS_PUBLIC_STATUS_MAP = <?php
+            echo json_encode(
+                function_exists('completed_projects_public_column_js_map')
+                    ? completed_projects_public_column_js_map()
+                    : new stdClass(),
+                JSON_UNESCAPED_UNICODE
+            );
+        ?>;
 
         function completedProjectCategoryLabel(report) {
             var cat = String((report && (report.report_category
@@ -4385,6 +4411,26 @@ if ($is_system_admin) {
             var label = completedProjectCategoryLabel(report);
             var cls = label === 'Transportation' ? 'category-transportation' : 'category-road';
             return '<span class="category-badge ' + cls + '">' + label + '</span>';
+        }
+
+        function publicStatusMeta(status) {
+            var key = String(status || 'awaiting').toLowerCase();
+            var map = COMPLETED_PROJECTS_PUBLIC_STATUS_MAP || {};
+            var entry = map[key] || map.awaiting || {
+                label: 'Awaiting',
+                class: 'pt-status-awaiting',
+                title: 'No public transparency request has been made yet.'
+            };
+            return {
+                label: entry.label || 'Awaiting',
+                cls: entry.class || entry.cls || 'pt-status-awaiting',
+                title: entry.title || ''
+            };
+        }
+
+        function publicStatusBadge(report) {
+            var meta = publicStatusMeta(report && report.public_transparency_status);
+            return '<span class="pt-status-badge ' + meta.cls + '" title="' + meta.title + '">' + meta.label + '</span>';
         }
 
         function isNoUpdateStale(report) {
@@ -9024,6 +9070,7 @@ if ($is_system_admin) {
                         `<span class="cimm-verify-badge cimm-verify-badge-none">—</span>`)
                 }
             </td>
+            ${SHOW_PUBLIC_COLUMN ? `<td class="pt-col">${publicStatusBadge(report)}</td>` : ''}
             <td class="action-cell">
                 <button class="table-action-btn btn-view" title="View Details" onclick="viewReportDetails(${report.id}, '${report.source}')"><i class="fas fa-eye"></i> View</button>
                 <button class="table-action-btn view-map" onclick="focusReportOnMap(${report.id}, '${report.source}')"><i class="fas fa-map-pin"></i> Map</button>

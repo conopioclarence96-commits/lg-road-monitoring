@@ -1233,7 +1233,8 @@ if ($conn) {
         if (!report) return data;
         data.sourceReportId = report.id || '';
         data.sourceReportCode = report.report_id || data.reportId || '';
-        data.sourceReportSource = 'transport';
+        const src = String(report.source || '').toLowerCase();
+        data.sourceReportSource = src || 'transport';
         data.reporterName = report.reporter_name || '';
         data.reporterEmail = report.reporter_email || '';
         if (!data.title && report.title) data.title = report.title;
@@ -1248,7 +1249,7 @@ if ($conn) {
     }
 
     function lookupCitizenReportForImport(reportId) {
-        return fetch(API + '?action=lookup_citizen_report&report_id=' + encodeURIComponent(reportId))
+        return fetch(API + '?action=lookup_source_report&report_id=' + encodeURIComponent(reportId))
             .then(r => r.json())
             .then(resp => (resp && resp.success && resp.data) ? resp.data : null)
             .catch(() => null);
@@ -1285,7 +1286,9 @@ if ($conn) {
         window.ProgressExportImport.readExportFile(file)
             .then(data => {
                 const reportId = (data.reportId || '').trim();
-                if (reportId.toUpperCase().startsWith('CIT-')) {
+                // Resolve RPT-/CIT-/REQ- (and other) codes to numeric id + source so
+                // published_completed_projects.source_report_id is stored for Public status.
+                if (reportId) {
                     return lookupCitizenReportForImport(reportId).then(report => mergeCitizenReportIntoImport(data, report));
                 }
                 return data;

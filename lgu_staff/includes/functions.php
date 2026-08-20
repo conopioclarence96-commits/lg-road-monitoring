@@ -937,23 +937,77 @@ function annotate_report_assignment_status($conn, array &$reports) {
     unset($rr);
 }
 
-// Annotate a list of report rows with the state of their latest Transparency
-// Upload Request, so the Completed Projects table can flag the projects an
-// administrator still has to act on. Each row must carry its primary key in
-// 'id' and its source in 'source' ('lgu', 'citizen' or 'cimm'), which together
-// are how transparency_upload_requests identifies a report. Sets
-// 'transparency_request_status' to '' (never requested), 'pending', 'approved'
-// or 'rejected'. Display-only — it never touches a report's own status.
+/**
+ * Normalize Public Transparency / Completed Projects source keys so a published
+ * row linked as "transport" still matches a Completed Projects row sourced as
+ * "citizen" or "lgu" (same underlying road_transportation_reports id).
+ *
+ * @return string[]
+ */
+function public_transparency_source_aliases($source) {
+    $s = strtolower(trim((string)$source));
+    $road = ['lgu', 'citizen', 'transport', 'transportation', 'local', 'road', 'road_transportation'];
+    if ($s === '' || in_array($s, $road, true)) {
+        return $road;
+    }
+    if ($s === 'cimm') {
+        return ['cimm'];
+    }
+    if (in_array($s, ['infrastructure', 'maintenance'], true)) {
+        return ['infrastructure', 'maintenance'];
+    }
+    return [$s];
+}
+
+/**
+ * Fingerprint used to match a Completed Projects row to a published project
+ * when source_report_id was not stored (common after manual Progress Updates import).
+ */
+function public_transparency_publish_fingerprint($title, $location) {
+    $t = strtolower(trim(preg_replace('/\s+/u', ' ', (string)$title)));
+    $l = strtolower(trim(preg_replace('/\s+/u', ' ', (string)$location)));
+    if ($t === '' || $l === '') {
+        return '';
+    }
+    return $t . "\0" . $l;
+}
+
+/**
+ * True when a published_completed_projects row (is_published=1) is linked to
+ * this report id under a compatible source alias.
+ */
+function public_transparency_is_posted_for_report(array $posted_index, $report_id, $report_source) {
+    $id = (int)$report_id;
+    if ($id <= 0 || empty($posted_index)) {
+        return false;
+    }
+    foreach (public_transparency_source_aliases($report_source) as $alias) {
+        if (!empty($posted_index[$alias . ':' . $id])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Annotate report rows with Transparency Upload Request state and the
+// Public column status used on Completed Projects.
+// Each row needs 'id' + 'source' ('lgu', 'citizen', or 'cimm').
+// Sets:
+//   transparency_request_status — raw request status: '', 'pending', 'approved', 'rejected'
+//   public_transparency_status  — display: awaiting|pending|approved|posted|rejected
+// Publication in published_completed_projects (is_published=1) always wins over
+// the request status — e.g. Rejected → later published → Posted.
+// Display-only — never changes a report's own completion status.
 function annotate_transparency_request_status($conn, array &$reports) {
     if (empty($reports)) {
         return;
     }
     $latest = [];
+    $posted = [];
+    $posted_by_fingerprint = [];
     try {
         $exists = $conn->query("SHOW TABLES LIKE 'transparency_upload_requests'");
         if ($exists && $exists->num_rows > 0) {
-            // Highest id per report/source wins, matching the single-report
-            // lookup the transparency request API uses.
             $res = $conn->query(
                 "SELECT t.report_id, t.report_source, t.status
                  FROM transparency_upload_requests t
@@ -969,14 +1023,95 @@ function annotate_transparency_request_status($conn, array &$reports) {
                 }
             }
         }
+
+        // Posted when actually published on the Public Transparency portal.
+        // Prefer source_report_id linkage; fall back to title+location for rows
+        // imported/published without that link (manual Progress Updates import).
+        $pub_exists = $conn->query("SHOW TABLES LIKE 'published_completed_projects'");
+        if ($pub_exists && $pub_exists->num_rows > 0) {
+            $pub_res = $conn->query(
+                "SELECT source_report_id, source_report_source, title, location
+                   FROM published_completed_projects
+                  WHERE is_published = 1"
+            );
+            if ($pub_res) {
+                while ($row = $pub_res->fetch_assoc()) {
+                    $id = (int)($row['source_report_id'] ?? 0);
+                    if ($id > 0) {
+                        foreach (public_transparency_source_aliases($row['source_report_source'] ?? '') as $alias) {
+                            $posted[$alias . ':' . $id] = true;
+                        }
+                    } else {
+                        $fp = public_transparency_publish_fingerprint(
+                            $row['title'] ?? '',
+                            $row['location'] ?? ''
+                        );
+                        if ($fp !== '') {
+                            $posted_by_fingerprint[$fp] = true;
+                        }
+                    }
+                }
+            }
+        }
     } catch (Exception $e) {
         error_log('annotate_transparency_request_status error: ' . $e->getMessage());
     }
     foreach ($reports as &$rr) {
-        $key = strtolower((string)($rr['source'] ?? '')) . ':' . (int)($rr['id'] ?? 0);
-        $rr['transparency_request_status'] = $latest[$key] ?? '';
+        $id = (int)($rr['id'] ?? 0);
+        $src = strtolower((string)($rr['source'] ?? ''));
+        $key = $src . ':' . $id;
+        $req = $latest[$key] ?? '';
+        // Also accept request rows stored under a road-family alias.
+        if ($req === '') {
+            foreach (public_transparency_source_aliases($src) as $alias) {
+                if (isset($latest[$alias . ':' . $id])) {
+                    $req = $latest[$alias . ':' . $id];
+                    break;
+                }
+            }
+        }
+        $rr['transparency_request_status'] = $req;
+
+        $fp = public_transparency_publish_fingerprint($rr['title'] ?? '', $rr['location'] ?? '');
+        $is_posted = public_transparency_is_posted_for_report($posted, $id, $src)
+            || ($fp !== '' && !empty($posted_by_fingerprint[$fp]));
+
+        // Actual publication state overrides prior request status (including Rejected).
+        if ($is_posted) {
+            $rr['public_transparency_status'] = 'posted';
+        } elseif ($req === 'pending') {
+            $rr['public_transparency_status'] = 'pending';
+        } elseif ($req === 'approved') {
+            $rr['public_transparency_status'] = 'approved';
+        } elseif ($req === 'rejected') {
+            $rr['public_transparency_status'] = 'rejected';
+        } else {
+            $rr['public_transparency_status'] = 'awaiting';
+        }
     }
     unset($rr);
+}
+
+/** Human label for Completed Projects → Public column. */
+function public_transparency_status_label($status) {
+    $map = [
+        'awaiting' => 'Awaiting',
+        'pending' => 'Pending',
+        'approved' => 'Approved',
+        'posted' => 'Posted',
+        'rejected' => 'Rejected',
+    ];
+    $key = strtolower(trim((string)$status));
+    return $map[$key] ?? 'Awaiting';
+}
+
+/** CSS modifier class for Public column badges. */
+function public_transparency_status_class($status) {
+    $key = strtolower(trim((string)$status));
+    if (!in_array($key, ['awaiting', 'pending', 'approved', 'posted', 'rejected'], true)) {
+        $key = 'awaiting';
+    }
+    return 'pt-status-' . $key;
 }
 
 // Display-only: when a report last received a progress update (or never has).

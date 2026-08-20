@@ -238,33 +238,78 @@ switch ($action) {
         echo json_encode(['success' => true, 'data' => $project]);
         break;
 
-    // ─── LOOKUP CITIZEN REPORT (import from Progress Updates export) ───
+    // ─── LOOKUP SOURCE REPORT (import from Progress Updates export) ───
     case 'lookup_citizen_report':
+    case 'lookup_source_report':
         if (!$is_admin) {
             http_response_code(403);
-            echo json_encode(['success' => false, 'message' => 'Only administrators can import citizen reports']);
+            echo json_encode(['success' => false, 'message' => 'Only administrators can import reports']);
             exit;
         }
-        $report_id = trim($_GET['report_id'] ?? '');
-        if ($report_id === '' || !preg_match('/^CIT-[A-Za-z0-9-]+$/', $report_id)) {
+        $report_code = trim($_GET['report_id'] ?? '');
+        if ($report_code === '') {
             http_response_code(400);
-            echo json_encode(['success' => false, 'message' => 'Invalid citizen report ID']);
+            echo json_encode(['success' => false, 'message' => 'Invalid report ID']);
             exit;
         }
-        $row = fetch_one(
-            "SELECT id, report_id, title, description, location, budget_allocation, engineer,
-                    reporter_name, reporter_email, status
-             FROM road_transportation_reports
-             WHERE report_id = ? AND created_by = 0
-             LIMIT 1",
-            [$report_id],
-            's'
-        );
+
+        $row = null;
+        $source = '';
+
+        // Citizen exports: CIT-...
+        if (preg_match('/^CIT-[A-Za-z0-9-]+$/i', $report_code)) {
+            $row = fetch_one(
+                "SELECT id, report_id, title, description, location, budget_allocation, engineer,
+                        reporter_name, reporter_email, status, created_by
+                 FROM road_transportation_reports
+                 WHERE report_id = ? AND created_by = 0
+                 LIMIT 1",
+                [$report_code],
+                's'
+            );
+            $source = 'citizen';
+        }
+
+        // LGU / staff road-transportation exports: RPT-...
+        if (!$row && preg_match('/^RPT-[A-Za-z0-9-]+$/i', $report_code)) {
+            $row = fetch_one(
+                "SELECT id, report_id, title, description, location, budget_allocation, engineer,
+                        reporter_name, reporter_email, status, created_by
+                 FROM road_transportation_reports
+                 WHERE report_id = ?
+                 LIMIT 1",
+                [$report_code],
+                's'
+            );
+            if ($row) {
+                $source = !empty($row['created_by']) ? 'lgu' : 'citizen';
+            }
+        }
+
+        // CIMM exports: REQ-... / reference_code
+        if (!$row) {
+            $row = fetch_one(
+                "SELECT id, reference_code AS report_id, infrastructure AS title, issue AS description,
+                        location, budget_allocation, engineer, reporter_name, email AS reporter_email,
+                        verification_status AS status
+                 FROM cimm_verification_reports
+                 WHERE reference_code = ?
+                 LIMIT 1",
+                [$report_code],
+                's'
+            );
+            if ($row) {
+                $source = 'cimm';
+            }
+        }
+
         if (!$row) {
             http_response_code(404);
-            echo json_encode(['success' => false, 'message' => 'Citizen report not found']);
+            echo json_encode(['success' => false, 'message' => 'Report not found for this export']);
             exit;
         }
+
+        $row['source'] = $source;
         echo json_encode(['success' => true, 'data' => $row]);
         break;
 

@@ -237,9 +237,8 @@ try {
         annotate_last_progress_update($conn, $reports);
     }
 
-    // System Admin only: lets the table flag projects whose Transparency Upload
-    // Request is still waiting for a decision.
-    if (($_SESSION['role'] ?? '') === 'system_admin') {
+    // Completed Projects / System Admin: annotate Public transparency status.
+    if (!empty($completed_only) || (($_SESSION['role'] ?? '') === 'system_admin')) {
         annotate_transparency_request_status($conn, $reports);
     }
     
@@ -276,6 +275,7 @@ try {
             'report_category' => $rr['report_category'] ?? '',
             'report_type' => $rr['report_type'] ?? '',
             'transparency_request_status' => $rr['transparency_request_status'] ?? '',
+            'public_transparency_status' => $rr['public_transparency_status'] ?? 'awaiting',
             'no_update_stale' => !empty($rr['no_update_stale']),
             'table' => $rr['_source_table'] ?? 'road_transportation_reports',
             'details' => [
