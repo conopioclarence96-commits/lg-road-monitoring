@@ -293,7 +293,7 @@ function vm_build_cimm_rows_json(array $reports): array {
     return $out;
 }
 
-function vm_render_lgu_panel_tbody(array $reports, bool $is_transport_supervisor): string {
+function vm_render_lgu_panel_tbody(array $reports, bool $is_transport_supervisor, bool $is_system_admin = false): string {
     $lgu_type_labels = [
         'traffic_jam' => 'Traffic Jam',
         'accident' => 'Vehicle Accident',
@@ -406,6 +406,18 @@ function vm_render_lgu_panel_tbody(array $reports, bool $is_transport_supervisor
             </td>
             <td><?php echo htmlspecialchars((string)($report['report_id'] ?? '')); ?></td>
             <td><?php echo htmlspecialchars(strlen($report['title'] ?? '') > 35 ? substr($report['title'], 0, 35) . '...' : ($report['title'] ?? '')); ?></td>
+            <?php if ($is_system_admin): ?>
+            <td><?php
+                $lgu_cat = strtolower(trim((string)($report_category ?? '')));
+                if ($lgu_cat === 'transportation') {
+                    echo '<span class="lgu-category-badge lgu-cat-transportation">Transportation</span>';
+                } elseif ($lgu_cat === 'road') {
+                    echo '<span class="lgu-category-badge lgu-cat-road">Road</span>';
+                } else {
+                    echo '—';
+                }
+            ?></td>
+            <?php endif; ?>
             <td><?php if (($report['location'] ?? '') !== ''): ?><span title="<?php echo htmlspecialchars((string)$report['location']); ?>"><?php echo htmlspecialchars(strlen((string)$report['location']) > 40 ? substr((string)$report['location'], 0, 40) . '...' : (string)$report['location']); ?></span><?php else: ?>—<?php endif; ?></td>
             <td><span class="lgu-status-badge <?php echo htmlspecialchars((string)($report['priority'] ?? 'medium')); ?>"><?php echo ucfirst(htmlspecialchars((string)($report['priority'] ?? 'medium'))); ?></span></td>
             <td>
@@ -445,7 +457,7 @@ function vm_render_lgu_panel_tbody(array $reports, bool $is_transport_supervisor
     if (!$hasRows):
         ?>
         <tr>
-            <td colspan="7">
+            <td colspan="<?php echo $is_system_admin ? 8 : 7; ?>">
                 <div class="lgu-empty-state">
                     <div class="lgu-empty-icon"><i class="fas fa-clipboard-list"></i></div>
                     <h4>No LGU reports yet</h4>

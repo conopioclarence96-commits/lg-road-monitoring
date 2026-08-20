@@ -155,6 +155,7 @@ $is_transport_supervisor = ($user_role === 'trans_ops_supervisor');
 // Road Operations Supervisors see only Road-relevant reports: Road reports in
 // the LGU Monitoring panel, all CIMM reports, and no Transportation reports.
 $is_road_supervisor = ($user_role === 'road_ops_supervisor');
+$is_system_admin = ($user_role === 'system_admin');
 
 // Function to get verification statistics
 function getVerificationStatistics($conn) {
@@ -832,7 +833,7 @@ if (($_GET['ajax'] ?? '') === 'panel_page') {
             'total' => $total,
             'per_page' => $panel_per_page,
             'q' => $search_q,
-            'rows_html' => vm_render_lgu_panel_tbody($rows, $is_transport_supervisor),
+            'rows_html' => vm_render_lgu_panel_tbody($rows, $is_transport_supervisor, $is_system_admin),
             'rows_json' => vm_build_lgu_rows_json($rows, $creator_map, $is_transport_supervisor, $is_road_supervisor),
             'pagination_html' => $pagination_html,
             'badge_text' => $total . ' Reports',
@@ -3010,6 +3011,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             border: 1px solid #c8d0e0;
             margin-bottom: 25px;
             overflow: hidden;
+            max-width: 100%;
         }
 
         body.dark-mode .lgu-reports-panel {
@@ -3159,12 +3161,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         .lgu-table-wrapper {
             overflow-x: auto;
+            overflow-y: visible;
+            max-width: 100%;
             padding: 0;
+            -webkit-overflow-scrolling: touch;
         }
 
         .lgu-table {
             width: 100%;
+            min-width: 1100px;
             border-collapse: collapse;
+            table-layout: auto;
         }
 
         .lgu-table thead th {
@@ -3182,6 +3189,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         .lgu-table thead th:first-child { border-radius: 0; }
         .lgu-table thead th:last-child { border-radius: 0; }
 
+        .lgu-category-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            white-space: nowrap;
+        }
+        .lgu-cat-road {
+            background: rgba(55, 98, 200, 0.12);
+            color: #1e3c72;
+        }
+        .lgu-cat-transportation {
+            background: rgba(14, 165, 233, 0.16);
+            color: #0369a1;
+        }
+        body.dark-mode .lgu-cat-road {
+            background: rgba(96, 165, 250, 0.18);
+            color: #93c5fd;
+        }
+        body.dark-mode .lgu-cat-transportation {
+            background: rgba(56, 189, 248, 0.2);
+            color: #7dd3fc;
+        }
+
         .lgu-table tbody tr {
             border-bottom: 1px solid rgba(30, 60, 114, 0.08);
             transition: background 0.2s;
@@ -3196,6 +3229,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             color: #333;
             font-size: 13px;
             white-space: nowrap;
+            vertical-align: middle;
+        }
+
+        /* Keep Action column usable while scrolling horizontally.
+           Background must match other cells (panel surface), not --bg-card. */
+        .lgu-reports-panel {
+            --lgu-table-surface: #f0f4fa;
+            --lgu-table-surface-hover: rgba(55, 98, 200, 0.05);
+        }
+        body.dark-mode .lgu-reports-panel {
+            --lgu-table-surface: #1e2229;
+            --lgu-table-surface-hover: rgba(55, 98, 200, 0.08);
+        }
+        .lgu-table thead th:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 3;
+            background: linear-gradient(135deg, #1e3c72, #0f274a);
+        }
+        .lgu-table tbody td:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 2;
+            background: var(--lgu-table-surface);
+            box-shadow: none;
+        }
+        .lgu-table tbody tr:hover td:first-child {
+            background: var(--lgu-table-surface-hover);
         }
 
         body.dark-mode .lgu-table tbody td { color: #c0c8d8; }
@@ -3211,6 +3272,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             font-size: 12px;
             cursor: pointer;
             transition: all 0.2s;
+            flex: 0 0 auto;
         }
 
         .lgu-action-btn:hover { background: rgba(55, 98, 200, 0.2); }
@@ -3218,8 +3280,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         .lgu-action-group {
             display: inline-flex;
+            flex-wrap: nowrap;
             gap: 4px;
             align-items: center;
+            white-space: nowrap;
         }
 
         .lgu-verify-btn {
@@ -3232,6 +3296,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s;
+            flex: 0 0 auto;
         }
 
         .lgu-verify-btn:hover { background: rgba(34, 197, 94, 0.2); }
@@ -3247,12 +3312,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s;
+            flex: 0 0 auto;
         }
 
         .lgu-reject-btn:hover { background: rgba(220, 53, 69, 0.2); }
         body.dark-mode .lgu-reject-btn { background: rgba(220,53,69,0.15); color: #f87171; }
 
-        .lgu-action-form { display: inline; }
+        .lgu-action-form {
+            display: inline-flex;
+            margin: 0;
+            flex: 0 0 auto;
+        }
 
         .lgu-status-badge {
             display: inline-block;
@@ -5350,6 +5420,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             border-color: #c8d0e0;
             border-left: 3px solid #1e3c72;
             box-shadow: 0 2px 10px rgba(30, 60, 114, 0.07);
+            --lgu-table-surface: #f4f7fb;
+            --lgu-table-surface-hover: var(--bg-hover, rgba(55, 98, 200, 0.05));
         }
         .vm-dash .citizen-reports-panel {
             background: #f4faf6;
@@ -5671,6 +5743,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         .vm-dash .citizen-table,
         .vm-dash .dept-table,
         .vm-dash .infra-table { width: 100%; border-collapse: collapse; }
+        .vm-dash .lgu-table {
+            min-width: 1100px;
+        }
+        .vm-dash .lgu-table-wrapper {
+            overflow-x: auto;
+            max-width: 100%;
+            -webkit-overflow-scrolling: touch;
+        }
+        .vm-dash .lgu-table thead th:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 4;
+            background: linear-gradient(135deg, #1e3c72, #0f274a) !important;
+        }
+        .vm-dash .lgu-table tbody td:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 2;
+            background: var(--lgu-table-surface, #f4f7fb) !important;
+            box-shadow: none;
+        }
+        .vm-dash .lgu-table tbody tr:hover td:first-child {
+            background: var(--lgu-table-surface-hover, var(--bg-hover)) !important;
+        }
         .vm-dash .lgu-table thead th,
         .vm-dash .citizen-table thead th,
         .vm-dash .dept-table thead th,
@@ -5815,6 +5911,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         .vm-dash .citizen-action-group,
         .vm-dash .dept-action-group,
         .vm-dash .infra-action-group { gap: 6px; flex-wrap: wrap; }
+        .vm-dash .lgu-action-group {
+            flex-wrap: nowrap;
+            white-space: nowrap;
+        }
         .vm-dash .lgu-action-btn,
         .vm-dash .citizen-action-btn,
         .vm-dash .dept-action-btn,
@@ -6056,6 +6156,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         body.dark-mode .vm-dash .lgu-reports-panel {
             border-color: rgba(147, 179, 224, 0.28) !important;
             border-left-color: #93b3e0 !important;
+            --lgu-table-surface: #1c2432;
+            --lgu-table-surface-hover: var(--bg-hover, rgba(55, 98, 200, 0.08));
         }
         body.dark-mode .vm-dash .citizen-reports-panel {
             border-color: rgba(74, 222, 128, 0.28) !important;
@@ -6307,6 +6409,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <th>Action</th>
                             <th>Report #</th>
                             <th>Title</th>
+                            <?php if ($is_system_admin): ?>
+                            <th>Category</th>
+                            <?php endif; ?>
                             <th>Location</th>
                             <th>Priority</th>
                             <th>Status</th>
@@ -6508,6 +6613,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 </td>
                                 <td><?php echo htmlspecialchars($report['report_id']); ?></td>
                                 <td><?php echo htmlspecialchars(strlen($report['title'] ?? '') > 35 ? substr($report['title'], 0, 35) . '...' : ($report['title'] ?? '')); ?></td>
+                                <?php if ($is_system_admin): ?>
+                                <td><?php
+                                    $lgu_cat = strtolower(trim((string)($report_category ?? '')));
+                                    if ($lgu_cat === 'transportation') {
+                                        echo '<span class="lgu-category-badge lgu-cat-transportation">Transportation</span>';
+                                    } elseif ($lgu_cat === 'road') {
+                                        echo '<span class="lgu-category-badge lgu-cat-road">Road</span>';
+                                    } else {
+                                        echo '—';
+                                    }
+                                ?></td>
+                                <?php endif; ?>
                                 <td><?php if (($report['location'] ?? '') !== ''): ?><span title="<?php echo htmlspecialchars((string)$report['location']); ?>"><?php echo htmlspecialchars(strlen((string)$report['location']) > 40 ? substr((string)$report['location'], 0, 40) . '...' : (string)$report['location']); ?></span><?php else: ?>—<?php endif; ?></td>
                                 <td><span class="lgu-status-badge <?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'] ?? 'medium')); ?></span></td>
                                 <td>
@@ -6562,7 +6679,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <?php endforeach; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="7">
+                                <td colspan="<?php echo $is_system_admin ? 8 : 7; ?>">
                                     <div class="lgu-empty-state">
                                         <div class="lgu-empty-icon"><i class="fas fa-clipboard-list"></i></div>
                                         <p>No reports at this time.</p>

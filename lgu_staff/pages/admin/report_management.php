@@ -1163,9 +1163,12 @@ function rm_render_lgu_panel_tbody(
     ];
     $lgu_transport_types = ['potholes', 'road_damage', 'shoulder_damage', 'traffic_jam', 'accident', 'congestion', 'traffic_light_outage', 'vehicle_breakdown', 'traffic_sign_issue', 'transportation', 'infrastructure_issue', 'road_closure', 'parking_violation', 'public_transport_issue'];
     $lgu_road_types = ['debris', 'cracks', 'erosion', 'flooding', 'marking_fade'];
-    $colspan = (($is_road_supervisor || $user_role === 'system_admin') ? 9 : 7) + ($is_transport_supervisor ? 1 : 0);
+    $colspan = (($is_road_supervisor || $user_role === 'system_admin') ? 9 : 7)
+        + ($is_transport_supervisor ? 1 : 0)
+        + ($user_role === 'system_admin' ? 1 : 0);
     $can_edit = $is_road_supervisor || $is_transport_supervisor || $user_role === 'system_admin';
     $show_engineer = $is_road_supervisor || $user_role === 'system_admin';
+    $show_category = ($user_role === 'system_admin');
 
     ob_start();
     if (!empty($reports)):
@@ -1198,6 +1201,18 @@ function rm_render_lgu_panel_tbody(
                             </td>
                             <td><?php echo htmlspecialchars($report['report_id'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars(strlen($report['title'] ?? '') > 35 ? substr($report['title'], 0, 35) . '...' : ($report['title'] ?? '')); ?></td>
+                            <?php if ($show_category): ?>
+                            <td><?php
+                                $lgu_cat = strtolower(trim((string)($report['report_category'] ?? '')));
+                                if ($lgu_cat === 'transportation') {
+                                    echo '<span class="rm-category-badge rm-cat-transportation">Transportation</span>';
+                                } elseif ($lgu_cat === 'road') {
+                                    echo '<span class="rm-category-badge rm-cat-road">Road</span>';
+                                } else {
+                                    echo '—';
+                                }
+                            ?></td>
+                            <?php endif; ?>
                             <td><?php echo htmlspecialchars($report['location'] ?? '—'); ?></td>
                             <td><span class="rm-priority-badge <?php echo htmlspecialchars((string)($report['priority'] ?? '')); ?>"><?php echo ucfirst(htmlspecialchars((string)($report['priority'] ?? ''))); ?></span></td>
                             <?php if ($is_transport_supervisor): ?>
@@ -3826,6 +3841,32 @@ if ($focus_id > 0) {
         .rm-table thead th:first-child { border-radius: 0; }
         .rm-table thead th:last-child { border-radius: 0; }
 
+        .rm-category-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            white-space: nowrap;
+        }
+        .rm-cat-road {
+            background: rgba(55, 98, 200, 0.12);
+            color: #1e3c72;
+        }
+        .rm-cat-transportation {
+            background: rgba(14, 165, 233, 0.16);
+            color: #0369a1;
+        }
+        body.dark-mode .rm-cat-road {
+            background: rgba(96, 165, 250, 0.18);
+            color: #93c5fd;
+        }
+        body.dark-mode .rm-cat-transportation {
+            background: rgba(56, 189, 248, 0.2);
+            color: #7dd3fc;
+        }
+
         .rm-table tbody tr {
             border-bottom: 1px solid rgba(55, 98, 200, 0.08);
             transition: background 0.2s;
@@ -5068,6 +5109,9 @@ if ($focus_id > 0) {
                             <th>Action</th>
                             <th>Report #</th>
                             <th>Title</th>
+                            <?php if ($is_system_admin): ?>
+                            <th>Category</th>
+                            <?php endif; ?>
                             <th>Location</th>
                             <th>Priority</th>
                             <?php if ($is_transport_supervisor): ?>
