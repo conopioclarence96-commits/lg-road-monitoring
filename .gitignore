@@ -2,4 +2,7 @@
 .agents
 skills-lock.json
 lgu_staff/pages/lgu/lgu_staff_dashboard.php
-lgu_staff/pages/api/overpass/cache/qc_bus_jeep_routes.json
+lgu_staff/pages/api/overpass/cache/*.json
+lgu_staff/pages/api/map_layers/cache/*.json
+!lgu_staff/pages/api/overpass/cache/.gitkeep
+!lgu_staff/pages/api/map_layers/cache/.gitkeep

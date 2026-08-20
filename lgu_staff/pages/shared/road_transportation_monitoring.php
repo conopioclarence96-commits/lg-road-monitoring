@@ -1695,6 +1695,136 @@ if ($is_system_admin) {
             pointer-events: none;
         }
         .map-fullscreen-btn:disabled { cursor: wait; }
+
+        .sync-layers-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 10050;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(15, 23, 42, 0.55);
+            padding: 20px;
+        }
+        .sync-layers-overlay.is-open { display: flex; }
+        .sync-layers-modal {
+            width: min(420px, 100%);
+            background: #fff;
+            border-radius: 14px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.28);
+            overflow: hidden;
+        }
+        .sync-layers-modal-header {
+            padding: 18px 20px 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .sync-layers-modal-header h3 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 700;
+            color: #1e3c72;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .sync-layers-modal-header p {
+            margin: 8px 0 0;
+            font-size: 12px;
+            color: #6b7280;
+            line-height: 1.4;
+        }
+        .sync-layers-modal-body {
+            padding: 14px 20px 8px;
+        }
+        .sync-layers-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .sync-layers-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 1px solid #fdba74;
+            background: #fff7ed;
+            color: #c2410c;
+            transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+        }
+        .sync-layers-item.is-pending {
+            border-color: #fdba74;
+            background: #fff7ed;
+            color: #c2410c;
+        }
+        .sync-layers-item.is-done {
+            border-color: #86efac;
+            background: #f0fdf4;
+            color: #15803d;
+        }
+        .sync-layers-item.is-failed {
+            border-color: #fca5a5;
+            background: #fef2f2;
+            color: #b91c1c;
+        }
+        .sync-layers-item-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 13px;
+            background: rgba(255, 255, 255, 0.7);
+        }
+        .sync-layers-item-meta {
+            min-width: 0;
+            flex: 1;
+        }
+        .sync-layers-item-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.3;
+        }
+        .sync-layers-item-status {
+            display: block;
+            font-size: 11px;
+            opacity: 0.9;
+            margin-top: 2px;
+        }
+        .sync-layers-modal-footer {
+            padding: 12px 20px 18px;
+            display: none;
+            justify-content: flex-end;
+        }
+        .sync-layers-modal-footer.is-visible { display: flex; }
+        .sync-layers-close-btn {
+            min-width: 110px;
+            padding: 10px 18px;
+            border: none;
+            border-radius: 8px;
+            background: #3762c8;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .sync-layers-close-btn:hover { background: #1e3c72; }
+        body.dark-mode .sync-layers-modal {
+            background: var(--bg-card, #1f2937);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+        }
+        body.dark-mode .sync-layers-modal-header {
+            border-bottom-color: var(--border-default, #374151);
+        }
+        body.dark-mode .sync-layers-modal-header h3 { color: var(--text-primary, #f3f4f6); }
+        body.dark-mode .sync-layers-modal-header p { color: var(--text-secondary, #9ca3af); }
+
         @keyframes accident-pin-pulse {
             0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.55); }
             70% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
@@ -3719,6 +3849,9 @@ if ($is_system_admin) {
                         <button class="map-fullscreen-btn" id="togglePtRoutesBtn" onclick="showPtRoutesPanel()" style="background:#6c757d;color:#fff;border-color:#6c757d;">
                             <i class="fas fa-route"></i> PT Routes
                         </button>
+                        <button class="map-fullscreen-btn" id="syncMapLayersBtn" onclick="syncMapLayers()" title="Re-download Incidents, Bus, Rail, and PT Routes" style="background:#3762c8;color:#fff;border-color:#3762c8;">
+                            <i class="fas fa-sync-alt"></i> Sync Layers
+                        </button>
                         <button class="map-fullscreen-btn" id="toggleTrafficBtn" onclick="toggleTrafficLayer()">
                             <i class="fas fa-car"></i> Traffic
                         </button>
@@ -3728,6 +3861,50 @@ if ($is_system_admin) {
                     </div>
                 </div>
                 <div id="map"></div>
+
+                <div class="sync-layers-overlay" id="syncLayersOverlay" aria-hidden="true">
+                    <div class="sync-layers-modal" role="dialog" aria-modal="true" aria-labelledby="syncLayersTitle">
+                        <div class="sync-layers-modal-header">
+                            <h3 id="syncLayersTitle"><i class="fas fa-sync-alt" id="syncLayersTitleIcon"></i> Syncing Map Layers</h3>
+                            <p id="syncLayersSubtitle">Downloading fresh data. Please wait — this window cannot be closed until sync finishes.</p>
+                        </div>
+                        <div class="sync-layers-modal-body">
+                            <ul class="sync-layers-list" id="syncLayersList">
+                                <li class="sync-layers-item is-pending" data-layer="incidents">
+                                    <span class="sync-layers-item-icon"><i class="fas fa-spinner fa-spin"></i></span>
+                                    <span class="sync-layers-item-meta">
+                                        <span class="sync-layers-item-label"><i class="fas fa-exclamation-triangle"></i> Incidents</span>
+                                        <span class="sync-layers-item-status">Waiting…</span>
+                                    </span>
+                                </li>
+                                <li class="sync-layers-item is-pending" data-layer="bus">
+                                    <span class="sync-layers-item-icon"><i class="fas fa-spinner fa-spin"></i></span>
+                                    <span class="sync-layers-item-meta">
+                                        <span class="sync-layers-item-label"><i class="fas fa-bus"></i> Bus Stops</span>
+                                        <span class="sync-layers-item-status">Waiting…</span>
+                                    </span>
+                                </li>
+                                <li class="sync-layers-item is-pending" data-layer="rail">
+                                    <span class="sync-layers-item-icon"><i class="fas fa-spinner fa-spin"></i></span>
+                                    <span class="sync-layers-item-meta">
+                                        <span class="sync-layers-item-label"><i class="fas fa-train"></i> Rail Stations</span>
+                                        <span class="sync-layers-item-status">Waiting…</span>
+                                    </span>
+                                </li>
+                                <li class="sync-layers-item is-pending" data-layer="routes">
+                                    <span class="sync-layers-item-icon"><i class="fas fa-spinner fa-spin"></i></span>
+                                    <span class="sync-layers-item-meta">
+                                        <span class="sync-layers-item-label"><i class="fas fa-route"></i> PT Routes</span>
+                                        <span class="sync-layers-item-status">Waiting…</span>
+                                    </span>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="sync-layers-modal-footer" id="syncLayersFooter">
+                            <button type="button" class="sync-layers-close-btn" id="syncLayersCloseBtn" onclick="closeSyncLayersModal()">Close</button>
+                        </div>
+                    </div>
+                </div>
                 <!-- Report form (shown after pinning) -->
                 <div id="gis-location-warning" style="display:none;background:rgba(220,53,69,0.06);border:1px solid rgba(220,53,69,0.25);border-radius:10px;padding:12px 14px;margin-bottom:0;">
                     <div style="display:flex;align-items:center;gap:8px;">
@@ -6930,9 +7107,9 @@ if ($is_system_admin) {
         return null;
     }
 
-    // Shared 1h cache + loading for Incidents / Bus / Rail toggles
-    const LAYER_CACHE_TTL_MS = 60 * 60 * 1000;
-    const LAYER_CACHE_STORAGE_KEY = 'qc_map_layer_cache_v1';
+    // Server file cache for Incidents / Bus / Rail / PT Routes (no TTL — Sync Layers refreshes)
+    const MAP_LAYERS_CACHE_API = '../api/map_layers/cache.php';
+    const LAYER_CACHE_STORAGE_KEY = 'qc_map_layer_cache_v2';
     const LAYER_RENDER_CHUNK = 35;
     const layerCaches = {
         incidents: { fetchedAt: 0, items: null, loading: false },
@@ -6944,7 +7121,8 @@ if ($is_system_admin) {
         toggleAccidentsBtn: '<i class="fas fa-exclamation-triangle"></i> Incidents',
         toggleBusStopsBtn: '<i class="fas fa-bus"></i> Bus',
         toggleRailStationsBtn: '<i class="fas fa-train"></i> Rail',
-        togglePtRoutesBtn: '<i class="fas fa-route"></i> PT Routes'
+        togglePtRoutesBtn: '<i class="fas fa-route"></i> PT Routes',
+        syncMapLayersBtn: '<i class="fas fa-sync-alt"></i> Sync Layers'
     };
     // Cancel mid-flight chunked paints when the user toggles a layer off
     let accidentRenderGen = 0;
@@ -6953,7 +7131,8 @@ if ($is_system_admin) {
         return Array.isArray(cache.items);
     }
     function isLayerCacheFresh(cache) {
-        return hasLayerCache(cache) && (Date.now() - cache.fetchedAt) < LAYER_CACHE_TTL_MS;
+        // File-backed: memory/session copy is good until Sync Layers
+        return hasLayerCache(cache);
     }
 
     // Yield so Leaflet pin paints / JSON work don't freeze the UI thread
@@ -6994,11 +7173,10 @@ if ($is_system_admin) {
             ['incidents', 'bus', 'rail'].forEach(function(key) {
                 const entry = stored && stored[key];
                 if (!entry || !Array.isArray(entry.items) || !entry.fetchedAt) return;
-                if ((Date.now() - entry.fetchedAt) >= LAYER_CACHE_TTL_MS) return;
                 layerCaches[key].items = entry.items;
                 layerCaches[key].fetchedAt = entry.fetchedAt;
             });
-            // osmRoutes (~3MB) uses IndexedDB — see loadOsmRoutesFromIdb / saveOsmRoutesToIdb
+            // osmRoutes uses IndexedDB — see loadOsmRoutesFromIdb / saveOsmRoutesToIdb
         } catch (e) { /* ignore corrupt/quota errors */ }
     }
     function saveLayerCacheToStorage(key) {
@@ -7006,7 +7184,6 @@ if ($is_system_admin) {
             saveOsmRoutesToIdb();
             return;
         }
-        // Defer stringify — large incident/bus payloads freeze the UI if sync
         setTimeout(function() {
             try {
                 let stored = {};
@@ -7018,13 +7195,27 @@ if ($is_system_admin) {
                 const cache = layerCaches[key];
                 if (!hasLayerCache(cache) || !cache.fetchedAt) return;
                 stored[key] = { fetchedAt: cache.fetchedAt, items: cache.items };
-                ['incidents', 'bus', 'rail'].forEach(function(k) {
-                    if (!stored[k] || !stored[k].fetchedAt) return;
-                    if ((Date.now() - stored[k].fetchedAt) >= LAYER_CACHE_TTL_MS) delete stored[k];
-                });
                 localStorage.setItem(LAYER_CACHE_STORAGE_KEY, JSON.stringify(stored));
             } catch (e) { /* ignore quota errors */ }
         }, 0);
+    }
+
+    function clearClientLayerCaches() {
+        ['incidents', 'bus', 'rail', 'osmRoutes'].forEach(function(key) {
+            layerCaches[key].items = null;
+            layerCaches[key].fetchedAt = 0;
+            layerCaches[key].loading = false;
+        });
+        try { localStorage.removeItem(LAYER_CACHE_STORAGE_KEY); } catch (e) { /* ignore */ }
+        try { localStorage.removeItem('qc_map_layer_cache_v1'); } catch (e) { /* ignore */ }
+        openOsmRoutesIdb().then(function(db) {
+            return new Promise(function(resolve, reject) {
+                const tx = db.transaction(OSM_ROUTES_IDB_STORE, 'readwrite');
+                tx.objectStore(OSM_ROUTES_IDB_STORE).delete('osmRoutes');
+                tx.oncomplete = function() { resolve(true); };
+                tx.onerror = function() { reject(tx.error); };
+            });
+        }).catch(function() { /* ignore */ });
     }
 
     // OSM routes are too large for localStorage; IndexedDB keeps the 1h client cache across refresh
@@ -7063,7 +7254,6 @@ if ($is_system_admin) {
             });
         }).then(function(entry) {
             if (!entry || !Array.isArray(entry.items) || !entry.fetchedAt) return false;
-            if ((Date.now() - entry.fetchedAt) >= LAYER_CACHE_TTL_MS) return false;
             layerCaches.osmRoutes.items = entry.items;
             layerCaches.osmRoutes.fetchedAt = entry.fetchedAt;
             return true;
@@ -7152,12 +7342,16 @@ if ($is_system_admin) {
     }
 
     function fetchAccidentIncidents() {
-        return TomTomServices.trafficIncidents(QC_CENTER[0], QC_CENTER[1], 15).then(function(data) {
-            if (!data.success) {
-                throw new Error(data.error || 'Could not load traffic incidents');
-            }
-            return collectTomTomIncidents(data.data || data);
-        });
+        return fetch(MAP_LAYERS_CACHE_API + '?layer=incidents', { credentials: 'same-origin' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data || !data.success) {
+                    throw new Error((data && data.error) || 'Could not load traffic incidents');
+                }
+                const payload = data.data || {};
+                if (Array.isArray(payload.items)) return payload.items;
+                return collectTomTomIncidents(payload);
+            });
     }
 
     function loadAccidentPins(silent) {
@@ -7275,25 +7469,16 @@ if ($is_system_admin) {
     }
 
     function fetchTransitPois(categorySet) {
-        return Promise.all(TRANSIT_POI_CENTERS.map(function(c) {
-            return TomTomServices.nearbySearch(c[0], c[1], {
-                categorySet: categorySet,
-                radius: 8000,
-                limit: 100
+        const layer = (categorySet === TOMTOM_RAIL_CATEGORY) ? 'rail' : 'bus';
+        return fetch(MAP_LAYERS_CACHE_API + '?layer=' + encodeURIComponent(layer), { credentials: 'same-origin' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data || !data.success) {
+                    throw new Error((data && data.error) || 'Could not load transit stops');
+                }
+                const payload = data.data || {};
+                return Array.isArray(payload.items) ? payload.items : [];
             });
-        })).then(function(responses) {
-            const byId = {};
-            responses.forEach(function(data) {
-                if (!data || !data.success) return;
-                const payload = data.data || data;
-                const results = (payload && payload.results) ? payload.results : [];
-                results.forEach(function(poi) {
-                    const key = poi.id || ((poi.position && poi.position.lat) + ',' + (poi.position && poi.position.lon));
-                    if (key && !byId[key]) byId[key] = poi;
-                });
-            });
-            return Object.keys(byId).map(function(k) { return byId[k]; });
-        });
     }
 
     function renderTransitPins(pois, cssClass, iconName, kindLabel, opts) {
@@ -7549,8 +7734,160 @@ if ($is_system_admin) {
     }
     scheduleLayerPrefetch();
 
+    const SYNC_LAYER_DEFS = [
+        { key: 'incidents', label: 'Incidents' },
+        { key: 'bus', label: 'Bus Stops' },
+        { key: 'rail', label: 'Rail Stations' },
+        { key: 'routes', label: 'PT Routes' }
+    ];
+
+    function openSyncLayersModal() {
+        const overlay = document.getElementById('syncLayersOverlay');
+        const footer = document.getElementById('syncLayersFooter');
+        const titleIcon = document.getElementById('syncLayersTitleIcon');
+        const subtitle = document.getElementById('syncLayersSubtitle');
+        if (!overlay) return;
+        SYNC_LAYER_DEFS.forEach(function(def) {
+            setSyncLayerItemState(def.key, 'pending', 'Fetching…');
+        });
+        if (footer) footer.classList.remove('is-visible');
+        if (titleIcon) titleIcon.className = 'fas fa-sync-alt fa-spin';
+        if (subtitle) {
+            subtitle.textContent = 'Downloading fresh data. Please wait — this window cannot be closed until sync finishes.';
+        }
+        overlay.classList.add('is-open');
+        overlay.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeSyncLayersModal() {
+        const overlay = document.getElementById('syncLayersOverlay');
+        const footer = document.getElementById('syncLayersFooter');
+        if (footer && !footer.classList.contains('is-visible')) return;
+        if (!overlay) return;
+        overlay.classList.remove('is-open');
+        overlay.setAttribute('aria-hidden', 'true');
+    }
+
+    function setSyncLayerItemState(layerKey, state, statusText) {
+        const item = document.querySelector('#syncLayersList .sync-layers-item[data-layer="' + layerKey + '"]');
+        if (!item) return;
+        item.classList.remove('is-pending', 'is-done', 'is-failed');
+        item.classList.add(state === 'done' ? 'is-done' : (state === 'failed' ? 'is-failed' : 'is-pending'));
+        const icon = item.querySelector('.sync-layers-item-icon i');
+        if (icon) {
+            if (state === 'done') icon.className = 'fas fa-check';
+            else if (state === 'failed') icon.className = 'fas fa-times';
+            else icon.className = 'fas fa-spinner fa-spin';
+        }
+        const status = item.querySelector('.sync-layers-item-status');
+        if (status) status.textContent = statusText || '';
+    }
+
+    function finishSyncLayersModal(results) {
+        const footer = document.getElementById('syncLayersFooter');
+        const titleIcon = document.getElementById('syncLayersTitleIcon');
+        const subtitle = document.getElementById('syncLayersSubtitle');
+        const okCount = results.filter(function(r) { return r.ok; }).length;
+        const failCount = results.length - okCount;
+        if (titleIcon) titleIcon.className = failCount ? 'fas fa-exclamation-circle' : 'fas fa-check-circle';
+        if (subtitle) {
+            if (failCount === 0) subtitle.textContent = 'All layers synced successfully. You can close this window.';
+            else if (okCount === 0) subtitle.textContent = 'Sync finished, but every layer failed. You can close this window and try again.';
+            else subtitle.textContent = 'Sync finished with ' + failCount + ' failed layer(s). You can close this window.';
+        }
+        if (footer) footer.classList.add('is-visible');
+    }
+
+    function fetchSyncLayer(layerKey) {
+        return fetch(MAP_LAYERS_CACHE_API + '?layer=' + encodeURIComponent(layerKey) + '&refresh=1', {
+            credentials: 'same-origin'
+        })
+            .then(function(r) { return r.json().then(function(data) { return { okHttp: r.ok, data: data }; }); })
+            .then(function(res) {
+                const data = res.data;
+                if (!res.okHttp || !data || !data.success) {
+                    throw new Error((data && (data.error || data.message)) || 'Request failed');
+                }
+                const payload = data.data || {};
+                let count = null;
+                if (layerKey === 'routes') {
+                    count = Array.isArray(payload.routes) ? payload.routes.length : (payload.count != null ? payload.count : null);
+                } else {
+                    count = Array.isArray(payload.items) ? payload.items.length : (payload.count != null ? payload.count : null);
+                }
+                return { key: layerKey, ok: true, count: count, error: null };
+            })
+            .catch(function(err) {
+                return { key: layerKey, ok: false, count: null, error: (err && err.message) ? err.message : 'Failed' };
+            });
+    }
+
+    function syncMapLayers() {
+        const btn = document.getElementById('syncMapLayersBtn');
+        if (btn && btn.classList.contains('is-loading')) return;
+        setToggleLoading('syncMapLayersBtn', true);
+        openSyncLayersModal();
+        clearClientLayerCaches();
+
+        const jobs = SYNC_LAYER_DEFS.map(function(def) {
+            return fetchSyncLayer(def.key).then(function(result) {
+                if (result.ok) {
+                    const detail = result.count != null ? ('Done · ' + result.count + ' item(s)') : 'Done';
+                    setSyncLayerItemState(result.key, 'done', detail);
+                } else {
+                    setSyncLayerItemState(result.key, 'failed', result.error || 'Failed');
+                }
+                return result;
+            });
+        });
+
+        Promise.all(jobs)
+            .then(function(results) {
+                const reloadJobs = [];
+                results.forEach(function(result) {
+                    if (!result.ok) return;
+                    if (result.key === 'incidents') reloadJobs.push(loadAccidentPins(true));
+                    else if (result.key === 'bus') reloadJobs.push(loadBusStopPins(true));
+                    else if (result.key === 'rail') reloadJobs.push(loadRailStationPins(true));
+                    else if (result.key === 'routes') reloadJobs.push(ensureOsmRoutesLoaded(true));
+                });
+                return Promise.all(reloadJobs).then(function() { return results; });
+            })
+            .then(function(results) {
+                finishSyncLayersModal(results || []);
+                const okCount = (results || []).filter(function(r) { return r.ok; }).length;
+                const failCount = (results || []).length - okCount;
+                if (failCount === 0) showNotification('All map layers synced', 'success');
+                else if (okCount === 0) showNotification('Map layer sync failed', 'error');
+                else showNotification('Synced ' + okCount + ' layer(s), ' + failCount + ' failed', 'error');
+            })
+            .catch(function(err) {
+                SYNC_LAYER_DEFS.forEach(function(def) {
+                    const item = document.querySelector('#syncLayersList .sync-layers-item[data-layer="' + def.key + '"]');
+                    if (item && item.classList.contains('is-pending')) {
+                        setSyncLayerItemState(def.key, 'failed', err.message || 'Failed');
+                    }
+                });
+                finishSyncLayersModal(SYNC_LAYER_DEFS.map(function(def) {
+                    return { key: def.key, ok: false };
+                }));
+                showNotification(err.message || 'Could not sync map layers', 'error');
+            })
+            .finally(function() {
+                setToggleLoading('syncMapLayersBtn', false, function() {
+                    const syncBtn = document.getElementById('syncMapLayersBtn');
+                    if (!syncBtn) return;
+                    syncBtn.style.background = '#3762c8';
+                    syncBtn.style.color = '#fff';
+                    syncBtn.style.borderColor = '#3762c8';
+                });
+            });
+    }
+    window.syncMapLayers = syncMapLayers;
+    window.closeSyncLayersModal = closeSyncLayersModal;
+
     // ===== OSM PT ROUTES (Overpass) — list first, map on select =====
-    const OSM_ROUTES_API = '../api/overpass/routes.php';
+    const OSM_ROUTES_API = MAP_LAYERS_CACHE_API + '?layer=routes';
     const OSM_ROUTE_COLORS = { bus: '#dc2626', jeep: '#dc2626' };
 
     function osmRoutePopupHtml(route) {
