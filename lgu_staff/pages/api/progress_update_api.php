@@ -42,6 +42,68 @@ function rgmap_progress_is_ipms_source(string $source): bool {
     return ($resolved['table'] ?? '') === 'ipms_road_projects';
 }
 
+/** Clamp project completion percentage to 0–100 for progress updates. */
+function rgmap_normalize_completion_percentage($raw): int {
+    if ($raw === '' || $raw === null) {
+        return 0;
+    }
+    return max(0, min(100, (int) round((float) $raw)));
+}
+
+/**
+ * Latest saved completion % for a project/report (most recent progress update).
+ * Returns 0 when no updates exist yet.
+ */
+function rgmap_get_latest_completion_percentage($conn, int $report_id): int {
+    if ($report_id <= 0) {
+        return 0;
+    }
+    try {
+        $stmt = $conn->prepare(
+            "SELECT completion_percentage
+             FROM report_updates
+             WHERE report_id = ?
+             ORDER BY created_at DESC, id DESC
+             LIMIT 1"
+        );
+        $stmt->bind_param('i', $report_id);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        if (!$row) {
+            return 0;
+        }
+        return rgmap_normalize_completion_percentage($row['completion_percentage'] ?? 0);
+    } catch (Exception $e) {
+        error_log('rgmap_get_latest_completion_percentage: ' . $e->getMessage());
+        return 0;
+    }
+}
+
+/**
+ * ID of the most recent progress update for a report, or 0 if none.
+ */
+function rgmap_get_latest_update_id($conn, int $report_id): int {
+    if ($report_id <= 0) {
+        return 0;
+    }
+    try {
+        $stmt = $conn->prepare(
+            "SELECT id
+             FROM report_updates
+             WHERE report_id = ?
+             ORDER BY created_at DESC, id DESC
+             LIMIT 1"
+        );
+        $stmt->bind_param('i', $report_id);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        return $row ? (int) $row['id'] : 0;
+    } catch (Exception $e) {
+        error_log('rgmap_get_latest_update_id: ' . $e->getMessage());
+        return 0;
+    }
+}
+
 /**
  * Confirm the report exists. When $source is set, only that table is checked.
  * When empty, probe transport → IPMS → CIMM (no road_maintenance_reports).
@@ -178,7 +240,7 @@ function rgmap_can_request_review($conn, $report_id, $source, $user_id, $current
 
 if ($method === 'GET') {
     $action = $_GET['action'] ?? '';
-    if ($action === 'get_updates' || $action === 'get_update' || $action === 'can_post_update' || $action === 'can_request_review' || $action === 'can_complete_report') {
+    if ($action === 'get_updates' || $action === 'get_update' || $action === 'get_latest_completion' || $action === 'can_post_update' || $action === 'can_request_review' || $action === 'can_complete_report') {
         if ($action === 'can_post_update') {
             $report_id = intval($_GET['report_id'] ?? 0);
             $source = sanitize_input($_GET['source'] ?? '');
@@ -295,7 +357,33 @@ if ($method === 'GET') {
                 $row['media'] = $media;
                 $updates[] = $row;
             }
-            json_response(['success' => true, 'updates' => $updates]);
+            $latest_update_id = rgmap_get_latest_update_id($conn, $report_id);
+            $latest_pct = rgmap_get_latest_completion_percentage($conn, $report_id);
+            foreach ($updates as &$u_row) {
+                $u_row['is_latest_completion'] = ((int) ($u_row['id'] ?? 0) === $latest_update_id);
+            }
+            unset($u_row);
+            json_response([
+                'success' => true,
+                'updates' => $updates,
+                'latest_completion_percentage' => $latest_pct,
+                'latest_update_id' => $latest_update_id,
+            ]);
+        } elseif ($action === 'get_latest_completion') {
+            $report_id = intval($_GET['report_id'] ?? 0);
+            $source = sanitize_input($_GET['source'] ?? '');
+            if ($report_id <= 0) {
+                json_response(['success' => false, 'message' => 'Invalid report ID']);
+            }
+            $report = rgmap_progress_find_report($conn, $report_id, $source);
+            if (!$report) {
+                json_response(['success' => false, 'message' => 'Report not found']);
+            }
+            json_response([
+                'success' => true,
+                'latest_completion_percentage' => rgmap_get_latest_completion_percentage($conn, $report_id),
+                'latest_update_id' => rgmap_get_latest_update_id($conn, $report_id),
+            ]);
         } elseif ($action === 'get_update') {
             if (!is_logged_in()) json_response(['success' => false, 'message' => 'Unauthorized'], 401);
             $id = intval($_GET['id'] ?? 0);
@@ -314,6 +402,9 @@ if ($method === 'GET') {
             $m_res = $m_stmt->get_result();
             while ($m = $m_res->fetch_assoc()) $media[] = $m;
             $update['media'] = $media;
+            $latest_update_id = rgmap_get_latest_update_id($conn, (int) $update['report_id']);
+            $update['is_latest_completion'] = ((int) $update['id'] === $latest_update_id);
+            $update['latest_update_id'] = $latest_update_id;
             json_response(['success' => true, 'update' => $update]);
         }
     } else {
@@ -328,6 +419,7 @@ if ($method === 'GET') {
         $source = sanitize_input($_POST['source'] ?? '');
         $title = sanitize_input($_POST['title'] ?? '');
         $description = sanitize_input($_POST['description'] ?? '');
+        $completion_percentage = rgmap_normalize_completion_percentage($_POST['completion_percentage'] ?? 0);
 
         if ($report_id <= 0) json_response(['success' => false, 'message' => 'Invalid report ID']);
         if (empty($description)) json_response(['success' => false, 'message' => 'Description is required']);
@@ -363,8 +455,8 @@ if ($method === 'GET') {
 
         try {
             // Insert update
-            $stmt = $conn->prepare("INSERT INTO report_updates (report_id, user_id, title, description) VALUES (?, ?, ?, ?)");
-            $stmt->bind_param("iiss", $report_id, $user_id, $title, $description);
+            $stmt = $conn->prepare("INSERT INTO report_updates (report_id, user_id, title, description, completion_percentage) VALUES (?, ?, ?, ?, ?)");
+            $stmt->bind_param("iissi", $report_id, $user_id, $title, $description, $completion_percentage);
             $stmt->execute();
             $update_id = $conn->insert_id;
 
@@ -393,7 +485,13 @@ if ($method === 'GET') {
             // Audit log
             log_audit_action($user_id, "Created progress update", "Report ID: {$report['report_id']}, Update ID: {$update_id}");
 
-            json_response(['success' => true, 'message' => 'Progress update posted successfully', 'update_id' => $update_id, 'photos' => $uploaded]);
+            json_response([
+                'success' => true,
+                'message' => 'Progress update posted successfully',
+                'update_id' => $update_id,
+                'photos' => $uploaded,
+                'completion_percentage' => $completion_percentage,
+            ]);
         } catch (Exception $e) {
             error_log("Create progress update error: " . $e->getMessage());
             json_response(['success' => false, 'message' => 'Failed to save update: ' . $e->getMessage()], 500);
@@ -406,19 +504,39 @@ if ($method === 'GET') {
         if ($update_id <= 0) json_response(['success' => false, 'message' => 'Invalid update ID']);
         if (empty($description)) json_response(['success' => false, 'message' => 'Description is required']);
 
-        // Verify ownership/permission — check report tables
-        $update = fetch_one("SELECT u.*, r.report_id FROM report_updates u JOIN road_transportation_reports r ON u.report_id = r.id WHERE u.id = ?", [$update_id], "i");
+        // Load the update row first so report_id stays the numeric FK used by report_updates.
+        $update_row = fetch_one("SELECT * FROM report_updates WHERE id = ?", [$update_id], "i");
+        if (!$update_row) json_response(['success' => false, 'message' => 'Update not found']);
+
+        $report_id_for_update = (int) ($update_row['report_id'] ?? 0);
+
+        // Verify the report still exists in a known source table.
+        $update = fetch_one("SELECT u.id, r.report_id AS report_code FROM report_updates u JOIN road_transportation_reports r ON u.report_id = r.id WHERE u.id = ?", [$update_id], "i");
         if (!$update) {
-            $update = fetch_one("SELECT u.*, r.report_id FROM report_updates u JOIN road_maintenance_reports r ON u.report_id = r.id WHERE u.id = ?", [$update_id], "i");
+            $update = fetch_one("SELECT u.id, r.report_id AS report_code FROM report_updates u JOIN road_maintenance_reports r ON u.report_id = r.id WHERE u.id = ?", [$update_id], "i");
         }
         if (!$update) {
-            $update = fetch_one("SELECT u.*, cr.reference_code AS report_id FROM report_updates u JOIN cimm_verification_reports cr ON u.report_id = cr.id WHERE u.id = ?", [$update_id], "i");
+            $update = fetch_one("SELECT u.id, cr.reference_code AS report_code FROM report_updates u JOIN cimm_verification_reports cr ON u.report_id = cr.id WHERE u.id = ?", [$update_id], "i");
+        }
+        if (!$update) {
+            // IPMS projects also post progress updates against project_id as report_id.
+            $update = fetch_one("SELECT u.id, CAST(p.project_id AS CHAR) AS report_code FROM report_updates u JOIN ipms_road_projects p ON u.report_id = p.project_id WHERE u.id = ?", [$update_id], "i");
         }
         if (!$update) json_response(['success' => false, 'message' => 'Update not found']);
 
         try {
-            $stmt = $conn->prepare("UPDATE report_updates SET title = ?, description = ?, updated_at = NOW() WHERE id = ?");
-            $stmt->bind_param("ssi", $title, $description, $update_id);
+            $latest_update_id = rgmap_get_latest_update_id($conn, $report_id_for_update);
+            $is_latest = ($update_id === $latest_update_id);
+            // Only the latest progress update may change project completion %.
+            // Older updates keep their originally saved percentage.
+            if ($is_latest) {
+                $completion_percentage = rgmap_normalize_completion_percentage($_POST['completion_percentage'] ?? 0);
+            } else {
+                $completion_percentage = rgmap_normalize_completion_percentage($update_row['completion_percentage'] ?? 0);
+            }
+
+            $stmt = $conn->prepare("UPDATE report_updates SET title = ?, description = ?, completion_percentage = ?, updated_at = NOW() WHERE id = ?");
+            $stmt->bind_param("ssii", $title, $description, $completion_percentage, $update_id);
             $stmt->execute();
 
             // Handle new media uploads
@@ -439,7 +557,11 @@ if ($method === 'GET') {
             }
 
             log_audit_action($user_id, "Edited progress update", "Update ID: {$update_id}");
-            json_response(['success' => true, 'message' => 'Update edited successfully']);
+            json_response([
+                'success' => true,
+                'message' => 'Update edited successfully',
+                'completion_percentage' => $completion_percentage,
+            ]);
         } catch (Exception $e) {
             error_log("Edit progress update error: " . $e->getMessage());
             json_response(['success' => false, 'message' => 'Failed to edit update: ' . $e->getMessage()], 500);

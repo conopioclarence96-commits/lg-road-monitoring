@@ -366,6 +366,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                         NULL AS reporter_name,
                         NULL AS attachments,
                         NULL AS image_path,
+                        NULL AS cimm_status,
                         NULL AS cimm_sync_status,
                         NULL AS cimm_verified_at,
                         NULL AS cimm_verified_by,
@@ -389,6 +390,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                             resolved_at AS completed_at,
                             issue AS description, coord_lat AS latitude, coord_lng AS longitude,
                             location, reporter_name, NULL AS attachments, NULL AS image_path,
+                            verification_status AS cimm_status,
                             'verified' AS cimm_sync_status, verified_at AS cimm_verified_at,
                             NULL AS cimm_verified_by, approval_status,
                             engineer, budget_allocation,
@@ -1215,7 +1217,7 @@ if ($is_system_admin) {
     <link rel="stylesheet" href="../../css/sidebar.css?v=3">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="../../css/progress-updates.css">
+    <link rel="stylesheet" href="../../css/progress-updates.css?v=<?php echo @filemtime(__DIR__ . '/../../css/progress-updates.css') ?: time(); ?>">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="../../js/progress-updates.js?v=<?php echo filemtime(__DIR__ . '/../../js/progress-updates.js'); ?>"></script>
@@ -2783,6 +2785,29 @@ if ($is_system_admin) {
 
         /* Add/Edit Update Modal form styles */
         #addUpdateModal .form-group { margin-bottom: 16px; }
+        #addUpdateModal .completion-slider-track {
+            background: linear-gradient(#d1d5db, #d1d5db) center / 100% 4px no-repeat !important;
+        }
+        #addUpdateModal .completion-slider-fill {
+            height: 4px !important;
+            background: #3762c8 !important;
+        }
+        #addUpdateModal .completion-slider-handle {
+            width: 18px !important;
+            height: 18px !important;
+            border-radius: 50% !important;
+            background: #3762c8 !important;
+            border: 2px solid #fff !important;
+            display: block !important;
+            padding: 0 !important;
+        }
+        body.dark-mode #addUpdateModal .completion-slider-track {
+            background: linear-gradient(rgba(255,255,255,0.22), rgba(255,255,255,0.22)) center / 100% 4px no-repeat !important;
+        }
+        body.dark-mode #addUpdateModal .completion-slider-fill,
+        body.dark-mode #addUpdateModal .completion-slider-handle {
+            background: #60a5fa !important;
+        }
         #addUpdateModal .form-label {
             display: block;
             font-size: 13px;
@@ -4200,6 +4225,7 @@ if ($is_system_admin) {
                             'created_by_name' => $rr['creator_full_name'] ?? '',
                             'attachments' => $rr['attachments'],
                             'image_path' => $rr['image_path'],
+                            'cimm_status' => $rr['cimm_status'] ?? '',
                             'cimm_sync_status' => $rr['cimm_sync_status'] ?? '',
                             'cimm_verified_at' => $rr['cimm_verified_at'] ?? '',
                             'cimm_verified_by' => $rr['cimm_verified_by'] ?? '',
@@ -5624,6 +5650,15 @@ if ($is_system_admin) {
         function openModal(modalId) {
             document.getElementById(modalId).style.display = 'block';
             document.body.style.overflow = 'hidden';
+            if (modalId === 'addUpdateModal') {
+                requestAnimationFrame(function() {
+                    var hidden = document.getElementById('addUpdateCompletionPercentage');
+                    var pct = parseInt(hidden && hidden.value, 10) || 0;
+                    if (typeof setUpdateCompletionPercentage === 'function') {
+                        setUpdateCompletionPercentage(pct);
+                    }
+                });
+            }
         }
 
         function closeModal(modalId) {
@@ -5937,6 +5972,15 @@ if ($is_system_admin) {
             currentUpdatesReportSource = source;
             currentUpdatesReportStatus = status || '';
             currentUpdatesReportDetails = null;
+            if (typeof currentProjectCompletionPercentage !== 'undefined') {
+                currentProjectCompletionPercentage = 0;
+            }
+            if (typeof currentLatestUpdateId !== 'undefined') {
+                currentLatestUpdateId = 0;
+            }
+            if (typeof setMainProjectCompletionDisplay === 'function') {
+                setMainProjectCompletionDisplay(0);
+            }
             try {
                 var row = document.querySelector('#recentReportsTable .report-table-row[data-id="' + id + '"][data-source="' + (source || '') + '"]')
                     || document.querySelector('#recentReportsTable .report-table-row[data-id="' + id + '"]');
@@ -6049,12 +6093,240 @@ if ($is_system_admin) {
                 .catch(function() {});
         }
 
+        var updateCompletionSliderBound = false;
+        var completionSliderLocked = false;
+
+        function setCompletionSliderEditable(editable) {
+            completionSliderLocked = !editable;
+            var slider = document.getElementById('addUpdateCompletionSlider');
+            var trackEl = document.getElementById('addUpdateCompletionTrack');
+            var handleEl = document.getElementById('addUpdateCompletionHandle');
+            var noteEl = document.getElementById('addUpdateCompletionLockedNote');
+            var groupEl = document.getElementById('addUpdateCompletionGroup');
+            if (slider) {
+                slider.classList.toggle('is-locked', !editable);
+                slider.classList.remove('is-dragging');
+            }
+            if (trackEl) {
+                trackEl.setAttribute('aria-disabled', editable ? 'false' : 'true');
+                if (editable) {
+                    trackEl.setAttribute('tabindex', '0');
+                } else {
+                    trackEl.setAttribute('tabindex', '-1');
+                }
+            }
+            if (handleEl) {
+                handleEl.style.pointerEvents = editable ? '' : 'none';
+            }
+            if (noteEl) {
+                noteEl.style.display = editable ? 'none' : '';
+            }
+            if (groupEl) {
+                groupEl.classList.toggle('completion-locked', !editable);
+            }
+        }
+
+        function setUpdateCompletionPercentage(pct) {
+            pct = Math.max(0, Math.min(100, Math.round(Number(pct) || 0)));
+            var slider = document.getElementById('addUpdateCompletionSlider');
+            var hidden = document.getElementById('addUpdateCompletionPercentage');
+            var valueEl = document.getElementById('addUpdateCompletionValue');
+            var fillEl = document.getElementById('addUpdateCompletionFill');
+            var handleEl = document.getElementById('addUpdateCompletionHandle');
+            var trackEl = document.getElementById('addUpdateCompletionTrack');
+            var railEl = slider ? slider.querySelector('.completion-slider-rail') : null;
+            var hintEl = document.getElementById('addUpdateCompletionFullHint');
+            if (!hidden || !valueEl || !fillEl || !handleEl || !trackEl) return;
+            hidden.value = String(pct);
+            handleEl.style.left = pct + '%';
+            fillEl.style.width = pct + '%';
+            valueEl.textContent = pct + '%';
+            trackEl.setAttribute('aria-valuenow', String(pct));
+            if (hintEl) {
+                hintEl.style.display = pct >= 100 ? '' : 'none';
+            }
+            positionUpdateCompletionLabel(railEl, trackEl, valueEl, pct);
+            updateProjectCompletionDisplays(pct);
+        }
+
+        /** Keep the prominent "Project Completion: X%" banners in sync with the slider. */
+        function updateProjectCompletionDisplays(pct) {
+            pct = Math.max(0, Math.min(100, Math.round(Number(pct) || 0)));
+            var text = pct + '%';
+            var addEl = document.getElementById('addUpdateProjectCompletionValue');
+            var mainEl = document.getElementById('updatesProjectCompletionValue');
+            if (addEl) addEl.textContent = text;
+            if (mainEl) {
+                if (completionSliderLocked) {
+                    // Editing an older update: do not overwrite the project's latest %.
+                    var latest = parseCompletionPercentage(
+                        typeof currentProjectCompletionPercentage !== 'undefined' ? currentProjectCompletionPercentage : 0
+                    );
+                    mainEl.textContent = latest + '%';
+                } else {
+                    mainEl.textContent = text;
+                }
+            }
+        }
+
+        /** Set the main Progress Updates banner from the latest DB-saved value. */
+        function setMainProjectCompletionDisplay(pct) {
+            pct = parseCompletionPercentage(pct);
+            if (typeof currentProjectCompletionPercentage !== 'undefined') {
+                currentProjectCompletionPercentage = pct;
+            }
+            var mainEl = document.getElementById('updatesProjectCompletionValue');
+            if (mainEl) mainEl.textContent = pct + '%';
+        }
+
+        function positionUpdateCompletionLabel(railEl, trackEl, valueEl, pct) {
+            if (!railEl || !trackEl || !valueEl) return;
+            var railWidth = railEl.clientWidth;
+            var trackWidth = trackEl.clientWidth;
+            if (!railWidth || !trackWidth) return;
+            var trackLeft = trackEl.offsetLeft;
+            var labelWidth = valueEl.offsetWidth || 32;
+            var half = labelWidth / 2;
+            var center = trackLeft + ((pct / 100) * trackWidth);
+            var clamped = Math.max(half, Math.min(railWidth - half, center));
+            valueEl.style.left = clamped + 'px';
+            valueEl.style.transform = 'translateX(-50%)';
+        }
+
+        function completionPctFromPointer(trackEl, clientX) {
+            var rect = trackEl.getBoundingClientRect();
+            if (!rect.width) return 0;
+            var ratio = (clientX - rect.left) / rect.width;
+            return Math.max(0, Math.min(100, Math.round(ratio * 100)));
+        }
+
+        function bindUpdateCompletionSlider() {
+            if (updateCompletionSliderBound) return;
+            var slider = document.getElementById('addUpdateCompletionSlider');
+            var trackEl = document.getElementById('addUpdateCompletionTrack');
+            var handleEl = document.getElementById('addUpdateCompletionHandle');
+            var valueEl = document.getElementById('addUpdateCompletionValue');
+            if (!slider || !trackEl || !handleEl || !valueEl) return;
+            updateCompletionSliderBound = true;
+
+            var dragging = false;
+
+            function onPointerMove(clientX) {
+                if (completionSliderLocked) return;
+                setUpdateCompletionPercentage(completionPctFromPointer(trackEl, clientX));
+            }
+
+            function endDrag() {
+                if (!dragging) return;
+                dragging = false;
+                slider.classList.remove('is-dragging');
+                valueEl.classList.remove('is-dragging');
+            }
+
+            handleEl.addEventListener('pointerdown', function(e) {
+                if (completionSliderLocked) return;
+                e.preventDefault();
+                dragging = true;
+                slider.classList.add('is-dragging');
+                valueEl.classList.add('is-dragging');
+                if (handleEl.setPointerCapture && e.pointerId != null) {
+                    try { handleEl.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+                }
+                onPointerMove(e.clientX);
+            });
+
+            handleEl.addEventListener('pointermove', function(e) {
+                if (!dragging || completionSliderLocked) return;
+                e.preventDefault();
+                onPointerMove(e.clientX);
+            });
+
+            handleEl.addEventListener('pointerup', endDrag);
+            handleEl.addEventListener('pointercancel', endDrag);
+
+            trackEl.addEventListener('pointerdown', function(e) {
+                if (completionSliderLocked) return;
+                if (e.target === handleEl) return;
+                onPointerMove(e.clientX);
+            });
+
+            trackEl.addEventListener('keydown', function(e) {
+                if (completionSliderLocked) return;
+                var hidden = document.getElementById('addUpdateCompletionPercentage');
+                var current = parseInt(hidden && hidden.value, 10) || 0;
+                var step = e.shiftKey ? 10 : 1;
+                if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setUpdateCompletionPercentage(current + step);
+                } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setUpdateCompletionPercentage(current - step);
+                } else if (e.key === 'Home') {
+                    e.preventDefault();
+                    setUpdateCompletionPercentage(0);
+                } else if (e.key === 'End') {
+                    e.preventDefault();
+                    setUpdateCompletionPercentage(100);
+                }
+            });
+
+            window.addEventListener('resize', function() {
+                var hidden = document.getElementById('addUpdateCompletionPercentage');
+                var pct = parseInt(hidden && hidden.value, 10) || 0;
+                setUpdateCompletionPercentage(pct);
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', bindUpdateCompletionSlider);
+
+        function parseCompletionPercentage(raw) {
+            var pct = parseInt(raw, 10);
+            if (isNaN(pct)) return 0;
+            return Math.max(0, Math.min(100, pct));
+        }
+
+        /**
+         * Load the latest saved completion % for this project from the database.
+         * Used so "Add Update" starts at the previous update's percentage (not 0).
+         */
+        function fetchLatestProjectCompletion(reportId, source, done) {
+            if (!reportId) {
+                if (typeof done === 'function') done(0);
+                return;
+            }
+            var url = '../api/progress_update_api.php?action=get_latest_completion'
+                + '&report_id=' + encodeURIComponent(reportId)
+                + '&source=' + encodeURIComponent(source || '');
+            fetch(url)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    var pct = (data && data.success)
+                        ? parseCompletionPercentage(data.latest_completion_percentage)
+                        : 0;
+                    if (data && data.success && data.latest_update_id != null) {
+                        currentLatestUpdateId = parseInt(data.latest_update_id, 10) || 0;
+                    }
+                    setMainProjectCompletionDisplay(pct);
+                    if (typeof done === 'function') done(pct);
+                })
+                .catch(function() {
+                    var fallback = parseCompletionPercentage(
+                        typeof currentProjectCompletionPercentage !== 'undefined' ? currentProjectCompletionPercentage : 0
+                    );
+                    setMainProjectCompletionDisplay(fallback);
+                    if (typeof done === 'function') done(fallback);
+                });
+        }
+
         function showAddUpdateModal() {
+            bindUpdateCompletionSlider();
+            var reportId = currentUpdatesReportId;
+            var source = currentUpdatesReportSource || '';
             document.getElementById('addUpdateAction').value = 'create_update';
             document.getElementById('addUpdateId').value = '';
-            document.getElementById('addUpdateReportId').value = currentUpdatesReportId;
+            document.getElementById('addUpdateReportId').value = reportId;
             document.getElementById('addUpdateReportType').value = currentUpdatesReportType;
-            document.getElementById('addUpdateSource').value = currentUpdatesReportSource || '';
+            document.getElementById('addUpdateSource').value = source;
             document.getElementById('addUpdateTitle').value = '';
             document.getElementById('addUpdateDescription').value = '';
             document.getElementById('updateFilePreviews').innerHTML = '';
@@ -6064,13 +6336,32 @@ if ($is_system_admin) {
             document.getElementById('addUpdateSubmitBtn').innerHTML = '<i class="fas fa-save"></i> Post Update';
             updateSelectedFiles = [];
             updatePreviewCounter = 0;
+
+            // New update: slider is editable and starts at latest saved %.
+            setCompletionSliderEditable(true);
+
+            // Start from last known DB value (updated again after fetch).
+            var initialPct = parseCompletionPercentage(
+                typeof currentProjectCompletionPercentage !== 'undefined' ? currentProjectCompletionPercentage : 0
+            );
+            setUpdateCompletionPercentage(initialPct);
             closeModal('updatesModal');
             openModal('addUpdateModal');
+
+            fetchLatestProjectCompletion(reportId, source, function(pct) {
+                if ((document.getElementById('addUpdateAction') || {}).value !== 'create_update') return;
+                if (String(document.getElementById('addUpdateReportId').value) !== String(reportId)) return;
+                setUpdateCompletionPercentage(pct);
+            });
         }
 
         function cancelUpdateForm() {
             closeModal('addUpdateModal');
             openModal('updatesModal');
+            // Restore banner to last saved project % (ignore unsaved slider drag).
+            setMainProjectCompletionDisplay(
+                typeof currentProjectCompletionPercentage !== 'undefined' ? currentProjectCompletionPercentage : 0
+            );
             if (typeof loadUpdates === 'function') {
                 loadUpdates(currentUpdatesReportId, currentUpdatesReportType);
             }
@@ -6078,6 +6369,7 @@ if ($is_system_admin) {
 
         // Override showUpdateForm from progress-updates.js to use modal
         function showUpdateForm(reportId, reportType, updateData) {
+            bindUpdateCompletionSlider();
             const isEdit = updateData && updateData.id;
             document.getElementById('addUpdateAction').value = isEdit ? 'edit_update' : 'create_update';
             document.getElementById('addUpdateId').value = isEdit ? updateData.id : '';
@@ -6091,6 +6383,25 @@ if ($is_system_admin) {
             document.getElementById('addUpdateSubmitBtn').innerHTML = isEdit ? '<i class="fas fa-save"></i> Save Changes' : '<i class="fas fa-save"></i> Post Update';
             updateSelectedFiles = [];
             updatePreviewCounter = 0;
+
+            if (isEdit) {
+                var savedPct = parseCompletionPercentage(updateData.completion_percentage);
+                var isLatest = !!(updateData.is_latest_completion
+                    || (currentLatestUpdateId && String(updateData.id) === String(currentLatestUpdateId)));
+                setCompletionSliderEditable(isLatest);
+                setUpdateCompletionPercentage(savedPct);
+            } else {
+                setCompletionSliderEditable(true);
+                var createPct = parseCompletionPercentage(
+                    typeof currentProjectCompletionPercentage !== 'undefined' ? currentProjectCompletionPercentage : 0
+                );
+                setUpdateCompletionPercentage(createPct);
+                fetchLatestProjectCompletion(reportId, currentUpdatesReportSource || '', function(pct) {
+                    if ((document.getElementById('addUpdateAction') || {}).value !== 'create_update') return;
+                    if (String(document.getElementById('addUpdateReportId').value) !== String(reportId)) return;
+                    setUpdateCompletionPercentage(pct);
+                });
+            }
 
             var removedMediaIds = [];
 
@@ -6170,13 +6481,28 @@ if ($is_system_admin) {
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.success) {
+                    var savedPct = parseCompletionPercentage(
+                        data.completion_percentage != null
+                            ? data.completion_percentage
+                            : (document.getElementById('addUpdateCompletionPercentage') || {}).value
+                    );
+                    var wasCreate = (document.getElementById('addUpdateAction') || {}).value === 'create_update';
+                    if (wasCreate) {
+                        setMainProjectCompletionDisplay(savedPct);
+                        if (data.update_id) {
+                            currentLatestUpdateId = parseInt(data.update_id, 10) || currentLatestUpdateId;
+                        }
+                    }
+                    // Keep add-modal banner + slider on the saved value until reload refreshes from DB.
+                    setCompletionSliderEditable(true);
+                    setUpdateCompletionPercentage(savedPct);
                     showNotification(data.message, 'success');
                     closeModal('addUpdateModal');
                     openModal('updatesModal');
                     if (typeof loadUpdates === 'function') {
                         loadUpdates(currentUpdatesReportId, currentUpdatesReportType);
                     }
-                    if ((document.getElementById('addUpdateAction') || {}).value === 'create_update') {
+                    if (wasCreate) {
                         clearNoUpdateFlagOnRow(currentUpdatesReportId);
                     }
                 } else {
@@ -6467,7 +6793,12 @@ if ($is_system_admin) {
             var timelineEntries = document.querySelectorAll('.timeline-entry');
             showNotification('Preparing document...', 'info');
             ensureExportReportDetails().then(function() {
-                processImagesAndExport(timelineEntries);
+                if (typeof fetchExportCompletionPercentages === 'function') {
+                    return fetchExportCompletionPercentages();
+                }
+                return {};
+            }).then(function(pctByUpdateId) {
+                processImagesAndExport(timelineEntries, pctByUpdateId || {});
             });
         }
 
@@ -6586,7 +6917,7 @@ if ($is_system_admin) {
                 var lat = pretty(d.latitude || d.coord_lat);
                 var lng = pretty(d.longitude || d.coord_lng);
                 var coords = (lat && lng && lat !== '0' && lng !== '0') ? (lat + ', ' + lng) : '';
-                var cimmVerify = labelize(d.approval_status || d.cimm_sync_status || d.verification_status);
+                var cimmVerify = pretty(d.cimm_status);
                 var description = pretty(d.description || d.issue);
                 var cat = String(d.report_category || '').toLowerCase();
                 var type = String(d.report_type || currentUpdatesReportType || '').toLowerCase();
@@ -6675,6 +7006,7 @@ if ($is_system_admin) {
                     <div class="update-entry">
                         <div class="update-header">${esc(update.date)} - ${esc(update.title || 'Update')}</div>
                         <div class="update-author">By: ${esc(update.author)}</div>
+                        ${update.completionPercentage ? `<div class="update-author"><strong>Completion Percentage:</strong> ${esc(update.completionPercentage)}</div>` : ''}
                         <div class="update-description">${esc(update.description || 'No description').replace(/\r\n|\r|\n/g, '<br>')}</div>
                         <div class="update-images">
                     `;
@@ -8779,6 +9111,10 @@ if ($is_system_admin) {
                 <button class="close" onclick="closeModal('updatesModal')">&times;</button>
             </div>
             <div class="modal-body">
+                <div class="project-completion-banner" id="updatesProjectCompletionBanner" aria-live="polite">
+                    <span class="project-completion-banner-label">Project Completion:</span>
+                    <span class="project-completion-banner-value" id="updatesProjectCompletionValue">0%</span>
+                </div>
                 <div class="timeline-container" id="updatesTimeline">
                     <div class="timeline-empty"><i class="fas fa-spinner fa-spin fa-2x t-text-link"></i></div>
                 </div>
@@ -8847,6 +9183,10 @@ if ($is_system_admin) {
                     <input type="hidden" name="report_id" id="addUpdateReportId" value="">
                     <input type="hidden" name="report_type" id="addUpdateReportType" value="">
                     <input type="hidden" name="source" id="addUpdateSource" value="">
+                    <div class="project-completion-banner" id="addUpdateProjectCompletionBanner" aria-live="polite">
+                        <span class="project-completion-banner-label">Project Completion:</span>
+                        <span class="project-completion-banner-value" id="addUpdateProjectCompletionValue">0%</span>
+                    </div>
                     <div class="form-group">
                         <label class="form-label" for="addUpdateTitle">Title *</label>
                         <input type="text" name="title" id="addUpdateTitle" class="form-control" placeholder="e.g., Inspection completed" required>
@@ -8854,6 +9194,27 @@ if ($is_system_admin) {
                     <div class="form-group">
                         <label class="form-label" for="addUpdateDescription">Description *</label>
                         <textarea name="description" id="addUpdateDescription" class="form-control" rows="4" placeholder="Describe the progress made..." required></textarea>
+                    </div>
+                    <div class="form-group" id="addUpdateCompletionGroup">
+                        <label class="form-label" for="addUpdateCompletionTrack">Project completion</label>
+                        <div class="completion-slider" id="addUpdateCompletionSlider">
+                            <div class="completion-slider-rail">
+                                <div class="completion-slider-value" id="addUpdateCompletionValue" aria-hidden="true">0%</div>
+                                <div class="completion-slider-track" id="addUpdateCompletionTrack" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0" aria-label="Project completion percentage">
+                                    <div class="completion-slider-fill" id="addUpdateCompletionFill"></div>
+                                    <span class="completion-slider-handle" id="addUpdateCompletionHandle" role="presentation" aria-hidden="true"></span>
+                                </div>
+                            </div>
+                            <div class="completion-slider-hints">
+                                <span>0%</span>
+                                <span id="addUpdateCompletionFullHint" class="completion-slider-full-hint" style="display:none;">Project fully completed</span>
+                                <span>100%</span>
+                            </div>
+                        </div>
+                        <p id="addUpdateCompletionLockedNote" class="completion-slider-locked-note" style="display:none;">
+                            Only the latest progress update can change project completion. This older update’s percentage is read-only.
+                        </p>
+                        <input type="hidden" name="completion_percentage" id="addUpdateCompletionPercentage" value="0">
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="addUpdateMedia">Photos / Video</label>

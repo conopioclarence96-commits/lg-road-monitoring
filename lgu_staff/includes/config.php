@@ -108,6 +108,12 @@ try {
     } catch (Exception $e) {
         // FK may already be dropped or not exist
     }
+
+    try {
+        $conn->query("ALTER TABLE report_updates ADD COLUMN IF NOT EXISTS completion_percentage TINYINT UNSIGNED NULL DEFAULT NULL AFTER description");
+    } catch (Exception $e) {
+        error_log("report_updates completion_percentage column: " . $e->getMessage());
+    }
     
     try {
         $conn->query("CREATE TABLE IF NOT EXISTS report_update_media (

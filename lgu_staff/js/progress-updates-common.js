@@ -4,8 +4,52 @@ function exportUpdatesToExcel() {
     const timelineEntries = document.querySelectorAll('.timeline-entry');
     showNotification('Preparing document...', 'info');
     ensureExportReportDetails().then(function() {
-        processImagesAndExport(timelineEntries);
+        return fetchExportCompletionPercentages();
+    }).then(function(pctByUpdateId) {
+        processImagesAndExport(timelineEntries, pctByUpdateId || {});
     });
+}
+
+/**
+ * Load each update's saved completion_percentage from the database (not the slider UI).
+ * Returns a map of updateId -> integer 0–100 (or null when unset).
+ */
+function fetchExportCompletionPercentages() {
+    var id = (typeof currentUpdatesReportId !== 'undefined') ? currentUpdatesReportId : null;
+    if (!id) return Promise.resolve({});
+    var type = (typeof currentUpdatesReportType !== 'undefined') ? (currentUpdatesReportType || '') : '';
+    var source = (typeof currentUpdatesReportSource !== 'undefined') ? (currentUpdatesReportSource || '') : '';
+    var url = '../api/progress_update_api.php?action=get_updates'
+        + '&report_id=' + encodeURIComponent(id)
+        + '&report_type=' + encodeURIComponent(type)
+        + '&source=' + encodeURIComponent(source);
+    return fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var map = {};
+            if (data && data.success && Array.isArray(data.updates)) {
+                data.updates.forEach(function(u) {
+                    if (!u || u.id == null) return;
+                    if (u.completion_percentage === null || u.completion_percentage === undefined || u.completion_percentage === '') {
+                        map[String(u.id)] = null;
+                    } else {
+                        var pct = parseInt(u.completion_percentage, 10);
+                        map[String(u.id)] = isNaN(pct) ? null : Math.max(0, Math.min(100, pct));
+                    }
+                });
+            }
+            return map;
+        })
+        .catch(function() {
+            return {};
+        });
+}
+
+function formatExportCompletionPercentage(raw) {
+    if (raw === null || raw === undefined || raw === '') return '';
+    var pct = parseInt(raw, 10);
+    if (isNaN(pct)) return '';
+    return Math.max(0, Math.min(100, pct)) + '%';
 }
 
 function ensureExportReportDetails() {
@@ -62,17 +106,26 @@ function ensureExportReportDetails() {
         });
 }
 
-function processImagesAndExport(timelineEntries) {
+function processImagesAndExport(timelineEntries, pctByUpdateId) {
     const updates = [];
     let firstDate = null;
     let lastDate = null;
     let imageLoadPromises = [];
+    pctByUpdateId = pctByUpdateId || {};
     
     timelineEntries.forEach(function(entry) {
         const dateText = entry.querySelector('.time')?.textContent.trim() || '';
         const title = entry.querySelector('.timeline-title')?.textContent.trim() || '';
         const description = entry.querySelector('.timeline-desc')?.textContent.trim() || '';
         const author = entry.querySelector('.admin-badge')?.textContent.trim() || '';
+        const updateId = entry.getAttribute('data-update-id') || '';
+        var completionPct = '';
+        if (updateId && Object.prototype.hasOwnProperty.call(pctByUpdateId, String(updateId))) {
+            completionPct = formatExportCompletionPercentage(pctByUpdateId[String(updateId)]);
+        } else {
+            // Fallback: data attribute set when timeline was rendered from DB.
+            completionPct = formatExportCompletionPercentage(entry.getAttribute('data-completion-percentage'));
+        }
         
         // Extract images
         const images = [];
@@ -92,6 +145,7 @@ function processImagesAndExport(timelineEntries) {
             title: title,
             description: description,
             author: author,
+            completionPercentage: completionPct,
             images: images
         });
         
@@ -276,14 +330,7 @@ function buildExportDetailsTable(d) {
         coords = lat + ', ' + lng;
     }
 
-    var cimmVerify = '';
-    if (prettyExportValue(d.approval_status)) {
-        cimmVerify = prettyExportLabel(d.approval_status);
-    } else if (prettyExportValue(d.cimm_sync_status)) {
-        cimmVerify = prettyExportLabel(d.cimm_sync_status);
-    } else if (prettyExportValue(d.verification_status)) {
-        cimmVerify = prettyExportLabel(d.verification_status);
-    }
+    var cimmVerify = prettyExportValue(d.cimm_status);
 
     var description = prettyExportValue(d.description || d.issue);
     var cat = String(d.report_category || '').toLowerCase();
@@ -405,6 +452,7 @@ function generateDocument(updates, firstDate, lastDate) {
             <div class="update-entry">
                 <div class="update-header">${escDoc(update.date)} - ${escDoc(update.title || 'Update')}</div>
                 <div class="update-author">By: ${escDoc(update.author)}</div>
+                ${update.completionPercentage ? `<div class="update-author"><strong>Completion Percentage:</strong> ${escDoc(update.completionPercentage)}</div>` : ''}
                 <div class="update-description">${escDoc(update.description || 'No description').replace(/\r\n|\r|\n/g, '<br>')}</div>
                 <div class="update-images">
             `;

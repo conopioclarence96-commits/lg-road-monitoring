@@ -5,6 +5,10 @@ var currentUpdatesReportType = null;
 var currentUpdatesReportSource = null;
 var currentUpdatesReportStatus = null;
 var currentUpdatesReportDetails = null;
+/** Latest DB-saved completion % for the open project (not session-only). */
+var currentProjectCompletionPercentage = 0;
+/** ID of the most recent progress update for the open project. */
+var currentLatestUpdateId = 0;
 
 function loadUpdates(reportId, reportType) {
     currentUpdatesReportId = reportId;
@@ -18,6 +22,15 @@ function loadUpdates(reportId, reportType) {
         .then(r => r.json())
         .then(data => {
             if (data.success) {
+                var latest = parseInt(data.latest_completion_percentage, 10);
+                currentProjectCompletionPercentage = isNaN(latest) ? 0 : Math.max(0, Math.min(100, latest));
+                currentLatestUpdateId = parseInt(data.latest_update_id, 10) || 0;
+                if (typeof setMainProjectCompletionDisplay === 'function') {
+                    setMainProjectCompletionDisplay(currentProjectCompletionPercentage);
+                } else {
+                    var mainEl = document.getElementById('updatesProjectCompletionValue');
+                    if (mainEl) mainEl.textContent = currentProjectCompletionPercentage + '%';
+                }
                 renderTimeline(data.updates);
             } else {
                 container.innerHTML = `<div class="timeline-empty"><i class="fas fa-exclamation-circle"></i><br>${escapeHtml(data.message)}</div>`;
@@ -46,7 +59,7 @@ function renderTimeline(updates) {
             </div>` : '';
 
         html += `
-        <div class="timeline-entry">
+        <div class="timeline-entry" data-update-id="${escapeHtmlAttr(String(u.id || ''))}" data-completion-percentage="${escapeHtmlAttr(u.completion_percentage != null && u.completion_percentage !== '' ? String(u.completion_percentage) : '')}">
             <div class="timeline-dot"><i class="fas fa-check"></i></div>
             <div class="timeline-card" id="update-card-${u.id}">
                 <div class="timeline-header">
@@ -57,6 +70,7 @@ function renderTimeline(updates) {
                 </div>
                 ${u.title ? `<div class="timeline-title">${escapeHtml(u.title)}</div>` : ''}
                 <div class="timeline-desc">${escapeHtml(u.description)}</div>
+                ${u.completion_percentage != null && u.completion_percentage !== '' ? `<div class="timeline-meta" style="margin-top:6px;"><span class="admin-badge"><i class="fas fa-chart-line"></i> ${escapeHtml(String(u.completion_percentage))}%</span></div>` : ''}
                 ${mediaHtml}
                 ${actionsHtml}
             </div>

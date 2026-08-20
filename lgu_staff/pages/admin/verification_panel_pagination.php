@@ -331,7 +331,6 @@ function vm_render_lgu_panel_tbody(array $reports, bool $is_transport_supervisor
         $report_source = $report['report_source'] ?? null;
         $can_verify = canVerifyReport($report_category, $report_source);
         $pending_ext_verify = strtolower(trim((string)($report['cimm_status'] ?? ''))) !== 'scheduled'
-            && ($report['cimm_sync_status'] ?? '') !== 'verified'
             && !$can_verify
             && ($report['status'] ?? '') === 'pending';
         $ready_for_approval = ($report_category === 'transportation')
@@ -348,7 +347,7 @@ function vm_render_lgu_panel_tbody(array $reports, bool $is_transport_supervisor
             <td>
                 <div class="lgu-action-group">
                     <button class="lgu-action-btn" onclick="viewLguReport(<?php echo (int)$report['id']; ?>)">
-                        <i class="fas fa-eye" id="icon-<?php echo (int)$report['id']; ?>"></i> View
+                        <i class="fas fa-eye" id="icon-<?php echo (int)$report['id']; ?>"></i>
                     </button>
                     <?php if ($pending_ext_verify): ?>
                         <span class="lgu-status-badge t-badge t-badge-pending" style="font-size:10px;padding:3px 8px;">Ext. Verify</span>
@@ -357,14 +356,14 @@ function vm_render_lgu_panel_tbody(array $reports, bool $is_transport_supervisor
                             <input type="hidden" name="report_id" value="<?php echo (int)$report['id']; ?>">
                             <input type="hidden" name="source" value="<?php echo htmlspecialchars((string)($report['source'] ?? ''), ENT_QUOTES); ?>">
                             <button type="submit" name="action" value="cimm_approve" class="lgu-verify-btn" title="Approve CIMM verified report">
-                                <i class="fas fa-check-circle"></i> Approve
+                                <i class="fas fa-check-circle"></i>
                             </button>
                         </form>
                         <form method="POST" class="lgu-action-form" onsubmit="return confirm('Are you sure you want to reject this report?');">
                             <input type="hidden" name="report_id" value="<?php echo (int)$report['id']; ?>">
                             <input type="hidden" name="source" value="<?php echo htmlspecialchars((string)($report['source'] ?? ''), ENT_QUOTES); ?>">
                             <button type="submit" name="action" value="reject" class="lgu-reject-btn" title="Reject report">
-                                <i class="fas fa-times"></i> Reject
+                                <i class="fas fa-times"></i>
                             </button>
                         </form>
                     <?php endif; ?>
@@ -477,17 +476,17 @@ function vm_render_citizen_panel_tbody(array $reports): string {
         <tr data-id="<?php echo (int)$crow['id']; ?>" data-report-id="<?php echo (int)$crow['id']; ?>" data-status="<?php echo $citizen_filter_status; ?>" data-source="citizen">
             <td>
                 <div class="citizen-action-group">
-                    <button class="citizen-action-btn" onclick="viewCitizenReport(<?php echo (int)$crow['id']; ?>)"><i class="fas fa-eye"></i> View</button>
+                    <button class="citizen-action-btn" onclick="viewCitizenReport(<?php echo (int)$crow['id']; ?>)"><i class="fas fa-eye"></i></button>
                     <?php if (($crow['status'] ?? '') === 'pending'): ?>
                     <form method="POST" class="citizen-action-form" onsubmit="return confirm('Are you sure you want to approve this citizen report?');">
                         <input type="hidden" name="report_id" value="<?php echo (int)$crow['id']; ?>">
                         <input type="hidden" name="source" value="transport">
-                        <button type="submit" name="action" value="approve" class="citizen-verify-btn" title="Approve report"><i class="fas fa-check"></i> Approve</button>
+                        <button type="submit" name="action" value="approve" class="citizen-verify-btn" title="Approve report"><i class="fas fa-check-circle"></i></button>
                     </form>
                     <form method="POST" class="citizen-action-form" onsubmit="return confirm('Are you sure you want to reject this citizen report?');">
                         <input type="hidden" name="report_id" value="<?php echo (int)$crow['id']; ?>">
                         <input type="hidden" name="source" value="transport">
-                        <button type="submit" name="action" value="reject" class="citizen-reject-btn" title="Reject report"><i class="fas fa-times"></i> Reject</button>
+                        <button type="submit" name="action" value="reject" class="citizen-reject-btn" title="Reject report"><i class="fas fa-times"></i></button>
                     </form>
                     <?php endif; ?>
                 </div>
@@ -531,15 +530,15 @@ function vm_render_cimm_panel_tbody(array $cimm_reports, $sql_reports = null, bo
         <tr data-id="<?php echo (int)$row['id']; ?>" data-report-id="<?php echo (int)$row['id']; ?>" data-status="<?php echo $cimm_filter_status; ?>" data-source="cimm">
             <td>
                 <div class="dept-action-group">
-                    <button class="dept-action-btn" onclick="viewCimmReport(<?php echo (int)$row['id']; ?>)"><i class="fas fa-eye"></i> View</button>
+                    <button class="dept-action-btn" onclick="viewCimmReport(<?php echo (int)$row['id']; ?>)"><i class="fas fa-eye"></i></button>
                     <form method="POST" class="dept-action-form" onsubmit="return confirm('Are you sure you want to approve this CIMM report?');">
                         <input type="hidden" name="cimm_req_id" value="<?php echo (int)$row['cimm_req_id']; ?>">
-                        <button type="submit" name="action" value="approve_cimm" class="dept-verify-btn" title="Approve report"><i class="fas fa-check"></i> Approve</button>
+                        <button type="submit" name="action" value="approve_cimm" class="dept-verify-btn" title="Approve report"><i class="fas fa-check-circle"></i></button>
                     </form>
                     <form method="POST" class="dept-action-form" onsubmit="return confirm('Are you sure you want to reject this CIMM report?');">
                         <input type="hidden" name="cimm_req_id" value="<?php echo (int)$row['cimm_req_id']; ?>">
                         <input type="hidden" name="rejection_reason" value="Rejected by admin">
-                        <button type="submit" name="action" value="reject_cimm" class="dept-reject-btn" title="Reject report"><i class="fas fa-times"></i> Reject</button>
+                        <button type="submit" name="action" value="reject_cimm" class="dept-reject-btn" title="Reject report"><i class="fas fa-times"></i></button>
                     </form>
                 </div>
             </td>
@@ -571,7 +570,7 @@ function vm_render_cimm_panel_tbody(array $cimm_reports, $sql_reports = null, bo
             elseif (in_array($status, ['cancelled'], true)) $sql_filter_status = 'rejected';
             ?>
         <tr data-id="<?php echo (int)$row['rep_id']; ?>" data-report-id="<?php echo (int)$row['rep_id']; ?>" data-status="<?php echo $sql_filter_status; ?>" data-source="cimm_sql">
-            <td><button class="dept-action-btn" onclick="viewSqlReport(<?php echo (int)$row['rep_id']; ?>)"><i class="fas fa-eye"></i> View</button></td>
+            <td><button class="dept-action-btn" onclick="viewSqlReport(<?php echo (int)$row['rep_id']; ?>)"><i class="fas fa-eye"></i></button></td>
             <td>REP-<?php echo (int)$row['rep_id']; ?></td>
             <td><?php echo htmlspecialchars((string)$row['res_id']); ?></td>
             <td>—</td>

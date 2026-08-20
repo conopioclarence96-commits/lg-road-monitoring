@@ -171,6 +171,7 @@ try {
         $query = "SELECT id, reference_code AS report_id, infrastructure AS title, issue AS description,
                     location, coord_lat AS latitude, coord_lng AS longitude, priority,
                     verification_status AS status, approval_status, reporter_name,
+                    verification_status AS cimm_status,
                     COALESCE(submitted_at, verified_at, synced_at) AS created_at, verified_at,
                     engineer, budget_allocation, 'cimm' AS source, 'road' AS report_category
                     FROM cimm_verification_reports WHERE id = ?";
@@ -178,7 +179,8 @@ try {
         $query = "SELECT id, report_id, report_type, title, department, priority, status, created_date, due_date, description,
                     location, latitude, longitude, reporter_name, reporter_email, severity, reported_date, resolved_date, assigned_to,
                     resolution_notes as notes, estimation, attachments, created_by, created_at, updated_at, image_path,
-                    report_category, report_source, reporter_phone, cimm_engineer_name, cimm_budget
+                    report_category, report_source, reporter_phone, cimm_engineer_name, cimm_budget, cimm_status,
+                    cimm_sync_status, cimm_verified_at, cimm_verified_by
                     {$extra_cols} {$cimm_extra_cols}
                     FROM road_transportation_reports WHERE id = ?";
         

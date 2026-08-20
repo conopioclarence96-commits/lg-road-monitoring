@@ -5699,9 +5699,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             border-radius: 8px;
             font-weight: 600;
             font-size: 12px;
-            padding: 6px 12px;
+            padding: 6px 10px;
+            min-width: 32px;
+            min-height: 32px;
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 6px;
             transition: background 0.15s ease, color 0.15s ease;
         }
@@ -5721,8 +5724,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             border: none;
             border-radius: 8px;
             padding: 6px 10px;
-            display: inline-flex; align-items: center; gap: 5px;
+            min-width: 32px;
+            min-height: 32px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
             font-weight: 600;
+            font-size: 13px;
             transition: background 0.15s ease, color 0.15s ease;
         }
         .vm-dash .lgu-verify-btn:hover,
@@ -5741,8 +5750,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             border: none;
             border-radius: 8px;
             padding: 6px 10px;
-            display: inline-flex; align-items: center; gap: 5px;
+            min-width: 32px;
+            min-height: 32px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
             font-weight: 600;
+            font-size: 13px;
             transition: background 0.15s ease, color 0.15s ease;
         }
         .vm-dash .lgu-reject-btn:hover,
@@ -6199,11 +6214,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 $report_category = $report['report_category'] ?? null;
                                 $report_source = $report['report_source'] ?? null;
                                 $can_verify = canVerifyReport($report_category, $report_source);
-                                // Reports not yet verified by CIMM show as awaiting external verification
-                                // If CIMM verified and status is pending, show check button for final approval
-                                $pending_ext_verify = ($report['cimm_sync_status'] ?? '') !== 'verified' && !$can_verify && $report['status'] === 'pending';
-                                // Transportation reports can be approved directly; road reports require CIMM verification
-                                $ready_for_approval = ($report_category === 'transportation') ? true : (($report['cimm_sync_status'] ?? '') === 'verified' && $report['status'] === 'pending');
+                                // Road reports: show ✓/✕ only when CIMM has scheduled them (cimm_status = scheduled).
+                                $pending_ext_verify = strtolower(trim((string)($report['cimm_status'] ?? ''))) !== 'scheduled'
+                                    && !$can_verify
+                                    && ($report['status'] ?? '') === 'pending';
+                                // Transportation: show immediately while pending; road: require cimm_status scheduled.
+                                $ready_for_approval = ($report_category === 'transportation')
+                                    ? (($report['status'] ?? '') === 'pending')
+                                    : (($report_category === 'road')
+                                        && vm_lgu_road_cimm_status_is_scheduled($report['cimm_status'] ?? null)
+                                        && ($report['status'] ?? '') === 'pending');
 
                                 $lgu_type_labels = [
                                     'traffic_jam' => 'Traffic Jam',
@@ -6362,12 +6382,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 </td>
                                 <td><?php echo htmlspecialchars($report['report_id']); ?></td>
                                 <td><?php echo htmlspecialchars(strlen($report['title'] ?? '') > 35 ? substr($report['title'], 0, 35) . '...' : ($report['title'] ?? '')); ?></td>
-                                <td><?php echo htmlspecialchars($lgu_type_labels[$report['report_type']] ?? ucfirst($report['report_type'])); ?></td>
-                                <td><?php echo htmlspecialchars($lgu_source_labels[$report['source']] ?? $report['department'] ?? '—'); ?></td>
-                                <td><?php echo htmlspecialchars($report['cimm_district'] ?? '') !== '' ? htmlspecialchars($report['cimm_district']) : '—'; ?></td>
+                                <td><?php if (($report['location'] ?? '') !== ''): ?><span title="<?php echo htmlspecialchars((string)$report['location']); ?>"><?php echo htmlspecialchars(strlen((string)$report['location']) > 40 ? substr((string)$report['location'], 0, 40) . '...' : (string)$report['location']); ?></span><?php else: ?>—<?php endif; ?></td>
                                 <td><span class="lgu-status-badge <?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'] ?? 'medium')); ?></span></td>
-                                <td><?php echo htmlspecialchars($report['cimm_engineer_name'] ?? '') !== '' ? htmlspecialchars($report['cimm_engineer_name']) : '—'; ?></td>
-                                <td><?php echo !empty($report['cimm_budget']) ? '₱' . number_format((float)$report['cimm_budget'], 2) : '—'; ?></td>
                                 <td>
                                     <?php
                                     // Once CIMM has verified this report and turned it into a real
@@ -6420,7 +6436,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <?php endforeach; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="11">
+                                <td colspan="7">
                                     <div class="lgu-empty-state">
                                         <div class="lgu-empty-icon"><i class="fas fa-clipboard-list"></i></div>
                                         <p>No reports at this time.</p>
@@ -6604,21 +6620,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <td>
                                 <div class="infra-action-group">
                                     <button class="infra-action-btn" onclick="viewInfraReport(<?php echo $irow['id']; ?>, '<?php echo htmlspecialchars($irow['source'], ENT_QUOTES); ?>')">
-                                        <i class="fas fa-eye"></i> View
+                                        <i class="fas fa-eye"></i>
                                     </button>
                                     <?php if (!in_array($irow['status'], ['approved', 'cancelled'], true)): ?>
                                     <form method="POST" class="infra-action-form" onsubmit="return confirm('Are you sure you want to approve this infrastructure project?');">
                                         <input type="hidden" name="report_id" value="<?php echo (int)$irow['id']; ?>">
                                         <input type="hidden" name="source" value="infra">
                                         <button type="submit" name="action" value="approve" class="infra-verify-btn" title="Approve infrastructure project">
-                                            <i class="fas fa-check"></i> Approve
+                                            <i class="fas fa-check-circle"></i>
                                         </button>
                                     </form>
                                     <form method="POST" class="infra-action-form" onsubmit="return confirm('Are you sure you want to reject this infrastructure project?');">
                                         <input type="hidden" name="report_id" value="<?php echo (int)$irow['id']; ?>">
                                         <input type="hidden" name="source" value="infra">
                                         <button type="submit" name="action" value="reject" class="infra-reject-btn" title="Reject infrastructure project">
-                                            <i class="fas fa-times"></i> Reject
+                                            <i class="fas fa-times"></i>
                                         </button>
                                     </form>
                                     <?php endif; ?>
@@ -7720,17 +7736,17 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
 
                 html += '<tr data-id="' + id + '" data-report-id="' + id + '" data-status="' + escapeInfraHtml(infraFilterStatus(status)) + '" data-source="maintenance">';
                 html += '<td><div class="infra-action-group">';
-                html += '<button class="infra-action-btn" onclick="viewInfraReport(' + id + ', \'' + escapeInfraHtml(source) + '\')"><i class="fas fa-eye"></i> View</button>';
+                html += '<button class="infra-action-btn" onclick="viewInfraReport(' + id + ', \'' + escapeInfraHtml(source) + '\')"><i class="fas fa-eye"></i></button>';
                 if (canAct) {
                     html += '<form method="POST" class="infra-action-form" onsubmit="return confirm(\'Are you sure you want to approve this infrastructure project?\');">';
                     html += '<input type="hidden" name="report_id" value="' + id + '">';
                     html += '<input type="hidden" name="source" value="infra">';
-                    html += '<button type="submit" name="action" value="approve" class="infra-verify-btn" title="Approve infrastructure project"><i class="fas fa-check"></i> Approve</button>';
+                    html += '<button type="submit" name="action" value="approve" class="infra-verify-btn" title="Approve infrastructure project"><i class="fas fa-check-circle"></i></button>';
                     html += '</form>';
                     html += '<form method="POST" class="infra-action-form" onsubmit="return confirm(\'Are you sure you want to reject this infrastructure project?\');">';
                     html += '<input type="hidden" name="report_id" value="' + id + '">';
                     html += '<input type="hidden" name="source" value="infra">';
-                    html += '<button type="submit" name="action" value="reject" class="infra-reject-btn" title="Reject infrastructure project"><i class="fas fa-times"></i> Reject</button>';
+                    html += '<button type="submit" name="action" value="reject" class="infra-reject-btn" title="Reject infrastructure project"><i class="fas fa-times"></i></button>';
                     html += '</form>';
                 }
                 html += '</div></td>';
