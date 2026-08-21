@@ -448,7 +448,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Road and Transportation Department Monitoring System</title>
-    <link rel="icon" type="image/png" href="assets/img/logocityhall.png">
+    <link rel="icon" type="image/png" href="assets/img/infra-gov-logo.png">
     
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
@@ -2704,7 +2704,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     <nav class="navbar navbar-light fixed-top qc-navbar">
         <div class="container-fluid">
             <a class="navbar-brand qc-brand" href="#home">
-                <img src="assets/img/logocityhall.png" alt="Quezon City Hall Logo">
+                <img src="assets/img/infra-gov-logo.png" alt="Quezon City Hall Logo">
                 <span class="qc-brand-text">
                     <strong>Road &amp; Transportation Department</strong>
                     <small>Quezon City Government</small>

@@ -21,8 +21,7 @@ body.dark-mode {
     --accent: var(--color-warning);
     --bg: var(--bg-page);
     --card-bg: var(--bg-card);
-    --text-primary: var(--text-primary);
-    --text-secondary: var(--text-secondary);
+    /* Keep theme-tokens text colors — do not reassign --text-* to themselves */
     --border: var(--border-default);
     --shadow: 0 4px 24px rgba(0,0,0,0.3);
     --shadow-hover: 0 8px 40px rgba(0,0,0,0.4);

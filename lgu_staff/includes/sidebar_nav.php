@@ -613,10 +613,32 @@ foreach ($nav_items as $section => $items) {
 
 <aside class="sidebar" id="sidebar" role="complementary">
     <header class="sidebar-header">
-        <h2><i class="fas fa-road"></i> <?php echo defined('SITE_NAME') ? SITE_NAME : 'LGU Portal'; ?></h2>
-        <p><?php echo htmlspecialchars(getPortalTitle($user_role)); ?></p>
+        <div class="sidebar-brand">
+            <img src="<?php echo htmlspecialchars($nav_base); ?>assets/img/infra-gov-logo-white.png" alt="INFRA Gov Services" class="sidebar-logo">
+            <div class="sidebar-brand-text">
+                <h2>INFRA</h2>
+                <p>Gov Services · <?php echo htmlspecialchars(getPortalTitle($user_role)); ?></p>
+            </div>
+        </div>
         <div class="user-info">
-            <div class="user-name"><?php echo htmlspecialchars($user_info['full_name']); ?></div>
+            <?php
+            $sidebar_display_name = trim((string)($user_info['full_name'] ?? 'User'));
+            $sidebar_initials = '';
+            foreach (preg_split('/\s+/', $sidebar_display_name) as $part) {
+                if ($part !== '') {
+                    $ch = function_exists('mb_substr') ? mb_substr($part, 0, 1) : substr($part, 0, 1);
+                    $sidebar_initials .= function_exists('mb_strtoupper') ? mb_strtoupper($ch) : strtoupper($ch);
+                    if (strlen($sidebar_initials) >= 2) break;
+                }
+            }
+            if ($sidebar_initials === '') $sidebar_initials = 'U';
+            $sidebar_role_label = ucwords(str_replace('_', ' ', (string)$user_role));
+            ?>
+            <div class="user-avatar" aria-hidden="true"><?php echo htmlspecialchars($sidebar_initials); ?></div>
+            <div class="user-text">
+                <div class="user-name"><?php echo htmlspecialchars($sidebar_display_name); ?></div>
+                <div class="user-role"><?php echo htmlspecialchars($sidebar_role_label); ?></div>
+            </div>
         </div>
     </header>
 
@@ -699,14 +721,15 @@ foreach ($nav_items as $section => $items) {
         justify-content: center;
         border: none;
         border-radius: 8px;
-        background: linear-gradient(135deg, #2952b3 0%, #1a2f6b 100%);
+        background: linear-gradient(145deg, #1e3c72 0%, #3762c8 100%);
         color: #ffffff;
         font-size: 18px;
         cursor: pointer;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+        box-shadow: 0 4px 14px rgba(30, 60, 114, 0.28);
         transition: background 0.2s ease, transform 0.2s ease;
+        border-radius: 10px;
     }
-    .admin-menu-toggle:hover { background: #1e3a7a; }
+    .admin-menu-toggle:hover { background: #1e3c72; }
     .admin-menu-toggle:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
 
     .admin-sidebar-backdrop {

@@ -1226,12 +1226,12 @@ if ($is_completed_projects_view || $is_system_admin) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo $is_completed_projects_view ? 'Completed Projects' : 'Road and Transportation Monitoring'; ?> | LGU Staff</title>
-    <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
+    <link rel="icon" type="image/png" href="../../assets/img/infra-gov-logo.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../../css/theme-tokens.css">
     <link rel="stylesheet" href="../../css/theme-utilities.css">
-    <link rel="stylesheet" href="../../css/sidebar.css?v=3">
+    <link rel="stylesheet" href="../../css/sidebar.css?v=6">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="../../css/progress-updates.css?v=<?php echo @filemtime(__DIR__ . '/../../css/progress-updates.css') ?: time(); ?>">

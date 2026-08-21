@@ -121,7 +121,7 @@ if ($database_available && $conn) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Road Updates - Quezon City</title>
-    <link rel="icon" type="image/png" href="assets/img/logocityhall.png">
+    <link rel="icon" type="image/png" href="assets/img/infra-gov-logo.png">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -282,7 +282,7 @@ if ($database_available && $conn) {
     <nav class="navbar navbar-light fixed-top qc-navbar">
         <div class="container-fluid">
             <a class="navbar-brand qc-brand" href="index.php">
-                <img src="assets/img/logocityhall.png" alt="Quezon City Hall Logo">
+                <img src="assets/img/infra-gov-logo.png" alt="Quezon City Hall Logo">
                 <span class="qc-brand-text">
                     <strong>Road &amp; Transportation Department</strong>
                     <small>Quezon City Government</small>

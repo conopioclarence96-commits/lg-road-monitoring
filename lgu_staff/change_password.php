@@ -118,7 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LGU | Change Password</title>
-    <link rel="icon" type="image/png" href="../assets/img/logocityhall.png">
+    <link rel="icon" type="image/png" href="../assets/img/infra-gov-logo.png">
     <link rel="stylesheet" href="<?php echo $basePath; ?>styles/style.css" />
     <link rel="stylesheet" href="<?php echo $basePath; ?>styles/login.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -137,7 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
 
     <div class="wrapper">
       <div class="card">
-        <img src="<?php echo $basePath; ?>../assets/img/logocityhall.png" class="icon-top" />
+        <img src="<?php echo $basePath; ?>../assets/img/infra-gov-logo.png" class="icon-top" />
         <h2 class="title">Change Password</h2>
         <p class="subtitle">You must change your temporary password before accessing the dashboard.</p>
 

@@ -410,7 +410,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LGU Staff Dashboard | Road and Transportation Department</title>
-    <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
+    <link rel="icon" type="image/png" href="../../assets/img/infra-gov-logo.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../../css/theme-tokens.css">
@@ -1853,7 +1853,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
         <div class="db-header">
             <div class="db-welcome">
                 <div class="db-logo">
-                    <img src="../../../assets/img/logocityhall.png" alt="LGU Logo">
+                    <img src="../../../assets/img/infra-gov-logo.png" alt="LGU Logo">
                 </div>
                 <div>
                     <h1>Welcome back, <?php echo htmlspecialchars($_SESSION['full_name'] ?? 'Staff'); ?></h1>

@@ -191,12 +191,12 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Analytics Dashboard - LGU Road Monitoring</title>
-    <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
+    <link rel="icon" type="image/png" href="../../assets/img/infra-gov-logo.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../../css/theme-tokens.css">
     <link rel="stylesheet" href="../../css/theme-utilities.css">
-    <link rel="stylesheet" href="../../css/sidebar.css?v=3">
+    <link rel="stylesheet" href="../../css/sidebar.css?v=6">
     <link rel="stylesheet" href="../../css/enhanced-reports.css">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
@@ -208,21 +208,464 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
             --text-secondary: #cbd5e1;
         }
         <?php endif; ?>
+
+        /* ── Analytics: light dashboard look (match Public Transparency) ── */
+        body { background: #f7f5f0; min-height: 100vh; color: #1e293b; }
+        body.dark-mode { background: var(--bg-page); }
+
+        .analytics-main {
+            margin-left: 250px;
+            padding: 24px 28px 40px !important;
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+
+        .analytics-main .page-header {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(30, 60, 114, 0.06);
+            border-radius: 16px;
+            padding: 20px 24px;
+            margin-bottom: 22px;
+            gap: 14px;
+        }
+
+        .analytics-main .page-header-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            min-width: 0;
+        }
+
+        .analytics-main .header-icon {
+            flex: 0 0 44px;
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: rgba(55, 98, 200, 0.12);
+            color: #3762c8;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .analytics-main .page-header h1 {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1e3c72;
+            margin: 0 0 2px;
+            letter-spacing: -0.02em;
+            display: flex;
+            align-items: center;
+            gap: 0;
+        }
+
+        .analytics-main .page-header h1 i { display: none; }
+
+        .analytics-main .page-header p {
+            margin: 0;
+            color: #64748b;
+            font-size: 13px;
+        }
+
+        .analytics-main .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .analytics-main .period-select {
+            padding: 9px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            background: #f8fafc;
+            color: #1e3c72;
+            font-size: 13px;
+            font-family: 'Poppins', sans-serif;
+            font-weight: 500;
+            min-width: 140px;
+            cursor: pointer;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .analytics-main .period-select:focus {
+            outline: none;
+            border-color: #3762c8;
+            box-shadow: 0 0 0 3px rgba(55, 98, 200, 0.12);
+            background: #fff;
+        }
+
+        .analytics-main .btn {
+            padding: 9px 16px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        .analytics-main .btn-outline {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            color: #475569;
+            box-shadow: none;
+        }
+
+        .analytics-main .btn-outline:hover {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+            color: #1e3c72;
+            transform: translateY(-1px);
+        }
+
+        .analytics-main .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 14px;
+            margin-bottom: 22px;
+        }
+
+        .analytics-main .stat-card {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 16px 18px;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 6px 18px rgba(30, 60, 114, 0.05);
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .analytics-main .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: #3762c8;
+        }
+
+        .analytics-main .stat-card:nth-child(2)::before { background: #f59e0b; }
+        .analytics-main .stat-card:nth-child(3)::before { background: #7c3aed; }
+        .analytics-main .stat-card:nth-child(4)::before { background: #10b981; }
+        .analytics-main .stat-card:nth-child(5)::before { background: #0ea5e9; }
+        .analytics-main .stat-card:nth-child(6)::before { background: #64748b; }
+
+        .analytics-main .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(30, 60, 114, 0.08);
+        }
+
+        .analytics-main .stat-card .stat-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            font-size: 14px;
+            margin-bottom: 10px;
+            box-shadow: none;
+        }
+
+        .analytics-main .t-stat-icon-blue {
+            background: rgba(55, 98, 200, 0.12) !important;
+            color: #3762c8 !important;
+        }
+        .analytics-main .t-stat-icon-amber {
+            background: rgba(245, 158, 11, 0.14) !important;
+            color: #d97706 !important;
+        }
+        .analytics-main .t-stat-icon-purple {
+            background: rgba(124, 58, 237, 0.12) !important;
+            color: #7c3aed !important;
+        }
+        .analytics-main .t-stat-icon-green {
+            background: rgba(16, 185, 129, 0.14) !important;
+            color: #059669 !important;
+        }
+        .analytics-main .t-stat-icon-info {
+            background: rgba(14, 165, 233, 0.12) !important;
+            color: #0284c7 !important;
+        }
+        .analytics-main .t-stat-icon-cimm {
+            background: rgba(100, 116, 139, 0.12) !important;
+            color: #475569 !important;
+        }
+
+        .analytics-main .stat-card .stat-value {
+            font-size: 26px;
+            font-weight: 700;
+            color: #1e3c72;
+            letter-spacing: -0.03em;
+            margin-bottom: 2px;
+        }
+
+        .analytics-main .stat-card .stat-value small {
+            font-size: 13px;
+            font-weight: 600;
+            color: #64748b;
+        }
+
+        .analytics-main .stat-card .stat-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748b;
+        }
+
+        .analytics-main .stat-card .stat-trend {
+            font-size: 11px;
+            margin-top: 8px;
+            color: #94a3b8;
+        }
+
+        .analytics-main .stat-trend.up { color: #059669; }
+        .analytics-main .stat-trend.down { color: #d97706; }
+
+        .analytics-main .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+            gap: 16px;
+        }
+
+        .analytics-main .chart-card {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 18px 18px 16px;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 6px 18px rgba(30, 60, 114, 0.05);
+            transition: box-shadow 0.2s ease;
+        }
+
+        .analytics-main .chart-card:hover {
+            box-shadow: 0 8px 24px rgba(30, 60, 114, 0.08);
+        }
+
+        .analytics-main .chart-card h4 {
+            font-size: 14px;
+            font-weight: 700;
+            color: #1e3c72;
+            margin: 0 0 14px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #eef2f7;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .analytics-main .chart-card h4 i {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            margin-right: 0;
+            background: rgba(55, 98, 200, 0.1);
+            color: #3762c8;
+        }
+
+        .analytics-main .chart-container {
+            height: 260px;
+        }
+
+        .analytics-main .panel {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 6px 18px rgba(30, 60, 114, 0.05);
+            margin-top: 22px !important;
+            margin-bottom: 0;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .analytics-main .panel::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: #3762c8;
+        }
+
+        .analytics-main .panel-header {
+            padding: 14px 18px 14px 20px;
+            background: #f8fafc;
+            border-bottom: 1px solid #eef2f7;
+        }
+
+        .analytics-main .panel-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #1e3c72;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .analytics-main .panel-title i {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            margin-right: 0;
+            background: rgba(55, 98, 200, 0.1);
+            color: #3762c8;
+        }
+
+        .analytics-main .panel-body {
+            padding: 8px 4px 4px;
+        }
+
+        .analytics-main .data-table th {
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+            color: #64748b;
+            font-size: 11px;
+            padding: 12px 16px;
+        }
+
+        .analytics-main .data-table td {
+            padding: 12px 16px;
+            font-size: 13px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .analytics-main .data-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .analytics-main .data-table tr:hover td {
+            background: #f8fafc;
+        }
+
+        .analytics-main .rate-track {
+            flex: 1;
+            height: 6px;
+            background: #e2e8f0;
+            border-radius: 999px;
+            max-width: 100px;
+            overflow: hidden;
+        }
+
+        .analytics-main .rate-fill {
+            height: 100%;
+            border-radius: 999px;
+        }
+
         <?php if ($is_system_admin): ?>
-        /* Match the admin portal font colors (system_admin only) */
-        .page-header h1 { color: #1e3c72; }
-        .stat-card .stat-value { color: #1e3c72; }
-        .panel-title { color: #1e3c72; }
-        body.dark-mode .page-header h1 { color: #e4e6ea !important; }
-        body.dark-mode .page-header p { color: #9ca3af !important; }
-        body.dark-mode .stat-card .stat-value { color: #e4e6ea !important; }
-        body.dark-mode .stat-card .stat-label { color: #9ca3af !important; }
-        body.dark-mode .chart-card h4 { color: #9ca3af !important; }
-        body.dark-mode .panel-title { color: #e4e6ea !important; }
-        body.dark-mode .panel-body .data-table th { color: #9ca3af !important; }
-        body.dark-mode .panel-body .data-table td { color: #e4e6ea !important; }
-        body.dark-mode .stat-card .stat-trend { color: #9ca3af !important; }
+        .analytics-main .page-header h1 { color: #1e3c72; }
+        .analytics-main .stat-card .stat-value { color: #1e3c72; }
+        .analytics-main .panel-title { color: #1e3c72; }
         <?php endif; ?>
+
+        body.dark-mode .analytics-main { color: #e4e6ea; }
+
+        body.dark-mode .analytics-main .page-header,
+        body.dark-mode .analytics-main .stat-card,
+        body.dark-mode .analytics-main .chart-card,
+        body.dark-mode .analytics-main .panel {
+            background: #1a1d24 !important;
+            border-color: #2d323b !important;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35) !important;
+        }
+
+        body.dark-mode .analytics-main .page-header h1,
+        body.dark-mode .analytics-main .stat-card .stat-value,
+        body.dark-mode .analytics-main .panel-title,
+        body.dark-mode .analytics-main .chart-card h4,
+        body.dark-mode .analytics-main .data-table td,
+        body.dark-mode .analytics-main .data-table td strong {
+            color: #e4e6ea !important;
+        }
+
+        body.dark-mode .analytics-main .page-header p,
+        body.dark-mode .analytics-main .stat-card .stat-label,
+        body.dark-mode .analytics-main .stat-card .stat-trend,
+        body.dark-mode .analytics-main .stat-card .stat-value small,
+        body.dark-mode .analytics-main .data-table th {
+            color: #b0b7c3 !important;
+        }
+
+        body.dark-mode .analytics-main .chart-card h4 {
+            border-bottom-color: #2d323b !important;
+        }
+
+        body.dark-mode .analytics-main .chart-card h4 i,
+        body.dark-mode .analytics-main .panel-title i {
+            background: rgba(96, 165, 250, 0.18) !important;
+            color: #93c5fd !important;
+        }
+
+        body.dark-mode .analytics-main .panel-header,
+        body.dark-mode .analytics-main .data-table th {
+            background: #1e2229 !important;
+            border-color: #2d323b !important;
+        }
+
+        body.dark-mode .analytics-main .data-table td {
+            border-bottom-color: #2d323b !important;
+        }
+
+        body.dark-mode .analytics-main .data-table tr:hover td {
+            background: #22262e !important;
+        }
+
+        body.dark-mode .analytics-main .period-select {
+            background: #22262e !important;
+            border-color: #374151 !important;
+            color: #e4e6ea !important;
+            color-scheme: dark;
+        }
+
+        body.dark-mode .analytics-main .period-select option {
+            background: #1a1d24;
+            color: #e4e6ea;
+        }
+
+        body.dark-mode .analytics-main .btn-outline {
+            background: #22262e !important;
+            border-color: #374151 !important;
+            color: #e4e6ea !important;
+        }
+
+        body.dark-mode .analytics-main .btn-outline:hover {
+            background: #2a2f38 !important;
+            border-color: #60a5fa !important;
+            color: #f3f4f6 !important;
+        }
+
+        body.dark-mode .analytics-main .header-icon {
+            background: rgba(96, 165, 250, 0.2) !important;
+            color: #93c5fd !important;
+        }
+
+        body.dark-mode .analytics-main .rate-track {
+            background: #374151 !important;
+        }
+
+        @media (max-width: 768px) {
+            .analytics-main {
+                margin-left: 0;
+                padding: 16px !important;
+            }
+            .analytics-main .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .analytics-main .chart-grid {
+                grid-template-columns: 1fr;
+            }
+            .analytics-main .page-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+
         @media print {
             body > aside.sidebar,
             body > nav,
@@ -239,14 +682,17 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
     <?php include '../../includes/sidebar_nav.php'; ?>
 
-    <div class="analytics-main main-content" style="padding: 28px; position: relative; z-index: 1;">
+    <div class="analytics-main main-content">
         <div class="page-header">
-            <div>
-                <h1><i class="fas fa-chart-pie"></i> Analytics Dashboard</h1>
-                <p>Comprehensive data analysis and reporting insights</p>
+            <div class="page-header-left">
+                <div class="header-icon"><i class="fas fa-chart-pie"></i></div>
+                <div>
+                    <h1><i class="fas fa-chart-pie"></i> Analytics Dashboard</h1>
+                    <p>Comprehensive data analysis and reporting insights</p>
+                </div>
             </div>
             <div class="header-actions print-hide">
-                <select id="period-select" name="period" onchange="window.location='?period='+this.value" style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--card-bg);color:var(--text-primary);font-size:13px;">
+                <select id="period-select" class="period-select" name="period" onchange="window.location='?period='+this.value">
                     <option value="7" <?php echo $period === '7' ? 'selected' : ''; ?>>Last 7 days</option>
                     <option value="30" <?php echo $period === '30' ? 'selected' : ''; ?>>Last 30 days</option>
                     <option value="90" <?php echo $period === '90' ? 'selected' : ''; ?>>Last 90 days</option>
@@ -390,10 +836,10 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
                             <td><?php echo $d['completed']; ?></td>
                             <td>
                                 <div style="display:flex;align-items:center;gap:8px;">
-                                    <div style="flex:1;height:6px;background:var(--border);border-radius:3px;max-width:100px;">
-                                        <div style="width:<?php echo $rate; ?>%;height:100%;background:<?php echo $rate > 70 ? '#059669' : ($rate > 40 ? '#d97706' : '#dc2626'); ?>;border-radius:3px;"></div>
+                                    <div class="rate-track">
+                                        <div class="rate-fill" style="width:<?php echo $rate; ?>%;background:<?php echo $rate > 70 ? '#10b981' : ($rate > 40 ? '#f59e0b' : '#ef4444'); ?>;"></div>
                                     </div>
-                                    <span style="font-size:12px;font-weight:600;"><?php echo $rate; ?>%</span>
+                                    <span style="font-size:12px;font-weight:600;color:#1e3c72;"><?php echo $rate; ?>%</span>
                                 </div>
                             </td>
                         </tr>
@@ -402,6 +848,7 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
                 </table>
             </div>
         </div>
+    </div>
 
     <script src="../../js/enhanced-reports.js"></script>
     <script>

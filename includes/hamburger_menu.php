@@ -18,7 +18,7 @@ $__hm_is_index = (basename($_SERVER['PHP_SELF'] ?? '') === 'index.php');
 <!-- Side Menu -->
 <aside class="side-menu" id="sideMenu" aria-label="Navigation menu">
     <div class="side-menu-header">
-        <img src="<?php echo $__hm_base; ?>assets/img/logocityhall.png" alt="Quezon City Hall Logo">
+        <img src="<?php echo $__hm_base; ?>assets/img/infra-gov-logo.png" alt="Quezon City Hall Logo">
         <h4>Road &amp; Transportation<br>Department</h4>
     </div>
     <ul class="side-menu-nav">

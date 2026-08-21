@@ -2329,12 +2329,12 @@ if ($focus_id > 0) {
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>Report Management - LGU Road Monitoring</title>
-    <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
+    <link rel="icon" type="image/png" href="../../assets/img/infra-gov-logo.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../../css/theme-tokens.css">
     <link rel="stylesheet" href="../../css/theme-utilities.css">
-    <link rel="stylesheet" href="../../css/sidebar.css?v=3">
+    <link rel="stylesheet" href="../../css/sidebar.css?v=6">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <link rel="stylesheet" href="../../css/progress-updates.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />

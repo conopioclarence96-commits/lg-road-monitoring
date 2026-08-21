@@ -574,12 +574,12 @@ try {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Admin Dashboard - Account Management</title>
-    <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
+    <link rel="icon" type="image/png" href="../../assets/img/infra-gov-logo.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../../css/theme-tokens.css">
     <link rel="stylesheet" href="../../css/theme-utilities.css">
-    <link rel="stylesheet" href="../../css/sidebar.css?v=3">
+    <link rel="stylesheet" href="../../css/sidebar.css?v=6">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -588,46 +588,72 @@ try {
         body { background: #f5f3ee; min-height: 100vh; color: var(--text-primary); }
         body.dark-mode { background: var(--bg-page); }
         .admin-dash { margin-left: 250px; padding: 28px 32px; max-width: 100%; overflow-x: hidden; }
-
         .admin-dash .dashboard-header {
-            background: #f4f7fb;
-            border-radius: 14px;
-            padding: 20px 26px;
+            background: var(--bg-header);
+            border-radius: 16px;
+            padding: 28px 32px;
             margin-bottom: 22px;
-            border: 1px solid #d5dce8;
-            box-shadow: var(--shadow-card);
+            border: 1px solid var(--color-primary-light);
+            box-shadow: 0 10px 30px rgba(30, 60, 114, 0.18);
+            color: var(--text-inverse);
             display: flex;
             justify-content: space-between;
             align-items: center;
             gap: 16px;
+            position: relative;
+            overflow: hidden;
         }
+        .admin-dash .dashboard-header::before {
+            content: '';
+            position: absolute;
+            top: -80px;
+            right: -80px;
+            width: 220px;
+            height: 220px;
+            border-radius: 50% 0 0 50%;
+            background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.18), transparent 60%);
+            pointer-events: none;
+        }
+        .admin-dash .dashboard-header::after {
+            content: '';
+            position: absolute;
+            bottom: -110px;
+            left: -90px;
+            width: 180px;
+            height: 180px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255,255,255,0.10), transparent 65%);
+            pointer-events: none;
+        }
+
         .admin-dash .welcome-text h1 {
-            font-size: 22px; font-weight: 700; color: var(--text-primary);
+            font-size: 24px; font-weight: 700; color: var(--text-inverse);
             margin-bottom: 4px; display: flex; align-items: center; gap: 12px;
         }
         .admin-dash .header-icon {
-            width: 40px; height: 40px; border-radius: 10px;
+            width: 46px; height: 46px; border-radius: 12px;
             display: inline-flex; align-items: center; justify-content: center;
-            background: var(--color-primary-bg);
-            color: var(--color-primary); font-size: 16px; box-shadow: none;
+            background: rgba(255,255,255,0.20);
+            color: var(--text-inverse); font-size: 18px; box-shadow: none;
         }
         .admin-dash .welcome-text h1 i { color: inherit; margin-right: 0; }
-        .admin-dash .welcome-text p { color: var(--text-secondary); font-size: 13px; }
-        .admin-dash .date-time { color: var(--text-secondary); font-size: 13px; }
+        .admin-dash .welcome-text p { color: rgba(255,255,255,0.85); font-size: 14px; }
+        .admin-dash .date-time { color: rgba(255,255,255,0.85); font-size: 13px; }
         .admin-dash .dt-chip {
             display: flex; align-items: center; gap: 10px;
-            background: var(--color-primary-bg);
-            border: 1px solid var(--border-default);
-            border-radius: 14px; padding: 10px 14px;
+            background: rgba(255,255,255,0.18);
+            border: 1px solid rgba(255,255,255,0.30);
+            border-radius: 14px; padding: 10px 16px;
+            color: var(--text-inverse);
         }
         .admin-dash .dt-chip i {
-            color: var(--color-primary); font-size: 16px;
+            color: var(--text-inverse); font-size: 16px;
             width: 28px; height: 28px; border-radius: 8px;
             display: inline-flex; align-items: center; justify-content: center;
-            background: #f4f7fb;
+            background: rgba(255,255,255,0.20);
         }
-        .admin-dash #currentDate { font-weight: 600; color: var(--text-primary); font-size: 13px; }
-        .admin-dash #currentTime { color: var(--text-secondary); font-size: 12px; margin-top: 1px; }
+        .admin-dash #currentDate { font-weight: 600; color: var(--text-inverse); font-size: 14px; }
+        .admin-dash #currentTime { color: rgba(255,255,255,0.80); font-size: 12px; margin-top: 1px; }
 
         .summary-row {
             display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-bottom: 24px;
@@ -1029,8 +1055,10 @@ try {
         <!-- Dashboard Header -->
         <div class="dashboard-header">
             <div class="welcome-text">
-                <h1><span class="header-icon"><i class="fas fa-gauge-high"></i></span> Admin Dashboard</h1>
-                <p>Road &amp; Transportation Monitoring System</p>
+                <h1><span class="header-icon"><i class="fas fa-gauge-high"></i></span>
+                    Welcome, Administrator
+                </h1>
+                <p>Road &amp; Transportation Monitoring System — Admin Dashboard</p>
             </div>
             <div class="date-time">
                 <div class="dt-chip">

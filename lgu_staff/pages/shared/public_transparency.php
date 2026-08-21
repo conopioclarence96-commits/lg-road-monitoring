@@ -69,17 +69,17 @@ if ($conn) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Public Transparency – Completed Projects | LGU Staff</title>
-    <link rel="icon" type="image/png" href="../../assets/img/logocityhall.png">
+    <link rel="icon" type="image/png" href="../../assets/img/infra-gov-logo.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../../css/theme-tokens.css">
     <link rel="stylesheet" href="../../css/theme-utilities.css">
-    <link rel="stylesheet" href="../../css/sidebar.css?v=3">
-    <link rel="stylesheet" href="../../css/public_transparency.css">
+    <link rel="stylesheet" href="../../css/sidebar.css?v=6">
+    <link rel="stylesheet" href="../../css/public_transparency.css?v=<?php echo filemtime(__DIR__ . '/../../css/public_transparency.css'); ?>">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <style>
-        body { background: #f5f3ee; min-height: 100vh; }
+        body { background: #f7f5f0; min-height: 100vh; color: #1e293b; }
         body.dark-mode { background: var(--bg-page); }
         body.dark-mode .form-group input:not(.publish-checkbox),
         body.dark-mode .form-group textarea,
@@ -110,7 +110,7 @@ if ($conn) {
         }
         body.dark-mode .project-preview .preview-handle::after { color: var(--text-primary) !important; }
         body.dark-mode .btn-cancel { background: var(--bg-input-readonly) !important; color: var(--text-primary) !important; border: 1px solid var(--border-default) !important; }
-        body.dark-mode .btn-cancel:hover { background: var(--text-muted) !important; color: var(--text-inverse) !important; }
+        body.dark-mode .btn-cancel:hover { background: var(--bg-hover) !important; color: var(--text-primary) !important; }
         body.dark-mode .projects-section { background: var(--bg-card) !important; border-color: var(--border-default) !important; }
         body.dark-mode .project-form-card { background: var(--bg-card) !important; border-color: var(--border-default) !important; }
         body.dark-mode .project-item { background: var(--bg-card) !important; border-color: var(--border-default) !important; }
@@ -124,24 +124,24 @@ if ($conn) {
         body.dark-mode .empty-state i { color: var(--text-muted) !important; }
         body.dark-mode .project-details h4 { color: var(--text-primary) !important; }
         body.dark-mode .project-meta span { color: var(--text-secondary) !important; }
-        body.dark-mode .project-cost { background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark)) !important; }
+        body.dark-mode .project-cost { background: rgba(55, 98, 200, 0.2) !important; color: #93b3e0 !important; }
 
         .projects-section {
-            background: #f4f7fb;
-            border: 1px solid #d5dce8;
-            box-shadow: 0 4px 20px rgba(30, 60, 114, 0.08);
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 6px 18px rgba(30, 60, 114, 0.05);
             border-radius: 14px;
-            padding: 25px;
-            margin-bottom: 25px;
+            padding: 22px;
+            margin-bottom: 22px;
         }
 
         .project-form-card {
-            background: #f4f7fb;
-            border: 1px solid #d5dce8;
-            box-shadow: 0 4px 20px rgba(30, 60, 114, 0.08);
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 6px 18px rgba(30, 60, 114, 0.05);
             border-radius: 14px;
-            padding: 30px;
-            margin-bottom: 25px;
+            padding: 24px;
+            margin-bottom: 22px;
         }
 
         .panel-project {
@@ -154,45 +154,46 @@ if ($conn) {
             left: 0;
             top: 0;
             bottom: 0;
-            width: 4px;
-            background: linear-gradient(180deg, #1e3c72, #0f274a);
+            width: 3px;
+            background: #3762c8;
         }
         .panel-project-header {
-            margin: -30px -30px 22px;
-            padding: 14px 18px 14px 22px;
-            background: rgba(30, 60, 114, 0.06);
-            border-bottom: 1px solid rgba(30, 60, 114, 0.12);
+            margin: -24px -24px 20px;
+            padding: 14px 18px;
+            background: #f8fafc;
+            border-bottom: 1px solid #eef2f7;
             border-radius: 14px 14px 0 0;
         }
         .panel-project .section-title i {
             width: 32px;
             height: 32px;
-            border-radius: 9px;
+            border-radius: 10px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             font-size: 13px;
             flex-shrink: 0;
-            color: #fff;
-            background: linear-gradient(135deg, #1e3c72, #0f274a);
-            box-shadow: 0 4px 12px rgba(30, 60, 114, 0.35);
+            color: #3762c8;
+            background: rgba(55, 98, 200, 0.12);
+            box-shadow: none;
         }
         body.dark-mode .panel-project-header {
             background: rgba(255, 255, 255, 0.04) !important;
             border-bottom-color: var(--border-default) !important;
         }
         body.dark-mode .panel-project .section-title i {
-            background: linear-gradient(135deg, #3762c8, #1e3c72) !important;
+            background: rgba(55, 98, 200, 0.2) !important;
+            color: #93b3e0 !important;
         }
 
         .form-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 20px;
+            gap: 16px 18px;
         }
 
         .form-group {
-            margin-bottom: 18px;
+            margin-bottom: 4px;
         }
 
         .form-group.full-width {
@@ -201,9 +202,9 @@ if ($conn) {
 
         .form-group > label:not(.publish-switch) {
             display: block;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 600;
-            color: #1e3c72;
+            color: #475569;
             margin-bottom: 6px;
         }
 
@@ -211,21 +212,22 @@ if ($conn) {
         .form-group textarea,
         .form-group select {
             width: 100%;
-            padding: 10px 14px;
-            border: 1px solid #d5dce8;
-            border-radius: 8px;
+            padding: 10px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
             font-size: 14px;
             font-family: 'Poppins', sans-serif;
-            transition: border-color 0.3s, box-shadow 0.3s;
-            background: white;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            background: #fff;
+            color: #1e293b;
         }
 
         .form-group input:not(.publish-checkbox):focus,
         .form-group textarea:focus,
         .form-group select:focus {
             outline: none;
-            border-color: #1e3c72;
-            box-shadow: 0 0 0 3px rgba(30, 60, 114, 0.15);
+            border-color: #3762c8;
+            box-shadow: 0 0 0 3px rgba(55, 98, 200, 0.12);
         }
 
         .form-group textarea {
@@ -234,30 +236,32 @@ if ($conn) {
         }
 
         .photo-upload-area {
-            border: 2px dashed #ccc;
+            border: 1.5px dashed #cbd5e1;
             border-radius: 12px;
-            padding: 20px;
+            padding: 18px;
             text-align: center;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: border-color 0.2s, background 0.2s;
             position: relative;
             overflow: hidden;
-            min-height: 160px;
+            min-height: 150px;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            background: #f8fafc;
         }
 
         .photo-upload-area:hover {
-            border-color: #1e3c72;
-            background: rgba(30, 60, 114, 0.03);
+            border-color: #3762c8;
+            background: rgba(55, 98, 200, 0.04);
         }
 
         .photo-upload-area.has-image {
             padding: 0;
             border-style: solid;
-            border-color: #059669;
+            border-color: #10b981;
+            background: #fff;
         }
 
         .photo-upload-area input[type="file"] {
@@ -268,14 +272,14 @@ if ($conn) {
         }
 
         .photo-upload-area .upload-icon {
-            font-size: 2.5rem;
-            color: #bbb;
+            font-size: 2rem;
+            color: #94a3b8;
             margin-bottom: 8px;
         }
 
         .photo-upload-area .upload-text {
             font-size: 13px;
-            color: #888;
+            color: #64748b;
         }
 
         .photo-upload-area img {
@@ -289,7 +293,7 @@ if ($conn) {
             position: absolute;
             top: 8px;
             right: 8px;
-            background: rgba(244,67,54,0.9);
+            background: rgba(239, 68, 68, 0.92);
             color: white;
             border: none;
             border-radius: 50%;
@@ -305,36 +309,36 @@ if ($conn) {
 
         .btn-row {
             display: flex;
-            gap: 12px;
-            margin-top: 10px;
+            gap: 10px;
+            margin-top: 12px;
+            flex-wrap: wrap;
         }
 
         .btn-save {
-            padding: 12px 28px;
-            background: linear-gradient(135deg, #16a34a, #15803d);
+            padding: 10px 22px;
+            background: #16a34a;
             color: white;
             border: none;
             border-radius: 10px;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: background 0.2s, box-shadow 0.2s, transform 0.2s;
             display: flex;
             align-items: center;
             gap: 8px;
-            box-shadow: 0 4px 14px rgba(22, 163, 74, 0.3);
-            letter-spacing: 0.01em;
+            box-shadow: 0 2px 8px rgba(22, 163, 74, 0.22);
         }
 
         .btn-save:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(22, 163, 74, 0.4);
-            background: linear-gradient(135deg, #22c55e, #16a34a);
+            background: #15803d;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 14px rgba(22, 163, 74, 0.28);
         }
 
         .btn-save:active {
             transform: translateY(0);
-            box-shadow: 0 2px 8px rgba(22, 163, 74, 0.3);
+            box-shadow: 0 2px 6px rgba(22, 163, 74, 0.2);
         }
 
         .btn-save:disabled {
@@ -345,59 +349,65 @@ if ($conn) {
         }
 
         .btn-cancel {
-            padding: 12px 28px;
-            background: linear-gradient(135deg, #64748b, #475569);
-            color: white;
-            border: none;
+            padding: 10px 22px;
+            background: #fff;
+            color: #475569;
+            border: 1px solid #e2e8f0;
             border-radius: 10px;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: background 0.2s, border-color 0.2s, transform 0.2s;
             display: flex;
             align-items: center;
             gap: 8px;
-            box-shadow: 0 4px 12px rgba(71, 85, 105, 0.25);
+            box-shadow: none;
         }
 
         .btn-cancel:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 18px rgba(71, 85, 105, 0.35);
-            background: linear-gradient(135deg, #475569, #334155);
+            background: #f8fafc;
+            border-color: #cbd5e1;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
         }
 
         .btn-cancel:active {
             transform: translateY(0);
-            box-shadow: 0 2px 6px rgba(71, 85, 105, 0.25);
         }
 
         .form-header-actions {
             display: flex;
             align-items: center;
             gap: 10px;
+            flex-wrap: wrap;
         }
 
         .btn-import {
-            padding: 12px 22px;
-            background: linear-gradient(135deg, #1e3c72, #0f274a);
+            padding: 10px 18px;
+            background: #3762c8;
             color: white;
             border: none;
-            border-radius: 8px;
-            font-size: 14px;
+            border-radius: 10px;
+            font-size: 13px;
             font-weight: 600;
             font-family: 'Poppins', sans-serif;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: background 0.2s, box-shadow 0.2s, transform 0.2s;
             display: inline-flex;
             align-items: center;
             gap: 8px;
             white-space: nowrap;
-            box-shadow: 0 4px 12px rgba(30, 60, 114, 0.25);
+            box-shadow: 0 2px 8px rgba(55, 98, 200, 0.2);
         }
 
         .btn-import:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(30, 60, 114, 0.35);
+            background: #1e3c72;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 14px rgba(55, 98, 200, 0.28);
+        }
+
+        .btn-import:active {
+            transform: translateY(0);
         }
 
         .btn-import:disabled {
@@ -419,16 +429,17 @@ if ($conn) {
         }
 
         .project-item {
-            background: white;
-            border-radius: 12px;
+            background: #fff;
+            border-radius: 14px;
             overflow: hidden;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
-            border: 1px solid #eee;
-            transition: all 0.3s;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 6px 16px rgba(30, 60, 114, 0.05);
+            border: 1px solid #e2e8f0;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
 
         .project-item:hover {
-            box-shadow: 0 8px 25px rgba(0,0,0,0.12);
+            box-shadow: 0 8px 24px rgba(30, 60, 114, 0.08);
+            transform: translateY(-2px);
         }
 
         .project-preview {
@@ -554,13 +565,13 @@ if ($conn) {
 
         .project-cost {
             display: inline-block;
-            background: linear-gradient(135deg, #1e3c72, #0f274a);
-            color: white;
-            padding: 3px 10px;
-            border-radius: 12px;
+            background: rgba(55, 98, 200, 0.12);
+            color: #3762c8;
+            padding: 4px 10px;
+            border-radius: 999px;
             font-size: 11px;
             font-weight: 600;
-            box-shadow: 0 2px 8px rgba(30, 60, 114, 0.2);
+            box-shadow: none;
         }
 
         .project-actions {
@@ -570,38 +581,60 @@ if ($conn) {
         }
 
         .btn-edit {
-            padding: 6px 14px;
-            background: linear-gradient(135deg, #3762c8, #1e3c72);
+            padding: 7px 14px;
+            background: #3762c8;
             color: white;
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
             font-size: 12px;
-            font-weight: 500;
+            font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: background 0.2s, box-shadow 0.2s, transform 0.2s;
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 6px;
+            box-shadow: 0 2px 6px rgba(55, 98, 200, 0.2);
         }
 
-        .btn-edit:hover { background: #1e3c72; }
+        .btn-edit:hover {
+            background: #1e3c72;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(55, 98, 200, 0.28);
+            filter: none;
+        }
+
+        .btn-edit:active {
+            transform: translateY(0);
+        }
 
         .btn-delete {
-            padding: 6px 14px;
-            background: linear-gradient(135deg, #ef4444, #b91c1c);
-            color: white;
-            border: none;
-            border-radius: 6px;
+            padding: 7px 14px;
+            background: #fff;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
             font-size: 12px;
-            font-weight: 500;
+            font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: background 0.2s, border-color 0.2s, transform 0.2s;
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 6px;
+            box-shadow: none;
         }
 
-        .btn-delete:hover { background: #b91c1c; }
+        .btn-delete:hover {
+            background: #fef2f2;
+            border-color: #f87171;
+            transform: translateY(-1px);
+            filter: none;
+        }
+
+        .btn-delete:active {
+            transform: translateY(0);
+        }
+        body.dark-mode .btn-edit { filter: brightness(1.1); }
+        body.dark-mode .btn-delete { filter: brightness(1.1); }
 
         .empty-state {
             text-align: center;
@@ -635,58 +668,78 @@ if ($conn) {
         .toast.error { background: #dc2626; }
 
         .view-only-notice {
-            background: linear-gradient(135deg, rgba(30, 60, 114, 0.08), rgba(30, 60, 114, 0.05));
-            border-left: 4px solid #1e3c72;
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-left: 3px solid #3762c8;
             border-radius: 12px;
-            padding: 20px 25px;
-            margin-bottom: 25px;
+            padding: 16px 18px;
+            margin-bottom: 18px;
             display: flex;
             align-items: center;
-            gap: 15px;
+            gap: 14px;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
         }
 
         .view-only-notice .notice-icon {
-            font-size: 2.5rem;
-            color: #1e3c72;
+            font-size: 1.6rem;
+            color: #3762c8;
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: rgba(55, 98, 200, 0.1);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
         }
 
         .view-only-notice h4 {
-            margin: 0 0 5px 0;
+            margin: 0 0 4px 0;
             color: #1e3c72;
-            font-size: 16px;
+            font-size: 15px;
         }
 
         .view-only-notice p {
             margin: 0;
-            color: #5a6c7d;
+            color: #64748b;
             font-size: 13px;
         }
 
         .import-review-banner {
-            background: linear-gradient(135deg, rgba(22, 163, 74, 0.10), rgba(21, 128, 61, 0.10));
-            border-left: 4px solid #16a34a;
+            background: #fff;
+            border: 1px solid #d1fae5;
+            border-left: 3px solid #16a34a;
             border-radius: 12px;
-            padding: 20px 25px;
-            margin-bottom: 25px;
+            padding: 16px 18px;
+            margin-bottom: 18px;
             display: flex;
             align-items: center;
-            gap: 15px;
+            gap: 14px;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
         }
 
         .import-review-banner .notice-icon {
-            font-size: 2.2rem;
-            color: #15803d;
+            font-size: 1.4rem;
+            color: #16a34a;
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: rgba(22, 163, 74, 0.1);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
         }
 
         .import-review-banner h4 {
-            margin: 0 0 5px 0;
+            margin: 0 0 4px 0;
             color: #1e3c72;
-            font-size: 16px;
+            font-size: 15px;
         }
 
         .import-review-banner p {
             margin: 0;
-            color: #5a6c7d;
+            color: #64748b;
             font-size: 13px;
         }
 
@@ -702,25 +755,25 @@ if ($conn) {
             align-items: center;
             gap: 12px;
             cursor: pointer;
-            padding: 12px 18px;
+            padding: 10px 14px;
             background: #fff;
-            border: 2px solid #d5dce8;
-            border-radius: 12px;
-            transition: all 0.3s ease;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
             width: fit-content;
             max-width: 100%;
             user-select: none;
             margin-bottom: 0;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             color: #1e3c72;
-            box-shadow: 0 2px 8px rgba(30, 60, 114, 0.06);
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
         }
 
         .form-group label.publish-switch:hover {
             border-color: #3762c8;
-            box-shadow: 0 3px 12px rgba(30, 60, 114, 0.12);
-            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(55, 98, 200, 0.1);
+            transform: none;
         }
 
         .publish-checkbox {
@@ -737,10 +790,10 @@ if ($conn) {
         }
 
         .form-group label.publish-switch:has(.publish-checkbox:checked) {
-            background: linear-gradient(135deg, rgba(22, 163, 74, 0.12), rgba(5, 150, 105, 0.08));
-            border-color: #059669;
+            background: rgba(16, 185, 129, 0.08);
+            border-color: #10b981;
             color: #047857;
-            box-shadow: 0 4px 14px rgba(5, 150, 105, 0.18);
+            box-shadow: 0 1px 3px rgba(16, 185, 129, 0.12);
         }
 
         .form-group label.publish-switch .toggle-slider {
@@ -772,7 +825,7 @@ if ($conn) {
         }
 
         .form-group label.publish-switch:has(.publish-checkbox:checked) .toggle-slider {
-            background: linear-gradient(135deg, #16a34a, #059669);
+            background: #16a34a;
         }
 
         .form-group label.publish-switch:has(.publish-checkbox:checked) .toggle-slider::before {
@@ -825,21 +878,32 @@ if ($conn) {
         }
 
         .btn-publish {
-            padding: 6px 14px;
-            background: linear-gradient(135deg, #16a34a, #15803d);
+            padding: 7px 14px;
+            background: #16a34a;
             color: white;
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
             font-size: 12px;
-            font-weight: 500;
+            font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: background 0.2s, box-shadow 0.2s, transform 0.2s;
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 6px;
+            box-shadow: 0 2px 6px rgba(22, 163, 74, 0.2);
         }
 
-        .btn-publish:hover { background: #15803d; }
+        .btn-publish:hover {
+            background: #15803d;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(22, 163, 74, 0.28);
+            filter: none;
+        }
+
+        .btn-publish:active {
+            transform: translateY(0);
+        }
+        body.dark-mode .btn-publish { filter: none; }
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
@@ -855,32 +919,40 @@ if ($conn) {
                     <div>
                         <h1>Public Transparency – Completed Projects</h1>
                         <?php if ($is_admin): ?>
-                        <p>Manage before &amp; after project photos that appear on the landing page</p>
+                        <p>Welcome, Administrator — manage the before &amp; after photo projects shown on the landing page</p>
                         <?php else: ?>
                         <p>View completed projects with before &amp; after photos (View Only)</p>
                         <?php endif; ?>
                     </div>
                 </div>
-                <div class="header-actions"></div>
+                <div class="header-actions">
+                    <div class="header-datetime">
+                        <i class="fas fa-calendar-day"></i>
+                        <div>
+                            <div id="dtDate"></div>
+                            <div id="dtTime"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
         <!-- Stats -->
         <div class="transparency-stats">
             <div class="transparency-stat">
-                <div class="stat-number" id="statTotal"><?php echo count($projects); ?></div>
+                <div class="stat-number" id="statTotal"><span class="stat-icon"><i class="fas fa-folder-open"></i></span><?php echo count($projects); ?></div>
                 <div class="stat-label">Total Projects</div>
             </div>
             <div class="transparency-stat stat-amber">
-                <div class="stat-number" id="statWithBefore"><?php echo count(array_filter($projects, fn($p) => !empty($p['before_photo']))); ?></div>
+                <div class="stat-number" id="statWithBefore"><span class="stat-icon"><i class="fas fa-hourglass-half"></i></span><?php echo count(array_filter($projects, fn($p) => !empty($p['before_photo']))); ?></div>
                 <div class="stat-label">With Before Photo</div>
             </div>
             <div class="transparency-stat stat-emerald">
-                <div class="stat-number" id="statWithAfter"><?php echo count(array_filter($projects, fn($p) => !empty($p['photo']))); ?></div>
+                <div class="stat-number" id="statWithAfter"><span class="stat-icon"><i class="fas fa-image"></i></span><?php echo count(array_filter($projects, fn($p) => !empty($p['photo']))); ?></div>
                 <div class="stat-label">With After Photo</div>
             </div>
             <div class="transparency-stat stat-violet">
-                <div class="stat-number" id="statTotalCost">₱<?php echo number_format(array_sum(array_column($projects, 'cost')), 0); ?></div>
+                <div class="stat-number" id="statTotalCost"><span class="stat-icon"><i class="fas fa-peso-sign"></i></span>₱<?php echo number_format(array_sum(array_column($projects, 'cost')), 0); ?></div>
                 <div class="stat-label">Total Project Cost</div>
             </div>
         </div>
@@ -1007,7 +1079,7 @@ if ($conn) {
                     <button type="submit" class="btn-save" id="btnSave">
                         <i class="fas fa-save"></i> Save Project
                     </button>
-                    <button type="button" class="btn-cancel" onclick="resetForm()">Cancel</button>
+                    <button type="button" class="btn-cancel" onclick="resetForm()"><i class="fas fa-xmark"></i> Cancel</button>
                 </div>
             </form>
         </div>
@@ -1164,7 +1236,7 @@ if ($conn) {
                         <button type="submit" class="btn-save" id="ptBtnSaveAnnouncement">
                             <i class="fas fa-bullhorn"></i> Publish Announcement
                         </button>
-                        <button type="button" class="btn-cancel" onclick="ptResetAnnouncementForm()">Cancel</button>
+                        <button type="button" class="btn-cancel" onclick="ptResetAnnouncementForm()"><i class="fas fa-xmark"></i> Cancel</button>
                     </div>
                 </form>
             </div>
@@ -1199,7 +1271,7 @@ if ($conn) {
                     <?php endif; ?>
                     <div class="announcement-body">
                         <div class="announcement-item-top">
-                            <h4><?php echo htmlspecialchars($ann['title'] ?? ''); ?></h4>
+                            <h4><i class="fas fa-bullhorn"></i> <?php echo htmlspecialchars($ann['title'] ?? ''); ?></h4>
                             <?php if ($is_admin): ?>
                             <span class="publish-badge <?php echo $is_pub ? 'published' : 'draft'; ?>">
                                 <i class="fas <?php echo $is_pub ? 'fa-globe' : 'fa-file-alt'; ?>"></i>
@@ -1247,6 +1319,19 @@ if ($conn) {
     <script>
     const API = '../../pages/api/completed_projects_api.php';
     let isEditing = false;
+
+    // ─── Header Date / Time ─────────────────────────────────────
+    function updateHeaderDateTime() {
+        const now = new Date();
+        const dateOpts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        const timeOpts = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
+        const dEl = document.getElementById('dtDate');
+        const tEl = document.getElementById('dtTime');
+        if (dEl) dEl.textContent = now.toLocaleDateString('en-US', dateOpts);
+        if (tEl) tEl.textContent = now.toLocaleTimeString('en-US', timeOpts);
+    }
+    updateHeaderDateTime();
+    setInterval(updateHeaderDateTime, 1000);
 
     // ─── Photo Upload ─────────────────────────────────────
     function applyUploadedPhoto(type, path) {

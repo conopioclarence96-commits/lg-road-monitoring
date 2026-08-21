@@ -676,7 +676,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
         <!-- LOGIN -->
         <div class="panel login">
           <div class="card">
-            <img src="<?php echo $basePath; ?>../assets/img/logocityhall.png" class="icon-top" />
+            <img src="<?php echo $basePath; ?>../assets/img/infra-gov-logo.png" class="icon-top" />
             <h2 class="title">LGU Login</h2>
             <p class="subtitle">
               Road and Transportation Infrastructure Monitoring
