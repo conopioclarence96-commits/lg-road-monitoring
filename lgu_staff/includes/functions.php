@@ -28,10 +28,51 @@ function lgu_session_idle_seconds() {
     return 30 * 60;
 }
 
+/** Resolve the on-disk path for a PHP session id (default file handler). */
+function lgu_php_session_file_path($session_id) {
+    $session_id = trim((string)$session_id);
+    if ($session_id === '' || !preg_match('/^[a-zA-Z0-9,-]{1,128}$/', $session_id)) {
+        return null;
+    }
+
+    $save_path = session_save_path();
+    if ($save_path === '') {
+        $save_path = sys_get_temp_dir();
+    } elseif (preg_match('/^\d+;(.+)$/', $save_path, $matches)) {
+        $save_path = $matches[1];
+    }
+
+    return rtrim($save_path, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'sess_' . $session_id;
+}
+
+/**
+ * True when the stored PHP session file still exists and belongs to $user_id.
+ * Browsers that close without logout destroy the session file while the DB lock
+ * can remain — treating a missing file as stale prevents false "already logged in".
+ */
+function lgu_stored_session_is_alive($session_id, $user_id = null) {
+    $path = lgu_php_session_file_path($session_id);
+    if ($path === null || !is_file($path)) {
+        return false;
+    }
+    if ($user_id === null || (int)$user_id <= 0) {
+        return true;
+    }
+
+    $data = @file_get_contents($path);
+    if ($data === false || $data === '') {
+        return false;
+    }
+
+    $uid = (int)$user_id;
+    return strpos($data, 'user_id|i:' . $uid . ';') !== false
+        || (bool)preg_match('/user_id[|;]"i:' . $uid . '[;"]/', $data);
+}
+
 /**
  * True when another device/browser already holds an active session for this account.
  * Same PHP session id is allowed (re-login / refresh). Stale locks (no activity within
- * the idle window) are cleared so accounts are not permanently locked.
+ * the idle window, or missing PHP session file) are cleared so accounts are not locked.
  */
 function lgu_account_has_active_session($user_id, $current_session_id = null) {
     global $conn;
@@ -80,6 +121,10 @@ function lgu_account_has_active_session($user_id, $current_session_id = null) {
         }
         if ($current_session_id !== null && $current_session_id !== '' && hash_equals($active_sid, (string)$current_session_id)) {
             return false; // same browser/session
+        }
+        if (!lgu_stored_session_is_alive($active_sid, $user_id)) {
+            lgu_release_user_session($user_id, $active_sid);
+            return false;
         }
         return true;
     } catch (Exception $e) {

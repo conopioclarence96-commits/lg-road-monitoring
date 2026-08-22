@@ -169,60 +169,67 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_login_otp'])) 
     if (!isset($_SESSION['login_verify_data'])) {
         $loginMessage = 'Login session expired. Please login again.';
         $messageType = 'error';
-    } else {
-        $result = verify_otp_code($enteredOTP, 'login');
-
-        if ($result['success']) {
-            $user = $_SESSION['login_verify_data'];
-
-            if (lgu_account_has_active_session((int)$user['id'])) {
-                $loginMessage = 'This account is already logged in on another session.';
-                $messageType = 'error';
-                $showLoginOTPModal = false;
-            } else {
-                session_regenerate_id(true);
-                $_SESSION['user_id'] = $user['id'];
-                $_SESSION['email'] = $user['email'];
-                $_SESSION['full_name'] = $user['full_name'];
-                $_SESSION['role'] = $user['role'];
-                $_SESSION['darkmode'] = $user['darkmode'] ?? 0;
-                $_SESSION['logged_in'] = true;
-                $_SESSION['login_time'] = time();
-                lgu_claim_user_session((int)$user['id']);
-
-                // Remember Me — extend session cookie to 30 days
-                if (!empty($user['remember_me'])) {
-                    $params = session_get_cookie_params();
-                    setcookie(session_name(), session_id(), time() + (30 * 24 * 60 * 60), $params['path'], $params['domain'], $params['secure'], $params['httponly']);
-                }
-
-                unset($_SESSION['login_verify_data']);
-
-                switch ($user['role']) {
-                    case 'system_admin':
-                        $redirectUrl = $basePath . 'lgu_staff/pages/admin/admin_dashboard.php';
-                        break;
-                    case 'lgu_staff':
-                        $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
-                        break;
-                    case 'citizen':
-                        $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
-                        break;
-                    default:
-                        $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
-                }
-
-                header('Location: ' . $redirectUrl);
-                exit;
-            }
         } else {
-            $loginMessage = $result['message'];
-            $messageType = 'error';
-            if ($result['message'] !== 'OTP has expired. Please try again.') {
-                $showLoginOTPModal = true;
+            $result = verify_otp_code($enteredOTP, 'login');
+
+            if ($result['success']) {
+                $user = $_SESSION['login_verify_data'];
+
+                if (lgu_account_has_active_session((int)$user['id'])) {
+                    $loginMessage = 'This account is already logged in on another session.';
+                    $messageType = 'error';
+                    $showLoginOTPModal = false;
+                } else {
+                    session_regenerate_id(true);
+                    $_SESSION['user_id'] = $user['id'];
+                    $_SESSION['email'] = $user['email'];
+                    $_SESSION['full_name'] = $user['full_name'];
+                    $_SESSION['role'] = $user['role'];
+                    $_SESSION['darkmode'] = $user['darkmode'] ?? 0;
+                    $_SESSION['logged_in'] = true;
+                    $_SESSION['login_time'] = time();
+                    lgu_claim_user_session((int)$user['id']);
+
+                    // Remember Me — extend session cookie to 30 days
+                    if (!empty($user['remember_me'])) {
+                        $params = session_get_cookie_params();
+                        setcookie(session_name(), session_id(), time() + (30 * 24 * 60 * 60), $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+                    }
+
+                    unset($_SESSION['login_verify_data']);
+
+                    switch ($user['role']) {
+                        case 'system_admin':
+                            $redirectUrl = $basePath . 'lgu_staff/pages/admin/admin_dashboard.php';
+                            break;
+                        case 'lgu_staff':
+                            $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
+                            break;
+                        case 'citizen':
+                            $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
+                            break;
+                        default:
+                            $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
+                    }
+
+                    header('Location: ' . $redirectUrl);
+                    exit;
+                }
+            } else {
+                $loginMessage = $result['message'];
+                $messageType = 'error';
+                if ($result['message'] !== 'OTP has expired. Please try again.') {
+                    $showLoginOTPModal = true;
+                } else {
+                    // Expired OTP — clear any stale lock for this pending login attempt.
+                    if (isset($_SESSION['login_verify_data']['id'])) {
+                        lgu_release_user_session((int)$_SESSION['login_verify_data']['id']);
+                    }
+                    unset($_SESSION['login_verify_data']);
+                    $showLoginOTPModal = false;
+                }
             }
         }
-    }
 }
 
 // Handle Resend OTP
@@ -546,9 +553,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                             $loginMessage = 'This account is already logged in on another session.';
                             $messageType = 'error';
                         } elseif (!empty($user['twofa']) && $user['twofa'] == 1) {
-                            // Claim this browser session while OTP is pending so a
-                            // second device cannot start another login in parallel.
-                            lgu_claim_user_session((int)$user['id']);
+                            // Do not claim the session until OTP is verified — an early
+                            // claim leaves a ghost lock if the user abandons the OTP step.
 
                             // 2FA enabled - send OTP for verification
                             handle_login_otp($user['email']);
