@@ -17,6 +17,9 @@ if (!isset($_SESSION['user_id']) || !is_admin_or_staff_role($_SESSION['role'] ??
 
 $user_id = $_SESSION['user_id'];
 
+// Road Ops Supervisor flag: scopes the mobile-fit CSS below to this portal only.
+$is_road_supervisor = ($_SESSION['role'] ?? '') === 'road_ops_supervisor';
+
 // Ensure profile_picture column exists
 try {
     $check_col = $conn->query("SHOW COLUMNS FROM users LIKE 'profile_picture'");
@@ -756,8 +759,65 @@ try {
             .avatar-upload-row .upload-controls { flex-direction: column; }
         }
     </style>
+    <?php if ($is_road_supervisor): ?>
+    <!-- Road Ops Supervisor only: mobile fit for the account cards / form actions.
+         UI-only CSS scoping — other portals are unaffected and no behaviour changes. -->
+    <style>
+        @media (max-width: 768px) {
+            /* Slimmer page + card chrome frees room for the form contents */
+            body.road-supervisor-view .settings-container { padding: 18px 12px; }
+            body.road-supervisor-view .account-card-header { padding: 14px 16px; }
+            body.road-supervisor-view .account-card-body {
+                padding: 18px 14px;
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+
+            /* Form action rows are a single non-wrapping flex row, so the
+               submit/reset pair runs past the screen edge on phones.
+               Let them wrap and stretch instead of overflowing. */
+            body.road-supervisor-view .form-actions {
+                flex-wrap: wrap;
+                row-gap: 10px;
+            }
+            body.road-supervisor-view .form-actions .btn {
+                flex: 1 1 auto;
+                justify-content: center;
+                min-width: 0;
+                max-width: 100%;
+            }
+
+            /* Inputs/labels never push their grid track past the viewport */
+            body.road-supervisor-view .form-control {
+                min-width: 0;
+                max-width: 100%;
+            }
+
+            /* Long words (names, emails, file names) must break, not overflow */
+            body.road-supervisor-view .profile-info h2,
+            body.road-supervisor-view .form-group label,
+            body.road-supervisor-view .field-hint,
+            body.road-supervisor-view .t-text-link {
+                overflow-wrap: anywhere;
+                word-break: break-word;
+            }
+
+            /* 2FA / dark mode toggle rows keep text and switch side by side
+               but let long labels shrink safely */
+            body.road-supervisor-view .twofa-section { gap: 10px; }
+            body.road-supervisor-view .twofa-section .twofa-info { min-width: 0; }
+        }
+
+        @media (max-width: 480px) {
+            /* Very narrow screens: stack the action buttons full width */
+            body.road-supervisor-view .form-actions { flex-direction: column; align-items: stretch; }
+            body.road-supervisor-view .form-actions .btn { width: 100%; }
+        }
+    </style>
+    <?php endif; ?>
 </head>
-<body class="<?php echo ($user_data['darkmode'] ?? 0) == 1 ? 'dark-mode' : ''; ?>">
+<body class="<?php echo ($user_data['darkmode'] ?? 0) == 1 ? 'dark-mode' : ''; ?><?php echo $is_road_supervisor ? ' road-supervisor-view' : ''; ?>">
     <!-- SIDEBAR -->
     <?php include '../../includes/sidebar_nav.php'; ?>
 
