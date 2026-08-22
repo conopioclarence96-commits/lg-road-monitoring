@@ -664,22 +664,42 @@ function getActionColor($action) {
         }
     </style>
 <?php if ($is_system_admin): ?>
-    <!-- System Admin only: mobile fit for the Filter Logs panel (panel-filter).
-         The global stylesheet flips .filter-bar to flex-direction: column below
-         768px while this page keeps align-items: flex-end — fields then shrink
-         to their content width and hug the right edge instead of stacking
-         full-width. Force proper full-width stacking instead. UI-only CSS
-         scoping — other portals/pages are unaffected and no behaviour changes. -->
+    <!-- System Admin only: fit for the Filter Logs panel (panel-filter).
+         Desktop: no global border-box reset is loaded on this page, so the
+         width:100% date/select controls add their padding+border on top of
+         the container width and spill ~26px over the neighbouring fields and
+         the Apply/Clear buttons. Mobile: the global stylesheet flips
+         .filter-bar to flex-direction: column below 768px while this page
+         keeps align-items: flex-end — fields then shrink to their content
+         width and hug the right edge instead of stacking full-width.
+         UI-only CSS scoping — other portals/pages are unaffected and no
+         behaviour changes. -->
     <style>
-        @media (max-width: 768px) {
-            .audit-main .panel-filter,
-            .audit-main .panel-filter .panel-body,
-            .audit-main .panel-filter .filter-bar {
-                max-width: 100%;
-                min-width: 0;
-                box-sizing: border-box;
-            }
+        /* ── All viewports (desktop included): stop controls spilling out of
+           their containers and overlapping each other ── */
+        .audit-main .panel-filter,
+        .audit-main .panel-filter .panel-body,
+        .audit-main .panel-filter .filter-bar {
+            max-width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
+        }
 
+        /* Allow the field columns to shrink below their content size */
+        .audit-main .panel-filter .filter-bar > div {
+            min-width: 0;
+        }
+
+        /* width:100% must INCLUDE padding + border, otherwise every control
+           paints ~26px past its wrapper onto the adjacent container */
+        .audit-main .panel-filter .filter-bar select,
+        .audit-main .panel-filter .filter-bar input {
+            box-sizing: border-box;
+            min-width: 0;
+            max-width: 100%;
+        }
+
+        @media (max-width: 768px) {
             /* Keep the bar a wrapping ROW so flex-basis:100% makes each field
                take a full row; in column direction flex-basis is read as
                HEIGHT, which breaks the stacked layout. */
