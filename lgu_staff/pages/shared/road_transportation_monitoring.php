@@ -3825,8 +3825,67 @@ if ($is_completed_projects_view || $is_system_admin) {
             body.completed-projects-view .mon-dash .header-icon { width: 36px; height: 36px; }
         }
     </style>
+<?php if ($is_road_supervisor): ?>
+    <!-- Road Ops Supervisor only: mobile fit for monitoring-layout / sidebar-section.
+         UI-only CSS scoping — other portals are unaffected and no behaviour changes. -->
+    <style>
+        @media (max-width: 768px) {
+            .road-supervisor-view .mon-dash { padding: 16px 14px; }
+
+            /* Grid/flex children must be allowed to shrink below their content
+               width, otherwise wide inner rows force the track past the screen
+               edge and get clipped ("half" visible). */
+            .road-supervisor-view .monitoring-layout,
+            .road-supervisor-view .monitoring-layout > *,
+            .road-supervisor-view .sidebar-section,
+            .road-supervisor-view .info-card {
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+
+            .road-supervisor-view .monitoring-layout {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+
+            .road-supervisor-view .sidebar-section {
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+                width: 100%;
+                overflow-x: hidden;
+            }
+
+            .road-supervisor-view .map-section {
+                padding: 12px;
+                min-width: 0;
+                overflow-x: hidden;
+            }
+
+            /* Shorter map keeps header + toolbar + map inside one mobile view */
+            .road-supervisor-view #map {
+                height: 340px;
+            }
+
+            /* Toolbar button row is ~600px unwrapped — let it wrap instead of
+               pushing past the screen edge */
+            .road-supervisor-view .map-toolbar,
+            .road-supervisor-view .map-toolbar-left,
+            .road-supervisor-view .map-toolbar-right {
+                flex-wrap: wrap;
+            }
+            .road-supervisor-view .map-toolbar-right {
+                justify-content: flex-start;
+            }
+            .road-supervisor-view .map-search-box input {
+                width: 120px;
+            }
+        }
+    </style>
+<?php endif; ?>
 </head>
-<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo $is_completed_projects_view ? ' completed-projects-view' : ''; ?>">
+<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo $is_completed_projects_view ? ' completed-projects-view' : ''; ?><?php echo $is_road_supervisor ? ' road-supervisor-view' : ''; ?>">
     <!-- SIDEBAR -->
     <?php include '../../includes/sidebar_nav.php'; ?>
 
