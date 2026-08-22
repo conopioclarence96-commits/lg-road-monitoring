@@ -89,11 +89,33 @@
             max-width: 420px;
         }
 
-        /* Never let the dropdown menus overflow the phone screen */
+        /* Never let the dropdown menus overflow the phone screen.
+           Anchor the opened Services/Programs menus to the fixed navbar
+           itself (full-width panel below the whole quick-links row).
+           !important beats the inline top/left/transform that Popper.js
+           writes on .dropdown-menu.show, which otherwise positions the
+           menu past the right edge of small screens and on top of the
+           buttons/search row (items look overlapping/clipped). */
         .qc-services-dropdown .dropdown-menu,
         .qc-programs-dropdown .dropdown-menu {
             min-width: 0;
             max-width: calc(100vw - 20px);
+        }
+        /* Un-position the dropdown shells so the opened menus resolve their
+           coordinates against the fixed .qc-navbar instead of the small
+           half-row .dropdown wrappers. */
+        .qc-navbar .qc-services-dropdown,
+        .qc-navbar .qc-programs-dropdown {
+            position: static;
+        }
+        .qc-navbar .qc-services-dropdown .dropdown-menu.show,
+        .qc-navbar .qc-programs-dropdown .dropdown-menu.show {
+            top: 100% !important;
+            bottom: auto !important;
+            left: 14px !important;
+            right: 14px !important;
+            transform: none !important;
+            margin: 0;
         }
     }
 
