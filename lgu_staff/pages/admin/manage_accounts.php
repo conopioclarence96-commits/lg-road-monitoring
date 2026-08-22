@@ -785,9 +785,43 @@ function formatLastActive($timestamp) {
             .modal-content.user-modal-content .user-modal-body { padding: 12px 16px; }
             .modal-content.user-modal-content .user-modal-header { padding: 12px 16px; }
             .modal-content.user-modal-content .user-modal-actions { padding: 12px 16px; }
+
+            /* Workflow header - mobile compatibility */
+            .accounts-dash .workflow-card { padding: 16px; }
+            .accounts-dash .workflow-header {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 12px;
+                margin: -16px -16px 14px;
+                padding: 12px 14px;
+            }
+            .accounts-dash .workflow-title { flex-wrap: wrap; row-gap: 6px; font-size: 13px; min-width: 0; }
+            .accounts-dash .workflow-badge { flex-shrink: 0; }
+            .accounts-dash .filter-section {
+                width: 100%;
+                justify-content: space-between;
+            }
+            .accounts-dash .filter-dropdown {
+                flex: 1 1 auto;
+                min-width: 0;
+                max-width: none;
+            }
+            .accounts-dash .workflow-content { max-height: 420px; }
         }
         @media (max-width: 480px) {
             .summary-row { grid-template-columns: 1fr; }
+
+            /* Workflow header - small phones */
+            .accounts-dash .workflow-card { padding: 14px; }
+            .accounts-dash .workflow-header {
+                margin: -14px -14px 12px;
+                padding: 10px 12px;
+            }
+            .accounts-dash .workflow-title { font-size: 12.5px; }
+            .accounts-dash .workflow-title .title-icon { width: 26px; height: 26px; font-size: 11px; border-radius: 8px; }
+            .accounts-dash .filter-section { gap: 6px; }
+            .accounts-dash .filter-dropdown { padding: 7px 8px; font-size: 12px; }
+            .accounts-dash .filter-button { padding: 7px 12px; font-size: 12px; }
         }
     </style>
 </head>
