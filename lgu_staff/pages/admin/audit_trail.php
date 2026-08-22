@@ -663,6 +663,73 @@ function getActionColor($action) {
             }
         }
     </style>
+<?php if ($is_system_admin): ?>
+    <!-- System Admin only: mobile fit for the Filter Logs panel (panel-filter).
+         The global stylesheet flips .filter-bar to flex-direction: column below
+         768px while this page keeps align-items: flex-end — fields then shrink
+         to their content width and hug the right edge instead of stacking
+         full-width. Force proper full-width stacking instead. UI-only CSS
+         scoping — other portals/pages are unaffected and no behaviour changes. -->
+    <style>
+        @media (max-width: 768px) {
+            .audit-main .panel-filter,
+            .audit-main .panel-filter .panel-body,
+            .audit-main .panel-filter .filter-bar {
+                max-width: 100%;
+                min-width: 0;
+                box-sizing: border-box;
+            }
+
+            /* Keep the bar a wrapping ROW so flex-basis:100% makes each field
+               take a full row; in column direction flex-basis is read as
+               HEIGHT, which breaks the stacked layout. */
+            .audit-main .panel-filter .filter-bar {
+                flex-direction: row;
+                flex-wrap: wrap;
+                align-items: stretch;
+                gap: 10px;
+            }
+
+            .audit-main .panel-filter .filter-bar > div {
+                flex: 1 1 100%;
+                min-width: 0;
+                max-width: 100%;
+            }
+
+            /* Comfortable tap targets; >=16px stops iOS Safari zoom-on-focus */
+            .audit-main .panel-filter .filter-bar label {
+                margin-bottom: 5px;
+            }
+            .audit-main .panel-filter .filter-bar select,
+            .audit-main .panel-filter .filter-bar input {
+                width: 100%;
+                min-width: 0;
+                max-width: 100%;
+                font-size: 16px;
+                padding: 10px 12px;
+                box-sizing: border-box;
+            }
+
+            /* Apply / Clear share one full-width row */
+            .audit-main .panel-filter .filter-bar .filter-actions {
+                flex: 1 1 100%;
+                display: flex;
+                gap: 10px;
+                align-self: auto;
+            }
+            .audit-main .panel-filter .filter-bar .filter-actions .btn {
+                flex: 1 1 0;
+                justify-content: center;
+                text-align: center;
+            }
+
+            /* Tighter panel padding on phones */
+            .audit-main .panel-filter .panel-body {
+                padding: 14px 14px 16px 17px;
+            }
+        }
+    </style>
+<?php endif; ?>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
     <?php include '../../includes/sidebar_nav.php'; ?>
