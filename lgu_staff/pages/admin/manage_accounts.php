@@ -489,7 +489,13 @@ function formatLastActive($timestamp) {
         .workflow-content { max-height: 600px; overflow-y: auto; }
 
         /* Filter */
-        .filter-section { display: flex; align-items: center; gap: 10px; }
+        .filter-section {
+            display: flex; align-items: center; gap: 10px;
+            padding: 8px 10px;
+            background: var(--bg-hover);
+            border: 1px solid var(--border-light);
+            border-radius: 10px;
+        }
         .filter-dropdown {
             padding: 8px 12px; border: 1px solid var(--border-default);
             border-radius: 8px; background: #f4f7fb; font-size: 13px;
@@ -763,6 +769,8 @@ function formatLastActive($timestamp) {
         body.dark-mode .accounts-dash .welcome-text p,
         body.dark-mode .accounts-dash .filter-dropdown { color: var(--text-secondary) !important; }
         body.dark-mode .accounts-dash .filter-dropdown { background: #1c2432 !important; border-color: var(--border-default) !important; }
+        body.dark-mode .accounts-dash .filter-section { background: transparent !important; border-color: var(--border-default) !important; }
+        body.dark-mode .accounts-dash .filter-section .filter-button { box-shadow: none; }
         body.dark-mode .accounts-dash .modal-content { background: #1c2432 !important; border-color: rgba(147, 179, 224, 0.22) !important; }
         body.dark-mode .accounts-dash .modal-content input,
         body.dark-mode .accounts-dash .modal-content select { background: #1c2432 !important; border-color: var(--border-default) !important; color: var(--text-primary) !important; }
@@ -797,9 +805,13 @@ function formatLastActive($timestamp) {
             }
             .accounts-dash .workflow-title { flex-wrap: wrap; row-gap: 6px; font-size: 13px; min-width: 0; }
             .accounts-dash .workflow-badge { flex-shrink: 0; }
+            /* Filter controls get their own contained box so they never overlap the header container */
             .accounts-dash .filter-section {
                 width: 100%;
+                min-width: 0;
+                max-width: 100%;
                 justify-content: space-between;
+                flex-wrap: wrap;
             }
             .accounts-dash .filter-dropdown {
                 flex: 1 1 auto;
