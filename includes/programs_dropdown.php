@@ -77,6 +77,22 @@ $__pd_base = isset($basePath) ? $basePath : '';
             </a>
         </li>
         <li>
+            <hr class="dropdown-divider">
+        </li>
+        <li>
+            <a class="dropdown-item" href="<?php echo $__pd_base; ?>transportation-updates.php">
+                <i class="fas fa-bus"></i> Transportation Updates
+            </a>
+        </li>
+        <li>
+            <a class="dropdown-item" href="<?php echo $__pd_base; ?>transportation-status.php">
+                <i class="fas fa-traffic-light"></i> Transportation Status
+            </a>
+        </li>
+        <li>
+            <hr class="dropdown-divider">
+        </li>
+        <li>
             <a class="dropdown-item" href="<?php echo $__pd_base; ?>public_transparency_view.php">
                 <i class="fas fa-balance-scale"></i> Transparency
             </a>
