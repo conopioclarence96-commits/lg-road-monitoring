@@ -3972,6 +3972,51 @@ if ($is_completed_projects_view || $is_system_admin) {
         }
     </style>
 <?php endif; ?>
+<?php if ($is_system_admin && $is_completed_projects_view): ?>
+    <!-- System Admin + Completed Projects page only: mobile fit for the
+         reports-table-section badges. The fixed table-layout cells clip the
+         pill badges mid-pill ("half" visible) on narrow screens — let badge
+         text wrap inside its own cell instead. UI-only CSS scoping — other
+         portals/pages are unaffected and no behaviour changes. -->
+    <style>
+        @media (max-width: 768px) {
+            /* Badge pills must be allowed to shrink below their content width
+               and wrap, otherwise the fixed-layout table cells clip them
+               ("half" badge). Applies to db-badge plus every pill that shares
+               the same row (source/category/status/assignment/priority/CIMM/
+               Public transparency). */
+            body.completed-projects-view.system-admin-view .mon-dash .reports-table-section .badge,
+            body.completed-projects-view.system-admin-view .mon-dash .reports-table-section .db-badge,
+            body.completed-projects-view.system-admin-view .mon-dash .reports-table-section .category-badge,
+            body.completed-projects-view.system-admin-view .mon-dash .reports-table-section .cimm-verify-badge,
+            body.completed-projects-view.system-admin-view .mon-dash .reports-table-section .assignment-badge,
+            body.completed-projects-view.system-admin-view .mon-dash .reports-table-section .pt-status-badge {
+                display: inline-block;
+                max-width: 100%;
+                box-sizing: border-box;
+                white-space: normal !important;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+                line-height: 1.45;
+                text-align: left;
+                vertical-align: middle;
+                font-size: 9px;
+                padding: 2px 6px;
+            }
+
+            /* Free up horizontal room inside every cell on phones */
+            body.completed-projects-view.system-admin-view .mon-dash #recentReportsTable th,
+            body.completed-projects-view.system-admin-view .mon-dash #recentReportsTable td {
+                padding: 10px 6px !important;
+            }
+
+            /* Public column cell forces nowrap — let its badge wrap too */
+            body.completed-projects-view.system-admin-view .mon-dash #recentReportsTable .pt-col {
+                white-space: normal !important;
+            }
+        }
+    </style>
+<?php endif; ?>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo $is_completed_projects_view ? ' completed-projects-view' : ''; ?><?php echo $is_road_supervisor ? ' road-supervisor-view' : ''; ?><?php echo $is_system_admin ? ' system-admin-view' : ''; ?>">
     <!-- SIDEBAR -->
