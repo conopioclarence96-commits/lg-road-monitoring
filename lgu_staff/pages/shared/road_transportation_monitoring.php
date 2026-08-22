@@ -3881,6 +3881,21 @@ if ($is_completed_projects_view || $is_system_admin) {
             .road-supervisor-view .map-search-box input {
                 width: 120px;
             }
+
+            /* Filter buttons and legend chips are single non-wrapping flex rows,
+               so on narrow screens their content runs past the screen edge and
+               gets clipped. Let both wrap so every item stays visible. */
+            .road-supervisor-view .map-filters {
+                flex-wrap: wrap;
+                row-gap: 8px;
+            }
+            .road-supervisor-view .map-filters .filter-btn {
+                flex-shrink: 0;
+            }
+            .road-supervisor-view .map-legend {
+                flex-wrap: wrap;
+                row-gap: 6px;
+            }
         }
     </style>
 <?php endif; ?>
