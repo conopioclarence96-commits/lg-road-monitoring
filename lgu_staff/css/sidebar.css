@@ -147,14 +147,7 @@
 }
 
 .user-role {
-    font-size: 10px;
-    opacity: 0.72;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    display: none;
 }
 
 .sidebar-menu {

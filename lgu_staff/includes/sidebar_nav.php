@@ -625,7 +625,7 @@ if ($user_role !== 'system_admin') {
         <div class="sidebar-brand">
             <img src="<?php echo htmlspecialchars($nav_base); ?>assets/img/infra-gov-logo-white.png" alt="INFRA Gov Services" class="sidebar-logo">
             <div class="sidebar-brand-text">
-                <p>Gov Services · <?php echo htmlspecialchars(getPortalTitle($user_role)); ?></p>
+                <p><?php echo htmlspecialchars(getPortalTitle($user_role)); ?></p>
             </div>
         </div>
         <div class="user-info">
@@ -640,12 +640,10 @@ if ($user_role !== 'system_admin') {
                 }
             }
             if ($sidebar_initials === '') $sidebar_initials = 'U';
-            $sidebar_role_label = ucwords(str_replace('_', ' ', (string)$user_role));
             ?>
             <div class="user-avatar" aria-hidden="true"><?php echo htmlspecialchars($sidebar_initials); ?></div>
             <div class="user-text">
                 <div class="user-name"><?php echo htmlspecialchars($sidebar_display_name); ?></div>
-                <div class="user-role"><?php echo htmlspecialchars($sidebar_role_label); ?></div>
             </div>
         </div>
     </header>
