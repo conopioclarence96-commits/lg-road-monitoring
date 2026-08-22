@@ -85,7 +85,12 @@
         right: -320px;
         width: 300px;
         max-width: 85vw;
+        /* 100dvh = visible mobile viewport; fixes the classic 100vh bug
+           where the address bar hides/cuts off the bottom menu links
+           (e.g. Transparency) and blocks scrolling. */
         height: 100vh;
+        height: -webkit-fill-available;
+        height: 100dvh;
         background: linear-gradient(135deg, var(--primary-color, #1e3c72) 0%, var(--secondary-color, #2a5298) 100%);
         box-shadow: -5px 0 25px rgba(0,0,0,0.35);
         z-index: 10001;
@@ -93,6 +98,8 @@
         display: flex;
         flex-direction: column;
         overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: env(safe-area-inset-bottom, 0px);
     }
 
     .side-menu.open {
