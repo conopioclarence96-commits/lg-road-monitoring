@@ -27,9 +27,123 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'system_admin') {
 $success_message = '';
 $error_message = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    header('Content-Type: application/json');
+const ADMIN_CREATE_2FA_PURPOSE = 'create_admin_account';
+const ADMIN_CREATE_2FA_RESEND_COOLDOWN = 60; // seconds
 
+/**
+ * Resolve the authenticated administrator's email (session first, then DB).
+ */
+function create_staff_resolve_admin_email(mysqli $conn): string {
+    $email = trim((string)($_SESSION['email'] ?? ''));
+    if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return $email;
+    }
+    $uid = (int)($_SESSION['user_id'] ?? 0);
+    if ($uid <= 0) {
+        return '';
+    }
+    $stmt = $conn->prepare('SELECT email FROM users WHERE id = ? LIMIT 1');
+    $stmt->bind_param('i', $uid);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    $email = trim((string)($row['email'] ?? ''));
+    if ($email !== '') {
+        $_SESSION['email'] = $email;
+    }
+    return $email;
+}
+
+function create_staff_mask_email(string $email): string {
+    $parts = explode('@', $email, 2);
+    if (count($parts) !== 2) {
+        return '***';
+    }
+    $local = $parts[0];
+    $domain = $parts[1];
+    $visible = max(1, min(2, strlen($local)));
+    return substr($local, 0, $visible) . str_repeat('*', max(3, strlen($local) - $visible)) . '@' . $domain;
+}
+
+function create_staff_clear_pending_admin_create(): void {
+    unset($_SESSION['pending_admin_create'], $_SESSION['admin_create_2fa_last_sent']);
+    if (($_SESSION['otp_data']['purpose'] ?? '') === ADMIN_CREATE_2FA_PURPOSE) {
+        unset($_SESSION['otp_data']);
+    }
+}
+
+/**
+ * Persist the new user + audit + welcome email. Expects validated fields.
+ * @return array{success:bool,message:string,password?:string,email?:string,login_url?:string}
+ */
+function create_staff_persist_account(mysqli $conn, array $data): array {
+    $email = $data['email'];
+    $username = $email;
+    $full_name = $data['full_name'];
+    $role = $data['role'];
+    $department = $data['department'];
+    $address = $data['address'];
+    $birthday = $data['birthday'];
+    $civil_status = $data['civil_status'];
+    $phone_number = $data['phone_number'];
+    $id_file_path = $data['id_file_path'];
+
+    $raw_password = generate_secure_temporary_password(12);
+    $hashed_password = password_hash($raw_password, PASSWORD_DEFAULT);
+
+    $stmt = $conn->prepare("INSERT INTO users (username, email, password, full_name, role, department, address, birthday, civil_status, phone_number, id_file_path, account_status, is_active, must_change_password, temporary_password_created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, NULLIF(?, ''), ?, 'verified', 1, 1, NOW())");
+    $stmt->bind_param("sssssssssss", $username, $email, $hashed_password, $full_name, $role, $department, $address, $birthday, $civil_status, $phone_number, $id_file_path);
+
+    if (!$stmt->execute()) {
+        $stmt->close();
+        return ['success' => false, 'message' => 'Failed to create account. Please try again.'];
+    }
+    $stmt->close();
+
+    $log = $conn->prepare("INSERT INTO audit_logs (user_id, action, details, ip_address, user_agent, created_at) VALUES (?, 'Staff Account Created', ?, ?, ?, NOW())");
+    $details = "Created account for $full_name ($email) with role $role";
+    $ip = $_SERVER['REMOTE_ADDR'] ?? 'Unknown';
+    $ua = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
+    $log->bind_param("isss", $_SESSION['user_id'], $details, $ip, $ua);
+    $log->execute();
+    $log->close();
+
+    $emailMessage = '';
+    $loginUrl = '';
+    try {
+        $tokens = create_user_login_tokens($email, false);
+        if ($tokens) {
+            $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+            $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+            $scriptDir = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'])), '/');
+            $loginUrl = $scheme . '://' . $host . dirname(dirname($scriptDir)) . '/login.php?login_token=' . $tokens['login_token'];
+            $firstName = trim(explode(' ', $full_name)[0]);
+
+            $response = send_staff_account_email($email, $firstName, $raw_password, $loginUrl);
+            $emailSent = !empty($response) && !isset($response['errors']);
+            $emailMessage = $emailSent ? 'Credentials emailed to the staff member.' : 'Account created, but the notification email could not be sent.';
+        } else {
+            $emailMessage = 'Account created, but the access token could not be created.';
+        }
+    } catch (Exception $e) {
+        error_log("Staff account email error: " . $e->getMessage());
+        $emailMessage = 'Account created, but the notification email could not be sent.';
+    }
+
+    return [
+        'success' => true,
+        'message' => 'Staff account created successfully. ' . $emailMessage,
+        'password' => $raw_password,
+        'email' => $email,
+        'login_url' => $loginUrl
+    ];
+}
+
+/**
+ * Validate create-form input, check duplicates, optionally stage ID upload.
+ * @return array{ok:bool,message?:string,data?:array}
+ */
+function create_staff_collect_form_data(mysqli $conn, bool $handleUpload = true): array {
     $email = trim($_POST['email'] ?? '');
     $first_name = trim($_POST['first_name'] ?? '');
     $middle_name = trim($_POST['middle_name'] ?? '');
@@ -41,36 +155,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $department = trim($_POST['department'] ?? '');
 
     if (empty($email) || empty($first_name) || empty($last_name)) {
-        echo json_encode(['success' => false, 'message' => 'Email, first name, and last name are required.']);
-        exit;
+        return ['ok' => false, 'message' => 'Email, first name, and last name are required.'];
     }
 
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        echo json_encode(['success' => false, 'message' => 'Invalid email format.']);
-        exit;
+        return ['ok' => false, 'message' => 'Invalid email format.'];
     }
 
-    // The email address is the user's username throughout the system.
-    $username = $email;
-
-    // Check for duplicate email
     $check = $conn->prepare("SELECT id FROM users WHERE email = ?");
     $check->bind_param("s", $email);
     $check->execute();
     if ($check->get_result()->num_rows > 0) {
         $check->close();
-        echo json_encode(['success' => false, 'message' => 'Email address already exists.']);
-        exit;
+        return ['ok' => false, 'message' => 'Email address already exists.'];
     }
     $check->close();
 
-    // Combine name fields into full_name
     $full_name = trim($first_name . ' ' . $middle_name . ' ' . $last_name);
     $full_name = preg_replace('/\s+/', ' ', $full_name);
-
-    // Generate a secure random temporary password
-    $raw_password = generate_secure_temporary_password(12);
-    $hashed_password = password_hash($raw_password, PASSWORD_DEFAULT);
 
     $allowed_roles = ['system_admin', 'road_monitoring_officer', 'road_ops_supervisor', 'trans_monitoring_officer', 'trans_ops_supervisor', 'lgu_staff'];
     $role = $_POST['role'] ?? 'lgu_staff';
@@ -78,16 +180,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $role = 'lgu_staff';
     }
 
-    // Handle ID file upload
     $id_file_path = null;
-    if (isset($_FILES['id_file']) && $_FILES['id_file']['error'] === UPLOAD_ERR_OK) {
+    if ($handleUpload && isset($_FILES['id_file']) && $_FILES['id_file']['error'] === UPLOAD_ERR_OK) {
         $uploadDir = __DIR__ . '/../../uploads/ids/';
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0755, true);
         }
         $fileExt = strtolower(pathinfo($_FILES['id_file']['name'], PATHINFO_EXTENSION));
         $allowed = ['jpg', 'jpeg', 'png', 'pdf'];
-        if (in_array($fileExt, $allowed)) {
+        if (in_array($fileExt, $allowed, true)) {
             $uniqueFilename = uniqid() . '_' . time() . '.' . $fileExt;
             $targetFile = $uploadDir . $uniqueFilename;
             if (move_uploaded_file($_FILES['id_file']['tmp_name'], $targetFile)) {
@@ -96,60 +197,211 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    $stmt = $conn->prepare("INSERT INTO users (username, email, password, full_name, role, department, address, birthday, civil_status, phone_number, id_file_path, account_status, is_active, must_change_password, temporary_password_created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, NULLIF(?, ''), ?, 'verified', 1, 1, NOW())");
-    $stmt->bind_param("sssssssssss", $username, $email, $hashed_password, $full_name, $role, $department, $address, $birthday, $civil_status, $phone_number, $id_file_path);
-
-    if ($stmt->execute()) {
-        $new_user_id = $stmt->insert_id;
-        $stmt->close();
-
-        // Audit log
-        $log = $conn->prepare("INSERT INTO audit_logs (user_id, action, details, ip_address, user_agent, created_at) VALUES (?, 'Staff Account Created', ?, ?, ?, NOW())");
-        $details = "Created account for $full_name ($email) with role $role";
-        $ip = $_SERVER['REMOTE_ADDR'] ?? 'Unknown';
-        $ua = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
-        $log->bind_param("isss", $_SESSION['user_id'], $details, $ip, $ua);
-        $log->execute();
-        $log->close();
-
-        // Send the welcome email with the temporary password and login link.
-        // The login link carries a login-only token (no registration offered).
-        $emailSent = false;
-        $emailMessage = '';
-        $loginUrl = '';
-        try {
-            $tokens = create_user_login_tokens($email, false);
-            if ($tokens) {
-                $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-                $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-                $scriptDir = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'])), '/');
-                $loginUrl = $scheme . '://' . $host . dirname(dirname($scriptDir)) . '/login.php?login_token=' . $tokens['login_token'];
-                $firstName = trim(explode(' ', $full_name)[0]);
-
-                $response = send_staff_account_email($email, $firstName, $raw_password, $loginUrl);
-                $emailSent = !empty($response) && !isset($response['errors']);
-                $emailMessage = $emailSent ? 'Credentials emailed to the staff member.' : 'Account created, but the notification email could not be sent.';
-            } else {
-                $emailMessage = 'Account created, but the access token could not be created.';
-            }
-        } catch (Exception $e) {
-            error_log("Staff account email error: " . $e->getMessage());
-            $emailMessage = 'Account created, but the notification email could not be sent.';
-        }
-
-        echo json_encode([
-            'success' => true,
-            'message' => 'Staff account created successfully. ' . $emailMessage,
-            'password' => $raw_password,
+    return [
+        'ok' => true,
+        'data' => [
             'email' => $email,
-            'login_url' => $loginUrl
-        ]);
-        exit;
-    } else {
-        $stmt->close();
-        echo json_encode(['success' => false, 'message' => 'Failed to create account. Please try again.']);
+            'first_name' => $first_name,
+            'middle_name' => $middle_name,
+            'last_name' => $last_name,
+            'full_name' => $full_name,
+            'birthday' => $birthday,
+            'address' => $address,
+            'civil_status' => $civil_status,
+            'phone_number' => $phone_number,
+            'department' => $department,
+            'role' => $role,
+            'id_file_path' => $id_file_path,
+        ]
+    ];
+}
+
+function create_staff_initiate_admin_2fa(mysqli $conn, array $data): void {
+    $adminEmail = create_staff_resolve_admin_email($conn);
+    if ($adminEmail === '' || !filter_var($adminEmail, FILTER_VALIDATE_EMAIL)) {
+        echo json_encode(['success' => false, 'message' => 'Unable to send verification code: your account has no registered email.']);
         exit;
     }
+
+    $lastSent = (int)($_SESSION['admin_create_2fa_last_sent'] ?? 0);
+    $elapsed = time() - $lastSent;
+    if ($lastSent > 0 && $elapsed < ADMIN_CREATE_2FA_RESEND_COOLDOWN && !empty($_SESSION['pending_admin_create'])) {
+        $wait = ADMIN_CREATE_2FA_RESEND_COOLDOWN - $elapsed;
+        echo json_encode([
+            'success' => false,
+            'requires_2fa' => true,
+            'message' => "Please wait {$wait} second(s) before requesting another code.",
+            'cooldown_seconds' => $wait,
+            'admin_email_masked' => create_staff_mask_email($adminEmail),
+        ]);
+        exit;
+    }
+
+    // Only system_admin creations may sit in this pending bucket
+    $data['role'] = 'system_admin';
+    $_SESSION['pending_admin_create'] = $data;
+    $_SESSION['pending_admin_create']['created_by'] = (int)$_SESSION['user_id'];
+    $_SESSION['pending_admin_create']['initiated_at'] = time();
+
+    try {
+        handle_admin_create_otp($adminEmail);
+        $_SESSION['admin_create_2fa_last_sent'] = time();
+    } catch (Exception $e) {
+        error_log('Admin create 2FA email error: ' . $e->getMessage());
+        create_staff_clear_pending_admin_create();
+        echo json_encode(['success' => false, 'message' => 'Failed to send verification code. Please try again.']);
+        exit;
+    }
+
+    echo json_encode([
+        'success' => true,
+        'requires_2fa' => true,
+        'message' => 'A verification code was sent to your registered email. Enter it to finish creating this Admin account.',
+        'admin_email_masked' => create_staff_mask_email($adminEmail),
+        'cooldown_seconds' => ADMIN_CREATE_2FA_RESEND_COOLDOWN,
+        'expires_in' => 300,
+    ]);
+    exit;
+}
+
+function create_staff_verify_admin_2fa(mysqli $conn): void {
+    $pending = $_SESSION['pending_admin_create'] ?? null;
+    if (!is_array($pending) || empty($pending['email'])) {
+        echo json_encode(['success' => false, 'message' => 'No pending Admin account creation. Please submit the form again.']);
+        exit;
+    }
+
+    if ((int)($pending['created_by'] ?? 0) !== (int)$_SESSION['user_id']) {
+        create_staff_clear_pending_admin_create();
+        echo json_encode(['success' => false, 'message' => 'Invalid verification session. Please submit the form again.']);
+        exit;
+    }
+
+    // Hard-enforce: pending payload must be Admin creation only
+    if (($pending['role'] ?? '') !== 'system_admin') {
+        create_staff_clear_pending_admin_create();
+        echo json_encode(['success' => false, 'message' => 'Invalid pending account data.']);
+        exit;
+    }
+
+    $otp = trim((string)($_POST['otp_code'] ?? $_POST['otp'] ?? ''));
+    $result = verify_otp_code($otp, ADMIN_CREATE_2FA_PURPOSE);
+    if (empty($result['success'])) {
+        echo json_encode([
+            'success' => false,
+            'requires_2fa' => true,
+            'message' => $result['message'] ?? 'Invalid or expired verification code. The account was not created.',
+        ]);
+        exit;
+    }
+
+    // Re-check duplicate in case another account was created while waiting
+    $email = $pending['email'];
+    $check = $conn->prepare("SELECT id FROM users WHERE email = ?");
+    $check->bind_param("s", $email);
+    $check->execute();
+    if ($check->get_result()->num_rows > 0) {
+        $check->close();
+        create_staff_clear_pending_admin_create();
+        echo json_encode(['success' => false, 'message' => 'Email address already exists. The account was not created.']);
+        exit;
+    }
+    $check->close();
+
+    $response = create_staff_persist_account($conn, $pending);
+    create_staff_clear_pending_admin_create();
+    echo json_encode($response);
+    exit;
+}
+
+function create_staff_resend_admin_2fa(mysqli $conn): void {
+    $pending = $_SESSION['pending_admin_create'] ?? null;
+    if (!is_array($pending) || empty($pending['email'])) {
+        echo json_encode(['success' => false, 'message' => 'No pending Admin account creation. Please submit the form again.']);
+        exit;
+    }
+
+    if ((int)($pending['created_by'] ?? 0) !== (int)$_SESSION['user_id']) {
+        create_staff_clear_pending_admin_create();
+        echo json_encode(['success' => false, 'message' => 'Invalid verification session.']);
+        exit;
+    }
+
+    $adminEmail = create_staff_resolve_admin_email($conn);
+    if ($adminEmail === '') {
+        echo json_encode(['success' => false, 'message' => 'Unable to send verification code: your account has no registered email.']);
+        exit;
+    }
+
+    $lastSent = (int)($_SESSION['admin_create_2fa_last_sent'] ?? 0);
+    $elapsed = time() - $lastSent;
+    if ($lastSent > 0 && $elapsed < ADMIN_CREATE_2FA_RESEND_COOLDOWN) {
+        $wait = ADMIN_CREATE_2FA_RESEND_COOLDOWN - $elapsed;
+        echo json_encode([
+            'success' => false,
+            'requires_2fa' => true,
+            'message' => "Please wait {$wait} second(s) before resending the code.",
+            'cooldown_seconds' => $wait,
+            'admin_email_masked' => create_staff_mask_email($adminEmail),
+        ]);
+        exit;
+    }
+
+    try {
+        handle_admin_create_otp($adminEmail);
+        $_SESSION['admin_create_2fa_last_sent'] = time();
+    } catch (Exception $e) {
+        error_log('Admin create 2FA resend error: ' . $e->getMessage());
+        echo json_encode(['success' => false, 'message' => 'Failed to resend verification code. Please try again.']);
+        exit;
+    }
+
+    echo json_encode([
+        'success' => true,
+        'requires_2fa' => true,
+        'message' => 'A new verification code was sent to your registered email.',
+        'admin_email_masked' => create_staff_mask_email($adminEmail),
+        'cooldown_seconds' => ADMIN_CREATE_2FA_RESEND_COOLDOWN,
+        'expires_in' => 300,
+    ]);
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
+
+    $action = trim((string)($_POST['action'] ?? 'create'));
+
+    if ($action === 'verify_admin_2fa') {
+        create_staff_verify_admin_2fa($conn);
+    }
+
+    if ($action === 'resend_admin_2fa') {
+        create_staff_resend_admin_2fa($conn);
+    }
+
+    if ($action !== 'create') {
+        echo json_encode(['success' => false, 'message' => 'Invalid action.']);
+        exit;
+    }
+
+    $collected = create_staff_collect_form_data($conn, true);
+    if (!$collected['ok']) {
+        echo json_encode(['success' => false, 'message' => $collected['message']]);
+        exit;
+    }
+
+    $data = $collected['data'];
+
+    // Admin accounts require OTP verification before INSERT — cannot be bypassed by POSTing create.
+    if ($data['role'] === 'system_admin') {
+        create_staff_initiate_admin_2fa($conn, $data);
+    }
+
+    // Non-admin roles: create immediately (unchanged behavior)
+    $response = create_staff_persist_account($conn, $data);
+    echo json_encode($response);
+    exit;
 }
 ?>
 
@@ -324,7 +576,67 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             .welcome-section { flex-direction: column; align-items: flex-start; }
             .date-time { text-align: left; }
             .form-grid { grid-template-columns: 1fr; }
-        }    </style>
+        }
+
+        /* Admin 2FA modal */
+        .otp-modal-overlay {
+            display: none; position: fixed; inset: 0; z-index: 10050;
+            background: rgba(15, 23, 42, 0.55); align-items: center; justify-content: center;
+            padding: 20px;
+        }
+        .otp-modal-overlay.is-open { display: flex; }
+        .otp-modal {
+            width: 100%; max-width: 420px; background: #fff; border-radius: 14px;
+            border: 1px solid #d5dce8; box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+            padding: 28px 26px 24px; position: relative;
+        }
+        .otp-modal h3 {
+            font-size: 18px; font-weight: 700; color: #0f274a; margin-bottom: 6px;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .otp-modal h3 i {
+            width: 34px; height: 34px; border-radius: 10px;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #1e3c72, #0f274a); color: #fff; font-size: 14px;
+        }
+        .otp-modal p { color: #64748b; font-size: 13px; line-height: 1.5; margin-bottom: 16px; }
+        .otp-modal .otp-email { font-weight: 600; color: #1e3c72; }
+        .otp-modal .otp-input {
+            width: 100%; letter-spacing: 0.35em; text-align: center; font-size: 22px; font-weight: 600;
+            padding: 12px 14px; border: 1.5px solid #d5dce8; border-radius: 10px;
+            margin-bottom: 10px; outline: none; font-family: 'Poppins', sans-serif;
+        }
+        .otp-modal .otp-input:focus { border-color: #1e3c72; box-shadow: 0 0 0 3px rgba(30, 60, 114, 0.12); }
+        .otp-modal .otp-status {
+            min-height: 20px; font-size: 12.5px; margin-bottom: 12px; color: #64748b;
+        }
+        .otp-modal .otp-status.is-error { color: #b91c1c; }
+        .otp-modal .otp-status.is-success { color: #15803d; }
+        .otp-modal .otp-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+        .otp-modal .otp-actions .btn { flex: 1; min-width: 120px; justify-content: center; }
+        .otp-modal .otp-resend {
+            margin-top: 14px; text-align: center; font-size: 13px; color: #64748b;
+        }
+        .otp-modal .otp-resend button {
+            background: none; border: none; color: #1e3c72; font-weight: 600; cursor: pointer;
+            font-family: inherit; font-size: 13px; padding: 0;
+        }
+        .otp-modal .otp-resend button:disabled { color: #94a3b8; cursor: not-allowed; }
+        .otp-modal .otp-close {
+            position: absolute; top: 12px; right: 14px; border: none; background: transparent;
+            color: #94a3b8; font-size: 18px; cursor: pointer; line-height: 1;
+        }
+        body.dark-mode .otp-modal {
+            background: #1c2432; border-color: rgba(147, 179, 224, 0.22);
+        }
+        body.dark-mode .otp-modal h3 { color: var(--text-primary); }
+        body.dark-mode .otp-modal p,
+        body.dark-mode .otp-modal .otp-resend { color: var(--text-secondary); }
+        body.dark-mode .otp-modal .otp-email { color: #93b3e0; }
+        body.dark-mode .otp-modal .otp-input {
+            background: #141a24; border-color: var(--border-default); color: var(--text-primary);
+        }
+    </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
     <!-- SIDEBAR -->
@@ -461,7 +773,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 
+    <!-- Admin creation 2FA modal -->
+    <div class="otp-modal-overlay" id="adminOtpModal" role="dialog" aria-modal="true" aria-labelledby="adminOtpTitle">
+        <div class="otp-modal">
+            <button type="button" class="otp-close" onclick="closeAdminOtpModal()" aria-label="Close">&times;</button>
+            <h3 id="adminOtpTitle"><i class="fas fa-shield-alt"></i> Verify Admin Creation</h3>
+            <p>
+                A one-time code was sent to <span class="otp-email" id="adminOtpEmail">your email</span>.
+                Enter it below to create this Admin account. The code expires in 5 minutes.
+            </p>
+            <input type="text" class="otp-input" id="adminOtpInput" maxlength="6" inputmode="numeric" autocomplete="one-time-code" placeholder="••••••" aria-label="Verification code">
+            <div class="otp-status" id="adminOtpStatus"></div>
+            <div class="otp-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeAdminOtpModal()">Cancel</button>
+                <button type="button" class="btn btn-primary" id="adminOtpVerifyBtn" onclick="verifyAdminOtp()">
+                    <i class="fas fa-check"></i> Verify &amp; Create
+                </button>
+            </div>
+            <div class="otp-resend">
+                Didn’t get the code?
+                <button type="button" id="adminOtpResendBtn" onclick="resendAdminOtp()">Resend Code</button>
+                <span id="adminOtpCooldownLabel"></span>
+            </div>
+        </div>
+    </div>
+
     <script>
+        let adminOtpCooldownTimer = null;
+        let adminOtpCooldownRemaining = 0;
+
         function handleFileSelect(e) {
             const file = e.target.files[0];
             const display = document.getElementById('fileDisplay');
@@ -482,6 +822,95 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        function showCreateResult(result) {
+            const container = document.getElementById('alertContainer');
+            if (result.success) {
+                container.innerHTML = `
+                    <div class="success-box">
+                        <div class="icon"><i class="fas fa-check-circle"></i></div>
+                        <div class="content">
+                            <h4>Account Created Successfully</h4>
+                            <p>Email Address: <strong>${result.email}</strong></p>
+                            <p>Credentials have been emailed to the staff member. A secure temporary password is also shown below:</p>
+                            <div class="password-display">
+                                <span id="generatedPassword">${result.password}</span>
+                                <button type="button" onclick="copyPassword()">Copy</button>
+                            </div>
+                            ${result.login_url ? `
+                            <p style="margin-top:12px;">Login link (one-time magic link with token):</p>
+                            <div class="password-display">
+                                <span id="generatedUrl">${result.login_url}</span>
+                                <button type="button" onclick="copyUrl()">Copy</button>
+                            </div>` : ''}
+                        </div>
+                    </div>
+                `;
+                document.getElementById('createForm').reset();
+                document.getElementById('department').value = 'LGU Services';
+                document.getElementById('role').value = 'lgu_staff';
+                resetFileDisplay();
+            } else {
+                container.innerHTML = `
+                    <div class="error-box">
+                        <div class="icon"><i class="fas fa-exclamation-circle"></i></div>
+                        <div class="content">
+                            <p>${result.message || 'Something went wrong.'}</p>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function setAdminOtpStatus(message, type) {
+            const el = document.getElementById('adminOtpStatus');
+            el.textContent = message || '';
+            el.className = 'otp-status' + (type ? ' is-' + type : '');
+        }
+
+        function startAdminOtpCooldown(seconds) {
+            const btn = document.getElementById('adminOtpResendBtn');
+            const label = document.getElementById('adminOtpCooldownLabel');
+            adminOtpCooldownRemaining = Math.max(0, parseInt(seconds, 10) || 0);
+
+            if (adminOtpCooldownTimer) {
+                clearInterval(adminOtpCooldownTimer);
+                adminOtpCooldownTimer = null;
+            }
+
+            const tick = () => {
+                if (adminOtpCooldownRemaining <= 0) {
+                    btn.disabled = false;
+                    label.textContent = '';
+                    if (adminOtpCooldownTimer) {
+                        clearInterval(adminOtpCooldownTimer);
+                        adminOtpCooldownTimer = null;
+                    }
+                    return;
+                }
+                btn.disabled = true;
+                label.textContent = ` (${adminOtpCooldownRemaining}s)`;
+                adminOtpCooldownRemaining -= 1;
+            };
+
+            tick();
+            adminOtpCooldownTimer = setInterval(tick, 1000);
+        }
+
+        function openAdminOtpModal(result) {
+            const emailEl = document.getElementById('adminOtpEmail');
+            emailEl.textContent = result.admin_email_masked || 'your registered email';
+            document.getElementById('adminOtpInput').value = '';
+            setAdminOtpStatus(result.message || 'Enter the verification code sent to your email.', '');
+            document.getElementById('adminOtpModal').classList.add('is-open');
+            startAdminOtpCooldown(result.cooldown_seconds || 60);
+            setTimeout(() => document.getElementById('adminOtpInput').focus(), 50);
+        }
+
+        function closeAdminOtpModal() {
+            document.getElementById('adminOtpModal').classList.remove('is-open');
+            setAdminOtpStatus('', '');
+        }
+
         function handleCreate(e) {
             e.preventDefault();
 
@@ -490,6 +919,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
 
             const formData = new FormData(document.getElementById('createForm'));
+            formData.set('action', 'create');
 
             fetch('', {
                 method: 'POST',
@@ -497,42 +927,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             })
             .then(response => response.json())
             .then(result => {
-                const container = document.getElementById('alertContainer');
-
-                if (result.success) {
-                    container.innerHTML = `
-                        <div class="success-box">
-                            <div class="icon"><i class="fas fa-check-circle"></i></div>
-                            <div class="content">
-                                <h4>Account Created Successfully</h4>
-                                <p>Email Address: <strong>${result.email}</strong></p>
-                                <p>Credentials have been emailed to the staff member. A secure temporary password is also shown below:</p>
-                                <div class="password-display">
-                                    <span id="generatedPassword">${result.password}</span>
-                                    <button type="button" onclick="copyPassword()">Copy</button>
-                                </div>
-                                ${result.login_url ? `
-                                <p style="margin-top:12px;">Login link (one-time magic link with token):</p>
-                                <div class="password-display">
-                                    <span id="generatedUrl">${result.login_url}</span>
-                                    <button type="button" onclick="copyUrl()">Copy</button>
-                                </div>` : ''}
-                            </div>
-                        </div>
-                    `;
-                    document.getElementById('createForm').reset();
-                    document.getElementById('department').value = 'LGU Services';
-                    document.getElementById('role').value = 'lgu_staff';
-                    resetFileDisplay();
+                if (result.requires_2fa) {
+                    if (result.success) {
+                        openAdminOtpModal(result);
+                    } else {
+                        showCreateResult(result);
+                        if (result.admin_email_masked) {
+                            openAdminOtpModal(result);
+                        }
+                    }
                 } else {
-                    container.innerHTML = `
-                        <div class="error-box">
-                            <div class="icon"><i class="fas fa-exclamation-circle"></i></div>
-                            <div class="content">
-                                <p>${result.message}</p>
-                            </div>
-                        </div>
-                    `;
+                    showCreateResult(result);
                 }
 
                 btn.disabled = false;
@@ -540,21 +945,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             })
             .catch(error => {
                 console.error('Error:', error);
-                const container = document.getElementById('alertContainer');
-                container.innerHTML = `
-                    <div class="error-box">
-                        <div class="icon"><i class="fas fa-exclamation-circle"></i></div>
-                        <div class="content">
-                            <p>An error occurred. Please try again.</p>
-                        </div>
-                    </div>
-                `;
+                showCreateResult({ success: false, message: 'An error occurred. Please try again.' });
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fas fa-plus-circle"></i> Create Account';
             });
 
             return false;
         }
+
+        function verifyAdminOtp() {
+            const otp = document.getElementById('adminOtpInput').value.trim();
+            if (!otp || otp.length < 6) {
+                setAdminOtpStatus('Please enter the 6-digit verification code.', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('adminOtpVerifyBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
+            setAdminOtpStatus('Verifying code…', '');
+
+            const formData = new FormData();
+            formData.set('action', 'verify_admin_2fa');
+            formData.set('otp_code', otp);
+
+            fetch('', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success && !result.requires_2fa) {
+                    closeAdminOtpModal();
+                    showCreateResult(result);
+                } else {
+                    setAdminOtpStatus(result.message || 'Invalid or expired code. The account was not created.', 'error');
+                }
+            })
+            .catch(() => {
+                setAdminOtpStatus('An error occurred while verifying. The account was not created.', 'error');
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-check"></i> Verify & Create';
+            });
+        }
+
+        function resendAdminOtp() {
+            const btn = document.getElementById('adminOtpResendBtn');
+            if (btn.disabled) return;
+
+            btn.disabled = true;
+            setAdminOtpStatus('Sending a new code…', '');
+
+            const formData = new FormData();
+            formData.set('action', 'resend_admin_2fa');
+
+            fetch('', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    setAdminOtpStatus(result.message || 'A new code was sent.', 'success');
+                    document.getElementById('adminOtpInput').value = '';
+                    if (result.admin_email_masked) {
+                        document.getElementById('adminOtpEmail').textContent = result.admin_email_masked;
+                    }
+                    startAdminOtpCooldown(result.cooldown_seconds || 60);
+                } else {
+                    setAdminOtpStatus(result.message || 'Could not resend the code.', 'error');
+                    if (result.cooldown_seconds) {
+                        startAdminOtpCooldown(result.cooldown_seconds);
+                    } else {
+                        btn.disabled = false;
+                    }
+                }
+            })
+            .catch(() => {
+                setAdminOtpStatus('Failed to resend the code. Please try again.', 'error');
+                btn.disabled = false;
+            });
+        }
+
+        document.getElementById('adminOtpInput').addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                verifyAdminOtp();
+            }
+        });
 
         function copyPassword() {
             const password = document.getElementById('generatedPassword').textContent;
@@ -590,6 +1070,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             document.getElementById('role').value = 'lgu_staff';
             document.getElementById('alertContainer').innerHTML = '';
             resetFileDisplay();
+            closeAdminOtpModal();
         }
 
         function updateDateTime() {

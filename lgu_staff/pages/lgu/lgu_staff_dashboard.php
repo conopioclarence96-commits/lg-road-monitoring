@@ -415,7 +415,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../../css/theme-tokens.css">
     <link rel="stylesheet" href="../../css/theme-utilities.css">
-    <link rel="stylesheet" href="../../css/sidebar.css?v=3">
+    <link rel="stylesheet" href="../../css/sidebar.css?v=6">
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>

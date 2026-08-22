@@ -611,12 +611,20 @@ foreach ($nav_items as $section => $items) {
 }
 ?>
 
+<?php
+// Non-admin roles: always load the same sidebar stylesheet the Admin UI uses.
+// Admin pages already link this in <head>; do not alter Admin markup/appearance.
+if ($user_role !== 'system_admin') {
+    $__sidebar_css = __DIR__ . '/../css/sidebar.css';
+    $__sidebar_v = is_file($__sidebar_css) ? (int)filemtime($__sidebar_css) : 6;
+    echo '<link rel="stylesheet" href="' . htmlspecialchars($nav_base, ENT_QUOTES, 'UTF-8') . 'css/sidebar.css?v=' . $__sidebar_v . '">' . "\n";
+}
+?>
 <aside class="sidebar" id="sidebar" role="complementary">
     <header class="sidebar-header">
         <div class="sidebar-brand">
             <img src="<?php echo htmlspecialchars($nav_base); ?>assets/img/infra-gov-logo-white.png" alt="INFRA Gov Services" class="sidebar-logo">
             <div class="sidebar-brand-text">
-                <h2>INFRA</h2>
                 <p>Gov Services · <?php echo htmlspecialchars(getPortalTitle($user_role)); ?></p>
             </div>
         </div>

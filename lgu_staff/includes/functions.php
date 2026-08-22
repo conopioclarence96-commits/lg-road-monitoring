@@ -566,7 +566,8 @@ function store_otp($email, $otpCode, $purpose = 'registration') {
         'code' => $otpCode,
         'expiry' => time() + 300,
         'purpose' => $purpose,
-        'email' => $email
+        'email' => $email,
+        'used' => false
     ];
 
     $_SESSION['debug_otp'] = [
@@ -576,13 +577,47 @@ function store_otp($email, $otpCode, $purpose = 'registration') {
     ];
 }
 
+function otp_code_fingerprint($email, $purpose, $otpCode) {
+    return hash('sha256', strtolower(trim((string)$email)) . '|' . (string)$purpose . '|' . (string)$otpCode);
+}
+
+function mark_otp_used($email, $purpose, $otpCode) {
+    if (!isset($_SESSION['otp_used_codes']) || !is_array($_SESSION['otp_used_codes'])) {
+        $_SESSION['otp_used_codes'] = [];
+    }
+    // Drop fingerprints older than 1 hour
+    $cutoff = time() - 3600;
+    foreach ($_SESSION['otp_used_codes'] as $fp => $usedAt) {
+        if ((int)$usedAt < $cutoff) {
+            unset($_SESSION['otp_used_codes'][$fp]);
+        }
+    }
+    $_SESSION['otp_used_codes'][otp_code_fingerprint($email, $purpose, $otpCode)] = time();
+}
+
+function is_otp_already_used($email, $purpose, $otpCode) {
+    $fp = otp_code_fingerprint($email, $purpose, $otpCode);
+    return !empty($_SESSION['otp_used_codes'][$fp]);
+}
+
 function verify_otp_code($enteredOTP, $purpose = null) {
     $storedOTP = $_SESSION['otp_data']['code'] ?? '';
     $otpExpiry = $_SESSION['otp_data']['expiry'] ?? 0;
     $otpPurpose = $_SESSION['otp_data']['purpose'] ?? '';
+    $otpEmail = $_SESSION['otp_data']['email'] ?? '';
+    $otpUsed = !empty($_SESSION['otp_data']['used']);
 
     if (empty($enteredOTP)) {
         return ['success' => false, 'message' => 'Please enter the OTP code'];
+    }
+
+    if (empty($storedOTP) || empty($_SESSION['otp_data'])) {
+        return ['success' => false, 'message' => 'No active verification code. Please request a new one.'];
+    }
+
+    if ($otpUsed || is_otp_already_used($otpEmail, $otpPurpose, $enteredOTP)) {
+        unset($_SESSION['otp_data']);
+        return ['success' => false, 'message' => 'This verification code has already been used. Please request a new one.'];
     }
 
     if (time() > $otpExpiry) {
@@ -594,15 +629,18 @@ function verify_otp_code($enteredOTP, $purpose = null) {
         return ['success' => false, 'message' => 'Invalid OTP session.'];
     }
 
-    if ($enteredOTP !== $storedOTP) {
+    if (!hash_equals((string)$storedOTP, (string)$enteredOTP)) {
         return ['success' => false, 'message' => 'Invalid OTP code. Please try again.'];
     }
 
+    // Mark used before clearing so the same code cannot be replayed
+    $_SESSION['otp_data']['used'] = true;
+    mark_otp_used($otpEmail, $otpPurpose, $storedOTP);
     unset($_SESSION['otp_data']);
     return ['success' => true, 'message' => 'OTP verified successfully!'];
 }
 
-function send_otp_to_email($email, $otpCode) {
+function send_otp_to_email($email, $otpCode, $purpose = null) {
     $apiKey = env_get('BREVO_API_KEY');
     $senderName = env_get('BREVO_SENDER_NAME');
     $senderEmail = env_get('BREVO_SENDER_EMAIL');
@@ -616,14 +654,22 @@ function send_otp_to_email($email, $otpCode) {
         'content-type: application/json'
     ]);
 
+    if ($purpose === 'create_admin_account') {
+        $intro = 'You are creating a new <strong>Admin</strong> account in the LGU Road Monitoring system. Use the verification code below to confirm this action.';
+        $subject = 'Admin account creation verification code';
+    } else {
+        $intro = 'You requested to sign in or register on the LGU Portal. Use the verification code below to complete your process.';
+        $subject = 'Hello from Road and Transportation Department!';
+    }
+
     $htmlContent = "
     <html>
         <body style='font-family: Arial, sans-serif; color: #333;'>
             <div style='max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;'>
                 <h2 style='color: #0066cc;'>Hello from Road and Transportation Department!</h2>
-                <p>You requested to sign in or register on the LGU Portal. Use the verification code below to complete your process.</p>
+                <p>" . $intro . "</p>
                 <div style='background-color: #f4f4f4; padding: 15px; text-align: center; border-radius: 5px; margin: 20px 0;'>
-                    <span style='font-size: 24px; font-weight: bold; letter-spacing: 5px;'>" . $otpCode . "</span>
+                    <span style='font-size: 24px; font-weight: bold; letter-spacing: 5px;'>" . htmlspecialchars((string)$otpCode, ENT_QUOTES, 'UTF-8') . "</span>
                 </div>
                 <p>This code will expire in <strong>5 minutes</strong>.</p>
                 <p style='font-size: 12px; color: #999; margin-top: 30px;'>If you did not request this email, please ignore it.</p>
@@ -642,7 +688,7 @@ function send_otp_to_email($email, $otpCode) {
                 'name' => $email
             ]
         ],
-        'subject' => 'Hello from Road and Transportation Department!',
+        'subject' => $subject,
         'htmlContent' => $htmlContent
     ]));
 
@@ -657,21 +703,28 @@ function send_otp_to_email($email, $otpCode) {
 function handle_registration_otp($email) {
     $otpCode = generate_otp();
     store_otp($email, $otpCode, 'registration');
-    send_otp_to_email($email, $otpCode);
+    send_otp_to_email($email, $otpCode, 'registration');
     return $otpCode;
 }
 
 function handle_login_otp($email) {
     $otpCode = generate_otp();
     store_otp($email, $otpCode, 'login');
-    send_otp_to_email($email, $otpCode);
+    send_otp_to_email($email, $otpCode, 'login');
     return $otpCode;
 }
 
 function handle_password_reset_otp($email) {
     $otpCode = generate_otp();
     store_otp($email, $otpCode, 'password_reset');
-    send_otp_to_email($email, $otpCode);
+    send_otp_to_email($email, $otpCode, 'password_reset');
+    return $otpCode;
+}
+
+function handle_admin_create_otp($email) {
+    $otpCode = generate_otp();
+    store_otp($email, $otpCode, 'create_admin_account');
+    send_otp_to_email($email, $otpCode, 'create_admin_account');
     return $otpCode;
 }
 
