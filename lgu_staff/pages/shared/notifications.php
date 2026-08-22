@@ -1525,8 +1525,86 @@ function notification_assignment_url(array $ap): string {
             .nc-actions { width: 100%; justify-content: flex-start; }
         }
     </style>
+    <?php if ($is_road_supervisor): ?>
+    <!-- Road Ops Supervisor only: mobile fit for the notifications feed.
+         UI-only CSS scoping — other portals are unaffected and no behaviour changes. -->
+    <style>
+        @media (max-width: 768px) {
+            /* Keep the page container inside the viewport */
+            body.road-supervisor-view { overflow-x: hidden; }
+            body.road-supervisor-view .main-content {
+                width: 100%;
+                max-width: 100%;
+                box-sizing: border-box;
+                padding: 16px 12px 48px;
+                overflow-x: hidden;
+            }
+
+            /* Flex children must be allowed to shrink below their content
+               width, otherwise wide inner rows push cards past the screen
+               edge and get clipped ("half" visible). */
+            body.road-supervisor-view .nc-header,
+            body.road-supervisor-view .nc-header-top,
+            body.road-supervisor-view .nc-toolbar,
+            body.road-supervisor-view .nc-group-wrap,
+            body.road-supervisor-view .nc-card,
+            body.road-supervisor-view .nc-body,
+            body.road-supervisor-view .nc-title-row,
+            body.road-supervisor-view .nc-title-row > div:first-child {
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+
+            /* Long report codes / single long words must wrap instead of
+               stretching their card past the screen edge */
+            body.road-supervisor-view .nc-card-title,
+            body.road-supervisor-view .nc-time,
+            body.road-supervisor-view .nc-desc,
+            body.road-supervisor-view .nc-sub,
+            body.road-supervisor-view .nc-tag,
+            body.road-supervisor-view .nc-header-sub {
+                overflow-wrap: anywhere;
+                word-break: break-word;
+            }
+
+            /* Tags are white-space:nowrap by default; let them wrap on mobile
+               so a long tag cannot overflow its card */
+            body.road-supervisor-view .nc-tag { white-space: normal; }
+
+            /* Compact header keeps title + Mark All button on one view */
+            body.road-supervisor-view .nc-header { padding: 14px 14px 12px; }
+            body.road-supervisor-view .nc-title h1 { font-size: 18px; }
+
+            /* Stack the filter + search controls vertically instead of
+               squeezing both onto one cramped nowrap row */
+            body.road-supervisor-view .nc-toolbar { flex-wrap: wrap; }
+            body.road-supervisor-view .nc-filter,
+            body.road-supervisor-view .nc-search {
+                flex: 1 1 100%;
+                width: 100%;
+                min-width: 0;
+            }
+
+            /* Buttons never stretch their action row wider than the card */
+            body.road-supervisor-view .nc-actions .nc-btn { max-width: 100%; }
+        }
+
+        @media (max-width: 480px) {
+            /* Smaller icon frees room for card text on tiny screens */
+            body.road-supervisor-view .nc-icon {
+                flex: 0 0 34px;
+                width: 34px;
+                height: 34px;
+                border-radius: 10px;
+                font-size: 15px;
+            }
+            body.road-supervisor-view .nc-card { gap: 10px; padding: 13px 12px; }
+        }
+    </style>
+    <?php endif; ?>
 </head>
-<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
+<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo $is_road_supervisor ? ' road-supervisor-view' : ''; ?>">
     <?php include '../../includes/sidebar_nav.php'; ?>
 
     <?php
