@@ -52,6 +52,18 @@
         transform: translateY(-7.5px) rotate(-45deg);
     }
 
+    /* Hide hamburger button while a modal card is open (mobile view).
+       Bootstrap toggles `modal-open` on <body> for every modal show/hide,
+       so this covers the infrastructure map modal and any other modal
+       across all landing pages. */
+    @media (max-width: 991.98px) {
+        body.modal-open .hamburger-btn {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+    }
+
     .menu-overlay {
         position: fixed;
         inset: 0;
