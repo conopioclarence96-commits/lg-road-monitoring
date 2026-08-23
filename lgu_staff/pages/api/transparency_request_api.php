@@ -239,6 +239,19 @@ switch ($action) {
             exit;
         }
 
+        // Only the supervisor who first assigned this report may request transparency.
+        $asg_type = rgmap_assignment_type_from_source($source);
+        if (!rgmap_supervisor_can_manage_report($conn, $report_id, $asg_type)) {
+            $owner = rgmap_get_report_owner_supervisor($conn, $report_id, $asg_type);
+            $owner_name = trim((string)($owner['name'] ?? '')) ?: 'another supervisor';
+            http_response_code(403);
+            echo json_encode([
+                'success' => false,
+                'message' => "This report is managed by {$owner_name}. Only the supervisor who assigned it can request transparency upload.",
+            ]);
+            exit;
+        }
+
         if (transparency_pending_request($conn, $report_id, $source)) {
             http_response_code(409);
             echo json_encode(['success' => false, 'message' => 'A transparency upload request is already pending for this project']);

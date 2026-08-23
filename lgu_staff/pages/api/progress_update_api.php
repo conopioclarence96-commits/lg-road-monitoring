@@ -42,6 +42,20 @@ function rgmap_progress_is_ipms_source(string $source): bool {
     return ($resolved['table'] ?? '') === 'ipms_road_projects';
 }
 
+/** Block supervisor Complete/Cancel/Archive when another supervisor owns the report. */
+function rgmap_progress_require_supervisor_ownership($conn, $report_id, $source = '') {
+    $role = (string)($_SESSION['role'] ?? '');
+    if (!in_array($role, ['road_ops_supervisor', 'trans_ops_supervisor'], true)) {
+        return;
+    }
+    rgmap_require_supervisor_report_ownership(
+        $conn,
+        (int)$report_id,
+        rgmap_assignment_report_type_from_source((string)$source),
+        true
+    );
+}
+
 /** Clamp project completion percentage to 0–100 for progress updates. */
 function rgmap_normalize_completion_percentage($raw): int {
     if ($raw === '' || $raw === null) {
@@ -161,6 +175,17 @@ function rgmap_progress_find_report($conn, int $report_id, string $source = ''):
  * that drives the UI button visibility.
  */
 function rgmap_can_post_progress_update($conn, $report_id, $source, $user_id, $current_role) {
+    // Supervisors may only post updates on reports they own (first assigner).
+    if (in_array($current_role, ['road_ops_supervisor', 'trans_ops_supervisor'], true)) {
+        return rgmap_supervisor_can_manage_report(
+            $conn,
+            $report_id,
+            rgmap_assignment_report_type_from_source($source),
+            $user_id,
+            $current_role
+        );
+    }
+
     // Restriction applies only to Road/Transportation Monitoring Officers.
     if (!in_array($current_role, ['road_monitoring_officer', 'trans_monitoring_officer'], true)) {
         return true;
@@ -240,7 +265,24 @@ function rgmap_can_request_review($conn, $report_id, $source, $user_id, $current
 
 if ($method === 'GET') {
     $action = $_GET['action'] ?? '';
-    if ($action === 'get_updates' || $action === 'get_update' || $action === 'get_latest_completion' || $action === 'can_post_update' || $action === 'can_request_review' || $action === 'can_complete_report') {
+    if ($action === 'get_updates' || $action === 'get_update' || $action === 'get_latest_completion' || $action === 'can_post_update' || $action === 'can_request_review' || $action === 'can_complete_report' || $action === 'can_manage_report') {
+        if ($action === 'can_manage_report') {
+            $report_id = intval($_GET['report_id'] ?? 0);
+            $source = sanitize_input($_GET['source'] ?? '');
+            if ($report_id <= 0) {
+                json_response(['success' => false, 'message' => 'Invalid report ID']);
+            }
+            $rtype = rgmap_assignment_report_type_from_source($source);
+            $can = rgmap_supervisor_can_manage_report($conn, $report_id, $rtype);
+            $owner = rgmap_get_report_owner_supervisor($conn, $report_id, $rtype);
+            json_response([
+                'success' => true,
+                'can_manage' => $can,
+                'assigned_by_id' => $owner['id'] ?? 0,
+                'assigned_by_name' => $owner['name'] ?? '',
+                'message' => $can ? '' : ('This report is managed by ' . (trim((string)($owner['name'] ?? '')) ?: 'another supervisor') . '.'),
+            ]);
+        }
         if ($action === 'can_post_update') {
             $report_id = intval($_GET['report_id'] ?? 0);
             $source = sanitize_input($_GET['source'] ?? '');
@@ -304,6 +346,18 @@ if ($method === 'GET') {
             }
 
             $current_role = $_SESSION['role'] ?? '';
+            if (in_array($current_role, ['road_ops_supervisor', 'trans_ops_supervisor'], true)
+                && !rgmap_supervisor_can_manage_report($conn, $report_id, $table)) {
+                $owner = rgmap_get_report_owner_supervisor($conn, $report_id, $table);
+                $owner_name = trim((string)($owner['name'] ?? '')) ?: 'another supervisor';
+                json_response([
+                    'success' => true,
+                    'can_complete' => false,
+                    'has_assignment' => $has_assignment,
+                    'has_updates' => $has_updates,
+                    'message' => "This report is managed by {$owner_name}. Only the supervisor who assigned it can complete it.",
+                ]);
+            }
             if ($current_role === 'road_ops_supervisor') {
                 $can_complete = $has_assignment || $has_updates;
                 $message = $can_complete
@@ -423,6 +477,7 @@ if ($method === 'GET') {
 
         if ($report_id <= 0) json_response(['success' => false, 'message' => 'Invalid report ID']);
         if (empty($description)) json_response(['success' => false, 'message' => 'Description is required']);
+        rgmap_progress_require_supervisor_ownership($conn, $report_id, $source);
 
         $report = null;
         $report_table = 'road_transportation_reports';
@@ -509,6 +564,10 @@ if ($method === 'GET') {
         if (!$update_row) json_response(['success' => false, 'message' => 'Update not found']);
 
         $report_id_for_update = (int) ($update_row['report_id'] ?? 0);
+
+        // Supervisors may only edit progress updates on reports they own.
+        $edit_source = sanitize_input($_POST['source'] ?? '');
+        rgmap_progress_require_supervisor_ownership($conn, $report_id_for_update, $edit_source);
 
         // Verify the report still exists in a known source table.
         $update = fetch_one("SELECT u.id, r.report_id AS report_code FROM report_updates u JOIN road_transportation_reports r ON u.report_id = r.id WHERE u.id = ?", [$update_id], "i");
@@ -655,6 +714,7 @@ if ($method === 'GET') {
         $source = sanitize_input($_POST['source'] ?? '');
 
         if ($report_id <= 0) json_response(['success' => false, 'message' => 'Invalid report ID']);
+        rgmap_progress_require_supervisor_ownership($conn, $report_id, $source);
 
         try {
             // Capture report code before archive may remove the live row.
@@ -704,6 +764,7 @@ if ($method === 'GET') {
         $source = sanitize_input($_POST['source'] ?? '');
 
         if ($report_id <= 0) json_response(['success' => false, 'message' => 'Invalid report ID']);
+        rgmap_progress_require_supervisor_ownership($conn, $report_id, $source);
 
         try {
             if ($source === 'cimm') {
@@ -746,6 +807,7 @@ if ($method === 'GET') {
         $source = sanitize_input($_POST['source'] ?? '');
 
         if ($report_id <= 0) json_response(['success' => false, 'message' => 'Invalid report ID']);
+        rgmap_progress_require_supervisor_ownership($conn, $report_id, $source);
 
         try {
             $report_row = fetch_one("SELECT report_id FROM road_transportation_reports WHERE id = ?", [$report_id], "i");
@@ -790,6 +852,7 @@ if ($method === 'GET') {
         $source = sanitize_input($_POST['source'] ?? '');
 
         if ($report_id <= 0) json_response(['success' => false, 'message' => 'Invalid report ID']);
+        rgmap_progress_require_supervisor_ownership($conn, $report_id, $source);
 
         try {
             $ipms_complete = rgmap_progress_is_ipms_source($source);
@@ -866,6 +929,7 @@ if ($method === 'GET') {
         $source = sanitize_input($_POST['source'] ?? '');
 
         if ($report_id <= 0) json_response(['success' => false, 'message' => 'Invalid report ID']);
+        rgmap_progress_require_supervisor_ownership($conn, $report_id, $source);
 
         try {
             if ($source === 'cimm') {

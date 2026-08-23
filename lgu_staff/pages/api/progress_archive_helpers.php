@@ -177,7 +177,9 @@ function rgmap_archive_insert_native($conn, $dest_table, array $row, array $excl
     $placeholders = implode(', ', array_fill(0, count($fields), '?'));
     $stmt = $conn->prepare("INSERT INTO `$dest_table` ($field_list) VALUES ($placeholders)");
     $stmt->execute($values);
+    $insert_id = (int)$conn->insert_id;
     $stmt->close();
+    return $insert_id;
 }
 
 function rgmap_archive_normalize_status($status, $fallback = 'rejected') {
@@ -288,6 +290,32 @@ function rgmap_remap_report_fk($conn, $from_id, $to_id) {
     } catch (Throwable $e) {
         error_log("rgmap_remap_report_fk push_log: " . $e->getMessage());
     }
+}
+
+/**
+ * After Archive restore: keep supervisor ownership and officer assignments.
+ *
+ * Does NOT create assignments, change assigned_by, cancel/complete rows, or
+ * reset permissions. If the live PK differs from the archived source PK, only
+ * remaps child FKs (report_assignments / updates / notifications) so the same
+ * ownership history continues to apply.
+ *
+ * @param mysqli $conn
+ * @param int $live_report_id  PK of the restored live report
+ * @param int|null $original_report_id  Archived source_pk / pre-archive live PK
+ * @param string|null $report_type Unused; reserved for callers / logging
+ */
+function rgmap_preserve_ownership_after_restore($conn, $live_report_id, $original_report_id = null, $report_type = null) {
+    $live_report_id = (int)$live_report_id;
+    $original_report_id = (int)($original_report_id ?? 0);
+    if ($live_report_id <= 0) {
+        return;
+    }
+    if ($original_report_id > 0 && $original_report_id !== $live_report_id) {
+        rgmap_remap_report_fk($conn, $original_report_id, $live_report_id);
+    }
+    // Ownership remains whatever report_assignments already stores for this
+    // report_id (earliest assigned_by). No INSERT/UPDATE of assigned_by here.
 }
 
 // Return the live report table that actually contains the given id, or null.
@@ -1310,6 +1338,11 @@ function rgmap_restore_cimm_from_native_archive($conn, array $row, $archive_id) 
     $live['verification_status'] = $restore_status;
     $live['restored_from_archive'] = $rfa;
 
+    // Native CIMM archive rows keep the live PK as archive.id — that is the
+    // report_assignments.report_id ownership key and must be preserved.
+    $original_pk = (int)($row['id'] ?? 0);
+    $live_id = 0;
+
     $cimm_req_id = $row['cimm_req_id'] ?? null;
     $existing = null;
     if ($cimm_req_id !== null && $cimm_req_id !== '') {
@@ -1335,13 +1368,25 @@ function rgmap_restore_cimm_from_native_archive($conn, array $row, $archive_id) 
         $upd = $conn->prepare("UPDATE cimm_verification_reports SET " . implode(', ', $sets) . " WHERE id = ?");
         $upd->execute($vals);
         $upd->close();
+        $live_id = (int)$existing['id'];
     } else {
-        $original_pk = (int)($row['id'] ?? 0);
         if ($original_pk > 0 && rgmap_pk_is_free($conn, 'cimm_verification_reports', $original_pk)) {
             $live = ['id' => $original_pk] + $live;
+            $live_id = $original_pk;
         }
-        rgmap_archive_insert_native($conn, 'cimm_verification_reports', $live);
+        $inserted = rgmap_archive_insert_native($conn, 'cimm_verification_reports', $live);
+        if ($live_id <= 0) {
+            $live_id = (int)$inserted;
+        }
     }
+
+    // Keep assigned_by / officer assignments; only remap if the live PK changed.
+    rgmap_preserve_ownership_after_restore(
+        $conn,
+        $live_id,
+        $original_pk,
+        'cimm_verification_reports'
+    );
 
     $delete = $conn->prepare("DELETE FROM cimm_verification_reports_archive WHERE id = ?");
     $delete->bind_param('i', $archive_id);
@@ -1373,6 +1418,8 @@ function rgmap_restore_ipms_from_native_archive($conn, array $row, $archive_id) 
             $upd = $pdo->prepare("UPDATE ipms_road_projects SET status = ? WHERE project_id = ?");
             $upd->execute([$restore_status, $project_id]);
         }
+        // Reopen in place — do not recreate assignments or change assigned_by.
+        rgmap_preserve_ownership_after_restore($conn, $project_id, $project_id, 'ipms_road_projects');
         $del = $conn->prepare("DELETE FROM ipms_road_projects_archive WHERE id = ?");
         $del->bind_param('i', $archive_id);
         $del->execute();
@@ -1407,6 +1454,9 @@ function rgmap_restore_ipms_from_native_archive($conn, array $row, $archive_id) 
     $placeholders = implode(', ', array_fill(0, count($fields), '?'));
     $ins = $pdo->prepare("INSERT INTO ipms_road_projects ($field_list) VALUES ($placeholders)");
     $ins->execute($values);
+
+    // IPMS project_id is stable; leave report_assignments / assigned_by untouched.
+    rgmap_preserve_ownership_after_restore($conn, $project_id, $project_id, 'ipms_road_projects');
 
     $delete = $conn->prepare("DELETE FROM ipms_road_projects_archive WHERE id = ?");
     $delete->bind_param('i', $archive_id);

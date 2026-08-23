@@ -1110,6 +1110,7 @@ if (!function_exists('completed_project_category_label')) {
 
 $status_filter = $_GET['status'] ?? 'all';
 $type_filter = $_GET['type'] ?? 'all';
+$your_reports_only = isset($_GET['mine']) && (string)$_GET['mine'] === '1';
 if ($is_completed_projects_view) {
     $status_filter = 'completed';
 }
@@ -1133,8 +1134,9 @@ if ($focus_report_id > 0 && !$is_completed_projects_view) {
 $alerts = getActiveAlerts();
 $roads = getRoadStatus();
 $enhanced_stats = getEnhancedStats();
+$recent_fetch_limit = $your_reports_only ? 200 : 10;
 $recent_reports = getRecentSubmissions(
-    10,
+    $recent_fetch_limit,
     $status_filter,
     'all',
     $is_transport_supervisor,
@@ -1239,6 +1241,11 @@ if ($focus_report_id > 0) {
 // Reads live from report_assignments so it reflects Assign/Unassign changes
 // automatically. Never alters the report workflow or report statuses.
 annotate_report_assignment_status($conn, $recent_reports);
+
+if (!empty($your_reports_only)) {
+    $recent_reports = rgmap_filter_reports_you_handle($conn, $recent_reports);
+    $recent_reports = array_slice($recent_reports, 0, 10);
+}
 
 if (!$is_completed_projects_view) {
     annotate_last_progress_update($conn, $recent_reports);
@@ -2533,6 +2540,42 @@ if ($is_completed_projects_view || $is_system_admin) {
             background: #f0f4fa;
             border-color: #3762c8;
             color: #3762c8;
+        }
+
+        .btn-your-reports {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 6px 14px;
+            min-height: 34px;
+            border: 1px solid #3762c8;
+            border-radius: 8px;
+            background: #3762c8;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.2;
+            cursor: pointer;
+            white-space: nowrap;
+            box-sizing: border-box;
+            transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        .btn-your-reports:hover {
+            background: #1e3c72;
+            border-color: #1e3c72;
+            color: #fff;
+        }
+        .btn-your-reports i { pointer-events: none; }
+        body.dark-mode .btn-your-reports {
+            background: #3762c8;
+            border-color: #3762c8;
+            color: #fff;
+        }
+        body.dark-mode .btn-your-reports:hover {
+            background: #60a5fa;
+            border-color: #60a5fa;
+            color: #0f172a;
         }
 
         body.dark-mode .btn-secondary-custom {
@@ -4451,8 +4494,19 @@ if ($is_completed_projects_view || $is_system_admin) {
                         <?php endif; ?>
                         <option value="lgu">LGU Monitoring Reports</option>
                     </select>
-                    <button class="btn-secondary-custom" onclick="resetFilters()" title="Reset Filters">
-                        <i class="fas fa-arrow-clockwise"></i>
+                    <button type="button"
+                        class="btn-your-reports"
+                        id="yourReportsBtn"
+                        onclick="toggleYourReports()"
+                        title="<?php echo !empty($your_reports_only) ? 'Show all reports' : 'Show only reports you are handling'; ?>">
+                        <?php if (!empty($your_reports_only)): ?>
+                        <i class="fas fa-list"></i> All Reports
+                        <?php else: ?>
+                        <i class="fas fa-user-check"></i> Your Reports
+                        <?php endif; ?>
+                    </button>
+                    <button type="button" class="btn-your-reports" onclick="resetFilters()" title="Reset Filters">
+                        <i class="fas fa-arrow-clockwise"></i> Reset
                     </button>
                     <input type="text" class="road-search" placeholder="Search by title or ID..." id="reportSearchInput" oninput="filterReportsTable(this.value)">
                 </div>
@@ -4504,6 +4558,8 @@ if ($is_completed_projects_view || $is_system_admin) {
                             'assignment_status' => $rr['assignment_status'] ?? 'unassigned',
                             'assignment_officer' => $rr['assignment_officer'] ?? '',
                             'assigned_by' => $rr['assigned_by'] ?? '',
+                            'assigned_by_id' => (int)($rr['assigned_by_id'] ?? 0),
+                            'can_manage_as_supervisor' => !empty($rr['can_manage_as_supervisor']),
                             'priority' => $rr['priority'],
                             'severity' => $rr['severity'],
                             'created_at' => $rr['created_at'],
@@ -4603,7 +4659,13 @@ if ($is_completed_projects_view || $is_system_admin) {
                                 <button class="table-action-btn btn-view" title="View Details" onclick="viewReportDetails(<?php echo (int)$rr['id']; ?>, '<?php echo htmlspecialchars($rr['source'] ?? '', ENT_QUOTES); ?>')"><i class="fas fa-eye"></i> View</button>
                                 <button class="table-action-btn view-map" onclick="focusReportOnMap(<?php echo (int)$rr['id']; ?>, '<?php echo htmlspecialchars($rr['source'] ?? '', ENT_QUOTES); ?>')"><i class="fas fa-map-pin"></i> Map</button>
                                 <button class="table-action-btn btn-updates" onclick="viewReportUpdates(<?php echo (int)$rr['id']; ?>, '<?php echo htmlspecialchars($rr['report_type'] ?? '', ENT_QUOTES); ?>', '<?php echo htmlspecialchars($rr['source'] ?? '', ENT_QUOTES); ?>', '<?php echo htmlspecialchars($rr['status'] ?? '', ENT_QUOTES); ?>')"><i class="fas fa-timeline"></i> Updates</button>
-                                <?php if (strtolower((string)($rr['status'] ?? '')) === 'completed' && in_array($_SESSION['role'] ?? '', ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor'], true)): ?>
+                                <?php
+                                $rr_can_archive = strtolower((string)($rr['status'] ?? '')) === 'completed'
+                                    && in_array($_SESSION['role'] ?? '', ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor'], true)
+                                    && (!in_array($_SESSION['role'] ?? '', ['road_ops_supervisor', 'trans_ops_supervisor'], true)
+                                        || !empty($rr['can_manage_as_supervisor']));
+                                ?>
+                                <?php if ($rr_can_archive): ?>
                                 <button class="table-action-btn btn-archive" title="Archive" onclick="archiveReport(<?php echo (int)$rr['id']; ?>, '<?php echo htmlspecialchars($rr['source'] ?? '', ENT_QUOTES); ?>')"><i class="fas fa-archive"></i> Archive</button>
                                 <?php endif; ?>
                             </td>
@@ -4629,6 +4691,7 @@ if ($is_completed_projects_view || $is_system_admin) {
         const IS_TRANS_SUPERVISOR = <?php echo $is_trans_ops_supervisor ? 'true' : 'false'; ?>;
         const IS_SYSTEM_ADMIN = <?php echo $is_system_admin ? 'true' : 'false'; ?>;
         const IS_COMPLETED_PROJECTS_VIEW = <?php echo $is_completed_projects_view ? 'true' : 'false'; ?>;
+        const YOUR_REPORTS_ONLY = <?php echo !empty($your_reports_only) ? 'true' : 'false'; ?>;
         const HIDE_STATUS_COLUMN = <?php echo $hide_status_column ? 'true' : 'false'; ?>;
         const SHOW_CATEGORY_COLUMN = <?php echo $show_category_column ? 'true' : 'false'; ?>;
         const SHOW_PUBLIC_COLUMN = <?php echo $show_public_column ? 'true' : 'false'; ?>;
@@ -4707,7 +4770,20 @@ if ($is_completed_projects_view || $is_system_admin) {
             if (IS_COMPLETED_PROJECTS_VIEW) {
                 url += '&completed_only=1';
             }
+            if (typeof YOUR_REPORTS_ONLY !== 'undefined' && YOUR_REPORTS_ONLY) {
+                url += '&mine=1';
+            }
             return url;
+        }
+
+        function toggleYourReports() {
+            var url = new URL(window.location.href);
+            if (url.searchParams.get('mine') === '1') {
+                url.searchParams.delete('mine');
+            } else {
+                url.searchParams.set('mine', '1');
+            }
+            window.location.href = url.toString();
         }
 
         // Quezon City center
@@ -5177,6 +5253,9 @@ if ($is_completed_projects_view || $is_system_admin) {
             const status = document.getElementById('statusFilter').value;
             const url = new URL(window.location);
             url.searchParams.set('status', status);
+            if (typeof YOUR_REPORTS_ONLY !== 'undefined' && YOUR_REPORTS_ONLY) {
+                url.searchParams.set('mine', '1');
+            }
             window.location.href = url.toString();
         }
 
@@ -5245,6 +5324,7 @@ if ($is_completed_projects_view || $is_system_admin) {
             });
             const url = new URL(window.location);
             url.searchParams.delete('status');
+            url.searchParams.delete('mine');
             window.location.href = url.toString();
         }
 
@@ -5580,8 +5660,11 @@ if ($is_completed_projects_view || $is_system_admin) {
                     var sourceLabel = sourceLabels[r.source] || (r.report_source === 'local' ? 'LGU Monitoring' : 'Citizen');
                     sourceGrid += rmInfoItem('server', 'Source', sourceLabel);
                     sourceGrid += rmInfoItem('building', 'Department', r.department);
-                    if (r.assigned_to) {
-                        sourceGrid += rmInfoItem('user-cog', 'Assigned To', r.assigned_to);
+                    if (r.assignment_officer || r.assigned_to) {
+                        sourceGrid += rmInfoItem('user-cog', 'Assigned To', r.assignment_officer || r.assigned_to);
+                    }
+                    if (r.assigned_by) {
+                        sourceGrid += rmInfoItem('user-tie', 'Assigned By', r.assigned_by);
                     }
                     if (r.created_by_name) {
                         sourceGrid += rmInfoItem('user', 'Created By', r.created_by_name);
@@ -6073,17 +6156,37 @@ if ($is_completed_projects_view || $is_system_admin) {
                 btn.style.display = 'none';
                 return;
             }
-            btn.style.display = 'inline-flex';
-            setTransparencyBtnState('idle');
-            // Reflect an existing request so the supervisor is not invited to
-            // submit a duplicate the API would reject.
-            fetch('../api/transparency_request_api.php?action=status&report_id=' + encodeURIComponent(currentUpdatesReportId)
-                + '&source=' + encodeURIComponent(currentUpdatesReportSource || ''))
-                .then(function(r) { return r.json(); })
-                .then(function(data) {
-                    if (data && data.success) setTransparencyBtnState(data.status);
-                })
-                .catch(function() {});
+            function loadTransparencyStatus() {
+                btn.style.display = 'inline-flex';
+                setTransparencyBtnState('idle');
+                // Reflect an existing request so the supervisor is not invited to
+                // submit a duplicate the API would reject.
+                fetch('../api/transparency_request_api.php?action=status&report_id=' + encodeURIComponent(currentUpdatesReportId)
+                    + '&source=' + encodeURIComponent(currentUpdatesReportSource || ''))
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (data && data.success) setTransparencyBtnState(data.status);
+                    })
+                    .catch(function() {});
+            }
+            // Ownership gate: only the assigning supervisor may request transparency.
+            if ((typeof IS_ROAD_SUPERVISOR !== 'undefined' && IS_ROAD_SUPERVISOR)
+                || (typeof IS_TRANS_SUPERVISOR !== 'undefined' && IS_TRANS_SUPERVISOR)) {
+                btn.style.display = 'none';
+                fetch('../api/progress_update_api.php?action=can_manage_report&report_id=' + encodeURIComponent(currentUpdatesReportId)
+                    + '&source=' + encodeURIComponent(currentUpdatesReportSource || ''))
+                    .then(function(r) { return r.json(); })
+                    .then(function(own) {
+                        if (!(own && own.success && own.can_manage)) {
+                            btn.style.display = 'none';
+                            return;
+                        }
+                        loadTransparencyStatus();
+                    })
+                    .catch(function() {});
+                return;
+            }
+            loadTransparencyStatus();
         }
 
         function requestTransparencyUpload() {
@@ -6348,8 +6451,25 @@ if ($is_completed_projects_view || $is_system_admin) {
                 return;
             }
 
-            // Non-officers (supervisors, etc.) use direct Complete/Cancel.
+            // Non-officers (supervisors, etc.) use direct Complete/Cancel —
+            // but only when they own the report (first assigner).
             if (!isOfficer) {
+                if ((typeof IS_ROAD_SUPERVISOR !== 'undefined' && IS_ROAD_SUPERVISOR)
+                    || (typeof IS_TRANS_SUPERVISOR !== 'undefined' && IS_TRANS_SUPERVISOR)) {
+                    completeBtn.style.display = 'none';
+                    if (cancelBtn) cancelBtn.style.display = 'none';
+                    if (!currentUpdatesReportId) return;
+                    fetch('../api/progress_update_api.php?action=can_manage_report&report_id=' + currentUpdatesReportId + '&source=' + encodeURIComponent(currentUpdatesReportSource || ''))
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            if (data && data.success && data.can_manage) {
+                                completeBtn.style.display = 'inline-flex';
+                                if (cancelBtn) cancelBtn.style.display = 'inline-flex';
+                            }
+                        })
+                        .catch(function() {});
+                    return;
+                }
                 completeBtn.style.display = 'inline-flex';
                 if (cancelBtn) cancelBtn.style.display = 'inline-flex';
                 return;
@@ -9320,7 +9440,7 @@ if ($is_completed_projects_view || $is_system_admin) {
                 <button class="table-action-btn btn-view" title="View Details" onclick="viewReportDetails(${report.id}, '${report.source}')"><i class="fas fa-eye"></i> View</button>
                 <button class="table-action-btn view-map" onclick="focusReportOnMap(${report.id}, '${report.source}')"><i class="fas fa-map-pin"></i> Map</button>
                 <button class="table-action-btn btn-updates" onclick="viewReportUpdates(${report.id}, '${report.report_type}', '${report.source}', '${(report.status || '').replace(/'/g, "\\'")}')"><i class="fas fa-timeline"></i> Updates</button>
-                ${(report.status || '').toLowerCase() === 'completed' && canArchiveCompleted ?
+                ${(report.status || '').toLowerCase() === 'completed' && canArchiveCompleted && (report.can_manage_as_supervisor !== false) ?
                     `<button class="table-action-btn btn-archive" title="Archive" onclick="archiveReport(${report.id}, '${report.source}')"><i class="fas fa-archive"></i> Archive</button>` : ''}
             </td>
         `;

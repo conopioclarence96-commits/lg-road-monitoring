@@ -992,6 +992,158 @@ function filter_reports_with_active_assignment($conn, array $reports) {
     return array_values($filtered);
 }
 
+/**
+ * Report keys (report_type:id) owned by $user_id as the first assigner (assigned_by).
+ * Ownership is permanent across active/cancelled/completed assignment rows.
+ *
+ * @return array<string,true>
+ */
+function rgmap_get_owned_report_keys($conn, $user_id) {
+    $user_id = (int)$user_id;
+    $keys = [];
+    if (!$conn || $user_id <= 0) {
+        return $keys;
+    }
+    try {
+        $chk = $conn->query("SHOW TABLES LIKE 'report_assignments'");
+        if (!$chk || $chk->num_rows === 0) {
+            return $keys;
+        }
+        $res = $conn->query(
+            "SELECT report_type, report_id, assigned_by
+             FROM report_assignments
+             WHERE assigned_by IS NOT NULL AND assigned_by > 0
+             ORDER BY assigned_at ASC, id ASC"
+        );
+        if (!$res) {
+            return $keys;
+        }
+        $seen = [];
+        while ($row = $res->fetch_assoc()) {
+            $k = (string)$row['report_type'] . ':' . (int)$row['report_id'];
+            if (isset($seen[$k])) {
+                continue;
+            }
+            $seen[$k] = true;
+            if ((int)$row['assigned_by'] === $user_id) {
+                $keys[$k] = true;
+            }
+        }
+    } catch (Exception $e) {
+        error_log('rgmap_get_owned_report_keys error: ' . $e->getMessage());
+    }
+    return $keys;
+}
+
+/** Resolve _source_table for a list row when missing (after annotate / API). */
+function rgmap_report_row_source_table(array $r): string {
+    if (!empty($r['_source_table'])) {
+        return (string)$r['_source_table'];
+    }
+    $src = strtolower(trim((string)($r['source'] ?? ($r['source_system'] ?? ''))));
+    if ($src === 'cimm' || $src === 'external') {
+        return 'cimm_verification_reports';
+    }
+    if (in_array($src, ['infrastructure', 'maintenance', 'ipms'], true)) {
+        return 'ipms_road_projects';
+    }
+    return 'road_transportation_reports';
+}
+
+/**
+ * Keep only reports the current user is handling:
+ * - Supervisors / system_admin: first assigned_by = them
+ * - Monitoring officers: actively assigned to them
+ *
+ * @return array
+ */
+function rgmap_filter_reports_you_handle($conn, array $reports, $user_id = null, $role = null) {
+    $user_id = (int)($user_id ?? ($_SESSION['user_id'] ?? 0));
+    $role = (string)($role ?? ($_SESSION['role'] ?? ''));
+    if ($user_id <= 0 || empty($reports)) {
+        return [];
+    }
+
+    if (in_array($role, ['road_monitoring_officer', 'trans_monitoring_officer'], true)) {
+        // Ensure _source_table for the officer filter helper.
+        foreach ($reports as &$rr) {
+            if (empty($rr['_source_table'])) {
+                $rr['_source_table'] = rgmap_report_row_source_table($rr);
+            }
+        }
+        unset($rr);
+        return filter_reports_assigned_to_user($conn, $reports, $user_id);
+    }
+
+    $keys = rgmap_get_owned_report_keys($conn, $user_id);
+    if (empty($keys)) {
+        return [];
+    }
+    $filtered = array_filter($reports, static function ($r) use ($keys) {
+        $table = rgmap_report_row_source_table($r);
+        return isset($keys[$table . ':' . (int)($r['id'] ?? 0)]);
+    });
+    return array_values($filtered);
+}
+
+/**
+ * SQL fragment (no leading AND) limiting archive_rows to reports the user handles.
+ * Empty string when the filter should not apply.
+ */
+function rgmap_your_reports_archive_sql($user_id, $role) {
+    $user_id = (int)$user_id;
+    $role = (string)$role;
+    if ($user_id <= 0) {
+        return '';
+    }
+
+    $report_id_expr = 'COALESCE(NULLIF(archive_rows.source_pk, 0), archive_rows.id)';
+    $report_type_expr = "CASE
+        WHEN archive_rows.archive_table = 'cimm_verification_reports_archive'
+          OR archive_rows.archived_from = 'cimm_verification_reports'
+          THEN 'cimm_verification_reports'
+        WHEN archive_rows.archive_table = 'ipms_road_projects_archive'
+          OR archive_rows.archived_from = 'ipms_road_projects'
+          THEN 'ipms_road_projects'
+        WHEN archive_rows.archived_from = 'road_maintenance_reports'
+          THEN 'road_maintenance_reports'
+        ELSE 'road_transportation_reports'
+      END";
+
+    if (in_array($role, ['road_monitoring_officer', 'trans_monitoring_officer'], true)) {
+        return "EXISTS (
+            SELECT 1 FROM report_assignments ra
+            WHERE ra.user_id = {$user_id}
+              AND ra.status = 'active'
+              AND ra.report_id = {$report_id_expr}
+              AND ra.report_type = ({$report_type_expr})
+        )";
+    }
+
+    if (!in_array($role, ['road_ops_supervisor', 'trans_ops_supervisor', 'system_admin'], true)) {
+        return '';
+    }
+
+    // First chronological assigner must be this user (ownership).
+    return "EXISTS (
+        SELECT 1 FROM report_assignments ra
+        WHERE ra.assigned_by = {$user_id}
+          AND ra.report_id = {$report_id_expr}
+          AND ra.report_type = ({$report_type_expr})
+          AND NOT EXISTS (
+              SELECT 1 FROM report_assignments earlier
+              WHERE earlier.report_id = ra.report_id
+                AND earlier.report_type = ra.report_type
+                AND earlier.assigned_by IS NOT NULL
+                AND earlier.assigned_by > 0
+                AND (
+                    earlier.assigned_at < ra.assigned_at
+                    OR (earlier.assigned_at = ra.assigned_at AND earlier.id < ra.id)
+                )
+          )
+    )";
+}
+
 // Annotate a list of report rows with a display-only "Assignment Status".
 // The report_assignments table is the single source of truth updated by the
 // Assign/Unassign Staff features, so this reflects assignments live on every
@@ -1005,34 +1157,258 @@ function annotate_report_assignment_status($conn, array &$reports) {
         return;
     }
     $assigned = [];
+    $owners = [];
     try {
         $res = $conn->query(
-            "SELECT ra.report_id, ra.report_type, u.full_name AS officer_name, ab.full_name AS assigner_name
+            "SELECT ra.report_id, ra.report_type, ra.assigned_by, ra.assigned_at, ra.status,
+                    u.full_name AS officer_name, ab.full_name AS assigner_name
              FROM report_assignments ra
              LEFT JOIN users u ON u.id = ra.user_id
              LEFT JOIN users ab ON ab.id = ra.assigned_by
-             WHERE ra.status = 'active'"
+             ORDER BY ra.assigned_at ASC, ra.id ASC"
         );
         if ($res) {
             while ($row = $res->fetch_assoc()) {
-                $assigned[$row['report_type'] . ':' . $row['report_id']] = [
-                    'officer' => $row['officer_name'] ?? '',
-                    'assigner' => $row['assigner_name'] ?? '',
-                ];
+                $key = $row['report_type'] . ':' . $row['report_id'];
+                // First assignment chronologically claims ownership permanently.
+                if (!isset($owners[$key]) && !empty($row['assigned_by'])) {
+                    $owners[$key] = [
+                        'id' => (int)$row['assigned_by'],
+                        'name' => (string)($row['assigner_name'] ?? ''),
+                    ];
+                }
+                if (($row['status'] ?? '') === 'active') {
+                    $assigned[$key] = [
+                        'officer' => $row['officer_name'] ?? '',
+                        'assigner' => $row['assigner_name'] ?? '',
+                        'assigner_id' => (int)($row['assigned_by'] ?? 0),
+                    ];
+                }
             }
         }
     } catch (Exception $e) {
         error_log("annotate_report_assignment_status error: " . $e->getMessage());
     }
+
+    $uid = (int)($_SESSION['user_id'] ?? 0);
+    $role = (string)($_SESSION['role'] ?? '');
+    $is_supervisor = in_array($role, ['road_ops_supervisor', 'trans_ops_supervisor'], true);
+
     foreach ($reports as &$rr) {
         $table = $rr['_source_table'] ?? 'road_transportation_reports';
         $key = $table . ':' . ($rr['id'] ?? 0);
         $rr['assignment_status'] = isset($assigned[$key]) ? 'assigned' : 'unassigned';
         $rr['assignment_officer'] = $assigned[$key]['officer'] ?? '';
-        $rr['assigned_by'] = $assigned[$key]['assigner'] ?? '';
-        unset($rr['_source_table']);
+        // Prefer live active assigner name; fall back to first-claim owner name.
+        $rr['assigned_by'] = $assigned[$key]['assigner']
+            ?? ($owners[$key]['name'] ?? '');
+        $owner_id = (int)($owners[$key]['id'] ?? ($assigned[$key]['assigner_id'] ?? 0));
+        $rr['assigned_by_id'] = $owner_id;
+        if ($role === 'system_admin' || !$is_supervisor) {
+            $rr['can_manage_as_supervisor'] = true;
+        } elseif ($owner_id <= 0) {
+            $rr['can_manage_as_supervisor'] = true; // unclaimed — any matching-role supervisor may claim
+        } else {
+            $rr['can_manage_as_supervisor'] = ($owner_id === $uid);
+        }
+        // Keep _source_table for callers that still need the live table name
+        // (pagination APIs, archive helpers). Ownership fields are already set.
     }
     unset($rr);
+}
+
+/**
+ * Resolve the supervisor who first claimed/assigned a report.
+ * Ownership is permanent (earliest assignment by assigned_at), including
+ * cancelled/completed assignment rows so Archive still knows the owner.
+ *
+ * @return array{id:int,name:string,email:string,role:string}|null
+ */
+function rgmap_get_report_owner_supervisor($conn, $report_id, $report_type = null) {
+    $report_id = (int)$report_id;
+    if (!$conn || $report_id <= 0) {
+        return null;
+    }
+
+    $types = [];
+    $rt = trim((string)$report_type);
+    if ($rt !== '') {
+        $types[] = $rt;
+    }
+    foreach (['road_transportation_reports', 'cimm_verification_reports', 'road_maintenance_reports', 'ipms_road_projects'] as $t) {
+        if (!in_array($t, $types, true)) {
+            $types[] = $t;
+        }
+    }
+
+    try {
+        $check = $conn->query("SHOW TABLES LIKE 'report_assignments'");
+        if (!$check || $check->num_rows === 0) {
+            return null;
+        }
+
+        $best = null;
+        foreach ($types as $rtype) {
+            $row = fetch_one(
+                "SELECT ra.assigned_by, ra.assigned_at, ra.id,
+                        u.full_name, u.email, u.role
+                   FROM report_assignments ra
+                   INNER JOIN users u ON u.id = ra.assigned_by
+                  WHERE ra.report_id = ? AND ra.report_type = ?
+                  ORDER BY ra.assigned_at ASC, ra.id ASC
+                  LIMIT 1",
+                [$report_id, $rtype],
+                "is"
+            );
+            if (!$row || empty($row['assigned_by'])) {
+                continue;
+            }
+            $candidate = [
+                'id' => (int)$row['assigned_by'],
+                'name' => (string)($row['full_name'] ?? ''),
+                'email' => (string)($row['email'] ?? ''),
+                'role' => (string)($row['role'] ?? ''),
+                '_at' => (string)($row['assigned_at'] ?? ''),
+                '_id' => (int)($row['id'] ?? 0),
+            ];
+            if ($best === null
+                || strcmp($candidate['_at'], $best['_at']) < 0
+                || ($candidate['_at'] === $best['_at'] && $candidate['_id'] < $best['_id'])) {
+                $best = $candidate;
+            }
+            // Exact type match preferred when caller passed one — still compare
+            // timestamps across types only when type was unknown.
+            if ($rt !== '' && $rtype === $rt) {
+                break;
+            }
+        }
+        if ($best) {
+            unset($best['_at'], $best['_id']);
+            return $best;
+        }
+    } catch (Exception $e) {
+        error_log('rgmap_get_report_owner_supervisor error: ' . $e->getMessage());
+    }
+    return null;
+}
+
+/**
+ * Map a UI/API source hint to report_assignments.report_type.
+ */
+function rgmap_assignment_type_from_source($source) {
+    if (function_exists('rgmap_assignment_report_type_from_source')) {
+        return rgmap_assignment_report_type_from_source($source);
+    }
+    $source = strtolower(trim((string)$source));
+    if ($source === 'cimm' || $source === 'external') {
+        return 'cimm_verification_reports';
+    }
+    if ($source === 'maintenance' || $source === 'road_maintenance') {
+        return 'road_maintenance_reports';
+    }
+    if (strpos($source, 'ipms') !== false || $source === 'infrastructure') {
+        return 'ipms_road_projects';
+    }
+    return 'road_transportation_reports';
+}
+
+/**
+ * Whether the current (or given) user may perform supervisor actions on a report.
+ * - system_admin: always
+ * - non-supervisors: true (other role gates still apply)
+ * - supervisors: true only when unclaimed OR they are the first assigner
+ */
+function rgmap_supervisor_can_manage_report($conn, $report_id, $report_type = null, $user_id = null, $user_role = null) {
+    $user_id = (int)($user_id ?? ($_SESSION['user_id'] ?? 0));
+    $user_role = (string)($user_role ?? ($_SESSION['role'] ?? ''));
+
+    if ($user_role === 'system_admin') {
+        return true;
+    }
+    if (!in_array($user_role, ['road_ops_supervisor', 'trans_ops_supervisor'], true)) {
+        return true;
+    }
+    if ($user_id <= 0) {
+        return false;
+    }
+
+    $owner = rgmap_get_report_owner_supervisor($conn, $report_id, $report_type);
+    if (!$owner || empty($owner['id'])) {
+        return true; // not yet claimed
+    }
+    return ((int)$owner['id'] === $user_id);
+}
+
+/**
+ * Deny API/POST actions when another supervisor owns the report.
+ * Returns true if allowed; sends JSON or sets flash and returns false when denied.
+ */
+function rgmap_require_supervisor_report_ownership($conn, $report_id, $report_type = null, $as_json = true) {
+    if (rgmap_supervisor_can_manage_report($conn, $report_id, $report_type)) {
+        return true;
+    }
+    $owner = rgmap_get_report_owner_supervisor($conn, $report_id, $report_type);
+    $owner_name = trim((string)($owner['name'] ?? '')) ?: 'another supervisor';
+    $msg = "This report is managed by {$owner_name}. Only the supervisor who assigned it can perform actions.";
+    if ($as_json) {
+        if (function_exists('json_response')) {
+            json_response(['success' => false, 'message' => $msg], 403);
+        }
+        header('Content-Type: application/json');
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => $msg]);
+        exit;
+    }
+    if (function_exists('set_flash_message')) {
+        set_flash_message('error', $msg);
+    }
+    return false;
+}
+
+/**
+ * Resolve live report id + report_assignments.report_type from an archive row.
+ * @return array{0:int,1:?string} [report_id, report_type]
+ */
+function rgmap_archive_row_assignment_key(array $row): array {
+    $archive_table = (string)($row['archive_table'] ?? 'road_transportation_reports_archive');
+    $archived_from = (string)($row['archived_from'] ?? '');
+    $source_pk = (int)($row['source_pk'] ?? 0);
+    $id = (int)($row['id'] ?? 0);
+
+    if ($archive_table === 'cimm_verification_reports_archive' || $archived_from === 'cimm_verification_reports') {
+        return [$source_pk > 0 ? $source_pk : $id, 'cimm_verification_reports'];
+    }
+    if ($archive_table === 'ipms_road_projects_archive' || $archived_from === 'ipms_road_projects') {
+        return [$source_pk > 0 ? $source_pk : $id, 'ipms_road_projects'];
+    }
+    if ($archived_from === 'road_maintenance_reports') {
+        return [$source_pk > 0 ? $source_pk : $id, 'road_maintenance_reports'];
+    }
+    return [$source_pk > 0 ? $source_pk : $id, 'road_transportation_reports'];
+}
+
+/**
+ * Annotate archive rows with owning supervisor info for UI + permission checks.
+ */
+function rgmap_annotate_archive_supervisor_ownership($conn, array &$rows): void {
+    $uid = (int)($_SESSION['user_id'] ?? 0);
+    $role = (string)($_SESSION['role'] ?? '');
+    $is_supervisor = in_array($role, ['road_ops_supervisor', 'trans_ops_supervisor'], true);
+
+    foreach ($rows as &$row) {
+        [$rid, $rtype] = rgmap_archive_row_assignment_key($row);
+        $owner = rgmap_get_report_owner_supervisor($conn, $rid, $rtype);
+        $row['assigned_by_id'] = (int)($owner['id'] ?? 0);
+        $row['assigned_by'] = (string)($owner['name'] ?? '');
+        if ($role === 'system_admin' || !$is_supervisor) {
+            $row['can_manage_as_supervisor'] = true;
+        } elseif ($row['assigned_by_id'] <= 0) {
+            $row['can_manage_as_supervisor'] = true;
+        } else {
+            $row['can_manage_as_supervisor'] = ($row['assigned_by_id'] === $uid);
+        }
+    }
+    unset($row);
 }
 
 /**

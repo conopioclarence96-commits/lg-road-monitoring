@@ -125,6 +125,11 @@ try {
             $report['engineer'] = '';
         }
 
+        $owner = rgmap_get_report_owner_supervisor($conn, $report_id, 'ipms_road_projects');
+        $report['assigned_by'] = $owner['name'] ?? '';
+        $report['assigned_by_id'] = (int)($owner['id'] ?? 0);
+        $report['can_manage_as_supervisor'] = rgmap_supervisor_can_manage_report($conn, $report_id, 'ipms_road_projects');
+
         json_response(['success' => true, 'report' => $report]);
     }
 
@@ -276,6 +281,26 @@ try {
             $report['update_media'] = $update_media;
         } catch (Exception $e) {
             $report['update_media'] = [];
+        }
+
+        $owner = rgmap_get_report_owner_supervisor($conn, $report_id, $table);
+        $report['assigned_by'] = $owner['name'] ?? '';
+        $report['assigned_by_id'] = (int)($owner['id'] ?? 0);
+        $report['can_manage_as_supervisor'] = rgmap_supervisor_can_manage_report($conn, $report_id, $table);
+        if ($owner && !empty($owner['id'])) {
+            // Prefer live officer name from annotate when available.
+            $ann = [$report];
+            $ann[0]['_source_table'] = $table;
+            annotate_report_assignment_status($conn, $ann);
+            if (!empty($ann[0]['assigned_by'])) {
+                $report['assigned_by'] = $ann[0]['assigned_by'];
+            }
+            if (isset($ann[0]['assignment_officer'])) {
+                $report['assignment_officer'] = $ann[0]['assignment_officer'];
+            }
+            if (isset($ann[0]['assignment_status'])) {
+                $report['assignment_status'] = $ann[0]['assignment_status'];
+            }
         }
         
         json_response([

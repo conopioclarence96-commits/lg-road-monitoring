@@ -22,6 +22,14 @@ if ($report_id <= 0 || empty($report_type) || $user_id <= 0) {
     json_response(['success' => false, 'message' => 'Invalid parameters']);
 }
 
+$session_role = (string)($_SESSION['role'] ?? '');
+if (!in_array($session_role, ['road_ops_supervisor', 'trans_ops_supervisor', 'system_admin'], true)) {
+    json_response(['success' => false, 'message' => 'Only Road/Transportation Operations Supervisors may assign officers.'], 403);
+}
+
+// Another supervisor already claimed this report — block assign/reassign.
+rgmap_require_supervisor_report_ownership($conn, $report_id, $report_type, true);
+
 // Verify user exists
 $user = fetch_one("SELECT id, full_name, role FROM users WHERE id = ?", [$user_id], "i");
 if (!$user) {

@@ -17,7 +17,28 @@ if ($assignment_id <= 0) {
     json_response(['success' => false, 'message' => 'Invalid assignment ID']);
 }
 
+$session_role = (string)($_SESSION['role'] ?? '');
+if (!in_array($session_role, ['road_ops_supervisor', 'trans_ops_supervisor', 'system_admin'], true)) {
+    json_response(['success' => false, 'message' => 'Only Road/Transportation Operations Supervisors may unassign officers.'], 403);
+}
+
 try {
+    $asg = fetch_one(
+        "SELECT id, report_id, report_type, assigned_by FROM report_assignments WHERE id = ?",
+        [$assignment_id],
+        "i"
+    );
+    if (!$asg) {
+        json_response(['success' => false, 'message' => 'Assignment not found']);
+    }
+
+    rgmap_require_supervisor_report_ownership(
+        $conn,
+        (int)$asg['report_id'],
+        (string)($asg['report_type'] ?? ''),
+        true
+    );
+
     // Update status to cancelled instead of deleting
     $stmt = $conn->prepare("UPDATE report_assignments SET status = 'cancelled' WHERE id = ?");
     $stmt->bind_param("i", $assignment_id);

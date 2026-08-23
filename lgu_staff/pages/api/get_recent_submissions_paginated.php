@@ -48,6 +48,8 @@ if ($completed_only) {
     $status_filter = 'completed';
 }
 
+$your_reports_only = isset($_GET['mine']) && (string)$_GET['mine'] === '1';
+
 // Helper function to get recent submissions with pagination
 function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', $type_filter = 'all', $transport_only = false, $road_only = false, $assigned_to_user_id = null, $completed_only = false) {
     global $conn;
@@ -229,11 +231,18 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
 }
 
 try {
-    $reports = getRecentSubmissionsPaginated($offset, $limit, $status_filter, $type_filter, $transport_only, $road_only, $assigned_to_user_id, $completed_only);
+    $fetch_limit = $your_reports_only ? max(200, $offset + $limit) : $limit;
+    $fetch_offset = $your_reports_only ? 0 : $offset;
+    $reports = getRecentSubmissionsPaginated($fetch_offset, $fetch_limit, $status_filter, $type_filter, $transport_only, $road_only, $assigned_to_user_id, $completed_only);
 
     // Display-only Assignment Status (Assigned / Unassigned) for each report,
     // read live from report_assignments so it reflects Assign/Unassign changes.
     annotate_report_assignment_status($conn, $reports);
+
+    if ($your_reports_only) {
+        $reports = rgmap_filter_reports_you_handle($conn, $reports);
+        $reports = array_slice($reports, $offset, $limit);
+    }
 
     if (empty($completed_only)) {
         annotate_last_progress_update($conn, $reports);
@@ -266,6 +275,8 @@ try {
             'assignment_status' => $rr['assignment_status'] ?? 'unassigned',
             'assignment_officer' => $rr['assignment_officer'] ?? '',
             'assigned_by' => $rr['assigned_by'] ?? '',
+            'assigned_by_id' => (int)($rr['assigned_by_id'] ?? 0),
+            'can_manage_as_supervisor' => !empty($rr['can_manage_as_supervisor']),
             'priority' => $rr['priority'] ?? 'low',
             'created_at' => $rr['created_at'],
             'cimm_sync_status' => $rr['cimm_sync_status'] ?? '',
@@ -290,6 +301,8 @@ try {
                 'assignment_status' => $rr['assignment_status'] ?? 'unassigned',
                 'assignment_officer' => $rr['assignment_officer'] ?? '',
                 'assigned_by' => $rr['assigned_by'] ?? '',
+                'assigned_by_id' => (int)($rr['assigned_by_id'] ?? 0),
+                'can_manage_as_supervisor' => !empty($rr['can_manage_as_supervisor']),
                 'priority' => $rr['priority'],
                 'severity' => $rr['severity'],
                 'created_at' => $rr['created_at'],

@@ -42,6 +42,7 @@ $status_filter = $_GET['status'] ?? 'all';
 $source_filter = $_GET['source'] ?? 'all';
 $sort_order = $_GET['sort'] ?? 'latest';
 $id_search = trim($_GET['id'] ?? '');
+$your_reports_only = isset($_GET['mine']) && (string)$_GET['mine'] === '1';
 
 // Trans roles may only ever query the Road & Transportation (LGU Monitoring)
 // and Citizen sources. Normalize any tampered source parameter (CIMM /
@@ -171,6 +172,13 @@ if ($trans_officer_restrict !== '') {
     $where_clauses[] = $trans_officer_restrict;
 }
 
+if (!empty($your_reports_only) && !$is_staff_info_archive) {
+    $mine_sql = rgmap_your_reports_archive_sql((int)($_SESSION['user_id'] ?? 0), (string)$user_role);
+    if ($mine_sql !== '') {
+        $where_clauses[] = $mine_sql;
+    }
+}
+
 if (!empty($id_search)) {
     $esc_id = $conn->real_escape_string($id_search);
     $where_clauses[] = "("
@@ -261,7 +269,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         header('Location: archive.php');
         exit();
     }
+
+    // Supervisors may only restore/delete archive rows for reports they own.
+    if (in_array($user_role, ['road_ops_supervisor', 'trans_ops_supervisor'], true)
+        && in_array($_POST['action'], ['restore', 'delete_forever'], true)
+        && isset($_POST['archive_id'])) {
+        $gate_id = (int)$_POST['archive_id'];
+        $gate_table = (string)($_POST['archive_table'] ?? 'road_transportation_reports_archive');
+        if (!rgmap_archive_allowed_table($gate_table)) {
+            $gate_table = 'road_transportation_reports_archive';
+        }
+        $gate_row = rgmap_archive_fetch_row($conn, $gate_table, $gate_id);
+        if ($gate_row) {
+            $gate_row['archive_table'] = $gate_table;
+            [$own_id, $own_type] = rgmap_archive_row_assignment_key($gate_row);
+            if (!rgmap_supervisor_can_manage_report($conn, $own_id, $own_type)) {
+                $owner = rgmap_get_report_owner_supervisor($conn, $own_id, $own_type);
+                $owner_name = trim((string)($owner['name'] ?? '')) ?: 'another supervisor';
+                $_SESSION['archive_message'] = "This archived report is managed by {$owner_name}. Only the supervisor who assigned it can restore or delete it.";
+                header('Location: archive.php');
+                exit();
+            }
+        }
+    }
+
     if ($_POST['action'] === 'restore' && isset($_POST['archive_id'])) {
+        // Ownership / access invariant: restore returns the report to its prior
+        // workflow/status only. It must NOT create assignments, change
+        // assigned_by, or grant access to other supervisors. Officer
+        // assignments stay as stored in report_assignments; if the live PK
+        // changes, FKs are remapped via rgmap_preserve_ownership_after_restore().
         $archive_id = (int) $_POST['archive_id'];
         $archive_table = (string)($_POST['archive_table'] ?? 'road_transportation_reports_archive');
         if (!rgmap_archive_allowed_table($archive_table)) {
@@ -491,6 +528,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 );
                 $upd->execute();
                 if ($upd->affected_rows >= 0) {
+                    rgmap_preserve_ownership_after_restore(
+                        $conn,
+                        (int)$existing['id'],
+                        $original_pk,
+                        'cimm_verification_reports'
+                    );
                     $delete = $conn->prepare("DELETE FROM road_transportation_reports_archive WHERE id = ?");
                     $delete->bind_param('i', $archive_id);
                     $delete->execute();
@@ -519,9 +562,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
             if ($stmt->affected_rows > 0) {
                 $new_id = $insert_with_id ? $original_pk : (int)$conn->insert_id;
-                if ($original_pk > 0) {
-                    rgmap_remap_report_fk($conn, $original_pk, $new_id);
-                }
+                rgmap_preserve_ownership_after_restore(
+                    $conn,
+                    $new_id,
+                    $original_pk,
+                    'cimm_verification_reports'
+                );
                 $delete = $conn->prepare("DELETE FROM road_transportation_reports_archive WHERE id = ?");
                 $delete->bind_param('i', $archive_id);
                 $delete->execute();
@@ -612,6 +658,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $upd->bind_param("si", $restore_status, $existing_id);
             $upd->execute();
             if ($upd->affected_rows >= 0) {
+                rgmap_preserve_ownership_after_restore(
+                    $conn,
+                    (int)$existing_id,
+                    $original_pk,
+                    $target_table
+                );
                 $delete = $conn->prepare("DELETE FROM road_transportation_reports_archive WHERE id = ?");
                 $delete->bind_param('i', $archive_id);
                 $delete->execute();
@@ -634,9 +686,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
         if ($stmt->affected_rows > 0) {
             $new_id = $insert_with_id ? $original_pk : (int)$conn->insert_id;
-            if ($original_pk > 0) {
-                rgmap_remap_report_fk($conn, $original_pk, $new_id);
-            }
+            rgmap_preserve_ownership_after_restore(
+                $conn,
+                $new_id,
+                $original_pk,
+                $target_table
+            );
             $delete = $conn->prepare("DELETE FROM road_transportation_reports_archive WHERE id = ?");
             $delete->bind_param('i', $archive_id);
             $delete->execute();
@@ -996,6 +1051,57 @@ if (isset($_SESSION['archive_message'])) {
             background: var(--color-primary-bg);
             border-color: #3762c8;
             color: #3762c8;
+        }
+
+        .btn-your-reports {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 9px 14px;
+            min-height: 40px;
+            border-radius: 10px;
+            border: 1px solid #3762c8;
+            background: #3762c8;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 600;
+            line-height: 1.2;
+            cursor: pointer;
+            white-space: nowrap;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+            transition: background 0.15s ease, border-color 0.15s ease;
+        }
+        .btn-your-reports:hover {
+            background: #1e3c72;
+            border-color: #1e3c72;
+            color: #fff;
+        }
+        .btn-your-reports i { pointer-events: none; }
+        .filter-actions {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            gap: 8px;
+        }
+        .filter-actions .btn-secondary-custom,
+        .filter-actions .btn-your-reports {
+            min-height: 40px;
+            padding: 9px 14px;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 10px;
+        }
+        .filter-actions .btn-secondary-custom {
+            border-color: #3762c8;
+            background: #3762c8;
+            color: #fff;
+        }
+        .filter-actions .btn-secondary-custom:hover {
+            background: #1e3c72;
+            border-color: #1e3c72;
+            color: #fff;
         }
 
         .workflow-card {
@@ -1699,6 +1805,18 @@ if (isset($_SESSION['archive_message'])) {
             color: #e4e6ea !important;
             border: 1px solid #374151 !important;
         }
+        body.dark-mode .filter-actions .btn-secondary-custom,
+        body.dark-mode .btn-your-reports {
+            background: #3762c8 !important;
+            border-color: #3762c8 !important;
+            color: #fff !important;
+        }
+        body.dark-mode .filter-actions .btn-secondary-custom:hover,
+        body.dark-mode .btn-your-reports:hover {
+            background: #1e3c72 !important;
+            border-color: #1e3c72 !important;
+            color: #fff !important;
+        }
 
         .source-badge {
             display: inline-block;
@@ -2106,6 +2224,19 @@ if (isset($_SESSION['archive_message'])) {
                 </div>
                 <div class="filter-actions">
                     <label class="form-label">&nbsp;</label>
+                    <?php if (!$is_staff_info_archive): ?>
+                    <button type="button"
+                        class="btn-your-reports"
+                        id="yourReportsBtn"
+                        onclick="toggleYourReports()"
+                        title="<?php echo !empty($your_reports_only) ? 'Show all reports' : 'Show only reports you are handling'; ?>">
+                        <?php if (!empty($your_reports_only)): ?>
+                        <i class="fas fa-list"></i> All Reports
+                        <?php else: ?>
+                        <i class="fas fa-user-check"></i> Your Reports
+                        <?php endif; ?>
+                    </button>
+                    <?php endif; ?>
                     <button type="button" class="btn-secondary-custom" onclick="resetFilters()">
                         <i class="fas fa-arrow-rotate-left"></i> Reset
                     </button>
@@ -2212,6 +2343,16 @@ if (isset($_SESSION['archive_message'])) {
                                     <i class="fas fa-eye"></i> View
                                 </button>
                                 <?php if (!$is_trans_officer && !$is_road_officer): ?>
+                                <?php
+                                    $arch_can_manage = true;
+                                    if (in_array($user_role, ['road_ops_supervisor', 'trans_ops_supervisor'], true)) {
+                                        $tmp_row = $row;
+                                        $tmp_row['archive_table'] = $row['archive_table'] ?? 'road_transportation_reports_archive';
+                                        [$oid, $otype] = rgmap_archive_row_assignment_key($tmp_row);
+                                        $arch_can_manage = rgmap_supervisor_can_manage_report($conn, $oid, $otype);
+                                    }
+                                ?>
+                                <?php if ($arch_can_manage): ?>
                                 <?php if (strtolower((string)$row['status']) !== 'rejected'): ?>
                                 <form method="POST" style="display: inline-flex;" onsubmit="return confirm('Restore this report back to active table?');">
                                     <input type="hidden" name="archive_id" value="<?php echo (int)$row['id']; ?>">
@@ -2228,6 +2369,11 @@ if (isset($_SESSION['archive_message'])) {
                                         <i class="fas fa-trash"></i> Delete
                                     </button>
                                 </form>
+                                <?php else: ?>
+                                <span class="meta-item" title="Managed by another supervisor" style="opacity:.75;font-size:12px;">
+                                    <i class="fas fa-lock"></i> Managed by another supervisor
+                                </span>
+                                <?php endif; ?>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -2539,6 +2685,7 @@ if (isset($_SESSION['archive_message'])) {
                 }
             }
             unset($__ar);
+            rgmap_annotate_archive_supervisor_ownership($conn, $rows);
             echo json_encode($rows);
         ?>;
 
@@ -2729,6 +2876,9 @@ if (isset($_SESSION['archive_message'])) {
                 if (row.assigned_to) {
                     reportGrid += rmInfoItem('user-cog', 'Assigned To', row.assigned_to);
                 }
+                if (row.assigned_by) {
+                    reportGrid += rmInfoItem('user-tie', 'Assigned By', row.assigned_by);
+                }
             }
             document.getElementById('rm-report-grid').innerHTML = reportGrid;
 
@@ -2737,6 +2887,9 @@ if (isset($_SESSION['archive_message'])) {
             if (src === 'lgu') {
                 sourceGrid += rmInfoItem('server', 'Source', sourceLabel);
                 sourceGrid += rmInfoItem('building', 'Department', row.department);
+                if (row.assigned_by) {
+                    sourceGrid += rmInfoItem('user-tie', 'Assigned By', row.assigned_by);
+                }
                 if (row.created_by_name) {
                     sourceGrid += rmInfoItem('user', 'Created By', row.created_by_name);
                 }
@@ -2770,6 +2923,9 @@ if (isset($_SESSION['archive_message'])) {
                 // details shown by the CIMM View modal before archiving.
                 sourceGrid += rmInfoItem('server', 'Source', sourceLabel);
                 sourceGrid += rmInfoItem('building', 'Department', row.department);
+                if (row.assigned_by) {
+                    sourceGrid += rmInfoItem('user-tie', 'Assigned By', row.assigned_by);
+                }
                 sourceGrid += rmInfoItem('user', 'Reported By', row.reporter_name);
                 sourceGrid += rmInfoItem('hard-hat', 'Engineer', row.cimm_engineer_name || row.engineer);
                 if (row.cimm_district || row.district) {
@@ -2791,6 +2947,9 @@ if (isset($_SESSION['archive_message'])) {
             } else if (isIpmsArchive) {
                 // IPMS Infrastructure Projects: mirror Engineer & Schedule plus
                 // archive metadata from verification_monitoring viewInfraReport.
+                if (row.assigned_by) {
+                    sourceGrid += rmInfoItem('user-tie', 'Assigned By', row.assigned_by);
+                }
                 sourceGrid += rmInfoItem('hard-hat', 'Engineer', row.engineer || '—');
                 sourceGrid += rmInfoItem('calendar-plus', 'Start Date', formatDate(row.start_date || row.cimm_starting_date));
                 sourceGrid += rmInfoItem('calendar-minus', 'End Date', formatDate(row.end_date || row.cimm_estimated_end_date || row.due_date));
@@ -2955,6 +3114,19 @@ if (isset($_SESSION['archive_message'])) {
             } else {
                 url.searchParams.delete('id');
             }
+            <?php if (!empty($your_reports_only)): ?>
+            url.searchParams.set('mine', '1');
+            <?php endif; ?>
+            window.location.href = url.toString();
+        }
+
+        function toggleYourReports() {
+            const url = new URL(window.location);
+            if (url.searchParams.get('mine') === '1') {
+                url.searchParams.delete('mine');
+            } else {
+                url.searchParams.set('mine', '1');
+            }
             window.location.href = url.toString();
         }
 
@@ -2964,6 +3136,7 @@ if (isset($_SESSION['archive_message'])) {
             url.searchParams.delete('source');
             url.searchParams.delete('sort');
             url.searchParams.delete('id');
+            url.searchParams.delete('mine');
             window.location.href = url.toString();
         }
 
