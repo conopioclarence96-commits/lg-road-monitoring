@@ -12,6 +12,7 @@ ini_set('session.cookie_secure', 0);
 session_start();
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
+require_once __DIR__ . '/../api/progress_archive_helpers.php';
 
 $session_timeout = 30 * 60;
 lgu_enforce_idle_timeout($session_timeout, '../../login.php?timeout=1');
@@ -369,7 +370,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($type === 'review') {
-            $stmt = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE id = ? AND recipient_role = ? AND type IN ('completion','cancellation')");
+            // Only mark review requests that belong to this supervisor (assigner).
+            $assign_gate = rgmap_review_request_for_supervisor_sql('report_notifications');
+            $stmt = $conn->prepare(
+                "UPDATE report_notifications
+                    SET is_read = 1
+                  WHERE id = ? AND recipient_role = ? AND type IN ('completion','cancellation')
+                    AND {$assign_gate}"
+            );
+            $stmt->bind_param("issii", $id, $user_role, $user_email, $user_id, $user_id);
+            $stmt->execute();
+            $stmt->close();
+        }
+
+        if ($type === 'report_approved') {
+            $stmt = $conn->prepare(
+                "UPDATE report_notifications SET is_read = 1
+                  WHERE id = ? AND recipient_role = ? AND type = 'report_approved'"
+            );
             $stmt->bind_param("is", $id, $user_role);
             $stmt->execute();
             $stmt->close();
@@ -388,31 +406,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->close();
         }
         if (in_array($user_role, ['road_ops_supervisor', 'trans_ops_supervisor'], true)) {
-            // Supervisors: also mark role-targeted review requests
-            // (completion/cancellation routed to their role) as read so the
-            // badge fully resets instead of counting them again on reload.
-            $stmt = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE recipient_role = ? AND type IN ('completion','cancellation')");
+            // Supervisors: mark only MY pending review requests (assigned-by me),
+            // never every peer supervisor's inbox for the same role.
+            $assign_gate = rgmap_review_request_for_supervisor_sql('report_notifications');
+            $stmt = $conn->prepare(
+                "UPDATE report_notifications
+                    SET is_read = 1
+                  WHERE recipient_role = ? AND type IN ('completion','cancellation') AND is_read = 0
+                    AND {$assign_gate}"
+            );
+            $stmt->bind_param("ssii", $user_role, $user_email, $user_id, $user_id);
+            $stmt->execute();
+            $stmt->close();
+
+            $stmt = $conn->prepare(
+                "UPDATE report_notifications SET is_read = 1
+                  WHERE recipient_role = ? AND type = 'report_approved' AND is_read = 0"
+            );
             $stmt->bind_param("s", $user_role);
             $stmt->execute();
             $stmt->close();
         }
-        if (($is_trans_role || $is_road_officer) && $user_id > 0) {
-            // Transportation roles + Road Monitoring Officers: the always-on
-            // cards (active assignments, report status updates, change-request
-            // outcomes) have no per-user read flag, so remember their ids as
-            // read for this session. They stay visible in the list but render
-            // as read and no longer count toward the unread badge.
+        if (($is_trans_role || $is_road_officer || $is_road_supervisor) && $user_id > 0) {
+            // Transportation roles + Road Monitoring Officers + Road Ops
+            // Supervisors: the always-on cards (active assignments, report
+            // status updates, change-request outcomes) have no per-user read
+            // flag, so remember their ids as read for this session. They stay
+            // visible in the list but render as read and no longer count toward
+            // the unread badge.
             $read = nc_read_set();
             $keys = [];
             try {
-                $q = $conn->prepare("SELECT id FROM report_assignments WHERE user_id = ? AND status = 'active'");
-                $q->bind_param("i", $user_id);
-                $q->execute();
-                $res = $q->get_result();
-                while (($row = $res->fetch_assoc())) $keys[] = 'asg' . $row['id'];
-                $q->close();
+                if (!$is_road_supervisor) {
+                    $q = $conn->prepare("SELECT id FROM report_assignments WHERE user_id = ? AND status = 'active'");
+                    $q->bind_param("i", $user_id);
+                    $q->execute();
+                    $res = $q->get_result();
+                    while (($row = $res->fetch_assoc())) $keys[] = 'asg' . $row['id'];
+                    $q->close();
+                }
 
-                if (!$is_road_officer) {
+                if (!$is_road_officer && !$is_road_supervisor) {
                     $q = $conn->prepare("SELECT id FROM road_transportation_reports WHERE created_by = ? AND status IN ('completed','cancelled') AND report_category = 'transportation' AND report_type != 'infrastructure_issue'");
                     $q->bind_param("i", $user_id);
                     $q->execute();
@@ -575,7 +609,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
-        if (preg_match('/^(asg|ru|su)\d+$/', $key) && ($is_trans_role || $is_road_officer)) {
+        if (preg_match('/^(asg|ru|su)\d+$/', $key) && ($is_trans_role || $is_road_officer || $is_road_supervisor)) {
             $read = nc_read_set();
             if (!in_array($key, $read, true)) {
                 $_SESSION['nc_read'][(int)$user_id][] = $key;
@@ -587,8 +621,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute();
             $stmt->close();
         } elseif (preg_match('/^rq(\d+)$/', $key, $m)) {
-            $stmt = $conn->prepare("UPDATE report_notifications SET is_read = 1 WHERE id = ? AND recipient_role = ? AND type IN ('completion','cancellation')");
-            $stmt->bind_param("is", $m[1], $user_role);
+            $assign_gate = rgmap_review_request_for_supervisor_sql('report_notifications');
+            $stmt = $conn->prepare(
+                "UPDATE report_notifications SET is_read = 1
+                  WHERE id = ? AND recipient_role = ? AND type IN ('completion','cancellation')
+                    AND {$assign_gate}"
+            );
+            $rid = (int)$m[1];
+            $stmt->bind_param("issii", $rid, $user_role, $user_email, $user_id, $user_id);
+            $stmt->execute();
+            $stmt->close();
+        } elseif (preg_match('/^ra(\d+)$/', $key, $m)) {
+            $stmt = $conn->prepare(
+                "UPDATE report_notifications SET is_read = 1
+                  WHERE id = ? AND recipient_role = ? AND type = 'report_approved'"
+            );
+            $rid = (int)$m[1];
+            $stmt->bind_param("is", $rid, $user_role);
             $stmt->execute();
             $stmt->close();
         } elseif (preg_match('/^tro(\d+)$/', $key, $m) && $user_email !== '') {
@@ -640,6 +689,7 @@ $request_outcomes = [];
 $review_requests = [];
 $supervisor_actions = [];
 $transparency_outcomes = [];
+$approved_report_notices = [];
 $stale_alerts = [];
 
 if ($is_admin) {
@@ -1046,31 +1096,60 @@ if ($is_admin) {
         $assigned_projects = [];
     }
 
-    // Supervisors: get completion/cancellation requests routed to their module.
-    // Road Operations Supervisors only see road requests, Transportation
-    // Operations Supervisors only see transportation requests (the request
-    // notification's recipient_role matches the requesting officer's module).
+    // Supervisors: completion/cancellation requests routed to MY assignments only
+    // (the supervisor who assigned that officer to the report — not every peer
+    // with the same role). Also load newly approved reports for my module.
+    $approved_report_notices = [];
     if ($is_supervisor) {
         try {
+            $assign_gate = rgmap_review_request_for_supervisor_sql('rn');
             $rrstmt = $conn->prepare("
                 SELECT rn.*, r.report_id as report_code, r.title as report_title, r.report_category, r.location
                 FROM report_notifications rn
                 LEFT JOIN road_transportation_reports r ON rn.report_id = r.id
                 WHERE rn.recipient_role = ? AND rn.type IN ('completion', 'cancellation')
+                  AND {$assign_gate}
                   AND EXISTS (" . ($is_trans_supervisor ? $trans_exists : $all_tables_exists) . "
                       LIMIT 1
                   )
-                  " . ($is_trans_supervisor ? '' : 'AND rn.is_read = 0') . "
+                  " . (($is_trans_supervisor || $is_road_supervisor) ? '' : 'AND rn.is_read = 0') . "
                 ORDER BY rn.created_at DESC
                 LIMIT 20
             ");
-            $rrstmt->bind_param("s", $user_role);
+            $rrstmt->bind_param("ssii", $user_role, $user_email, $user_id, $user_id);
             $rrstmt->execute();
             $review_requests = $rrstmt->get_result()->fetch_all(MYSQLI_ASSOC);
             $rrstmt->close();
         } catch (Exception $e) {
             error_log("Review requests query error: " . $e->getMessage());
             $review_requests = [];
+        }
+
+        // New reports approved in verification_monitoring for this module only.
+        try {
+            $approved_exists = $is_trans_supervisor
+                ? $trans_exists
+                : ($all_tables_exists . " UNION ALL SELECT 1 FROM ipms_road_projects WHERE project_id = rn.report_id");
+            $arstmt = $conn->prepare("
+                SELECT rn.*, r.report_id as report_code, r.title as report_title, r.report_category, r.location
+                FROM report_notifications rn
+                LEFT JOIN road_transportation_reports r ON rn.report_id = r.id
+                WHERE rn.recipient_role = ? AND rn.type = 'report_approved'
+                  AND EXISTS (" . $approved_exists . "
+                      LIMIT 1
+                  )
+                  " . (($is_trans_supervisor || $is_road_supervisor) ? '' : 'AND rn.is_read = 0') . "
+                ORDER BY rn.created_at DESC
+                LIMIT 20
+            ");
+            $arstmt->bind_param("s", $user_role);
+            $arstmt->execute();
+            $approved_report_notices = $arstmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $arstmt->close();
+            $approved_report_notices = array_map('resolve_progress_notification_source', $approved_report_notices);
+        } catch (Exception $e) {
+            error_log("Approved report notices query error: " . $e->getMessage());
+            $approved_report_notices = [];
         }
 
         // Confirmations for actions the supervisor performed themselves
@@ -1085,7 +1164,7 @@ if ($is_admin) {
                   AND EXISTS (" . ($is_trans_supervisor ? $trans_exists : $all_tables_exists) . "
                       LIMIT 1
                   )
-                  " . ($is_trans_supervisor ? '' : 'AND rn.is_read = 0') . "
+                  " . (($is_trans_supervisor || $is_road_supervisor) ? '' : 'AND rn.is_read = 0') . "
                 ORDER BY rn.created_at DESC
                 LIMIT 20
             ");
@@ -1115,7 +1194,7 @@ if ($is_admin) {
                       ON tr.id = rn.update_id AND tr.requested_by = ?
                     WHERE rn.recipient_email = ?
                       AND rn.type IN ('transparency_approved', 'transparency_rejected')
-                      " . ($is_trans_supervisor ? '' : 'AND rn.is_read = 0') . "
+                      " . (($is_trans_supervisor || $is_road_supervisor) ? '' : 'AND rn.is_read = 0') . "
                     ORDER BY rn.created_at DESC
                     LIMIT 20
                 ");
@@ -1972,6 +2051,31 @@ function notification_assignment_url(array $ap): string {
                     'mark' => ['url' => '', 'data' => ['action' => 'mark_read', 'type' => 'transparency_outcome', 'id' => (int)$to['id']]],
                 ]);
             }
+
+            // New reports approved in verification_monitoring (module-scoped)
+            foreach ($approved_report_notices as $ar) {
+                if (empty($ar['report_code'])) {
+                    $ar = resolve_progress_notification_source($ar);
+                }
+                $nc_push([
+                    'id' => 'ra' . $ar['id'],
+                    'ts' => $ar['created_at'],
+                    'kind' => 'approved',
+                    'icon' => 'fa-clipboard-check',
+                    'color' => '#10b981',
+                    'title' => 'New report approved · ' . ($ar['report_code'] ?? ('#' . $ar['report_id'])),
+                    'desc' => $ar['message'] ?? (($ar['report_title'] ?? 'A report') . ' was approved and is ready for assignment.'),
+                    'sub' => !empty($ar['location']) ? ('Location: ' . $ar['location']) : (!empty($ar['report_title']) ? (string)$ar['report_title'] : ''),
+                    'report_id' => (string)($ar['report_code'] ?? ('#' . $ar['report_id'])),
+                    'status' => ['label' => 'Approved', 'class' => 'nc-st-completed'],
+                    'priority' => null,
+                    'tags' => ['Verification', 'New Report'],
+                    'unread' => ((int)($ar['is_read'] ?? 0) === 0),
+                    'url' => notification_progress_focus_url($ar),
+                    'url_label' => 'View Report',
+                    'mark' => ['url' => '', 'data' => ['action' => 'mark_read', 'type' => 'report_approved', 'id' => (int)$ar['id']]],
+                ]);
+            }
         }
 
         foreach ($stale_alerts as $sn) {
@@ -2110,19 +2214,22 @@ function notification_assignment_url(array $ap): string {
         // My change request status updates
         foreach ($staff_updates as $su) {
             $ok = ($su['status'] === 'approved');
+            $change_title = ($is_supervisor || $is_road_officer || $is_trans_role)
+                ? ('Staff information change request ' . ($ok ? 'Approved' : 'Rejected'))
+                : (('Change request') . ' ' . ($ok ? 'approved' : 'rejected'));
             $nc_push([
                 'id' => 'su' . $su['id'],
-                'ts' => $su['created_at'],
+                'ts' => $su['reviewed_at'] ?? $su['created_at'],
                 'kind' => 'change',
                 'icon' => $ok ? 'fa-check-circle' : 'fa-times-circle',
                 'color' => $ok ? '#10b981' : '#ef4444',
-                'title' => ($is_road_officer ? 'Change information request' : 'Change request') . ' ' . ($ok ? 'approved' : 'rejected'),
-                'desc' => $su['admin_notes'] ?: 'No additional notes from the admin.',
+                'title' => $change_title,
+                'desc' => $su['admin_notes'] ?: ('Your staff information change request was ' . ($ok ? 'approved' : 'rejected') . ' by the administrator.'),
                 'sub' => '',
                 'report_id' => '',
                 'status' => ['label' => $ok ? 'Approved' : 'Rejected', 'class' => $ok ? 'nc-st-completed' : 'nc-st-cancelled'],
                 'priority' => null,
-                'tags' => ['Change Request'],
+                'tags' => ['Staff Information', $ok ? 'Approved' : 'Rejected'],
                 'unread' => !in_array('su' . $su['id'], $nc_read, true),
                 'url' => '',
                 'url_label' => '',
@@ -2149,7 +2256,7 @@ function notification_assignment_url(array $ap): string {
     }
     // Unread badge counts only unread cards; read cards stay in the list. For
     // every other role every card is still unread, so this equals the total.
-    $nc_total = ($is_trans_role || $is_admin || $is_road_officer)
+    $nc_total = ($is_trans_role || $is_admin || $is_road_officer || $is_road_supervisor)
         ? count(array_filter($nc_feed, function ($item) { return $item['unread']; }))
         : count($nc_feed);
     ?>

@@ -995,9 +995,21 @@ if ($method === 'GET') {
             json_response(['success' => false, 'message' => 'You can only request completion or cancellation for reports assigned to you.'], 403);
         }
 
-        // Route to the supervisor responsible for this module.
+        // Route to the module role AND the specific supervisor who assigned this
+        // officer to the report — never every supervisor sharing the same role.
         $recipient_role = ($category === 'road') ? 'road_ops_supervisor' : 'trans_ops_supervisor';
         $request_label = ($request_type === 'completion') ? 'Request Completion' : 'Request Cancellation';
+
+        $assigner = rgmap_resolve_assigning_supervisor($conn, $report_id, $user_id, $source);
+        if (!$assigner || empty($assigner['email'])) {
+            json_response(['success' => false, 'message' => 'Could not determine the supervisor who assigned this report. Re-assignment may be required.'], 400);
+        }
+        // Enforce module separation: road requests only to road supervisors,
+        // transportation only to transportation supervisors.
+        $assigner_role = (string)($assigner['role'] ?? '');
+        if ($assigner_role !== '' && $assigner_role !== $recipient_role) {
+            json_response(['success' => false, 'message' => 'This report was assigned by a supervisor outside your module. The request cannot be routed.'], 403);
+        }
 
         try {
             // Ensure the role-targeting column exists (idempotent).
@@ -1014,37 +1026,41 @@ if ($method === 'GET') {
             ];
             $message = "{$request_label} — " . implode(' | ', $details);
 
-            // Road and transportation requests both guard against duplicates: a
-            // monitoring officer re-submitting the same completion/cancellation
-            // request (double-click, page refresh, or reopening the monitoring
-            // page) must not spawn a duplicate notification for the matching
-            // supervisor (road_ops_supervisor for road projects,
-            // trans_ops_supervisor for transportation projects). The request is
-            // uniquely identified by report ID + request type + requesting
-            // officer, and is only blocked while the previous request is still
-            // pending review (unread).
+            $supervisor_email = (string)$assigner['email'];
+            $requestor_uid = (int)$user_id;
+
+            // Duplicate guard: same report + request type + requestor, still unread.
+            // Covers both new format (update_id = requestor) and legacy
+            // (recipient_email = requestor user_id).
             $dup = fetch_one(
                 "SELECT id FROM report_notifications
-                 WHERE report_id = ? AND type = ? AND recipient_role = ? AND recipient_email = ? AND is_read = 0
+                 WHERE report_id = ? AND type = ? AND recipient_role = ? AND is_read = 0
+                   AND (update_id = ? OR recipient_email = ? OR recipient_email = ?)
                  ORDER BY id DESC LIMIT 1",
-                [$report_id, $request_type, $recipient_role, $user_id],
-                "isss"
+                [$report_id, $request_type, $recipient_role, $requestor_uid, (string)$requestor_uid, $supervisor_email],
+                "ississ"
             );
             if ($dup) {
                 log_audit_action($user_id, "Duplicate {$request_label} blocked", "Report ID: {$report_id}, Category: {$category}");
                 json_response(['success' => true, 'message' => "{$request_label} already submitted for review. The report status is unchanged."]);
             }
 
-            // Role-targeted notification (visible only to the matching supervisor
-            // role and to administrators).  The requestor's user_id is stored in
-            // recipient_email (a dead column for role-targeted notifications) so
-            // that when the supervisor processes the request we can look up who
-            // submitted it and notify them of the outcome.
-            $stmt = $conn->prepare("INSERT INTO report_notifications (report_id, type, message, recipient_role, recipient_email) VALUES (?, ?, ?, ?, ?)");
-            $stmt->bind_param("issss", $report_id, $request_type, $message, $recipient_role, $user_id);
+            // Targeted to the assigning supervisor only:
+            //   recipient_role  = module role (road vs transportation separation)
+            //   recipient_email = that supervisor's email
+            //   update_id       = requesting officer's user_id (for outcome notify)
+            $stmt = $conn->prepare(
+                "INSERT INTO report_notifications (report_id, update_id, type, message, recipient_role, recipient_email)
+                 VALUES (?, ?, ?, ?, ?, ?)"
+            );
+            $stmt->bind_param("iissss", $report_id, $requestor_uid, $request_type, $message, $recipient_role, $supervisor_email);
             $stmt->execute();
 
-            log_audit_action($user_id, "Submitted {$request_label}", "Report ID: {$report_id}, Category: {$category}, Recipient role: {$recipient_role}");
+            log_audit_action(
+                $user_id,
+                "Submitted {$request_label}",
+                "Report ID: {$report_id}, Category: {$category}, Recipient role: {$recipient_role}, Assigner: {$supervisor_email}"
+            );
 
             json_response(['success' => true, 'message' => "{$request_label} submitted for review. The report status is unchanged."]);
         } catch (Exception $e) {

@@ -192,21 +192,46 @@ function getNotificationsFeedCount($conn, $user_role, $user_id, $email) {
     foreach ($read as $k) { if (strncmp((string)$k, 'su', 2) === 0) $read_su[(int)substr((string)$k, 2)] = true; }
     foreach ($rows as $r) { if (!isset($read_su[(int)$r['id']]) && !isset($dismissed_map['su' . $r['id']])) $count++; }
 
-    // Supervisors: completion/cancellation requests routed to my role, plus
-    // confirmations for actions I performed (Complete/Cancel).
+    // Supervisors: completion/cancellation requests routed to MY assignments
+    // only, confirmations for actions I performed, and newly approved reports
+    // for my module.
     if ($is_trans_supervisor) {
         $trans_exists = "SELECT 1 FROM road_transportation_reports
                          WHERE id = rn.report_id
                            AND report_category = 'transportation'
                            AND report_type != 'infrastructure_issue'";
+        $assign_gate = "(
+            rn.recipient_email = ?
+            OR (
+                rn.recipient_email REGEXP '^[0-9]+$'
+                AND EXISTS (
+                    SELECT 1 FROM report_assignments ra
+                    WHERE ra.report_id = rn.report_id
+                      AND ra.assigned_by = ?
+                      AND ra.user_id = CAST(rn.recipient_email AS UNSIGNED)
+                      AND ra.status = 'active'
+                )
+            )
+            OR (
+                COALESCE(rn.update_id, 0) > 0
+                AND EXISTS (
+                    SELECT 1 FROM report_assignments ra
+                    WHERE ra.report_id = rn.report_id
+                      AND ra.assigned_by = ?
+                      AND ra.user_id = rn.update_id
+                      AND ra.status = 'active'
+                )
+            )
+        )";
         $stmt = $conn->prepare("
             SELECT rn.id FROM report_notifications rn
             WHERE rn.is_read = 0 AND rn.recipient_role = ?
               AND rn.type IN ('completion', 'cancellation')
+              AND {$assign_gate}
               AND EXISTS (" . $trans_exists . " LIMIT 1)
             LIMIT 20
         ");
-        $stmt->bind_param("s", $user_role);
+        $stmt->bind_param("ssii", $user_role, $email, $user_id, $user_id);
         $stmt->execute();
         $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
@@ -226,6 +251,19 @@ function getNotificationsFeedCount($conn, $user_role, $user_id, $email) {
             $stmt->close();
             foreach ($rows as $r) { if (!isset($dismissed_map['sa' . $r['id']])) $count++; }
         }
+
+        $stmt = $conn->prepare("
+            SELECT rn.id FROM report_notifications rn
+            WHERE rn.is_read = 0 AND rn.recipient_role = ?
+              AND rn.type = 'report_approved'
+              AND EXISTS (" . $trans_exists . " LIMIT 1)
+            LIMIT 20
+        ");
+        $stmt->bind_param("s", $user_role);
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        foreach ($rows as $r) { if (!isset($dismissed_map['ra' . $r['id']])) $count++; }
 
         // The admin's decision on a Transparency Upload Request this supervisor
         // submitted (see the 'tro' cards on the Notifications page). Matched
@@ -453,10 +491,9 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
             if (in_array($user_role, ['road_ops_supervisor', 'trans_ops_supervisor'], true)) {
                 // Supervisors: count only the unread notifications that
                 // actually appear in their notifications feed — review requests
-                // routed to their role plus results targeted to their email.
-                // (The generic count below would include notifications meant
-                // for other roles or broadcast progress updates, inflating the
-                // badge.)
+                // for reports THEY assigned, newly approved module reports, and
+                // results targeted to their email. Never count another peer
+                // supervisor's completion/cancellation inbox.
                 if ($user_role === 'trans_ops_supervisor') {
                     // Transportation supervisors only ever receive notifications
                     // for transportation reports, so the existence check is
@@ -471,19 +508,45 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
                                UNION ALL
                                SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
                                UNION ALL
-                               SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id";
+                               SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id
+                               UNION ALL
+                               SELECT 1 FROM ipms_road_projects WHERE project_id = rn.report_id";
                 }
+                $assign_gate = "(
+                    rn.recipient_email = ?
+                    OR (
+                        rn.recipient_email REGEXP '^[0-9]+$'
+                        AND EXISTS (
+                            SELECT 1 FROM report_assignments ra
+                            WHERE ra.report_id = rn.report_id
+                              AND ra.assigned_by = ?
+                              AND ra.user_id = CAST(rn.recipient_email AS UNSIGNED)
+                              AND ra.status = 'active'
+                        )
+                    )
+                    OR (
+                        COALESCE(rn.update_id, 0) > 0
+                        AND EXISTS (
+                            SELECT 1 FROM report_assignments ra
+                            WHERE ra.report_id = rn.report_id
+                              AND ra.assigned_by = ?
+                              AND ra.user_id = rn.update_id
+                              AND ra.status = 'active'
+                        )
+                    )
+                )";
                 $stmt = $conn->prepare("
-                    SELECT rn.id FROM report_notifications rn
+                    SELECT rn.id, rn.type FROM report_notifications rn
                     WHERE rn.is_read = 0
                       AND (
-                          (rn.recipient_role = ? AND rn.type IN ('completion', 'cancellation'))
+                          (rn.recipient_role = ? AND rn.type IN ('completion', 'cancellation') AND {$assign_gate})
+                          OR (rn.recipient_role = ? AND rn.type = 'report_approved')
                           OR (rn.recipient_email = ? AND rn.type IN ('approve_request', 'reject_request', 'complete_report', 'cancel_report', 'no_update_stale'))
                       )
                       AND EXISTS (" . $exists . " LIMIT 1)
                     LIMIT 50
                 ");
-                $stmt->bind_param("ss", $user_role, $email);
+                $stmt->bind_param("ssiiss", $user_role, $email, $user_id, $user_id, $user_role, $email);
                 $stmt->execute();
                 $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                 $stmt->close();
@@ -496,15 +559,43 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
                 foreach (($_SESSION['nc_dismissed'][(int)$user_id] ?? []) as $k) {
                     $dismissed[(string)$k] = true;
                 }
+                $read_su = [];
+                foreach (($_SESSION['nc_read'][(int)$user_id] ?? []) as $k) {
+                    if (strncmp((string)$k, 'su', 2) === 0) {
+                        $read_su[(int)substr((string)$k, 2)] = true;
+                    }
+                }
                 foreach ($rows as $row) {
                     $id = $row['id'];
-                    if (!isset($dismissed['rq' . $id])
-                        && !isset($dismissed['sa' . $id])
-                        && !isset($dismissed['ro' . $id])
-                        && !isset($dismissed['stu' . $id])) {
+                    $type = (string)($row['type'] ?? '');
+                    $prefix = 'rq';
+                    if ($type === 'report_approved') $prefix = 'ra';
+                    elseif (in_array($type, ['complete_report', 'cancel_report'], true)) $prefix = 'sa';
+                    elseif (in_array($type, ['approve_request', 'reject_request'], true)) $prefix = 'ro';
+                    elseif ($type === 'no_update_stale') $prefix = 'stu';
+                    if (!isset($dismissed[$prefix . $id])) {
                         $count++;
                     }
                 }
+
+                // Staff information change request outcomes for this supervisor.
+                try {
+                    $stmt = $conn->prepare("
+                        SELECT id FROM change_requests
+                        WHERE user_id = ? AND status != 'pending'
+                        LIMIT 20
+                    ");
+                    $stmt->bind_param("i", $user_id);
+                    $stmt->execute();
+                    $cr_rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                    $stmt->close();
+                    foreach ($cr_rows as $cr) {
+                        $sid = (int)$cr['id'];
+                        if (!isset($read_su[$sid]) && !isset($dismissed['su' . $sid])) {
+                            $count++;
+                        }
+                    }
+                } catch (Exception $e) {}
 
                 // The admin's decision on a Transparency Upload Request this
                 // supervisor submitted ('tro' cards on the Notifications page).

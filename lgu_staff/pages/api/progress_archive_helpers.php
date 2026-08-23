@@ -667,7 +667,7 @@ function rgmap_notify_requestor($conn, $report_id, $action, $supervisor_id, $rep
     try {
         // Look up the pending (unread) review-request notification for this report.
         $stmt = $conn->prepare(
-            "SELECT id, type, recipient_email, recipient_role
+            "SELECT id, type, recipient_email, recipient_role, update_id
              FROM report_notifications
              WHERE report_id = ? AND type IN ('completion','cancellation')
                AND recipient_role IS NOT NULL
@@ -681,7 +681,13 @@ function rgmap_notify_requestor($conn, $report_id, $action, $supervisor_id, $rep
         if (!$row) return false;  // No pending review request — nothing to notify.
 
         $request_type = $row['type'];
-        $requestor_uid = (int)$row['recipient_email'];  // user_id stored by submit_review_request
+        // New format: update_id = requestor user_id, recipient_email = assigning
+        // supervisor email. Legacy format: recipient_email held the requestor user_id.
+        $requestor_uid = (int)($row['update_id'] ?? 0);
+        if ($requestor_uid <= 0 && preg_match('/^\d+$/', trim((string)($row['recipient_email'] ?? '')))) {
+            $requestor_uid = (int)$row['recipient_email'];
+        }
+        if ($requestor_uid <= 0) return false;
         $supervisor = fetch_one("SELECT full_name FROM users WHERE id = ?", [$supervisor_id], "i");
         $supervisor_name = $supervisor['full_name'] ?? 'Supervisor';
 
@@ -892,6 +898,144 @@ function rgmap_notify_supervisor_action($conn, $report_id, $action, $supervisor_
         $stmt->close();
     } catch (Exception $e) {
         error_log("rgmap_notify_supervisor_action error: " . $e->getMessage());
+    }
+}
+
+/**
+ * Resolve the supervisor who assigned a report to a specific officer.
+ * Returns ['id'=>int,'email'=>string,'role'=>string] or null.
+ */
+function rgmap_resolve_assigning_supervisor($conn, $report_id, $officer_user_id, $source = '') {
+    $report_id = (int)$report_id;
+    $officer_user_id = (int)$officer_user_id;
+    if ($report_id <= 0 || $officer_user_id <= 0 || !$conn) {
+        return null;
+    }
+
+    $source = strtolower(trim((string)$source));
+    $preferred = $source === 'cimm'
+        ? 'cimm_verification_reports'
+        : ($source === 'infrastructure' ? 'road_maintenance_reports' : 'road_transportation_reports');
+
+    $try_types = array_values(array_unique([
+        $preferred,
+        'road_transportation_reports',
+        'cimm_verification_reports',
+        'road_maintenance_reports',
+    ]));
+
+    try {
+        $check = $conn->query("SHOW TABLES LIKE 'report_assignments'");
+        if (!$check || $check->num_rows === 0) {
+            return null;
+        }
+
+        foreach ($try_types as $rtype) {
+            $row = fetch_one(
+                "SELECT ra.assigned_by, u.email, u.role
+                   FROM report_assignments ra
+                   INNER JOIN users u ON u.id = ra.assigned_by
+                  WHERE ra.report_id = ? AND ra.report_type = ? AND ra.user_id = ? AND ra.status = 'active'
+                  ORDER BY ra.assigned_at DESC LIMIT 1",
+                [$report_id, $rtype, $officer_user_id],
+                "isi"
+            );
+            if ($row && !empty($row['assigned_by']) && !empty($row['email'])) {
+                return [
+                    'id' => (int)$row['assigned_by'],
+                    'email' => (string)$row['email'],
+                    'role' => (string)($row['role'] ?? ''),
+                ];
+            }
+        }
+    } catch (Exception $e) {
+        error_log('rgmap_resolve_assigning_supervisor error: ' . $e->getMessage());
+    }
+    return null;
+}
+
+/**
+ * SQL EXISTS fragment: completion/cancellation row belongs to the supervisor
+ * who assigned the requesting officer to that report.
+ * Bind params (in order): supervisor_user_id (i), supervisor_email (s).
+ */
+function rgmap_review_request_for_supervisor_sql(string $rn = 'rn'): string {
+    return "(
+        {$rn}.recipient_email = ?
+        OR (
+            {$rn}.recipient_email REGEXP '^[0-9]+$'
+            AND EXISTS (
+                SELECT 1 FROM report_assignments ra
+                WHERE ra.report_id = {$rn}.report_id
+                  AND ra.assigned_by = ?
+                  AND ra.user_id = CAST({$rn}.recipient_email AS UNSIGNED)
+                  AND ra.status = 'active'
+            )
+        )
+        OR (
+            COALESCE({$rn}.update_id, 0) > 0
+            AND EXISTS (
+                SELECT 1 FROM report_assignments ra
+                WHERE ra.report_id = {$rn}.report_id
+                  AND ra.assigned_by = ?
+                  AND ra.user_id = {$rn}.update_id
+                  AND ra.status = 'active'
+            )
+        )
+    )";
+}
+
+/**
+ * Notify the correct module supervisor(s) when a report is approved in
+ * verification_monitoring. Transportation → trans_ops_supervisor only;
+ * road / maintenance / CIMM / infra → road_ops_supervisor only.
+ */
+function rgmap_notify_supervisors_report_approved($conn, $report_id, $report_code, $title, $category_or_module) {
+    try {
+        if (!$conn || (int)$report_id <= 0) {
+            return false;
+        }
+
+        $module = strtolower(trim((string)$category_or_module));
+        if (in_array($module, ['transportation', 'transport', 'trans'], true)) {
+            $recipient_role = 'trans_ops_supervisor';
+            $module_label = 'Transportation';
+        } else {
+            // road, maintenance, infrastructure, cimm, infra, etc.
+            $recipient_role = 'road_ops_supervisor';
+            $module_label = 'Road';
+        }
+
+        $code = trim((string)$report_code) !== '' ? trim((string)$report_code) : ('#' . (int)$report_id);
+        $label = trim((string)$title) !== '' ? trim((string)$title) : 'Untitled';
+        $message = "New report approved — Report: {$code} | Title: {$label} | Module: {$module_label}";
+
+        $conn->query("ALTER TABLE report_notifications ADD COLUMN IF NOT EXISTS recipient_role VARCHAR(50) DEFAULT NULL AFTER recipient_email");
+
+        $dup = $conn->prepare(
+            "SELECT id FROM report_notifications
+              WHERE report_id = ? AND type = 'report_approved' AND recipient_role = ? AND is_read = 0
+              ORDER BY id DESC LIMIT 1"
+        );
+        $dup->bind_param('is', $report_id, $recipient_role);
+        $dup->execute();
+        $exists = $dup->get_result()->fetch_assoc();
+        $dup->close();
+        if ($exists) {
+            return true;
+        }
+
+        $stmt = $conn->prepare(
+            "INSERT INTO report_notifications (report_id, type, message, recipient_role, recipient_email)
+             VALUES (?, 'report_approved', ?, ?, NULL)"
+        );
+        $stmt->bind_param('iss', $report_id, $message, $recipient_role);
+        $stmt->execute();
+        $stmt->close();
+        return true;
+    } catch (Exception $e) {
+        error_log('rgmap_notify_supervisors_report_approved error: ' . $e->getMessage());
+        return false;
     }
 }
 

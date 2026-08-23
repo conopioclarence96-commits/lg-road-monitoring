@@ -619,6 +619,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $infra_upd = $infra_pdo->prepare("UPDATE ipms_road_projects SET status = 'approved' WHERE project_id = ?");
                 $infra_upd->execute([$report_id]);
                 $vm_message = 'Infrastructure project approved.';
+
+                $infra_title = 'Infrastructure Project #' . $report_id;
+                try {
+                    $infra_row = $infra_pdo->prepare("SELECT project_id, project_name FROM ipms_road_projects WHERE project_id = ?");
+                    $infra_row->execute([$report_id]);
+                    $ir = $infra_row->fetch(PDO::FETCH_ASSOC);
+                    if ($ir) {
+                        $infra_title = (string)($ir['project_name'] ?? $infra_title);
+                        rgmap_notify_supervisors_report_approved(
+                            $conn,
+                            (int)$report_id,
+                            (string)($ir['project_id'] ?? $report_id),
+                            $infra_title,
+                            'road'
+                        );
+                    }
+                } catch (Exception $e) {
+                    error_log('infra approve notify: ' . $e->getMessage());
+                }
             } else {
                 // X Reject: copy every project field into the archive, then drop
                 // the live IPMS row so it leaves this panel.
@@ -730,6 +749,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $audit_stmt->bind_param('ssssss', $audit_id, $title, $audit_type, $audit_status, $auditor, $description);
             $audit_stmt->execute();
+
+            // Notify the correct module supervisor when a report is approved.
+            if (in_array($action, ['approve', 'cimm_approve'], true)) {
+                $notify_row = null;
+                if ($table === 'road_transportation_reports') {
+                    $ns = $conn->prepare("SELECT report_id, title, report_category FROM road_transportation_reports WHERE id = ?");
+                    $ns->bind_param('i', $report_id);
+                    $ns->execute();
+                    $notify_row = $ns->get_result()->fetch_assoc();
+                    $ns->close();
+                } else {
+                    $ns = $conn->prepare("SELECT report_id, title, 'road' AS report_category FROM road_maintenance_reports WHERE id = ?");
+                    $ns->bind_param('i', $report_id);
+                    $ns->execute();
+                    $notify_row = $ns->get_result()->fetch_assoc();
+                    $ns->close();
+                }
+                if ($notify_row) {
+                    $cat = strtolower((string)($notify_row['report_category'] ?? ''));
+                    if ($cat === '' || $table === 'road_maintenance_reports') {
+                        $cat = 'road';
+                    }
+                    rgmap_notify_supervisors_report_approved(
+                        $conn,
+                        (int)$report_id,
+                        (string)($notify_row['report_id'] ?? ''),
+                        (string)($notify_row['title'] ?? ''),
+                        $cat
+                    );
+                }
+            }
             
             // When a report is cancelled/rejected, automatically move it to the
             // archive and remove it from every active report list. The archive
@@ -762,6 +812,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && in_array
         $ok = rgmap_update_verification_status($pdo, $cimm_req_id, 'Approved', null, $_SESSION['user_id'] ?? null);
         if ($ok) {
             $_SESSION['verification_message'] = 'CIMM report #' . $cimm_req_id . ' approved successfully.';
+            try {
+                $cimm_info = null;
+                $cstmt = $conn->prepare("SELECT id, reference_code, infrastructure FROM cimm_verification_reports WHERE cimm_req_id = ? OR id = ? LIMIT 1");
+                $cid = (int)$cimm_req_id;
+                $cstmt->bind_param('si', $cimm_req_id, $cid);
+                $cstmt->execute();
+                $cimm_info = $cstmt->get_result()->fetch_assoc();
+                $cstmt->close();
+                if ($cimm_info) {
+                    rgmap_notify_supervisors_report_approved(
+                        $conn,
+                        (int)$cimm_info['id'],
+                        (string)($cimm_info['reference_code'] ?? ('REQ-' . $cimm_req_id)),
+                        (string)($cimm_info['infrastructure'] ?? 'CIMM Report'),
+                        'road'
+                    );
+                }
+            } catch (Exception $e) {
+                error_log('CIMM approve notify: ' . $e->getMessage());
+            }
         } else {
             $_SESSION['verification_message'] = 'Failed to approve CIMM report #' . $cimm_req_id . '.';
         }
