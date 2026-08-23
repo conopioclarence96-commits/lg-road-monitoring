@@ -2,6 +2,7 @@
 require_once '../../includes/session_config.php';
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
+require_once __DIR__ . '/../api/progress_archive_helpers.php';
 
 // Only Road Monitoring Officers may access this personal read-only archive.
 if (!isset($_SESSION['user_id'])) {
@@ -17,100 +18,186 @@ if ($user_role !== 'road_monitoring_officer') {
     exit();
 }
 
-// Ensure the archive table exists.
+// Ensure archive tables/columns exist (same helpers used by admin archive).
 $conn->query("CREATE TABLE IF NOT EXISTS road_transportation_reports_archive LIKE road_transportation_reports");
+rgmap_archive_ensure_table();
 
-// Ensure archive table has the same columns as the source table
 foreach (['report_category' => "ENUM('road','transportation') DEFAULT NULL AFTER report_type",
          'report_source' => "VARCHAR(50) DEFAULT NULL AFTER report_category",
          'previous_status' => "VARCHAR(50) DEFAULT NULL",
          'archived_from' => "VARCHAR(100) DEFAULT NULL",
-         'source_pk' => "INT NULL DEFAULT NULL"] as $col => $def) {
+         'source_pk' => "INT NULL DEFAULT NULL",
+         'approval_status' => "VARCHAR(50) DEFAULT NULL",
+         'start_address' => "VARCHAR(100) NULL DEFAULT NULL",
+         'end_address' => "VARCHAR(100) NULL DEFAULT NULL",
+         'ipms_polyline_json' => "LONGTEXT NULL DEFAULT NULL"] as $col => $def) {
     $chk = $conn->query("SHOW COLUMNS FROM road_transportation_reports_archive LIKE '$col'");
     if ($chk && $chk->num_rows === 0) {
         $conn->query("ALTER TABLE road_transportation_reports_archive ADD COLUMN $col $def");
     }
 }
 
-// Get filter parameters
-$status_filter = $_GET['status'] ?? 'all';
-
-// Build WHERE clause to find archived reports that were assigned to this officer.
-// We join report_assignments to the archive table via archived_from (the source
-// table name) and report_id (which matches report_id in the archive).
-$status_where = '';
-if ($status_filter === 'completed') {
-    $status_where = " AND a.status = 'completed'";
-} elseif ($status_filter === 'cancelled') {
-    $status_where = " AND a.status = 'cancelled'";
-} elseif ($status_filter === 'rejected') {
-    $status_where = " AND a.status = 'rejected'";
-} else {
-    $status_where = " AND a.status IN ('completed','cancelled','rejected')";
-}
-
-// The report_assignments table stores the report's INT PK in report_id.
-// The archive table has both `id` (INT, may differ from original for
-// completed reports) and `report_id` (VARCHAR, always matches original).
-//   - Cancelled reports: rgmap_archive_report preserves the original `id`,
-//     so we match a.id = ra.report_id.
-//   - Completed reports: rgmap_archive_report_copy gives the archive row a
-//     new auto-increment `id`, so we match through the original report's
-//     `report_id` VARCHAR via a subquery against the live table.
-try {
-    $stmt = $conn->prepare("
-        SELECT DISTINCT a.*,
-               'transport' AS _source_table,
-               ra.report_id AS original_pk
-        FROM report_assignments ra
-        JOIN road_transportation_reports_archive a ON (
-            a.id = ra.report_id
-            OR (
-                a.report_id IS NOT NULL AND a.report_id != ''
-                AND a.report_id = (SELECT r.report_id FROM road_transportation_reports r WHERE r.id = ra.report_id LIMIT 1)
-            )
-        )
-        WHERE ra.user_id = ? AND ra.status = 'active'" . $status_where . "
-        ORDER BY a.created_at DESC
-        LIMIT 200
-    ");
-    $stmt->bind_param("i", $user_id);
-    $stmt->execute();
-    $archives = $stmt->get_result();
-    $rows = [];
-    while ($r = $archives->fetch_assoc()) { $rows[] = $r; }
-    $stmt->close();
-} catch (Exception $e) {
-    error_log("Officer archive query error: " . $e->getMessage());
-    $rows = [];
-}
-
-// Also check road_maintenance_reports_archive if it exists
-if ($conn->query("SHOW TABLES LIKE 'road_maintenance_reports_archive'")->num_rows > 0) {
-    try {
-        $stmt2 = $conn->prepare("
-            SELECT DISTINCT ma.*,
-                   'maintenance' AS _source_table,
-                   ra.report_id AS original_pk
-            FROM report_assignments ra
-            JOIN road_maintenance_reports_archive ma ON (
-                ma.id = ra.report_id
-                OR (
-                    ma.report_id IS NOT NULL AND ma.report_id != ''
-                    AND ma.report_id = (SELECT r.report_id FROM road_maintenance_reports r WHERE r.id = ra.report_id LIMIT 1)
-                )
-            )
-            WHERE ra.user_id = ? AND ra.status = 'active'" . $status_where . "
-            ORDER BY ma.created_at DESC
-            LIMIT 200
-        ");
-        $stmt2->bind_param("i", $user_id);
-        $stmt2->execute();
-        while ($r = $stmt2->get_result()->fetch_assoc()) { $rows[] = $r; }
-        $stmt2->close();
-    } catch (Exception $e) {
-        // ignore
+// AJAX: progress updates for Export from the View modal (same shape as admin archive).
+if (isset($_GET['ajax']) && $_GET['ajax'] === 'export_updates') {
+    header('Content-Type: application/json; charset=utf-8');
+    $arch_id = intval($_GET['id'] ?? 0);
+    $arch_table = (string)($_GET['table'] ?? 'road_transportation_reports_archive');
+    if ($arch_id <= 0) {
+        echo json_encode(['success' => false, 'message' => 'Invalid archive ID.']);
+        exit;
     }
+    if (!rgmap_archive_allowed_table($arch_table)) {
+        $arch_table = 'road_transportation_reports_archive';
+    }
+    $arch_row = rgmap_archive_fetch_row($conn, $arch_table, $arch_id);
+    if (!$arch_row && $arch_table !== 'road_transportation_reports_archive') {
+        $arch_row = rgmap_archive_fetch_row($conn, 'road_transportation_reports_archive', $arch_id);
+        $arch_table = 'road_transportation_reports_archive';
+    }
+    if (!$arch_row) {
+        echo json_encode(['success' => false, 'message' => 'Archived report not found.']);
+        exit;
+    }
+
+    // Road officers may only export road-category archives.
+    $cat = strtolower((string)($arch_row['report_category'] ?? ''));
+    $archived_from = (string)($arch_row['archived_from'] ?? '');
+    $is_road_archive = ($cat === 'road')
+        || ($arch_table === 'cimm_verification_reports_archive')
+        || ($arch_table === 'ipms_road_projects_archive')
+        || ($archived_from === 'cimm_verification_reports')
+        || ($archived_from === 'ipms_road_projects');
+    if (!$is_road_archive && $arch_table === 'road_transportation_reports_archive' && $cat === 'transportation') {
+        echo json_encode(['success' => false, 'message' => 'You are not authorized to export this archived report.']);
+        exit;
+    }
+
+    $updates_report_id = null;
+    $ref_code = (string)($arch_row['report_id'] ?? $arch_row['reference_code'] ?? '');
+    $is_cimm = (($arch_row['report_source'] ?? '') === 'external'
+        || $arch_table === 'cimm_verification_reports_archive'
+        || stripos($ref_code, 'REQ-') === 0
+        || stripos($ref_code, 'CIMM-') === 0);
+
+    if (!empty($arch_row['source_pk'])) {
+        $updates_report_id = (int)$arch_row['source_pk'];
+    } elseif ($is_cimm) {
+        if (preg_match('/^(REQ|CIMM)-(\d+)$/i', $ref_code, $m)) {
+            $updates_report_id = (int)$m[2];
+        } elseif (is_numeric($ref_code)) {
+            $updates_report_id = (int)$ref_code;
+        } else {
+            $cimm_stmt = $conn->prepare("SELECT id FROM cimm_verification_reports WHERE reference_code = ? LIMIT 1");
+            $cimm_stmt->bind_param('s', $ref_code);
+            $cimm_stmt->execute();
+            $cimm_row = $cimm_stmt->get_result()->fetch_assoc();
+            if ($cimm_row) $updates_report_id = (int)$cimm_row['id'];
+            $cimm_stmt->close();
+        }
+    } else {
+        if ($ref_code !== '') {
+            foreach (['road_transportation_reports', 'road_maintenance_reports'] as $t) {
+                $stmt = $conn->prepare("SELECT id FROM $t WHERE report_id = ? LIMIT 1");
+                $stmt->bind_param('s', $ref_code);
+                $stmt->execute();
+                $r = $stmt->get_result()->fetch_assoc();
+                $stmt->close();
+                if ($r) { $updates_report_id = (int)$r['id']; break; }
+            }
+        }
+        if ($updates_report_id === null) {
+            $updates_report_id = (int)$arch_row['id'];
+        }
+    }
+
+    if ($updates_report_id === null || $updates_report_id <= 0) {
+        echo json_encode(['success' => false, 'message' => 'No export is available for this archived report.']);
+        exit;
+    }
+
+    $updates = [];
+    $q = "SELECT u.*, COALESCE(us.full_name, 'LGU Staff') AS admin_name
+          FROM report_updates u
+          LEFT JOIN users us ON u.user_id = us.id
+          WHERE u.report_id = ?
+          ORDER BY u.created_at ASC";
+    $stmt = $conn->prepare($q);
+    $stmt->bind_param('i', $updates_report_id);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($upd = $res->fetch_assoc()) {
+        $upd['created_at_formatted'] = date('M d, Y h:i A', strtotime($upd['created_at']));
+        $media = [];
+        $m_stmt = $conn->prepare("SELECT id, file_path, file_type FROM report_update_media WHERE update_id = ? ORDER BY id ASC");
+        $m_stmt->bind_param('i', $upd['id']);
+        $m_stmt->execute();
+        $m_res = $m_stmt->get_result();
+        while ($m = $m_res->fetch_assoc()) $media[] = $m;
+        $m_stmt->close();
+        $upd['media'] = $media;
+        $updates[] = $upd;
+    }
+    $stmt->close();
+    echo json_encode(['success' => true, 'updates' => $updates]);
+    exit;
+}
+
+// Filters
+$status_filter = $_GET['status'] ?? 'all';
+$sort_order = $_GET['sort'] ?? 'latest';
+$id_search = trim($_GET['id'] ?? '');
+
+$where_clauses = ["report_category = 'road'"];
+if ($status_filter === 'completed') {
+    $where_clauses[] = "status = 'completed'";
+} elseif ($status_filter === 'cancelled') {
+    $where_clauses[] = "status = 'cancelled'";
+} elseif ($status_filter === 'rejected') {
+    $where_clauses[] = "status = 'rejected'";
+} elseif ($status_filter === 'approved') {
+    $where_clauses[] = "status = 'approved'";
+} elseif ($status_filter === 'in-progress') {
+    $where_clauses[] = "status = 'in-progress'";
+} elseif ($status_filter === 'pending') {
+    $where_clauses[] = "status = 'pending'";
+}
+
+if ($id_search !== '') {
+    $esc_id = $conn->real_escape_string($id_search);
+    $where_clauses[] = "("
+        . "(archive_table = 'cimm_verification_reports_archive' AND report_id LIKE '%{$esc_id}%')"
+        . " OR (archive_table = 'ipms_road_projects_archive' AND ("
+            . "CAST(source_pk AS CHAR) LIKE '%{$esc_id}%'"
+            . " OR report_id LIKE '%{$esc_id}%'"
+        . "))"
+        . " OR (archive_table = 'road_transportation_reports_archive' AND report_id LIKE '%{$esc_id}%')"
+        . ")";
+}
+
+$where_sql = 'WHERE ' . implode(' AND ', $where_clauses);
+$order_dir = ($sort_order === 'earliest') ? 'ASC' : 'DESC';
+
+$source_labels = [
+    'lgu'            => 'LGU Monitoring',
+    'citizen'        => 'Citizen',
+    'cimm'           => 'CIMM',
+    'infrastructure' => 'Infrastructure',
+];
+
+// All archived road reports (LGU/Citizen road + CIMM + IPMS), view-only for RMO.
+$archive_from_sql = rgmap_archive_union_sql(true, true);
+$count_result = $conn->query("SELECT COUNT(*) AS total FROM $archive_from_sql $where_sql");
+$total_archives = $count_result ? (int)$count_result->fetch_assoc()['total'] : 0;
+
+$sql = "SELECT * FROM $archive_from_sql $where_sql ORDER BY created_at $order_dir LIMIT 500";
+$archives = $conn->query($sql);
+$rows = [];
+if ($archives) {
+    while ($r = $archives->fetch_assoc()) {
+        $rows[] = $r;
+    }
+} else {
+    error_log('officer_archive.php union query failed: ' . $conn->error);
 }
 
 ?>
@@ -130,70 +217,159 @@ if ($conn->query("SHOW TABLES LIKE 'road_maintenance_reports_archive'")->num_row
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
-        body { background: #f7f5f0; min-height: 100vh; }
+        body { background: #f6f7fb; min-height: 100vh; color: #0f172a; }
         html { scroll-behavior: smooth; }
-        .main-content { margin-left: 250px; padding: 20px; position: relative; z-index: 1; }
-        .archive-header {
-            background: #f0f4fa; padding: 25px 30px; border-radius: 16px; margin-bottom: 25px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1); border: 1px solid #e0e0e0;
+        .main-content {
+            margin-left: 250px;
+            margin-right: 0;
+            max-width: none;
+            width: auto;
+            box-sizing: border-box;
+            padding: 36px 36px 56px;
+            position: relative;
+            z-index: 1;
+            overflow-x: hidden;
         }
-        .archive-header h1 { color: #1e3c72; font-size: 28px; font-weight: 700; margin-bottom: 5px; }
-        .archive-header p { color: #666; font-size: 14px; }
+        .arch-shell {
+            width: 100%;
+            max-width: 1040px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .archive-header {
+            background: #fff;
+            padding: 20px 22px 18px;
+            border-radius: 16px;
+            margin-bottom: 14px;
+            box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+            border: 1px solid #e9edf3;
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+        }
+        .archive-header .header-icon {
+            flex: 0 0 44px;
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: #eef2ff;
+            color: #4f46e5;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .archive-header-text { flex: 1; min-width: 0; }
+        .archive-header h1 {
+            color: #0f172a;
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 4px;
+            letter-spacing: -0.02em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .archive-header h1 i { display: none; }
+        .archive-header-count {
+            background: #4f46e5;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 2px 10px;
+            border-radius: 999px;
+            line-height: 1.6;
+        }
+        .archive-header p { color: #64748b; font-size: 13px; margin: 0; line-height: 1.45; }
         .archive-card {
-            background: #f0f4fa; border-radius: 16px; padding: 25px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1); border: 1px solid #e0e0e0;
+            background: #fff;
+            border-radius: 16px;
+            padding: 8px 10px 12px;
+            box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+            border: 1px solid #e9edf3;
         }
         .archive-card-header {
             display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 20px; padding-bottom: 15px;
-            border-bottom: 2px solid rgba(55,98,200,0.1);
+            margin: 0 0 8px;
+            padding: 12px 12px 10px;
+            border-bottom: 1px solid #eef2f7;
         }
         .archive-card-title {
-            font-size: 18px; font-weight: 600; color: #1e3c72;
-            display: flex; align-items: center; gap: 10px;
+            font-size: 12px; font-weight: 700; color: #64748b;
+            display: flex; align-items: center; gap: 8px;
+            text-transform: uppercase; letter-spacing: 0.06em;
+        }
+        .archive-card-title > i {
+            width: 26px; height: 26px; border-radius: 8px;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 11px;
+            background: #eef2ff;
+            color: #4f46e5;
         }
         .archive-badge {
-            background: #6c757d; color: white; padding: 4px 12px;
-            border-radius: 20px; font-size: 12px; font-weight: 500;
+            background: #eef1f6; color: #64748b;
+            padding: 2px 9px; border-radius: 999px;
+            font-size: 11px; font-weight: 700;
+            text-transform: none; letter-spacing: 0;
         }
         .archive-item {
-            display: flex; align-items: flex-start; padding: 20px; margin-bottom: 15px;
-            background: rgba(255,255,255,0.7); border-radius: 12px;
-            border: 1px solid rgba(55,98,200,0.1); transition: all 0.3s ease;
+            display: flex; align-items: flex-start; gap: 14px;
+            padding: 16px 14px; margin-bottom: 8px;
+            background: #fff; border-radius: 14px;
+            border: 1px solid #e9edf3;
+            border-left: 4px solid #4f46e5;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
         }
+        .archive-item:last-child { margin-bottom: 0; }
         .archive-item:hover {
-            background: rgba(55,98,200,0.05); transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(55,98,200,0.1);
+            transform: translateY(-1px);
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+            border-color: #e2e8f0;
+            border-left-color: #4f46e5;
         }
         .archive-icon {
-            width: 50px; height: 50px; background: linear-gradient(135deg,#6c757d,#495057);
-            border-radius: 12px; display: flex; align-items: center; justify-content: center;
-            color: white; font-size: 20px; margin-right: 20px; flex-shrink: 0;
+            width: 40px; height: 40px;
+            background: #f1f5f9;
+            border-radius: 11px; display: flex; align-items: center; justify-content: center;
+            color: #64748b; font-size: 15px; flex-shrink: 0;
         }
-        .archive-content { flex: 1; }
-        .archive-title { font-size: 16px; font-weight: 600; color: #333; margin-bottom: 8px; }
-        .archive-meta { display: flex; gap: 20px; margin-bottom: 12px; flex-wrap: wrap; }
-        .meta-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #666; }
-        .meta-item i { color: #6c757d; }
-        .archive-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+        .archive-content { flex: 1; min-width: 0; }
+        .archive-title-row {
+            display: flex; align-items: flex-start; justify-content: space-between;
+            gap: 12px; margin-bottom: 8px; flex-wrap: wrap;
+        }
+        .archive-title {
+            font-size: 15px; font-weight: 600; color: #0f172a;
+            line-height: 1.35; margin: 0; flex: 1; min-width: 180px;
+        }
+        .archive-meta { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+        .meta-item {
+            display: inline-flex; align-items: center; gap: 5px;
+            font-size: 12px; color: #64748b;
+            background: #f8fafc; border: 1px solid #eef2f7;
+            padding: 4px 10px; border-radius: 999px;
+        }
+        .meta-item i { color: #94a3b8; font-size: 11px; }
+        .archive-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
         .btn-view {
-            padding: 8px 16px; background: linear-gradient(135deg,#3762c8,#1e3c72);
-            color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 500;
-            cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.3s ease;
+            padding: 8px 14px; background: #4f46e5; color: white; border: none;
+            border-radius: 9px; font-size: 12px; font-weight: 600;
+            cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+            transition: background 0.2s, box-shadow 0.2s, transform 0.2s;
+            font-family: 'Poppins', sans-serif;
+            box-shadow: 0 2px 8px rgba(79, 70, 229, 0.22);
         }
-        .btn-view:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(55,98,200,0.3); }
-        .notification {
-            position: fixed; top: 20px; right: 20px; padding: 15px 20px; border-radius: 8px;
-            color: white; font-weight: 500; z-index: 10000; animation: slideIn 0.3s ease;
+        .btn-view:hover { background: #4338ca; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(79,70,229,0.3); }
+        .empty-state { text-align: center; padding: 64px 24px; color: #94a3b8; }
+        .empty-state i {
+            width: 64px; height: 64px; border-radius: 18px;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 26px; margin-bottom: 16px; color: #94a3b8;
+            background: #f1f5f9; border: 1px solid #e9edf3;
         }
-        .notification.success { background: #28a745; }
-        .notification.error { background: #dc3545; }
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-        .empty-state { text-align: center; padding: 60px 20px; color: #666; }
-        .empty-state i { font-size: 48px; margin-bottom: 15px; opacity: 0.4; color: #6c757d; }
+        .empty-state p { font-size: 14px; color: #64748b; margin: 0; }
+        .empty-state-sub { font-size: 12px; color: #94a3b8; margin-top: 6px; }
 
         /* View Details Modal (mirrors road_transportation_monitoring.php rm modal) */
         .rm-modal-overlay {
@@ -203,13 +379,14 @@ if ($conn->query("SHOW TABLES LIKE 'road_maintenance_reports_archive'")->num_row
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(15, 23, 42, 0.45);
             z-index: 10000;
             align-items: center;
             justify-content: center;
             padding: 20px;
             box-sizing: border-box;
             overflow-y: auto;
+            backdrop-filter: blur(4px);
         }
 
         .rm-modal-overlay.active {
@@ -217,25 +394,25 @@ if ($conn->query("SHOW TABLES LIKE 'road_maintenance_reports_archive'")->num_row
         }
 
         .rm-modal-content {
-            background: #f0f4fa;
+            background: #fff;
             border-radius: 16px;
             max-width: 860px;
             width: 100%;
             max-height: calc(100vh - 40px);
             position: relative;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 16px 48px rgba(15, 23, 42, 0.18);
             margin: auto;
             display: flex;
             flex-direction: column;
             box-sizing: border-box;
-            border: 1px solid #c8d0e0;
+            border: 1px solid #e9edf3;
         }
 
         .rm-modal-header {
             background: white;
             border-radius: 16px 16px 0 0;
-            padding: 24px 28px 18px;
-            border-bottom: 2px solid rgba(55, 98, 200, 0.15);
+            padding: 20px 22px 16px;
+            border-bottom: 1px solid #eef2f7;
             flex-shrink: 0;
             position: sticky;
             top: 0;
@@ -255,16 +432,16 @@ if ($conn->query("SHOW TABLES LIKE 'road_maintenance_reports_archive'")->num_row
 
         .rm-modal-report-id {
             font-size: 13px;
-            color: #3762c8;
+            color: #4f46e5;
             font-weight: 600;
             letter-spacing: 0.3px;
             margin-bottom: 4px;
         }
 
         .rm-modal-title {
-            font-size: 22px;
+            font-size: 20px;
             font-weight: 700;
-            color: #1e3c72;
+            color: #0f172a;
             margin: 0 0 10px 0;
             line-height: 1.3;
         }
@@ -276,77 +453,63 @@ if ($conn->query("SHOW TABLES LIKE 'road_maintenance_reports_archive'")->num_row
         }
 
         .rm-modal-close {
-            background: none;
+            background: #f1f5f9;
             border: none;
-            font-size: 28px;
-            color: #666;
+            font-size: 18px;
+            color: #64748b;
             cursor: pointer;
             width: 36px;
             height: 36px;
             display: flex;
             align-items: center;
             justify-content: center;
-            border-radius: 50%;
-            transition: all 0.3s;
+            border-radius: 10px;
+            transition: background 0.2s, color 0.2s;
             flex-shrink: 0;
             margin-left: 15px;
         }
 
         .rm-modal-close:hover {
-            background: rgba(220, 53, 69, 0.1);
-            color: #dc3545;
+            background: #fee2e2;
+            color: #dc2626;
         }
 
         .rm-modal-body {
             overflow-y: auto;
             flex: 1;
             min-height: 0;
-            padding: 24px 28px;
+            padding: 20px 22px;
         }
 
-        .rm-modal-body::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        .rm-modal-body::-webkit-scrollbar-track {
-            background: rgba(55, 98, 200, 0.08);
-            border-radius: 4px;
-        }
-
-        .rm-modal-body::-webkit-scrollbar-thumb {
-            background: rgba(55, 98, 200, 0.2);
-            border-radius: 4px;
-        }
-
-        .rm-modal-body::-webkit-scrollbar-thumb:hover {
-            background: rgba(55, 98, 200, 0.35);
-        }
+        .rm-modal-body::-webkit-scrollbar { width: 8px; }
+        .rm-modal-body::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        .rm-modal-body::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .rm-modal-body::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
         .rm-modal-section {
-            background: white;
+            background: #f8fafc;
             border-radius: 12px;
-            padding: 18px 20px;
-            margin-bottom: 16px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-            border: 1px solid rgba(55, 98, 200, 0.1);
+            padding: 16px 18px;
+            margin-bottom: 14px;
+            border: 1px solid #e9edf3;
         }
 
         .rm-modal-section-title {
             font-size: 14px;
             font-weight: 700;
-            color: #1e3c72;
+            color: #0f172a;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             margin-bottom: 14px;
             padding-bottom: 10px;
-            border-bottom: 1px solid rgba(55, 98, 200, 0.1);
+            border-bottom: 1px solid #eef2f7;
             display: flex;
             align-items: center;
             gap: 8px;
         }
 
         .rm-modal-section-title i {
-            color: #3762c8;
+            color: #4f46e5;
             font-size: 15px;
         }
 
@@ -366,12 +529,12 @@ if ($conn->query("SHOW TABLES LIKE 'road_maintenance_reports_archive'")->num_row
         .rm-info-icon {
             width: 28px;
             height: 28px;
-            background: rgba(55, 98, 200, 0.1);
+            background: #eef2ff;
             border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #3762c8;
+            color: #4f46e5;
             font-size: 13px;
             flex-shrink: 0;
             margin-top: 1px;
@@ -410,7 +573,7 @@ if ($conn->query("SHOW TABLES LIKE 'road_maintenance_reports_archive'")->num_row
             background: white;
             border-radius: 0 0 16px 16px;
             padding: 16px 28px;
-            border-top: 1px solid rgba(55, 98, 200, 0.1);
+            border-top: 1px solid #eef2f7;
             flex-shrink: 0;
             display: flex;
             justify-content: flex-end;
@@ -418,151 +581,234 @@ if ($conn->query("SHOW TABLES LIKE 'road_maintenance_reports_archive'")->num_row
 
         .rm-modal-btn-close {
             padding: 10px 24px;
-            background: rgba(55, 98, 200, 0.1);
-            color: #3762c8;
+            background: #eef2ff;
+            color: #4f46e5;
             border: none;
             border-radius: 10px;
             font-size: 14px;
             font-weight: 600;
             font-family: 'Poppins', sans-serif;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: background 0.2s;
         }
 
         .rm-modal-btn-close:hover {
-            background: rgba(55, 98, 200, 0.2);
+            background: #e0e7ff;
         }
 
+        .rm-modal-btn-export {
+            padding: 10px 20px;
+            background: #4f46e5;
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-right: 10px;
+            transition: background 0.2s, box-shadow 0.2s;
+            box-shadow: 0 2px 8px rgba(79, 70, 229, 0.2);
+        }
+        .rm-modal-btn-export:hover {
+            background: #4338ca;
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.28);
+        }
+        .rm-modal-footer {
+            background: white;
+            border-radius: 0 0 16px 16px;
+            padding: 16px 28px;
+            border-top: 1px solid #eef2f7;
+            flex-shrink: 0;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .source-badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .source-lgu,
+        .source-citizen,
+        .source-cimm,
+        .source-infrastructure { background: #eef1f6; color: #475569; }
+        .notification {
+            position: fixed; top: 20px; right: 20px; padding: 14px 18px; border-radius: 10px;
+            color: white; font-weight: 500; z-index: 10000;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+        }
         @media (max-width: 640px) {
-            .rm-info-grid {
-                grid-template-columns: 1fr;
-            }
-            .rm-modal-header {
-                padding: 18px 16px;
-            }
-            .rm-modal-body {
-                padding: 16px;
-            }
-            .rm-modal-content {
-                max-width: 100%;
-                border-radius: 0;
-            }
-            .rm-modal-overlay {
-                padding: 0;
-            }
+            .rm-info-grid { grid-template-columns: 1fr; }
+            .rm-modal-header { padding: 18px 16px; }
+            .rm-modal-body { padding: 16px; }
+            .rm-modal-content { max-width: 100%; border-radius: 0; }
+            .rm-modal-overlay { padding: 0; }
         }
-
-        /* Filters section */
         .filters-section {
-            background: #f0f4fa; backdrop-filter: blur(15px);
-            border-radius: 16px; padding: 20px 25px; border: 1px solid rgba(55,98,200,0.1);
-            box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+            background: #fff;
+            border-radius: 16px;
+            padding: 16px 18px;
+            border: 1px solid #e9edf3;
+            box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+            margin-bottom: 14px;
         }
         .filter-group {
-            display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end;
+            display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;
         }
         .filter-group > div { flex: 1; min-width: 180px; }
+        .filter-group > div.filter-actions { flex: 0 0 auto; min-width: 0; }
         .filter-group .form-label {
-            display: block; font-size: 13px; font-weight: 600;
-            color: #1e3c72; margin-bottom: 6px;
+            display: block; font-size: 11px; font-weight: 600;
+            color: #64748b; margin-bottom: 6px;
+            text-transform: uppercase; letter-spacing: 0.04em;
         }
         .filter-select {
-            width: 100%; padding: 10px 14px; border: 2px solid rgba(55,98,200,0.2);
-            border-radius: 10px; font-size: 14px; background: white; color: #333;
-            transition: all 0.3s ease; cursor: pointer;
+            width: 100%; padding: 9px 12px; border: 1px solid #e9edf3;
+            border-radius: 10px; font-size: 13px; background: white; color: #0f172a;
+            font-family: 'Poppins', sans-serif;
+            transition: border-color 0.2s, box-shadow 0.2s; cursor: pointer;
         }
         .filter-select:focus {
-            border-color: #3762c8; box-shadow: 0 0 0 3px rgba(55,98,200,0.15); outline: none;
+            border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12); outline: none;
         }
         .btn-secondary-custom {
-            padding: 10px 20px; background: linear-gradient(135deg,#6c757d,#495057);
-            color: white; border: none; border-radius: 10px; font-size: 14px;
-            font-weight: 500; cursor: pointer; display: inline-flex; align-items: center;
-            gap: 6px; width: 100%; justify-content: center;
+            padding: 9px 16px; background: #fff; color: #475569;
+            border: 1px solid #e9edf3; border-radius: 10px; font-size: 13px;
+            font-weight: 600; cursor: pointer; display: inline-flex; align-items: center;
+            gap: 6px; width: auto; justify-content: center; white-space: nowrap;
+            font-family: 'Poppins', sans-serif;
         }
-        .btn-secondary-custom:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(108,117,125,0.3); }
+        .btn-secondary-custom:hover { background: #f8fafc; border-color: #cbd5e1; }
 
         .status-badge {
             display: inline-block; padding: 2px 10px; border-radius: 12px;
             font-size: 11px; font-weight: 600; text-transform: capitalize;
         }
-        .status-completed { background: rgba(34,197,94,0.15); color: #22c55e; }
-        .status-rejected { background: rgba(249,115,22,0.15); color: #f97316; }
-        .status-cancelled { background: rgba(239,68,68,0.15); color: #ef4444; }
+        .status-completed,
+        .status-approved,
+        .status-pending,
+        .status-in-progress,
+        .status-rejected,
+        .status-cancelled { background: #eef1f6; color: #475569; }
 
         @media (max-width: 768px) {
-            .main-content { margin-left: 0; }
-            .archive-meta { flex-direction: column; gap: 8px; }
+            .main-content { margin-left: 0; padding: 20px 14px 40px; }
+            .arch-shell { max-width: 100%; }
+            .filter-group > div { flex: 1 1 100%; }
+            .filter-group > div.filter-actions { flex: 1 1 100%; }
+            .btn-secondary-custom { width: 100%; }
         }
 
         /* Dark mode */
-        body.dark-mode { background: #1a1d23; }
+        body.dark-mode { background: #12141a; }
         body.dark-mode .archive-header,
-        body.dark-mode .archive-card {
-            background: #22262e !important; border-color: #2d323b !important;
+        body.dark-mode .archive-card,
+        body.dark-mode .filters-section {
+            background: #1a1d24 !important; border-color: #2d323b !important;
+        }
+        body.dark-mode .archive-header .header-icon {
+            background: rgba(129, 140, 248, 0.2) !important;
+            color: #a5b4fc !important;
         }
         body.dark-mode .archive-header h1,
-        body.dark-mode .archive-card-title { color: #e4e6ea !important; }
+        body.dark-mode .archive-card-title,
+        body.dark-mode .archive-title { color: #e4e6ea !important; }
+        body.dark-mode .archive-header-count { background: #6366f1 !important; color: #fff !important; }
         body.dark-mode .archive-header p { color: #9ca3af !important; }
         body.dark-mode .archive-item {
-            background: rgba(255,255,255,0.05) !important; border-color: #2d323b !important;
+            background: #1a1d24 !important; border-color: #2d323b !important;
+            border-left-color: #6366f1 !important;
         }
-        body.dark-mode .archive-item:hover { background: rgba(255,255,255,0.08) !important; }
+        body.dark-mode .archive-item:hover { background: #22262e !important; border-left-color: #6366f1 !important; }
         body.dark-mode .archive-title { color: #e4e6ea !important; }
-        body.dark-mode .meta-item,
+        body.dark-mode .meta-item {
+            background: #22262e !important; border-color: #2d323b !important; color: #9ca3af !important;
+        }
         body.dark-mode .meta-item i,
-        body.dark-mode .empty-state { color: #9ca3af !important; }
+        body.dark-mode .empty-state,
+        body.dark-mode .empty-state-sub { color: #9ca3af !important; }
         body.dark-mode .archive-card-header { border-color: #2d323b !important; }
-        body.dark-mode .rm-modal-content { background: #22262e !important; border-color: #2d323b !important; }
-        body.dark-mode .rm-modal-header { background: #1a1d23 !important; border-bottom-color: rgba(55,98,200,0.35) !important; }
+        body.dark-mode .archive-badge { background: rgba(148,163,184,0.18) !important; color: #94a3b8 !important; }
+        body.dark-mode .archive-icon { background: rgba(148,163,184,0.12) !important; color: #94a3b8 !important; }
+        body.dark-mode .empty-state i {
+            background: #22262e !important; border-color: #2d323b !important; color: #6b7280 !important;
+        }
+        body.dark-mode .btn-view { background: #6366f1 !important; }
+        body.dark-mode .rm-modal-content { background: #1a1d24 !important; border-color: #2d323b !important; }
+        body.dark-mode .rm-modal-header { background: #1a1d24 !important; border-bottom-color: #2d323b !important; }
         body.dark-mode .rm-modal-title { color: #e4e6ea !important; }
-        body.dark-mode .rm-modal-report-id { color: #93c5fd !important; }
-        body.dark-mode .rm-modal-close { color: #9ca3af !important; }
+        body.dark-mode .rm-modal-report-id { color: #a5b4fc !important; }
+        body.dark-mode .rm-modal-close { background: #22262e !important; color: #9ca3af !important; }
         body.dark-mode .rm-modal-close:hover { background: rgba(220,53,69,0.2) !important; color: #ef4444 !important; }
         body.dark-mode .rm-modal-section { background: #22262e !important; border-color: #2d323b !important; }
-        body.dark-mode .rm-modal-section-title { color: #e4e6ea !important; border-bottom-color: rgba(55,98,200,0.25) !important; }
-        body.dark-mode .rm-info-icon { background: rgba(147,197,253,0.12) !important; color: #93c5fd !important; }
+        body.dark-mode .rm-modal-section-title { color: #e4e6ea !important; border-bottom-color: #2d323b !important; }
+        body.dark-mode .rm-info-icon { background: rgba(129,140,248,0.15) !important; color: #a5b4fc !important; }
         body.dark-mode .rm-info-value { color: #d1d5db !important; }
         body.dark-mode .rm-info-label { color: #9ca3af !important; }
         body.dark-mode .rm-description-text { color: #cbd5e1 !important; }
-        body.dark-mode .rm-modal-footer { background: #1a1d23 !important; border-top-color: rgba(55,98,200,0.25) !important; }
-        body.dark-mode .rm-modal-btn-close { background: rgba(55,98,200,0.15) !important; color: #93c5fd !important; }
-        body.dark-mode .rm-modal-body::-webkit-scrollbar-track { background: rgba(147,197,253,0.1) !important; }
-        body.dark-mode .rm-modal-body::-webkit-scrollbar-thumb { background: rgba(147,197,253,0.3) !important; }
-        body.dark-mode .rm-modal-body::-webkit-scrollbar-thumb:hover { background: rgba(147,197,253,0.5) !important; }
-        body.dark-mode .filters-section { background: #22262e; border-color: #2d323b; }
-        body.dark-mode .filter-group .form-label { color: #e4e6ea; }
-        body.dark-mode .filter-select { background: #2a2e36; color: #e4e6ea; border-color: #3a3f4a; }
+        body.dark-mode .rm-modal-footer { background: #1a1d24 !important; border-top-color: #2d323b !important; }
+        body.dark-mode .rm-modal-btn-close { background: rgba(129,140,248,0.15) !important; color: #a5b4fc !important; }
+        body.dark-mode .rm-modal-btn-export { background: #6366f1 !important; color: #fff !important; }
+        body.dark-mode .filter-group .form-label { color: #9ca3af; }
+        body.dark-mode .filter-select { background: #22262e; color: #e4e6ea; border-color: #374151; }
+        body.dark-mode .btn-secondary-custom { background: #22262e; color: #e4e6ea; border-color: #374151; }
     </style>
 </head>
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
     <?php include '../../includes/sidebar_nav.php'; ?>
 
     <div class="main-content">
+        <div class="arch-shell">
         <div class="archive-header">
-            <h1><i class="fas fa-archive"></i> Archive</h1>
-            <p>View-only archive of completed and cancelled reports assigned to you</p>
+            <div class="header-icon"><i class="fas fa-archive"></i></div>
+            <div class="archive-header-text">
+                <h1>
+                    Archive
+                    <span class="archive-header-count"><?php echo (int)$total_archives; ?></span>
+                </h1>
+                <p>View-only archive of all road reports — open details and export from the View modal.</p>
+            </div>
         </div>
 
         <!-- Filters -->
-        <div class="filters-section" style="margin-bottom:24px;">
+        <div class="filters-section">
             <div class="filter-group">
                 <div>
-                    <label class="form-label">Status Filter</label>
+                    <label class="form-label">Status</label>
                     <select class="filter-select" id="statusFilter" onchange="filterReports()">
                         <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
+                        <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending</option>
+                        <option value="approved" <?php echo $status_filter === 'approved' ? 'selected' : ''; ?>>Approved</option>
+                        <option value="in-progress" <?php echo $status_filter === 'in-progress' ? 'selected' : ''; ?>>In Progress</option>
                         <option value="completed" <?php echo $status_filter === 'completed' ? 'selected' : ''; ?>>Completed</option>
                         <option value="cancelled" <?php echo $status_filter === 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
                         <option value="rejected" <?php echo $status_filter === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
                     </select>
                 </div>
                 <div>
+                    <label class="form-label">Sort</label>
+                    <select class="filter-select" id="sortFilter" onchange="filterReports()">
+                        <option value="latest" <?php echo $sort_order === 'latest' ? 'selected' : ''; ?>>Newest first</option>
+                        <option value="earliest" <?php echo $sort_order === 'earliest' ? 'selected' : ''; ?>>Oldest first</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Search ID</label>
+                    <input type="text" class="filter-select" id="idSearch" placeholder="Report ID…" value="<?php echo htmlspecialchars($id_search); ?>" onkeyup="if(event.key === 'Enter') filterReports()">
+                </div>
+                <div class="filter-actions">
                     <label class="form-label">&nbsp;</label>
-                    <div>
-                        <button class="btn-secondary-custom" onclick="resetFilters()">
-                            <i class="fas fa-arrow-rotate-left"></i> Reset
-                        </button>
-                    </div>
+                    <button type="button" class="btn-secondary-custom" onclick="resetFilters()">
+                        <i class="fas fa-arrow-rotate-left"></i> Reset
+                    </button>
                 </div>
             </div>
         </div>
@@ -571,30 +817,43 @@ if ($conn->query("SHOW TABLES LIKE 'road_maintenance_reports_archive'")->num_row
             <div class="archive-card-header">
                 <h3 class="archive-card-title">
                     <i class="fas fa-folder-open"></i>
-                    Archived Reports
-                    <span class="archive-badge"><?php echo count($rows); ?></span>
+                    Archived Road Reports
+                    <span class="archive-badge"><?php echo (int)$total_archives; ?></span>
                 </h3>
             </div>
 
             <?php if (count($rows) > 0): ?>
-                <?php foreach ($rows as $row): ?>
-                    <div class="archive-item">
+                <?php foreach ($rows as $row):
+                    $status_slug = strtolower(str_replace('_', '-', (string)($row['status'] ?? '')));
+                    $created_display = !empty($row['created_at']) ? date('M d, Y · g:i A', strtotime($row['created_at'])) : '—';
+                    $archive_table = $row['archive_table'] ?? 'road_transportation_reports_archive';
+                    $src_key = $row['source_system'] ?? '';
+                ?>
+                    <div class="archive-item status-<?php echo htmlspecialchars($status_slug); ?>">
                         <div class="archive-icon">
-                            <i class="fas fa-file-archive"></i>
+                            <i class="fas fa-box-archive"></i>
                         </div>
                         <div class="archive-content">
-                            <div class="archive-title"><?php echo htmlspecialchars($row['title']); ?></div>
+                            <div class="archive-title-row">
+                                <h4 class="archive-title"><?php echo htmlspecialchars($row['title'] ?? 'Untitled'); ?></h4>
+                                <span class="status-badge status-<?php echo htmlspecialchars($status_slug); ?>"><?php echo htmlspecialchars(ucfirst(str_replace(['_', '-'], ' ', (string)$row['status']))); ?></span>
+                            </div>
                             <div class="archive-meta">
-                                <span class="meta-item"><i class="fas fa-tag"></i> <?php echo htmlspecialchars($row['report_type']); ?></span>
+                                <?php if (!empty($row['report_id'])): ?>
+                                <span class="meta-item"><i class="fas fa-hashtag"></i> <?php echo htmlspecialchars($row['report_id']); ?></span>
+                                <?php endif; ?>
+                                <span class="meta-item"><i class="fas fa-tag"></i> <?php echo htmlspecialchars($row['report_type'] ?? '—'); ?></span>
+                                <?php if (!empty($row['department'])): ?>
                                 <span class="meta-item"><i class="fas fa-building"></i> <?php echo htmlspecialchars($row['department']); ?></span>
-                                <span class="meta-item"><i class="fas fa-flag"></i>
-                                    <span class="status-badge status-<?php echo strtolower($row['status']); ?>"><?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $row['status']))); ?></span>
-                                </span>
-                                <span class="meta-item"><i class="fas fa-calendar"></i> <?php echo htmlspecialchars($row['created_at']); ?></span>
+                                <?php endif; ?>
+                                <span class="meta-item"><i class="fas fa-calendar"></i> <?php echo htmlspecialchars($created_display); ?></span>
                                 <span class="meta-item"><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($row['location'] ?? 'N/A'); ?></span>
+                                <span class="meta-item"><i class="fas fa-sitemap"></i>
+                                    <span class="source-badge source-<?php echo htmlspecialchars($src_key); ?>"><?php echo htmlspecialchars($source_labels[$src_key] ?? ($src_key ?: 'Unknown')); ?></span>
+                                </span>
                             </div>
                             <div class="archive-actions">
-                                <button type="button" class="btn-view" onclick="viewArchive(<?php echo $row['id']; ?>, '<?php echo $row['_source_table'] ?? 'transport'; ?>')">
+                                <button type="button" class="btn-view" onclick="viewArchive(<?php echo (int)$row['id']; ?>, '<?php echo htmlspecialchars($archive_table, ENT_QUOTES); ?>')">
                                     <i class="fas fa-eye"></i> View
                                 </button>
                             </div>
@@ -604,9 +863,11 @@ if ($conn->query("SHOW TABLES LIKE 'road_maintenance_reports_archive'")->num_row
             <?php else: ?>
                 <div class="empty-state">
                     <i class="fas fa-archive"></i>
-                    <p>No archived reports assigned to you.</p>
+                    <p>No archived road reports found</p>
+                    <p class="empty-state-sub">Try adjusting filters or check back after reports are archived.</p>
                 </div>
             <?php endif; ?>
+        </div>
         </div>
     </div>
 
@@ -644,8 +905,15 @@ if ($conn->query("SHOW TABLES LIKE 'road_maintenance_reports_archive'")->num_row
                     <div class="rm-modal-section-title"><i class="fas fa-paperclip"></i> Attachments</div>
                     <div id="rm-attachments"></div>
                 </div>
+                <div class="rm-modal-section">
+                    <div class="rm-modal-section-title"><i class="fas fa-clock"></i> Timeline &amp; Updates</div>
+                    <div class="rm-info-grid" id="rm-timeline-grid"></div>
+                </div>
             </div>
             <div class="rm-modal-footer">
+                <button type="button" class="rm-modal-btn-export" onclick="exportArchivedReport()">
+                    <i class="fas fa-file-export"></i> Export
+                </button>
                 <button type="button" class="rm-modal-btn-close" onclick="closeViewModal()">
                     <i class="fas fa-times"></i> Close
                 </button>
@@ -653,12 +921,47 @@ if ($conn->query("SHOW TABLES LIKE 'road_maintenance_reports_archive'")->num_row
         </div>
     </div>
 
-    <script>
-        var archiveData = <?php echo json_encode($rows); ?>;
+    <!-- Hidden timeline container used by progress-updates export -->
+    <div id="updatesTimeline" style="display:none;"></div>
 
-        function viewArchive(id, sourceTable) {
-            var row = archiveData.find(function(r) { return r.id == id; });
+    <script src="../../js/progress-updates.js?v=<?php echo @filemtime(__DIR__ . '/../../js/progress-updates.js') ?: time(); ?>"></script>
+    <script src="../../js/progress-updates-common.js?v=<?php echo @filemtime(__DIR__ . '/../../js/progress-updates-common.js') ?: time(); ?>"></script>
+
+    <script>
+        var archiveData = <?php
+            // Normalize CIMM evidence URLs for the View modal attachments renderer.
+            foreach ($rows as &$__ar) {
+                if (($__ar['archived_from'] ?? '') === 'cimm_verification_reports'
+                    || ($__ar['archive_table'] ?? '') === 'cimm_verification_reports_archive') {
+                    $ev = json_decode((string)($__ar['attachments'] ?? '[]'), true);
+                    if (is_array($ev) && isset($ev[0]) && is_string($ev[0])) {
+                        $items = [];
+                        foreach ($ev as $url) {
+                            if (is_string($url) && $url !== '') {
+                                $items[] = ['type' => 'image', 'file_path' => $url];
+                            }
+                        }
+                        $__ar['attachments'] = json_encode($items, JSON_UNESCAPED_SLASHES);
+                    }
+                }
+            }
+            unset($__ar);
+            echo json_encode($rows);
+        ?>;
+        var currentArchiveRow = null;
+        var currentUpdatesReportId = null;
+        var currentUpdatesReportDetails = null;
+
+        function viewArchive(id, archiveTable) {
+            archiveTable = archiveTable || 'road_transportation_reports_archive';
+            var row = archiveData.find(function(r) {
+                return r.id == id && (r.archive_table || 'road_transportation_reports_archive') === archiveTable;
+            });
+            if (!row) {
+                row = archiveData.find(function(r) { return r.id == id; });
+            }
             if (!row) return;
+            currentArchiveRow = row;
 
             // Header
             document.getElementById('rm-report-id').textContent = 'Report #' + (row.report_id || '—');
@@ -679,13 +982,18 @@ if ($conn->query("SHOW TABLES LIKE 'road_maintenance_reports_archive'")->num_row
                 'medium': { bg: 'rgba(251,191,36,0.15)', color: '#b45309' },
                 'low': { bg: 'rgba(34,197,94,0.15)', color: '#15803d' }
             };
+            var sourceLabels = { lgu: 'LGU Monitoring', citizen: 'Citizen', cimm: 'CIMM', infrastructure: 'Infrastructure' };
             var st = (row.status || 'pending').toLowerCase();
             var pp = (row.priority || 'medium').toLowerCase();
             var ss = statusStyles[st] || { bg: 'rgba(107,114,128,0.15)', color: '#374151' };
             var ps = priorityStyles[pp] || { bg: 'rgba(107,114,128,0.15)', color: '#374151' };
-            document.getElementById('rm-badges').innerHTML =
-                rmBadge((row.status || '—'), ss.bg, ss.color) +
-                rmBadge((row.priority || '—'), ps.bg, ps.color);
+            var src = row.source_system || '';
+            var badgesHtml = rmBadge((row.status || '—'), ss.bg, ss.color)
+                + rmBadge((row.priority || '—'), ps.bg, ps.color);
+            if (sourceLabels[src]) {
+                badgesHtml += rmBadge(sourceLabels[src], 'rgba(55,98,200,0.12)', '#3762c8');
+            }
+            document.getElementById('rm-badges').innerHTML = badgesHtml;
 
             // Report Information
             var reportGrid = '';
@@ -696,13 +1004,15 @@ if ($conn->query("SHOW TABLES LIKE 'road_maintenance_reports_archive'")->num_row
             reportGrid += rmInfoItem('calendar-check', 'Updated', row.updated_at);
             if (row.approved_at) reportGrid += rmInfoItem('thumbs-up', 'Approved', row.approved_at);
             if (row.rejected_at) reportGrid += rmInfoItem('thumbs-down', 'Rejected', row.rejected_at);
+            if (row.completed_at) reportGrid += rmInfoItem('check-circle', 'Completed', row.completed_at);
             document.getElementById('rm-report-grid').innerHTML = reportGrid || '<div class="rm-info-value">—</div>';
 
             // Source & Department
             var sourceGrid = '';
-            sourceGrid += rmInfoItem('history', 'Archived From', row.archived_from || sourceTable);
+            sourceGrid += rmInfoItem('sitemap', 'Source System', sourceLabels[src] || src || '—');
+            sourceGrid += rmInfoItem('history', 'Archived From', row.archived_from || archiveTable);
             sourceGrid += rmInfoItem('undo', 'Previous Status', row.previous_status);
-            sourceGrid += rmInfoItem('fingerprint', 'Original ID', row.original_pk);
+            if (row.source_pk) sourceGrid += rmInfoItem('fingerprint', 'Original ID', row.source_pk);
             document.getElementById('rm-source-grid').innerHTML = sourceGrid || '<div class="rm-info-value">—</div>';
 
             // Location
@@ -726,13 +1036,15 @@ if ($conn->query("SHOW TABLES LIKE 'road_maintenance_reports_archive'")->num_row
             }
             if (row.attachments) {
                 try {
-                    var attachments = JSON.parse(row.attachments);
+                    var attachments = typeof row.attachments === 'string' ? JSON.parse(row.attachments) : row.attachments;
                     if (Array.isArray(attachments)) {
                         attachments.forEach(function(a) {
-                            if ((a.type === 'image' || !a.type) && a.file_path && !seenPaths[a.file_path]) {
-                                images.push('../../' + a.file_path);
-                                seenPaths[a.file_path] = true;
-                            }
+                            var path = (typeof a === 'string') ? a : (a.file_path || '');
+                            if (!path || seenPaths[path]) return;
+                            if (typeof a === 'object' && a.type && a.type !== 'image') return;
+                            var isRemote = /^https?:\/\//i.test(path);
+                            images.push(isRemote ? path : ('../../' + path.replace(/^\//, '')));
+                            seenPaths[path] = true;
                         });
                     }
                 } catch(e) {}
@@ -749,12 +1061,17 @@ if ($conn->query("SHOW TABLES LIKE 'road_maintenance_reports_archive'")->num_row
             }
             document.getElementById('rm-attachments').innerHTML = attachHtml;
 
+            var timelineEl = document.getElementById('rm-timeline-grid');
+            if (timelineEl) {
+                timelineEl.innerHTML = '<div style="padding:8px 0;color:#9ca3af;font-size:13px;">Open Export to download progress updates for this report.</div>';
+            }
+
             document.getElementById('viewModal').classList.add('active');
         }
 
         function rmBadge(text, bg, color) {
             if (!text || text === '—' || text === 'N/A') return '';
-            return '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:' + bg + ';color:' + color + ';">' + esc(text) + '</span>';
+            return '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:' + bg + ';color:' + color + ';">' + esc(String(text)) + '</span>';
         }
 
         function rmInfoItem(icon, label, value) {
@@ -764,11 +1081,59 @@ if ($conn->query("SHOW TABLES LIKE 'road_maintenance_reports_archive'")->num_row
 
         function closeViewModal() {
             document.getElementById('viewModal').classList.remove('active');
+            currentArchiveRow = null;
         }
 
         function esc(str) {
             if (!str) return 'N/A';
-            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function showNotification(message, type) {
+            type = type || 'info';
+            var notification = document.createElement('div');
+            notification.className = 'notification ' + type;
+            notification.textContent = message;
+            notification.style.background = type === 'success' ? '#10b981' : (type === 'error' ? '#dc3545' : '#3762c8');
+            document.body.appendChild(notification);
+            setTimeout(function() {
+                notification.style.opacity = '0';
+                notification.style.transition = 'opacity 0.3s ease';
+                setTimeout(function() { notification.remove(); }, 300);
+            }, 3000);
+        }
+
+        function exportArchivedReport() {
+            if (!currentArchiveRow) {
+                showNotification('No archived report is selected to export.', 'error');
+                return;
+            }
+            if (typeof exportUpdatesToExcel !== 'function' || typeof renderTimeline !== 'function') {
+                showNotification('Export scripts failed to load. Please refresh and try again.', 'error');
+                return;
+            }
+            var archiveId = currentArchiveRow.id;
+            var archiveTable = encodeURIComponent(currentArchiveRow.archive_table || 'road_transportation_reports_archive');
+            fetch('?ajax=export_updates&id=' + archiveId + '&table=' + archiveTable)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data && data.success) {
+                        if (!data.updates || data.updates.length === 0) {
+                            showNotification('This archived report has no progress updates available to export.', 'error');
+                            return;
+                        }
+                        currentUpdatesReportId = currentArchiveRow.report_id || currentArchiveRow.id;
+                        currentUpdatesReportDetails = currentArchiveRow;
+                        renderTimeline(data.updates);
+                        exportUpdatesToExcel();
+                    } else {
+                        showNotification((data && data.message) ? data.message : 'No export is available for this archived report.', 'error');
+                    }
+                })
+                .catch(function(e) {
+                    console.error('Archive export error', e);
+                    showNotification('Failed to prepare the export for this archived report.', 'error');
+                });
         }
 
         document.getElementById('viewModal').addEventListener('click', function(e) {
@@ -777,32 +1142,39 @@ if ($conn->query("SHOW TABLES LIKE 'road_maintenance_reports_archive'")->num_row
 
         function filterReports() {
             const status = document.getElementById('statusFilter').value;
+            const sort = document.getElementById('sortFilter') ? document.getElementById('sortFilter').value : 'latest';
+            const idSearch = document.getElementById('idSearch') ? document.getElementById('idSearch').value.trim() : '';
             const url = new URL(window.location);
             url.searchParams.set('status', status);
+            url.searchParams.set('sort', sort);
+            if (idSearch) url.searchParams.set('id', idSearch);
+            else url.searchParams.delete('id');
             window.location.href = url.toString();
         }
 
         function resetFilters() {
             const url = new URL(window.location);
             url.searchParams.delete('status');
+            url.searchParams.delete('sort');
+            url.searchParams.delete('id');
             window.location.href = url.toString();
         }
 
         // Deep-link support: auto-open the view modal when ?focus_report_id=X is
         // present (e.g. officer clicked "View Report" from a notification).
-        // The notification's focus_report_id is the original PK, which we stored
-        // as original_pk in each archive row.
         (function() {
             var params = new URLSearchParams(window.location.search);
             var focusId = parseInt(params.get('focus_report_id') || '0', 10);
-            if (focusId > 0) {
-                var row = archiveData.find(function(r) {
-                    return (r.original_pk && parseInt(r.original_pk, 10) === focusId)
-                        || (r.id && parseInt(r.id, 10) === focusId);
-                });
-                if (row) {
-                    setTimeout(function() { viewArchive(row.id, row._source_table || 'transport'); }, 300);
-                }
+            if (!focusId || !archiveData.length) return;
+            var row = archiveData.find(function(r) {
+                return parseInt(r.source_pk || 0, 10) === focusId
+                    || parseInt(r.id || 0, 10) === focusId
+                    || String(r.report_id || '') === String(focusId);
+            });
+            if (row) {
+                setTimeout(function() {
+                    viewArchive(row.id, row.archive_table || 'road_transportation_reports_archive');
+                }, 300);
             }
         })();
     </script>

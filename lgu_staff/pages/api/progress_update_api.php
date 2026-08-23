@@ -657,6 +657,15 @@ if ($method === 'GET') {
         if ($report_id <= 0) json_response(['success' => false, 'message' => 'Invalid report ID']);
 
         try {
+            // Capture report code before archive may remove the live row.
+            $report_row = fetch_one("SELECT report_id FROM road_transportation_reports WHERE id = ?", [$report_id], "i");
+            if (!$report_row) {
+                $report_row = fetch_one("SELECT report_id FROM road_maintenance_reports WHERE id = ?", [$report_id], "i");
+            }
+            if (!$report_row) {
+                $report_row = fetch_one("SELECT reference_code AS report_id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
+            }
+
             if ($source === 'cimm') {
                 $archived = rgmap_archive_cimm_report($conn, $report_id, 'cancelled');
             } elseif (rgmap_progress_is_ipms_source($source)) {
@@ -668,15 +677,18 @@ if ($method === 'GET') {
             if (!$archived) {
                 json_response(['success' => false, 'message' => 'Failed to cancel and archive the report'], 500);
             }
-            // Notify the officer who submitted the original review request.
-            $report_row = fetch_one("SELECT report_id FROM road_transportation_reports WHERE id = ?", [$report_id], "i");
-            if (!$report_row) {
-                $report_row = fetch_one("SELECT report_id FROM road_maintenance_reports WHERE id = ?", [$report_id], "i");
-            }
-            if (!$report_row) {
-                $report_row = fetch_one("SELECT reference_code AS report_id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
-            }
-            rgmap_notify_requestor($conn, $report_id, 'cancel', $user_id, $report_row['report_id'] ?? null);
+            // Notify the officer who submitted the original review request; if
+            // there was no pending request, notify assigned Road Monitoring
+            // Officers about the direct cancellation.
+            rgmap_notify_requestor($conn, $report_id, 'cancel', $user_id, $report_row['report_id'] ?? null)
+                || rgmap_notify_assigned_officers_direct(
+                    $conn,
+                    $report_id,
+                    'cancel',
+                    $user_id,
+                    $report_row['report_id'] ?? null,
+                    rgmap_assignment_report_type_from_source($source)
+                );
             log_audit_action($user_id, "Cancelled and archived report", "Report ID: {$report_id}, Status: cancelled");
             json_response(['success' => true, 'message' => 'Report cancelled and moved to archive']);
         } catch (Exception $e) {
@@ -711,7 +723,15 @@ if ($method === 'GET') {
             if (!$report_row) {
                 $report_row = fetch_one("SELECT reference_code AS report_id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
             }
-            rgmap_notify_requestor($conn, $report_id, 'complete', $user_id, $report_row['report_id'] ?? null);
+            rgmap_notify_requestor($conn, $report_id, 'complete', $user_id, $report_row['report_id'] ?? null)
+                || rgmap_notify_assigned_officers_direct(
+                    $conn,
+                    $report_id,
+                    'complete',
+                    $user_id,
+                    $report_row['report_id'] ?? null,
+                    rgmap_assignment_report_type_from_source($source)
+                );
             json_response(['success' => true, 'message' => 'Report filed in archive as completed']);
         } catch (Exception $e) {
             error_log("Complete archive error: " . $e->getMessage());
@@ -728,6 +748,14 @@ if ($method === 'GET') {
         if ($report_id <= 0) json_response(['success' => false, 'message' => 'Invalid report ID']);
 
         try {
+            $report_row = fetch_one("SELECT report_id FROM road_transportation_reports WHERE id = ?", [$report_id], "i");
+            if (!$report_row) {
+                $report_row = fetch_one("SELECT report_id FROM road_maintenance_reports WHERE id = ?", [$report_id], "i");
+            }
+            if (!$report_row) {
+                $report_row = fetch_one("SELECT reference_code AS report_id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
+            }
+
             if ($source === 'cimm') {
                 $archived = rgmap_archive_cimm_report($conn, $report_id, 'completed');
             } else {
@@ -737,15 +765,17 @@ if ($method === 'GET') {
             if (!$archived) {
                 json_response(['success' => false, 'message' => 'Failed to complete and archive the report'], 500);
             }
-            // Notify the officer who submitted the original review request.
-            $report_row = fetch_one("SELECT report_id FROM road_transportation_reports WHERE id = ?", [$report_id], "i");
-            if (!$report_row) {
-                $report_row = fetch_one("SELECT report_id FROM road_maintenance_reports WHERE id = ?", [$report_id], "i");
-            }
-            if (!$report_row) {
-                $report_row = fetch_one("SELECT reference_code AS report_id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
-            }
-            rgmap_notify_requestor($conn, $report_id, 'complete', $user_id, $report_row['report_id'] ?? null);
+            // Notify the officer who submitted the original review request; if
+            // none, notify assigned Road Monitoring Officers of the direct complete.
+            rgmap_notify_requestor($conn, $report_id, 'complete', $user_id, $report_row['report_id'] ?? null)
+                || rgmap_notify_assigned_officers_direct(
+                    $conn,
+                    $report_id,
+                    'complete',
+                    $user_id,
+                    $report_row['report_id'] ?? null,
+                    rgmap_assignment_report_type_from_source($source)
+                );
             log_audit_action($user_id, "Completed and archived report", "Report ID: {$report_id}, Status: completed");
             json_response(['success' => true, 'message' => 'Report completed and moved to archive']);
         } catch (Exception $e) {
@@ -800,7 +830,15 @@ if ($method === 'GET') {
             if (!$report_row && $ipms_complete) {
                 $report_row = ['report_id' => (string)$report_id];
             }
-            rgmap_notify_requestor($conn, $report_id, 'complete', $user_id, $report_row['report_id'] ?? null);
+            rgmap_notify_requestor($conn, $report_id, 'complete', $user_id, $report_row['report_id'] ?? null)
+                || rgmap_notify_assigned_officers_direct(
+                    $conn,
+                    $report_id,
+                    'complete',
+                    $user_id,
+                    $report_row['report_id'] ?? null,
+                    rgmap_assignment_report_type_from_source($source)
+                );
             // Notify the acting supervisor so the completion result appears in
             // their notifications feed (notifications.php).
             rgmap_notify_supervisor_action($conn, $report_id, 'complete', $user_id, $report_row['report_id'] ?? null);

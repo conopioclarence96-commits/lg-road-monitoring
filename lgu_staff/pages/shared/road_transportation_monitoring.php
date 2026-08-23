@@ -396,7 +396,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
         }
         }
 
-        // Road Monitoring Officers see only the reports assigned to them.
+        // Road / Transportation Monitoring Officers see only the reports assigned to them.
         if ($assigned_to_user_id) {
             $reports = filter_reports_assigned_to_user($conn, $reports, $assigned_to_user_id);
         }
@@ -1028,7 +1028,20 @@ function resolve_recent_focus_row(int $id, string $source_hint = ''): ?array {
                     $r['source'] = (!empty($r['created_by'])) ? 'lgu' : 'citizen';
                     return $r;
                 }
-            } elseif ($src === 'maintenance' || $src === 'infrastructure') {
+            } elseif ($src === 'maintenance') {
+                $stmt = $conn->prepare("SELECT id, report_id, title, COALESCE(NULLIF(report_type, ''), 'maintenance') AS report_type, 'road' AS report_category, status, priority, NULL AS severity, created_at, completed_at, description, NULL AS latitude, NULL AS longitude, location, NULL AS reporter_name, NULL AS attachments, NULL AS image_path, NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by FROM road_maintenance_reports WHERE id = ?");
+                $stmt->bind_param('i', $id);
+                $stmt->execute();
+                $r = $stmt->get_result()->fetch_assoc();
+                $stmt->close();
+                if ($r) {
+                    $r['_source_table'] = 'road_maintenance_reports';
+                    $r['source'] = 'maintenance';
+                    return $r;
+                }
+                $src = 'infrastructure';
+            }
+            if ($src === 'infrastructure') {
                 $stmt = $conn->prepare("SELECT project_id AS id, CAST(project_id AS CHAR) AS report_id, project_name AS title, COALESCE(NULLIF(road_type, ''), 'infrastructure_issue') AS report_type, 'road' AS report_category, status, 'medium' AS priority, NULL AS severity, created_at, NULL AS completed_at, road_status AS description, start_lat AS latitude, start_lng AS longitude, COALESCE(NULLIF(road_name, ''), project_name) AS location, NULL AS reporter_name, NULL AS attachments, NULL AS image_path, NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by FROM ipms_road_projects WHERE project_id = ? AND status IN ('approved', 'completed')");
                 $stmt->bind_param("i", $id);
                 $stmt->execute();
@@ -1043,7 +1056,7 @@ function resolve_recent_focus_row(int $id, string $source_hint = ''): ?array {
                 require_once __DIR__ . '/../api/cimm_verification_data.php';
                 $pdo = rgmap_verification_pdo();
                 rgmap_ensure_cimm_verification_table($pdo);
-                $stmt = $pdo->prepare("SELECT id, reference_code AS report_id, infrastructure AS title, 'infrastructure_issue' AS report_type, " . cimm_status_case_sql() . " AS status, priority, NULL AS severity, COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at, resolved_at AS completed_at, issue AS description, coord_lat AS latitude, coord_lng AS longitude, location, reporter_name, NULL AS attachments, NULL AS image_path, 'verified' AS cimm_sync_status, verified_at AS cimm_verified_at, NULL AS cimm_verified_by FROM cimm_verification_reports WHERE id = ?");
+                $stmt = $pdo->prepare("SELECT id, reference_code AS report_id, infrastructure AS title, 'infrastructure_issue' AS report_type, 'road' AS report_category, " . cimm_status_case_sql() . " AS status, priority, NULL AS severity, COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at, resolved_at AS completed_at, issue AS description, coord_lat AS latitude, coord_lng AS longitude, location, reporter_name, NULL AS attachments, NULL AS image_path, 'verified' AS cimm_sync_status, verified_at AS cimm_verified_at, NULL AS cimm_verified_by FROM cimm_verification_reports WHERE id = ?");
                 $stmt->execute([$id]);
                 $r = $stmt->fetch(PDO::FETCH_ASSOC);
                 if ($r) {
@@ -1108,6 +1121,7 @@ if ($is_completed_projects_view) {
 // wouldn't normally show it (e.g. it is not yet in a finalized status).
 $focus_report_id = isset($_GET['focus_report_id']) ? (int)$_GET['focus_report_id'] : 0;
 $focus_source_hint = (string)($_GET['source'] ?? '');
+$focus_report_type_hint = (string)($_GET['report_type'] ?? '');
 $focus_target = ['found' => false, 'id' => $focus_report_id, 'source' => '', 'report_id' => ''];
 
 if ($focus_report_id > 0 && !$is_completed_projects_view) {
@@ -1125,26 +1139,33 @@ $recent_reports = getRecentSubmissions(
     'all',
     $is_transport_supervisor,
     $is_road_only_role,
-    $is_road_monitoring_officer ? (int)($_SESSION['user_id'] ?? 0) : null,
+    ($is_road_monitoring_officer || $is_transport_monitoring_officer) ? (int)($_SESSION['user_id'] ?? 0) : null,
     $is_completed_projects_view
 );
 
 if ($focus_report_id > 0) {
     $focus_row = resolve_recent_focus_row($focus_report_id, $focus_source_hint);
     if ($focus_row && !$is_completed_projects_view && strtolower((string)($focus_row['status'] ?? '')) === 'completed') {
-        $redirect = 'completed_projects.php?focus_report_id=' . (int)$focus_report_id;
-        if ($focus_source_hint !== '') {
-            $redirect .= '&source=' . urlencode($focus_source_hint);
+        $officer_assigned_focus = false;
+        if ($is_road_monitoring_officer || $is_transport_monitoring_officer) {
+            $assigned_keys = get_assigned_report_keys($conn, (int)($_SESSION['user_id'] ?? 0));
+            $focus_key = ($focus_row['_source_table'] ?? 'road_transportation_reports') . ':' . ($focus_row['id'] ?? 0);
+            $officer_assigned_focus = isset($assigned_keys[$focus_key]);
         }
-        header('Location: ' . $redirect);
-        exit;
+        if (!$officer_assigned_focus) {
+            $redirect = 'completed_projects.php?focus_report_id=' . (int)$focus_report_id;
+            if ($focus_source_hint !== '') {
+                $redirect .= '&source=' . urlencode($focus_source_hint);
+            }
+            header('Location: ' . $redirect);
+            exit;
+        }
     }
 }
 
 if ($focus_report_id > 0) {
     $focus_row = $focus_row ?? resolve_recent_focus_row($focus_report_id, $focus_source_hint);
     if ($focus_row) {
-        $focus_target['found'] = true;
         $focus_target['source'] = $focus_row['source'] ?? '';
         $focus_target['report_id'] = $focus_row['report_id'] ?? '';
 
@@ -1156,14 +1177,23 @@ if ($focus_report_id > 0) {
                 && in_array($focus_row['source'] ?? '', ['infrastructure', 'cimm'], true))
             || ($is_road_only_role && (($focus_row['report_category'] ?? '') !== 'road'));
 
-        // Road Monitoring Officers only see reports assigned to them, so a
-        // deep-linked focus row must also carry an active assignment.
-        if (!$restricted && $is_road_monitoring_officer) {
+        // Road / Transportation Monitoring Officers only see reports assigned
+        // to them, so a deep-linked focus row must also carry an active assignment.
+        if (!$restricted && ($is_road_monitoring_officer || $is_transport_monitoring_officer)) {
             $assigned_keys = get_assigned_report_keys($conn, (int)($_SESSION['user_id'] ?? 0));
             $focus_key = ($focus_row['_source_table'] ?? 'road_transportation_reports') . ':' . ($focus_row['id'] ?? 0);
             if (!isset($assigned_keys[$focus_key])) {
                 $restricted = true;
+            } elseif ($focus_report_type_hint !== ''
+                && $focus_report_type_hint !== ($focus_row['_source_table'] ?? '')) {
+                $restricted = true;
             }
+        }
+
+        // Transportation Monitoring Officers never deep-link into non-transportation rows.
+        if (!$restricted && $is_transport_monitoring_officer
+            && (($focus_row['report_category'] ?? '') !== 'transportation')) {
+            $restricted = true;
         }
 
         // Monitoring page only: Unassigned reports stay off this list until
@@ -1177,6 +1207,7 @@ if ($focus_report_id > 0) {
         }
 
         if (!$restricted) {
+            $focus_target['found'] = true;
             $already_present = false;
             foreach ($recent_reports as $existing) {
                 if ((int)($existing['id'] ?? 0) === $focus_report_id

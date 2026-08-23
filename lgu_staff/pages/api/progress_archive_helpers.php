@@ -660,21 +660,25 @@ function rgmap_is_transportation_report($conn, $report_id) {
 //   - Insert a new notification (recipient_email = requestor email) so the
 //     officer sees it in their "Recent Activity" panel.
 //   - Mark the original review-request notification as read.
+// Returns true when a requestor was notified (or a duplicate outcome was
+// blocked after retiring the pending request); false when there was no
+// pending completion/cancellation request to process.
 function rgmap_notify_requestor($conn, $report_id, $action, $supervisor_id, $report_code) {
     try {
-        // Look up the pending review-request notification for this report.
+        // Look up the pending (unread) review-request notification for this report.
         $stmt = $conn->prepare(
             "SELECT id, type, recipient_email, recipient_role
              FROM report_notifications
              WHERE report_id = ? AND type IN ('completion','cancellation')
                AND recipient_role IS NOT NULL
+               AND is_read = 0
              ORDER BY created_at DESC LIMIT 1"
         );
         $stmt->bind_param("i", $report_id);
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        if (!$row) return;  // No pending review request — nothing to notify.
+        if (!$row) return false;  // No pending review request — nothing to notify.
 
         $request_type = $row['type'];
         $requestor_uid = (int)$row['recipient_email'];  // user_id stored by submit_review_request
@@ -723,7 +727,7 @@ function rgmap_notify_requestor($conn, $report_id, $action, $supervisor_id, $rep
                 log_audit_action($supervisor_id,
                     "Duplicate {$type_label} outcome blocked",
                     "Report ID: {$report_id}, Result: {$result_label}");
-                return;
+                return true;
             }
         }
 
@@ -744,9 +748,89 @@ function rgmap_notify_requestor($conn, $report_id, $action, $supervisor_id, $rep
         log_audit_action($supervisor_id,
             "Processed {$type_label}",
             "Report ID: {$report_id}, Action: {$action}, Result: {$result_label}, Report code: {$report_label}");
+        return true;
     } catch (Exception $e) {
         error_log("rgmap_notify_requestor error: " . $e->getMessage());
+        return false;
     }
+}
+
+// Notify Road Monitoring Officers actively assigned to a report when a
+// supervisor completes/cancels it directly (no pending completion/cancellation
+// request). Request outcomes are handled by rgmap_notify_requestor instead.
+// Only the assigned RMO(s) are notified — never every officer.
+function rgmap_notify_assigned_officers_direct($conn, $report_id, $action, $actor_id, $report_code, $report_type = null) {
+    try {
+        if (!in_array($action, ['complete', 'cancel'], true)) return;
+        $report_id = (int)$report_id;
+        if ($report_id <= 0) return;
+
+        $report_label = $report_code ?: ('#' . $report_id);
+        $action_label = ($action === 'complete') ? 'completed' : 'cancelled';
+        $notif_type   = ($action === 'complete') ? 'complete_report' : 'cancel_report';
+        $message      = ($action === 'complete')
+            ? "A report assigned to you ({$report_label}) was completed."
+            : "A report assigned to you ({$report_label}) was cancelled.";
+
+        $sql = "SELECT DISTINCT u.id, u.email
+                FROM report_assignments ra
+                INNER JOIN users u ON u.id = ra.user_id
+                WHERE ra.report_id = ?
+                  AND ra.status = 'active'
+                  AND u.role = 'road_monitoring_officer'
+                  AND u.email IS NOT NULL
+                  AND u.email != ''";
+        $types = 'i';
+        $params = [$report_id];
+        if ($report_type !== null && $report_type !== '') {
+            $sql .= " AND ra.report_type = ?";
+            $types .= 's';
+            $params[] = $report_type;
+        }
+
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param($types, ...$params);
+        $stmt->execute();
+        $assignees = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        if (!$assignees) return;
+
+        foreach ($assignees as $assignee) {
+            $email = trim((string)($assignee['email'] ?? ''));
+            if ($email === '') continue;
+
+            // Skip when an identical unread notice already exists for this officer.
+            $dup = $conn->prepare(
+                "SELECT id FROM report_notifications
+                 WHERE report_id = ? AND type = ? AND recipient_email = ? AND is_read = 0
+                 ORDER BY id DESC LIMIT 1"
+            );
+            $dup->bind_param('iss', $report_id, $notif_type, $email);
+            $dup->execute();
+            $exists = $dup->get_result()->fetch_assoc();
+            $dup->close();
+            if ($exists) continue;
+
+            $ins = $conn->prepare(
+                "INSERT INTO report_notifications (report_id, type, message, recipient_email, recipient_role)
+                 VALUES (?, ?, ?, ?, 'road_monitoring_officer')"
+            );
+            $ins->bind_param('isss', $report_id, $notif_type, $message, $email);
+            $ins->execute();
+            $ins->close();
+        }
+    } catch (Exception $e) {
+        error_log('rgmap_notify_assigned_officers_direct error: ' . $e->getMessage());
+    }
+}
+
+// Resolve report_assignments.report_type from a monitoring/API source hint.
+function rgmap_assignment_report_type_from_source($source) {
+    $source = strtolower(trim((string)$source));
+    if ($source === 'cimm') return 'cimm_verification_reports';
+    if ($source === 'maintenance' || $source === 'road_maintenance') return 'road_maintenance_reports';
+    if (strpos($source, 'ipms') !== false || $source === 'infrastructure') return 'ipms_road_projects';
+    return 'road_transportation_reports';
 }
 
 // Notify the supervisor who performed a Complete/Cancel action on the

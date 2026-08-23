@@ -120,7 +120,11 @@
     flex: 0 0 32px;
     width: 32px;
     height: 32px;
-    border-radius: 9px;
+    min-width: 32px;
+    min-height: 32px;
+    max-width: 32px;
+    max-height: 32px;
+    border-radius: 50%;
     background: rgba(255, 255, 255, 0.2);
     color: #fff;
     font-size: 12px;
@@ -130,6 +134,34 @@
     justify-content: center;
     letter-spacing: 0.02em;
     text-transform: uppercase;
+    overflow: hidden;
+    position: relative;
+    z-index: 2;
+    box-sizing: border-box;
+}
+
+/* Profile photo replaces ONLY the initial letter — never the sidebar header background */
+.user-avatar.has-photo {
+    background: transparent;
+    padding: 0;
+}
+
+.user-avatar img.user-avatar-photo {
+    position: absolute;
+    inset: 0;
+    width: 32px !important;
+    height: 32px !important;
+    max-width: 32px !important;
+    max-height: 32px !important;
+    object-fit: cover;
+    object-position: center;
+    display: block;
+    border-radius: 50%;
+    margin: 0;
+    padding: 0;
+    border: none;
+    box-shadow: none;
+    background: transparent;
 }
 
 .user-text {
@@ -364,6 +396,10 @@ body.dark-mode .user-info {
 body.dark-mode .user-avatar {
     background: rgba(96, 165, 250, 0.2) !important;
     color: #93c5fd !important;
+}
+
+body.dark-mode .user-avatar.has-photo {
+    background: transparent !important;
 }
 
 body.dark-mode .user-name {

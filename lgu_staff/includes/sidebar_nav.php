@@ -52,7 +52,7 @@ if ($conn && isset($_SESSION['user_id'])) {
 function getSidebarUserInfo() {
     global $conn;
     if ($conn && isset($_SESSION['user_id'])) {
-        $stmt = $conn->prepare("SELECT username, full_name, email, role FROM users WHERE id = ?");
+        $stmt = $conn->prepare("SELECT username, full_name, email, role, profile_picture FROM users WHERE id = ?");
         $stmt->bind_param("i", $_SESSION['user_id']);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -62,7 +62,8 @@ function getSidebarUserInfo() {
         'username' => 'Staff User',
         'full_name' => 'LGU Staff',
         'email' => 'staff@lgu.gov.ph',
-        'role' => 'lgu_staff'
+        'role' => 'lgu_staff',
+        'profile_picture' => null
     ];
 }
 
@@ -311,31 +312,32 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
         }
 
         // Road Monitoring Officers: the sidebar badge must show exactly the
-        // same count as their Notifications page too. For this role that page
-        // counts every card in the feed — report status updates (ru), review-
-        // request outcomes (ro, is_read = 0 only), active project assignments
-        // (asg) and change-request updates (su) — with each panel capped at 20,
-        // so the count is capped the same way to stay in sync. Cards dismissed
-        // with the X button are dropped from the feed, so they are excluded
-        // here as well.
+        // same unread count as their Notifications page. Panels: change-request
+        // updates (su), review-request outcomes (ro), direct assigned
+        // complete/cancel notices (sa), active assignments (asg), and stale
+        // progress alerts — each capped at 20. Cards dismissed with the X
+        // button or marked read are excluded.
         if ($user_role === 'road_monitoring_officer') {
             try {
                 $dismissed = [];
                 foreach (($_SESSION['nc_dismissed'][(int)$user_id] ?? []) as $k) {
                     $dismissed[(string)$k] = true;
                 }
-
-                // Report status updates (my completed/cancelled reports).
-                $stmt = $conn->prepare("
-                    SELECT id FROM road_transportation_reports
-                    WHERE created_by = ? AND status IN ('completed', 'cancelled')
-                    LIMIT 20
-                ");
-                $stmt->bind_param("i", $user_id);
-                $stmt->execute();
-                $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-                $stmt->close();
-                foreach ($rows as $r) { if (!isset($dismissed['ru' . $r['id']])) $count++; }
+                $read = $_SESSION['nc_read'][(int)$user_id] ?? [];
+                // Merge always_on_read markers so Mark All as Read survives
+                // logout/login (same pattern as transportation officers).
+                if ($email !== '') {
+                    try {
+                        $stmt = $conn->prepare("SELECT message FROM report_notifications WHERE type = 'always_on_read' AND recipient_email = ?");
+                        $stmt->bind_param("s", $email);
+                        $stmt->execute();
+                        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                        $stmt->close();
+                        foreach ($rows as $r) { $read[] = (string)$r['message']; }
+                    } catch (Exception $e) {}
+                }
+                $read_map = [];
+                foreach ($read as $k) { $read_map[(string)$k] = true; }
 
                 // Review-request outcomes (approve/reject) routed to my email.
                 if ($email !== '') {
@@ -343,7 +345,11 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
                                   UNION ALL
                                   SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
                                   UNION ALL
-                                  SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id";
+                                  SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id
+                                  UNION ALL
+                                  SELECT 1 FROM road_transportation_reports_archive WHERE id = rn.report_id
+                                  UNION ALL
+                                  SELECT 1 FROM cimm_verification_reports_archive WHERE id = rn.report_id";
                     $stmt = $conn->prepare("
                         SELECT rn.id FROM report_notifications rn
                         WHERE rn.recipient_email = ? AND rn.type IN ('approve_request','reject_request')
@@ -358,6 +364,33 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
                     foreach ($rows as $r) { if (!isset($dismissed['ro' . $r['id']])) $count++; }
                 }
 
+                // Direct complete/cancel of reports assigned to me.
+                if ($email !== '') {
+                    $as_exists = "SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
+                                  UNION ALL
+                                  SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
+                                  UNION ALL
+                                  SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id
+                                  UNION ALL
+                                  SELECT 1 FROM road_transportation_reports_archive WHERE id = rn.report_id
+                                  UNION ALL
+                                  SELECT 1 FROM cimm_verification_reports_archive WHERE id = rn.report_id";
+                    $stmt = $conn->prepare("
+                        SELECT rn.id FROM report_notifications rn
+                        WHERE rn.recipient_email = ?
+                          AND rn.type IN ('complete_report', 'cancel_report')
+                          AND rn.is_read = 0
+                          AND rn.recipient_role = 'road_monitoring_officer'
+                          AND EXISTS (" . $as_exists . " LIMIT 1)
+                        LIMIT 20
+                    ");
+                    $stmt->bind_param("s", $email);
+                    $stmt->execute();
+                    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                    $stmt->close();
+                    foreach ($rows as $r) { if (!isset($dismissed['sa' . $r['id']])) $count++; }
+                }
+
                 // My active project assignments.
                 $stmt = $conn->prepare("
                     SELECT id FROM report_assignments
@@ -368,7 +401,10 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
                 $stmt->execute();
                 $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                 $stmt->close();
-                foreach ($rows as $r) { if (!isset($dismissed['asg' . $r['id']])) $count++; }
+                foreach ($rows as $r) {
+                    $key = 'asg' . $r['id'];
+                    if (!isset($dismissed[$key]) && !isset($read_map[$key])) $count++;
+                }
 
                 // My change-request status updates.
                 $stmt = $conn->prepare("
@@ -380,7 +416,10 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
                 $stmt->execute();
                 $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                 $stmt->close();
-                foreach ($rows as $r) { if (!isset($dismissed['su' . $r['id']])) $count++; }
+                foreach ($rows as $r) {
+                    $key = 'su' . $r['id'];
+                    if (!isset($dismissed[$key]) && !isset($read_map[$key])) $count++;
+                }
 
                 if ($email !== '') {
                     $stale_exists = "SELECT 1 FROM road_transportation_reports WHERE id = rn.report_id
@@ -640,8 +679,24 @@ if ($user_role !== 'system_admin') {
                 }
             }
             if ($sidebar_initials === '') $sidebar_initials = 'U';
+            // Use the same profile_picture saved by Settings → Edit Photo.
+            // Reloaded from the DB on every page so the sidebar updates after a change.
+            $sidebar_profile_picture = trim((string)($user_info['profile_picture'] ?? ''));
+            $sidebar_profile_url = '';
+            if ($sidebar_profile_picture !== '' && strpos($sidebar_profile_picture, '..') === false && strpos($sidebar_profile_picture, '/') === false) {
+                $sidebar_profile_fs = __DIR__ . '/../uploads/profile_pictures/' . $sidebar_profile_picture;
+                if (is_file($sidebar_profile_fs)) {
+                    $sidebar_profile_url = $nav_base . 'uploads/profile_pictures/' . rawurlencode($sidebar_profile_picture);
+                }
+            }
             ?>
-            <div class="user-avatar" aria-hidden="true"><?php echo htmlspecialchars($sidebar_initials); ?></div>
+            <div class="user-avatar<?php echo $sidebar_profile_url !== '' ? ' has-photo' : ''; ?>" aria-hidden="true">
+                <?php if ($sidebar_profile_url !== ''): ?>
+                    <img class="user-avatar-photo" src="<?php echo htmlspecialchars($sidebar_profile_url); ?>" alt="" width="32" height="32">
+                <?php else: ?>
+                    <?php echo htmlspecialchars($sidebar_initials); ?>
+                <?php endif; ?>
+            </div>
             <div class="user-text">
                 <div class="user-name"><?php echo htmlspecialchars($sidebar_display_name); ?></div>
             </div>

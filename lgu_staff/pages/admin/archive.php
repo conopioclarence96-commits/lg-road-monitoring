@@ -702,26 +702,35 @@ if (isset($_SESSION['archive_message'])) {
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
-        body { background: #f7f5f0; min-height: 100vh; color: #1e293b; }
+        body { background: #f6f7fb; min-height: 100vh; color: #0f172a; }
         html { scroll-behavior: smooth; }
         .main-content {
             margin-left: 250px;
-            padding: 24px 28px 40px;
+            margin-right: 0;
+            max-width: none;
+            width: auto;
+            box-sizing: border-box;
+            padding: 36px 36px 56px;
             position: relative;
             z-index: 1;
-            max-width: 100%;
             overflow-x: hidden;
+        }
+        .arch-shell {
+            width: 100%;
+            max-width: 1040px;
+            margin-left: auto;
+            margin-right: auto;
         }
 
         .archive-header {
             background: #fff;
-            padding: 20px 24px;
+            padding: 20px 22px 18px;
             border-radius: 16px;
-            margin-bottom: 18px;
-            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(30, 60, 114, 0.06);
-            border: 1px solid #e2e8f0;
+            margin-bottom: 14px;
+            box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+            border: 1px solid #e9edf3;
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             gap: 14px;
         }
         .archive-header .header-icon {
@@ -729,109 +738,133 @@ if (isset($_SESSION['archive_message'])) {
             width: 44px;
             height: 44px;
             border-radius: 12px;
-            background: rgba(55, 98, 200, 0.12);
-            color: #3762c8;
+            background: #eef2ff;
+            color: #4f46e5;
             font-size: 18px;
             display: flex;
             align-items: center;
             justify-content: center;
         }
+        .archive-header-text { flex: 1; min-width: 0; }
         .archive-header h1 {
-            color: #1e3c72;
-            font-size: 22px;
+            color: #0f172a;
+            font-size: 20px;
             font-weight: 700;
-            margin-bottom: 2px;
+            margin-bottom: 4px;
             letter-spacing: -0.02em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
         }
         .archive-header h1 i { display: none; }
-        .archive-header p { color: #64748b; font-size: 13px; margin: 0; }
+        .archive-header-count {
+            background: #4f46e5;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 2px 10px;
+            border-radius: 999px;
+            line-height: 1.6;
+        }
+        .archive-header p { color: #64748b; font-size: 13px; margin: 0; line-height: 1.45; }
 
         .archive-card {
             background: #fff;
-            border-radius: 14px;
-            padding: 20px 22px;
-            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 6px 18px rgba(30, 60, 114, 0.05);
-            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 8px 10px 12px;
+            box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+            border: 1px solid #e9edf3;
             position: relative;
             overflow: hidden;
         }
-        .archive-card::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 0;
-            bottom: 0;
-            width: 3px;
-            background: #3762c8;
-        }
+        .archive-card::before { display: none; }
         .archive-card-header {
             display: flex; justify-content: space-between; align-items: center;
-            margin: -20px -22px 18px;
-            padding: 14px 18px 14px 20px;
-            background: #f8fafc;
+            margin: 0 0 8px;
+            padding: 12px 12px 10px;
+            background: transparent;
             border-bottom: 1px solid #eef2f7;
         }
         .archive-card-title {
-            font-size: 15px; font-weight: 700; color: #1e3c72;
-            display: flex; align-items: center; gap: 10px;
+            font-size: 12px; font-weight: 700; color: #64748b;
+            display: flex; align-items: center; gap: 8px;
+            text-transform: uppercase; letter-spacing: 0.06em;
         }
         .archive-card-title > i {
-            width: 28px; height: 28px; border-radius: 8px;
+            width: 26px; height: 26px; border-radius: 8px;
             display: inline-flex; align-items: center; justify-content: center;
-            font-size: 12px;
-            background: rgba(55, 98, 200, 0.1);
-            color: #3762c8;
+            font-size: 11px;
+            background: #eef2ff;
+            color: #4f46e5;
         }
         .archive-badge {
-            background: rgba(55, 98, 200, 0.12); color: #3762c8;
-            padding: 4px 10px; border-radius: 999px;
-            font-size: 12px; font-weight: 700;
+            background: #eef1f6; color: #64748b;
+            padding: 2px 9px; border-radius: 999px;
+            font-size: 11px; font-weight: 700;
+            text-transform: none; letter-spacing: 0;
         }
         .archive-item {
-            display: flex; align-items: flex-start; padding: 16px 18px; margin-bottom: 12px;
-            background: #f8fafc; border-radius: 12px;
-            border: 1px solid #e2e8f0; transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+            display: flex; align-items: flex-start; gap: 14px;
+            padding: 16px 14px; margin-bottom: 8px;
+            background: #fff; border-radius: 14px;
+            border: 1px solid #e9edf3;
+            border-left: 4px solid #4f46e5;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
         }
         .archive-item:last-child { margin-bottom: 0; }
         .archive-item:hover {
-            background: #fff; transform: translateY(-1px);
-            box-shadow: 0 6px 18px rgba(30, 60, 114, 0.08);
-            border-color: #d5dce8;
+            transform: translateY(-1px);
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+            border-color: #e2e8f0;
+            border-left-color: #4f46e5;
         }
         .archive-icon {
-            width: 42px; height: 42px;
-            background: rgba(100, 116, 139, 0.12);
-            border-radius: 10px; display: flex; align-items: center; justify-content: center;
-            color: #64748b; font-size: 16px; margin-right: 14px; flex-shrink: 0;
+            width: 40px; height: 40px;
+            background: #f1f5f9;
+            border-radius: 11px; display: flex; align-items: center; justify-content: center;
+            color: #64748b; font-size: 15px; flex-shrink: 0;
         }
         .archive-content { flex: 1; min-width: 0; }
-        .archive-title { font-size: 15px; font-weight: 600; color: #1e3c72; margin-bottom: 8px; }
-        .archive-meta { display: flex; gap: 14px; margin-bottom: 12px; flex-wrap: wrap; }
-        .meta-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #64748b; }
-        .meta-item i { color: #94a3b8; }
-        .archive-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+        .archive-title-row {
+            display: flex; align-items: flex-start; justify-content: space-between;
+            gap: 12px; margin-bottom: 8px; flex-wrap: wrap;
+        }
+        .archive-title {
+            font-size: 15px; font-weight: 600; color: #0f172a;
+            line-height: 1.35; margin: 0; flex: 1; min-width: 180px;
+        }
+        .archive-meta { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+        .meta-item {
+            display: inline-flex; align-items: center; gap: 5px;
+            font-size: 12px; color: #64748b;
+            background: #f8fafc; border: 1px solid #eef2f7;
+            padding: 4px 10px; border-radius: 999px;
+        }
+        .meta-item i { color: #94a3b8; font-size: 11px; }
+        .archive-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
 
         .btn-view, .btn-restore, .btn-delete-forever, .btn-export {
-            padding: 8px 14px; border: none; border-radius: 8px; font-size: 12px; font-weight: 600;
+            padding: 8px 14px; border: none; border-radius: 9px; font-size: 12px; font-weight: 600;
             cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
             transition: background 0.2s, box-shadow 0.2s, transform 0.2s, border-color 0.2s;
             font-family: 'Poppins', sans-serif; text-decoration: none;
         }
         .btn-view {
-            background: #3762c8; color: white;
-            box-shadow: 0 2px 6px rgba(55, 98, 200, 0.2);
+            background: #4f46e5; color: white;
+            box-shadow: 0 2px 8px rgba(79, 70, 229, 0.22);
         }
-        .btn-view:hover { background: #1e3c72; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(55,98,200,0.28); }
+        .btn-view:hover { background: #4338ca; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(79,70,229,0.3); }
         .btn-restore {
             background: #16a34a; color: white;
             box-shadow: 0 2px 6px rgba(22, 163, 74, 0.2);
         }
         .btn-restore:hover { background: #15803d; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(40,167,69,0.28); }
         .btn-delete-forever {
-            background: #dc2626; color: #fff; border: none;
-            box-shadow: 0 2px 6px rgba(220, 38, 38, 0.25);
+            background: #fff; color: #dc2626; border: 1px solid #fecaca;
+            box-shadow: none;
         }
-        .btn-delete-forever:hover { background: #b91c1c; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35); }
+        .btn-delete-forever:hover { background: #fef2f2; border-color: #fca5a5; transform: translateY(-1px); }
         .btn-export {
             background: #fff; color: #0284c7; border: 1px solid #bae6fd;
         }
@@ -848,8 +881,15 @@ if (isset($_SESSION['archive_message'])) {
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
         }
-        .empty-state { text-align: center; padding: 56px 20px; color: #64748b; }
-        .empty-state i { font-size: 42px; margin-bottom: 14px; color: #cbd5e1; display: block; }
+        .empty-state { text-align: center; padding: 64px 24px; color: #94a3b8; }
+        .empty-state i {
+            width: 64px; height: 64px; border-radius: 18px;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 26px; margin-bottom: 16px; color: #94a3b8;
+            background: #f1f5f9; border: 1px solid #e9edf3;
+        }
+        .empty-state p { font-size: 14px; color: #64748b; margin: 0; }
+        .empty-state-sub { font-size: 12px; color: #94a3b8; margin-top: 6px; }
 
         /* Modal */
         .modal-overlay {
@@ -1281,8 +1321,8 @@ if (isset($_SESSION['archive_message'])) {
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35) !important;
         }
         body.dark-mode .archive-header .header-icon {
-            background: rgba(96, 165, 250, 0.2) !important;
-            color: #93c5fd !important;
+            background: rgba(129, 140, 248, 0.2) !important;
+            color: #a5b4fc !important;
         }
         body.dark-mode .archive-header h1,
         body.dark-mode .archive-card-title,
@@ -1292,51 +1332,65 @@ if (isset($_SESSION['archive_message'])) {
         body.dark-mode .rm-modal-title {
             color: #e4e6ea !important;
         }
+        body.dark-mode .archive-header-count {
+            background: #6366f1 !important;
+            color: #fff !important;
+        }
         body.dark-mode .archive-header p,
         body.dark-mode .meta-item,
         body.dark-mode .meta-item i,
         body.dark-mode .empty-state,
         body.dark-mode .empty-state p,
+        body.dark-mode .empty-state-sub,
         body.dark-mode .detail-value,
         body.dark-mode .modal-close,
         body.dark-mode .filter-group .form-label {
             color: #b0b7c3 !important;
         }
         body.dark-mode .archive-card-header {
-            background: #1e2229 !important;
+            background: transparent !important;
             border-color: #2d323b !important;
         }
         body.dark-mode .archive-card-title > i {
-            background: rgba(96, 165, 250, 0.18) !important;
-            color: #93c5fd !important;
+            background: rgba(129, 140, 248, 0.18) !important;
+            color: #a5b4fc !important;
         }
         body.dark-mode .archive-badge {
-            background: rgba(96, 165, 250, 0.18) !important;
-            color: #93c5fd !important;
+            background: rgba(148, 163, 184, 0.18) !important;
+            color: #94a3b8 !important;
         }
         body.dark-mode .archive-item {
-            background: #22262e !important;
+            background: #1a1d24 !important;
             border-color: #2d323b !important;
+            border-left-color: #6366f1 !important;
         }
         body.dark-mode .archive-item:hover {
-            background: #2a2f38 !important;
+            background: #22262e !important;
             border-color: #3b4453 !important;
             box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35) !important;
         }
         body.dark-mode .archive-icon {
-            background: rgba(148, 163, 184, 0.15) !important;
+            background: rgba(148, 163, 184, 0.12) !important;
             color: #94a3b8 !important;
         }
-        body.dark-mode .empty-state i { color: #6b7280 !important; }
-        body.dark-mode .btn-view { background: #3b82f6 !important; color: #fff !important; }
+        body.dark-mode .meta-item {
+            background: #22262e !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode .empty-state i {
+            color: #6b7280 !important;
+            background: #22262e !important;
+            border-color: #2d323b !important;
+        }
+        body.dark-mode .btn-view { background: #6366f1 !important; color: #fff !important; }
         body.dark-mode .btn-restore { background: #16a34a !important; color: #fff !important; }
         body.dark-mode .btn-delete-forever {
-            background: #dc2626 !important;
-            color: #fff !important;
-            border: none !important;
+            background: #22262e !important;
+            color: #fca5a5 !important;
+            border: 1px solid #7f1d1d !important;
         }
         body.dark-mode .btn-delete-forever:hover {
-            background: #b91c1c !important;
+            background: rgba(220, 38, 38, 0.15) !important;
         }
         body.dark-mode .btn-export {
             background: #22262e !important;
@@ -1384,32 +1438,28 @@ if (isset($_SESSION['archive_message'])) {
         /* Filters section */
         .filters-section {
             background: #fff;
-            border-radius: 14px;
-            padding: 18px 20px;
-            border: 1px solid #e2e8f0;
-            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 6px 18px rgba(30, 60, 114, 0.05);
-            margin-bottom: 18px !important;
+            border-radius: 16px;
+            padding: 16px 18px;
+            border: 1px solid #e9edf3;
+            box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+            margin-bottom: 14px !important;
             position: relative;
-            overflow: hidden;
+            overflow: visible;
         }
-        .filters-section::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 0;
-            bottom: 0;
-            width: 3px;
-            background: #f59e0b;
-        }
+        .filters-section::before { display: none; }
         .filter-group {
             display: flex;
             flex-wrap: wrap;
-            gap: 14px;
+            gap: 12px;
             align-items: flex-end;
         }
         .filter-group > div {
             flex: 1;
-            min-width: 160px;
+            min-width: 150px;
+        }
+        .filter-group > div.filter-actions {
+            flex: 0 0 auto;
+            min-width: 0;
         }
         .filter-group .form-label {
             display: block;
@@ -1417,31 +1467,33 @@ if (isset($_SESSION['archive_message'])) {
             font-weight: 600;
             color: #64748b;
             margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
         }
         .filter-select {
             width: 100%;
             padding: 9px 12px;
-            border: 1px solid #e2e8f0;
+            border: 1px solid #e9edf3;
             border-radius: 10px;
             font-size: 13px;
             font-family: 'Poppins', sans-serif;
             background: #fff;
-            color: #1e293b;
+            color: #0f172a;
             transition: border-color 0.2s, box-shadow 0.2s;
             cursor: pointer;
             appearance: auto;
             -webkit-appearance: auto;
         }
         .filter-select:focus {
-            border-color: #3762c8;
-            box-shadow: 0 0 0 3px rgba(55,98,200,0.12);
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
             outline: none;
         }
         .btn-secondary-custom {
             padding: 9px 16px;
             background: #fff;
             color: #475569;
-            border: 1px solid #e2e8f0;
+            border: 1px solid #e9edf3;
             border-radius: 10px;
             font-size: 13px;
             font-weight: 600;
@@ -1451,8 +1503,9 @@ if (isset($_SESSION['archive_message'])) {
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            width: 100%;
+            width: auto;
             justify-content: center;
+            white-space: nowrap;
         }
         .btn-secondary-custom:hover {
             background: #f8fafc;
@@ -1467,29 +1520,14 @@ if (isset($_SESSION['archive_message'])) {
             font-size: 11px;
             font-weight: 600;
         }
-        .source-transport {
-            background: rgba(40,167,69,0.15);
-            color: #28a745;
-        }
-        .source-maintenance {
-            background: rgba(55,98,200,0.15);
-            color: #3762c8;
-        }
-        .source-lgu {
-            background: rgba(40,167,69,0.15);
-            color: #28a745;
-        }
-        .source-citizen {
-            background: rgba(23,162,184,0.15);
-            color: #17a2b8;
-        }
-        .source-cimm {
-            background: rgba(255,193,7,0.15);
-            color: #d39e00;
-        }
+        .source-transport,
+        .source-maintenance,
+        .source-lgu,
+        .source-citizen,
+        .source-cimm,
         .source-infrastructure {
-            background: rgba(55,98,200,0.15);
-            color: #3762c8;
+            background: #eef1f6;
+            color: #475569;
         }
         .status-badge {
             display: inline-block;
@@ -1499,37 +1537,25 @@ if (isset($_SESSION['archive_message'])) {
             font-weight: 600;
             text-transform: capitalize;
         }
-        .status-completed {
-            background: rgba(34,197,94,0.15);
-            color: #22c55e;
-        }
-        .status-approved {
-            background: rgba(34,197,94,0.15);
-            color: #22c55e;
-        }
-        .status-pending {
-            background: rgba(251,191,36,0.15);
-            color: #f59e0b;
-        }
-        .status-in-progress {
-            background: rgba(59,130,246,0.15);
-            color: #3b82f6;
-        }
-        .status-rejected {
-            background: rgba(249,115,22,0.15);
-            color: #f97316;
-        }
+        .status-completed,
+        .status-approved,
+        .status-pending,
+        .status-in-progress,
+        .status-rejected,
         .status-cancelled {
-            background: rgba(239,68,68,0.15);
-            color: #ef4444;
+            background: #eef1f6;
+            color: #475569;
         }
 
         @media (max-width: 768px) {
-            .main-content { margin-left: 0; padding: 16px; }
-            .archive-meta { flex-direction: column; gap: 8px; }
+            .main-content { margin-left: 0; padding: 20px 14px 40px; }
+            .arch-shell { max-width: 100%; }
+            .archive-meta { gap: 6px; }
             .detail-row { flex-direction: column; }
             .detail-label { width: 100%; margin-bottom: 5px; }
             .filter-group > div { flex: 1 1 100%; }
+            .filter-group > div.filter-actions { flex: 1 1 100%; }
+            .btn-secondary-custom { width: 100%; }
         }
     </style>
 </head>
@@ -1537,19 +1563,23 @@ if (isset($_SESSION['archive_message'])) {
     <?php include '../../includes/sidebar_nav.php'; ?>
 
     <div class="main-content">
+        <div class="arch-shell">
         <div class="archive-header">
             <div class="header-icon"><i class="fas fa-archive"></i></div>
-            <div>
-                <h1><i class="fas fa-archive"></i> Archive</h1>
-                <p>View, filter, sort, restore, and permanently delete archived reports</p>
+            <div class="archive-header-text">
+                <h1>
+                    Archive
+                    <span class="archive-header-count"><?php echo (int)$total_archives; ?></span>
+                </h1>
+                <p>Browse archived reports — filter by status or source, restore, or permanently remove.</p>
             </div>
         </div>
 
         <!-- Filters -->
-        <div class="filters-section" style="margin-bottom:24px;">
+        <div class="filters-section">
             <div class="filter-group">
                 <div>
-                    <label class="form-label" for="statusFilter">Status Filter</label>
+                    <label class="form-label" for="statusFilter">Status</label>
                     <select class="filter-select" id="statusFilter" onchange="filterReports()">
                         <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
                         <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending</option>
@@ -1561,7 +1591,7 @@ if (isset($_SESSION['archive_message'])) {
                     </select>
                 </div>
                 <div>
-                    <label class="form-label" for="sourceFilter">Source System</label>
+                    <label class="form-label" for="sourceFilter">Source</label>
                     <select class="filter-select" id="sourceFilter" onchange="filterReports()">
                         <option value="all" <?php echo $source_filter === 'all' ? 'selected' : ''; ?>>All Systems</option>
                         <option value="lgu" <?php echo $source_filter === 'lgu' ? 'selected' : ''; ?>>Road & Transportation (LGU Monitoring)</option>
@@ -1573,22 +1603,21 @@ if (isset($_SESSION['archive_message'])) {
                     </select>
                 </div>
                 <div>
-                    <label class="form-label" for="sortFilter">Sort Order</label>
+                    <label class="form-label" for="sortFilter">Sort</label>
                     <select class="filter-select" id="sortFilter" onchange="filterReports()">
-                        <option value="latest" <?php echo $sort_order === 'latest' ? 'selected' : ''; ?>>Newest to Oldest</option>
-                        <option value="earliest" <?php echo $sort_order === 'earliest' ? 'selected' : ''; ?>>Oldest to Newest</option>
+                        <option value="latest" <?php echo $sort_order === 'latest' ? 'selected' : ''; ?>>Newest first</option>
+                        <option value="earliest" <?php echo $sort_order === 'earliest' ? 'selected' : ''; ?>>Oldest first</option>
                     </select>
                 </div>
                 <div>
                     <label class="form-label" for="idSearch">Search ID</label>
-                    <input type="text" class="filter-select" id="idSearch" placeholder="Enter report ID..." value="<?php echo htmlspecialchars($id_search); ?>" onkeyup="if(event.key === 'Enter') filterReports()">
+                    <input type="text" class="filter-select" id="idSearch" placeholder="Report ID…" value="<?php echo htmlspecialchars($id_search); ?>" onkeyup="if(event.key === 'Enter') filterReports()">
                 </div>
-                <div>
-                    <div>
-                        <button type="button" class="btn-secondary-custom" onclick="resetFilters()">
-                            <i class="fas fa-arrow-rotate-left"></i> Reset
-                        </button>
-                    </div>
+                <div class="filter-actions">
+                    <label class="form-label">&nbsp;</label>
+                    <button type="button" class="btn-secondary-custom" onclick="resetFilters()">
+                        <i class="fas fa-arrow-rotate-left"></i> Reset
+                    </button>
                 </div>
             </div>
         </div>
@@ -1603,23 +1632,31 @@ if (isset($_SESSION['archive_message'])) {
             </div>
 
             <?php if ($archives && $archives->num_rows > 0): ?>
-                <?php while ($row = $archives->fetch_assoc()): ?>
-                    <div class="archive-item">
+                <?php while ($row = $archives->fetch_assoc()):
+                    $status_slug = strtolower(str_replace('_', '-', (string)($row['status'] ?? '')));
+                    $created_display = !empty($row['created_at']) ? date('M d, Y · g:i A', strtotime($row['created_at'])) : '—';
+                ?>
+                    <div class="archive-item status-<?php echo htmlspecialchars($status_slug); ?>">
                         <div class="archive-icon">
-                            <i class="fas fa-file-archive"></i>
+                            <i class="fas fa-box-archive"></i>
                         </div>
                         <div class="archive-content">
-                            <div class="archive-title"><?php echo htmlspecialchars($row['title']); ?></div>
+                            <div class="archive-title-row">
+                                <h4 class="archive-title"><?php echo htmlspecialchars($row['title'] ?? 'Untitled'); ?></h4>
+                                <span class="status-badge status-<?php echo htmlspecialchars($status_slug); ?>"><?php echo htmlspecialchars(ucfirst(str_replace(['_', '-'], ' ', (string)$row['status']))); ?></span>
+                            </div>
                             <div class="archive-meta">
-                                <span class="meta-item"><i class="fas fa-tag"></i> <?php echo htmlspecialchars($row['report_type']); ?></span>
+                                <?php if (!empty($row['report_id'])): ?>
+                                <span class="meta-item"><i class="fas fa-hashtag"></i> <?php echo htmlspecialchars($row['report_id']); ?></span>
+                                <?php endif; ?>
+                                <span class="meta-item"><i class="fas fa-tag"></i> <?php echo htmlspecialchars($row['report_type'] ?? '—'); ?></span>
+                                <?php if (!empty($row['department'])): ?>
                                 <span class="meta-item"><i class="fas fa-building"></i> <?php echo htmlspecialchars($row['department']); ?></span>
-                                <span class="meta-item"><i class="fas fa-flag"></i>
-                                    <span class="status-badge status-<?php echo htmlspecialchars(strtolower($row['status'])); ?>"><?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $row['status']))); ?></span>
-                                </span>
-                                <span class="meta-item"><i class="fas fa-calendar"></i> <?php echo htmlspecialchars($row['created_at']); ?></span>
+                                <?php endif; ?>
+                                <span class="meta-item"><i class="fas fa-calendar"></i> <?php echo htmlspecialchars($created_display); ?></span>
                                 <span class="meta-item"><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($row['location'] ?? 'N/A'); ?></span>
                                 <span class="meta-item"><i class="fas fa-sitemap"></i>
-                                    <span class="source-badge source-<?php echo $row['source_system']; ?>"><?php echo htmlspecialchars($source_labels[$row['source_system']] ?? ($row['source_system'] ?? 'Unknown')); ?></span>
+                                    <span class="source-badge source-<?php echo htmlspecialchars($row['source_system'] ?? ''); ?>"><?php echo htmlspecialchars($source_labels[$row['source_system']] ?? ($row['source_system'] ?? 'Unknown')); ?></span>
                                 </span>
                             </div>
                             <div class="archive-actions">
@@ -1651,9 +1688,11 @@ if (isset($_SESSION['archive_message'])) {
             <?php else: ?>
                 <div class="empty-state">
                     <i class="fas fa-archive"></i>
-                    <p>No archived reports yet.</p>
+                    <p>No archived reports found</p>
+                    <p class="empty-state-sub">Try adjusting filters or check back after reports are archived.</p>
                 </div>
             <?php endif; ?>
+        </div>
         </div>
     </div>
 
@@ -1708,7 +1747,7 @@ if (isset($_SESSION['archive_message'])) {
                 </div>
             </div>
             <div class="rm-modal-footer">
-                <?php if (!$is_road_officer): ?>
+                <?php if (!$is_trans_officer): ?>
                 <button type="button" class="rm-modal-btn-export" onclick="exportArchivedReport()">
                     <i class="fas fa-file-export"></i> Export
                 </button>

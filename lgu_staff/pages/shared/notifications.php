@@ -59,19 +59,23 @@ $all_tables_exists = "SELECT 1 FROM road_transportation_reports WHERE id = rn.re
 // a cancelled/completed report no longer exists in the live table, so the
 // existence gate also checks the archive table for this role. Supervisors'
 // pending-request lists keep checking only live reports (unchanged).
-$ro_exists = $is_trans_officer
-    ? $trans_exists . " UNION ALL SELECT 1 FROM road_transportation_reports_archive WHERE id = rn.report_id AND report_category = 'transportation' AND report_type != 'infrastructure_issue'"
+// Road Monitoring Officers need the same archive fallback so their
+// completion/cancellation request outcomes remain visible after archive.
+$ro_exists = ($is_trans_officer || $is_road_officer)
+    ? ($is_trans_officer
+        ? $trans_exists . " UNION ALL SELECT 1 FROM road_transportation_reports_archive WHERE id = rn.report_id AND report_category = 'transportation' AND report_type != 'infrastructure_issue'"
+        : $all_tables_exists . " UNION ALL SELECT 1 FROM road_transportation_reports_archive WHERE id = rn.report_id
+                      UNION ALL SELECT 1 FROM cimm_verification_reports_archive WHERE id = rn.report_id")
     : $all_tables_exists;
 
-// Trans Monitoring Officers persist the read state of their always-on cards
-// (asg/ru/su) in the existing report_notifications table the same way the
-// supervisor's cards persist (their real is_read column). A marker row of type
-// 'always_on_read' (recipient_email = officer, card key in message, is_read = 1)
-// survives logout/login, unlike the session-only keys that resets each login.
+// Trans Monitoring Officers and Road Monitoring Officers persist the read
+// state of their always-on cards (asg/ru/su) in report_notifications (type
+// 'always_on_read', recipient_email = officer, card key in message, is_read = 1)
+// so the state survives logout/login, unlike session-only keys.
 function nc_read_db() {
-    global $conn, $is_trans_officer, $user_email;
+    global $conn, $is_trans_officer, $is_road_officer, $user_email;
     $keys = [];
-    if (!$is_trans_officer || $user_email === '') return $keys;
+    if ((!$is_trans_officer && !$is_road_officer) || $user_email === '') return $keys;
     try {
         $stmt = $conn->prepare("SELECT message FROM report_notifications WHERE type = 'always_on_read' AND recipient_email = ?");
         $stmt->bind_param("s", $user_email);
@@ -85,13 +89,13 @@ function nc_read_db() {
     return $keys;
 }
 
-// Record always-on card keys (asg/ru/su) as read for the trans officer. Only
-// ever inserts marker rows; never deletes or touches real notifications, and
-// every existing query filters report_notifications by specific types so these
-// markers stay invisible. No-op for every other role.
+// Record always-on card keys (asg/ru/su) as read for the monitoring officer.
+// Only ever inserts marker rows; never deletes or touches real notifications,
+// and every existing query filters report_notifications by specific types so
+// these markers stay invisible. No-op for every other role.
 function nc_read_persist_db($keys) {
-    global $conn, $is_trans_officer, $user_email;
-    if (!$is_trans_officer || $user_email === '') return;
+    global $conn, $is_trans_officer, $is_road_officer, $user_email;
+    if ((!$is_trans_officer && !$is_road_officer) || $user_email === '') return;
     $keys = array_values(array_unique(array_filter($keys, function ($k) {
         return is_string($k) && preg_match('/^(asg|ru|su)\d+$/', $k);
     })));
@@ -118,9 +122,10 @@ function nc_read_persist_db($keys) {
 // Always-on cards (active project assignments, completed/cancelled report
 // updates, change-request outcomes) have no per-user read flag. "Mark All as
 // Read" records their ids so they render as read — staying visible in the list
-// — without counting toward the unread badge. Trans officers additionally
-// persist these keys in report_notifications (nc_read_db) so the state
-// survives logout/login; other roles keep the session-only behavior.
+// — without counting toward the unread badge. Trans and road monitoring
+// officers additionally persist these keys in report_notifications
+// (nc_read_db) so the state survives logout/login; other roles keep the
+// session-only behavior.
 function nc_read_set() {
     global $user_id;
     $set = $_SESSION['nc_read'][(int)$user_id] ?? [];
@@ -391,12 +396,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute();
             $stmt->close();
         }
-        if ($is_trans_role && $user_id > 0) {
-            // Transportation roles: the always-on cards (active assignments,
-            // report status updates, change-request outcomes) have no per-user
-            // read flag, so remember their ids as read for this session. They
-            // stay visible in the list but render as read and no longer count
-            // toward the unread badge.
+        if (($is_trans_role || $is_road_officer) && $user_id > 0) {
+            // Transportation roles + Road Monitoring Officers: the always-on
+            // cards (active assignments, report status updates, change-request
+            // outcomes) have no per-user read flag, so remember their ids as
+            // read for this session. They stay visible in the list but render
+            // as read and no longer count toward the unread badge.
             $read = nc_read_set();
             $keys = [];
             try {
@@ -407,12 +412,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 while (($row = $res->fetch_assoc())) $keys[] = 'asg' . $row['id'];
                 $q->close();
 
-                $q = $conn->prepare("SELECT id FROM road_transportation_reports WHERE created_by = ? AND status IN ('completed','cancelled') AND report_category = 'transportation' AND report_type != 'infrastructure_issue'");
-                $q->bind_param("i", $user_id);
-                $q->execute();
-                $res = $q->get_result();
-                while (($row = $res->fetch_assoc())) $keys[] = 'ru' . $row['id'];
-                $q->close();
+                if (!$is_road_officer) {
+                    $q = $conn->prepare("SELECT id FROM road_transportation_reports WHERE created_by = ? AND status IN ('completed','cancelled') AND report_category = 'transportation' AND report_type != 'infrastructure_issue'");
+                    $q->bind_param("i", $user_id);
+                    $q->execute();
+                    $res = $q->get_result();
+                    while (($row = $res->fetch_assoc())) $keys[] = 'ru' . $row['id'];
+                    $q->close();
+                }
 
                 $q = $conn->prepare("SELECT id FROM change_requests WHERE user_id = ? AND status != 'pending'");
                 $q->bind_param("i", $user_id);
@@ -424,8 +431,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 error_log("mark_all_read read-set error: " . $e->getMessage());
             }
             $_SESSION['nc_read'][(int)$user_id] = array_values(array_unique(array_merge($read, $keys)));
-            // Trans officers persist these always-on keys in report_notifications
-            // so they survive logout/login (no-op for other roles).
+            // Monitoring officers persist these always-on keys in
+            // report_notifications so they survive logout/login.
             nc_read_persist_db($keys);
         }
         if ($user_role === 'system_admin' && $user_id > 0) {
@@ -568,7 +575,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
-        if (preg_match('/^(asg|ru|su)\d+$/', $key) && $is_trans_role) {
+        if (preg_match('/^(asg|ru|su)\d+$/', $key) && ($is_trans_role || $is_road_officer)) {
             $read = nc_read_set();
             if (!in_array($key, $read, true)) {
                 $_SESSION['nc_read'][(int)$user_id][] = $key;
@@ -628,6 +635,8 @@ $transparency_requests = [];
 $report_updates = [];
 $staff_updates = [];
 $assigned_projects = [];
+$assignee_status_notices = [];
+$request_outcomes = [];
 $review_requests = [];
 $supervisor_actions = [];
 $transparency_outcomes = [];
@@ -888,21 +897,29 @@ if ($is_admin) {
     }
 
     // LGU Staff: get report status updates (approved = completed, rejected = cancelled)
+    // Road Monitoring Officers do not use created_by for these cards — they are
+    // notified via assignment-targeted complete_report/cancel_report rows when a
+    // supervisor completes/cancels directly, and via approve/reject request
+    // outcomes when they submitted a review request.
     try {
-        $rstmt = $conn->prepare("
-            SELECT id, report_id, title, status, location,
-                   approved_at, rejected_at, updated_at, created_at,
-                   report_type, report_category, report_source, created_by
-            FROM road_transportation_reports
-            WHERE created_by = ? AND status IN ('completed', 'cancelled')
-            " . ($is_trans_role ? "AND report_category = 'transportation' AND report_type != 'infrastructure_issue'" : '') . "
-            ORDER BY GREATEST(COALESCE(approved_at, '1970-01-01'), COALESCE(rejected_at, '1970-01-01'), updated_at) DESC
-            LIMIT 20
-        ");
-        $rstmt->bind_param("i", $user_id);
-        $rstmt->execute();
-        $report_updates = $rstmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        $rstmt->close();
+        if ($is_road_officer) {
+            $report_updates = [];
+        } else {
+            $rstmt = $conn->prepare("
+                SELECT id, report_id, title, status, location,
+                       approved_at, rejected_at, updated_at, created_at,
+                       report_type, report_category, report_source, created_by
+                FROM road_transportation_reports
+                WHERE created_by = ? AND status IN ('completed', 'cancelled')
+                " . ($is_trans_role ? "AND report_category = 'transportation' AND report_type != 'infrastructure_issue'" : '') . "
+                ORDER BY GREATEST(COALESCE(approved_at, '1970-01-01'), COALESCE(rejected_at, '1970-01-01'), updated_at) DESC
+                LIMIT 20
+            ");
+            $rstmt->bind_param("i", $user_id);
+            $rstmt->execute();
+            $report_updates = $rstmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $rstmt->close();
+        }
     } catch (Exception $e) {
         error_log("Staff report updates query error: " . $e->getMessage());
     }
@@ -920,7 +937,7 @@ if ($is_admin) {
                 FROM report_notifications rn
                 LEFT JOIN road_transportation_reports r ON rn.report_id = r.id
                 WHERE rn.recipient_email = ? AND rn.type IN ('approve_request','reject_request')
-                  " . ($is_trans_role ? '' : 'AND rn.is_read = 0') . "
+                  " . (($is_trans_role || $is_road_officer) ? '' : 'AND rn.is_read = 0') . "
                   AND EXISTS (" . $ro_exists . "
                       LIMIT 1
                   )
@@ -934,6 +951,36 @@ if ($is_admin) {
             $request_outcomes = array_map('resolve_progress_notification_source', $request_outcomes);
         } catch (Exception $e) {
             error_log("Request outcomes query error: " . $e->getMessage());
+        }
+    }
+
+    // Road Monitoring Officers: direct complete/cancel of an assigned report
+    // (no pending completion/cancellation request). Targeted by email so only
+    // the assigned officer sees the card.
+    $assignee_status_notices = [];
+    if ($is_road_officer && $user_email !== '') {
+        try {
+            $as_exists = $all_tables_exists . " UNION ALL SELECT 1 FROM road_transportation_reports_archive WHERE id = rn.report_id
+                          UNION ALL SELECT 1 FROM cimm_verification_reports_archive WHERE id = rn.report_id";
+            $as_stmt = $conn->prepare("
+                SELECT rn.*, r.report_id AS report_code, r.title AS report_title
+                FROM report_notifications rn
+                LEFT JOIN road_transportation_reports r ON rn.report_id = r.id
+                WHERE rn.recipient_email = ?
+                  AND rn.type IN ('complete_report', 'cancel_report')
+                  AND rn.recipient_role = 'road_monitoring_officer'
+                  AND EXISTS (" . $as_exists . " LIMIT 1)
+                ORDER BY rn.created_at DESC
+                LIMIT 20
+            ");
+            $as_stmt->bind_param("s", $user_email);
+            $as_stmt->execute();
+            $assignee_status_notices = $as_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $as_stmt->close();
+            $assignee_status_notices = array_map('resolve_progress_notification_source', $assignee_status_notices);
+        } catch (Exception $e) {
+            error_log("Assignee status notices query error: " . $e->getMessage());
+            $assignee_status_notices = [];
         }
     }
 
@@ -1352,9 +1399,19 @@ function notification_assignment_url(array $ap): string {
         }
 
         .main-content {
+            /* Keep sidebar offset; center the feed in the remaining content area. */
+            margin-left: 250px;
+            margin-right: 0;
+            max-width: none;
+            width: auto;
+            box-sizing: border-box;
+            padding: 40px 40px 64px;
+        }
+        .nc-feed {
+            width: 100%;
             max-width: 920px;
-            margin: 0 auto;
-            padding: 28px 24px 60px;
+            margin-left: auto;
+            margin-right: auto;
         }
 
         /* Header */
@@ -1521,7 +1578,7 @@ function notification_assignment_url(array $ap): string {
         }
 
         @media (max-width: 640px) {
-            .main-content { padding: 18px 14px 50px; }
+            .main-content { padding: 24px 14px 50px; }
             .nc-actions { width: 100%; justify-content: flex-start; }
         }
     </style>
@@ -1934,20 +1991,30 @@ function notification_assignment_url(array $ap): string {
         // Review request outcomes (approve/reject) — targeted to the officer by email
         foreach ($request_outcomes as $ro) {
             $is_approved = ($ro['type'] === 'approve_request');
+            $ro_msg = (string)($ro['message'] ?? '');
             // Trans Monitoring Officers get a dedicated card when their
             // cancellation request is approved by the Transportation Ops
             // Supervisor. All other outcomes keep their existing wording.
             $is_trans_cancel_approval = $is_trans_officer && $is_approved
-                && (stripos((string)($ro['message'] ?? ''), 'cancellation request') !== false);
+                && (stripos($ro_msg, 'cancellation request') !== false);
+            $is_completion_outcome = (stripos($ro_msg, 'completion request') !== false);
+            $is_cancellation_outcome = (stripos($ro_msg, 'cancellation request') !== false);
+            if ($is_road_officer && ($is_completion_outcome || $is_cancellation_outcome)) {
+                $req_kind = $is_completion_outcome ? 'Completion request' : 'Cancellation request';
+                $ro_title = $req_kind . ' ' . ($is_approved ? 'approved' : 'rejected')
+                    . ' · ' . ($ro['report_code'] ?? ('#' . $ro['report_id']));
+            } elseif ($is_trans_cancel_approval) {
+                $ro_title = 'Cancellation Request Approved · ' . ($ro['report_code'] ?? ('#' . $ro['report_id']));
+            } else {
+                $ro_title = 'Request ' . ($is_approved ? 'approved' : 'rejected') . ' · ' . ($ro['report_code'] ?? ('#' . $ro['report_id']));
+            }
             $nc_push([
                 'id' => 'ro' . $ro['id'],
                 'ts' => $ro['created_at'],
                 'kind' => 'request_outcome',
                 'icon' => $is_approved ? 'fa-check-circle' : 'fa-times-circle',
                 'color' => $is_approved ? '#10b981' : '#ef4444',
-                'title' => $is_trans_cancel_approval
-                    ? 'Cancellation Request Approved · ' . ($ro['report_code'] ?? ('#' . $ro['report_id']))
-                    : 'Request ' . ($is_approved ? 'approved' : 'rejected') . ' · ' . ($ro['report_code'] ?? ('#' . $ro['report_id'])),
+                'title' => $ro_title,
                 'desc' => $is_trans_cancel_approval
                     ? 'Your cancellation request for this report has been approved by the Transportation Ops Supervisor.'
                     : ($ro['message'] ?? ''),
@@ -1957,7 +2024,7 @@ function notification_assignment_url(array $ap): string {
                 'priority' => null,
                 'tags' => [$is_approved ? 'Approved' : 'Rejected'],
                 'unread' => ((int)($ro['is_read'] ?? 0) === 0),
-                'url' => $is_trans_officer
+                'url' => ($is_trans_officer || $is_road_officer)
                     ? notification_progress_focus_url($ro)
                     : '../lgu/officer_archive.php?focus_report_id=' . (int)($ro['report_id'] ?? 0),
                 'url_label' => 'View Report',
@@ -1965,18 +2032,55 @@ function notification_assignment_url(array $ap): string {
             ]);
         }
 
+        // Assigned report completed/cancelled directly (Road Monitoring Officer)
+        foreach ($assignee_status_notices as $asn) {
+            if (empty($asn['report_code'])) {
+                $asn = resolve_progress_notification_source($asn);
+            }
+            $is_completed = (($asn['type'] ?? '') === 'complete_report');
+            $nc_push([
+                'id' => 'sa' . $asn['id'],
+                'ts' => $asn['created_at'],
+                'kind' => $is_completed ? 'approved' : 'rejected',
+                'icon' => $is_completed ? 'fa-check-circle' : 'fa-times-circle',
+                'color' => $is_completed ? '#10b981' : '#ef4444',
+                'title' => ($is_completed ? 'Assigned report completed' : 'Assigned report cancelled')
+                    . ' · ' . ($asn['report_code'] ?? ('#' . $asn['report_id'])),
+                'desc' => $asn['message'] ?? ($is_completed
+                    ? 'A report assigned to you was completed.'
+                    : 'A report assigned to you was cancelled.'),
+                'sub' => !empty($asn['report_title']) ? (string)$asn['report_title'] : '',
+                'report_id' => (string)($asn['report_code'] ?? ('#' . $asn['report_id'])),
+                'status' => ['label' => $is_completed ? 'Completed' : 'Cancelled', 'class' => $is_completed ? 'nc-st-completed' : 'nc-st-cancelled'],
+                'priority' => null,
+                'tags' => ['Assignment'],
+                'unread' => ((int)($asn['is_read'] ?? 0) === 0),
+                'url' => notification_progress_focus_url($asn),
+                'url_label' => 'View Report',
+                'mark' => ['url' => '', 'data' => ['action' => 'mark_read', 'type' => 'report_outcome', 'id' => (int)$asn['id']]],
+            ]);
+        }
+
         // My assigned projects
         foreach ($assigned_projects as $ap) {
-            $desc = $ap['report_title'] ?? '';
-            if (!empty($ap['notes'])) $desc .= ($desc ? ' — ' : '') . 'Notes: ' . $ap['notes'];
+            $desc = $is_road_officer
+                ? 'You have been assigned a new report.'
+                : ($ap['report_title'] ?? '');
+            if (!$is_road_officer && !empty($ap['notes'])) {
+                $desc .= ($desc ? ' — ' : '') . 'Notes: ' . $ap['notes'];
+            } elseif ($is_road_officer && !empty($ap['report_title'])) {
+                $desc .= ' — ' . $ap['report_title'];
+            } elseif ($is_road_officer && !empty($ap['notes'])) {
+                $desc .= ' Notes: ' . $ap['notes'];
+            }
             $nc_push([
                 'id' => 'asg' . $ap['id'],
                 'ts' => $ap['assigned_at'],
                 'kind' => 'assignment',
                 'icon' => 'fa-user',
                 'color' => '#3b82f6',
-                'title' => 'Project assigned · ' . ($ap['report_code'] ?? ('#' . $ap['report_id'])),
-                'desc' => $desc ?: 'A project has been assigned to you.',
+                'title' => ($is_road_officer ? 'New assignment' : 'Project assigned') . ' · ' . ($ap['report_code'] ?? ('#' . $ap['report_id'])),
+                'desc' => $desc ?: 'You have been assigned a new report.',
                 'sub' => '',
                 'report_id' => $ap['report_code'] ?? ('#' . $ap['report_id']),
                 'status' => ['label' => 'Assigned', 'class' => 'nc-st-assigned'],
@@ -1998,7 +2102,7 @@ function notification_assignment_url(array $ap): string {
                 'kind' => 'change',
                 'icon' => $ok ? 'fa-check-circle' : 'fa-times-circle',
                 'color' => $ok ? '#10b981' : '#ef4444',
-                'title' => 'Change request ' . ($ok ? 'approved' : 'rejected'),
+                'title' => ($is_road_officer ? 'Change information request' : 'Change request') . ' ' . ($ok ? 'approved' : 'rejected'),
                 'desc' => $su['admin_notes'] ?: 'No additional notes from the admin.',
                 'sub' => '',
                 'report_id' => '',
@@ -2031,12 +2135,13 @@ function notification_assignment_url(array $ap): string {
     }
     // Unread badge counts only unread cards; read cards stay in the list. For
     // every other role every card is still unread, so this equals the total.
-    $nc_total = ($is_trans_role || $is_admin)
+    $nc_total = ($is_trans_role || $is_admin || $is_road_officer)
         ? count(array_filter($nc_feed, function ($item) { return $item['unread']; }))
         : count($nc_feed);
     ?>
 
     <div class="main-content">
+        <div class="nc-feed">
         <!-- Compact header -->
         <div class="nc-header">
             <div class="nc-header-top">
@@ -2137,6 +2242,7 @@ function notification_assignment_url(array $ap): string {
                 <?php endif; ?>
             <?php endforeach; ?>
         <?php endif; ?>
+        </div>
     </div>
 
     <script>

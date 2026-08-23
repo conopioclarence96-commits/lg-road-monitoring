@@ -64,6 +64,30 @@ try {
     $stmt->bind_param("isiis", $report_id, $report_type, $user_id, $_SESSION['user_id'], $notes);
     $stmt->execute();
     $assignment_id = $conn->insert_id;
+
+    // Road Monitoring Officers: file a targeted assignment notice so only the
+    // assigned officer is notified. Other roles keep always-on assignment cards.
+    if (($user['role'] ?? '') === 'road_monitoring_officer') {
+        try {
+            $officer = fetch_one("SELECT email FROM users WHERE id = ?", [$user_id], "i");
+            $officer_email = trim((string)($officer['email'] ?? ''));
+            if ($officer_email !== '') {
+                $msg = 'You have been assigned a new report.';
+                if ($notes !== '') {
+                    $msg .= ' Notes: ' . $notes;
+                }
+                $nstmt = $conn->prepare(
+                    "INSERT INTO report_notifications (report_id, type, message, recipient_email, recipient_role)
+                     VALUES (?, 'project_assignment', ?, ?, 'road_monitoring_officer')"
+                );
+                $nstmt->bind_param("iss", $report_id, $msg, $officer_email);
+                $nstmt->execute();
+                $nstmt->close();
+            }
+        } catch (Exception $e) {
+            error_log('Assignment notification error: ' . $e->getMessage());
+        }
+    }
     
     // Audit log
     log_audit_action($_SESSION['user_id'], "Assigned user to project", "Report ID: {$report_id}, User ID: {$user_id}, Assignment ID: {$assignment_id}");

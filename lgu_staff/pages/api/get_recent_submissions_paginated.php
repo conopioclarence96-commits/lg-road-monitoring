@@ -31,10 +31,12 @@ $road_only = in_array($_SESSION['role'] ?? '', ['road_ops_supervisor', 'road_mon
 // Creator Information (full name, contact number, email) in report details.
 $is_road_supervisor = ($_SESSION['role'] ?? '') === 'road_ops_supervisor';
 
-// Road Monitoring Officers see only the reports assigned to them by the
-// Road Operations Supervisor.
+// Road / Transportation Monitoring Officers see only the reports assigned to them.
 $is_road_monitoring_officer = ($_SESSION['role'] ?? '') === 'road_monitoring_officer';
-$assigned_to_user_id = $is_road_monitoring_officer ? (int)($_SESSION['user_id'] ?? 0) : null;
+$is_transport_monitoring_officer = ($_SESSION['role'] ?? '') === 'trans_monitoring_officer';
+$assigned_to_user_id = ($is_road_monitoring_officer || $is_transport_monitoring_officer)
+    ? (int)($_SESSION['user_id'] ?? 0)
+    : null;
 
 $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
 $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
@@ -183,7 +185,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
             }
         }
 
-        // Road Monitoring Officers see only the reports assigned to them.
+        // Road / Transportation Monitoring Officers see only the reports assigned to them.
         if ($assigned_to_user_id) {
             $reports = filter_reports_assigned_to_user($conn, $reports, $assigned_to_user_id);
         }

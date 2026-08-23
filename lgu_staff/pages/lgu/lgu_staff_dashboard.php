@@ -1222,6 +1222,28 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
         )";
     }
 
+    /**
+     * Road Monitoring Officer "My Assignments": same road scope as the
+     * monitoring page, but only Approved / In Progress (not Completed, etc.).
+     */
+    function road_monitoring_officer_my_assignments_sql(): string {
+        return " AND (
+            (ra.report_type = 'road_transportation_reports'
+             AND r.report_category = 'road'
+             AND r.status IN ('approved','in-progress')
+             AND (r.report_type = 'infrastructure_issue'
+                  OR r.created_by IS NULL OR r.created_by = 0
+                  OR r.cimm_sync_status IS NULL OR r.cimm_sync_status <> 'pushed'))
+            OR
+            (ra.report_type = 'road_maintenance_reports'
+             AND m.status = 'in-progress')
+            OR
+            (ra.report_type = 'cimm_verification_reports'
+             AND c.verification_status IN ('Approved','In Progress')
+             AND c.infrastructure = 'Roads')
+        )";
+    }
+
     function getMyAssignments($conn, $user_id, $road_only = false, $transport_only = false, $apply_road_visibility = true) {
         $rows = [];
         if (!$conn || $user_id <= 0) {
@@ -1334,6 +1356,748 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
         unset($ra);
 
         return ['count' => $count, 'items' => $rows];
+    }
+
+    /**
+     * Active assignments for one Road Monitoring Officer (filtered by user id).
+     * Only returns reports/projects that exist, are road-scoped, and match what
+     * the officer can open on road_transportation_monitoring.php.
+     */
+    function getRoadMonitoringOfficerAssignments($conn, $user_id) {
+        $user_id = (int)$user_id;
+        if (!$conn || $user_id <= 0) {
+            return ['count' => 0, 'items' => []];
+        }
+
+        $report_exists_filter = " AND (
+            (ra.report_type = 'road_transportation_reports' AND r.id IS NOT NULL AND r.report_category = 'road')
+            OR (ra.report_type = 'cimm_verification_reports' AND c.id IS NOT NULL AND c.infrastructure = 'Roads')
+            OR (ra.report_type = 'road_maintenance_reports' AND m.id IS NOT NULL)
+        )";
+
+        $assignment_sql = "
+            SELECT ra.*,
+                   r.report_id AS transport_code,
+                   r.title AS transport_title,
+                   r.status AS transport_status,
+                   r.priority AS transport_priority,
+                   c.reference_code AS cimm_code,
+                   c.cimm_req_id AS cimm_req_id,
+                   c.infrastructure AS cimm_title,
+                   c.priority AS cimm_priority,
+                   c.verification_status AS cimm_verification_status,
+                   c.resolution_status AS cimm_resolution_status,
+                   c.approval_status AS cimm_approval_status,
+                   m.report_id AS maintenance_code,
+                   m.title AS maintenance_title,
+                   m.status AS maintenance_status,
+                   m.priority AS maintenance_priority
+            FROM report_assignments ra
+            LEFT JOIN road_transportation_reports r
+                ON ra.report_id = r.id AND ra.report_type = 'road_transportation_reports'
+            LEFT JOIN cimm_verification_reports c
+                ON ra.report_id = c.id AND ra.report_type = 'cimm_verification_reports'
+            LEFT JOIN road_maintenance_reports m
+                ON ra.report_id = m.id AND ra.report_type = 'road_maintenance_reports'
+            WHERE ra.user_id = ?
+              AND ra.status = 'active'
+              AND (ra.report_type <> 'road_transportation_reports' OR r.report_category = 'road')"
+            . road_monitoring_officer_my_assignments_sql()
+            . $report_exists_filter . "
+            ORDER BY ra.assigned_at DESC
+            LIMIT 12
+        ";
+
+        $rows = [];
+        try {
+            $stmt = $conn->prepare($assignment_sql);
+            $stmt->bind_param('i', $user_id);
+            $stmt->execute();
+            $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+        } catch (Exception $e) {
+            error_log('getRoadMonitoringOfficerAssignments: ' . $e->getMessage());
+            $rows = [];
+        }
+
+        foreach ($rows as &$ra) {
+            if ($ra['report_type'] === 'cimm_verification_reports') {
+                $ra['report_code'] = $ra['cimm_code']
+                    ?: (!empty($ra['cimm_req_id']) ? 'REQ-' . $ra['cimm_req_id'] : null);
+                $ra['report_title'] = $ra['cimm_title'];
+                $ra['priority'] = $ra['cimm_priority'];
+                // Same field as Recent Submissions on road_transportation_monitoring.php.
+                $ra['report_status'] = $ra['cimm_verification_status'] ?? 'pending';
+                $ra['_source'] = 'cimm';
+            } elseif ($ra['report_type'] === 'road_maintenance_reports') {
+                $ra['report_code'] = $ra['maintenance_code'];
+                $ra['report_title'] = $ra['maintenance_title'];
+                $ra['priority'] = $ra['maintenance_priority'];
+                $ra['report_status'] = $ra['maintenance_status'];
+                $ra['_source'] = 'maintenance';
+            } else {
+                $ra['report_code'] = $ra['transport_code'];
+                $ra['report_title'] = $ra['transport_title'];
+                $ra['priority'] = $ra['transport_priority'];
+                $ra['report_status'] = $ra['transport_status'];
+                $ra['_source'] = 'transport';
+            }
+
+            $ra['report_code'] = $ra['report_code'] ?? ('#' . $ra['report_id']);
+            $ra['report_title'] = $ra['report_title'] ?? ('Assigned report #' . $ra['report_id']);
+            $ra['priority'] = $ra['priority'] ?? 'medium';
+            $ra['report_status'] = $ra['report_status'] ?? 'pending';
+        }
+        unset($ra);
+
+        return ['count' => count($rows), 'items' => $rows];
+    }
+
+    /** Deep-link a Road Monitoring Officer assignment on the monitoring page. */
+    function rmo_monitoring_focus_link(array $assignment): string {
+        $query = [
+            'focus_report_id' => (int)($assignment['report_id'] ?? 0),
+            'source' => (string)($assignment['_source'] ?? 'transport'),
+        ];
+        if (!empty($assignment['report_type'])) {
+            $query['report_type'] = (string)$assignment['report_type'];
+        }
+        return '../shared/road_transportation_monitoring.php?' . http_build_query($query);
+    }
+
+    /** Status badge for RMO My Assignments — mirrors road_transportation_monitoring.php. */
+    function rmo_panel_status_badge($status) {
+        $normalized = strtolower(str_replace(' ', '-', trim((string)($status ?: 'pending'))));
+        return dbStatusBadge($normalized);
+    }
+
+    /**
+     * Priority Tasks for one Road Monitoring Officer.
+     * Only returns reports/projects that currently appear on
+     * road_transportation_monitoring.php for that officer (matched by PK id +
+     * source table), so stale / unassigned / non-visible rows are excluded.
+     */
+    function getRoadMonitoringOfficerPriorityTasks($conn, $user_id) {
+        $user_id = (int)$user_id;
+        $rows = [];
+        if (!$conn || $user_id <= 0) {
+            return $rows;
+        }
+
+        // Same live-list visibility as getRecentSubmissions() for RMO:
+        // Approved / In Progress road transport + Roads CIMM, and an active
+        // assignment to this officer. IPMS rows are omitted unless they have
+        // an assignment row (report_assignments currently uses transport/CIMM).
+        $sql = "
+            SELECT * FROM (
+                SELECT r.id,
+                       r.report_id COLLATE utf8mb4_unicode_ci AS report_id,
+                       r.title COLLATE utf8mb4_unicode_ci AS title,
+                       r.status COLLATE utf8mb4_unicode_ci AS status,
+                       COALESCE(r.priority COLLATE utf8mb4_unicode_ci, 'medium') AS priority,
+                       r.created_at,
+                       'transport' AS src,
+                       'road_transportation_reports' AS report_type
+                FROM report_assignments ra
+                INNER JOIN road_transportation_reports r
+                    ON ra.report_id = r.id
+                   AND ra.report_type = 'road_transportation_reports'
+                WHERE ra.user_id = ?
+                  AND ra.status = 'active'
+                  AND r.report_category = 'road'
+                  AND r.status IN ('approved','in-progress')
+                  AND r.priority IN ('high','medium','low')
+                  AND (r.report_type = 'infrastructure_issue'
+                       OR r.created_by IS NULL OR r.created_by = 0
+                       OR r.cimm_sync_status IS NULL OR r.cimm_sync_status <> 'pushed'
+                       OR (r.report_source = 'local' AND r.created_by != 0))
+
+                UNION ALL
+
+                SELECT c.id,
+                       c.reference_code COLLATE utf8mb4_unicode_ci AS report_id,
+                       c.infrastructure COLLATE utf8mb4_unicode_ci AS title,
+                       c.verification_status COLLATE utf8mb4_unicode_ci AS status,
+                       COALESCE(c.priority COLLATE utf8mb4_unicode_ci, 'medium') AS priority,
+                       COALESCE(c.submitted_at, c.verified_at, c.synced_at, c.created_at) AS created_at,
+                       'cimm' AS src,
+                       'cimm_verification_reports' AS report_type
+                FROM report_assignments ra
+                INNER JOIN cimm_verification_reports c
+                    ON ra.report_id = c.id
+                   AND ra.report_type = 'cimm_verification_reports'
+                WHERE ra.user_id = ?
+                  AND ra.status = 'active'
+                  AND c.infrastructure = 'Roads'
+                  AND c.verification_status IN ('Approved','In Progress')
+                  AND COALESCE(c.priority, 'medium') IN ('high','medium','low')
+            ) AS rmo_priority
+            ORDER BY FIELD(priority,'high','medium','low'), created_at DESC
+            LIMIT 6
+        ";
+
+        try {
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param('ii', $user_id, $user_id);
+            $stmt->execute();
+            $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+        } catch (Exception $e) {
+            error_log('getRoadMonitoringOfficerPriorityTasks: ' . $e->getMessage());
+            $rows = [];
+        }
+
+        foreach ($rows as &$row) {
+            $row['id'] = (int)($row['id'] ?? 0);
+            $row['report_id'] = $row['report_id'] ?? ('#' . $row['id']);
+            $row['title'] = $row['title'] ?? ('Report #' . $row['id']);
+            $row['status'] = $row['status'] ?? 'pending';
+            $row['priority'] = $row['priority'] ?? 'medium';
+            $row['src'] = $row['src'] ?? 'transport';
+            $row['_source'] = $row['src'];
+            $row['report_type'] = $row['report_type'] ?? 'road_transportation_reports';
+        }
+        unset($row);
+
+        return $rows;
+    }
+
+    /**
+     * Recent Activity for one Road Monitoring Officer.
+     * Only that user's Progress Updates (report_updates), and only when the
+     * target report/project still appears on road_transportation_monitoring.php
+     * for them (matched by user_id + report PK / source table).
+     */
+    function getRoadMonitoringOfficerRecentActivity($conn, $user_id) {
+        $user_id = (int)$user_id;
+        $rows = [];
+        if (!$conn || $user_id <= 0) {
+            return $rows;
+        }
+
+        $sql = "
+            SELECT * FROM (
+                SELECT ru.id AS update_id,
+                       r.id,
+                       r.report_id COLLATE utf8mb4_unicode_ci AS report_id,
+                       r.title COLLATE utf8mb4_unicode_ci AS title,
+                       r.status COLLATE utf8mb4_unicode_ci AS status,
+                       COALESCE(r.priority COLLATE utf8mb4_unicode_ci, 'medium') AS priority,
+                       ru.created_at,
+                       ru.title COLLATE utf8mb4_unicode_ci AS update_title,
+                       ru.description AS update_desc,
+                       'transport' AS src,
+                       'road_transportation_reports' AS report_type
+                FROM report_updates ru
+                INNER JOIN road_transportation_reports r
+                    ON ru.report_id = r.id
+                INNER JOIN report_assignments ra
+                    ON ra.report_id = r.id
+                   AND ra.report_type = 'road_transportation_reports'
+                   AND ra.user_id = ?
+                   AND ra.status = 'active'
+                WHERE ru.user_id = ?
+                  AND r.report_category = 'road'
+                  AND r.status IN ('approved','in-progress')
+                  AND (r.report_type = 'infrastructure_issue'
+                       OR r.created_by IS NULL OR r.created_by = 0
+                       OR r.cimm_sync_status IS NULL OR r.cimm_sync_status <> 'pushed'
+                       OR (r.report_source = 'local' AND r.created_by != 0))
+
+                UNION ALL
+
+                SELECT ru.id AS update_id,
+                       c.id,
+                       c.reference_code COLLATE utf8mb4_unicode_ci AS report_id,
+                       c.infrastructure COLLATE utf8mb4_unicode_ci AS title,
+                       c.verification_status COLLATE utf8mb4_unicode_ci AS status,
+                       COALESCE(c.priority COLLATE utf8mb4_unicode_ci, 'medium') AS priority,
+                       ru.created_at,
+                       ru.title COLLATE utf8mb4_unicode_ci AS update_title,
+                       ru.description AS update_desc,
+                       'cimm' AS src,
+                       'cimm_verification_reports' AS report_type
+                FROM report_updates ru
+                INNER JOIN cimm_verification_reports c
+                    ON ru.report_id = c.id
+                INNER JOIN report_assignments ra
+                    ON ra.report_id = c.id
+                   AND ra.report_type = 'cimm_verification_reports'
+                   AND ra.user_id = ?
+                   AND ra.status = 'active'
+                WHERE ru.user_id = ?
+                  AND c.infrastructure = 'Roads'
+                  AND c.verification_status IN ('Approved','In Progress')
+                  AND NOT EXISTS (
+                      SELECT 1 FROM road_transportation_reports r2 WHERE r2.id = ru.report_id
+                  )
+            ) AS rmo_activity
+            ORDER BY created_at DESC
+            LIMIT 15
+        ";
+
+        try {
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param('iiii', $user_id, $user_id, $user_id, $user_id);
+            $stmt->execute();
+            $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+        } catch (Exception $e) {
+            error_log('getRoadMonitoringOfficerRecentActivity: ' . $e->getMessage());
+            $rows = [];
+        }
+
+        foreach ($rows as &$row) {
+            $row['id'] = (int)($row['id'] ?? 0);
+            $row['report_id'] = $row['report_id'] ?? ('#' . $row['id']);
+            $row['title'] = $row['title'] ?? ('Report #' . $row['id']);
+            // Surface the Progress Update post text under the report title.
+            $update_bits = array_filter([
+                trim((string)($row['update_title'] ?? '')),
+                trim((string)($row['update_desc'] ?? '')),
+            ]);
+            $row['update_desc'] = $update_bits ? implode(' — ', $update_bits) : '';
+            $row['status'] = $row['status'] ?? 'pending';
+            $row['priority'] = $row['priority'] ?? 'medium';
+            $row['src'] = $row['src'] ?? 'transport';
+            $row['_source'] = $row['src'];
+            $row['report_type'] = $row['report_type'] ?? 'road_transportation_reports';
+        }
+        unset($row);
+
+        return $rows;
+    }
+
+    /**
+     * Count Completed Projects for one Road Monitoring Officer — same set as
+     * completed_projects.php (getRecentSubmissions with completed_only +
+     * assigned_to_user_id): completed road transport, completed Roads CIMM,
+     * and completed IPMS projects that are actively assigned to this officer.
+     */
+    function countRoadMonitoringOfficerCompletedProjects($conn, $user_id) {
+        $user_id = (int)$user_id;
+        if (!$conn || $user_id <= 0) {
+            return 0;
+        }
+
+        $total = 0;
+        try {
+            $stmt = $conn->prepare("
+                SELECT COUNT(*) AS c
+                FROM report_assignments ra
+                INNER JOIN road_transportation_reports t
+                    ON ra.report_id = t.id
+                   AND ra.report_type = 'road_transportation_reports'
+                WHERE ra.user_id = ?
+                  AND ra.status = 'active'
+                  AND t.status = 'completed'
+                  AND t.report_category = 'road'
+                  AND (t.created_by IS NULL OR t.created_by = 0
+                       OR t.cimm_sync_status IS NULL OR t.cimm_sync_status <> 'pushed'
+                       OR (t.report_category IN ('transportation', 'road')
+                           AND t.report_source = 'local' AND t.created_by != 0))
+            ");
+            $stmt->bind_param('i', $user_id);
+            $stmt->execute();
+            $total += (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0);
+            $stmt->close();
+
+            $stmt = $conn->prepare("
+                SELECT COUNT(*) AS c
+                FROM report_assignments ra
+                INNER JOIN cimm_verification_reports c
+                    ON ra.report_id = c.id
+                   AND ra.report_type = 'cimm_verification_reports'
+                WHERE ra.user_id = ?
+                  AND ra.status = 'active'
+                  AND c.verification_status = 'Completed'
+                  AND c.infrastructure = 'Roads'
+            ");
+            $stmt->bind_param('i', $user_id);
+            $stmt->execute();
+            $total += (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0);
+            $stmt->close();
+
+            // IPMS completed rows only count when assigned under this officer
+            // (same assignment key shape as filter_reports_assigned_to_user).
+            $chk = $conn->query("SHOW TABLES LIKE 'ipms_road_projects'");
+            if ($chk && $chk->num_rows > 0) {
+                $stmt = $conn->prepare("
+                    SELECT COUNT(*) AS c
+                    FROM report_assignments ra
+                    INNER JOIN ipms_road_projects p
+                        ON ra.report_id = p.project_id
+                       AND ra.report_type IN ('ipms_road_projects', 'infrastructure')
+                    WHERE ra.user_id = ?
+                      AND ra.status = 'active'
+                      AND p.status = 'completed'
+                ");
+                if ($stmt) {
+                    $stmt->bind_param('i', $user_id);
+                    $stmt->execute();
+                    $total += (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0);
+                    $stmt->close();
+                }
+            }
+        } catch (Exception $e) {
+            error_log('countRoadMonitoringOfficerCompletedProjects: ' . $e->getMessage());
+        }
+
+        return $total;
+    }
+
+    /**
+     * High Priority count for Road Monitoring Officer — reports with
+     * priority = 'high' that currently appear in Active Monitoring Reports
+     * on road_transportation_monitoring.php for this officer (assigned +
+     * approved/in-progress road transport and Approved/In Progress CIMM).
+     */
+    function countRoadMonitoringOfficerHighPriority($conn, $user_id) {
+        $user_id = (int)$user_id;
+        if (!$conn || $user_id <= 0) {
+            return 0;
+        }
+
+        $total = 0;
+        try {
+            $stmt = $conn->prepare("
+                SELECT COUNT(*) AS c
+                FROM report_assignments ra
+                INNER JOIN road_transportation_reports t
+                    ON ra.report_id = t.id
+                   AND ra.report_type = 'road_transportation_reports'
+                WHERE ra.user_id = ?
+                  AND ra.status = 'active'
+                  AND t.priority = 'high'
+                  AND t.report_category = 'road'
+                  AND t.status IN ('approved','in-progress')
+                  AND (t.report_type = 'infrastructure_issue'
+                       OR t.created_by IS NULL OR t.created_by = 0
+                       OR t.cimm_sync_status IS NULL OR t.cimm_sync_status <> 'pushed'
+                       OR (t.report_source = 'local' AND t.created_by != 0))
+            ");
+            $stmt->bind_param('i', $user_id);
+            $stmt->execute();
+            $total += (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0);
+            $stmt->close();
+
+            $stmt = $conn->prepare("
+                SELECT COUNT(*) AS c
+                FROM report_assignments ra
+                INNER JOIN cimm_verification_reports c
+                    ON ra.report_id = c.id
+                   AND ra.report_type = 'cimm_verification_reports'
+                WHERE ra.user_id = ?
+                  AND ra.status = 'active'
+                  AND c.priority = 'high'
+                  AND c.infrastructure = 'Roads'
+                  AND c.verification_status IN ('Approved','In Progress')
+            ");
+            $stmt->bind_param('i', $user_id);
+            $stmt->execute();
+            $total += (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0);
+            $stmt->close();
+        } catch (Exception $e) {
+            error_log('countRoadMonitoringOfficerHighPriority: ' . $e->getMessage());
+        }
+
+        return $total;
+    }
+
+    /**
+     * Transportation Monitoring Officer "My Assignments": same transportation
+     * scope as road_transportation_monitoring.php (transport_only), but only
+     * Approved / In Progress — matching what Active Monitoring shows.
+     */
+    function transport_monitoring_officer_my_assignments_sql(): string {
+        return " AND ra.report_type = 'road_transportation_reports'
+                 AND r.id IS NOT NULL
+                 AND r.report_category = 'transportation'
+                 AND r.status IN ('approved','in-progress')
+                 AND (r.created_by IS NULL OR r.created_by = 0
+                      OR r.cimm_sync_status IS NULL OR r.cimm_sync_status <> 'pushed'
+                      OR (r.report_category = 'transportation' AND r.report_source = 'local' AND r.created_by != 0))";
+    }
+
+    /**
+     * Active assignments for one Transportation Monitoring Officer (user id).
+     * Only transportation reports that exist and appear on their monitoring page.
+     */
+    function getTransportMonitoringOfficerAssignments($conn, $user_id) {
+        $user_id = (int)$user_id;
+        if (!$conn || $user_id <= 0) {
+            return ['count' => 0, 'items' => []];
+        }
+
+        $assignment_sql = "
+            SELECT ra.*,
+                   r.report_id AS transport_code,
+                   r.title AS transport_title,
+                   r.status AS transport_status,
+                   r.priority AS transport_priority
+            FROM report_assignments ra
+            INNER JOIN road_transportation_reports r
+                ON ra.report_id = r.id AND ra.report_type = 'road_transportation_reports'
+            WHERE ra.user_id = ?
+              AND ra.status = 'active'
+              AND r.report_category = 'transportation'"
+            . transport_monitoring_officer_my_assignments_sql() . "
+            ORDER BY ra.assigned_at DESC
+            LIMIT 12
+        ";
+
+        $rows = [];
+        try {
+            $stmt = $conn->prepare($assignment_sql);
+            $stmt->bind_param('i', $user_id);
+            $stmt->execute();
+            $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+        } catch (Exception $e) {
+            error_log('getTransportMonitoringOfficerAssignments: ' . $e->getMessage());
+            $rows = [];
+        }
+
+        foreach ($rows as &$ra) {
+            $ra['report_code'] = $ra['transport_code'] ?? ('#' . $ra['report_id']);
+            $ra['report_title'] = $ra['transport_title'] ?? ('Assigned report #' . $ra['report_id']);
+            $ra['priority'] = $ra['transport_priority'] ?? 'medium';
+            $ra['report_status'] = $ra['transport_status'] ?? 'pending';
+            $ra['_source'] = 'transport';
+            $ra['report_type'] = 'road_transportation_reports';
+        }
+        unset($ra);
+
+        return ['count' => count($rows), 'items' => $rows];
+    }
+
+    /** Deep-link a Transportation Monitoring Officer assignment on the monitoring page. */
+    function tmo_monitoring_focus_link(array $assignment): string {
+        $query = [
+            'focus_report_id' => (int)($assignment['report_id'] ?? 0),
+            'source' => (string)($assignment['_source'] ?? 'transport'),
+        ];
+        if (!empty($assignment['report_type'])) {
+            $query['report_type'] = (string)$assignment['report_type'];
+        }
+        return '../shared/road_transportation_monitoring.php?' . http_build_query($query);
+    }
+
+    /** Status badge for TMO panels — same mapping as monitoring page. */
+    function tmo_panel_status_badge($status) {
+        $normalized = strtolower(str_replace(' ', '-', trim((string)($status ?: 'pending'))));
+        return dbStatusBadge($normalized);
+    }
+
+    /**
+     * Priority Tasks for one Transportation Monitoring Officer.
+     * Only transportation reports assigned to this user that currently appear
+     * on Active Monitoring (approved / in-progress).
+     */
+    function getTransportMonitoringOfficerPriorityTasks($conn, $user_id) {
+        $user_id = (int)$user_id;
+        $rows = [];
+        if (!$conn || $user_id <= 0) {
+            return $rows;
+        }
+
+        $sql = "
+            SELECT r.id,
+                   r.report_id COLLATE utf8mb4_unicode_ci AS report_id,
+                   r.title COLLATE utf8mb4_unicode_ci AS title,
+                   r.status COLLATE utf8mb4_unicode_ci AS status,
+                   COALESCE(r.priority COLLATE utf8mb4_unicode_ci, 'medium') AS priority,
+                   r.created_at,
+                   'transport' AS src,
+                   'road_transportation_reports' AS report_type
+            FROM report_assignments ra
+            INNER JOIN road_transportation_reports r
+                ON ra.report_id = r.id
+               AND ra.report_type = 'road_transportation_reports'
+            WHERE ra.user_id = ?
+              AND ra.status = 'active'
+              AND r.report_category = 'transportation'
+              AND r.status IN ('approved','in-progress')
+              AND r.priority IN ('high','medium','low')
+              AND (r.created_by IS NULL OR r.created_by = 0
+                   OR r.cimm_sync_status IS NULL OR r.cimm_sync_status <> 'pushed'
+                   OR (r.report_category = 'transportation' AND r.report_source = 'local' AND r.created_by != 0))
+            ORDER BY FIELD(r.priority,'high','medium','low'), r.created_at DESC
+            LIMIT 6
+        ";
+
+        try {
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param('i', $user_id);
+            $stmt->execute();
+            $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+        } catch (Exception $e) {
+            error_log('getTransportMonitoringOfficerPriorityTasks: ' . $e->getMessage());
+            $rows = [];
+        }
+
+        foreach ($rows as &$row) {
+            $row['id'] = (int)($row['id'] ?? 0);
+            $row['report_id'] = $row['report_id'] ?? ('#' . $row['id']);
+            $row['title'] = $row['title'] ?? ('Report #' . $row['id']);
+            $row['status'] = $row['status'] ?? 'pending';
+            $row['priority'] = $row['priority'] ?? 'medium';
+            $row['src'] = 'transport';
+            $row['_source'] = 'transport';
+            $row['report_type'] = 'road_transportation_reports';
+        }
+        unset($row);
+
+        return $rows;
+    }
+
+    /**
+     * Recent Activity for one Transportation Monitoring Officer.
+     * Only that user's Progress Updates on transportation reports still
+     * assigned to them and visible on Active Monitoring.
+     */
+    function getTransportMonitoringOfficerRecentActivity($conn, $user_id) {
+        $user_id = (int)$user_id;
+        $rows = [];
+        if (!$conn || $user_id <= 0) {
+            return $rows;
+        }
+
+        $sql = "
+            SELECT ru.id AS update_id,
+                   r.id,
+                   r.report_id COLLATE utf8mb4_unicode_ci AS report_id,
+                   r.title COLLATE utf8mb4_unicode_ci AS title,
+                   r.status COLLATE utf8mb4_unicode_ci AS status,
+                   COALESCE(r.priority COLLATE utf8mb4_unicode_ci, 'medium') AS priority,
+                   ru.created_at,
+                   ru.title COLLATE utf8mb4_unicode_ci AS update_title,
+                   ru.description AS update_desc,
+                   'transport' AS src,
+                   'road_transportation_reports' AS report_type
+            FROM report_updates ru
+            INNER JOIN road_transportation_reports r
+                ON ru.report_id = r.id
+            INNER JOIN report_assignments ra
+                ON ra.report_id = r.id
+               AND ra.report_type = 'road_transportation_reports'
+               AND ra.user_id = ?
+               AND ra.status = 'active'
+            WHERE ru.user_id = ?
+              AND r.report_category = 'transportation'
+              AND r.status IN ('approved','in-progress')
+              AND (r.created_by IS NULL OR r.created_by = 0
+                   OR r.cimm_sync_status IS NULL OR r.cimm_sync_status <> 'pushed'
+                   OR (r.report_category = 'transportation' AND r.report_source = 'local' AND r.created_by != 0))
+            ORDER BY ru.created_at DESC
+            LIMIT 15
+        ";
+
+        try {
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param('ii', $user_id, $user_id);
+            $stmt->execute();
+            $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+        } catch (Exception $e) {
+            error_log('getTransportMonitoringOfficerRecentActivity: ' . $e->getMessage());
+            $rows = [];
+        }
+
+        foreach ($rows as &$row) {
+            $row['id'] = (int)($row['id'] ?? 0);
+            $row['report_id'] = $row['report_id'] ?? ('#' . $row['id']);
+            $row['title'] = $row['title'] ?? ('Report #' . $row['id']);
+            $update_bits = array_filter([
+                trim((string)($row['update_title'] ?? '')),
+                trim((string)($row['update_desc'] ?? '')),
+            ]);
+            $row['update_desc'] = $update_bits ? implode(' — ', $update_bits) : '';
+            $row['status'] = $row['status'] ?? 'pending';
+            $row['priority'] = $row['priority'] ?? 'medium';
+            $row['src'] = 'transport';
+            $row['_source'] = 'transport';
+            $row['report_type'] = 'road_transportation_reports';
+        }
+        unset($row);
+
+        return $rows;
+    }
+
+    /**
+     * High Priority count for Transportation Monitoring Officer — assigned
+     * transportation reports with priority = high that appear on Active Monitoring.
+     */
+    function countTransportMonitoringOfficerHighPriority($conn, $user_id) {
+        $user_id = (int)$user_id;
+        if (!$conn || $user_id <= 0) {
+            return 0;
+        }
+
+        $total = 0;
+        try {
+            $stmt = $conn->prepare("
+                SELECT COUNT(*) AS c
+                FROM report_assignments ra
+                INNER JOIN road_transportation_reports t
+                    ON ra.report_id = t.id
+                   AND ra.report_type = 'road_transportation_reports'
+                WHERE ra.user_id = ?
+                  AND ra.status = 'active'
+                  AND t.priority = 'high'
+                  AND t.report_category = 'transportation'
+                  AND t.status IN ('approved','in-progress')
+                  AND (t.created_by IS NULL OR t.created_by = 0
+                       OR t.cimm_sync_status IS NULL OR t.cimm_sync_status <> 'pushed'
+                       OR (t.report_category = 'transportation' AND t.report_source = 'local' AND t.created_by != 0))
+            ");
+            $stmt->bind_param('i', $user_id);
+            $stmt->execute();
+            $total = (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0);
+            $stmt->close();
+        } catch (Exception $e) {
+            error_log('countTransportMonitoringOfficerHighPriority: ' . $e->getMessage());
+        }
+
+        return $total;
+    }
+
+    /**
+     * Completed Projects count for one Transportation Monitoring Officer —
+     * completed transportation reports actively assigned to this officer.
+     */
+    function countTransportMonitoringOfficerCompletedProjects($conn, $user_id) {
+        $user_id = (int)$user_id;
+        if (!$conn || $user_id <= 0) {
+            return 0;
+        }
+
+        $total = 0;
+        try {
+            $stmt = $conn->prepare("
+                SELECT COUNT(*) AS c
+                FROM report_assignments ra
+                INNER JOIN road_transportation_reports t
+                    ON ra.report_id = t.id
+                   AND ra.report_type = 'road_transportation_reports'
+                WHERE ra.user_id = ?
+                  AND ra.status = 'active'
+                  AND t.status = 'completed'
+                  AND t.report_category = 'transportation'
+                  AND (t.created_by IS NULL OR t.created_by = 0
+                       OR t.cimm_sync_status IS NULL OR t.cimm_sync_status <> 'pushed'
+                       OR (t.report_category = 'transportation' AND t.report_source = 'local' AND t.created_by != 0))
+            ");
+            $stmt->bind_param('i', $user_id);
+            $stmt->execute();
+            $total = (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0);
+            $stmt->close();
+        } catch (Exception $e) {
+            error_log('countTransportMonitoringOfficerCompletedProjects: ' . $e->getMessage());
+        }
+
+        return $total;
     }
 
     // Reports that Road Operations Supervisors assigned to monitoring officers
@@ -1498,7 +2262,9 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                 'title' => 'New assignment · ' . ($a['report_code'] ?? ('#' . $a['report_id'])),
                 'desc' => $a['report_title'] ?? 'A report has been assigned to you.',
                 'time' => $a['assigned_at'],
-                'link' => '../shared/road_transportation_monitoring.php?focus_report_id=' . (int)($a['report_id'] ?? 0) . '&source=' . rawurlencode($a['_source'] ?? 'transport'),
+                'link' => ($road_only && function_exists('rmo_monitoring_focus_link'))
+                    ? rmo_monitoring_focus_link($a)
+                    : '../shared/road_transportation_monitoring.php?focus_report_id=' . (int)($a['report_id'] ?? 0) . '&source=' . rawurlencode($a['_source'] ?? 'transport'),
             ];
         }
         if ($conn) {
@@ -1828,23 +2594,56 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
         return 'fa-road';
     }
 
-    $my_assign = getMyAssignments(
-        $conn,
-        $user_id,
-        $is_road_monitoring_officer,
-        $is_transport_monitoring_officer,
-        !$is_road_monitoring_officer
-    );
-    $my_assign_count = $my_assign['count'];
-    $my_assign_items = $my_assign['items'];
+    if ($is_road_monitoring_officer) {
+        $rmo_assign = getRoadMonitoringOfficerAssignments($conn, $user_id);
+        $my_assign_count = $rmo_assign['count'];
+        $my_assign_items = $rmo_assign['items'];
+    } elseif ($is_transport_monitoring_officer) {
+        $tmo_assign = getTransportMonitoringOfficerAssignments($conn, $user_id);
+        $my_assign_count = $tmo_assign['count'];
+        $my_assign_items = $tmo_assign['items'];
+    } else {
+        $my_assign = getMyAssignments(
+            $conn,
+            $user_id,
+            false,
+            false,
+            true
+        );
+        $my_assign_count = $my_assign['count'];
+        $my_assign_items = $my_assign['items'];
+    }
     $sup_assigned_reports = $is_road_supervisor
         ? getSupervisorAssignedReports($conn, null, true)
         : [];
     $awaiting_transport_reports = $is_trans_ops_supervisor ? getAwaitingTransportationReports($conn) : [];
-    $high_priority = getHighPriorityCount($conn, $is_road_monitoring_officer, $is_supervisor, $user_role);
+    if ($is_road_monitoring_officer) {
+        $high_priority = countRoadMonitoringOfficerHighPriority($conn, $user_id);
+    } elseif ($is_transport_monitoring_officer) {
+        $high_priority = countTransportMonitoringOfficerHighPriority($conn, $user_id);
+    } else {
+        $high_priority = getHighPriorityCount($conn, $is_road_monitoring_officer, $is_supervisor, $user_role);
+    }
     $awaiting_assign = getAwaitingAssignmentCount($conn, $is_supervisor, $user_role);
-    $activity_feed = getRecentActivityFeed($conn, $is_road_monitoring_officer, $is_supervisor, $is_transport_only_role, $is_transport_monitoring_officer ? $user_id : null);
-    $task_cards = getPriorityTaskCards($conn, $is_road_monitoring_officer, $is_supervisor, $user_role);
+    if ($is_road_monitoring_officer) {
+        $activity_feed = getRoadMonitoringOfficerRecentActivity($conn, $user_id);
+    } elseif ($is_transport_monitoring_officer) {
+        $activity_feed = getTransportMonitoringOfficerRecentActivity($conn, $user_id);
+    } else {
+        $activity_feed = getRecentActivityFeed($conn, $is_road_monitoring_officer, $is_supervisor, $is_transport_only_role, null);
+    }
+    if ($is_road_monitoring_officer) {
+        $task_cards = getRoadMonitoringOfficerPriorityTasks($conn, $user_id);
+    } elseif ($is_transport_monitoring_officer) {
+        $task_cards = getTransportMonitoringOfficerPriorityTasks($conn, $user_id);
+    } else {
+        $task_cards = getPriorityTaskCards($conn, $is_road_monitoring_officer, $is_supervisor, $user_role);
+    }
+    if ($is_road_monitoring_officer) {
+        $stats['completed_month'] = countRoadMonitoringOfficerCompletedProjects($conn, $user_id);
+    } elseif ($is_transport_monitoring_officer) {
+        $stats['completed_month'] = countTransportMonitoringOfficerCompletedProjects($conn, $user_id);
+    }
     $dash_notifs = getDashboardNotifications($conn, $user_id, $user_email, $user_role, $my_assign_items, $is_road_monitoring_officer);
     $dashboard_announcements = announcements_fetch_published($conn, 6);
     ?>
@@ -1928,7 +2727,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                     <div class="stat-desc">New submissions today</div>
                 </div>
             </div>
-            <?php if (!$is_transport_monitoring_officer): ?>
+            <?php if (!$is_transport_monitoring_officer && !$is_road_monitoring_officer): ?>
             <div class="stat-card" style="--sc:#eab308; animation-delay:.06s;">
                 <div class="stat-icon"><i class="fas fa-hourglass-half"></i></div>
                 <div>
@@ -1966,8 +2765,13 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                 <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
                 <div>
                     <div class="stat-number"><?php echo number_format($stats['completed_month']); ?></div>
-                    <div class="stat-label">Completed This Month</div>
-                    <div class="stat-desc">Finished work this month</div>
+                    <?php if ($is_road_monitoring_officer): ?>
+                        <div class="stat-label">Completed Projects</div>
+                        <div class="stat-desc">From Completed Projects</div>
+                    <?php else: ?>
+                        <div class="stat-label">Completed This Month</div>
+                        <div class="stat-desc">Finished work this month</div>
+                    <?php endif; ?>
                 </div>
             </div>
             <div class="stat-card" style="--sc:#ef4444; animation-delay:.22s;">
@@ -1975,7 +2779,11 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                 <div>
                     <div class="stat-number"><?php echo number_format($high_priority); ?></div>
                     <div class="stat-label">High Priority Reports</div>
-                    <div class="stat-desc">Requires immediate attention</div>
+                    <?php if ($is_road_monitoring_officer): ?>
+                        <div class="stat-desc">High priority in Active Monitoring</div>
+                    <?php else: ?>
+                        <div class="stat-desc">Requires immediate attention</div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -2053,7 +2861,15 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                         <span class="dsh-icon"><i class="fas fa-clock-rotate-left"></i></span>
                         <div>
                             <h3>Recent Activity</h3>
-                            <p><?php echo $is_supervisor ? 'Latest report updates' : 'Latest reports across the department'; ?></p>
+                            <p><?php
+                                if ($is_supervisor) {
+                                    echo 'Latest report updates';
+                                } elseif ($is_road_monitoring_officer || $is_transport_monitoring_officer) {
+                                    echo 'Your progress updates on assigned reports';
+                                } else {
+                                    echo 'Latest reports across the department';
+                                }
+                            ?></p>
                         </div>
                     </div>
                     <?php if (!$is_transport_only_role): ?>
@@ -2073,7 +2889,21 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                     <?php else: ?>
                         <?php foreach ($activity_feed as $act): ?>
                             <?php
-                                $act_link = '../shared/road_transportation_monitoring.php?focus_report_id=' . (int)($act['id'] ?? 0) . '&source=' . rawurlencode($act['src']);
+                                if ($is_road_monitoring_officer) {
+                                    $act_link = rmo_monitoring_focus_link([
+                                        'report_id' => (int)($act['id'] ?? 0),
+                                        '_source' => (string)($act['src'] ?? 'transport'),
+                                        'report_type' => (string)($act['report_type'] ?? ''),
+                                    ]);
+                                } elseif ($is_transport_monitoring_officer) {
+                                    $act_link = tmo_monitoring_focus_link([
+                                        'report_id' => (int)($act['id'] ?? 0),
+                                        '_source' => (string)($act['src'] ?? 'transport'),
+                                        'report_type' => (string)($act['report_type'] ?? ''),
+                                    ]);
+                                } else {
+                                    $act_link = '../shared/road_transportation_monitoring.php?focus_report_id=' . (int)($act['id'] ?? 0) . '&source=' . rawurlencode($act['src']);
+                                }
                                 $act_icon_color = '#3762c8';
                                 if ($act['src'] === 'maintenance') { $act_icon_color = '#f97316'; }
                                 if ($act['src'] === 'cimm') { $act_icon_color = '#8b5cf6'; }
@@ -2082,14 +2912,23 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                                 <span class="act-icon" style="background: <?php echo $act_icon_color; ?>;"><i class="fas <?php echo dbActivityIcon($act['src']); ?>"></i></span>
                                 <div class="act-body">
                                     <div class="act-title"><?php echo htmlspecialchars($act['title']); ?></div>
-                                    <?php if ($is_supervisor && !empty($act['update_desc'])): ?>
+                                    <?php if (($is_supervisor || $is_road_monitoring_officer || $is_transport_monitoring_officer) && !empty($act['update_desc'])): ?>
                                         <div class="act-desc"><?php echo htmlspecialchars($act['update_desc']); ?></div>
                                     <?php endif; ?>
                                     <div class="act-meta">
-                                        <?php $sb = dbStatusBadge($act['status']); $pb = dbPriorityBadge($act['priority']); ?>
+                                        <?php
+                                            if ($is_road_monitoring_officer) {
+                                                $sb = rmo_panel_status_badge($act['status']);
+                                            } elseif ($is_transport_monitoring_officer) {
+                                                $sb = tmo_panel_status_badge($act['status']);
+                                            } else {
+                                                $sb = dbStatusBadge($act['status']);
+                                            }
+                                            $pb = dbPriorityBadge($act['priority']);
+                                        ?>
                                         <span class="db-badge <?php echo $sb[1]; ?>"><?php echo $sb[0]; ?></span>
                                         <span class="db-badge <?php echo $pb[1]; ?>"><i class="fas <?php echo $pb[2]; ?>"></i> <?php echo $pb[0]; ?></span>
-                                        <span class="act-time"><i class="<?php echo $is_supervisor ? 'fas fa-pen-to-square' : 'far fa-clock'; ?>"></i> <?php echo $is_supervisor ? 'Updated ' : ''; ?><?php echo getTimeAgo($act['created_at']); ?></span>
+                                        <span class="act-time"><i class="<?php echo ($is_supervisor || $is_road_monitoring_officer || $is_transport_monitoring_officer) ? 'fas fa-pen-to-square' : 'far fa-clock'; ?>"></i> <?php echo ($is_supervisor || $is_road_monitoring_officer || $is_transport_monitoring_officer) ? 'Updated ' : ''; ?><?php echo getTimeAgo($act['created_at']); ?></span>
                                     </div>
                                 </div>
                             </a>
@@ -2124,12 +2963,32 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                                 $tsrc = $task['src'] === 'maintenance' ? '#f97316' : '#ef4444';
                                 if (strtolower($task['priority']) === 'medium') $tsrc = '#f59e0b';
                                 if (strtolower($task['priority']) === 'low') $tsrc = '#10b981';
-                                $tsb = dbStatusBadge($task['status']);
+                                if ($is_road_monitoring_officer) {
+                                    $tsb = rmo_panel_status_badge($task['status']);
+                                } elseif ($is_transport_monitoring_officer) {
+                                    $tsb = tmo_panel_status_badge($task['status']);
+                                } else {
+                                    $tsb = dbStatusBadge($task['status']);
+                                }
                                 $tpb = dbPriorityBadge($task['priority']);
-                                // CIMM tasks open in report management (they are
-                                // managed there); everything else opens the
-                                // monitoring page.
-                                if ($task['src'] === 'cimm') {
+                                if ($is_road_monitoring_officer) {
+                                    // RMO: only open reports that exist on the
+                                    // monitoring page, highlighted by PK id.
+                                    $task_link = rmo_monitoring_focus_link([
+                                        'report_id' => (int)($task['id'] ?? 0),
+                                        '_source' => (string)($task['src'] ?? 'transport'),
+                                        'report_type' => (string)($task['report_type'] ?? ''),
+                                    ]);
+                                } elseif ($is_transport_monitoring_officer) {
+                                    $task_link = tmo_monitoring_focus_link([
+                                        'report_id' => (int)($task['id'] ?? 0),
+                                        '_source' => (string)($task['src'] ?? 'transport'),
+                                        'report_type' => (string)($task['report_type'] ?? ''),
+                                    ]);
+                                } elseif ($task['src'] === 'cimm') {
+                                    // CIMM tasks open in report management (they are
+                                    // managed there); everything else opens the
+                                    // monitoring page.
                                     $task_link = '../admin/report_management.php?source=cimm&id=' . (int)($task['id'] ?? 0);
                                 } else {
                                     $task_link = '../shared/road_transportation_monitoring.php?focus_report_id=' . (int)($task['id'] ?? 0) . '&source=' . rawurlencode($task['src']);
@@ -2207,13 +3066,9 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                     <div class="asg-grid">
                         <?php foreach ($my_assign_items as $task): ?>
                             <?php
-                                $tsb = dbStatusBadge($task['report_status']);
+                                $tsb = tmo_panel_status_badge($task['report_status']);
                                 $tpb = dbPriorityBadge($task['priority']);
-                                if ($task['_source'] === 'cimm') {
-                                    $task_link = '../admin/report_management.php?source=cimm&id=' . (int)($task['report_id'] ?? 0);
-                                } else {
-                                    $task_link = '../shared/road_transportation_monitoring.php?focus_report_id=' . (int)($task['report_id'] ?? 0) . '&source=' . rawurlencode($task['_source'] ?? 'transport');
-                                }
+                                $task_link = tmo_monitoring_focus_link($task);
                             ?>
                             <div class="asg-card" style="--as:#0ea5e9;">
                                 <div class="asg-top">
@@ -2224,8 +3079,8 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                                     </div>
                                 </div>
                                 <div class="asg-badges">
-                                    <span class="db-badge <?php echo $tpb[1]; ?>"><i class="fas <?php echo $tpb[2]; ?>"></i> <?php echo $tpb[0]; ?></span>
                                     <span class="db-badge <?php echo $tsb[1]; ?>"><?php echo $tsb[0]; ?></span>
+                                    <span class="db-badge <?php echo $tpb[1]; ?>"><i class="fas <?php echo $tpb[2]; ?>"></i> <?php echo $tpb[0]; ?></span>
                                 </div>
                                 <div class="asg-foot">
                                     <span class="asg-date"><i class="far fa-calendar-alt"></i> <?php echo date('M d, Y', strtotime($task['assigned_at'])); ?></span>
@@ -2260,13 +3115,9 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                     <div class="asg-grid">
                         <?php foreach ($my_assign_items as $task): ?>
                             <?php
-                                $tsb = dbStatusBadge($task['report_status']);
+                                $tsb = rmo_panel_status_badge($task['report_status']);
                                 $tpb = dbPriorityBadge($task['priority']);
-                                if ($task['_source'] === 'cimm') {
-                                    $task_link = '../admin/report_management.php?source=cimm&id=' . (int)($task['report_id'] ?? 0);
-                                } else {
-                                    $task_link = '../shared/road_transportation_monitoring.php?focus_report_id=' . (int)($task['report_id'] ?? 0) . '&source=' . rawurlencode($task['_source'] ?? 'transport');
-                                }
+                                $task_link = rmo_monitoring_focus_link($task);
                             ?>
                             <div class="asg-card" style="--as:#7c3aed;">
                                 <div class="asg-top">
