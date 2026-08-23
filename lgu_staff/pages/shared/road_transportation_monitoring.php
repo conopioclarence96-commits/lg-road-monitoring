@@ -396,7 +396,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
         }
         }
 
-        // Road / Transportation Monitoring Officers see only the reports assigned to them.
+        // "Your Reports" for officers: keep only rows assigned to this user_id.
         if ($assigned_to_user_id) {
             $reports = filter_reports_assigned_to_user($conn, $reports, $assigned_to_user_id);
         }
@@ -1135,13 +1135,21 @@ $alerts = getActiveAlerts();
 $roads = getRoadStatus();
 $enhanced_stats = getEnhancedStats();
 $recent_fetch_limit = $your_reports_only ? 200 : 10;
+// Officers: assignment-to-me filter applies only for "Your Reports" (mine=1),
+// keyed by the logged-in user_id. Default list keeps the existing module
+// visibility (road_only / transport_only + active-assignment rules).
+$officer_assigned_user_id = null;
+if ($your_reports_only
+    && ($is_road_monitoring_officer || $is_transport_monitoring_officer)) {
+    $officer_assigned_user_id = (int)($_SESSION['user_id'] ?? 0);
+}
 $recent_reports = getRecentSubmissions(
     $recent_fetch_limit,
     $status_filter,
     'all',
     $is_transport_supervisor,
     $is_road_only_role,
-    ($is_road_monitoring_officer || $is_transport_monitoring_officer) ? (int)($_SESSION['user_id'] ?? 0) : null,
+    $officer_assigned_user_id,
     $is_completed_projects_view
 );
 
@@ -1243,7 +1251,20 @@ if ($focus_report_id > 0) {
 annotate_report_assignment_status($conn, $recent_reports);
 
 if (!empty($your_reports_only)) {
-    $recent_reports = rgmap_filter_reports_you_handle($conn, $recent_reports);
+    if ($is_road_monitoring_officer || $is_transport_monitoring_officer) {
+        // Officers: only reports actively assigned to THIS logged-in user_id.
+        $officer_uid = (int)($_SESSION['user_id'] ?? 0);
+        foreach ($recent_reports as &$__orr) {
+            if (empty($__orr['_source_table'])) {
+                $__orr['_source_table'] = rgmap_report_row_source_table($__orr);
+            }
+        }
+        unset($__orr);
+        $recent_reports = filter_reports_assigned_to_user($conn, $recent_reports, $officer_uid);
+    } else {
+        // Supervisors / admin: ownership via first assigned_by (unchanged).
+        $recent_reports = rgmap_filter_reports_you_handle($conn, $recent_reports);
+    }
     $recent_reports = array_slice($recent_reports, 0, 10);
 }
 

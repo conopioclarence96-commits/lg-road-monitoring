@@ -31,10 +31,13 @@ $road_only = in_array($_SESSION['role'] ?? '', ['road_ops_supervisor', 'road_mon
 // Creator Information (full name, contact number, email) in report details.
 $is_road_supervisor = ($_SESSION['role'] ?? '') === 'road_ops_supervisor';
 
-// Road / Transportation Monitoring Officers see only the reports assigned to them.
+// Road / Transportation Monitoring Officers: "Your Reports" (mine=1) filters to
+// reports assigned to this logged-in user_id. Default list is module-scoped only.
 $is_road_monitoring_officer = ($_SESSION['role'] ?? '') === 'road_monitoring_officer';
 $is_transport_monitoring_officer = ($_SESSION['role'] ?? '') === 'trans_monitoring_officer';
-$assigned_to_user_id = ($is_road_monitoring_officer || $is_transport_monitoring_officer)
+$your_reports_only = isset($_GET['mine']) && (string)$_GET['mine'] === '1';
+$assigned_to_user_id = ($your_reports_only
+    && ($is_road_monitoring_officer || $is_transport_monitoring_officer))
     ? (int)($_SESSION['user_id'] ?? 0)
     : null;
 
@@ -47,8 +50,6 @@ $completed_only = isset($_GET['completed_only']) && $_GET['completed_only'] === 
 if ($completed_only) {
     $status_filter = 'completed';
 }
-
-$your_reports_only = isset($_GET['mine']) && (string)$_GET['mine'] === '1';
 
 // Helper function to get recent submissions with pagination
 function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', $type_filter = 'all', $transport_only = false, $road_only = false, $assigned_to_user_id = null, $completed_only = false) {
@@ -187,7 +188,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
             }
         }
 
-        // Road / Transportation Monitoring Officers see only the reports assigned to them.
+        // "Your Reports" for officers: keep only rows assigned to this user_id.
         if ($assigned_to_user_id) {
             $reports = filter_reports_assigned_to_user($conn, $reports, $assigned_to_user_id);
         }
@@ -240,7 +241,18 @@ try {
     annotate_report_assignment_status($conn, $reports);
 
     if ($your_reports_only) {
-        $reports = rgmap_filter_reports_you_handle($conn, $reports);
+        if ($is_road_monitoring_officer || $is_transport_monitoring_officer) {
+            $officer_uid = (int)($_SESSION['user_id'] ?? 0);
+            foreach ($reports as &$__orr) {
+                if (empty($__orr['_source_table'])) {
+                    $__orr['_source_table'] = rgmap_report_row_source_table($__orr);
+                }
+            }
+            unset($__orr);
+            $reports = filter_reports_assigned_to_user($conn, $reports, $officer_uid);
+        } else {
+            $reports = rgmap_filter_reports_you_handle($conn, $reports);
+        }
         $reports = array_slice($reports, $offset, $limit);
     }
 
