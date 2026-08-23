@@ -15,6 +15,7 @@ $is_trans_role = in_array($user_role, ['trans_ops_supervisor', 'trans_monitoring
 $is_trans_officer = ($user_role === 'trans_monitoring_officer');
 $is_road_supervisor = ($user_role === 'road_ops_supervisor');
 $is_road_officer = ($user_role === 'road_monitoring_officer');
+$is_system_admin = ($user_role === 'system_admin');
 
 $conn->query("CREATE TABLE IF NOT EXISTS road_transportation_reports_archive LIKE road_transportation_reports");
 rgmap_ensure_restored_from_archive_column();
@@ -50,6 +51,57 @@ if ($is_trans_role && ($source_filter === 'cimm' || $source_filter === 'infrastr
     $source_filter = 'all';
 }
 
+// Staff Information Changes is admin-only (lives on change_requests, not report archives).
+if (!$is_system_admin && $source_filter === 'staff_info_changes') {
+    $source_filter = 'all';
+}
+
+$is_staff_info_archive = ($is_system_admin && $source_filter === 'staff_info_changes');
+if ($is_staff_info_archive && !in_array($status_filter, ['all', 'approved', 'rejected'], true)) {
+    $status_filter = 'all';
+}
+
+$staff_change_archives = [];
+$total_archives = 0;
+$archives = false;
+$archive_from_sql = '';
+$where_sql = '';
+
+if ($is_staff_info_archive) {
+    // Existing change_requests rows with final status — no new archive table.
+    $cr_where = ["cr.status IN ('approved', 'rejected')"];
+    if ($status_filter === 'approved' || $status_filter === 'rejected') {
+        $cr_where[] = "cr.status = '" . $conn->real_escape_string($status_filter) . "'";
+    }
+    if ($id_search !== '') {
+        $esc = $conn->real_escape_string($id_search);
+        $cr_where[] = "(CAST(cr.id AS CHAR) LIKE '%{$esc}%' OR u.full_name LIKE '%{$esc}%' OR u.email LIKE '%{$esc}%')";
+    }
+    $cr_where_sql = 'WHERE ' . implode(' AND ', $cr_where);
+    $order_dir = ($sort_order === 'earliest') ? 'ASC' : 'DESC';
+    try {
+        $cr_sql = "
+            SELECT cr.*, u.full_name AS user_name, u.email AS user_email,
+                   u.department AS user_department, u.address AS user_address,
+                   u.civil_status AS user_civil_status, u.birthday AS user_birthday,
+                   u.phone_number AS user_phone_number, u.id_file_path AS user_id_file,
+                   rv.full_name AS reviewed_by_name
+            FROM change_requests cr
+            LEFT JOIN users u ON cr.user_id = u.id
+            LEFT JOIN users rv ON cr.reviewed_by = rv.id
+            {$cr_where_sql}
+            ORDER BY COALESCE(cr.reviewed_at, cr.created_at) {$order_dir}
+        ";
+        $cr_res = $conn->query($cr_sql);
+        if ($cr_res) {
+            $staff_change_archives = $cr_res->fetch_all(MYSQLI_ASSOC);
+        }
+    } catch (Exception $e) {
+        error_log('archive.php staff change requests: ' . $e->getMessage());
+        $staff_change_archives = [];
+    }
+    $total_archives = count($staff_change_archives);
+} else {
 $include_cimm = !$is_trans_role;
 $include_ipms = !$is_trans_role;
 $archive_from_sql = rgmap_archive_union_sql($include_cimm, $include_ipms);
@@ -141,6 +193,14 @@ $order_dir = ($sort_order === 'earliest') ? 'ASC' : 'DESC';
 $count_result = $conn->query("SELECT COUNT(*) AS total FROM $archive_from_sql $where_sql");
 $total_archives = $count_result ? (int)$count_result->fetch_assoc()['total'] : 0;
 
+$sql = "SELECT * FROM $archive_from_sql $where_sql ORDER BY created_at $order_dir";
+$archives = $conn->query($sql);
+if ($archives === false) {
+    error_log('archive.php union query failed: ' . $conn->error);
+    $archives = $conn->query("SELECT *, 'road_transportation_reports_archive' AS archive_table, 'citizen' AS source_system FROM road_transportation_reports_archive WHERE 1 = 0");
+}
+} // end else (!staff_info_archive)
+
 $source_labels = [
     'lgu'            => 'LGU Monitoring',
     'citizen'        => 'Citizen',
@@ -148,12 +208,49 @@ $source_labels = [
     'infrastructure' => 'Infrastructure',
 ];
 
-$sql = "SELECT * FROM $archive_from_sql $where_sql ORDER BY created_at $order_dir";
-$archives = $conn->query($sql);
-if ($archives === false) {
-    error_log('archive.php union query failed: ' . $conn->error);
-    $archives = $conn->query("SELECT *, 'road_transportation_reports_archive' AS archive_table, 'citizen' AS source_system FROM road_transportation_reports_archive WHERE 1 = 0");
+$archive_summary = [
+    'total'     => (int)$total_archives,
+    'approved'  => 0,
+    'rejected'  => 0,
+    'completed' => 0,
+    'cancelled' => 0,
+];
+if ($is_staff_info_archive) {
+    foreach ($staff_change_archives as $__cr) {
+        $__st = strtolower((string)($__cr['status'] ?? ''));
+        if ($__st === 'approved') {
+            $archive_summary['approved']++;
+        } elseif ($__st === 'rejected') {
+            $archive_summary['rejected']++;
+        }
+    }
+} elseif (!empty($archive_from_sql)) {
+    try {
+        $sum_sql = "SELECT status, COUNT(*) AS c FROM {$archive_from_sql} {$where_sql} GROUP BY status";
+        $sum_res = $conn->query($sum_sql);
+        if ($sum_res) {
+            while ($sum_row = $sum_res->fetch_assoc()) {
+                $st = strtolower((string)($sum_row['status'] ?? ''));
+                $c = (int)($sum_row['c'] ?? 0);
+                if ($st === 'approved') {
+                    $archive_summary['approved'] = $c;
+                } elseif ($st === 'rejected') {
+                    $archive_summary['rejected'] = $c;
+                } elseif ($st === 'completed') {
+                    $archive_summary['completed'] = $c;
+                } elseif ($st === 'cancelled') {
+                    $archive_summary['cancelled'] = $c;
+                }
+            }
+        }
+    } catch (Exception $e) {
+        error_log('archive.php summary counts: ' . $e->getMessage());
+    }
 }
+
+$source_filter_label = $is_staff_info_archive
+    ? 'Staff Information Changes'
+    : ($source_labels[$source_filter] ?? ($source_filter === 'all' ? 'All Systems' : ucfirst($source_filter)));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     // trans_monitoring_officer and road_monitoring_officer are view-only
@@ -702,128 +799,285 @@ if (isset($_SESSION['archive_message'])) {
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
-        body { background: #f6f7fb; min-height: 100vh; color: #0f172a; }
+        body { background: #f5f3ee; min-height: 100vh; color: var(--text-primary); }
+        body.dark-mode { background: var(--bg-page); }
         html { scroll-behavior: smooth; }
-        .main-content {
+
+        .main-content.archive-dash {
             margin-left: 250px;
-            margin-right: 0;
-            max-width: none;
-            width: auto;
-            box-sizing: border-box;
-            padding: 36px 36px 56px;
+            padding: 28px 32px;
+            max-width: 100%;
+            overflow-x: hidden;
             position: relative;
             z-index: 1;
-            overflow-x: hidden;
-        }
-        .arch-shell {
-            width: 100%;
-            max-width: 1040px;
-            margin-left: auto;
-            margin-right: auto;
         }
 
-        .archive-header {
-            background: #fff;
-            padding: 20px 22px 18px;
-            border-radius: 16px;
-            margin-bottom: 14px;
-            box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
-            border: 1px solid #e9edf3;
+        .archive-dash .dashboard-header {
+            background: #f4f7fb;
+            border-radius: 14px;
+            padding: 20px 26px;
+            margin-bottom: 22px;
+            border: 1px solid #d5dce8;
+            box-shadow: var(--shadow-card);
             display: flex;
-            align-items: flex-start;
-            gap: 14px;
-        }
-        .archive-header .header-icon {
-            flex: 0 0 44px;
-            width: 44px;
-            height: 44px;
-            border-radius: 12px;
-            background: #eef2ff;
-            color: #4f46e5;
-            font-size: 18px;
-            display: flex;
+            justify-content: space-between;
             align-items: center;
-            justify-content: center;
-        }
-        .archive-header-text { flex: 1; min-width: 0; }
-        .archive-header h1 {
-            color: #0f172a;
-            font-size: 20px;
-            font-weight: 700;
-            margin-bottom: 4px;
-            letter-spacing: -0.02em;
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            gap: 16px;
             flex-wrap: wrap;
         }
-        .archive-header h1 i { display: none; }
-        .archive-header-count {
-            background: #4f46e5;
-            color: #fff;
-            font-size: 12px;
-            font-weight: 600;
-            padding: 2px 10px;
-            border-radius: 999px;
-            line-height: 1.6;
+        .archive-dash .welcome-text h1 {
+            font-size: 22px; font-weight: 700; color: var(--text-primary);
+            margin-bottom: 4px; display: flex; align-items: center; gap: 12px;
         }
-        .archive-header p { color: #64748b; font-size: 13px; margin: 0; line-height: 1.45; }
+        .archive-dash .header-icon {
+            width: 40px; height: 40px; border-radius: 10px;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: var(--color-primary-bg);
+            color: var(--color-primary); font-size: 16px;
+        }
+        .archive-dash .welcome-text p { color: var(--text-secondary); font-size: 13px; }
 
-        .archive-card {
-            background: #fff;
-            border-radius: 16px;
-            padding: 8px 10px 12px;
-            box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
-            border: 1px solid #e9edf3;
+        .summary-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 22px;
+        }
+        .summary-card {
+            background: #f4f7fb;
+            border-radius: 14px;
+            padding: 18px 18px 16px;
+            border: 1px solid #d5dce8;
+            position: relative;
+            overflow: hidden;
+            box-shadow: var(--shadow-card);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .summary-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 22px rgba(30, 60, 114, 0.12);
+        }
+        .summary-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 4px;
+        }
+        .summary-card.blue::before { background: #1e3c72; }
+        .summary-card.amber::before { background: #d97706; }
+        .summary-card.emerald::before { background: #059669; }
+        .summary-card.rose::before { background: #e11d48; }
+        .summary-card.violet::before { background: #4c1d95; }
+        .summary-card .card-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 10px;
+        }
+        .summary-card .card-icon {
+            width: 42px; height: 42px; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center; font-size: 16px;
+        }
+        .summary-card.blue .card-icon { background: rgba(55,98,200,0.14); color: #3762c8; }
+        .summary-card.amber .card-icon { background: rgba(217,119,6,0.18); color: #b45309; }
+        .summary-card.emerald .card-icon { background: rgba(5,150,105,0.18); color: #047857; }
+        .summary-card.rose .card-icon { background: rgba(225,29,72,0.16); color: #be123c; }
+        .summary-card.violet .card-icon { background: rgba(76,29,149,0.16); color: #4c1d95; }
+        .summary-card .card-value {
+            font-size: 28px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.03em;
+        }
+        .summary-card .card-label {
+            font-size: 12px; color: var(--text-secondary); font-weight: 600; margin-top: 2px;
+        }
+
+        .filters-section {
+            background: #f4f7fb;
+            border-radius: 14px;
+            padding: 18px 20px;
+            border: 1px solid #d5dce8;
+            box-shadow: var(--shadow-card);
+            margin-bottom: 20px;
             position: relative;
             overflow: hidden;
         }
-        .archive-card::before { display: none; }
-        .archive-card-header {
-            display: flex; justify-content: space-between; align-items: center;
-            margin: 0 0 8px;
-            padding: 12px 12px 10px;
-            background: transparent;
-            border-bottom: 1px solid #eef2f7;
+        .filters-section::after {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 4px;
+            background: #3762c8;
         }
-        .archive-card-title {
-            font-size: 12px; font-weight: 700; color: #64748b;
-            display: flex; align-items: center; gap: 8px;
-            text-transform: uppercase; letter-spacing: 0.06em;
+        .filters-section-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 14px;
         }
-        .archive-card-title > i {
-            width: 26px; height: 26px; border-radius: 8px;
+        .filters-section-title .title-icon {
+            width: 28px; height: 28px; border-radius: 8px;
             display: inline-flex; align-items: center; justify-content: center;
+            background: var(--color-primary-bg);
+            color: var(--color-primary);
+            font-size: 12px;
+        }
+        .filter-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: flex-end;
+        }
+        .filter-group > div {
+            flex: 1;
+            min-width: 150px;
+        }
+        .filter-group > div.filter-actions {
+            flex: 0 0 auto;
+            min-width: 0;
+        }
+        .filter-group .form-label {
+            display: block;
             font-size: 11px;
-            background: #eef2ff;
-            color: #4f46e5;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
         }
-        .archive-badge {
-            background: #eef1f6; color: #64748b;
-            padding: 2px 9px; border-radius: 999px;
-            font-size: 11px; font-weight: 700;
-            text-transform: none; letter-spacing: 0;
+        .filter-select {
+            width: 100%;
+            padding: 9px 12px;
+            border: 1px solid #d5dce8;
+            border-radius: 10px;
+            font-size: 13px;
+            font-family: 'Poppins', sans-serif;
+            background: #fff;
+            color: var(--text-primary);
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
+        .filter-select:focus {
+            outline: none;
+            border-color: #3762c8;
+            box-shadow: 0 0 0 3px rgba(55, 98, 200, 0.15);
+        }
+        .btn-secondary-custom {
+            padding: 9px 14px;
+            border-radius: 10px;
+            border: 1px solid #d5dce8;
+            background: #fff;
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-family: 'Poppins', sans-serif;
+            transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+        }
+        .btn-secondary-custom:hover {
+            background: var(--color-primary-bg);
+            border-color: #3762c8;
+            color: #3762c8;
+        }
+
+        .workflow-card {
+            background: #f4f7fb;
+            border-radius: 14px;
+            padding: 0 0 12px;
+            border: 1px solid #d5dce8;
+            box-shadow: var(--shadow-card);
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 24px;
+        }
+        .workflow-card.panel-archive::after {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 4px;
+            background: #1e3c72;
+        }
+        .workflow-card.panel-staff::after { background: #4c1d95; }
+        .workflow-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin: 0 0 12px;
+            padding: 14px 18px 14px 20px;
+            border-bottom: 1px solid var(--border-light);
+            background: rgba(30, 60, 114, 0.08);
+        }
+        .workflow-card.panel-staff .workflow-header { background: rgba(76, 29, 149, 0.10); }
+        .workflow-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e3c72;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .workflow-card.panel-staff .workflow-title { color: #4c1d95; }
+        .workflow-title .title-icon {
+            width: 30px; height: 30px; border-radius: 9px;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 13px; flex-shrink: 0;
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+            color: #fff;
+        }
+        .workflow-card.panel-staff .title-icon {
+            background: linear-gradient(135deg, #7c3aed, #4c1d95);
+        }
+        .workflow-badge {
+            background: #1e3c72;
+            color: #fff;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .workflow-card.panel-staff .workflow-badge { background: #4c1d95; }
+        .workflow-content {
+            padding: 4px 14px 8px 18px;
+            max-height: none;
+        }
+
         .archive-item {
-            display: flex; align-items: flex-start; gap: 14px;
-            padding: 16px 14px; margin-bottom: 8px;
-            background: #fff; border-radius: 14px;
-            border: 1px solid #e9edf3;
-            border-left: 4px solid #4f46e5;
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            padding: 16px 14px;
+            margin-bottom: 10px;
+            background: #f8fafc;
+            border-radius: 12px;
+            border: 1px solid #d5dce8;
+            border-left: 4px solid #3762c8;
             transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
         }
         .archive-item:last-child { margin-bottom: 0; }
         .archive-item:hover {
             transform: translateY(-1px);
-            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
-            border-color: #e2e8f0;
-            border-left-color: #4f46e5;
-        }
-        .archive-icon {
-            width: 40px; height: 40px;
+            box-shadow: 0 8px 22px rgba(30, 60, 114, 0.10);
+            border-color: #c5d0e0;
             background: #f1f5f9;
-            border-radius: 11px; display: flex; align-items: center; justify-content: center;
-            color: #64748b; font-size: 15px; flex-shrink: 0;
+        }
+        .archive-item.status-approved { border-left-color: #059669; }
+        .archive-item.status-completed { border-left-color: #059669; }
+        .archive-item.status-rejected { border-left-color: #e11d48; }
+        .archive-item.status-cancelled { border-left-color: #64748b; }
+        .archive-item.status-pending { border-left-color: #d97706; }
+        .archive-item.status-in-progress { border-left-color: #3762c8; }
+        .archive-icon {
+            width: 42px; height: 42px;
+            background: var(--color-primary-bg);
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            color: var(--color-primary);
+            font-size: 15px;
+            flex-shrink: 0;
         }
         .archive-content { flex: 1; min-width: 0; }
         .archive-title-row {
@@ -831,65 +1085,70 @@ if (isset($_SESSION['archive_message'])) {
             gap: 12px; margin-bottom: 8px; flex-wrap: wrap;
         }
         .archive-title {
-            font-size: 15px; font-weight: 600; color: #0f172a;
+            font-size: 15px; font-weight: 600; color: var(--text-primary);
             line-height: 1.35; margin: 0; flex: 1; min-width: 180px;
         }
         .archive-meta { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
         .meta-item {
             display: inline-flex; align-items: center; gap: 5px;
-            font-size: 12px; color: #64748b;
-            background: #f8fafc; border: 1px solid #eef2f7;
+            font-size: 12px; color: var(--text-secondary);
+            background: #f4f7fb; border: 1px solid #d5dce8;
             padding: 4px 10px; border-radius: 999px;
         }
-        .meta-item i { color: #94a3b8; font-size: 11px; }
+        .meta-item i { color: #3762c8; font-size: 11px; }
         .archive-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
 
         .btn-view, .btn-restore, .btn-delete-forever, .btn-export {
-            padding: 8px 14px; border: none; border-radius: 9px; font-size: 12px; font-weight: 600;
+            padding: 8px 14px; border: none; border-radius: 8px; font-size: 12px; font-weight: 600;
             cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
-            transition: background 0.2s, box-shadow 0.2s, transform 0.2s, border-color 0.2s;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
             font-family: 'Poppins', sans-serif; text-decoration: none;
         }
+        .btn-view:hover, .btn-restore:hover, .btn-delete-forever:hover { transform: translateY(-1px); }
         .btn-view {
-            background: #4f46e5; color: white;
-            box-shadow: 0 2px 8px rgba(79, 70, 229, 0.22);
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(30, 60, 114, 0.3);
         }
-        .btn-view:hover { background: #4338ca; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(79,70,229,0.3); }
+        .btn-view:hover { filter: brightness(1.06); color: #fff; }
         .btn-restore {
-            background: #16a34a; color: white;
-            box-shadow: 0 2px 6px rgba(22, 163, 74, 0.2);
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
         }
-        .btn-restore:hover { background: #15803d; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(40,167,69,0.28); }
+        .btn-restore:hover { filter: brightness(1.06); color: #fff; }
         .btn-delete-forever {
-            background: #fff; color: #dc2626; border: 1px solid #fecaca;
-            box-shadow: none;
+            background: #fff;
+            color: #e11d48;
+            border: 1px solid #fecdd3;
         }
-        .btn-delete-forever:hover { background: #fef2f2; border-color: #fca5a5; transform: translateY(-1px); }
+        .btn-delete-forever:hover { background: #fff1f2; }
         .btn-export {
-            background: #fff; color: #0284c7; border: 1px solid #bae6fd;
+            background: #fff;
+            color: #0369a1;
+            border: 1px solid #bae6fd;
         }
-        .btn-export:hover { background: #f0f9ff; border-color: #7dd3fc; transform: translateY(-1px); }
 
         .notification {
             position: fixed; top: 20px; right: 20px; padding: 14px 18px; border-radius: 10px;
             color: white; font-weight: 500; z-index: 10000; animation: slideIn 0.3s ease;
             box-shadow: 0 8px 24px rgba(0,0,0,0.18);
         }
-        .notification.success { background: #16a34a; }
-        .notification.error { background: #dc2626; }
+        .notification.success { background: #059669; }
+        .notification.error { background: #e11d48; }
         @keyframes slideIn {
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
         }
-        .empty-state { text-align: center; padding: 64px 24px; color: #94a3b8; }
+        .empty-state { text-align: center; padding: 64px 24px; color: var(--text-muted); }
         .empty-state i {
             width: 64px; height: 64px; border-radius: 18px;
             display: inline-flex; align-items: center; justify-content: center;
-            font-size: 26px; margin-bottom: 16px; color: #94a3b8;
-            background: #f1f5f9; border: 1px solid #e9edf3;
+            font-size: 26px; margin-bottom: 16px; color: var(--color-primary);
+            background: var(--color-primary-bg); border: 1px solid #d5dce8;
         }
-        .empty-state p { font-size: 14px; color: #64748b; margin: 0; }
-        .empty-state-sub { font-size: 12px; color: #94a3b8; margin-top: 6px; }
+        .empty-state p { font-size: 14px; color: var(--text-secondary); margin: 0; }
+        .empty-state-sub { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
 
         /* Modal */
         .modal-overlay {
@@ -1311,86 +1570,77 @@ if (isset($_SESSION['archive_message'])) {
             background: rgba(255,255,255,0.15) !important;
         }
 
-        /* Dark mode — high-contrast readable text */
-        body.dark-mode { background: #12141a !important; color: #e4e6ea; }
-        body.dark-mode .archive-header,
-        body.dark-mode .archive-card,
-        body.dark-mode .filters-section {
-            background: #1a1d24 !important;
-            border-color: #2d323b !important;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35) !important;
+        /* Dark mode — match other admin dashboards */
+        body.dark-mode { background: var(--bg-page) !important; color: var(--text-primary); }
+        body.dark-mode .archive-dash .dashboard-header,
+        body.dark-mode .summary-card,
+        body.dark-mode .filters-section,
+        body.dark-mode .workflow-card {
+            background: #1c2432 !important;
+            border-color: rgba(147, 179, 224, 0.22) !important;
+            box-shadow: none !important;
         }
-        body.dark-mode .archive-header .header-icon {
-            background: rgba(129, 140, 248, 0.2) !important;
-            color: #a5b4fc !important;
+        body.dark-mode .archive-dash .header-icon {
+            background: rgba(55, 98, 200, 0.22) !important;
+            color: #93c5fd !important;
         }
-        body.dark-mode .archive-header h1,
-        body.dark-mode .archive-card-title,
+        body.dark-mode .archive-dash .welcome-text h1,
         body.dark-mode .archive-title,
+        body.dark-mode .workflow-title,
+        body.dark-mode .summary-card .card-value,
         body.dark-mode .modal-header h2,
         body.dark-mode .detail-label,
         body.dark-mode .rm-modal-title {
             color: #e4e6ea !important;
         }
-        body.dark-mode .archive-header-count {
-            background: #6366f1 !important;
-            color: #fff !important;
-        }
-        body.dark-mode .archive-header p,
+        body.dark-mode .archive-dash .welcome-text p,
+        body.dark-mode .summary-card .card-label,
         body.dark-mode .meta-item,
-        body.dark-mode .meta-item i,
-        body.dark-mode .empty-state,
         body.dark-mode .empty-state p,
         body.dark-mode .empty-state-sub,
         body.dark-mode .detail-value,
-        body.dark-mode .modal-close,
-        body.dark-mode .filter-group .form-label {
+        body.dark-mode .filter-group .form-label,
+        body.dark-mode .filters-section-title {
             color: #b0b7c3 !important;
         }
-        body.dark-mode .archive-card-header {
-            background: transparent !important;
-            border-color: #2d323b !important;
-        }
-        body.dark-mode .archive-card-title > i {
-            background: rgba(129, 140, 248, 0.18) !important;
-            color: #a5b4fc !important;
-        }
-        body.dark-mode .archive-badge {
-            background: rgba(148, 163, 184, 0.18) !important;
-            color: #94a3b8 !important;
+        body.dark-mode .workflow-header {
+            background: rgba(255,255,255,0.03) !important;
+            border-color: rgba(147, 179, 224, 0.22) !important;
         }
         body.dark-mode .archive-item {
-            background: #1a1d24 !important;
-            border-color: #2d323b !important;
-            border-left-color: #6366f1 !important;
+            background: rgba(255, 255, 255, 0.04) !important;
+            border-color: rgba(147, 179, 224, 0.18) !important;
         }
         body.dark-mode .archive-item:hover {
-            background: #22262e !important;
-            border-color: #3b4453 !important;
+            background: rgba(255, 255, 255, 0.07) !important;
             box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35) !important;
         }
         body.dark-mode .archive-icon {
-            background: rgba(148, 163, 184, 0.12) !important;
-            color: #94a3b8 !important;
+            background: rgba(55, 98, 200, 0.2) !important;
+            color: #93c5fd !important;
         }
         body.dark-mode .meta-item {
-            background: #22262e !important;
-            border-color: #2d323b !important;
+            background: #1c2432 !important;
+            border-color: rgba(147, 179, 224, 0.18) !important;
         }
+        body.dark-mode .meta-item i { color: #93c5fd !important; }
         body.dark-mode .empty-state i {
-            color: #6b7280 !important;
-            background: #22262e !important;
-            border-color: #2d323b !important;
+            color: #93c5fd !important;
+            background: rgba(55, 98, 200, 0.18) !important;
+            border-color: rgba(147, 179, 224, 0.22) !important;
         }
-        body.dark-mode .btn-view { background: #6366f1 !important; color: #fff !important; }
-        body.dark-mode .btn-restore { background: #16a34a !important; color: #fff !important; }
+        body.dark-mode .btn-view {
+            background: linear-gradient(135deg, #3762c8, #1e3c72) !important;
+            color: #fff !important;
+        }
+        body.dark-mode .btn-restore {
+            background: linear-gradient(135deg, #10b981, #059669) !important;
+            color: #fff !important;
+        }
         body.dark-mode .btn-delete-forever {
             background: #22262e !important;
             color: #fca5a5 !important;
             border: 1px solid #7f1d1d !important;
-        }
-        body.dark-mode .btn-delete-forever:hover {
-            background: rgba(220, 38, 38, 0.15) !important;
         }
         body.dark-mode .btn-export {
             background: #22262e !important;
@@ -1399,13 +1649,13 @@ if (isset($_SESSION['archive_message'])) {
         }
         body.dark-mode .modal-content,
         body.dark-mode .rm-modal-content {
-            background: #1a1d24 !important;
-            border-color: #2d323b !important;
+            background: #1c2432 !important;
+            border-color: rgba(147, 179, 224, 0.22) !important;
         }
         body.dark-mode .modal-header,
         body.dark-mode .rm-modal-header {
-            background: #1a1d24 !important;
-            border-color: #2d323b !important;
+            background: #1c2432 !important;
+            border-color: rgba(147, 179, 224, 0.22) !important;
         }
         body.dark-mode .modal-close,
         body.dark-mode .rm-modal-close {
@@ -1417,7 +1667,7 @@ if (isset($_SESSION['archive_message'])) {
             background: rgba(220, 53, 69, 0.2) !important;
             color: #fca5a5 !important;
         }
-        body.dark-mode .detail-row { border-color: #2d323b !important; }
+        body.dark-mode .detail-row { border-color: rgba(147, 179, 224, 0.18) !important; }
         body.dark-mode .rm-modal-report-id { color: #93c5fd !important; }
         body.dark-mode .filter-select {
             background: #22262e !important;
@@ -1426,7 +1676,7 @@ if (isset($_SESSION['archive_message'])) {
             color-scheme: dark;
         }
         body.dark-mode .filter-select option {
-            background: #1a1d24;
+            background: #1c2432;
             color: #e4e6ea;
         }
         body.dark-mode .btn-secondary-custom {
@@ -1435,90 +1685,14 @@ if (isset($_SESSION['archive_message'])) {
             border: 1px solid #374151 !important;
         }
 
-        /* Filters section */
-        .filters-section {
-            background: #fff;
-            border-radius: 16px;
-            padding: 16px 18px;
-            border: 1px solid #e9edf3;
-            box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
-            margin-bottom: 14px !important;
-            position: relative;
-            overflow: visible;
-        }
-        .filters-section::before { display: none; }
-        .filter-group {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            align-items: flex-end;
-        }
-        .filter-group > div {
-            flex: 1;
-            min-width: 150px;
-        }
-        .filter-group > div.filter-actions {
-            flex: 0 0 auto;
-            min-width: 0;
-        }
-        .filter-group .form-label {
-            display: block;
-            font-size: 11px;
-            font-weight: 600;
-            color: #64748b;
-            margin-bottom: 6px;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-        }
-        .filter-select {
-            width: 100%;
-            padding: 9px 12px;
-            border: 1px solid #e9edf3;
-            border-radius: 10px;
-            font-size: 13px;
-            font-family: 'Poppins', sans-serif;
-            background: #fff;
-            color: #0f172a;
-            transition: border-color 0.2s, box-shadow 0.2s;
-            cursor: pointer;
-            appearance: auto;
-            -webkit-appearance: auto;
-        }
-        .filter-select:focus {
-            border-color: #4f46e5;
-            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
-            outline: none;
-        }
-        .btn-secondary-custom {
-            padding: 9px 16px;
-            background: #fff;
-            color: #475569;
-            border: 1px solid #e9edf3;
-            border-radius: 10px;
-            font-size: 13px;
-            font-weight: 600;
-            font-family: 'Poppins', sans-serif;
-            cursor: pointer;
-            transition: background 0.2s, border-color 0.2s, transform 0.2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            width: auto;
-            justify-content: center;
-            white-space: nowrap;
-        }
-        .btn-secondary-custom:hover {
-            background: #f8fafc;
-            border-color: #cbd5e1;
-            transform: translateY(-1px);
-            box-shadow: none;
-        }
         .source-badge {
             display: inline-block;
             padding: 2px 10px;
             border-radius: 12px;
             font-size: 11px;
             font-weight: 600;
+            background: var(--color-primary-bg);
+            color: var(--color-primary);
         }
         .source-transport,
         .source-maintenance,
@@ -1526,8 +1700,8 @@ if (isset($_SESSION['archive_message'])) {
         .source-citizen,
         .source-cimm,
         .source-infrastructure {
-            background: #eef1f6;
-            color: #475569;
+            background: var(--color-primary-bg);
+            color: var(--color-primary);
         }
         .status-badge {
             display: inline-block;
@@ -1537,19 +1711,247 @@ if (isset($_SESSION['archive_message'])) {
             font-weight: 600;
             text-transform: capitalize;
         }
-        .status-completed,
-        .status-approved,
-        .status-pending,
-        .status-in-progress,
-        .status-rejected,
-        .status-cancelled {
-            background: #eef1f6;
+        .status-badge.status-completed,
+        .status-badge.status-approved {
+            background: rgba(5, 150, 105, 0.14);
+            color: #047857;
+        }
+        .status-badge.status-pending {
+            background: rgba(217, 119, 6, 0.16);
+            color: #b45309;
+        }
+        .status-badge.status-in-progress {
+            background: rgba(55, 98, 200, 0.14);
+            color: #3762c8;
+        }
+        .status-badge.status-rejected {
+            background: rgba(225, 29, 72, 0.14);
+            color: #be123c;
+        }
+        .status-badge.status-cancelled {
+            background: rgba(100, 116, 139, 0.16);
             color: #475569;
         }
 
+        /* Staff change request Review modal (view-only archive) */
+        #staffChangeArchiveModal.scr-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 10050;
+            background: rgba(15, 23, 42, 0.45);
+            align-items: center;
+            justify-content: center;
+            padding: 24px 12px;
+        }
+        #staffChangeArchiveModal .scr-modal-content {
+            background: #f4f7fb;
+            border-radius: 14px;
+            max-width: 560px;
+            width: 92vw;
+            max-height: calc(100vh - 48px);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: var(--shadow-lg);
+            border: 1px solid #d5dce8;
+        }
+        #staffChangeArchiveModal .scr-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 20px;
+            border-bottom: 1px solid #e5e7eb;
+            background: #f8fafc;
+        }
+        #staffChangeArchiveModal .scr-modal-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 15px;
+            margin: 0;
+            color: #0f172a;
+        }
+        #staffChangeArchiveModal .scr-modal-title-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 9px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--color-primary-bg);
+            color: var(--color-primary);
+            font-size: 13px;
+        }
+        #staffChangeArchiveModal .scr-modal-close {
+            border: none;
+            background: transparent;
+            font-size: 24px;
+            line-height: 1;
+            color: #64748b;
+            cursor: pointer;
+        }
+        #staffChangeArchiveModal .scr-modal-body {
+            padding: 16px 20px;
+            overflow-y: auto;
+            min-height: 0;
+            flex: 1 1 auto;
+        }
+        #staffChangeArchiveModal .scr-modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 14px 20px;
+            border-top: 1px solid #e5e7eb;
+            background: #f8fafc;
+        }
+        #staffChangeArchiveModal .scr-staff-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid #e5e7eb;
+            margin-bottom: 16px;
+        }
+        #staffChangeArchiveModal .scr-staff-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+            flex-shrink: 0;
+            box-shadow: 0 4px 12px rgba(30, 60, 114, 0.3);
+        }
+        #staffChangeArchiveModal .scr-staff-name {
+            font-size: 15px;
+            font-weight: 700;
+            color: #0f172a;
+        }
+        #staffChangeArchiveModal .scr-staff-date {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 2px;
+        }
+        #staffChangeArchiveModal .scr-section {
+            background: #f8fafc;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 14px;
+            margin-bottom: 12px;
+        }
+        #staffChangeArchiveModal .scr-section.scr-requested {
+            background: var(--color-primary-bg);
+            border-color: #d5dce8;
+        }
+        #staffChangeArchiveModal .scr-section-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: #475569;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        #staffChangeArchiveModal .scr-compare-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        #staffChangeArchiveModal .scr-compare-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        #staffChangeArchiveModal .scr-compare-label {
+            font-size: 10px;
+            font-weight: 700;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        #staffChangeArchiveModal .scr-compare-old,
+        #staffChangeArchiveModal .scr-compare-new {
+            font-size: 12px;
+            padding: 8px 12px;
+            border-radius: 8px;
+        }
+        #staffChangeArchiveModal .scr-compare-old {
+            color: #64748b;
+            background: #f1f5f9;
+            border-left: 3px solid #cbd5e1;
+        }
+        #staffChangeArchiveModal .scr-compare-new {
+            color: #0f172a;
+            background: rgba(55, 98, 200, 0.12);
+            border-left: 3px solid #3762c8;
+            font-weight: 500;
+        }
+        #staffChangeArchiveModal .scr-compare-new.no-change {
+            color: #94a3b8;
+            background: #f1f5f9;
+            border-left-color: #cbd5e1;
+            font-weight: 400;
+        }
+        #staffChangeArchiveModal .scr-media-preview img {
+            max-width: 100%;
+            max-height: 140px;
+            border-radius: 8px;
+            display: block;
+        }
+        #staffChangeArchiveModal .scr-media-label {
+            display: block;
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 6px;
+        }
+        #staffChangeArchiveModal .scr-status-line {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            margin-top: 8px;
+        }
+        #staffChangeArchiveModal .scr-btn-close {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            background: #64748b;
+            color: #fff;
+        }
+        body.dark-mode #staffChangeArchiveModal .scr-modal-content,
+        body.dark-mode #staffChangeArchiveModal .scr-modal-header,
+        body.dark-mode #staffChangeArchiveModal .scr-modal-footer {
+            background: #1c2432;
+            border-color: rgba(147, 179, 224, 0.22);
+        }
+        body.dark-mode #staffChangeArchiveModal .scr-modal-title,
+        body.dark-mode #staffChangeArchiveModal .scr-staff-name { color: #e4e6ea; }
+        body.dark-mode #staffChangeArchiveModal .scr-section {
+            background: rgba(255,255,255,0.03);
+            border-color: rgba(147, 179, 224, 0.22);
+        }
+        body.dark-mode #staffChangeArchiveModal .scr-section.scr-requested {
+            background: rgba(99, 102, 241, 0.12);
+        }
+        @media (max-width: 640px) {
+            #staffChangeArchiveModal .scr-compare-grid { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 1100px) {
+            .summary-row { grid-template-columns: repeat(2, 1fr); }
+        }
         @media (max-width: 768px) {
-            .main-content { margin-left: 0; padding: 20px 14px 40px; }
-            .arch-shell { max-width: 100%; }
+            .main-content.archive-dash { margin-left: 0; padding: 20px 14px 40px; }
+            .summary-row { grid-template-columns: 1fr; }
+            .archive-dash .dashboard-header { flex-direction: column; align-items: flex-start; }
             .archive-meta { gap: 6px; }
             .detail-row { flex-direction: column; }
             .detail-label { width: 100%; margin-bottom: 5px; }
@@ -1562,32 +1964,96 @@ if (isset($_SESSION['archive_message'])) {
 <body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
     <?php include '../../includes/sidebar_nav.php'; ?>
 
-    <div class="main-content">
-        <div class="arch-shell">
-        <div class="archive-header">
-            <div class="header-icon"><i class="fas fa-archive"></i></div>
-            <div class="archive-header-text">
+    <div class="main-content archive-dash">
+        <div class="dashboard-header">
+            <div class="welcome-text">
                 <h1>
+                    <span class="header-icon"><i class="fas fa-archive"></i></span>
                     Archive
-                    <span class="archive-header-count"><?php echo (int)$total_archives; ?></span>
                 </h1>
-                <p>Browse archived reports — filter by status or source, restore, or permanently remove.</p>
+                <p><?php echo $is_staff_info_archive
+                    ? 'Approved and rejected staff information change requests.'
+                    : 'Browse archived reports — filter by status or source, restore, or permanently remove.'; ?></p>
             </div>
+        </div>
+
+        <div class="summary-row">
+            <div class="summary-card blue">
+                <div class="card-top">
+                    <div class="card-icon"><i class="fas fa-box-archive"></i></div>
+                </div>
+                <div class="card-value"><?php echo (int)$archive_summary['total']; ?></div>
+                <div class="card-label"><?php echo $is_staff_info_archive ? 'Total Requests' : 'Total Archived'; ?></div>
+            </div>
+            <?php if ($is_staff_info_archive): ?>
+            <div class="summary-card emerald">
+                <div class="card-top">
+                    <div class="card-icon"><i class="fas fa-circle-check"></i></div>
+                </div>
+                <div class="card-value"><?php echo (int)$archive_summary['approved']; ?></div>
+                <div class="card-label">Approved</div>
+            </div>
+            <div class="summary-card rose">
+                <div class="card-top">
+                    <div class="card-icon"><i class="fas fa-circle-xmark"></i></div>
+                </div>
+                <div class="card-value"><?php echo (int)$archive_summary['rejected']; ?></div>
+                <div class="card-label">Rejected</div>
+            </div>
+            <div class="summary-card violet">
+                <div class="card-top">
+                    <div class="card-icon"><i class="fas fa-user-edit"></i></div>
+                </div>
+                <div class="card-value" style="font-size:16px;line-height:1.3;padding-top:6px;">Staff Info</div>
+                <div class="card-label">Category</div>
+            </div>
+            <?php else: ?>
+            <div class="summary-card emerald">
+                <div class="card-top">
+                    <div class="card-icon"><i class="fas fa-circle-check"></i></div>
+                </div>
+                <div class="card-value"><?php echo (int)$archive_summary['completed']; ?></div>
+                <div class="card-label">Completed</div>
+            </div>
+            <div class="summary-card rose">
+                <div class="card-top">
+                    <div class="card-icon"><i class="fas fa-ban"></i></div>
+                </div>
+                <div class="card-value"><?php echo (int)$archive_summary['rejected']; ?></div>
+                <div class="card-label">Rejected</div>
+            </div>
+            <div class="summary-card amber">
+                <div class="card-top">
+                    <div class="card-icon"><i class="fas fa-sitemap"></i></div>
+                </div>
+                <div class="card-value" style="font-size:15px;line-height:1.3;padding-top:6px;"><?php echo htmlspecialchars($source_filter_label); ?></div>
+                <div class="card-label">Source Filter</div>
+            </div>
+            <?php endif; ?>
         </div>
 
         <!-- Filters -->
         <div class="filters-section">
+            <div class="filters-section-title">
+                <span class="title-icon"><i class="fas fa-filter"></i></span>
+                Filters
+            </div>
             <div class="filter-group">
                 <div>
                     <label class="form-label" for="statusFilter">Status</label>
                     <select class="filter-select" id="statusFilter" onchange="filterReports()">
                         <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
+                        <?php if ($is_staff_info_archive): ?>
+                        <option value="approved" <?php echo $status_filter === 'approved' ? 'selected' : ''; ?>>Approved</option>
+                        <option value="rejected" <?php echo $status_filter === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
+                        <?php else: ?>
                         <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending</option>
                         <option value="approved" <?php echo $status_filter === 'approved' ? 'selected' : ''; ?>>Approved</option>
                         <option value="in-progress" <?php echo $status_filter === 'in-progress' ? 'selected' : ''; ?>>In Progress</option>
                         <option value="completed" <?php echo $status_filter === 'completed' ? 'selected' : ''; ?>>Completed</option>
                         <option value="rejected" <?php echo $status_filter === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
                         <option value="cancelled" <?php echo $status_filter === 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
+                        <?php endif; ?>
                     </select>
                 </div>
                 <div>
@@ -1600,6 +2066,9 @@ if (isset($_SESSION['archive_message'])) {
                         <option value="cimm" <?php echo $source_filter === 'cimm' ? 'selected' : ''; ?>>CIMM</option>
                         <option value="infrastructure" <?php echo $source_filter === 'infrastructure' ? 'selected' : ''; ?>>Infrastructure</option>
                         <?php endif; ?>
+                        <?php if ($is_system_admin): ?>
+                        <option value="staff_info_changes" <?php echo $source_filter === 'staff_info_changes' ? 'selected' : ''; ?>>Staff Information Changes</option>
+                        <?php endif; ?>
                     </select>
                 </div>
                 <div>
@@ -1610,8 +2079,8 @@ if (isset($_SESSION['archive_message'])) {
                     </select>
                 </div>
                 <div>
-                    <label class="form-label" for="idSearch">Search ID</label>
-                    <input type="text" class="filter-select" id="idSearch" placeholder="Report ID…" value="<?php echo htmlspecialchars($id_search); ?>" onkeyup="if(event.key === 'Enter') filterReports()">
+                    <label class="form-label" for="idSearch"><?php echo $is_staff_info_archive ? 'Search' : 'Search ID'; ?></label>
+                    <input type="text" class="filter-select" id="idSearch" placeholder="<?php echo $is_staff_info_archive ? 'Name, email, or request ID…' : 'Report ID…'; ?>" value="<?php echo htmlspecialchars($id_search); ?>" onkeyup="if(event.key === 'Enter') filterReports()">
                 </div>
                 <div class="filter-actions">
                     <label class="form-label">&nbsp;</label>
@@ -1622,16 +2091,73 @@ if (isset($_SESSION['archive_message'])) {
             </div>
         </div>
 
-        <div class="archive-card">
-            <div class="archive-card-header">
-                <h3 class="archive-card-title">
-                    <i class="fas fa-folder-open"></i>
-                    Archived Reports
-                    <span class="archive-badge"><?php echo (int)$total_archives; ?></span>
+        <div class="workflow-card <?php echo $is_staff_info_archive ? 'panel-staff' : 'panel-archive'; ?>">
+            <div class="workflow-header">
+                <h3 class="workflow-title">
+                    <span class="title-icon"><i class="fas <?php echo $is_staff_info_archive ? 'fa-user-edit' : 'fa-folder-open'; ?>"></i></span>
+                    <?php echo $is_staff_info_archive ? 'Staff Information Changes' : 'Archived Reports'; ?>
                 </h3>
+                <span class="workflow-badge"><?php echo (int)$total_archives; ?></span>
             </div>
+            <div class="workflow-content">
 
-            <?php if ($archives && $archives->num_rows > 0): ?>
+            <?php if ($is_staff_info_archive): ?>
+                <?php if (!empty($staff_change_archives)): ?>
+                    <?php foreach ($staff_change_archives as $cr):
+                        $status_slug = strtolower((string)($cr['status'] ?? ''));
+                        $reviewed_display = !empty($cr['reviewed_at'])
+                            ? date('M d, Y · g:i A', strtotime($cr['reviewed_at']))
+                            : (!empty($cr['created_at']) ? date('M d, Y · g:i A', strtotime($cr['created_at'])) : '—');
+                        $req_data = json_decode($cr['requested_data'] ?? '{}', true);
+                        if (!is_array($req_data)) { $req_data = []; }
+                        $change_labels = [];
+                        foreach (['full_name' => 'Name', 'email' => 'Email', 'address' => 'Address', 'civil_status' => 'Civil Status', 'birthday' => 'Birthday', 'phone_number' => 'Phone'] as $fk => $fl) {
+                            if (!empty($req_data[$fk])) { $change_labels[] = $fl; }
+                        }
+                        if (!empty($req_data['new_password']) || !empty($req_data['new_password_hash'])) { $change_labels[] = 'Password'; }
+                        if (!empty($req_data['profile_picture'])) { $change_labels[] = 'Profile picture'; }
+                        if (!empty($req_data['id_file_path'])) { $change_labels[] = 'ID photo'; }
+                    ?>
+                    <div class="archive-item status-<?php echo htmlspecialchars($status_slug); ?>">
+                        <div class="archive-icon">
+                            <i class="fas fa-user-edit"></i>
+                        </div>
+                        <div class="archive-content">
+                            <div class="archive-title-row">
+                                <h4 class="archive-title"><?php echo htmlspecialchars($cr['user_name'] ?? 'Unknown Staff'); ?></h4>
+                                <span class="status-badge status-<?php echo htmlspecialchars($status_slug); ?>"><?php echo htmlspecialchars(ucfirst($status_slug)); ?></span>
+                            </div>
+                            <div class="archive-meta">
+                                <span class="meta-item"><i class="fas fa-hashtag"></i> CR-<?php echo (int)$cr['id']; ?></span>
+                                <span class="meta-item"><i class="fas fa-envelope"></i> <?php echo htmlspecialchars($cr['user_email'] ?? '—'); ?></span>
+                                <?php if (!empty($cr['user_department'])): ?>
+                                <span class="meta-item"><i class="fas fa-building"></i> <?php echo htmlspecialchars($cr['user_department']); ?></span>
+                                <?php endif; ?>
+                                <span class="meta-item"><i class="fas fa-calendar"></i> <?php echo htmlspecialchars($reviewed_display); ?></span>
+                                <?php if (!empty($cr['reviewed_by_name'])): ?>
+                                <span class="meta-item"><i class="fas fa-user-check"></i> <?php echo htmlspecialchars($cr['reviewed_by_name']); ?></span>
+                                <?php endif; ?>
+                                <span class="meta-item"><i class="fas fa-pen"></i> <?php echo htmlspecialchars(!empty($change_labels) ? implode(', ', $change_labels) : 'Staff info change'); ?></span>
+                                <span class="meta-item"><i class="fas fa-sitemap"></i>
+                                    <span class="source-badge">Staff Information Changes</span>
+                                </span>
+                            </div>
+                            <div class="archive-actions">
+                                <button type="button" class="btn-view" onclick="reviewStaffChangeArchive(<?php echo (int)$cr['id']; ?>)">
+                                    <i class="fas fa-clipboard-check"></i> Review
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                <div class="empty-state">
+                    <i class="fas fa-user-edit"></i>
+                    <p>No archived staff change requests</p>
+                    <p class="empty-state-sub">Approved or rejected staff information changes will appear here.</p>
+                </div>
+                <?php endif; ?>
+            <?php elseif ($archives && $archives->num_rows > 0): ?>
                 <?php while ($row = $archives->fetch_assoc()):
                     $status_slug = strtolower(str_replace('_', '-', (string)($row['status'] ?? '')));
                     $created_display = !empty($row['created_at']) ? date('M d, Y · g:i A', strtotime($row['created_at'])) : '—';
@@ -1692,7 +2218,7 @@ if (isset($_SESSION['archive_message'])) {
                     <p class="empty-state-sub">Try adjusting filters or check back after reports are archived.</p>
                 </div>
             <?php endif; ?>
-        </div>
+            </div>
         </div>
     </div>
 
@@ -1759,6 +2285,46 @@ if (isset($_SESSION['archive_message'])) {
         </div>
     </div>
 
+    <!-- Staff Information Change Review (view-only) -->
+    <div id="staffChangeArchiveModal" class="scr-modal" onclick="if(event.target===this)closeStaffChangeArchiveModal()">
+        <div class="scr-modal-content">
+            <div class="scr-modal-header">
+                <h2 class="scr-modal-title">
+                    <span class="scr-modal-title-icon"><i class="fas fa-clipboard-check"></i></span>
+                    Review Change Request
+                </h2>
+                <button type="button" class="scr-modal-close" onclick="closeStaffChangeArchiveModal()">&times;</button>
+            </div>
+            <div class="scr-modal-body">
+                <div class="scr-staff-header">
+                    <div class="scr-staff-avatar" id="scrStaffAvatar">S</div>
+                    <div>
+                        <div class="scr-staff-name" id="scrStaffName">Staff Name</div>
+                        <div class="scr-staff-date" id="scrStaffDate">Submitted on --</div>
+                        <div class="scr-status-line" id="scrStatusLine"></div>
+                    </div>
+                </div>
+                <div class="scr-section">
+                    <div class="scr-section-title"><i class="fas fa-user"></i> Staff Profile</div>
+                    <div class="scr-compare-grid" id="scrCurrentGrid"></div>
+                </div>
+                <div class="scr-section scr-requested">
+                    <div class="scr-section-title"><i class="fas fa-pen"></i> Requested Changes</div>
+                    <div class="scr-compare-grid" id="scrRequestedGrid"></div>
+                </div>
+                <div class="scr-section" id="scrReasonSection" style="display:none;">
+                    <div class="scr-section-title"><i class="fas fa-comment"></i> Reason / Notes</div>
+                    <div id="scrReasonText" class="scr-compare-old">—</div>
+                </div>
+            </div>
+            <div class="scr-modal-footer">
+                <button type="button" class="scr-btn-close" onclick="closeStaffChangeArchiveModal()">
+                    <i class="fas fa-times"></i> Close
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Hidden timeline container used by the existing progress-updates export -->
     <div id="updatesTimeline" style="display:none;"></div>
 
@@ -1780,6 +2346,120 @@ if (isset($_SESSION['archive_message'])) {
     <script src="../../js/progress-updates-common.js?v=<?php echo filemtime(__DIR__ . '/../../js/progress-updates-common.js'); ?>"></script>
 
     <script>
+        var staffChangeArchiveData = <?php echo json_encode($staff_change_archives ?: []); ?>;
+
+        function escapeScr(str) {
+            if (str === null || str === undefined || str === '') return 'N/A';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function reviewStaffChangeArchive(requestId) {
+            var cr = (staffChangeArchiveData || []).find(function(r) {
+                return String(r.id) === String(requestId);
+            });
+            if (!cr) return;
+
+            var data = {};
+            try { data = JSON.parse(cr.requested_data || '{}') || {}; } catch (e) { data = {}; }
+
+            var initials = (cr.user_name || 'S').split(' ').map(function(w) { return w.charAt(0); }).join('').substring(0, 2).toUpperCase();
+            document.getElementById('scrStaffAvatar').textContent = initials || 'S';
+            document.getElementById('scrStaffName').textContent = cr.user_name || 'Unknown Staff';
+
+            var submitted = cr.created_at ? new Date(cr.created_at) : null;
+            var submittedText = (submitted && !isNaN(submitted))
+                ? submitted.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                : '—';
+            document.getElementById('scrStaffDate').textContent = 'Submitted on ' + submittedText;
+
+            var status = String(cr.status || '').toLowerCase();
+            var statusLabel = status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown';
+            var reviewed = cr.reviewed_at ? new Date(cr.reviewed_at) : null;
+            var reviewedText = (reviewed && !isNaN(reviewed))
+                ? reviewed.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                : '';
+            var statusHtml = '<span class="status-badge status-' + escapeScr(status) + '">' + escapeScr(statusLabel) + '</span>';
+            if (cr.reviewed_by_name) {
+                statusHtml += '<span class="meta-item"><i class="fas fa-user-check"></i> ' + escapeScr(cr.reviewed_by_name) + '</span>';
+            }
+            if (reviewedText) {
+                statusHtml += '<span class="meta-item"><i class="fas fa-calendar"></i> ' + escapeScr(reviewedText) + '</span>';
+            }
+            document.getElementById('scrStatusLine').innerHTML = statusHtml;
+
+            var currentFields = [
+                { label: 'Full Name', value: cr.user_name },
+                { label: 'Email', value: cr.user_email },
+                { label: 'Address', value: cr.user_address },
+                { label: 'Civil Status', value: cr.user_civil_status ? (cr.user_civil_status.charAt(0).toUpperCase() + cr.user_civil_status.slice(1)) : 'N/A' },
+                { label: 'Birthday', value: cr.user_birthday },
+                { label: 'Contact Number', value: cr.user_phone_number }
+            ];
+            var currentHtml = '';
+            currentFields.forEach(function(f) {
+                currentHtml += '<div class="scr-compare-item"><span class="scr-compare-label">' + f.label + '</span><div class="scr-compare-old">' + escapeScr(f.value || 'N/A') + '</div></div>';
+            });
+            if (cr.user_id_file) {
+                var curExt = String(cr.user_id_file).split('.').pop().toLowerCase();
+                if (['jpg', 'jpeg', 'png', 'gif', 'webp'].indexOf(curExt) !== -1) {
+                    currentHtml += '<div class="scr-compare-item" style="grid-column:1/-1;"><span class="scr-compare-label">Current ID Photo</span><div class="scr-media-preview"><img src="../../' + escapeScr(cr.user_id_file) + '" alt="Current ID"><span class="scr-media-label">Uploaded ID file</span></div></div>';
+                }
+            }
+            document.getElementById('scrCurrentGrid').innerHTML = currentHtml;
+
+            function requestedCell(label, value, changed) {
+                var cls = changed ? 'scr-compare-new' : 'scr-compare-new no-change';
+                return '<div class="scr-compare-item"><span class="scr-compare-label">' + label + '</span><div class="' + cls + '">' + value + '</div></div>';
+            }
+
+            var reqHtml = '';
+            var nameChanged = !!(data.full_name && String(data.full_name).trim() !== '');
+            reqHtml += requestedCell('Full Name', escapeScr(data.full_name || 'N/A'), nameChanged);
+            reqHtml += requestedCell('Email', escapeScr(data.email || 'N/A'), !!(data.email && String(data.email).trim() !== ''));
+            reqHtml += requestedCell('Address', escapeScr(data.address || 'N/A'), !!(data.address && String(data.address).trim() !== ''));
+            var csDisplay = data.civil_status ? (data.civil_status.charAt(0).toUpperCase() + data.civil_status.slice(1)) : 'N/A';
+            reqHtml += requestedCell('Civil Status', escapeScr(csDisplay), !!(data.civil_status && String(data.civil_status).trim() !== ''));
+            reqHtml += requestedCell('Birthday', escapeScr(data.birthday || 'N/A'), !!(data.birthday && String(data.birthday).trim() !== ''));
+            reqHtml += requestedCell('Contact Number', escapeScr(data.phone_number || 'N/A'), !!(data.phone_number && String(data.phone_number).trim() !== ''));
+
+            var hasPw = !!(data.new_password || data.new_password_hash);
+            reqHtml += requestedCell('New Password', hasPw ? '<i class="fas fa-key" style="color:#f59e0b;margin-right:6px;"></i>New password requested' : 'No change', hasPw);
+
+            if (data.id_file_path) {
+                var idExt = String(data.id_file_path).split('.').pop().toLowerCase();
+                var idPreview = (['jpg', 'jpeg', 'png', 'gif', 'webp'].indexOf(idExt) !== -1)
+                    ? '<div class="scr-media-preview"><img src="../../' + escapeScr(data.id_file_path) + '" alt="New ID"><span class="scr-media-label">New ID photo uploaded</span></div>'
+                    : '<a href="../../' + encodeURI(data.id_file_path) + '" target="_blank" rel="noopener">View uploaded file</a>';
+                reqHtml += '<div class="scr-compare-item" style="grid-column:1/-1;"><span class="scr-compare-label">New ID Photo</span>' + idPreview + '</div>';
+            }
+            if (data.profile_picture) {
+                reqHtml += '<div class="scr-compare-item" style="grid-column:1/-1;"><span class="scr-compare-label">New Profile Picture</span><div class="scr-media-preview"><img src="../../uploads/profile_pictures/' + escapeScr(data.profile_picture) + '" alt="New Profile" style="border-radius:50%;"><span class="scr-media-label">New profile picture uploaded</span></div></div>';
+            }
+            document.getElementById('scrRequestedGrid').innerHTML = reqHtml;
+
+            var reasonBits = [];
+            if (cr.reason) reasonBits.push(cr.reason);
+            if (cr.admin_notes) reasonBits.push('Admin notes: ' + cr.admin_notes);
+            var reasonSection = document.getElementById('scrReasonSection');
+            if (reasonBits.length) {
+                reasonSection.style.display = 'block';
+                document.getElementById('scrReasonText').textContent = reasonBits.join('\n\n');
+            } else {
+                reasonSection.style.display = 'none';
+                document.getElementById('scrReasonText').textContent = '—';
+            }
+
+            document.getElementById('staffChangeArchiveModal').style.display = 'flex';
+        }
+
+        function closeStaffChangeArchiveModal() {
+            document.getElementById('staffChangeArchiveModal').style.display = 'none';
+        }
+
         var archiveData = <?php
             $rows = [];
             if ($archives) {
