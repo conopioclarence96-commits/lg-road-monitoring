@@ -53,6 +53,13 @@ $with_photo = count(array_filter($announcements, fn($a) => !empty($a['photo'])))
                 <h1><span class="header-icon"><i class="fas fa-bullhorn"></i></span> Announcements</h1>
                 <p>Post updates that appear on every role&rsquo;s dashboard</p>
             </div>
+            <div class="dt-chip">
+                <i class="fas fa-calendar-day"></i>
+                <div>
+                    <div id="currentDate"></div>
+                    <div id="currentTime"></div>
+                </div>
+            </div>
         </div>
 
         <div class="summary-row">
@@ -399,6 +406,18 @@ $with_photo = count(array_filter($announcements, fn($a) => !empty($a['photo'])))
                 showToast('Network error', 'error');
             });
     });
+
+        function updateDateTime() {
+            const now = new Date();
+            const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const timeOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
+            const dateEl = document.getElementById('currentDate');
+            const timeEl = document.getElementById('currentTime');
+            if (dateEl) dateEl.textContent = now.toLocaleDateString('en-US', dateOptions);
+            if (timeEl) timeEl.textContent = now.toLocaleTimeString('en-US', timeOptions);
+        }
+        updateDateTime();
+        setInterval(updateDateTime, 1000);
     </script>
 </body>
 </html>

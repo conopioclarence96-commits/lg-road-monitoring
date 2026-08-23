@@ -1435,7 +1435,21 @@ function notification_assignment_url(array $ap): string {
             background: #ef4444; color: #fff; font-size: 12px; font-weight: 600;
             padding: 2px 10px; border-radius: 999px; line-height: 1.6;
         }
-        .nc-header-actions { margin-left: auto; }
+        .nc-header-actions { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .dt-chip {
+            display: flex; align-items: center; gap: 10px;
+            background: var(--color-primary-bg, #eef2ff);
+            border: 1px solid var(--border-default, #d5dce8);
+            border-radius: 14px; padding: 10px 14px;
+            flex-shrink: 0;
+        }
+        .dt-chip i {
+            color: #fff; font-size: 16px; width: 28px; height: 28px; border-radius: 8px;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #1e3c72, #0f274a);
+        }
+        .dt-chip #currentDate { font-weight: 600; color: var(--text-primary, #0f172a); font-size: 13px; }
+        .dt-chip #currentTime { color: var(--text-secondary, #64748b); font-size: 12px; margin-top: 1px; }
         .nc-header-sub { margin: 12px 0 0; font-size: 13px; color: var(--nc-muted); }
         .nc-toolbar { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
         .nc-filter {
@@ -2151,6 +2165,13 @@ function notification_assignment_url(array $ap): string {
                     <span class="nc-unread-badge" id="ncUnreadBadge" <?php echo $nc_total ? '' : 'style="display:none;"'; ?>><?php echo $nc_total; ?></span>
                 </div>
                 <div class="nc-header-actions">
+                    <div class="dt-chip">
+                        <i class="fas fa-calendar-day"></i>
+                        <div>
+                            <div id="currentDate"></div>
+                            <div id="currentTime"></div>
+                        </div>
+                    </div>
                     <button class="nc-btn nc-btn-primary" id="ncMarkAll" onclick="ncMarkAllRead()" <?php echo $nc_total ? '' : 'disabled'; ?>>
                         <i class="fas fa-check-double"></i> Mark All as Read
                     </button>
@@ -2431,6 +2452,18 @@ function notification_assignment_url(array $ap): string {
         }
 
         ncRefreshBadge();
+
+        function updateDateTime() {
+            const now = new Date();
+            const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const timeOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
+            const dateEl = document.getElementById('currentDate');
+            const timeEl = document.getElementById('currentTime');
+            if (dateEl) dateEl.textContent = now.toLocaleDateString('en-US', dateOptions);
+            if (timeEl) timeEl.textContent = now.toLocaleTimeString('en-US', timeOptions);
+        }
+        updateDateTime();
+        setInterval(updateDateTime, 1000);
     </script>
 </body>
 </html>

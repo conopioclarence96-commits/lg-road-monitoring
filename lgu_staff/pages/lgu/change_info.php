@@ -138,13 +138,29 @@ $stmt->close();
         .main-content { margin-left: 250px; padding: 20px; position: relative; z-index: 1; }
 
         .page-header {
+            display: flex; justify-content: space-between; align-items: center; gap: 16px;
             background: #f0f4fa; backdrop-filter: blur(15px); padding: 25px 30px;
             border-radius: 16px; margin-bottom: 25px;
             box-shadow: 0 8px 32px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.2);
         }
+        .page-header-left { min-width: 0; }
         .page-header h1 { font-size: 24px; font-weight: 700; color: #1e3c72; margin-bottom: 5px; }
         .page-header h1 i { color: #3762c8; margin-right: 10px; }
         .page-header p { color: #666; font-size: 14px; }
+        .dt-chip {
+            display: flex; align-items: center; gap: 10px;
+            background: var(--color-primary-bg, #eef2ff);
+            border: 1px solid var(--border-default, #d5dce8);
+            border-radius: 14px; padding: 10px 14px;
+            flex-shrink: 0;
+        }
+        .dt-chip i {
+            color: #fff; font-size: 16px; width: 28px; height: 28px; border-radius: 8px;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #1e3c72, #0f274a);
+        }
+        .dt-chip #currentDate { font-weight: 600; color: var(--text-primary, #0f172a); font-size: 13px; }
+        .dt-chip #currentTime { color: var(--text-secondary, #64748b); font-size: 12px; margin-top: 1px; }
 
         .info-card {
             background: #f0f4fa; backdrop-filter: blur(15px); padding: 25px 30px;
@@ -235,8 +251,17 @@ $stmt->close();
 
     <div class="main-content">
         <div class="page-header">
-            <h1><i class="fas fa-user-edit"></i> Change Information</h1>
-            <p>Request updates to your account information. Changes require admin approval.</p>
+            <div class="page-header-left">
+                <h1><i class="fas fa-user-edit"></i> Change Information</h1>
+                <p>Request updates to your account information. Changes require admin approval.</p>
+            </div>
+            <div class="dt-chip">
+                <i class="fas fa-calendar-day"></i>
+                <div>
+                    <div id="currentDate"></div>
+                    <div id="currentTime"></div>
+                </div>
+            </div>
         </div>
 
         <?php if ($success_msg): ?>
@@ -351,6 +376,18 @@ $stmt->close();
                 setTimeout(function() { a.remove(); }, 500);
             });
         }, 5000);
+
+        function updateDateTime() {
+            const now = new Date();
+            const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const timeOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
+            const dateEl = document.getElementById('currentDate');
+            const timeEl = document.getElementById('currentTime');
+            if (dateEl) dateEl.textContent = now.toLocaleDateString('en-US', dateOptions);
+            if (timeEl) timeEl.textContent = now.toLocaleTimeString('en-US', timeOptions);
+        }
+        updateDateTime();
+        setInterval(updateDateTime, 1000);
     </script>
 
 

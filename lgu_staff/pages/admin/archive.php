@@ -837,6 +837,21 @@ if (isset($_SESSION['archive_message'])) {
         }
         .archive-dash .welcome-text p { color: var(--text-secondary); font-size: 13px; }
 
+        .dt-chip {
+            display: flex; align-items: center; gap: 10px;
+            background: var(--color-primary-bg, #eef2ff);
+            border: 1px solid var(--border-default, #d5dce8);
+            border-radius: 14px; padding: 10px 14px;
+            flex-shrink: 0;
+        }
+        .dt-chip i {
+            color: #fff; font-size: 16px; width: 28px; height: 28px; border-radius: 8px;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #1e3c72, #0f274a);
+        }
+        .dt-chip #currentDate { font-weight: 600; color: var(--text-primary, #0f172a); font-size: 13px; }
+        .dt-chip #currentTime { color: var(--text-secondary, #64748b); font-size: 12px; margin-top: 1px; }
+
         .summary-row {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -1975,6 +1990,13 @@ if (isset($_SESSION['archive_message'])) {
                     ? 'Approved and rejected staff information change requests.'
                     : 'Browse archived reports — filter by status or source, restore, or permanently remove.'; ?></p>
             </div>
+            <div class="dt-chip">
+                <i class="fas fa-calendar-day"></i>
+                <div>
+                    <div id="currentDate"></div>
+                    <div id="currentTime"></div>
+                </div>
+            </div>
         </div>
 
         <div class="summary-row">
@@ -3001,6 +3023,20 @@ if (isset($_SESSION['archive_message'])) {
     </script>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        function updateDateTime() {
+            const now = new Date();
+            const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const timeOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
+            const dateEl = document.getElementById('currentDate');
+            const timeEl = document.getElementById('currentTime');
+            if (dateEl) dateEl.textContent = now.toLocaleDateString('en-US', dateOptions);
+            if (timeEl) timeEl.textContent = now.toLocaleTimeString('en-US', timeOptions);
+        }
+        updateDateTime();
+        setInterval(updateDateTime, 1000);
+    </script>
 
 </body>
 </html>

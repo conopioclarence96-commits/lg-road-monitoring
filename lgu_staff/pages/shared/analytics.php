@@ -221,6 +221,9 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
         }
 
         .analytics-main .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             background: #fff;
             border: 1px solid #e2e8f0;
             box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(30, 60, 114, 0.06);
@@ -229,6 +232,21 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
             margin-bottom: 22px;
             gap: 14px;
         }
+
+        .dt-chip {
+            display: flex; align-items: center; gap: 10px;
+            background: var(--color-primary-bg, #eef2ff);
+            border: 1px solid var(--border-default, #d5dce8);
+            border-radius: 14px; padding: 10px 14px;
+            flex-shrink: 0;
+        }
+        .dt-chip i {
+            color: #fff; font-size: 16px; width: 28px; height: 28px; border-radius: 8px;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #1e3c72, #0f274a);
+        }
+        .dt-chip #currentDate { font-weight: 600; color: var(--text-primary, #0f172a); font-size: 13px; }
+        .dt-chip #currentTime { color: var(--text-secondary, #64748b); font-size: 12px; margin-top: 1px; }
 
         .analytics-main .page-header-left {
             display: flex;
@@ -692,6 +710,13 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
                 </div>
             </div>
             <div class="header-actions print-hide">
+                <div class="dt-chip">
+                    <i class="fas fa-calendar-day"></i>
+                    <div>
+                        <div id="currentDate"></div>
+                        <div id="currentTime"></div>
+                    </div>
+                </div>
                 <select id="period-select" class="period-select" name="period" onchange="window.location='?period='+this.value">
                     <option value="7" <?php echo $period === '7' ? 'selected' : ''; ?>>Last 7 days</option>
                     <option value="30" <?php echo $period === '30' ? 'selected' : ''; ?>>Last 30 days</option>
@@ -984,6 +1009,18 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
             },
             options: Object.assign({}, chartDefaults, { cutout: '60%' })
         });
+
+        function updateDateTime() {
+            const now = new Date();
+            const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const timeOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
+            const dateEl = document.getElementById('currentDate');
+            const timeEl = document.getElementById('currentTime');
+            if (dateEl) dateEl.textContent = now.toLocaleDateString('en-US', dateOptions);
+            if (timeEl) timeEl.textContent = now.toLocaleTimeString('en-US', timeOptions);
+        }
+        updateDateTime();
+        setInterval(updateDateTime, 1000);
     </script>
 
 

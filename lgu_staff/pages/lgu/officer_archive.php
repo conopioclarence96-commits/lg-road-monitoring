@@ -244,9 +244,31 @@ if ($archives) {
             box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
             border: 1px solid #e9edf3;
             display: flex;
-            align-items: flex-start;
+            align-items: center;
+            justify-content: space-between;
             gap: 14px;
         }
+        .archive-header-left {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            min-width: 0;
+            flex: 1;
+        }
+        .dt-chip {
+            display: flex; align-items: center; gap: 10px;
+            background: var(--color-primary-bg, #eef2ff);
+            border: 1px solid var(--border-default, #d5dce8);
+            border-radius: 14px; padding: 10px 14px;
+            flex-shrink: 0;
+        }
+        .dt-chip i {
+            color: #fff; font-size: 16px; width: 28px; height: 28px; border-radius: 8px;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #1e3c72, #0f274a);
+        }
+        .dt-chip #currentDate { font-weight: 600; color: var(--text-primary, #0f172a); font-size: 13px; }
+        .dt-chip #currentTime { color: var(--text-secondary, #64748b); font-size: 12px; margin-top: 1px; }
         .archive-header .header-icon {
             flex: 0 0 44px;
             width: 44px;
@@ -768,13 +790,22 @@ if ($archives) {
     <div class="main-content">
         <div class="arch-shell">
         <div class="archive-header">
-            <div class="header-icon"><i class="fas fa-archive"></i></div>
-            <div class="archive-header-text">
-                <h1>
-                    Archive
-                    <span class="archive-header-count"><?php echo (int)$total_archives; ?></span>
-                </h1>
-                <p>View-only archive of all road reports — open details and export from the View modal.</p>
+            <div class="archive-header-left">
+                <div class="header-icon"><i class="fas fa-archive"></i></div>
+                <div class="archive-header-text">
+                    <h1>
+                        Archive
+                        <span class="archive-header-count"><?php echo (int)$total_archives; ?></span>
+                    </h1>
+                    <p>View-only archive of all road reports — open details and export from the View modal.</p>
+                </div>
+            </div>
+            <div class="dt-chip">
+                <i class="fas fa-calendar-day"></i>
+                <div>
+                    <div id="currentDate"></div>
+                    <div id="currentTime"></div>
+                </div>
             </div>
         </div>
 
@@ -1177,6 +1208,18 @@ if ($archives) {
                 }, 300);
             }
         })();
+
+        function updateDateTime() {
+            const now = new Date();
+            const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const timeOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
+            const dateEl = document.getElementById('currentDate');
+            const timeEl = document.getElementById('currentTime');
+            if (dateEl) dateEl.textContent = now.toLocaleDateString('en-US', dateOptions);
+            if (timeEl) timeEl.textContent = now.toLocaleTimeString('en-US', timeOptions);
+        }
+        updateDateTime();
+        setInterval(updateDateTime, 1000);
     </script>
 </body>
 </html>

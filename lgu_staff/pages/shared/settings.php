@@ -350,11 +350,26 @@ try {
         }
         .page-header {
             display: flex; align-items: center; gap: 15px;
+            justify-content: space-between; width: 100%;
             margin-bottom: 25px; padding-bottom: 20px;
             border-bottom: 2px solid rgba(55,98,200,0.1);
         }
         .page-header h1 { font-size: 24px; font-weight: 700; color: #1e3c72; }
-        .page-header i { font-size: 28px; color: #3762c8; }
+        .page-header-left i { font-size: 28px; color: #3762c8; }
+        .dt-chip {
+            display: flex; align-items: center; gap: 10px;
+            background: var(--color-primary-bg, #eef2ff);
+            border: 1px solid var(--border-default, #d5dce8);
+            border-radius: 14px; padding: 10px 14px;
+            flex-shrink: 0;
+        }
+        .dt-chip i {
+            color: #fff; font-size: 16px; width: 28px; height: 28px; border-radius: 8px;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #1e3c72, #0f274a);
+        }
+        .dt-chip #currentDate { font-weight: 600; color: var(--text-primary, #0f172a); font-size: 13px; }
+        .dt-chip #currentTime { color: var(--text-secondary, #64748b); font-size: 12px; margin-top: 1px; }
         .tabs {
             display: flex; gap: 0; margin-bottom: 25px;
             border-bottom: 2px solid #e9ecef;
@@ -824,8 +839,17 @@ try {
     <div class="main-content">
         <div class="settings-container">
             <div class="page-header">
-                <i class="fas fa-cog"></i>
-                <h1>Settings</h1>
+                <div class="page-header-left" style="display:flex;align-items:center;gap:15px;">
+                    <i class="fas fa-cog"></i>
+                    <h1>Settings</h1>
+                </div>
+                <div class="dt-chip">
+                    <i class="fas fa-calendar-day"></i>
+                    <div>
+                        <div id="currentDate"></div>
+                        <div id="currentTime"></div>
+                    </div>
+                </div>
             </div>
 
             <?php if (isset($success_msg)): ?>
@@ -1352,6 +1376,18 @@ try {
                 setTimeout(() => alert.remove(), 500);
             }, 5000);
         });
+
+        function updateDateTime() {
+            const now = new Date();
+            const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const timeOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
+            const dateEl = document.getElementById('currentDate');
+            const timeEl = document.getElementById('currentTime');
+            if (dateEl) dateEl.textContent = now.toLocaleDateString('en-US', dateOptions);
+            if (timeEl) timeEl.textContent = now.toLocaleTimeString('en-US', timeOptions);
+        }
+        updateDateTime();
+        setInterval(updateDateTime, 1000);
 
     </script>
 

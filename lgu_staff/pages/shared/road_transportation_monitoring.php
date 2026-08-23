@@ -1334,6 +1334,21 @@ if ($is_completed_projects_view || $is_system_admin) {
             font-size: 14px;
         }
 
+        .dt-chip {
+            display: flex; align-items: center; gap: 10px;
+            background: var(--color-primary-bg, #eef2ff);
+            border: 1px solid var(--border-default, #d5dce8);
+            border-radius: 14px; padding: 10px 14px;
+            flex-shrink: 0;
+        }
+        .dt-chip i {
+            color: #fff; font-size: 16px; width: 28px; height: 28px; border-radius: 8px;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #1e3c72, #0f274a);
+        }
+        .dt-chip #currentDate { font-weight: 600; color: var(--text-primary, #0f172a); font-size: 13px; }
+        .dt-chip #currentTime { color: var(--text-secondary, #64748b); font-size: 12px; margin-top: 1px; }
+
         .btn-action {
             padding: 10px 20px;
             background: linear-gradient(135deg, #3762c8, #1e3c72);
@@ -4060,6 +4075,13 @@ if ($is_completed_projects_view || $is_system_admin) {
                 <div class="header-title">
                     <h1><span class="header-icon"><i class="fas fa-<?php echo $is_completed_projects_view ? 'circle-check' : 'map-location-dot'; ?>"></i></span> <?php echo $is_completed_projects_view ? 'Completed Projects' : 'Road and Transportation Reporting'; ?></h1>
                     <p><?php echo $is_completed_projects_view ? 'Review completed projects, progress updates, and related actions.' : 'Real-time monitoring of road conditions and traffic flow'; ?></p>
+                </div>
+                <div class="dt-chip">
+                    <i class="fas fa-calendar-day"></i>
+                    <div>
+                        <div id="currentDate"></div>
+                        <div id="currentTime"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -9713,5 +9735,18 @@ if ($is_completed_projects_view || $is_system_admin) {
         })();
     </script>
     <?php endif; ?>
+    <script>
+        function updateDateTime() {
+            const now = new Date();
+            const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const timeOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
+            const dateEl = document.getElementById('currentDate');
+            const timeEl = document.getElementById('currentTime');
+            if (dateEl) dateEl.textContent = now.toLocaleDateString('en-US', dateOptions);
+            if (timeEl) timeEl.textContent = now.toLocaleTimeString('en-US', timeOptions);
+        }
+        updateDateTime();
+        setInterval(updateDateTime, 1000);
+    </script>
 </body>
 </html>

@@ -28,6 +28,20 @@ body.announcements-page.dark-mode { background: var(--bg-page); }
     align-items: center;
     gap: 16px;
 }
+.announcements-page .dt-chip {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--color-primary-bg, #eef2ff);
+    border: 1px solid var(--border-default, #d5dce8);
+    border-radius: 14px; padding: 10px 14px;
+    flex-shrink: 0;
+}
+.announcements-page .dt-chip i {
+    color: #fff; font-size: 16px; width: 28px; height: 28px; border-radius: 8px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #1e3c72, #0f274a);
+}
+.announcements-page .dt-chip #currentDate { font-weight: 600; color: var(--text-primary, #0f172a); font-size: 13px; }
+.announcements-page .dt-chip #currentTime { color: var(--text-secondary, #64748b); font-size: 12px; margin-top: 1px; }
 .announcements-page .welcome-text h1 {
     font-size: 22px;
     font-weight: 700;
