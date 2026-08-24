@@ -612,8 +612,7 @@ function store_otp($email, $otpCode, $purpose = 'registration') {
         'expiry' => time() + 300,
         'purpose' => $purpose,
         'email' => $email,
-        'used' => false,
-        'attempts' => 0
+        'used' => false
     ];
 
     $_SESSION['debug_otp'] = [
@@ -749,8 +748,6 @@ function send_otp_to_email($email, $otpCode, $purpose = null) {
 function handle_registration_otp($email) {
     $otpCode = generate_otp();
     store_otp($email, $otpCode, 'registration');
-    // Fresh Step 1 OTP session: clear any prior lockout and start at 0 attempts.
-    unset($_SESSION['registration_otp_locked']);
     send_otp_to_email($email, $otpCode, 'registration');
     return $otpCode;
 }
