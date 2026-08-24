@@ -12,6 +12,9 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', $archive_
 
 $user_role = $_SESSION['role'] ?? '';
 $is_trans_role = in_array($user_role, ['trans_ops_supervisor', 'trans_monitoring_officer'], true);
+
+// Transport Operations Supervisor flag (strict): scopes the mobile-fit CSS below to this portal only.
+$is_trans_ops_supervisor = ($user_role === 'trans_ops_supervisor');
 $is_trans_officer = ($user_role === 'trans_monitoring_officer');
 $is_road_supervisor = ($user_role === 'road_ops_supervisor');
 $is_road_officer = ($user_role === 'road_monitoring_officer');
@@ -2096,8 +2099,48 @@ if (isset($_SESSION['archive_message'])) {
             .btn-secondary-custom { width: 100%; }
         }
     </style>
+    <?php if ($is_trans_ops_supervisor): ?>
+    <!-- Transport Operations Supervisor only: keep all four archive summary
+         cards in ONE row on phones. The generic rules collapse the grid to
+         2x2 / a single column below 1100px; compact the tiles instead so the
+         4-column grid fits. UI-only CSS scoping — other portals are
+         unaffected and no behaviour changes. -->
+    <style>
+        @media (max-width: 768px) {
+            body.trans-supervisor-view .summary-row {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                gap: 8px;
+                margin-bottom: 14px;
+            }
+            body.trans-supervisor-view .summary-card {
+                padding: 10px 8px;
+                border-radius: 10px;
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            body.trans-supervisor-view .summary-card::before { height: 3px; }
+            body.trans-supervisor-view .summary-card .card-top {
+                margin-bottom: 6px;
+            }
+            body.trans-supervisor-view .summary-card .card-icon {
+                width: 26px;
+                height: 26px;
+                border-radius: 8px;
+                font-size: 12px;
+            }
+            body.trans-supervisor-view .summary-card .card-value { font-size: 16px; }
+            body.trans-supervisor-view .summary-card .card-label {
+                font-size: 7.5px;
+                line-height: 1.25;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+            }
+        }
+    </style>
+    <?php endif; ?>
 </head>
-<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
+<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo $is_trans_ops_supervisor ? ' trans-supervisor-view' : ''; ?>">
     <?php include '../../includes/sidebar_nav.php'; ?>
 
     <div class="main-content archive-dash">
