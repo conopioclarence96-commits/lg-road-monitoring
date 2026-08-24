@@ -349,6 +349,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
         if (empty($first_name) || empty($last_name) || empty($role)) {
             $additionalMessage = 'Please fill in all required fields (First Name, Last Name, Role)';
             $additionalMessageType = 'error';
+        } elseif (!isset($_FILES['id_file']) || $_FILES['id_file']['error'] !== UPLOAD_ERR_OK) {
+            $additionalMessage = 'Please upload your ID to continue.';
+            $additionalMessageType = 'error';
+            echo '<script>
+                document.addEventListener("DOMContentLoaded", function() {
+                    showPanel("additional");
+                });
+            </script>';
         } else {
             try {
                 // Get registration data from session
@@ -376,7 +384,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
                 // Insert new user with all information
                 $idFilePath = null;
                 
-                // Handle file upload if provided
+                // Handle required ID file upload
                 if (isset($_FILES['id_file']) && $_FILES['id_file']['error'] === UPLOAD_ERR_OK) {
                     $uploadDir = __DIR__ . '/uploads/ids/';
                     
@@ -395,6 +403,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
                         $idFilePath = 'uploads/ids/' . $uniqueFilename;
                     }
                 }
+
+                if (!$idFilePath) {
+                    $additionalMessage = 'Please upload your ID to continue.';
+                    $additionalMessageType = 'error';
+                    echo '<script>
+                        document.addEventListener("DOMContentLoaded", function() {
+                            showPanel("additional");
+                        });
+                    </script>';
+                } else {
                 
                 $stmt = $conn->prepare("
                     INSERT INTO users (
@@ -451,6 +469,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
                 } else {
                     $additionalMessage = 'Database error occurred';
                     $additionalMessageType = 'error';
+                }
                 }
             } catch (Exception $e) {
                 error_log("Registration completion error: " . $e->getMessage());
@@ -843,8 +862,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
 
               <!-- UPLOAD ID -->
               <div class="input-box">
-                <label>Upload Valid ID (Optional)</label>
-                <input type="file" name="id_file" accept="image/*,.pdf" />
+                <label>Upload Valid ID *</label>
+                <input type="file" name="id_file" accept="image/*,.pdf" required oninvalid="this.setCustomValidity('Please upload your ID to continue.')" oninput="this.setCustomValidity('')" />
                 <small>Supported formats: JPG, PNG, PDF</small>
               </div>
 
