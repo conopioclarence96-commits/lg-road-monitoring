@@ -748,6 +748,8 @@ function send_otp_to_email($email, $otpCode, $purpose = null) {
 function handle_registration_otp($email) {
     $otpCode = generate_otp();
     store_otp($email, $otpCode, 'registration');
+    // New registration verification code → reset Step 1 attempt counter.
+    $_SESSION['registration_otp_attempts'] = 0;
     send_otp_to_email($email, $otpCode, 'registration');
     return $otpCode;
 }
