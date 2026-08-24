@@ -274,10 +274,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_register'])) {
         } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $registerMessage = 'Invalid email format';
             $registerMessageType = 'error';
-        } elseif (strlen($password) < 6) {
-            $registerMessage = 'Password must be at least 6 characters';
-            $registerMessageType = 'error';
         } else {
+            $pwMissing = [];
+            if (strlen($password) < 8) {
+                $pwMissing[] = 'at least 8 characters';
+            }
+            if (!preg_match('/[A-Z]/', $password)) {
+                $pwMissing[] = 'at least 1 uppercase letter (A-Z)';
+            }
+            if (!preg_match('/[a-z]/', $password)) {
+                $pwMissing[] = 'at least 1 lowercase letter (a-z)';
+            }
+            if (!preg_match('/[0-9]/', $password)) {
+                $pwMissing[] = 'at least 1 number (0-9)';
+            }
+            if (!preg_match('/[!@#$%^&*]/', $password)) {
+                $pwMissing[] = 'at least 1 special character (! @ # $ % ^ & *)';
+            }
+            if (!empty($pwMissing)) {
+                $registerMessage = 'Password must contain ' . implode('; ', $pwMissing) . '.';
+                $registerMessageType = 'error';
+            } else {
             try {
                 // Check if email already exists
                 $checkStmt = $conn->prepare("SELECT id FROM users WHERE email = ?");
@@ -307,6 +324,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_register'])) {
                 error_log("Registration error: " . $e->getMessage());
                 $registerMessage = 'An error occurred during registration';
                 $registerMessageType = 'error';
+            }
             }
         }
     }
@@ -783,10 +801,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
 
               <div class="input-box">
                 <label>Password</label>
-                <input type="password" name="password" id="registerPassword" placeholder="•••••••" required />
+                <input type="password" name="password" id="registerPassword" placeholder="•••••••" required minlength="8" autocomplete="new-password" />
                 <button type="button" class="password-toggle" onclick="togglePassword('registerPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
                 <span class="icon">🔒</span>
               </div>
+              <ul class="password-reqs" id="registerPasswordReqs" aria-live="polite">
+                <li data-req="length">At least 8 characters</li>
+                <li data-req="upper">At least 1 uppercase letter (A-Z)</li>
+                <li data-req="lower">At least 1 lowercase letter (a-z)</li>
+                <li data-req="number">At least 1 number (0-9)</li>
+                <li data-req="special">At least 1 special character (! @ # $ % ^ &amp; *)</li>
+              </ul>
 
               <button class="btn-primary" type="submit">Next Step</button>
 
@@ -1020,6 +1045,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
       .password-toggle:hover {
         color: #333;
       }
+
+      .password-reqs {
+        list-style: none;
+        margin: -6px 0 14px;
+        padding: 10px 12px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 12px;
+        color: #64748b;
+      }
+      .password-reqs li {
+        margin: 4px 0;
+        padding-left: 18px;
+        position: relative;
+      }
+      .password-reqs li::before {
+        content: '○';
+        position: absolute;
+        left: 0;
+        color: #94a3b8;
+      }
+      .password-reqs li.met {
+        color: #15803d;
+      }
+      .password-reqs li.met::before {
+        content: '✓';
+        color: #16a34a;
+      }
+      .password-reqs li.unmet {
+        color: #b91c1c;
+      }
+      .password-reqs li.unmet::before {
+        content: '✕';
+        color: #dc2626;
+      }
       
       .otp-actions {
         margin: 20px 0;
@@ -1139,6 +1200,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
           btn.querySelector('i').className = 'fas fa-eye';
         }
       }
+
+      (function initRegisterPasswordStrength() {
+        var pwd = document.getElementById('registerPassword');
+        var list = document.getElementById('registerPasswordReqs');
+        var form = pwd ? pwd.closest('form') : null;
+        if (!pwd || !list || !form) return;
+
+        function checkPassword(value) {
+          return {
+            length: value.length >= 8,
+            upper: /[A-Z]/.test(value),
+            lower: /[a-z]/.test(value),
+            number: /[0-9]/.test(value),
+            special: /[!@#$%^&*]/.test(value)
+          };
+        }
+
+        function updateReqs() {
+          var result = checkPassword(pwd.value);
+          var anyTyped = pwd.value.length > 0;
+          list.querySelectorAll('[data-req]').forEach(function(li) {
+            var key = li.getAttribute('data-req');
+            li.classList.remove('met', 'unmet');
+            if (!anyTyped) return;
+            if (result[key]) li.classList.add('met');
+            else li.classList.add('unmet');
+          });
+          return result;
+        }
+
+        pwd.addEventListener('input', updateReqs);
+        pwd.addEventListener('keyup', updateReqs);
+
+        form.addEventListener('submit', function(e) {
+          var result = updateReqs();
+          var missing = [];
+          if (!result.length) missing.push('at least 8 characters');
+          if (!result.upper) missing.push('at least 1 uppercase letter (A-Z)');
+          if (!result.lower) missing.push('at least 1 lowercase letter (a-z)');
+          if (!result.number) missing.push('at least 1 number (0-9)');
+          if (!result.special) missing.push('at least 1 special character (! @ # $ % ^ & *)');
+          if (missing.length) {
+            e.preventDefault();
+            pwd.focus();
+            alert('Password must contain ' + missing.join('; ') + '.');
+          }
+        });
+      })();
 
       // Auto-focus on email field for login
       document.addEventListener('DOMContentLoaded', function() {
