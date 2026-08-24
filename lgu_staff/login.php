@@ -1054,32 +1054,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
 
       .password-toggle {
         position: absolute;
-        right: 38px;
-        top: 45px;
-        transform: translateY(-50%);
+        right: 12px;
+        top: 38px;
         background: none;
         border: none;
         cursor: pointer;
-        color: #888;
+        color: #64748b;
         padding: 4px;
-        font-size: 16px;
+        font-size: 15px;
         line-height: 1;
         z-index: 2;
         transition: color 0.2s;
       }
       .password-toggle:hover {
-        color: #333;
+        color: #1e3a8a;
+      }
+      .input-box .password-toggle ~ .icon {
+        display: none;
       }
 
       .password-reqs {
         list-style: none;
-        margin: -6px 0 14px;
+        margin: 0 0 14px;
         padding: 10px 12px;
         background: #f8fafc;
         border: 1px solid #e2e8f0;
-        border-radius: 8px;
+        border-radius: 10px;
         font-size: 12px;
         color: #64748b;
+        text-align: left;
       }
       .password-reqs li {
         margin: 4px 0;

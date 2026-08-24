@@ -3,13 +3,14 @@ body {
   display: flex;
   flex-direction: column;
 
-  /* NEW — background image + blur */
+  /* Keep city hall background */
   background: url("../assets/img/cityhall.jpeg") center/cover no-repeat fixed;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
-/* NEW — Blur overlay */
+/* Blur overlay — unchanged look */
 body::before {
   content: "";
   position: absolute;
@@ -17,22 +18,228 @@ body::before {
   left: 0;
   width: 100%;
   height: 100%;
-
-  backdrop-filter: blur(6px); /* actual blur */
-  background: rgba(0, 0, 0, 0.35); /* dark overlay */
-  z-index: 0; /* keeps blur behind content */
+  backdrop-filter: blur(6px);
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 0;
 }
 
-/* Make content appear ABOVE blur */
+/* Content above blur */
 .nav,
-.wrapper {
+.wrapper,
+.footer {
   position: relative;
   z-index: 1;
 }
 
-/* Make content appear ABOVE blur */
-.footer,
+/* Login / Step 1 / Step 2 modal cards sit cleanly over the background */
 .wrapper {
+  min-height: calc(100vh - 140px);
+  height: auto;
+  padding: 100px 16px 100px;
+  align-items: flex-start;
+}
+
+.slider {
+  width: 100%;
+  min-height: calc(100vh - 200px);
   position: relative;
-  z-index: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.panel {
+  padding: 12px 0;
+}
+
+/* Shared glass-card polish for login + create-account modals only */
+.panel.login .card,
+.panel.register .card,
+.panel.additional .card {
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.panel.login .card,
+.panel.register .card {
+  width: min(400px, 94vw);
+  max-height: calc(100vh - 180px);
+  overflow-y: auto;
+  padding: 30px 28px 26px;
+  text-align: center;
+}
+
+.panel.additional .card {
+  width: min(820px, 94vw);
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+  padding: 28px 28px 22px;
+}
+
+.panel.login .title,
+.panel.register .title,
+.panel.additional .title {
+  font-size: 24px;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 4px;
+}
+
+.panel.login .subtitle,
+.panel.register .subtitle,
+.panel.additional .subtitle {
+  font-size: 13px;
+  color: #475569;
+  margin-bottom: 18px;
+  line-height: 1.45;
+}
+
+.panel.login .input-box,
+.panel.register .input-box,
+.panel.additional .input-box {
+  margin-bottom: 12px;
+}
+
+.panel.login .input-box label,
+.panel.register .input-box label,
+.panel.additional .input-box label {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #334155;
+  margin-bottom: 6px;
+}
+
+.panel.login .input-box input,
+.panel.register .input-box input,
+.panel.additional .input-box input,
+.panel.additional .input-box select {
+  border: 1px solid #dbe3f0;
+  background: #fff;
+  border-radius: 10px;
+  padding: 11px 42px 11px 12px;
+  font-size: 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.panel.login .input-box input:focus,
+.panel.register .input-box input:focus,
+.panel.additional .input-box input:focus,
+.panel.additional .input-box select:focus {
+  border-color: #3b6fd9;
+  box-shadow: 0 0 0 3px rgba(59, 111, 217, 0.15);
+  outline: none;
+}
+
+/* Eye toggle replaces the emoji lock icon on password fields */
+.panel .input-box .password-toggle ~ .icon {
+  display: none;
+}
+
+.panel .password-toggle {
+  position: absolute;
+  right: 12px;
+  top: 38px;
+  transform: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #64748b;
+  padding: 4px;
+  font-size: 15px;
+  line-height: 1;
+  z-index: 2;
+}
+
+.panel .password-toggle:hover {
+  color: #1e3a8a;
+}
+
+.panel .password-reqs {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 12px;
+  color: #64748b;
+  text-align: left;
+}
+
+.panel .password-reqs li {
+  margin: 4px 0;
+  padding-left: 18px;
+  position: relative;
+}
+
+.panel .password-reqs li::before {
+  content: '○';
+  position: absolute;
+  left: 0;
+  color: #94a3b8;
+}
+
+.panel .password-reqs li.met {
+  color: #15803d;
+}
+
+.panel .password-reqs li.met::before {
+  content: '✓';
+  color: #16a34a;
+}
+
+.panel .password-reqs li.unmet {
+  color: #b91c1c;
+}
+
+.panel .password-reqs li.unmet::before {
+  content: '✕';
+  color: #dc2626;
+}
+
+.panel .remember-me {
+  text-align: left;
+  margin: 4px 0 8px;
+}
+
+.panel .btn-primary {
+  margin-top: 8px;
+  border-radius: 11px;
+}
+
+.panel .small-text {
+  margin-top: 14px;
+  color: #475569;
+}
+
+.panel.additional .two-column-form {
+  text-align: left;
+}
+
+.panel.additional .form-actions {
+  margin-top: 8px;
+}
+
+.panel.additional .input-box small {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #64748b;
+}
+
+@media (max-width: 768px) {
+  .wrapper {
+    padding: 88px 12px 88px;
+  }
+
+  .panel.login .card,
+  .panel.register .card,
+  .panel.additional .card {
+    width: 96vw;
+    max-height: calc(100vh - 140px);
+    padding: 22px 18px;
+  }
 }

@@ -122,9 +122,9 @@ body {
 
 /* CARD */
 .card {
-    width: 350px;                /* slightly narrower background: rgba(255, 255, 255, 0.25); */
+    width: 350px;
     background: rgba(255, 255, 255, 0.795);
-    padding: 28px 32px;          /* reduced padding */
+    padding: 28px 32px;
     border-radius: 18px;
     backdrop-filter: blur(15px);
     box-shadow: 0 8px 25px rgba(0,0,0,0.2);
