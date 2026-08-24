@@ -31,11 +31,21 @@ $road_only = in_array($_SESSION['role'] ?? '', ['road_ops_supervisor', 'road_mon
 // Creator Information (full name, contact number, email) in report details.
 $is_road_supervisor = ($_SESSION['role'] ?? '') === 'road_ops_supervisor';
 
-// Road / Transportation Monitoring Officers: "Your Reports" (mine=1) filters to
-// reports assigned to this logged-in user_id. Default list is module-scoped only.
+// Road / Transportation Monitoring Officers: "Your Reports" filters to reports
+// assigned to this logged-in user_id. Default ON for officers/supervisors when
+// mine is absent (matches road_transportation_monitoring.php).
 $is_road_monitoring_officer = ($_SESSION['role'] ?? '') === 'road_monitoring_officer';
 $is_transport_monitoring_officer = ($_SESSION['role'] ?? '') === 'trans_monitoring_officer';
-$your_reports_only = isset($_GET['mine']) && (string)$_GET['mine'] === '1';
+$your_reports_default_roles = [
+    'road_ops_supervisor',
+    'trans_ops_supervisor',
+    'road_monitoring_officer',
+    'trans_monitoring_officer',
+];
+$your_reports_default = in_array($_SESSION['role'] ?? '', $your_reports_default_roles, true);
+$your_reports_only = isset($_GET['mine'])
+    ? ((string)$_GET['mine'] === '1')
+    : $your_reports_default;
 $assigned_to_user_id = ($your_reports_only
     && ($is_road_monitoring_officer || $is_transport_monitoring_officer))
     ? (int)($_SESSION['user_id'] ?? 0)

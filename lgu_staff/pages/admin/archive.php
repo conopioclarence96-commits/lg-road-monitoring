@@ -42,7 +42,10 @@ $status_filter = $_GET['status'] ?? 'all';
 $source_filter = $_GET['source'] ?? 'all';
 $sort_order = $_GET['sort'] ?? 'latest';
 $id_search = trim($_GET['id'] ?? '');
-$your_reports_only = isset($_GET['mine']) && (string)$_GET['mine'] === '1';
+$is_supervisor_role = in_array($_SESSION['role'] ?? '', ['road_ops_supervisor', 'trans_ops_supervisor'], true);
+$your_reports_only = isset($_GET['mine'])
+    ? ((string)$_GET['mine'] === '1')
+    : $is_supervisor_role;
 
 // Trans roles may only ever query the Road & Transportation (LGU Monitoring)
 // and Citizen sources. Normalize any tampered source parameter (CIMM /
@@ -3122,8 +3125,8 @@ if (isset($_SESSION['archive_message'])) {
 
         function toggleYourReports() {
             const url = new URL(window.location);
-            if (url.searchParams.get('mine') === '1') {
-                url.searchParams.delete('mine');
+            if (url.searchParams.get('mine') === '1' || url.searchParams.get('mine') === null) {
+                url.searchParams.set('mine', '0');
             } else {
                 url.searchParams.set('mine', '1');
             }

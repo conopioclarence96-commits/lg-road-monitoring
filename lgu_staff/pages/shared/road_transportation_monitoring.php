@@ -1110,7 +1110,16 @@ if (!function_exists('completed_project_category_label')) {
 
 $status_filter = $_GET['status'] ?? 'all';
 $type_filter = $_GET['type'] ?? 'all';
-$your_reports_only = isset($_GET['mine']) && (string)$_GET['mine'] === '1';
+$your_reports_default_roles = [
+    'road_ops_supervisor',
+    'trans_ops_supervisor',
+    'road_monitoring_officer',
+    'trans_monitoring_officer',
+];
+$your_reports_default = in_array($_SESSION['role'] ?? '', $your_reports_default_roles, true);
+$your_reports_only = isset($_GET['mine'])
+    ? ((string)$_GET['mine'] === '1')
+    : $your_reports_default;
 if ($is_completed_projects_view) {
     $status_filter = 'completed';
 }
@@ -1135,9 +1144,8 @@ $alerts = getActiveAlerts();
 $roads = getRoadStatus();
 $enhanced_stats = getEnhancedStats();
 $recent_fetch_limit = $your_reports_only ? 200 : 10;
-// Officers: assignment-to-me filter applies only for "Your Reports" (mine=1),
-// keyed by the logged-in user_id. Default list keeps the existing module
-// visibility (road_only / transport_only + active-assignment rules).
+// Officers: "Your Reports" filters to reports assigned to this user_id.
+// Default for officers/supervisors is Your Reports when mine is absent.
 $officer_assigned_user_id = null;
 if ($your_reports_only
     && ($is_road_monitoring_officer || $is_transport_monitoring_officer)) {
@@ -4876,8 +4884,10 @@ if ($is_completed_projects_view || $is_system_admin) {
 
         function toggleYourReports() {
             var url = new URL(window.location.href);
-            if (url.searchParams.get('mine') === '1') {
-                url.searchParams.delete('mine');
+            // Use the rendered filter state so officers/supervisors (default ON
+            // with no mine param) correctly switch to All Reports (mine=0).
+            if (typeof YOUR_REPORTS_ONLY !== 'undefined' && YOUR_REPORTS_ONLY) {
+                url.searchParams.set('mine', '0');
             } else {
                 url.searchParams.set('mine', '1');
             }

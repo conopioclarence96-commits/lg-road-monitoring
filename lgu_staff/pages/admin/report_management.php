@@ -1903,7 +1903,10 @@ $offset = ($page - 1) * $per_page;
 // Filters
 $status_filter = $_GET['status'] ?? 'all';
 $source_filter = $_GET['source'] ?? 'all';
-$your_reports_only = isset($_GET['mine']) && (string)$_GET['mine'] === '1';
+$is_supervisor_role = in_array($_SESSION['role'] ?? '', ['road_ops_supervisor', 'trans_ops_supervisor'], true);
+$your_reports_only = isset($_GET['mine'])
+    ? ((string)$_GET['mine'] === '1')
+    : $is_supervisor_role;
 
 // Normalize the source aliases used by notification deep-links so the filter
 // logic, panel classification and get_reports() all agree on one value:
@@ -7012,8 +7015,8 @@ if ($focus_id > 0) {
 
         function toggleYourReports() {
             const url = new URL(window.location);
-            if (url.searchParams.get('mine') === '1') {
-                url.searchParams.delete('mine');
+            if (url.searchParams.get('mine') === '1' || url.searchParams.get('mine') === null) {
+                url.searchParams.set('mine', '0');
             } else {
                 url.searchParams.set('mine', '1');
             }
