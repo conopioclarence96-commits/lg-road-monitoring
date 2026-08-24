@@ -612,7 +612,9 @@ function store_otp($email, $otpCode, $purpose = 'registration') {
         'expiry' => time() + 300,
         'purpose' => $purpose,
         'email' => $email,
-        'used' => false
+        'used' => false,
+        // Incorrect-attempt counter for this OTP session (used by registration).
+        'attempts' => 0
     ];
 
     $_SESSION['debug_otp'] = [
@@ -646,6 +648,16 @@ function is_otp_already_used($email, $purpose, $otpCode) {
 }
 
 function verify_otp_code($enteredOTP, $purpose = null) {
+    // Step 1 Create Account: after 3 incorrect attempts the OTP is invalidated
+    // until a new registration code is generated.
+    if ($purpose === 'registration' && !empty($_SESSION['registration_otp_locked'])) {
+        return [
+            'success' => false,
+            'message' => 'Maximum verification attempts reached. Please request a new verification code.',
+            'locked' => true
+        ];
+    }
+
     $storedOTP = $_SESSION['otp_data']['code'] ?? '';
     $otpExpiry = $_SESSION['otp_data']['expiry'] ?? 0;
     $otpPurpose = $_SESSION['otp_data']['purpose'] ?? '';
@@ -653,14 +665,24 @@ function verify_otp_code($enteredOTP, $purpose = null) {
     $otpUsed = !empty($_SESSION['otp_data']['used']);
 
     if (empty($enteredOTP)) {
+        if ($purpose === 'registration' && $otpPurpose === 'registration' && !empty($_SESSION['otp_data'])) {
+            return rgmap_registration_otp_register_failure($otpEmail, $storedOTP, 'Please enter the OTP code');
+        }
         return ['success' => false, 'message' => 'Please enter the OTP code'];
     }
 
     if (empty($storedOTP) || empty($_SESSION['otp_data'])) {
+        if ($purpose === 'registration' && !empty($_SESSION['registration_otp_locked'])) {
+            return [
+                'success' => false,
+                'message' => 'Maximum verification attempts reached. Please request a new verification code.',
+                'locked' => true
+            ];
+        }
         return ['success' => false, 'message' => 'No active verification code. Please request a new one.'];
     }
 
-    if ($otpUsed || is_otp_already_used($otpEmail, $otpPurpose, $enteredOTP)) {
+    if ($otpUsed || is_otp_already_used($otpEmail, $otpPurpose, $storedOTP)) {
         unset($_SESSION['otp_data']);
         return ['success' => false, 'message' => 'This verification code has already been used. Please request a new one.'];
     }
@@ -675,6 +697,9 @@ function verify_otp_code($enteredOTP, $purpose = null) {
     }
 
     if (!hash_equals((string)$storedOTP, (string)$enteredOTP)) {
+        if ($purpose === 'registration' && $otpPurpose === 'registration') {
+            return rgmap_registration_otp_register_failure($otpEmail, $storedOTP, 'Invalid OTP code. Please try again.');
+        }
         return ['success' => false, 'message' => 'Invalid OTP code. Please try again.'];
     }
 
@@ -682,7 +707,40 @@ function verify_otp_code($enteredOTP, $purpose = null) {
     $_SESSION['otp_data']['used'] = true;
     mark_otp_used($otpEmail, $otpPurpose, $storedOTP);
     unset($_SESSION['otp_data']);
+    unset($_SESSION['registration_otp_locked']);
     return ['success' => true, 'message' => 'OTP verified successfully!'];
+}
+
+/**
+ * Count one incorrect registration OTP attempt. On the 3rd failure, invalidate
+ * the current OTP so Step 2 cannot proceed until a new code is requested.
+ */
+function rgmap_registration_otp_register_failure($otpEmail, $storedOTP, $baseMessage) {
+    $maxAttempts = 3;
+    $attempts = (int)($_SESSION['otp_data']['attempts'] ?? 0) + 1;
+    $_SESSION['otp_data']['attempts'] = $attempts;
+
+    if ($attempts >= $maxAttempts) {
+        if ($otpEmail !== '' && $storedOTP !== '') {
+            mark_otp_used($otpEmail, 'registration', $storedOTP);
+        }
+        unset($_SESSION['otp_data']);
+        $_SESSION['registration_otp_locked'] = true;
+        return [
+            'success' => false,
+            'message' => 'Maximum verification attempts reached. Please request a new verification code.',
+            'attempts' => $attempts,
+            'locked' => true
+        ];
+    }
+
+    $remaining = $maxAttempts - $attempts;
+    return [
+        'success' => false,
+        'message' => $baseMessage . ' (' . $attempts . '/3 attempts used, ' . $remaining . ' remaining).',
+        'attempts' => $attempts,
+        'remaining' => $remaining
+    ];
 }
 
 function send_otp_to_email($email, $otpCode, $purpose = null) {
@@ -748,6 +806,8 @@ function send_otp_to_email($email, $otpCode, $purpose = null) {
 function handle_registration_otp($email) {
     $otpCode = generate_otp();
     store_otp($email, $otpCode, 'registration');
+    // New OTP session → reset lockout / attempt window (attempts start at 0 in store_otp).
+    unset($_SESSION['registration_otp_locked']);
     send_otp_to_email($email, $otpCode, 'registration');
     return $otpCode;
 }

@@ -140,14 +140,14 @@ $showLoginOTPModal = false;
 
 // Handle Registration OTP Verification
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_otp'])) {
-    $enteredOTP = $_POST['otp_code'] ?? '';
+    $enteredOTP = trim((string)($_POST['otp_code'] ?? ''));
     $result = verify_otp_code($enteredOTP, 'registration');
-    
+
     if ($result['success']) {
         $_SESSION['otp_verified'] = true;
         $registerMessage = 'Email verified successfully! Please complete your profile.';
         $registerMessageType = 'success';
-        
+
         echo '<script>
             document.addEventListener("DOMContentLoaded", function() {
                 setTimeout(() => showPanel("additional"), 500);
@@ -156,6 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_otp'])) {
     } else {
         $registerMessage = $result['message'];
         $registerMessageType = 'error';
+        // Keep modal open for incorrect / locked attempts so the user can resend.
         if ($result['message'] !== 'OTP has expired. Please try again.') {
             $showOTPModal = true;
         }
@@ -923,17 +924,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
           <h3><?php echo $showLoginOTPModal ? 'Login Verification' : 'Email Verification'; ?></h3>
           <p>A 6-digit verification code has been sent to your email address. Please enter it below to continue.</p>
         </div>
+
+        <?php
+          $otpModalMessage = '';
+          $otpModalMessageType = '';
+          if ($showLoginOTPModal && !empty($loginMessage)) {
+              $otpModalMessage = $loginMessage;
+              $otpModalMessageType = $messageType ?? 'error';
+          } elseif ($showOTPModal && !empty($registerMessage)) {
+              $otpModalMessage = $registerMessage;
+              $otpModalMessageType = $registerMessageType;
+          }
+        ?>
+        <?php if ($otpModalMessage !== ''): ?>
+          <div style="background: <?php echo $otpModalMessageType === 'error' ? '#fee' : '#efe'; ?>; color: <?php echo $otpModalMessageType === 'error' ? '#c33' : '#060'; ?>; padding: 10px; border-radius: 5px; margin-bottom: 15px; font-size: 13px;">
+            <?php echo htmlspecialchars($otpModalMessage); ?>
+          </div>
+        <?php endif; ?>
         
         <form method="POST" id="otpForm">
+          <?php if ($showLoginOTPModal): ?>
+            <input type="hidden" name="verify_login_otp" value="1">
+          <?php else: ?>
+            <input type="hidden" name="verify_otp" value="1">
+          <?php endif; ?>
           <div class="otp-input-container">
-            <input type="text" name="otp_code" id="otpCode" maxlength="6" placeholder="000000" class="otp-input" autocomplete="off" />
+            <input type="text" name="otp_code" id="otpCode" maxlength="6" placeholder="000000" class="otp-input" autocomplete="off" <?php echo (!empty($_SESSION['registration_otp_locked']) && !$showLoginOTPModal) ? 'disabled' : ''; ?> />
           </div>
           
           <div class="otp-actions">
             <?php if ($showLoginOTPModal): ?>
-              <button type="submit" name="verify_login_otp" class="btn-primary">Verify & Login</button>
+              <button type="submit" name="verify_login_otp" value="1" class="btn-primary">Verify & Login</button>
+            <?php elseif (!empty($_SESSION['registration_otp_locked'])): ?>
+              <button type="button" class="btn-primary" disabled title="Request a new verification code">Verify Code</button>
             <?php else: ?>
-              <button type="submit" name="verify_otp" class="btn-primary">Verify Code</button>
+              <button type="submit" name="verify_otp" value="1" class="btn-primary">Verify Code</button>
             <?php endif; ?>
           </div>
         </form>
@@ -941,7 +966,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
         <form method="POST" class="resend-form">
           <div class="otp-resend">
             <span>Didn't receive the code?</span>
-            <button type="submit" name="resend_otp" class="link-btn">Resend OTP</button>
+            <button type="submit" name="resend_otp" value="1" class="link-btn">Resend OTP</button>
           </div>
         </form>
       </div>
