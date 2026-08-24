@@ -1160,8 +1160,89 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
         body.trans-supervisor-view .ds-tooltip .tip-value { color: #93c5fd; font-weight: 700; }
     </style>
     <?php endif; ?>
+    <?php if ($is_road_monitoring_officer): ?>
+    <!-- Road Monitoring Officer only: make the full-width dashboard grid
+         (.db-grid-main.db-grid-full, i.e. the Weekly Reports section)
+         compatible on mobile. Grid children get min-width: 0 so the
+         responsive Chart.js canvas cannot force the 1fr track wider than
+         the phone screen, the section header wraps instead of squeezing,
+         and the chart uses a shorter height on small screens.
+         UI-only CSS scoping — other portals are unaffected and no
+         behaviour changes. -->
+    <style>
+        /* Road Monitoring Officer only: keep all five dashboard stat cards
+           in ONE row on phones. The generic auto-fit grid stacks them into
+           a single column below ~1100px of container width; switch to a
+           fixed 5-column grid with compact tiles instead (descriptions
+           hidden on small screens to fit). Mirrors the trans_ops_supervisor
+           treatment. UI-only CSS scoping — other portals unaffected. */
+        @media (max-width: 768px) {
+            body.rmo-view .db-stats {
+                grid-template-columns: repeat(5, minmax(0, 1fr));
+                gap: 6px;
+                margin-bottom: 16px;
+            }
+            body.rmo-view .db-stats .stat-card {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 6px;
+                padding: 8px 6px;
+                border-radius: 10px;
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            body.rmo-view .db-stats .stat-card::after { height: 2px; }
+            body.rmo-view .db-stats .stat-icon {
+                width: 22px;
+                height: 22px;
+                border-radius: 7px;
+                font-size: 10px;
+                box-shadow: none;
+            }
+            body.rmo-view .db-stats .stat-number { font-size: 13px; }
+            body.rmo-view .db-stats .stat-label {
+                font-size: 7.5px;
+                line-height: 1.25;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+            }
+            body.rmo-view .db-stats .stat-desc { display: none; }
+        }
+
+        @media (max-width: 768px) {
+            body.rmo-view .db-grid-main {
+                gap: 14px;
+                margin-bottom: 14px;
+            }
+            body.rmo-view .db-grid-main > .dash-section {
+                min-width: 0;
+                max-width: 100%;
+                width: 100%;
+                box-sizing: border-box;
+                padding: 16px 14px;
+                overflow: hidden;
+            }
+            body.rmo-view .db-grid-main .dsh-header {
+                flex-wrap: wrap;
+                row-gap: 10px;
+            }
+            body.rmo-view .db-grid-main .dsh-left { min-width: 0; }
+            body.rmo-view .db-grid-main .dsh-left h3 { font-size: 14.5px; }
+            body.rmo-view .db-grid-main .period-select { padding: 7px 10px; font-size: 12px; }
+            body.rmo-view .db-grid-main .chart-wrap { height: 220px; }
+            body.rmo-view .db-grid-main canvas { max-width: 100%; }
+        }
+
+        /* Very small phones: tighten further */
+        @media (max-width: 400px) {
+            body.rmo-view .db-grid-main .chart-wrap { height: 190px; }
+            body.rmo-view .db-grid-main .dsh-left p { display: none; }
+        }
+    </style>
+    <?php endif; ?>
 </head>
-<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo $is_trans_ops_supervisor ? ' trans-supervisor-view' : ''; ?>">
+<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo $is_trans_ops_supervisor ? ' trans-supervisor-view' : ''; ?><?php echo $is_road_monitoring_officer ? ' rmo-view' : ''; ?>">
     <!-- SIDEBAR -->
     <?php include '../../includes/sidebar_nav.php'; ?>
 

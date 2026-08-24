@@ -17,6 +17,9 @@ $is_system_admin = ($user_role === 'system_admin');
 // Transport Operations Supervisor flag: scopes the mobile-fit CSS below to this portal only.
 $is_trans_ops_supervisor = ($user_role === 'trans_ops_supervisor');
 
+// Road Monitoring Officer flag: scopes the mobile-fit CSS below to this portal only.
+$is_road_monitoring_officer = ($user_role === 'road_monitoring_officer');
+
 $period = sanitize_input($_GET['period'] ?? '30');
 
 // Date range applied to every card, chart and table on the page.
@@ -739,8 +742,77 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
         }
     </style>
     <?php endif; ?>
+    <?php if ($is_road_monitoring_officer): ?>
+    <!-- Road Monitoring Officer only: fit all six analytics stat cards on
+         phones in a 3x2 layout (three columns, two rows). The generic mobile
+         rules collapse the grid to 2x3; use a fixed 3-column grid with
+         compact tiles instead (trend lines hidden on small screens to fit).
+         Mirrors the trans_ops_supervisor treatment. UI-only CSS scoping —
+         other portals are unaffected and no behaviour changes. -->
+    <style>
+        @media (max-width: 768px) {
+            body.rmo-view .analytics-main .stats-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 8px;
+                margin-bottom: 14px;
+            }
+            body.rmo-view .analytics-main .stat-card {
+                padding: 8px 5px;
+                border-radius: 10px;
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            body.rmo-view .analytics-main .stat-card::before { height: 2px; }
+            body.rmo-view .analytics-main .stat-card .stat-icon {
+                width: 20px;
+                height: 20px;
+                border-radius: 6px;
+                font-size: 9px;
+                margin-bottom: 4px;
+            }
+            body.rmo-view .analytics-main .stat-card .stat-value { font-size: 13px; }
+            body.rmo-view .analytics-main .stat-card .stat-value small { font-size: 8px; }
+            body.rmo-view .analytics-main .stat-card .stat-label {
+                font-size: 7.5px;
+                line-height: 1.25;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+            }
+            body.rmo-view .analytics-main .stat-card .stat-trend { display: none; }
+
+            /* Road Monitoring Officer only: two chart cards per row instead of
+               the generic single-column stack. Cards and chart containers are
+               compacted so both columns stay readable on phones. */
+            body.rmo-view .analytics-main .chart-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 8px;
+            }
+            body.rmo-view .analytics-main .chart-card {
+                padding: 10px 8px;
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            body.rmo-view .analytics-main .chart-card h4 {
+                font-size: 11px;
+                margin-bottom: 8px;
+                padding-bottom: 8px;
+                gap: 6px;
+            }
+            body.rmo-view .analytics-main .chart-card h4 i {
+                width: 20px;
+                height: 20px;
+                border-radius: 6px;
+                font-size: 9px;
+            }
+            body.rmo-view .analytics-main .chart-container { height: 150px; }
+            body.rmo-view .analytics-main .chart-card canvas { max-width: 100%; }
+        }
+    </style>
+    <?php endif; ?>
 </head>
-<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo $is_trans_ops_supervisor ? ' trans-supervisor-view' : ''; ?>">
+<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo $is_trans_ops_supervisor ? ' trans-supervisor-view' : ''; ?><?php echo $is_road_monitoring_officer ? ' rmo-view' : ''; ?>">
     <?php include '../../includes/sidebar_nav.php'; ?>
 
     <div class="analytics-main main-content">

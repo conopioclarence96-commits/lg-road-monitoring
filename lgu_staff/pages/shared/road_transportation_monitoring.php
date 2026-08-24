@@ -4200,6 +4200,133 @@ if ($is_completed_projects_view || $is_system_admin) {
         }
     </style>
 <?php endif; ?>
+<?php if ($is_road_monitoring_officer): ?>
+    <!-- Road Monitoring Officer only: keep all four dashboard stat cards in
+         ONE row on phones inside this page's stats-row. The generic
+         .mon-dash rules collapse them to 2x2 below 768px and to a single
+         column below 480px; switch to a fixed 4-column grid with compact
+         tiles instead so every card stays visible in one row.
+         UI-only CSS scoping - other portals/pages are unaffected and no
+         behaviour changes. -->
+    <style>
+        @media (max-width: 768px) {
+            body.rmo-view .mon-dash .stats-row {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                gap: 8px;
+                margin-bottom: 14px;
+            }
+            body.rmo-view .mon-dash .stats-row .stat-card {
+                padding: 10px 8px;
+                border-radius: 10px;
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            body.rmo-view .mon-dash .stats-row .stat-card::before { height: 3px; }
+            body.rmo-view .mon-dash .stats-row .stat-card .stat-icon {
+                width: 28px;
+                height: 28px;
+                border-radius: 8px;
+                font-size: 12px;
+                margin-bottom: 6px;
+            }
+            body.rmo-view .mon-dash .stats-row .stat-card .stat-number { font-size: 16px; }
+            body.rmo-view .mon-dash .stats-row .stat-card .stat-label {
+                font-size: 9.5px;
+                line-height: 1.25;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+            }
+        }
+        @media (max-width: 480px) {
+            /* Very narrow screens stay one row as well (overrides the generic
+               stack-to-one-column rule which has lower specificity) */
+            body.rmo-view .mon-dash .stats-row {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+            }
+        }
+    </style>
+<?php endif; ?>
+<?php if ($is_road_monitoring_officer): ?>
+    <!-- Road Monitoring Officer only: mobile fit for monitoring-layout /
+         sidebar-section (map + side panels). Mirrors the Road Ops Supervisor
+         fit: grid/flex children must be allowed to shrink below their content
+         width, otherwise wide inner rows force the track past the screen edge
+         and get clipped ("half" visible); the toolbar, filter buttons and
+         legend chips wrap instead of overflowing.
+         UI-only CSS scoping - other portals/pages are unaffected and no
+         behaviour changes. -->
+    <style>
+        @media (max-width: 768px) {
+            body.rmo-view .mon-dash { padding: 16px 14px; }
+
+            /* Grid/flex children must be allowed to shrink below their content
+               width, otherwise wide inner rows force the track past the screen
+               edge and get clipped ("half" visible). */
+            body.rmo-view .monitoring-layout,
+            body.rmo-view .monitoring-layout > *,
+            body.rmo-view .sidebar-section,
+            body.rmo-view .info-card {
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+
+            body.rmo-view .monitoring-layout {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+
+            body.rmo-view .sidebar-section {
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+                width: 100%;
+                overflow-x: hidden;
+            }
+
+            body.rmo-view .map-section {
+                padding: 12px;
+                min-width: 0;
+                overflow-x: hidden;
+            }
+
+            /* Shorter map keeps header + toolbar + map inside one mobile view */
+            body.rmo-view #map {
+                height: 340px;
+            }
+
+            /* Toolbar button row is ~600px unwrapped - let it wrap instead of
+               pushing past the screen edge */
+            body.rmo-view .map-toolbar,
+            body.rmo-view .map-toolbar-left,
+            body.rmo-view .map-toolbar-right {
+                flex-wrap: wrap;
+            }
+            body.rmo-view .map-toolbar-right {
+                justify-content: flex-start;
+            }
+            body.rmo-view .map-search-box input {
+                width: 120px;
+            }
+
+            /* Filter buttons and legend chips are single non-wrapping flex rows,
+               so on narrow screens their content runs past the screen edge and
+               gets clipped. Let both wrap so every item stays visible. */
+            body.rmo-view .map-filters {
+                flex-wrap: wrap;
+                row-gap: 8px;
+            }
+            body.rmo-view .map-filters .filter-btn {
+                flex-shrink: 0;
+            }
+            body.rmo-view .map-legend {
+                flex-wrap: wrap;
+                row-gap: 6px;
+            }
+        }
+    </style>
+<?php endif; ?>
 <?php if ($is_system_admin && $is_completed_projects_view): ?>
     <!-- System Admin + Completed Projects page only: mobile fit for the
          reports-table-section badges. The fixed table-layout cells clip the
@@ -4246,7 +4373,7 @@ if ($is_completed_projects_view || $is_system_admin) {
     </style>
 <?php endif; ?>
 </head>
-<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo $is_completed_projects_view ? ' completed-projects-view' : ''; ?><?php echo $is_road_supervisor ? ' road-supervisor-view' : ''; ?><?php echo $is_trans_ops_supervisor ? ' trans-supervisor-view' : ''; ?><?php echo $is_system_admin ? ' system-admin-view' : ''; ?>">
+<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo $is_completed_projects_view ? ' completed-projects-view' : ''; ?><?php echo $is_road_supervisor ? ' road-supervisor-view' : ''; ?><?php echo $is_trans_ops_supervisor ? ' trans-supervisor-view' : ''; ?><?php echo $is_road_monitoring_officer ? ' rmo-view' : ''; ?><?php echo $is_system_admin ? ' system-admin-view' : ''; ?>">
     <!-- SIDEBAR -->
     <?php include '../../includes/sidebar_nav.php'; ?>
 
