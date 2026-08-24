@@ -4082,6 +4082,83 @@ if ($is_completed_projects_view || $is_system_admin) {
         }
     </style>
 <?php endif; ?>
+<?php if ($is_trans_ops_supervisor): ?>
+    <!-- Transport Operations Supervisor only: mobile fit for monitoring-layout /
+         sidebar-section. Mirrors the Road Ops Supervisor / System Admin fit
+         blocks. UI-only CSS scoping — other portals are unaffected and no
+         behaviour changes. -->
+    <style>
+        @media (max-width: 768px) {
+            .trans-supervisor-view .mon-dash { padding: 16px 14px; }
+
+            /* Grid/flex children must be allowed to shrink below their content
+               width, otherwise wide inner rows force the track past the screen
+               edge and get clipped ("half" visible). */
+            .trans-supervisor-view .monitoring-layout,
+            .trans-supervisor-view .monitoring-layout > *,
+            .trans-supervisor-view .sidebar-section,
+            .trans-supervisor-view .sidebar-section > *,
+            .trans-supervisor-view .info-card {
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+
+            .trans-supervisor-view .monitoring-layout {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+
+            .trans-supervisor-view .sidebar-section {
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+                width: 100%;
+                overflow-x: hidden;
+            }
+
+            .trans-supervisor-view .map-section {
+                padding: 12px;
+                min-width: 0;
+                overflow-x: hidden;
+            }
+
+            /* Shorter map keeps header + toolbar + map inside one mobile view */
+            .trans-supervisor-view #map {
+                height: 340px;
+            }
+
+            /* Toolbar button row is ~600px unwrapped — let it wrap instead of
+               pushing past the screen edge */
+            .trans-supervisor-view .map-toolbar,
+            .trans-supervisor-view .map-toolbar-left,
+            .trans-supervisor-view .map-toolbar-right {
+                flex-wrap: wrap;
+            }
+            .trans-supervisor-view .map-toolbar-right {
+                justify-content: flex-start;
+            }
+            .trans-supervisor-view .map-search-box input {
+                width: 120px;
+            }
+
+            /* Filter buttons and legend chips are single non-wrapping flex rows,
+               so on narrow screens their content runs past the screen edge and
+               gets clipped. Let both wrap so every item stays visible. */
+            .trans-supervisor-view .map-filters {
+                flex-wrap: wrap;
+                row-gap: 8px;
+            }
+            .trans-supervisor-view .map-filters .filter-btn {
+                flex-shrink: 0;
+            }
+            .trans-supervisor-view .map-legend {
+                flex-wrap: wrap;
+                row-gap: 6px;
+            }
+        }
+    </style>
+<?php endif; ?>
 <?php if ($is_system_admin && $is_completed_projects_view): ?>
     <!-- System Admin + Completed Projects page only: mobile fit for the
          reports-table-section badges. The fixed table-layout cells clip the
@@ -4128,7 +4205,7 @@ if ($is_completed_projects_view || $is_system_admin) {
     </style>
 <?php endif; ?>
 </head>
-<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo $is_completed_projects_view ? ' completed-projects-view' : ''; ?><?php echo $is_road_supervisor ? ' road-supervisor-view' : ''; ?><?php echo $is_system_admin ? ' system-admin-view' : ''; ?>">
+<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo $is_completed_projects_view ? ' completed-projects-view' : ''; ?><?php echo $is_road_supervisor ? ' road-supervisor-view' : ''; ?><?php echo $is_trans_ops_supervisor ? ' trans-supervisor-view' : ''; ?><?php echo $is_system_admin ? ' system-admin-view' : ''; ?>">
     <!-- SIDEBAR -->
     <?php include '../../includes/sidebar_nav.php'; ?>
 
