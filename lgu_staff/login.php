@@ -140,24 +140,41 @@ $showLoginOTPModal = false;
 
 // Handle Registration OTP Verification
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_otp'])) {
-    $enteredOTP = $_POST['otp_code'] ?? '';
-    $result = verify_otp_code($enteredOTP, 'registration');
-    
-    if ($result['success']) {
-        $_SESSION['otp_verified'] = true;
-        $registerMessage = 'Email verified successfully! Please complete your profile.';
-        $registerMessageType = 'success';
-        
-        echo '<script>
-            document.addEventListener("DOMContentLoaded", function() {
-                setTimeout(() => showPanel("additional"), 500);
-            });
-        </script>';
-    } else {
-        $registerMessage = $result['message'];
+    $maxRegistrationOtpAttempts = 3;
+    $registrationOtpAttempts = (int)($_SESSION['registration_otp_attempts'] ?? 0);
+
+    if ($registrationOtpAttempts >= $maxRegistrationOtpAttempts) {
+        $registerMessage = 'Maximum verification attempts reached. Please request a new verification code.';
         $registerMessageType = 'error';
-        if ($result['message'] !== 'OTP has expired. Please try again.') {
-            $showOTPModal = true;
+        $showOTPModal = true;
+    } else {
+        $enteredOTP = $_POST['otp_code'] ?? '';
+        $result = verify_otp_code($enteredOTP, 'registration');
+
+        if ($result['success']) {
+            unset($_SESSION['registration_otp_attempts']);
+            $_SESSION['otp_verified'] = true;
+            $registerMessage = 'Email verified successfully! Please complete your profile.';
+            $registerMessageType = 'success';
+
+            echo '<script>
+                document.addEventListener("DOMContentLoaded", function() {
+                    setTimeout(() => showPanel("additional"), 500);
+                });
+            </script>';
+        } else {
+            $_SESSION['registration_otp_attempts'] = $registrationOtpAttempts + 1;
+            $registrationOtpAttempts = (int)$_SESSION['registration_otp_attempts'];
+
+            if ($registrationOtpAttempts >= $maxRegistrationOtpAttempts) {
+                $registerMessage = 'Maximum verification attempts reached. Please request a new verification code.';
+            } else {
+                $registerMessage = $result['message'];
+            }
+            $registerMessageType = 'error';
+            if ($result['message'] !== 'OTP has expired. Please try again.' || $registrationOtpAttempts >= $maxRegistrationOtpAttempts) {
+                $showOTPModal = true;
+            }
         }
     }
 }
