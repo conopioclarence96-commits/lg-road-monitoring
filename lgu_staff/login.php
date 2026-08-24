@@ -349,6 +349,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
         if (empty($first_name) || empty($last_name) || empty($role)) {
             $additionalMessage = 'Please fill in all required fields (First Name, Last Name, Role)';
             $additionalMessageType = 'error';
+        } elseif (!preg_match('/^(09\d{9}|\+639\d{9})$/', $phone_number)) {
+            $additionalMessage = 'Please enter a valid Philippine mobile number.';
+            $additionalMessageType = 'error';
+            echo '<script>
+                document.addEventListener("DOMContentLoaded", function() {
+                    showPanel("additional");
+                });
+            </script>';
         } elseif (!isset($_FILES['id_file']) || $_FILES['id_file']['error'] !== UPLOAD_ERR_OK) {
             $additionalMessage = 'Please upload your ID to continue.';
             $additionalMessageType = 'error';
@@ -845,7 +853,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
 
               <div class="input-box">
                 <label>Contact Number *</label>
-                <input type="tel" name="phone_number" maxlength="20" pattern="[0-9+\-\s()]+" title="Enter a valid contact number" value="<?php echo isset($_POST['phone_number']) ? htmlspecialchars($_POST['phone_number']) : ''; ?>" required />
+                <input type="tel" name="phone_number" maxlength="13" inputmode="tel" placeholder="09XXXXXXXXX" pattern="^(09[0-9]{9}|\+639[0-9]{9})$" title="Please enter a valid Philippine mobile number." value="<?php echo isset($_POST['phone_number']) ? htmlspecialchars($_POST['phone_number']) : ''; ?>" required oninvalid="this.setCustomValidity('Please enter a valid Philippine mobile number.')" oninput="this.setCustomValidity('')" />
               </div>
 
               <div class="input-box">
