@@ -886,7 +886,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
                 <label>Role *</label>
                 <select name="role" required>
                   <option value="">Select this role</option>
-                  <option value="lgu_staff" <?php echo (isset($_POST['role']) && $_POST['role'] == 'lgu_staff') ? 'selected' : ''; ?>>LGU Staff</option>
                   <option value="road_ops_supervisor" <?php echo (isset($_POST['role']) && $_POST['role'] == 'road_ops_supervisor') ? 'selected' : ''; ?>>Road Operations Supervisor</option>
                   <option value="trans_ops_supervisor" <?php echo (isset($_POST['role']) && $_POST['role'] == 'trans_ops_supervisor') ? 'selected' : ''; ?>>Transportation Operations Supervisor</option>
                   <option value="road_monitoring_officer" <?php echo (isset($_POST['role']) && $_POST['role'] == 'road_monitoring_officer') ? 'selected' : ''; ?>>Road Monitoring Officer</option>
