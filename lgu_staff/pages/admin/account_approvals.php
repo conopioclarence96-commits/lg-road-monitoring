@@ -136,7 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $user_stmt->close();
         exit;
 
-    } elseif ($action === 'approve_change' && $user_id > 0) {
+    } elseif ($action === 'approve_change') {
         $request_id = intval($_POST['request_id'] ?? 0);
         $cr_user_id = intval($_POST['cr_user_id'] ?? 0);
         $new_full_name = sanitize_input($_POST['new_full_name'] ?? '');
@@ -144,13 +144,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $new_address = sanitize_input($_POST['new_address'] ?? '');
         $new_civil_status = sanitize_input($_POST['new_civil_status'] ?? '');
         $new_birthday = sanitize_input($_POST['new_birthday'] ?? '');
+        if ($new_birthday === '') {
+            $new_birthday = null;
+        }
         $new_phone_number = sanitize_input($_POST['new_phone_number'] ?? '');
         $new_password = $_POST['new_password'] ?? '';
         $new_id_file = $_POST['new_id_file_path'] ?? '';
         $new_profile_picture = $_POST['new_profile_picture'] ?? '';
         $admin_notes = sanitize_input($_POST['admin_notes'] ?? '');
+        $reviewer_id = (int)$_SESSION['user_id'];
 
-        if ($request_id > 0 && $cr_user_id > 0) {
+        if ($request_id <= 0 || $cr_user_id <= 0) {
+            echo json_encode(['success' => false, 'message' => 'Invalid request parameters.']);
+            exit;
+        }
+
+        // Only pending requests can be approved. Processed rows stay in
+        // change_requests with status approved/rejected for archive.php.
+        $pending = fetch_one(
+            "SELECT id, user_id, status FROM change_requests WHERE id = ? AND user_id = ? LIMIT 1",
+            [$request_id, $cr_user_id],
+            'ii'
+        );
+        if (!$pending) {
+            echo json_encode(['success' => false, 'message' => 'Change request not found.']);
+            exit;
+        }
+        if (strtolower((string)($pending['status'] ?? '')) !== 'pending') {
+            echo json_encode([
+                'success' => true,
+                'message' => 'This change request was already processed and is no longer in Staff Change Requests.',
+                'status' => (string)$pending['status'],
+                'request_id' => $request_id,
+                'archived' => true,
+            ]);
+            exit;
+        }
+
+        $conn->begin_transaction();
+        try {
             $sql = "UPDATE users SET full_name = ?, email = ?, address = ?, civil_status = ?, birthday = ?, phone_number = ?";
             $params = [$new_full_name, $new_email, $new_address, $new_civil_status, $new_birthday, $new_phone_number];
             $types = "ssssss";
@@ -177,35 +209,101 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $types .= "i";
 
             $stmt = $conn->prepare($sql);
-            $stmt->bind_param($types, ...$params);
-            if ($stmt->execute()) {
-                $stmt->close();
-                $stmt2 = $conn->prepare("UPDATE change_requests SET status = 'approved', admin_notes = ?, reviewed_at = NOW(), reviewed_by = ? WHERE id = ?");
-                $stmt2->bind_param("sii", $admin_notes, $_SESSION['user_id'], $request_id);
-                $stmt2->execute();
-                $stmt2->close();
-                log_audit_action($_SESSION['user_id'], 'Change Request Approved', "Approved change request #$request_id for user #$cr_user_id");
-                echo json_encode(['success' => true, 'message' => 'Change request approved and user info updated.']);
-            } else {
-                echo json_encode(['success' => false, 'message' => 'Failed to update user info.']);
+            if (!$stmt) {
+                throw new Exception('Failed to prepare user update.');
             }
-        } else {
-            echo json_encode(['success' => false, 'message' => 'Invalid request parameters.']);
+            $stmt->bind_param($types, ...$params);
+            if (!$stmt->execute()) {
+                $err = $stmt->error ?: 'Failed to update user info.';
+                $stmt->close();
+                throw new Exception($err);
+            }
+            $stmt->close();
+
+            $stmt2 = $conn->prepare(
+                "UPDATE change_requests
+                 SET status = 'approved', admin_notes = ?, reviewed_at = NOW(), reviewed_by = ?
+                 WHERE id = ? AND status = 'pending'"
+            );
+            if (!$stmt2) {
+                throw new Exception('Failed to prepare status update.');
+            }
+            $stmt2->bind_param("sii", $admin_notes, $reviewer_id, $request_id);
+            if (!$stmt2->execute() || $stmt2->affected_rows < 1) {
+                $stmt2->close();
+                throw new Exception('Failed to finalize change request status.');
+            }
+            $stmt2->close();
+
+            $conn->commit();
+            log_audit_action($reviewer_id, 'Change Request Approved', "Approved change request #$request_id for user #$cr_user_id");
+            echo json_encode([
+                'success' => true,
+                'message' => 'Change request approved. It has been moved to Archive.',
+                'status' => 'approved',
+                'request_id' => $request_id,
+                'archived' => true,
+            ]);
+        } catch (Throwable $e) {
+            try { $conn->rollback(); } catch (Throwable $ignored) {}
+            error_log('approve_change error: ' . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
         exit;
 
-    } elseif ($action === 'reject_change' && $user_id > 0) {
+    } elseif ($action === 'reject_change') {
         $request_id = intval($_POST['request_id'] ?? 0);
         $admin_notes = sanitize_input($_POST['admin_notes'] ?? '');
-        if ($request_id > 0) {
-            $stmt = $conn->prepare("UPDATE change_requests SET status = 'rejected', admin_notes = ?, reviewed_at = NOW(), reviewed_by = ? WHERE id = ?");
-            $stmt->bind_param("sii", $admin_notes, $_SESSION['user_id'], $request_id);
-            $stmt->execute();
-            $stmt->close();
-            log_audit_action($_SESSION['user_id'], 'Change Request Rejected', "Rejected change request #$request_id");
-            echo json_encode(['success' => true, 'message' => 'Change request rejected.']);
-        } else {
+        $reviewer_id = (int)$_SESSION['user_id'];
+
+        if ($request_id <= 0) {
             echo json_encode(['success' => false, 'message' => 'Invalid request ID.']);
+            exit;
+        }
+
+        $pending = fetch_one(
+            "SELECT id, status FROM change_requests WHERE id = ? LIMIT 1",
+            [$request_id],
+            'i'
+        );
+        if (!$pending) {
+            echo json_encode(['success' => false, 'message' => 'Change request not found.']);
+            exit;
+        }
+        if (strtolower((string)($pending['status'] ?? '')) !== 'pending') {
+            echo json_encode([
+                'success' => true,
+                'message' => 'This change request was already processed and is no longer in Staff Change Requests.',
+                'status' => (string)$pending['status'],
+                'request_id' => $request_id,
+                'archived' => true,
+            ]);
+            exit;
+        }
+
+        $stmt = $conn->prepare(
+            "UPDATE change_requests
+             SET status = 'rejected', admin_notes = ?, reviewed_at = NOW(), reviewed_by = ?
+             WHERE id = ? AND status = 'pending'"
+        );
+        if (!$stmt) {
+            echo json_encode(['success' => false, 'message' => 'Failed to prepare rejection.']);
+            exit;
+        }
+        $stmt->bind_param("sii", $admin_notes, $reviewer_id, $request_id);
+        if ($stmt->execute() && $stmt->affected_rows > 0) {
+            $stmt->close();
+            log_audit_action($reviewer_id, 'Change Request Rejected', "Rejected change request #$request_id");
+            echo json_encode([
+                'success' => true,
+                'message' => 'Change request rejected. It has been moved to Archive.',
+                'status' => 'rejected',
+                'request_id' => $request_id,
+                'archived' => true,
+            ]);
+        } else {
+            $stmt->close();
+            echo json_encode(['success' => false, 'message' => 'Failed to reject change request.']);
         }
         exit;
     }
@@ -232,6 +330,8 @@ $role_labels = [
 
 $change_requests = [];
 try {
+    // Active Staff Change Requests panel: pending only.
+    // Approved/rejected rows remain in change_requests for archive.php.
     $cr_stmt = $conn->prepare("
         SELECT cr.*, u.full_name as user_name, u.email as user_email,
                u.department as user_department, u.address as user_address,
@@ -240,7 +340,7 @@ try {
                u.id_file_path as user_id_file
         FROM change_requests cr
         LEFT JOIN users u ON cr.user_id = u.id
-        WHERE cr.status = 'pending'
+        WHERE LOWER(TRIM(cr.status)) = 'pending'
         ORDER BY cr.created_at DESC
     ");
     $cr_stmt->execute();
@@ -1219,7 +1319,7 @@ if ($focus_cr_id > 0) {
         function approveUser() { doUserAction('approve'); }
         function rejectUser() { doUserAction('reject'); }
 
-        const changeRequestsData = <?php echo json_encode($change_requests); ?>;
+        let changeRequestsData = <?php echo json_encode($change_requests); ?>;
 
         function showChangeRequestModal(requestId, userId) {
             const cr = changeRequestsData.find(r => r.id == requestId);
@@ -1343,13 +1443,46 @@ if ($focus_cr_id > 0) {
         function submitChangeRequest() {
             const form = document.getElementById('changeRequestForm');
             const formData = new FormData(form);
+            const requestId = formData.get('request_id');
             fetch('', { method: 'POST', body: formData })
             .then(response => response.json())
             .then(result => {
-                if (result.success) { closeChangeRequestModal(); location.reload(); }
-                else { alert(result.message); }
+                if (result.success) {
+                    closeChangeRequestModal();
+                    // Immediately drop the processed row from the active panel.
+                    // Approved/rejected rows are excluded by status and live in archive.php.
+                    removeChangeRequestRow(requestId);
+                    if (result.message) {
+                        showFocusMessage(result.message);
+                    }
+                    setTimeout(function() { location.reload(); }, 600);
+                } else {
+                    alert(result.message || 'Unable to process change request.');
+                }
             })
             .catch(error => { console.error('Error:', error); alert('An error occurred.'); });
+        }
+
+        function removeChangeRequestRow(requestId) {
+            var id = String(requestId || '');
+            if (!id) return;
+            var row = document.querySelector('#changeRequestsBody tr[data-id="' + id + '"]');
+            if (row) row.remove();
+            if (Array.isArray(changeRequestsData)) {
+                changeRequestsData = changeRequestsData.filter(function(r) { return String(r.id) !== id; });
+            }
+            if (Array.isArray(previousChangeRequestIds)) {
+                previousChangeRequestIds = previousChangeRequestIds.filter(function(rid) { return String(rid) !== id; });
+            }
+            var remaining = document.querySelectorAll('#changeRequestsBody tr[data-id]').length;
+            var badge = document.getElementById('changeRequestsBadge');
+            if (badge) badge.textContent = remaining;
+            var stat = document.getElementById('statChangeRequests');
+            if (stat) stat.textContent = remaining;
+            var body = document.getElementById('changeRequestsBody');
+            if (body && remaining === 0) {
+                body.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#64748b;">No pending change requests</td></tr>';
+            }
         }
 
         window.onclick = function(event) {

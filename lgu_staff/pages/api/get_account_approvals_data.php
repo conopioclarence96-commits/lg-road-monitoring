@@ -32,6 +32,7 @@ try {
 }
 
 try {
+    // Active panel only — approved/rejected requests belong in archive.php.
     $cr_stmt = $conn->prepare("
         SELECT cr.*, u.full_name as user_name, u.email as user_email,
                u.department as user_department, u.address as user_address,
@@ -40,7 +41,7 @@ try {
                u.id_file_path as user_id_file
         FROM change_requests cr
         LEFT JOIN users u ON cr.user_id = u.id
-        WHERE cr.status = 'pending'
+        WHERE LOWER(TRIM(cr.status)) = 'pending'
         ORDER BY cr.created_at DESC
     ");
     $cr_stmt->execute();
