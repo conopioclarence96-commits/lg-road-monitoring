@@ -14,6 +14,9 @@ $user_role = $_SESSION['role'] ?? 'citizen';
 // Font color overrides below apply to the system admin only.
 $is_system_admin = ($user_role === 'system_admin');
 
+// Transport Operations Supervisor flag: scopes the mobile-fit CSS below to this portal only.
+$is_trans_ops_supervisor = ($user_role === 'trans_ops_supervisor');
+
 $period = sanitize_input($_GET['period'] ?? '30');
 
 // Date range applied to every card, chart and table on the page.
@@ -696,8 +699,48 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
             .chart-card, .stat-card, .panel { break-inside: avoid; page-break-inside: avoid; }
         }
     </style>
+    <?php if ($is_trans_ops_supervisor): ?>
+    <!-- Transport Operations Supervisor only: fit all six analytics stat
+         cards on phones in TWO rows of three. The generic mobile rules
+         collapse the grid to 2x3; use a fixed 3-column grid with compact
+         tiles instead (trend lines hidden on small screens to fit). UI-only
+         CSS scoping — other portals are unaffected and no behaviour changes. -->
+    <style>
+        @media (max-width: 768px) {
+            body.trans-supervisor-view .analytics-main .stats-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 8px;
+                margin-bottom: 14px;
+            }
+            body.trans-supervisor-view .analytics-main .stat-card {
+                padding: 8px 5px;
+                border-radius: 10px;
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            body.trans-supervisor-view .analytics-main .stat-card::before { height: 2px; }
+            body.trans-supervisor-view .analytics-main .stat-card .stat-icon {
+                width: 20px;
+                height: 20px;
+                border-radius: 6px;
+                font-size: 9px;
+                margin-bottom: 4px;
+            }
+            body.trans-supervisor-view .analytics-main .stat-card .stat-value { font-size: 13px; }
+            body.trans-supervisor-view .analytics-main .stat-card .stat-value small { font-size: 8px; }
+            body.trans-supervisor-view .analytics-main .stat-card .stat-label {
+                font-size: 7.5px;
+                line-height: 1.25;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+            }
+            body.trans-supervisor-view .analytics-main .stat-card .stat-trend { display: none; }
+        }
+    </style>
+    <?php endif; ?>
 </head>
-<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
+<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo $is_trans_ops_supervisor ? ' trans-supervisor-view' : ''; ?>">
     <?php include '../../includes/sidebar_nav.php'; ?>
 
     <div class="analytics-main main-content">

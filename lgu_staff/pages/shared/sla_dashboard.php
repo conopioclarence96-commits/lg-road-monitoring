@@ -116,8 +116,45 @@ log_audit_action($user_id, "Viewed SLA dashboard", "Tracked reports: " . count($
     <link rel="stylesheet" href="../../../styles/transition.css">
     <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <?php if (($user_role ?? '') === 'trans_ops_supervisor'): ?>
+    <!-- Transport Operations Supervisor only: fit all four SLA stat cards on
+         phones in TWO rows of two. The shared enhanced-reports.css collapses
+         the grid below 768px; compact the tiles instead (trend lines hidden
+         on small screens to fit). UI-only CSS scoping — other portals are
+         unaffected and no behaviour changes. -->
+    <style>
+        @media (max-width: 768px) {
+            body.trans-supervisor-view .stats-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 8px;
+                margin-bottom: 14px;
+            }
+            body.trans-supervisor-view .stats-grid .stat-card {
+                padding: 8px 6px;
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            body.trans-supervisor-view .stats-grid .stat-card .stat-icon {
+                width: 22px;
+                height: 22px;
+                border-radius: 7px;
+                font-size: 10px;
+                margin-bottom: 4px;
+            }
+            body.trans-supervisor-view .stats-grid .stat-card .stat-value { font-size: 14px; }
+            body.trans-supervisor-view .stats-grid .stat-card .stat-label {
+                font-size: 7.5px;
+                line-height: 1.25;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+            }
+            body.trans-supervisor-view .stats-grid .stat-card .stat-trend { display: none; }
+        }
+    </style>
+    <?php endif; ?>
 </head>
-<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
+<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo ($user_role ?? '') === 'trans_ops_supervisor' ? ' trans-supervisor-view' : ''; ?>">
     <?php include '../../includes/sidebar_nav.php'; ?>
 
     <div class="main-content" style="padding: 28px; position: relative; z-index: 1;">

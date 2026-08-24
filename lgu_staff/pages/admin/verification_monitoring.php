@@ -6384,8 +6384,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
     </style>
+    <?php if (!empty($is_transport_supervisor)): ?>
+    <!-- Transport Operations Supervisor only: keep the three workflow stat
+         cards in ONE row on phones. The generic mobile rule below stacks them
+         into a single column; compact the cards instead so the 3-column grid
+         fits. UI-only CSS scoping — other portals are unaffected and no
+         behaviour changes. -->
+    <style>
+        @media (max-width: 768px) {
+            .trans-supervisor-view .vm-dash .workflow-stats {
+                width: 100%;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 8px;
+                margin-bottom: 12px;
+            }
+            .trans-supervisor-view .vm-dash .workflow-stat {
+                padding: 10px 8px;
+                border-radius: 10px;
+                gap: 8px;
+            }
+            .trans-supervisor-view .vm-dash .workflow-stat-icon {
+                width: 28px;
+                height: 28px;
+                border-radius: 8px;
+                font-size: 12px;
+            }
+            .trans-supervisor-view .vm-dash .workflow-number { font-size: 15px; }
+            .trans-supervisor-view .vm-dash .workflow-label {
+                font-size: 8.5px;
+                letter-spacing: 0;
+                line-height: 1.25;
+                overflow-wrap: anywhere;
+            }
+        }
+    </style>
+    <?php endif; ?>
 </head>
-<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
+<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo !empty($is_transport_supervisor) ? ' trans-supervisor-view' : ''; ?>">
     <!-- SIDEBAR -->
     <?php include '../../includes/sidebar_nav.php'; ?>
 

@@ -20,6 +20,9 @@ $user_id = $_SESSION['user_id'];
 // Road Ops Supervisor flag: scopes the mobile-fit CSS below to this portal only.
 $is_road_supervisor = ($_SESSION['role'] ?? '') === 'road_ops_supervisor';
 
+// Transport Operations Supervisor flag: scopes the mobile-fit CSS below to this portal only.
+$is_trans_ops_supervisor = ($_SESSION['role'] ?? '') === 'trans_ops_supervisor';
+
 // Ensure profile_picture column exists
 try {
     $check_col = $conn->query("SHOW COLUMNS FROM users LIKE 'profile_picture'");
@@ -831,8 +834,47 @@ try {
         }
     </style>
     <?php endif; ?>
+    <?php if ($is_trans_ops_supervisor): ?>
+    <!-- Transport Operations Supervisor only: mobile fit for the page header
+         date/time chip (dt-chip). The header row never wraps and the chip is
+         flex-shrink:0, so on phones the chip overflows its container onto the
+         screen edge. Let the row wrap and the chip shrink instead. UI-only CSS
+         scoping — other portals are unaffected and no behaviour changes. -->
+    <style>
+        @media (max-width: 768px) {
+            body.trans-supervisor-view .page-header {
+                flex-wrap: wrap;
+                row-gap: 10px;
+            }
+            body.trans-supervisor-view .page-header-left {
+                min-width: 0;
+                max-width: 100%;
+            }
+
+            /* The chip must be allowed to shrink below its content width and
+               wrap its text instead of being pushed past the container */
+            body.trans-supervisor-view .dt-chip {
+                flex-shrink: 1;
+                min-width: 0;
+                max-width: 100%;
+                padding: 8px 12px;
+            }
+            body.trans-supervisor-view .dt-chip > div {
+                min-width: 0;
+            }
+            body.trans-supervisor-view .dt-chip #currentDate {
+                font-size: 12px;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+            }
+            body.trans-supervisor-view .dt-chip #currentTime {
+                font-size: 11px;
+            }
+        }
+    </style>
+    <?php endif; ?>
 </head>
-<body class="<?php echo ($user_data['darkmode'] ?? 0) == 1 ? 'dark-mode' : ''; ?><?php echo $is_road_supervisor ? ' road-supervisor-view' : ''; ?>">
+<body class="<?php echo ($user_data['darkmode'] ?? 0) == 1 ? 'dark-mode' : ''; ?><?php echo $is_road_supervisor ? ' road-supervisor-view' : ''; ?><?php echo $is_trans_ops_supervisor ? ' trans-supervisor-view' : ''; ?>">
     <!-- SIDEBAR -->
     <?php include '../../includes/sidebar_nav.php'; ?>
 

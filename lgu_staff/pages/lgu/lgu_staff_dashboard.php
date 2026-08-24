@@ -1097,8 +1097,71 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
         .dark-mode .db-pr-low       { background: rgba(5, 150, 105, 0.28); color: #6ee7b7; }
         <?php endif; ?>
     </style>
+    <?php if ($is_trans_ops_supervisor): ?>
+    <!-- Transport Operations Supervisor only: keep all five dashboard stat
+         cards in ONE row on phones. The generic auto-fit grid stacks them
+         into a single column below ~1100px of container width; switch to a
+         fixed 5-column grid with compact tiles instead (descriptions hidden
+         on small screens to fit). UI-only CSS scoping — other portals are
+         unaffected and no behaviour changes. -->
+    <style>
+        @media (max-width: 768px) {
+            body.trans-supervisor-view .db-stats {
+                grid-template-columns: repeat(5, minmax(0, 1fr));
+                gap: 6px;
+                margin-bottom: 16px;
+            }
+            body.trans-supervisor-view .db-stats .stat-card {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 6px;
+                padding: 8px 6px;
+                border-radius: 10px;
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            body.trans-supervisor-view .db-stats .stat-card::after { height: 2px; }
+            body.trans-supervisor-view .db-stats .stat-icon {
+                width: 22px;
+                height: 22px;
+                border-radius: 7px;
+                font-size: 10px;
+                box-shadow: none;
+            }
+            body.trans-supervisor-view .db-stats .stat-number { font-size: 13px; }
+            body.trans-supervisor-view .db-stats .stat-label {
+                font-size: 7.5px;
+                line-height: 1.25;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+            }
+            body.trans-supervisor-view .db-stats .stat-desc { display: none; }
+        }
+
+        /* Chart-style pop-up label on stat cards (hover floating text) */
+        body.trans-supervisor-view .ds-tooltip {
+            position: fixed; z-index: 9999; pointer-events: none;
+            background: rgba(15, 23, 42, 0.92); color: #f1f5f9;
+            padding: 6px 10px; border-radius: 6px;
+            font-size: 12px; font-weight: 600; line-height: 1.4;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+            white-space: nowrap; max-width: 340px;
+            opacity: 0; visibility: hidden;
+            transform: translateY(4px);
+            transition: opacity 0.12s ease, transform 0.12s ease;
+        }
+        body.trans-supervisor-view .ds-tooltip.show { opacity: 1; visibility: visible; transform: translateY(0); }
+        body.trans-supervisor-view .ds-tooltip .tip-dot {
+            display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+            margin-right: 6px; vertical-align: middle;
+        }
+        body.trans-supervisor-view .ds-tooltip .tip-label { color: #f1f5f9; }
+        body.trans-supervisor-view .ds-tooltip .tip-value { color: #93c5fd; font-weight: 700; }
+    </style>
+    <?php endif; ?>
 </head>
-<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
+<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo $is_trans_ops_supervisor ? ' trans-supervisor-view' : ''; ?>">
     <!-- SIDEBAR -->
     <?php include '../../includes/sidebar_nav.php'; ?>
 
@@ -3422,6 +3485,51 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
             }, 3000);
         }
     </script>
+
+    <?php if ($is_trans_ops_supervisor): ?>
+    <script>
+        // Chart-style pop-up label on db-stats cards (trans_ops_supervisor only) -
+        // follows cursor like Chart.js tooltips. UI-only behaviour; other portals unaffected.
+        (function () {
+            const tooltip = document.createElement('div');
+            tooltip.className = 'ds-tooltip';
+            tooltip.setAttribute('role', 'tooltip');
+            document.body.appendChild(tooltip);
+
+            function getCardColor(el) {
+                const sc = getComputedStyle(el).getPropertyValue('--sc').trim();
+                return sc || '#3762c8';
+            }
+
+            function positionTooltip(e) {
+                const pad = 14;
+                let x = e.clientX + pad;
+                let y = e.clientY + pad;
+                const tw = tooltip.offsetWidth;
+                const th = tooltip.offsetHeight;
+                if (x + tw > window.innerWidth - 8) x = e.clientX - tw - pad;
+                if (y + th > window.innerHeight - 8) y = e.clientY - th - pad;
+                tooltip.style.left = x + 'px';
+                tooltip.style.top = y + 'px';
+            }
+
+            document.querySelectorAll('.db-stats .stat-card').forEach(el => {
+                el.addEventListener('mouseenter', (e) => {
+                    const valueEl = el.querySelector('.stat-number');
+                    const labelEl = el.querySelector('.stat-label');
+                    if (!valueEl || !labelEl) return;
+                    const dot = '<span class="tip-dot" style="background:' + getCardColor(el) + '"></span>';
+                    tooltip.innerHTML = dot + '<span class="tip-label">' + labelEl.textContent.trim() +
+                        ': </span><span class="tip-value">' + valueEl.textContent.trim() + '</span>';
+                    tooltip.classList.add('show');
+                    positionTooltip(e);
+                });
+                el.addEventListener('mousemove', positionTooltip);
+                el.addEventListener('mouseleave', () => tooltip.classList.remove('show'));
+            });
+        })();
+    </script>
+    <?php endif; ?>
 
 </body>
 </html>

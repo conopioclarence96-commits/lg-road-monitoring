@@ -4164,6 +4164,39 @@ if ($is_completed_projects_view || $is_system_admin) {
                 flex-wrap: wrap;
                 row-gap: 6px;
             }
+
+            /* Stats row: keep all four cards in ONE row on phones. Compact the
+               cards (padding/icon/type sizes) so the 4-column grid actually
+               fits instead of collapsing to 2x2 or stacking. */
+            .trans-supervisor-view .stats-row {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                gap: 8px;
+                margin-bottom: 14px;
+            }
+            .trans-supervisor-view .stat-card {
+                padding: 10px 8px;
+                border-radius: 10px;
+            }
+            .trans-supervisor-view .stat-card::before { height: 3px; }
+            .trans-supervisor-view .stat-card .stat-icon {
+                width: 28px;
+                height: 28px;
+                border-radius: 8px;
+                font-size: 12px;
+                margin-bottom: 6px;
+            }
+            .trans-supervisor-view .stat-card .stat-number { font-size: 16px; }
+            .trans-supervisor-view .stat-card .stat-label {
+                font-size: 9.5px;
+                line-height: 1.25;
+            }
+        }
+        @media (max-width: 480px) {
+            /* Very narrow screens stay one row as well (overrides the generic
+               stack-to-one-column rule which is scoped outside this block) */
+            .trans-supervisor-view .stats-row {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+            }
         }
     </style>
 <?php endif; ?>

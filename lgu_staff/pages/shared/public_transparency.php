@@ -23,6 +23,9 @@ if (!isset($_SESSION['user_id']) || !is_admin_or_staff_role($_SESSION['role'] ??
 
 $is_admin = ($_SESSION['role'] === 'system_admin');
 
+// Transport Operations Supervisor flag: scopes the mobile-fit CSS below to this portal only.
+$is_trans_ops_supervisor = ($_SESSION['role'] ?? '') === 'trans_ops_supervisor';
+
 // Set when the admin arrives here after approving a transparency upload request;
 // that project's data is then imported into the form for review.
 $prefill_request_id = ($is_admin && isset($_GET['transparency_request']))
@@ -905,8 +908,50 @@ if ($conn) {
         }
         body.dark-mode .btn-publish { filter: none; }
     </style>
+    <?php if ($is_trans_ops_supervisor): ?>
+    <!-- Transport Operations Supervisor only: keep all four transparency stat
+         cards in ONE row on phones. The shared stylesheet stacks them (2x2 /
+         single column) below 768px; compact the tiles instead so the
+         4-column grid fits. UI-only CSS scoping — other portals are
+         unaffected and no behaviour changes. -->
+    <style>
+        @media (max-width: 768px) {
+            body.trans-supervisor-view .transparency-stats {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                gap: 6px;
+                margin-bottom: 14px;
+            }
+            body.trans-supervisor-view .transparency-stat {
+                padding: 8px 6px;
+                border-radius: 10px;
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            body.trans-supervisor-view .transparency-stat::before { height: 2px; }
+            body.trans-supervisor-view .stat-number {
+                font-size: 13px;
+                gap: 5px;
+                margin-bottom: 3px;
+            }
+            body.trans-supervisor-view .stat-number .stat-icon {
+                width: 20px;
+                height: 20px;
+                border-radius: 6px;
+                font-size: 10px;
+                margin-right: 0;
+            }
+            body.trans-supervisor-view .stat-label {
+                font-size: 7.5px;
+                line-height: 1.25;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+            }
+        }
+    </style>
+    <?php endif; ?>
 </head>
-<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?>">
+<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo $is_trans_ops_supervisor ? ' trans-supervisor-view' : ''; ?>">
     <!-- SIDEBAR -->
     <?php include '../../includes/sidebar_nav.php'; ?>
 
