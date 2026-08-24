@@ -92,77 +92,94 @@ if ($reportPk <= 0 && $reportIdStr === '') {
     exit;
 }
 
-    $verifiedBy = trim((string)($data['verified_by'] ?? 'CIMM staff'));
+$verifiedBy = trim((string)($data['verified_by'] ?? 'CIMM staff'));
 
-    try {
-        rgmap_cimm_ensure_schema($conn);
+try {
+    rgmap_cimm_ensure_schema($conn);
 
-        // Engineer and budget_allocation are only relevant for Road reports
-        // (report_category = 'road'). Transportation reports must not receive
-        // these fields — the WHERE clause on report_category enforces that.
+    // Resolve the exact original report CIMM verified — never by "latest" row
+    // or an unrelated transportation id in the same table.
+    $target = rgmap_cimm_resolve_target_report($conn, $data);
+    if ($target === null) {
+        http_response_code(404);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Report not found or rgmap_report_pk/rgmap_report_id mismatch',
+            'rgmap_report_pk' => $reportPk,
+            'rgmap_report_id' => $reportIdStr,
+        ]);
+        exit;
+    }
+
+    $targetId = (int)$target['id'];
+
+    // Prefer ENGR/Budget from the callback body when CIMM sends them; otherwise
+    // look up the mirrored CIMM verification row for this exact PK only.
+    $engineer = null;
+    $budgetAllocation = null;
+    if (array_key_exists('engineer', $data) && $data['engineer'] !== null && trim((string)$data['engineer']) !== '') {
+        $engineer = trim((string)$data['engineer']);
+    }
+    if (array_key_exists('budget', $data) && $data['budget'] !== null && $data['budget'] !== '') {
+        $budgetAllocation = (float)$data['budget'];
+    } elseif (array_key_exists('budget_allocation', $data) && $data['budget_allocation'] !== null && $data['budget_allocation'] !== '') {
+        $budgetAllocation = (float)$data['budget_allocation'];
+    }
+
+    if ($engineer === null || $budgetAllocation === null) {
         $pdo = rgmap_verification_pdo();
         rgmap_ensure_cimm_verification_table($pdo);
-
-        // Look up engineer and budget that CIMM stored in cimm_verification_reports
-        // for this LGU report (matched via the rgmap_report_pk that CIMM echoes
-        // back in payload_json).
-        // NOTE: the column is named `budget`, not `budget_allocation` — selecting
-        // budget_allocation raised "Unknown column" on every callback, turning it
-        // into a generic 500 that silently broke all verify callbacks.
-        $engineer = null;
-        $budgetAllocation = null;
+        // Match on exact JSON number for this PK — never LIMIT 1 without PK.
         $cimmLookup = $pdo->prepare(
             "SELECT engineer, budget
                FROM cimm_verification_reports
-              WHERE JSON_EXTRACT(payload_json, '$.rgmap_report_pk') = ?
+              WHERE CAST(JSON_UNQUOTE(JSON_EXTRACT(payload_json, '$.rgmap_report_pk')) AS UNSIGNED) = ?
               LIMIT 1"
         );
-        $cimmLookup->execute([$reportPk]);
+        $cimmLookup->execute([$targetId]);
         $cimmRow = $cimmLookup->fetch(PDO::FETCH_ASSOC);
         if (is_array($cimmRow)) {
-            $engineer = $cimmRow['engineer'] ?? null;
-            $budgetAllocation = $cimmRow['budget'] ?? null;
+            if ($engineer === null) {
+                $engineer = $cimmRow['engineer'] ?? null;
+            }
+            if ($budgetAllocation === null && isset($cimmRow['budget']) && $cimmRow['budget'] !== null && $cimmRow['budget'] !== '') {
+                $budgetAllocation = (float)$cimmRow['budget'];
+            }
         }
+    }
 
-        if ($reportPk > 0) {
-            $stmt = $conn->prepare(
-                "UPDATE road_transportation_reports
-                 SET cimm_sync_status = 'verified', cimm_verified_at = NOW(), cimm_verified_by = ?,
-                     engineer = ?, budget_allocation = ?
-                 WHERE id = ? AND report_category = 'road'"
-            );
-            $stmt->bind_param('sssi', $verifiedBy, $engineer, $budgetAllocation, $reportPk);
-        } else {
-            // Look up engineer/budget via report_reference (the LGU report_id
-            // CIMM echoes back in payload_json) for the string-ID path.
-            // Column is `budget`, not `budget_allocation` (same fix as above).
-            $cimmLookup2 = $pdo->prepare(
-                "SELECT engineer, budget
-                   FROM cimm_verification_reports
-                  WHERE report_reference = ? OR JSON_EXTRACT(payload_json, '$.rgmap_report_id') = ?
-                  LIMIT 1"
-            );
-            $cimmLookup2->execute([$reportIdStr, $reportIdStr]);
-            $cimmRow2 = $cimmLookup2->fetch(PDO::FETCH_ASSOC);
-            // fetch() returns false when there's no match; guard against indexing
-            // a non-array which would emit a warning into the JSON response body.
-            $engineer2 = is_array($cimmRow2) ? ($cimmRow2['engineer'] ?? null) : null;
-            $budgetAllocation2 = is_array($cimmRow2) ? ($cimmRow2['budget'] ?? null) : null;
-
-            $stmt = $conn->prepare(
-                "UPDATE road_transportation_reports
-                 SET cimm_sync_status = 'verified', cimm_verified_at = NOW(), cimm_verified_by = ?,
-                     engineer = ?, budget_allocation = ?
-                 WHERE report_id = ? AND report_category = 'road'"
-            );
-            // 'a' is not a valid mysqli bind type — report_id is VARCHAR so 's'.
-            $stmt->bind_param('ssss', $verifiedBy, $engineer2, $budgetAllocation2, $reportIdStr);
+    // Mark verified on the exact resolved row. ENGR/Budget only when this is
+    // the Road report CIMM processed — transportation rows stay untouched.
+    if (($target['report_category'] ?? '') === 'road') {
+        $stmt = $conn->prepare(
+            "UPDATE road_transportation_reports
+             SET cimm_sync_status = 'verified', cimm_verified_at = NOW(), cimm_verified_by = ?,
+                 engineer = ?, budget_allocation = ?,
+                 cimm_engineer_name = COALESCE(?, cimm_engineer_name),
+                 cimm_budget = COALESCE(?, cimm_budget)
+             WHERE id = ?"
+        );
+        if (!$stmt) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'DB prepare error: ' . $conn->error]);
+            exit;
         }
-
-    if (!$stmt) {
-        http_response_code(500);
-        echo json_encode(['success' => false, 'message' => 'DB prepare error: ' . $conn->error]);
-        exit;
+        $budgetStr = $budgetAllocation !== null ? (string)$budgetAllocation : null;
+        $stmt->bind_param('sssssi', $verifiedBy, $engineer, $budgetStr, $engineer, $budgetStr, $targetId);
+    } else {
+        // Do not write ENGR/Budget onto transportation — only acknowledge
+        // verify status so we don't leave a stuck "pushed" badge.
+        $stmt = $conn->prepare(
+            "UPDATE road_transportation_reports
+             SET cimm_sync_status = 'verified', cimm_verified_at = NOW(), cimm_verified_by = ?
+             WHERE id = ?"
+        );
+        if (!$stmt) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'DB prepare error: ' . $conn->error]);
+            exit;
+        }
+        $stmt->bind_param('si', $verifiedBy, $targetId);
     }
 
     $stmt->execute();
@@ -170,12 +187,26 @@ if ($reportPk <= 0 && $reportIdStr === '') {
     $stmt->close();
 
     if ($affected < 1) {
-        http_response_code(404);
-        echo json_encode(['success' => false, 'message' => 'Report not found']);
-        exit;
+        // Row existed but values were identical — still treat as success.
+        $check = $conn->prepare('SELECT id FROM road_transportation_reports WHERE id = ? LIMIT 1');
+        $check->bind_param('i', $targetId);
+        $check->execute();
+        $exists = (bool)$check->get_result()->fetch_assoc();
+        $check->close();
+        if (!$exists) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'message' => 'Report not found']);
+            exit;
+        }
     }
 
-    echo json_encode(['success' => true, 'message' => 'Marked verified in RGMAO']);
+    echo json_encode([
+        'success' => true,
+        'message' => 'Marked verified in RGMAO',
+        'id' => $targetId,
+        'rgmap_report_id' => $target['report_id'],
+        'report_category' => $target['report_category'],
+    ]);
 } catch (\Throwable $e) {
     error_log('RGMAO verify webhook error: ' . $e->getMessage());
     http_response_code(500);

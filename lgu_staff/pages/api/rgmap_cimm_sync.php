@@ -241,6 +241,78 @@ function rgmap_cimm_push_payload(array $payload): array {
     return ['ok' => $ok, 'http_code' => $httpCode, 'error' => $err];
 }
 
+/**
+ * Resolve the exact road_transportation_reports row CIMM is referring to.
+ *
+ * CIMM and RGMAO share the same numeric id space only through the original
+ * push: rgmap_report_pk = road_transportation_reports.id and
+ * rgmap_report_id = road_transportation_reports.report_id (RPT-…).
+ * Never fall back to "latest", report_type heuristics, or an unrelated id.
+ *
+ * When both identifiers are present they must point at the same row; a
+ * mismatch means the callback is ambiguous and must not update anything.
+ *
+ * @return array{id:int,report_id:string,report_category:?string}|null
+ */
+function rgmap_cimm_resolve_target_report(mysqli $conn, array $data): ?array {
+    $pk = isset($data['rgmap_report_pk']) ? (int)$data['rgmap_report_pk'] : 0;
+    $reportIdStr = trim((string)($data['rgmap_report_id'] ?? ''));
+
+    $byPk = null;
+    if ($pk > 0) {
+        $stmt = $conn->prepare(
+            "SELECT id, report_id, report_category
+             FROM road_transportation_reports
+             WHERE id = ?
+             LIMIT 1"
+        );
+        if ($stmt) {
+            $stmt->bind_param('i', $pk);
+            $stmt->execute();
+            $byPk = $stmt->get_result()->fetch_assoc() ?: null;
+            $stmt->close();
+        }
+    }
+
+    $byCode = null;
+    if ($reportIdStr !== '') {
+        $stmt = $conn->prepare(
+            "SELECT id, report_id, report_category
+             FROM road_transportation_reports
+             WHERE report_id = ?
+             LIMIT 1"
+        );
+        if ($stmt) {
+            $stmt->bind_param('s', $reportIdStr);
+            $stmt->execute();
+            $byCode = $stmt->get_result()->fetch_assoc() ?: null;
+            $stmt->close();
+        }
+    }
+
+    if ($byPk && $byCode && (int)$byPk['id'] !== (int)$byCode['id']) {
+        error_log(sprintf(
+            'RGMAO CIMM ID mismatch: rgmap_report_pk=%d (report_id=%s) vs rgmap_report_id=%s (id=%d) — refusing update',
+            (int)$byPk['id'],
+            (string)$byPk['report_id'],
+            $reportIdStr,
+            (int)$byCode['id']
+        ));
+        return null;
+    }
+
+    $row = $byPk ?: $byCode;
+    if (!$row) {
+        return null;
+    }
+
+    return [
+        'id' => (int)$row['id'],
+        'report_id' => (string)$row['report_id'],
+        'report_category' => $row['report_category'] ?? null,
+    ];
+}
+
 function rgmap_cimm_sync_report(mysqli $conn, int $id, string $event = 'created'): array {
     rgmap_cimm_ensure_schema($conn);
 
@@ -253,6 +325,14 @@ function rgmap_cimm_sync_report(mysqli $conn, int $id, string $event = 'created'
     if ($payload === null) {
         return ['ok' => false, 'error' => 'report not found'];
     }
+
+    // Only Road reports participate in the CIMM ENGR/Budget integration.
+    // Transportation rows share this table but must not be pushed — otherwise
+    // CIMM would echo their id back and write ENGR/Budget onto the wrong row.
+    if (($payload['report_category'] ?? null) !== 'road') {
+        return ['ok' => false, 'error' => 'skipped: not a road report', 'skipped' => true];
+    }
+
     $payload['event'] = $event;
 
     $result = rgmap_cimm_push_payload($payload);

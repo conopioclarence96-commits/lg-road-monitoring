@@ -276,11 +276,16 @@ function cimm_resolution_status_to_display(?string $resolutionStatus, ?string $a
  * in the CIMM repo produces).
  *
  * Two mutually exclusive write paths (avoids Recent Submissions duplicates):
- *   - Payload has rgmap_report_pk → UPDATE that road_transportation_reports
- *     row only (report already lives in this system; do NOT insert into
- *     cimm_verification_reports).
- *   - No rgmap_report_pk → upsert cimm_verification_reports only
+ *   - Payload has rgmap_report_pk and/or rgmap_report_id → resolve the exact
+ *     road_transportation_reports row those identifiers map to (they must
+ *     agree when both are present), then UPDATE that row only. Never insert
+ *     into cimm_verification_reports for linked LGU reports.
+ *   - Neither identifier → upsert cimm_verification_reports only
  *     (native CIMM / citizen report).
+ *
+ * ENGR / Budget Allocation are written onto the resolved Road report only.
+ * Transportation rows sharing this table are never selected by "latest" or
+ * by an unrelated id, and are refused if a non-road target is resolved.
  *
  * Shared by:
  *   - cimm-reports-webhook.php
@@ -297,42 +302,102 @@ function rgmap_apply_cimm_report_payload(PDO $pdo, ?mysqli $conn, array $data): 
 
     $reference = (string)($data['reference'] ?? ('REQ-' . str_pad((string)$cimmReqId, 3, '0', STR_PAD_LEFT)));
     $rgmapReportPk = isset($data['rgmap_report_pk']) ? (int)$data['rgmap_report_pk'] : 0;
+    $rgmapReportId = trim((string)($data['rgmap_report_id'] ?? ''));
 
-    // ── Path A: linked LGU report — update road table only ──────────────
-    if ($rgmapReportPk > 0) {
+    // ── Path A: linked LGU report — update that exact road table row only ─
+    // Triggered when CIMM echoes the original push identifiers
+    // (rgmap_report_pk and/or rgmap_report_id). Do NOT insert into
+    // cimm_verification_reports (avoids Recent Submissions duplicates).
+    if ($rgmapReportPk > 0 || $rgmapReportId !== '') {
         if (!($conn instanceof mysqli)) {
             throw new \RuntimeException('mysqli connection required to update road_transportation_reports');
         }
         require_once __DIR__ . '/rgmap_cimm_sync.php';
         rgmap_cimm_ensure_schema($conn);
 
-        $cimmEngineerName = $data['engineer'] ?? null;
-        $cimmBudget = isset($data['budget']) ? (float)$data['budget'] : null;
+        $target = rgmap_cimm_resolve_target_report($conn, $data);
+        if ($target === null) {
+            throw new \RuntimeException(
+                'Unable to resolve road_transportation_reports target for CIMM payload '
+                . '(rgmap_report_pk=' . $rgmapReportPk
+                . ', rgmap_report_id=' . $rgmapReportId . ')'
+            );
+        }
+
+        $targetId = (int)$target['id'];
+
+        // ENGR / Budget Allocation belong only on Road reports. A resolved
+        // transportation id means a bad historical push — do not write these
+        // fields onto it, and do not create a substitute report.
+        if (($target['report_category'] ?? '') !== 'road') {
+            error_log(sprintf(
+                'RGMAO CIMM sync refused ENGR/Budget write on non-road report id=%d category=%s',
+                $targetId,
+                (string)($target['report_category'] ?? '')
+            ));
+            return [
+                'id' => $targetId,
+                'cimm_req_id' => $cimmReqId,
+                'reference' => $reference,
+                'rgmap_report_id' => $target['report_id'],
+                'report_category' => $target['report_category'],
+                'skipped' => true,
+                'reason' => 'target report is not road',
+            ];
+        }
+
+        $cimmEngineerName = isset($data['engineer']) ? trim((string)$data['engineer']) : null;
+        if ($cimmEngineerName === '') {
+            $cimmEngineerName = null;
+        }
+        $cimmBudget = array_key_exists('budget', $data) && $data['budget'] !== null && $data['budget'] !== ''
+            ? (float)$data['budget']
+            : null;
         $cimmStartingDate = $data['starting_date'] ?? null;
         $cimmEstimatedEndDate = $data['estimated_end_date'] ?? null;
         $cimmStatus = $data['resolution_status'] ?? null;
         $cimmReportUrl = $data['portal_url'] ?? null;
         $cimmDistrict = $data['district'] ?? null;
 
+        // Always bind ENGR/Budget onto the exact resolved PK. Mirror columns
+        // (cimm_*) stay in sync with the LGU-facing engineer/budget_allocation
+        // fields so UI that reads either pair sees the same values.
         $updStmt = $conn->prepare(
             "UPDATE road_transportation_reports
              SET cimm_engineer_name = ?, cimm_budget = ?, cimm_starting_date = ?,
                  cimm_estimated_end_date = ?, cimm_status = ?, cimm_report_url = ?,
-                 cimm_district = ?
+                 cimm_district = ?,
+                 engineer = ?, budget_allocation = ?
              WHERE id = ?"
         );
         if (!$updStmt) {
             throw new \RuntimeException('Failed to prepare road_transportation_reports update');
         }
         $updStmt->bind_param(
-            'sdsssssi',
+            'sdssssssdi',
             $cimmEngineerName, $cimmBudget, $cimmStartingDate,
-            $cimmEstimatedEndDate, $cimmStatus, $cimmReportUrl, $cimmDistrict, $rgmapReportPk
+            $cimmEstimatedEndDate, $cimmStatus, $cimmReportUrl, $cimmDistrict,
+            $cimmEngineerName, $cimmBudget, $targetId
         );
-        $updStmt->execute();
+        if (!$updStmt->execute()) {
+            $err = $updStmt->error;
+            $updStmt->close();
+            throw new \RuntimeException('Failed to update report #' . $targetId . ': ' . $err);
+        }
+        $affected = $updStmt->affected_rows;
         $updStmt->close();
 
-        return ['id' => $rgmapReportPk, 'cimm_req_id' => $cimmReqId, 'reference' => $reference];
+        if ($affected < 0) {
+            throw new \RuntimeException('Failed to update report #' . $targetId);
+        }
+
+        return [
+            'id' => $targetId,
+            'cimm_req_id' => $cimmReqId,
+            'reference' => $reference,
+            'rgmap_report_id' => $target['report_id'],
+            'report_category' => $target['report_category'],
+        ];
     }
 
     // ── Path B: native CIMM report — upsert cimm_verification_reports only
