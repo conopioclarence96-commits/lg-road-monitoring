@@ -7,8 +7,20 @@ require_once __DIR__ . '/../../../includes/tomtom/autoload.php';
 $service = $_GET['service'] ?? '';
 
 if (!isset($_SESSION['user_id'])) {
-    $publicServices = ['reverse_geocode', 'poi_search'];
-    if (!in_array($service, $publicServices)) {
+    // Public homepage GIS map: search, routing, EV stations (tiles use the client key).
+    $publicServices = [
+        'reverse_geocode',
+        'reverse_geocode_orbis',
+        'poi_search',
+        'search',
+        'geocode',
+        'nearby_search',
+        'route',
+        'route_extended',
+        'ev_charging',
+        'ev_availability',
+    ];
+    if (!in_array($service, $publicServices, true)) {
         json_error('Unauthorized', 401);
     }
 }

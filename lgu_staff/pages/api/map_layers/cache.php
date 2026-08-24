@@ -11,10 +11,8 @@ require_once __DIR__ . '/../../../includes/functions.php';
 require_once __DIR__ . '/../../../includes/tomtom/autoload.php';
 require_once __DIR__ . '/../overpass/routes_lib.php';
 
-if (!isset($_SESSION['user_id'])) {
-    json_error('Unauthorized', 401);
-}
-
+// Public homepage GIS map needs the same JSON cache + Sync as staff.
+// Session is optional; close early so concurrent layer fetches are not blocked.
 session_write_close();
 
 header('Content-Type: application/json; charset=utf-8');
