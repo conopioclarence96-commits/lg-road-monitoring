@@ -18,9 +18,188 @@
     var photoFiles = [];
     // Prevent re-entrant change handling when syncing/clearing the file input.
     var photoInputSyncing = false;
+    var qcDistrictsGeoJSON = null;
+    var districtsLoadPromise = null;
 
     var modalEl = document.getElementById('citizenReportModal');
     var formEl = document.getElementById('citizenReportForm');
+
+    function escapeHtml(str) {
+        return String(str == null ? '' : str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function loadQcDistricts() {
+        if (qcDistrictsGeoJSON) return Promise.resolve(qcDistrictsGeoJSON);
+        if (districtsLoadPromise) return districtsLoadPromise;
+        districtsLoadPromise = fetch('lgu_staff/pages/api/qc_districts.geojson')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                qcDistrictsGeoJSON = data;
+                return data;
+            })
+            .catch(function () {
+                districtsLoadPromise = null;
+                return null;
+            });
+        return districtsLoadPromise;
+    }
+
+    function pointInPolygonCoords(lat, lng, coords) {
+        var inside = false;
+        var ring = coords[0];
+        for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+            var xi = ring[i][1], yi = ring[i][0];
+            var xj = ring[j][1], yj = ring[j][0];
+            if ((yi > lng) !== (yj > lng) && lat < (xj - xi) * (lng - yi) / (yj - yi) + xi) {
+                inside = !inside;
+            }
+        }
+        return inside;
+    }
+
+    function detectDistrict(lat, lng) {
+        if (!qcDistrictsGeoJSON || !qcDistrictsGeoJSON.features) return null;
+        var features = qcDistrictsGeoJSON.features;
+        for (var i = 0; i < features.length; i++) {
+            var feature = features[i];
+            if (feature.geometry.type === 'Polygon') {
+                if (pointInPolygonCoords(lat, lng, feature.geometry.coordinates)) {
+                    return feature.properties;
+                }
+            } else if (feature.geometry.type === 'MultiPolygon') {
+                for (var p = 0; p < feature.geometry.coordinates.length; p++) {
+                    if (pointInPolygonCoords(lat, lng, feature.geometry.coordinates[p])) {
+                        return feature.properties;
+                    }
+                }
+            }
+        }
+        var bestDist = Infinity;
+        var bestMatch = null;
+        for (var f = 0; f < features.length; f++) {
+            var feat = features[f];
+            if (!feat.properties._centroid) {
+                var coords = feat.geometry.type === 'Polygon'
+                    ? feat.geometry.coordinates[0]
+                    : feat.geometry.coordinates[0][0];
+                var slng = 0, slat = 0, cnt = 0;
+                for (var c = 0; c < coords.length; c++) {
+                    slng += coords[c][0];
+                    slat += coords[c][1];
+                    cnt++;
+                }
+                feat.properties._centroid = { lng: slng / cnt, lat: slat / cnt };
+            }
+            var cen = feat.properties._centroid;
+            var dx = lng - cen.lng, dy = lat - cen.lat;
+            var dist = dx * dx + dy * dy;
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestMatch = feat.properties;
+            }
+        }
+        return bestMatch;
+    }
+
+    function populateCitizenLocationInfo(lat, lng, districtProps, addressData, isLoading) {
+        var infoPanel = document.getElementById('cr-location-info');
+        var detailsEl = document.getElementById('cr-location-details');
+        var loadingBadge = document.getElementById('cr-loading-badge');
+        var html = '';
+
+        if (districtProps) {
+            var dName = districtProps.district_name || districtProps.district || '';
+            document.getElementById('crDistrict').value = dName;
+            html += '<span class="gis-field-tag"><span class="gis-tag-label">District:</span> ' + escapeHtml(dName) + '</span>';
+        } else {
+            document.getElementById('crDistrict').value = '';
+            html += '<span class="gis-field-tag" style="background:rgba(220,53,69,0.1);color:#721c24;"><span class="gis-tag-label">District:</span> Not detected</span>';
+        }
+
+        var barangay = '';
+        var street = '';
+        var fullAddress = '';
+        var municipality = '';
+        if (addressData) {
+            var addr = addressData.address || {};
+            barangay = addr.subdivision || addr.municipalitySubdivision || addr.neighbourhood || '';
+            street = addr.street || '';
+            municipality = addr.municipality || '';
+            var houseNum = addr.houseNumber || '';
+            if (houseNum && street) {
+                fullAddress = houseNum + ' ' + street;
+            } else if (street) {
+                fullAddress = street;
+            } else if (addr.freeformAddress) {
+                fullAddress = addr.freeformAddress;
+            }
+        }
+        document.getElementById('crBarangay').value = barangay;
+        document.getElementById('crStreet').value = street;
+        var addressParts = [fullAddress, barangay, municipality, 'Quezon City'].filter(Boolean);
+        document.getElementById('crAddress').value = addressParts.join(', ');
+
+        if (barangay) {
+            html += '<span class="gis-field-tag"><span class="gis-tag-label">Barangay:</span> ' + escapeHtml(barangay) + '</span>';
+        }
+        if (street) {
+            html += '<span class="gis-field-tag"><span class="gis-tag-label">Street:</span> ' + escapeHtml(street) + '</span>';
+        }
+        if (municipality) {
+            html += '<span class="gis-field-tag"><span class="gis-tag-label">Municipality:</span> ' + escapeHtml(municipality) + '</span>';
+        }
+        if (!isLoading && !fullAddress && !barangay && !street) {
+            html += '<span style="font-size:11px;color:#999;">Address details unavailable for this pin location.</span>';
+            document.getElementById('crAddress').value = lat.toFixed(5) + ', ' + lng.toFixed(5) + ', Quezon City';
+        }
+
+        detailsEl.innerHTML = html;
+        infoPanel.style.display = 'block';
+        if (loadingBadge) loadingBadge.style.display = isLoading ? 'inline' : 'none';
+    }
+
+    function analyzeCitizenPinnedLocation(lat, lng) {
+        var infoPanel = document.getElementById('cr-location-info');
+        var loadingBadge = document.getElementById('cr-loading-badge');
+        infoPanel.style.display = 'block';
+        if (loadingBadge) loadingBadge.style.display = 'inline';
+
+        function runAnalysis() {
+            var districtProps = detectDistrict(lat, lng);
+            populateCitizenLocationInfo(lat, lng, districtProps, null, true);
+
+            if (!window.TomTomServices || !window.TomTomServices.reverseGeocodeOrbis) {
+                populateCitizenLocationInfo(lat, lng, districtProps, null, false);
+                return;
+            }
+
+            window.TomTomServices.reverseGeocodeOrbis(lat, lng).then(function (data) {
+                var geocodeData = (data && data.data && data.data.results && data.data.results[0]) || null;
+                populateCitizenLocationInfo(lat, lng, districtProps, geocodeData, false);
+
+                if (citizenPin && geocodeData) {
+                    var addr = geocodeData.address || {};
+                    var parts = [
+                        addr.street && addr.houseNumber ? addr.houseNumber + ' ' + addr.street : (addr.street || ''),
+                        addr.municipality || '',
+                        addr.countrySubdivision || '',
+                        addr.postalCode || ''
+                    ].filter(Boolean);
+                    var popupHtml = '<b>' + escapeHtml(parts.join(', ') || (lat.toFixed(5) + ', ' + lng.toFixed(5))) + '</b>'
+                        + (districtProps ? '<br><small style="color:#10b981;">' + escapeHtml(districtProps.district_name || districtProps.district || '') + '</small>' : '');
+                    citizenPin.bindPopup(popupHtml).openPopup();
+                }
+            }).catch(function () {
+                populateCitizenLocationInfo(lat, lng, districtProps, null, false);
+            });
+        }
+
+        loadQcDistricts().then(runAnalysis);
+    }
 
     /**
      * Same uploaded photo/file identity for this report.
@@ -130,15 +309,7 @@
         document.getElementById('citizenMap').classList.add('has-pin');
         document.getElementById('crOtpStatus').style.display = 'none';
 
-        if (window.TomTomServices) {
-            window.TomTomServices.reverseGeocode(lat, lng).then(function (data) {
-                var addr = (data && data.data && data.data.addresses && data.data.addresses[0] && data.data.addresses[0].address && data.data.addresses[0].address.freeformAddress)
-                    || (data && data.data && data.data.address && data.data.address.freeformAddress);
-                if (addr) {
-                    document.getElementById('crAddress').value = addr;
-                }
-            }).catch(function () {});
-        }
+        analyzeCitizenPinnedLocation(lat, lng);
 
         citizenPin.on('dragend', function () {
             var pos = citizenPin.getLatLng();
@@ -149,15 +320,7 @@
             }
             document.getElementById('crLat').value = pos.lat.toFixed(6);
             document.getElementById('crLng').value = pos.lng.toFixed(6);
-            if (window.TomTomServices) {
-                window.TomTomServices.reverseGeocode(pos.lat, pos.lng).then(function (data) {
-                    var addr = (data && data.data && data.data.addresses && data.data.addresses[0] && data.data.addresses[0].address && data.data.addresses[0].address.freeformAddress)
-                        || (data && data.data && data.data.address && data.data.address.freeformAddress);
-                    if (addr) {
-                        document.getElementById('crAddress').value = addr;
-                    }
-                }).catch(function () {});
-            }
+            analyzeCitizenPinnedLocation(pos.lat, pos.lng);
         });
     }
 
@@ -440,6 +603,9 @@
         fd.append('latitude', document.getElementById('crLat').value);
         fd.append('longitude', document.getElementById('crLng').value);
         fd.append('address', document.getElementById('crAddress').value);
+        fd.append('detected_district', document.getElementById('crDistrict').value);
+        fd.append('barangay', document.getElementById('crBarangay').value);
+        fd.append('street_name', document.getElementById('crStreet').value);
         fd.append('issue_type', document.getElementById('crIssueType').value);
         fd.append('severity', document.getElementById('crSeverity').value);
         fd.append('reporter_name', document.getElementById('crName').value.trim());
@@ -492,6 +658,15 @@
         document.getElementById('crEmail').readOnly = false;
         document.getElementById('citizenMap').classList.remove('has-pin');
         document.getElementById('crAddress').value = '';
+        document.getElementById('crDistrict').value = '';
+        document.getElementById('crBarangay').value = '';
+        document.getElementById('crStreet').value = '';
+        var locInfo = document.getElementById('cr-location-info');
+        if (locInfo) locInfo.style.display = 'none';
+        var locDetails = document.getElementById('cr-location-details');
+        if (locDetails) locDetails.innerHTML = '';
+        var locBadge = document.getElementById('cr-loading-badge');
+        if (locBadge) locBadge.style.display = 'none';
         document.getElementById('photoPreview').innerHTML = '';
         photoFiles = [];
         syncPhotoFiles();
@@ -508,6 +683,7 @@
         if (!citizenMap) {
             initCitizenMap();
         }
+        loadQcDistricts();
         setTimeout(function () { if (citizenMap) citizenMap.invalidateSize(); }, 300);
     });
 

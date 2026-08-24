@@ -2057,6 +2057,29 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             font-size: 0.85rem;
             margin-bottom: 16px;
         }
+        #cr-location-info {
+            display: none;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(55, 98, 200, 0.08));
+            border: 1px solid rgba(16, 185, 129, 0.25);
+            border-radius: 10px;
+            padding: 12px 14px;
+            margin-bottom: 16px;
+        }
+        #cr-location-info .gis-field-tag {
+            display: inline-block;
+            background: rgba(55, 98, 200, 0.1);
+            color: #1e3c72;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+            margin-right: 6px;
+            margin-bottom: 3px;
+        }
+        #cr-location-info .gis-field-tag .gis-tag-label {
+            color: #666;
+            font-weight: 400;
+        }
         .cr-form-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -2533,6 +2556,17 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         /* Citizen report form (modal) */
         html.dark-mode .modal-content { border-color: #2d323b; }
         html.dark-mode .citizen-report-hint { color: #9ca3af; }
+        html.dark-mode #cr-location-info {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(55, 98, 200, 0.12));
+            border-color: rgba(16, 185, 129, 0.35);
+        }
+        html.dark-mode #cr-location-info .gis-field-tag {
+            background: rgba(55, 98, 200, 0.2);
+            color: #93c5fd;
+        }
+        html.dark-mode #cr-location-info .gis-field-tag .gis-tag-label { color: #9ca3af; }
+        html.dark-mode #cr-location-info strong { color: #e4e6ea; }
+        html.dark-mode #cr-location-details { color: #cbd5e1; }
         html.dark-mode .cr-verification-box { background: #171a1f; border-color: #333; }
         html.dark-mode .cr-form-group select,
         html.dark-mode .cr-form-group input,
@@ -2771,6 +2805,18 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         <input type="hidden" name="latitude" id="crLat">
                         <input type="hidden" name="longitude" id="crLng">
                         <input type="hidden" name="address" id="crAddress">
+                        <input type="hidden" name="detected_district" id="crDistrict">
+                        <input type="hidden" name="barangay" id="crBarangay">
+                        <input type="hidden" name="street_name" id="crStreet">
+
+                        <div id="cr-location-info">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                                <i class="fas fa-map-marked-alt" style="color:#10b981;font-size:15px;"></i>
+                                <strong style="font-size:13px;color:#1e3c72;">Detected Location</strong>
+                                <span id="cr-loading-badge" style="display:none;margin-left:auto;font-size:11px;color:#666;"><i class="fas fa-spinner fa-spin"></i> Detecting...</span>
+                            </div>
+                            <div id="cr-location-details" style="font-size:12px;color:#555;line-height:1.7;"></div>
+                        </div>
 
                         <div class="cr-form-row">
                             <div class="cr-form-group">

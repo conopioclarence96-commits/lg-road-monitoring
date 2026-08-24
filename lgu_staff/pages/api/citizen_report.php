@@ -232,26 +232,92 @@ function handleSubmitReport() {
         try {
             $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS reporter_name VARCHAR(100) AFTER reporter_email");
             $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS reporter_phone VARCHAR(20) AFTER reporter_name");
+            $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS detected_district VARCHAR(50) NULL AFTER longitude");
+            $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS barangay VARCHAR(100) NULL AFTER detected_district");
+            $conn->query("ALTER TABLE road_transportation_reports ADD COLUMN IF NOT EXISTS street_name VARCHAR(255) NULL AFTER barangay");
         } catch (Exception $e) {
             error_log("citizen_report column migration: " . $e->getMessage());
         }
 
+        $detected_district = sanitize_input($_POST['detected_district'] ?? '');
+        $barangay = sanitize_input($_POST['barangay'] ?? '');
+        $street_name = sanitize_input($_POST['street_name'] ?? '');
+        $lat = (float)$latitude;
+        $lng = (float)$longitude;
+
+        // Server-side district detection (authoritative override of client value)
+        $districts_geojson_path = __DIR__ . '/qc_districts.geojson';
+        if (file_exists($districts_geojson_path)) {
+            $geojson_raw = file_get_contents($districts_geojson_path);
+            $geojson_data = json_decode($geojson_raw, true);
+            if ($geojson_data && isset($geojson_data['features'])) {
+                $server_detected_district = '';
+                $best_dist = INF;
+                $best_match = '';
+                foreach ($geojson_data['features'] as $feature) {
+                    $coords = $feature['geometry']['coordinates'] ?? [];
+                    $geom_type = $feature['geometry']['type'] ?? '';
+                    $matched = false;
+                    if ($geom_type === 'Polygon' && !empty($coords)) {
+                        $matched = citizen_point_in_polygon($lat, $lng, $coords);
+                    } elseif ($geom_type === 'MultiPolygon' && !empty($coords)) {
+                        foreach ($coords as $poly) {
+                            if (citizen_point_in_polygon($lat, $lng, $poly)) {
+                                $matched = true;
+                                break;
+                            }
+                        }
+                    }
+                    if ($matched) {
+                        $server_detected_district = sanitize_input($feature['properties']['district'] ?? $feature['properties']['district_name'] ?? '');
+                        break;
+                    }
+                    $ring = $geom_type === 'Polygon' ? ($coords[0] ?? []) : ($coords[0][0] ?? []);
+                    $cnt = count($ring);
+                    if ($cnt > 0) {
+                        $slng = 0; $slat = 0;
+                        foreach ($ring as $c) { $slng += $c[0]; $slat += $c[1]; }
+                        $clng = $slng / $cnt; $clat = $slat / $cnt;
+                        $dx = $lng - $clng; $dy = $lat - $clat;
+                        $dist = $dx * $dx + $dy * $dy;
+                        if ($dist < $best_dist) {
+                            $best_dist = $dist;
+                            $best_match = sanitize_input($feature['properties']['district'] ?? $feature['properties']['district_name'] ?? '');
+                        }
+                    }
+                }
+                if ($server_detected_district === '') {
+                    $server_detected_district = $best_match;
+                }
+                $detected_district = $server_detected_district !== '' ? $server_detected_district : '';
+            }
+        }
+
+        $location = trim($_POST['address'] ?? '');
+        if ($location === '') {
+            $location_parts = array_filter([$street_name, $barangay, $detected_district]);
+            $location = $location_parts ? implode(', ', $location_parts) : 'Pinned location';
+        }
+
         $stmt = $conn->prepare("INSERT INTO road_transportation_reports 
             (report_id, report_type, report_category, report_source, title, description, 
-             latitude, longitude, location, severity, priority, status, created_date, 
+             latitude, longitude, location, detected_district, barangay, street_name,
+             severity, priority, status, created_date, 
              reporter_email, reporter_name, reporter_phone, attachments, image_path, created_by)
-            VALUES (?, ?, 'transportation', 'local', ?, ?, ?, ?, ?, ?, ?, 'pending', CURDATE(), ?, ?, ?, ?, ?, 0)");
+            VALUES (?, ?, 'transportation', 'local', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', CURDATE(), ?, ?, ?, ?, ?, 0)");
 
-        $location = $_POST['address'] ?? 'Pinned location';
         $attachmentsJson = json_encode($attachments);
-        $stmt->bind_param('ssssssssssssss',
+        $stmt->bind_param('ssssddsssssssssss',
             $reportId,
             $issueType,
             $title,
             $description,
-            $latitude,
-            $longitude,
+            $lat,
+            $lng,
             $location,
+            $detected_district,
+            $barangay,
+            $street_name,
             $severity,
             $priority,
             $email,
@@ -286,6 +352,21 @@ function handleSubmitReport() {
         }
         echo json_encode(['success' => false, 'message' => 'We could not submit your report due to a temporary issue. Please try again later.']);
     }
+}
+
+function citizen_point_in_polygon($lat, $lng, $coords) {
+    $ring = $coords[0] ?? [];
+    $n = count($ring);
+    if ($n < 3) return false;
+    $inside = false;
+    for ($i = 0, $j = $n - 1; $i < $n; $j = $i++) {
+        $xi = $ring[$i][1]; $yi = $ring[$i][0];
+        $xj = $ring[$j][1]; $yj = $ring[$j][0];
+        if ((($yi > $lng) !== ($yj > $lng)) && ($lat < ($xj - $xi) * ($lng - $yi) / ($yj - $yi) + $xi)) {
+            $inside = !$inside;
+        }
+    }
+    return $inside;
 }
 
 function isInsideQC($lat, $lng, $geoJson) {
