@@ -6453,8 +6453,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
     </style>
     <?php endif; ?>
+    <?php if ($is_road_supervisor): ?>
+    <style>
+        @media (max-width: 768px) {
+            .road-supervisor-view .vm-dash .workflow-stats {
+                width: 100%;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 8px;
+                margin-bottom: 12px;
+            }
+            .road-supervisor-view .vm-dash .workflow-stat {
+                padding: 10px 8px;
+                border-radius: 10px;
+                gap: 8px;
+            }
+            .road-supervisor-view .vm-dash .workflow-stat-icon {
+                width: 28px;
+                height: 28px;
+                border-radius: 8px;
+                font-size: 12px;
+            }
+            .road-supervisor-view .vm-dash .workflow-number { font-size: 15px; }
+            .road-supervisor-view .vm-dash .workflow-label {
+                font-size: 8.5px;
+                letter-spacing: 0;
+                line-height: 1.25;
+                overflow-wrap: anywhere;
+            }
+        }
+    </style>
+    <?php endif; ?>
 </head>
-<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo !empty($is_transport_supervisor) ? ' trans-supervisor-view' : ''; ?><?php echo $is_system_admin ? ' system-admin-view' : ''; ?>">
+<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo !empty($is_transport_supervisor) ? ' trans-supervisor-view' : ''; ?><?php echo $is_system_admin ? ' system-admin-view' : ''; ?><?php echo $is_road_supervisor ? ' road-supervisor-view' : ''; ?>">
     <!-- SIDEBAR -->
     <?php include '../../includes/sidebar_nav.php'; ?>
 

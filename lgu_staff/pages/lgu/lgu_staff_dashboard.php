@@ -1241,8 +1241,51 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
         }
     </style>
     <?php endif; ?>
+    <?php if ($is_road_supervisor): ?>
+    <style>
+        @media (max-width: 768px) {
+            body.road-supervisor-view .db-stats {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 8px;
+                margin-bottom: 16px;
+            }
+            body.road-supervisor-view .db-stats .stat-card {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 6px;
+                padding: 10px 8px;
+                border-radius: 10px;
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            body.road-supervisor-view .db-stats .stat-card::after { height: 2px; }
+            body.road-supervisor-view .db-stats .stat-icon {
+                width: 24px;
+                height: 24px;
+                border-radius: 7px;
+                font-size: 11px;
+                box-shadow: none;
+            }
+            body.road-supervisor-view .db-stats .stat-number { font-size: 14px; }
+            body.road-supervisor-view .db-stats .stat-label {
+                font-size: 8px;
+                line-height: 1.25;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+            }
+            body.road-supervisor-view .db-stats .stat-desc { display: none; }
+        }
+        @media (max-width: 480px) {
+            body.road-supervisor-view .db-stats {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 6px;
+            }
+        }
+    </style>
+    <?php endif; ?>
 </head>
-<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo $is_trans_ops_supervisor ? ' trans-supervisor-view' : ''; ?><?php echo $is_road_monitoring_officer ? ' rmo-view' : ''; ?>">
+<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo $is_trans_ops_supervisor ? ' trans-supervisor-view' : ''; ?><?php echo $is_road_monitoring_officer ? ' rmo-view' : ''; ?><?php echo $is_road_supervisor ? ' road-supervisor-view' : ''; ?>">
     <!-- SIDEBAR -->
     <?php include '../../includes/sidebar_nav.php'; ?>
 

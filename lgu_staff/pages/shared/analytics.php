@@ -20,6 +20,9 @@ $is_trans_ops_supervisor = ($user_role === 'trans_ops_supervisor');
 // Road Monitoring Officer flag: scopes the mobile-fit CSS below to this portal only.
 $is_road_monitoring_officer = ($user_role === 'road_monitoring_officer');
 
+// Road Ops Supervisor flag: scopes the mobile-fit CSS below to this portal only.
+$is_road_supervisor = ($user_role === 'road_ops_supervisor');
+
 $period = sanitize_input($_GET['period'] ?? '30');
 
 // Date range applied to every card, chart and table on the page.
@@ -811,8 +814,43 @@ log_audit_action($user_id, "Viewed analytics dashboard", "Period: {$period} days
         }
     </style>
     <?php endif; ?>
+    <?php if ($is_road_supervisor): ?>
+    <style>
+        @media (max-width: 768px) {
+            body.road-supervisor-view .analytics-main .stats-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 8px;
+                margin-bottom: 14px;
+            }
+            body.road-supervisor-view .analytics-main .stat-card {
+                padding: 8px 5px;
+                border-radius: 10px;
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            body.road-supervisor-view .analytics-main .stat-card::before { height: 2px; }
+            body.road-supervisor-view .analytics-main .stat-card .stat-icon {
+                width: 20px;
+                height: 20px;
+                border-radius: 6px;
+                font-size: 9px;
+                margin-bottom: 4px;
+            }
+            body.road-supervisor-view .analytics-main .stat-card .stat-value { font-size: 13px; }
+            body.road-supervisor-view .analytics-main .stat-card .stat-value small { font-size: 8px; }
+            body.road-supervisor-view .analytics-main .stat-card .stat-label {
+                font-size: 7.5px;
+                line-height: 1.25;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+            }
+            body.road-supervisor-view .analytics-main .stat-card .stat-trend { display: none; }
+        }
+    </style>
+    <?php endif; ?>
 </head>
-<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo $is_trans_ops_supervisor ? ' trans-supervisor-view' : ''; ?><?php echo $is_road_monitoring_officer ? ' rmo-view' : ''; ?>">
+<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo $is_trans_ops_supervisor ? ' trans-supervisor-view' : ''; ?><?php echo $is_road_monitoring_officer ? ' rmo-view' : ''; ?><?php echo $is_road_supervisor ? ' road-supervisor-view' : ''; ?>">
     <?php include '../../includes/sidebar_nav.php'; ?>
 
     <div class="analytics-main main-content">

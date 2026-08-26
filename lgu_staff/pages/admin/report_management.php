@@ -6026,8 +6026,47 @@ if ($focus_id > 0) {
         }
     </style>
     <?php endif; ?>
+    <?php if ($is_road_supervisor): ?>
+    <style>
+        @media (max-width: 768px) {
+            .road-supervisor-view .rm-dash .quick-stats {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 8px;
+                margin-bottom: 14px;
+            }
+            .road-supervisor-view .rm-dash .stat-card {
+                padding: 8px 5px;
+                border-radius: 10px;
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            .road-supervisor-view .rm-dash .stat-card::before { height: 2px; }
+            .road-supervisor-view .rm-dash .stat-icon {
+                width: 20px;
+                height: 20px;
+                border-radius: 6px;
+                font-size: 9px;
+                margin-bottom: 4px;
+            }
+            .road-supervisor-view .rm-dash .stat-number { font-size: 13px; }
+            .road-supervisor-view .rm-dash .stat-label {
+                font-size: 6.8px;
+                letter-spacing: 0;
+                line-height: 1.25;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+            }
+        }
+        @media (max-width: 480px) {
+            .road-supervisor-view .rm-dash .quick-stats {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
+    </style>
+    <?php endif; ?>
 </head>
-<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo !empty($is_transport_supervisor) ? ' trans-supervisor-view' : ''; ?><?php echo $is_system_admin ? ' system-admin-view' : ''; ?>">
+<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo !empty($is_transport_supervisor) ? ' trans-supervisor-view' : ''; ?><?php echo $is_system_admin ? ' system-admin-view' : ''; ?><?php echo $is_road_supervisor ? ' road-supervisor-view' : ''; ?>">
     <!-- SIDEBAR -->
     <?php include '../../includes/sidebar_nav.php'; ?>
 

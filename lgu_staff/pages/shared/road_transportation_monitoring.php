@@ -1217,7 +1217,9 @@ if ($focus_report_id > 0) {
 
         // Monitoring page only: Unassigned reports stay off this list until
         // an officer is assigned. Completed Projects does not use this gate.
-        if (!$restricted && !$is_completed_projects_view) {
+        // Supervisors bypass this gate so their notifications can deep-link
+        // directly to any report without requiring an active assignment first.
+        if (!$restricted && !$is_completed_projects_view && !$is_road_supervisor && !$is_transport_supervisor) {
             $any_assigned = get_active_assignment_keys($conn);
             $focus_key = ($focus_row['_source_table'] ?? 'road_transportation_reports') . ':' . ($focus_row['id'] ?? 0);
             if (!isset($any_assigned[$focus_key])) {
@@ -4015,6 +4017,37 @@ if ($is_completed_projects_view || $is_system_admin) {
                 flex-wrap: wrap;
                 row-gap: 6px;
             }
+
+            /* Stats row: 2×2 grid on phones with compact cards */
+            .road-supervisor-view .stats-row {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 10px;
+                margin-bottom: 14px;
+            }
+            .road-supervisor-view .stat-card {
+                padding: 10px 8px;
+                border-radius: 10px;
+            }
+            .road-supervisor-view .stat-card::before { height: 3px; }
+            .road-supervisor-view .stat-card .stat-icon {
+                width: 28px;
+                height: 28px;
+                border-radius: 8px;
+                font-size: 12px;
+                margin-bottom: 6px;
+            }
+            .road-supervisor-view .stat-card .stat-number { font-size: 16px; }
+            .road-supervisor-view .stat-card .stat-label {
+                font-size: 9.5px;
+                line-height: 1.25;
+            }
+            .road-supervisor-view .stat-card .stat-desc { display: none; }
+        }
+        @media (max-width: 480px) {
+            .road-supervisor-view .stats-row {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 8px;
+            }
         }
     </style>
 <?php endif; ?>
@@ -4343,6 +4376,24 @@ if ($is_completed_projects_view || $is_system_admin) {
             animation: rmoDarkFocusPulse 1s ease-in-out 4;
         }
         @keyframes rmoDarkFocusPulse {
+            0%, 100% { border-left: 4px solid #60a5fa; background: rgba(96, 165, 250, 0.12); }
+            50%      { border-left: 4px solid #93c5fd; background: rgba(96, 165, 250, 0.22); }
+        }
+    </style>
+<?php endif; ?>
+<?php if ($is_road_supervisor): ?>
+    <!-- Road Ops Supervisor only: dark-mode compatible highlight for
+         recentReportsTable rows when locating from notifications.
+         The base focus-pulse uses light-mode colours (#eef5ff, #3762c8)
+         that are invisible or harsh on dark backgrounds. Completed
+         Projects deep-links land here, so the highlight must be readable. -->
+    <style>
+        body.road-supervisor-view.dark-mode tr.focus-pulse {
+            border-left: 4px solid #60a5fa;
+            background: rgba(96, 165, 250, 0.12);
+            animation: rsDarkFocusPulse 1s ease-in-out 4;
+        }
+        @keyframes rsDarkFocusPulse {
             0%, 100% { border-left: 4px solid #60a5fa; background: rgba(96, 165, 250, 0.12); }
             50%      { border-left: 4px solid #93c5fd; background: rgba(96, 165, 250, 0.22); }
         }
