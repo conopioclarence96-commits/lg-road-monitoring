@@ -4332,6 +4332,19 @@ if ($is_completed_projects_view || $is_system_admin) {
                 row-gap: 6px;
             }
         }
+        /* Road Monitoring Officer only: dark-mode compatible highlight for
+           recentReportsTable rows when locating from notifications.
+           The base focus-pulse uses light-mode colours (#eef5ff, #3762c8)
+           that are invisible or harsh on dark backgrounds. */
+        body.rmo-view.dark-mode tr.focus-pulse {
+            border-left: 4px solid #60a5fa;
+            background: rgba(96, 165, 250, 0.12);
+            animation: rmoDarkFocusPulse 1s ease-in-out 4;
+        }
+        @keyframes rmoDarkFocusPulse {
+            0%, 100% { border-left: 4px solid #60a5fa; background: rgba(96, 165, 250, 0.12); }
+            50%      { border-left: 4px solid #93c5fd; background: rgba(96, 165, 250, 0.22); }
+        }
     </style>
 <?php endif; ?>
 <?php if ($is_system_admin && $is_completed_projects_view): ?>
