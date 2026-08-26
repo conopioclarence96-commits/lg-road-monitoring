@@ -188,7 +188,7 @@ try {
                     FROM cimm_verification_reports WHERE id = ?";
     } elseif ($table === 'road_transportation_reports') {
         $query = "SELECT id, report_id, report_type, title, department, priority, status, created_date, due_date, description,
-                    location, latitude, longitude, reporter_name, reporter_email, severity, reported_date, resolved_date, assigned_to,
+                    location, latitude, longitude, detected_district, reporter_name, reporter_email, severity, reported_date, resolved_date, assigned_to,
                     resolution_notes as notes, estimation, attachments, created_by, created_at, updated_at, image_path,
                     report_category, report_source, reporter_phone, cimm_engineer_name, cimm_budget, cimm_status,
                     cimm_sync_status, cimm_verified_at, cimm_verified_by

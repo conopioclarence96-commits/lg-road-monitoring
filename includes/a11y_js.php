@@ -52,32 +52,32 @@
     };
 
     window.toggleHighContrast = function() {
-        highContrast = !highContrast;
+        var el = document.getElementById('contrastToggle');
+        highContrast = el ? el.checked : !highContrast;
         document.body.classList.toggle('high-contrast', highContrast);
-        document.getElementById('contrastToggle').classList.toggle('active', highContrast);
         localStorage.setItem('a11y_highContrast', highContrast);
     };
 
     window.toggleLargeText = function() {
-        largeText = !largeText;
+        var el = document.getElementById('largeTextToggle');
+        largeText = el ? el.checked : !largeText;
         document.body.classList.toggle('large-text', largeText);
-        document.getElementById('largeTextToggle').classList.toggle('active', largeText);
         localStorage.setItem('a11y_largeText', largeText);
     };
 
     window.toggleReadableFont = function() {
-        readableFont = !readableFont;
+        var el = document.getElementById('readableFontToggle');
+        readableFont = el ? el.checked : !readableFont;
         document.body.classList.toggle('readable-font', readableFont);
-        document.getElementById('readableFontToggle').classList.toggle('active', readableFont);
         localStorage.setItem('a11y_readableFont', readableFont);
     };
 
     window.toggleDarkMode = function() {
         document.body.classList.add('theme-transition');
-        darkMode = !darkMode;
+        var el = document.getElementById('darkModeToggle');
+        darkMode = el ? el.checked : !darkMode;
         document.documentElement.classList.toggle('dark-mode', darkMode);
         document.body.classList.toggle('dark-mode', darkMode);
-        document.getElementById('darkModeToggle').classList.toggle('active', darkMode);
         updateThemeIcon();
         localStorage.setItem('a11y_darkMode', darkMode);
         setTimeout(function() { document.body.classList.remove('theme-transition'); }, 400);
@@ -88,10 +88,10 @@
         document.documentElement.style.fontSize = '100%';
         document.documentElement.classList.remove('dark-mode');
         document.body.classList.remove('high-contrast', 'large-text', 'readable-font', 'dark-mode');
-        document.getElementById('contrastToggle').classList.remove('active');
-        document.getElementById('largeTextToggle').classList.remove('active');
-        document.getElementById('readableFontToggle').classList.remove('active');
-        document.getElementById('darkModeToggle').classList.remove('active');
+        document.getElementById('contrastToggle').checked = false;
+        document.getElementById('largeTextToggle').checked = false;
+        document.getElementById('readableFontToggle').checked = false;
+        document.getElementById('darkModeToggle').checked = false;
         updateThemeIcon();
         localStorage.removeItem('a11y_fontSize');
         localStorage.removeItem('a11y_highContrast');
@@ -101,9 +101,9 @@
     };
 
     if (currentFontSize !== 100) document.documentElement.style.fontSize = currentFontSize + '%';
-    if (highContrast) { document.body.classList.add('high-contrast'); document.getElementById('contrastToggle').classList.add('active'); }
-    if (largeText) { document.body.classList.add('large-text'); document.getElementById('largeTextToggle').classList.add('active'); }
-    if (readableFont) { document.body.classList.add('readable-font'); document.getElementById('readableFontToggle').classList.add('active'); }
-    if (darkMode) { document.documentElement.classList.add('dark-mode'); document.body.classList.add('dark-mode'); document.getElementById('darkModeToggle').classList.add('active'); updateThemeIcon(); }
+    if (highContrast) { document.body.classList.add('high-contrast'); document.getElementById('contrastToggle').checked = true; }
+    if (largeText) { document.body.classList.add('large-text'); document.getElementById('largeTextToggle').checked = true; }
+    if (readableFont) { document.body.classList.add('readable-font'); document.getElementById('readableFontToggle').checked = true; }
+    if (darkMode) { document.documentElement.classList.add('dark-mode'); document.body.classList.add('dark-mode'); document.getElementById('darkModeToggle').checked = true; updateThemeIcon(); }
 })();
 </script>

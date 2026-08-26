@@ -2390,7 +2390,29 @@ if ($your_reports_only) {
         $cimm_pagination_html = '';
     }
     if (!empty($infra_reports_list)) {
-        $infra_reports_list = rgmap_filter_reports_you_handle($conn, $infra_reports_list);
+        // Keep projects this supervisor owns, plus unassigned/newly approved
+        // IPMS rows (claimable — same rule as can_manage_as_supervisor).
+        $owned_infra = rgmap_filter_reports_you_handle($conn, $infra_reports_list);
+        $owned_ids = [];
+        foreach ($owned_infra as $oir) {
+            $owned_ids[(int)($oir['id'] ?? 0)] = true;
+        }
+        $unassigned_infra = array_values(array_filter(
+            $infra_reports_list,
+            static function ($r) {
+                return ((int)($r['assigned_by_id'] ?? 0) <= 0)
+                    && strtolower((string)($r['assignment_status'] ?? 'unassigned')) === 'unassigned';
+            }
+        ));
+        $merged = $owned_infra;
+        foreach ($unassigned_infra as $uir) {
+            $uid = (int)($uir['id'] ?? 0);
+            if ($uid > 0 && empty($owned_ids[$uid])) {
+                $merged[] = $uir;
+                $owned_ids[$uid] = true;
+            }
+        }
+        $infra_reports_list = $merged;
     }
 }
 
@@ -2457,11 +2479,26 @@ if ($focus_id > 0) {
                 break;
 
             case 'maintenance':
-                // Infrastructure projects come from road_maintenance_reports,
-                // and infrastructure issues from road_transportation_reports.
+                // Approved IPMS infrastructure projects live in ipms_road_projects;
+                // legacy rows may still be in maintenance / transport tables.
                 $focus_panel = 'maintenance';
                 foreach ($infra_reports_list as $r) {
                     if ((int)$r['id'] === $focus_id) { $focus_report = $r; break; }
+                }
+                if (!$focus_report) {
+                    try {
+                        $ipms_focus = rgmap_infra_panel_rows(null, ['approved', 'cancelled', 'in-progress', 'completed']);
+                        foreach ($ipms_focus as $ir) {
+                            if ((int)($ir['id'] ?? 0) === $focus_id) {
+                                $ir['_source_table'] = 'ipms_road_projects';
+                                $focus_report = $ir;
+                                $infra_reports_list[] = $ir;
+                                break;
+                            }
+                        }
+                    } catch (Exception $e) {
+                        error_log('IPMS focus lookup failed: ' . $e->getMessage());
+                    }
                 }
                 if (!$focus_report) {
                     $maint_result = $conn->query("SHOW COLUMNS FROM road_maintenance_reports LIKE 'estimation'");
@@ -7171,7 +7208,7 @@ if ($focus_id > 0) {
             }
         }
 
-        // Approved IPMS projects for the Infrastructure Projects panel (view-only).
+        // Approved IPMS projects for the Infrastructure Projects panel.
         var infraIpmsDataMap = {};
         <?php foreach ($infra_reports_list as $ir): ?>
         infraIpmsDataMap[<?php echo (int)$ir['id']; ?>] = <?php echo json_encode([
@@ -7186,9 +7223,14 @@ if ($focus_id > 0) {
             'start_address' => $ir['start_address'] ?? null,
             'end_address' => $ir['end_address'] ?? null,
             'description' => $ir['description'] ?? '',
+            'created_date' => $ir['created_date'] ?? null,
             'created_at' => $ir['created_at'] ?? null,
             'updated_at' => $ir['updated_at'] ?? null,
             'due_date' => $ir['due_date'] ?? null,
+            'estimated_cost' => $ir['estimated_cost'] ?? null,
+            'actual_cost' => $ir['actual_cost'] ?? null,
+            'maintenance_team' => $ir['maintenance_team'] ?? null,
+            'attachments' => $ir['attachments'] ?? null,
             'engineer' => $ir['engineer'] ?? '',
             'budget' => $ir['budget'] ?? null,
             'start_date' => $ir['start_date'] ?? null,
@@ -7207,15 +7249,25 @@ if ($focus_id > 0) {
                 return;
             }
 
+            var typeLabels = {
+                'infrastructure_issue': 'Infrastructure Issue',
+                'routine': 'Routine Maintenance',
+                'emergency': 'Emergency Repair',
+                'preventive': 'Preventive Maintenance',
+                'corrective': 'Corrective Maintenance',
+                'scheduled': 'Scheduled Maintenance'
+            };
+
             var statusStyles = {
                 'pending':    {bg:'rgba(251,191,36,0.15)', color:'#f59e0b'},
                 'approved':   {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
                 'completed':  {bg:'rgba(34,197,94,0.15)',  color:'#22c55e'},
                 'rejected':   {bg:'rgba(220,53,69,0.15)',  color:'#ef4444'},
-                'cancelled':  {bg:'rgba(220,53,69,0.15)',  color:'#ef4444'}
+                'cancelled':  {bg:'rgba(220,53,69,0.15)',  color:'#ef4444'},
+                'in-progress':{bg:'rgba(59,130,246,0.15)', color:'#3b82f6'}
             };
 
-            document.getElementById('rm-report-id').textContent = 'Project #' + (r.report_id || '—');
+            document.getElementById('rm-report-id').textContent = 'Report #' + (r.report_id || '—');
             document.getElementById('rm-title').textContent = r.title || '—';
 
             var st = (r.status || 'approved').toLowerCase();
@@ -7224,44 +7276,90 @@ if ($focus_id > 0) {
             badgesHtml += '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(249,115,22,0.12);color:#f97316;">Infrastructure Project</span>';
             document.getElementById('rm-badges').innerHTML = badgesHtml;
 
+            // Project Information (same fields as verification infra View modal)
+            var reportType = typeLabels[r.report_type] || r.report_type || '—';
             var reportGrid = '';
-            reportGrid += rmInfoItem('folder', 'Road Type', r.report_type || '—');
-            reportGrid += rmInfoItem('calendar-alt', 'Created', formatDate(r.created_at));
-            reportGrid += rmInfoItem('sync-alt', 'Last Synced', formatDate(r.updated_at));
-            reportGrid += rmInfoItem('calendar-check', 'Start Date', formatDate(r.start_date));
-            reportGrid += rmInfoItem('clock', 'End Date', formatDate(r.end_date || r.due_date));
+            reportGrid += rmInfoItem('building', 'Report Type', reportType);
+            reportGrid += rmInfoItem('folder', 'Department', r.department || 'Engineering');
+            reportGrid += rmInfoItem('calendar-alt', 'Created Date', formatDate(r.created_date || r.created_at));
+            reportGrid += rmInfoItem('calendar-check', 'Due Date', formatDate(r.due_date || r.end_date));
+            reportGrid += rmInfoItem('wallet', 'Est. Cost', r.estimated_cost ? ('₱' + Number(r.estimated_cost).toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2})) : '—');
+            if (r.actual_cost) {
+                reportGrid += rmInfoItem('receipt', 'Actual Cost', '₱' + Number(r.actual_cost).toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+            }
             document.getElementById('rm-report-grid').innerHTML = reportGrid;
 
+            // Engineer & Schedule + assignment (same info as verification)
             var sourceGrid = '';
             sourceGrid += rmInfoItem('server', 'Source', 'IPMS');
-            sourceGrid += rmInfoItem('building', 'Department', r.department || 'Engineering');
-            sourceGrid += rmInfoItem('hard-hat', 'Engineers', r.engineer || '—');
+            sourceGrid += rmInfoItem('hard-hat', 'Engineer', r.engineer || '—');
+            sourceGrid += rmInfoItem('calendar-plus', 'Start Date', formatDate(r.start_date));
+            sourceGrid += rmInfoItem('calendar-minus', 'End Date', formatDate(r.end_date || r.due_date));
+            if (r.budget != null && r.budget !== '' && Number(r.budget) !== 0) {
+                sourceGrid += rmInfoItem('money-bill-wave', 'Budget', '₱' + Number(r.budget).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+            } else {
+                sourceGrid += rmInfoItem('money-bill-wave', 'Budget', '—');
+            }
+            sourceGrid += rmInfoItem('users', 'Maintenance Team', r.maintenance_team || '—');
             if (r.assignment_officer) {
                 sourceGrid += rmInfoItem('user-cog', 'Assigned To', r.assignment_officer);
             }
             if (r.assigned_by) {
                 sourceGrid += rmInfoItem('user-tie', 'Assigned By', r.assigned_by);
             }
-            if (r.budget != null && r.budget !== '' && Number(r.budget) !== 0) {
-                var budgetLabel = '₱' + Number(r.budget).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                sourceGrid += rmInfoItem('wallet', 'Budget', budgetLabel);
-            }
             document.getElementById('rm-source-grid').innerHTML = sourceGrid;
 
+            // Location — start/end addresses (same as verification)
             var locationGrid = '';
             locationGrid += rmInfoItem('map-marker-alt', 'Start Address', r.start_address || '—');
             locationGrid += rmInfoItem('map-marker', 'End Address', r.end_address || '—');
+            if (r.location) {
+                locationGrid += rmInfoItem('map-pin', 'Location', r.location);
+            }
             document.getElementById('rm-location-grid').innerHTML = locationGrid;
 
             var descEl = document.getElementById('rm-description');
-            if (descEl) descEl.textContent = r.description || '—';
+            if (descEl) descEl.textContent = r.description || 'No description provided.';
 
-            var timelineEl = document.getElementById('rm-timeline-grid');
-            if (timelineEl) timelineEl.innerHTML = '';
-
-            // Clear attachments / map sections that belong to other report types
+            // Attachments
+            var images = [];
+            if (r.attachments && typeof r.attachments === 'string') {
+                try {
+                    var parsed = JSON.parse(r.attachments);
+                    if (Array.isArray(parsed)) {
+                        parsed.forEach(function(a) {
+                            if (a.type === 'image' && a.file_path) {
+                                images.push(a.file_path);
+                            }
+                        });
+                    }
+                } catch (e) {}
+            }
+            var attachHtml = '';
+            if (images.length > 0) {
+                attachHtml = '<div style="display:flex;gap:12px;flex-wrap:wrap;">';
+                images.forEach(function(path) {
+                    attachHtml += '<div style="border-radius:8px;overflow:hidden;max-width:200px;"><img src="../../' + path + '" alt="Report Photo" style="width:100%;height:auto;cursor:pointer;" onclick="openLightbox(this.src)" loading="lazy" onerror="this.closest(\'div\').style.display=\'none\'"></div>';
+                });
+                attachHtml += '</div>';
+            } else {
+                attachHtml = '<div style="padding:8px 0;color:#9ca3af;font-size:14px;">No attachments.</div>';
+            }
             var attachEl = document.getElementById('rm-attachments');
-            if (attachEl) attachEl.innerHTML = '';
+            if (attachEl) attachEl.innerHTML = attachHtml;
+
+            // Timeline (same fields as verification)
+            var timelineGrid = '';
+            timelineGrid += rmInfoItem('calendar-plus', 'Created', formatDate(r.created_at));
+            timelineGrid += rmInfoItem('calendar-alt', 'Created Date', formatDate(r.created_date || r.created_at));
+            timelineGrid += rmInfoItem('calendar-check', 'Due Date', formatDate(r.due_date || r.end_date));
+            if (r.updated_at) {
+                timelineGrid += rmInfoItem('edit', 'Last Updated', formatDate(r.updated_at));
+            }
+            var timelineEl = document.getElementById('rm-timeline-grid');
+            if (timelineEl) timelineEl.innerHTML = timelineGrid;
+
+            // View Map when polyline exists (same as verification)
             var mapBtn = document.getElementById('rm-view-map-btn');
             var mapContainer = document.getElementById('rm-map-container');
             currentRmPoint = null;
@@ -7457,6 +7555,7 @@ if ($focus_id > 0) {
                             locVal += '<br><a href="https://www.openstreetmap.org/?mlat=' + r.latitude + '&mlon=' + r.longitude + '&zoom=15" target="_blank" style="color:#3762c8;font-size:12px;text-decoration:none;"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map</a>';
                         }
                         locationGrid += '<div class="rm-info-item rm-info-value-full"><div class="rm-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="rm-info-label">Location</div><div class="rm-info-value">' + locVal + '</div></div></div>';
+                        locationGrid += rmInfoItem('map-pin', 'District', r.detected_district);
                         document.getElementById('rm-location-grid').innerHTML = locationGrid;
 
                         // View Map button: only shown when the report has a saved

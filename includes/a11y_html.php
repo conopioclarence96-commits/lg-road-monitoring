@@ -9,20 +9,40 @@
             </div>
         </div>
         <div class="a11y-option">
-            <label>High Contrast</label>
-            <button class="a11y-toggle-btn" id="contrastToggle" onclick="toggleHighContrast()">On / Off</button>
+            <label class="a11y-option-row" for="contrastToggle">
+                <span class="a11y-option-text">High Contrast</span>
+                <span class="a11y-switch">
+                    <input type="checkbox" id="contrastToggle" onchange="toggleHighContrast()" aria-label="High Contrast">
+                    <span class="a11y-switch-slider"></span>
+                </span>
+            </label>
         </div>
         <div class="a11y-option">
-            <label>Large Text</label>
-            <button class="a11y-toggle-btn" id="largeTextToggle" onclick="toggleLargeText()">On / Off</button>
+            <label class="a11y-option-row" for="largeTextToggle">
+                <span class="a11y-option-text">Large Text</span>
+                <span class="a11y-switch">
+                    <input type="checkbox" id="largeTextToggle" onchange="toggleLargeText()" aria-label="Large Text">
+                    <span class="a11y-switch-slider"></span>
+                </span>
+            </label>
         </div>
         <div class="a11y-option">
-            <label>Readable Font</label>
-            <button class="a11y-toggle-btn" id="readableFontToggle" onclick="toggleReadableFont()">On / Off</button>
+            <label class="a11y-option-row" for="readableFontToggle">
+                <span class="a11y-option-text">Readable Font</span>
+                <span class="a11y-switch">
+                    <input type="checkbox" id="readableFontToggle" onchange="toggleReadableFont()" aria-label="Readable Font">
+                    <span class="a11y-switch-slider"></span>
+                </span>
+            </label>
         </div>
         <div class="a11y-option">
-            <label><i class="fas fa-moon" id="themeIcon"></i> Dark Mode</label>
-            <button class="a11y-toggle-btn" id="darkModeToggle" onclick="toggleDarkMode()">On / Off</button>
+            <label class="a11y-option-row" for="darkModeToggle">
+                <span class="a11y-option-text"><i class="fas fa-moon" id="themeIcon"></i> Dark Mode</span>
+                <span class="a11y-switch">
+                    <input type="checkbox" id="darkModeToggle" onchange="toggleDarkMode()" aria-label="Dark Mode">
+                    <span class="a11y-switch-slider"></span>
+                </span>
+            </label>
         </div>
         <button class="a11y-reset" onclick="resetAccessibility()"><i class="fas fa-undo"></i> Reset All</button>
     </div>

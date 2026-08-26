@@ -124,7 +124,7 @@ function getCitizenReportsForVerification(
 
     $sql = "SELECT id, report_id, title, report_type, report_category, report_source,
                    department, priority, status, created_date, due_date, description, location,
-                   attachments, latitude, longitude, created_at, updated_at, approved_at, rejected_at,
+                   attachments, latitude, longitude, detected_district, created_at, updated_at, approved_at, rejected_at,
                    reporter_name, reporter_email, reporter_phone, image_path, created_by
             FROM road_transportation_reports
             WHERE {$where}
@@ -270,6 +270,7 @@ function vm_build_citizen_rows_json(array $reports): array {
             'location' => $cr['location'] ?? null,
             'latitude' => $cr['latitude'] ?? null,
             'longitude' => $cr['longitude'] ?? null,
+            'detected_district' => $cr['detected_district'] ?? null,
             'description' => $cr['description'] ?? null,
             'created_at' => $cr['created_at'] ?? null,
             'updated_at' => $cr['updated_at'] ?? null,

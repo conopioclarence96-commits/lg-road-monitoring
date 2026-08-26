@@ -941,12 +941,17 @@ function rgmap_resolve_assigning_supervisor($conn, $report_id, $officer_user_id,
     }
 
     $source = strtolower(trim((string)$source));
-    $preferred = $source === 'cimm'
-        ? 'cimm_verification_reports'
-        : ($source === 'infrastructure' ? 'road_maintenance_reports' : 'road_transportation_reports');
+    $preferred = function_exists('rgmap_assignment_report_type_from_source')
+        ? rgmap_assignment_report_type_from_source($source)
+        : ($source === 'cimm'
+            ? 'cimm_verification_reports'
+            : ((strpos($source, 'ipms') !== false || $source === 'infrastructure')
+                ? 'ipms_road_projects'
+                : 'road_transportation_reports'));
 
     $try_types = array_values(array_unique([
         $preferred,
+        'ipms_road_projects',
         'road_transportation_reports',
         'cimm_verification_reports',
         'road_maintenance_reports',
