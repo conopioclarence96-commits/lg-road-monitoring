@@ -107,3 +107,5 @@
     if (darkMode) { document.documentElement.classList.add('dark-mode'); document.body.classList.add('dark-mode'); document.getElementById('darkModeToggle').checked = true; updateThemeIcon(); }
 })();
 </script>
+<script>window.CSF_FEEDBACK_API = 'lgu_staff/pages/api/citizen_service_feedback_api.php';</script>
+<script src="assets/js/citizen-service-feedback.js?v=<?php echo (int)(@filemtime(__DIR__ . '/../assets/js/citizen-service-feedback.js') ?: time()); ?>"></script>

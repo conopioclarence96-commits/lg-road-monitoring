@@ -160,6 +160,8 @@
     html.dark-mode ::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
     html.dark-mode ::-webkit-scrollbar-thumb:hover { background: #777; }
 
-    @media (max-width: 768px) { .a11y-fab { bottom: 20px; right: 20px; } .a11y-fab-btn { width: 50px; height: 50px; font-size: 1.3rem; } .a11y-panel { width: 260px; bottom: 65px; } }
+    @media (max-width: 768px) { .a11y-fab { bottom: 20px; right: 20px; } .a11y-fab-btn { width: 50px; height: 50px; font-size: 1.3rem; } .a11y-panel { width: 260px; bottom: 130px; } }
+    .a11y-panel { bottom: 150px; }
 </style>
+<link rel="stylesheet" href="assets/css/citizen-service-feedback.css?v=<?php echo (int)(@filemtime(__DIR__ . '/../assets/css/citizen-service-feedback.css') ?: time()); ?>">
 <?php endif; ?>

@@ -65,6 +65,7 @@ if ($database_available && $conn) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles/transition.css">
+    <link rel="stylesheet" href="assets/css/project-ratings.css?v=<?php echo filemtime(__DIR__ . '/assets/css/project-ratings.css'); ?>">
     <style>
         :root {
             --primary-color: #115272;
@@ -426,7 +427,7 @@ if ($database_available && $conn) {
                         : $after_img;
                     $has_before = !empty($proj['before_photo']);
                 ?>
-                <div class="project-card">
+                <div class="project-card" data-id="<?php echo (int)$proj['id']; ?>">
                     <div class="comparison-slider" data-slider>
                         <img src="<?php echo $before_img; ?>" alt="Before" class="img-before" loading="lazy"
                              onerror="this.onerror=null;this.src='https://via.placeholder.com/600x375/dc3545/ffffff?text=Before+Image';">
@@ -502,6 +503,8 @@ if ($database_available && $conn) {
 
     <?php include __DIR__ . '/includes/a11y_html.php'; ?>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>window.PR_RATINGS_API = 'lgu_staff/pages/api/project_ratings_api.php';</script>
+    <script src="assets/js/project-ratings.js?v=<?php echo filemtime(__DIR__ . '/assets/js/project-ratings.js'); ?>"></script>
     <script>
         document.querySelectorAll('[data-slider]').forEach(slider => {
             const imgBefore = slider.querySelector('.img-before');

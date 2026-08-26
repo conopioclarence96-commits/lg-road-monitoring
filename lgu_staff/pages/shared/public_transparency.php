@@ -135,6 +135,185 @@ if ($conn) {
         body.dark-mode .project-meta span { color: var(--text-secondary) !important; }
         body.dark-mode .project-cost { background: rgba(55, 98, 200, 0.2) !important; color: #93b3e0 !important; }
 
+        /* Tabs + Citizen Feedback */
+        .pt-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 0 0 20px;
+            padding: 6px;
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+        }
+        .pt-tab {
+            border: none;
+            background: transparent;
+            color: #64748b;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 10px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+        .pt-tab:hover { background: rgba(55, 98, 200, 0.08); color: #1e3c72; }
+        .pt-tab.active { background: #3762c8; color: #fff; }
+        .pt-tab-panel[hidden] { display: none !important; }
+        .cf-feedback-wrap { display: flex; flex-direction: column; gap: 22px; }
+        .cf-panel {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 18px 20px 20px;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+        }
+        .cf-panel-sub { margin: 4px 0 0; font-size: 12px; color: #64748b; font-weight: 500; }
+        .cf-dash {
+            display: grid;
+            grid-template-columns: minmax(100px, 140px) minmax(100px, 140px) 1fr;
+            gap: 12px;
+            margin: 16px 0 18px;
+            align-items: stretch;
+        }
+        .cf-dash-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 14px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100%;
+        }
+        .cf-dash-card.cf-avg { background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(55, 98, 200, 0.08)); }
+        .cf-dash-value { font-size: 28px; font-weight: 700; color: #1e3c72; line-height: 1.1; }
+        .cf-dash-label { font-size: 11px; color: #64748b; margin-top: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+        .cf-star-counts {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 12px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .cf-star-row { display: grid; grid-template-columns: 36px 1fr 36px; gap: 8px; align-items: center; font-size: 12px; color: #475569; }
+        .cf-star-row b { text-align: right; color: #1e3c72; }
+        .cf-bar { height: 8px; background: #e2e8f0; border-radius: 99px; overflow: hidden; }
+        .cf-bar i { display: block; height: 100%; background: #f59e0b; border-radius: 99px; font-style: normal; }
+        .cf-table-wrap { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 12px; }
+        .cf-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .cf-table th {
+            text-align: left;
+            padding: 10px 12px;
+            background: #f8fafc;
+            color: #64748b;
+            font-weight: 600;
+            border-bottom: 1px solid #e2e8f0;
+            white-space: nowrap;
+        }
+        .cf-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #f1f5f9;
+            color: #334155;
+            vertical-align: top;
+        }
+        .cf-table tr:last-child td { border-bottom: none; }
+        .cf-list-toolbar {
+            display: flex;
+            justify-content: flex-end;
+            margin: 0 0 10px;
+        }
+        .cf-sort-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748b;
+        }
+        .cf-sort-select {
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 500;
+            color: #1e3c72;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 6px 10px;
+            background: #fff;
+            cursor: pointer;
+        }
+        .cf-pager {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+            font-size: 12px;
+            color: #64748b;
+        }
+        .cf-pager-btns { display: flex; gap: 6px; align-items: center; }
+        .cf-pager button {
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 600;
+            border: 1px solid #e2e8f0;
+            background: #fff;
+            color: #1e3c72;
+            border-radius: 8px;
+            padding: 6px 12px;
+            cursor: pointer;
+        }
+        .cf-pager button:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+        .cf-pager button:hover:not(:disabled) {
+            background: rgba(55, 98, 200, 0.08);
+        }
+        .cf-stars { color: #f59e0b; letter-spacing: 1px; white-space: nowrap; }
+        .cf-empty { text-align: center; color: #94a3b8 !important; padding: 24px !important; }
+        .cf-muted { color: #94a3b8; font-size: 12px; }
+        @media (max-width: 900px) {
+            .cf-dash { grid-template-columns: 1fr 1fr; }
+            .cf-star-counts { grid-column: 1 / -1; }
+        }
+        body.dark-mode .pt-tabs { background: var(--bg-card) !important; border-color: var(--border-default) !important; }
+        body.dark-mode .pt-tab { color: var(--text-secondary) !important; }
+        body.dark-mode .pt-tab:hover { background: rgba(55, 98, 200, 0.15) !important; color: var(--text-primary) !important; }
+        body.dark-mode .pt-tab.active { background: #3762c8 !important; color: #fff !important; }
+        body.dark-mode .cf-panel,
+        body.dark-mode .cf-dash-card,
+        body.dark-mode .cf-star-counts,
+        body.dark-mode .cf-table-wrap { background: var(--bg-card) !important; border-color: var(--border-default) !important; }
+        body.dark-mode .cf-dash-value,
+        body.dark-mode .cf-star-row b,
+        body.dark-mode .cf-table td { color: var(--text-primary) !important; }
+        body.dark-mode .cf-panel-sub,
+        body.dark-mode .cf-dash-label,
+        body.dark-mode .cf-star-row,
+        body.dark-mode .cf-table th { color: var(--text-secondary) !important; }
+        body.dark-mode .cf-table th { background: var(--bg-input-readonly) !important; border-color: var(--border-default) !important; }
+        body.dark-mode .cf-table td { border-color: var(--border-default) !important; }
+        body.dark-mode .cf-bar { background: #333 !important; }
+        body.dark-mode .cf-sort-select,
+        body.dark-mode .cf-pager button {
+            background: var(--bg-card) !important;
+            border-color: var(--border-default) !important;
+            color: var(--text-primary) !important;
+        }
+        body.dark-mode .cf-sort-label,
+        body.dark-mode .cf-pager { color: var(--text-secondary) !important; }
+
         /* System Admin: header-actions dark-mode */
         body.system-admin-view.dark-mode .header-actions .header-datetime {
             background: rgba(255,255,255,0.05) !important;
@@ -1094,6 +1273,19 @@ if ($conn) {
             </div>
         </div>
 
+        <div class="pt-tabs" role="tablist" aria-label="Public transparency sections">
+            <button type="button" class="pt-tab active" role="tab" aria-selected="true" data-pt-tab="projects" id="ptTabProjects">
+                <i class="fas fa-images"></i> Projects
+            </button>
+            <button type="button" class="pt-tab" role="tab" aria-selected="false" data-pt-tab="announcements" id="ptTabAnnouncements">
+                <i class="fas fa-bullhorn"></i> Announcements
+            </button>
+            <button type="button" class="pt-tab" role="tab" aria-selected="false" data-pt-tab="feedback" id="ptTabFeedback">
+                <i class="fas fa-star"></i> Citizen Feedback
+            </button>
+        </div>
+
+        <div class="pt-tab-panel active" id="ptPanelProjects" role="tabpanel" aria-labelledby="ptTabProjects">
         <!-- Stats -->
         <div class="transparency-stats">
             <div class="transparency-stat">
@@ -1340,7 +1532,9 @@ if ($conn) {
             </div>
             <?php endif; ?>
         </div>
+        </div><!-- /ptPanelProjects -->
 
+        <div class="pt-tab-panel" id="ptPanelAnnouncements" role="tabpanel" aria-labelledby="ptTabAnnouncements" hidden>
         <!-- Public Announcements → index.php only (separate from internal announcements.php) -->
         <div class="announcements-section" id="announcementsSection">
             <div class="section-header">
@@ -1467,6 +1661,111 @@ if ($conn) {
             </div>
             <?php endif; ?>
         </div>
+        </div><!-- /ptPanelAnnouncements -->
+
+        <div class="pt-tab-panel" id="ptPanelFeedback" role="tabpanel" aria-labelledby="ptTabFeedback" hidden>
+            <div class="cf-feedback-wrap">
+                <div class="cf-panel" id="cfReportPanel">
+                    <div class="section-header">
+                        <h3 class="section-title"><i class="fas fa-map-marker-alt"></i> Report Feedback</h3>
+                        <p class="cf-panel-sub">Ratings on completed transparency projects</p>
+                    </div>
+                    <div class="cf-dash" id="cfReportDash">
+                        <div class="cf-dash-card cf-avg">
+                            <div class="cf-dash-value" id="cfReportAvg">—</div>
+                            <div class="cf-dash-label">Average</div>
+                        </div>
+                        <div class="cf-dash-card">
+                            <div class="cf-dash-value" id="cfReportTotal">0</div>
+                            <div class="cf-dash-label">Total ratings</div>
+                        </div>
+                        <div class="cf-star-counts" id="cfReportCounts">
+                            <div class="cf-star-row" data-star="5"><span>5★</span><div class="cf-bar"><i style="width:0%"></i></div><b>0</b></div>
+                            <div class="cf-star-row" data-star="4"><span>4★</span><div class="cf-bar"><i style="width:0%"></i></div><b>0</b></div>
+                            <div class="cf-star-row" data-star="3"><span>3★</span><div class="cf-bar"><i style="width:0%"></i></div><b>0</b></div>
+                            <div class="cf-star-row" data-star="2"><span>2★</span><div class="cf-bar"><i style="width:0%"></i></div><b>0</b></div>
+                            <div class="cf-star-row" data-star="1"><span>1★</span><div class="cf-bar"><i style="width:0%"></i></div><b>0</b></div>
+                        </div>
+                    </div>
+                    <div class="cf-list-toolbar">
+                        <label class="cf-sort-label">Sort
+                            <select id="cfReportSort" class="cf-sort-select" aria-label="Sort report feedback">
+                                <option value="created_at:desc" selected>Date (newest)</option>
+                                <option value="created_at:asc">Date (oldest)</option>
+                                <option value="rating:desc">Rating (high–low)</option>
+                                <option value="rating:asc">Rating (low–high)</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="cf-table-wrap">
+                        <table class="cf-table" id="cfReportTable">
+                            <thead>
+                                <tr>
+                                    <th>Rating</th>
+                                    <th>Project</th>
+                                    <th>Comment</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cfReportBody">
+                                <tr><td colspan="4" class="cf-empty">Loading…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="cf-pager" id="cfReportPager"></div>
+                </div>
+
+                <div class="cf-panel" id="cfServicePanel">
+                    <div class="section-header">
+                        <h3 class="section-title"><i class="fas fa-star"></i> Service Feedback</h3>
+                        <p class="cf-panel-sub">Overall ratings from the floating Rate button</p>
+                    </div>
+                    <div class="cf-dash" id="cfServiceDash">
+                        <div class="cf-dash-card cf-avg">
+                            <div class="cf-dash-value" id="cfServiceAvg">—</div>
+                            <div class="cf-dash-label">Average</div>
+                        </div>
+                        <div class="cf-dash-card">
+                            <div class="cf-dash-value" id="cfServiceTotal">0</div>
+                            <div class="cf-dash-label">Total ratings</div>
+                        </div>
+                        <div class="cf-star-counts" id="cfServiceCounts">
+                            <div class="cf-star-row" data-star="5"><span>5★</span><div class="cf-bar"><i style="width:0%"></i></div><b>0</b></div>
+                            <div class="cf-star-row" data-star="4"><span>4★</span><div class="cf-bar"><i style="width:0%"></i></div><b>0</b></div>
+                            <div class="cf-star-row" data-star="3"><span>3★</span><div class="cf-bar"><i style="width:0%"></i></div><b>0</b></div>
+                            <div class="cf-star-row" data-star="2"><span>2★</span><div class="cf-bar"><i style="width:0%"></i></div><b>0</b></div>
+                            <div class="cf-star-row" data-star="1"><span>1★</span><div class="cf-bar"><i style="width:0%"></i></div><b>0</b></div>
+                        </div>
+                    </div>
+                    <div class="cf-list-toolbar">
+                        <label class="cf-sort-label">Sort
+                            <select id="cfServiceSort" class="cf-sort-select" aria-label="Sort service feedback">
+                                <option value="created_at:desc" selected>Date (newest)</option>
+                                <option value="created_at:asc">Date (oldest)</option>
+                                <option value="rating:desc">Rating (high–low)</option>
+                                <option value="rating:asc">Rating (low–high)</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="cf-table-wrap">
+                        <table class="cf-table" id="cfServiceTable">
+                            <thead>
+                                <tr>
+                                    <th>Rating</th>
+                                    <th>Comment</th>
+                                    <th>Page</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cfServiceBody">
+                                <tr><td colspan="4" class="cf-empty">Loading…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="cf-pager" id="cfServicePager"></div>
+                </div>
+            </div>
+        </div><!-- /ptPanelFeedback -->
     </div>
 
     <!-- Toast -->
@@ -2271,6 +2570,260 @@ if ($conn) {
                     showToast('Network error', 'error');
                 });
         });
+    })();
+
+    // ─── Tabs + Citizen Feedback viewer ─────────────────────
+    (function () {
+        const FEEDBACK_API = '../../pages/api/citizen_feedback_admin_api.php';
+        const PAGE_SIZE = 10;
+        let feedbackLoaded = false;
+        const state = {
+            report: { page: 1, sortBy: 'created_at', sortDir: 'desc' },
+            service: { page: 1, sortBy: 'created_at', sortDir: 'desc' }
+        };
+
+        function escapeHtml(str) {
+            return String(str == null ? '' : str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function starsHtml(n) {
+            const rating = Math.max(0, Math.min(5, parseInt(n, 10) || 0));
+            let html = '<span class="cf-stars" aria-label="' + rating + ' stars">';
+            for (let i = 1; i <= 5; i++) {
+                html += '<i class="' + (i <= rating ? 'fas' : 'far') + ' fa-star"></i>';
+            }
+            return html + '</span>';
+        }
+
+        function formatDate(iso) {
+            if (!iso) return '—';
+            const d = new Date(iso.replace(' ', 'T'));
+            if (isNaN(d.getTime())) return escapeHtml(iso);
+            return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function parseSortValue(val) {
+            const parts = String(val || 'created_at:desc').split(':');
+            return {
+                sortBy: parts[0] === 'rating' ? 'rating' : 'created_at',
+                sortDir: parts[1] === 'asc' ? 'asc' : 'desc'
+            };
+        }
+
+        function renderSummary(prefix, data) {
+            const avgEl = document.getElementById(prefix + 'Avg');
+            const totalEl = document.getElementById(prefix + 'Total');
+            const countsWrap = document.getElementById(prefix + 'Counts');
+            if (!data) return;
+            const total = data.total || 0;
+            if (avgEl) avgEl.textContent = total ? Number(data.average || 0).toFixed(1) : '—';
+            if (totalEl) totalEl.textContent = String(total);
+            if (!countsWrap) return;
+            const counts = data.counts || {};
+            for (let s = 5; s >= 1; s--) {
+                const row = countsWrap.querySelector('[data-star="' + s + '"]');
+                if (!row) continue;
+                const c = parseInt(counts[s] || 0, 10);
+                const pct = total ? Math.round((c / total) * 100) : 0;
+                const bar = row.querySelector('.cf-bar i');
+                const num = row.querySelector('b');
+                if (bar) bar.style.width = pct + '%';
+                if (num) num.textContent = String(c);
+            }
+        }
+
+        function renderPager(pagerId, kind, pagination) {
+            const el = document.getElementById(pagerId);
+            if (!el) return;
+            const total = pagination && pagination.total != null ? pagination.total : 0;
+            const page = pagination && pagination.page ? pagination.page : 1;
+            const totalPages = pagination && pagination.total_pages ? pagination.total_pages : 1;
+            if (!total) {
+                el.innerHTML = '';
+                return;
+            }
+            const from = (page - 1) * PAGE_SIZE + 1;
+            const to = Math.min(page * PAGE_SIZE, total);
+            el.innerHTML =
+                '<span>Showing ' + from + '–' + to + ' of ' + total + '</span>' +
+                '<div class="cf-pager-btns">' +
+                    '<button type="button" data-cf-page="prev" data-cf-kind="' + kind + '"' + (page <= 1 ? ' disabled' : '') + '>Prev</button>' +
+                    '<span>Page ' + page + ' / ' + totalPages + '</span>' +
+                    '<button type="button" data-cf-page="next" data-cf-kind="' + kind + '"' + (page >= totalPages ? ' disabled' : '') + '>Next</button>' +
+                '</div>';
+        }
+
+        function renderReportRows(rows) {
+            const body = document.getElementById('cfReportBody');
+            if (!body) return;
+            if (!rows || !rows.length) {
+                body.innerHTML = '<tr><td colspan="4" class="cf-empty">No project ratings yet.</td></tr>';
+                return;
+            }
+            body.innerHTML = rows.map(function (r) {
+                return '<tr>' +
+                    '<td>' + starsHtml(r.rating) + '</td>' +
+                    '<td>' + escapeHtml(r.project_title || ('Project #' + (r.project_id || ''))) + '</td>' +
+                    '<td>' + (r.comment ? escapeHtml(r.comment) : '<span class="cf-muted">—</span>') + '</td>' +
+                    '<td>' + formatDate(r.created_at) + '</td>' +
+                    '</tr>';
+            }).join('');
+        }
+
+        function renderServiceRows(rows) {
+            const body = document.getElementById('cfServiceBody');
+            if (!body) return;
+            if (!rows || !rows.length) {
+                body.innerHTML = '<tr><td colspan="4" class="cf-empty">No service ratings yet.</td></tr>';
+                return;
+            }
+            body.innerHTML = rows.map(function (r) {
+                let page = r.page_url || '';
+                try {
+                    if (page) {
+                        const u = new URL(page, window.location.origin);
+                        page = u.pathname + u.search;
+                    }
+                } catch (e) {}
+                if (page.length > 60) page = page.slice(0, 57) + '…';
+                return '<tr>' +
+                    '<td>' + starsHtml(r.rating) + '</td>' +
+                    '<td>' + (r.comment ? escapeHtml(r.comment) : '<span class="cf-muted">—</span>') + '</td>' +
+                    '<td>' + (page ? '<span class="cf-muted" title="' + escapeHtml(r.page_url || '') + '">' + escapeHtml(page) + '</span>' : '<span class="cf-muted">—</span>') + '</td>' +
+                    '<td>' + formatDate(r.created_at) + '</td>' +
+                    '</tr>';
+            }).join('');
+        }
+
+        function listUrl(action, st) {
+            return FEEDBACK_API + '?action=' + action +
+                '&limit=' + PAGE_SIZE +
+                '&page=' + st.page +
+                '&sort_by=' + encodeURIComponent(st.sortBy) +
+                '&sort_dir=' + encodeURIComponent(st.sortDir);
+        }
+
+        function loadReportList() {
+            return fetch(listUrl('report_list', state.report), { credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data && data.success) {
+                        renderReportRows(data.data || []);
+                        renderPager('cfReportPager', 'report', data.pagination);
+                    } else {
+                        renderReportRows([]);
+                        renderPager('cfReportPager', 'report', null);
+                    }
+                })
+                .catch(function () {
+                    renderReportRows([]);
+                    renderPager('cfReportPager', 'report', null);
+                });
+        }
+
+        function loadServiceList() {
+            return fetch(listUrl('service_list', state.service), { credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data && data.success) {
+                        renderServiceRows(data.data || []);
+                        renderPager('cfServicePager', 'service', data.pagination);
+                    } else {
+                        renderServiceRows([]);
+                        renderPager('cfServicePager', 'service', null);
+                    }
+                })
+                .catch(function () {
+                    renderServiceRows([]);
+                    renderPager('cfServicePager', 'service', null);
+                });
+        }
+
+        function loadCitizenFeedback() {
+            return Promise.all([
+                fetch(FEEDBACK_API + '?action=report_summary', { credentials: 'same-origin' }).then(function (r) { return r.json(); }),
+                fetch(FEEDBACK_API + '?action=service_summary', { credentials: 'same-origin' }).then(function (r) { return r.json(); }),
+                loadReportList(),
+                loadServiceList()
+            ]).then(function (results) {
+                const reportSum = results[0];
+                const serviceSum = results[1];
+                if (reportSum && reportSum.success) renderSummary('cfReport', reportSum.data);
+                if (serviceSum && serviceSum.success) renderSummary('cfService', serviceSum.data);
+                feedbackLoaded = true;
+            }).catch(function () {
+                renderReportRows([]);
+                renderServiceRows([]);
+            });
+        }
+
+        function switchTab(name) {
+            document.querySelectorAll('.pt-tab').forEach(function (btn) {
+                const on = btn.getAttribute('data-pt-tab') === name;
+                btn.classList.toggle('active', on);
+                btn.setAttribute('aria-selected', on ? 'true' : 'false');
+            });
+            document.querySelectorAll('.pt-tab-panel').forEach(function (panel) {
+                let match = false;
+                if (name === 'projects') match = panel.id === 'ptPanelProjects';
+                if (name === 'announcements') match = panel.id === 'ptPanelAnnouncements';
+                if (name === 'feedback') match = panel.id === 'ptPanelFeedback';
+                panel.hidden = !match;
+                panel.classList.toggle('active', match);
+            });
+            if (name === 'feedback' && !feedbackLoaded) {
+                loadCitizenFeedback();
+            }
+        }
+
+        document.querySelectorAll('.pt-tab').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                switchTab(btn.getAttribute('data-pt-tab'));
+            });
+        });
+
+        const reportSort = document.getElementById('cfReportSort');
+        if (reportSort) {
+            reportSort.addEventListener('change', function () {
+                const s = parseSortValue(this.value);
+                state.report.sortBy = s.sortBy;
+                state.report.sortDir = s.sortDir;
+                state.report.page = 1;
+                loadReportList();
+            });
+        }
+        const serviceSort = document.getElementById('cfServiceSort');
+        if (serviceSort) {
+            serviceSort.addEventListener('change', function () {
+                const s = parseSortValue(this.value);
+                state.service.sortBy = s.sortBy;
+                state.service.sortDir = s.sortDir;
+                state.service.page = 1;
+                loadServiceList();
+            });
+        }
+
+        document.addEventListener('click', function (e) {
+            const btn = e.target.closest('[data-cf-page]');
+            if (!btn || btn.disabled) return;
+            const kind = btn.getAttribute('data-cf-kind');
+            const dir = btn.getAttribute('data-cf-page');
+            if (kind !== 'report' && kind !== 'service') return;
+            if (dir === 'prev') state[kind].page = Math.max(1, state[kind].page - 1);
+            if (dir === 'next') state[kind].page += 1;
+            if (kind === 'report') loadReportList();
+            else loadServiceList();
+        });
+
+        const params = new URLSearchParams(window.location.search);
+        const tab = params.get('tab');
+        if (tab === 'feedback' || tab === 'announcements' || tab === 'projects') {
+            switchTab(tab);
+        }
     })();
 
     </script>
