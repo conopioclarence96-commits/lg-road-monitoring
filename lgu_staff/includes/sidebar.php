@@ -136,6 +136,12 @@ function getNavigationItems($user_role) {
                 'roles' => ['system_admin', 'lgu_staff']
             ],
             [
+                'href' => '../pages/admin/schedule_calendar.php',
+                'icon' => 'calendar-alt',
+                'title' => 'Schedule Calendar',
+                'roles' => ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor']
+            ],
+            [
                 'href' => '../pages/admin/archive.php',
                 'icon' => 'archive',
                 'title' => 'Archive',

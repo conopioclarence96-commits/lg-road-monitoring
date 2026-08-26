@@ -724,6 +724,7 @@ $nav_items = [
     ],
     'system' => [
         ['href' => $nav_base . 'pages/shared/notifications.php', 'icon' => 'bell', 'title' => 'Notifications', 'roles' => ['system_admin', 'lgu_staff']],
+        ['href' => $nav_base . 'pages/admin/schedule_calendar.php', 'icon' => 'calendar-alt', 'title' => 'Schedule Calendar', 'roles' => ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor']],
         ['href' => $nav_base . 'pages/admin/archive.php', 'icon' => 'archive', 'title' => 'Archive', 'roles' => ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor', 'trans_monitoring_officer']],
         ['href' => $nav_base . 'pages/lgu/officer_archive.php', 'icon' => 'archive', 'title' => 'Archive', 'roles' => ['road_monitoring_officer']],
         ['href' => $nav_base . 'pages/shared/settings.php', 'icon' => 'cog', 'title' => 'Settings', 'roles' => ['system_admin', 'lgu_staff']],
