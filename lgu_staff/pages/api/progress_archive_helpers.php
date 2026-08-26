@@ -234,7 +234,7 @@ function rgmap_ipms_is_sync_skipped($conn, $project_id) {
 // reports (flag 0) keep their existing invisible behavior unchanged.
 function rgmap_ensure_restored_from_archive_column() {
     global $conn;
-    foreach (['road_transportation_reports', 'road_maintenance_reports', 'cimm_verification_reports'] as $t) {
+    foreach (['road_transportation_reports', 'road_maintenance_reports', 'cimm_verification_reports', 'ipms_road_projects'] as $t) {
         try {
             $conn->query("ALTER TABLE $t ADD COLUMN IF NOT EXISTS restored_from_archive TINYINT(1) NOT NULL DEFAULT 0");
         } catch (Exception $e) {
@@ -1415,13 +1415,19 @@ function rgmap_restore_ipms_from_native_archive($conn, array $row, $archive_id) 
     if ($restore_status === '' && !empty($row['previous_status'])) {
         $restore_status = (string)$row['previous_status'];
     }
+    $rfa = (strtolower($restore_status) === 'cancelled') ? 1 : 0;
+
+    rgmap_ensure_restored_from_archive_column();
 
     $chk = $pdo->prepare("SELECT project_id FROM ipms_road_projects WHERE project_id = ? LIMIT 1");
     $chk->execute([$project_id]);
     if ($chk->fetch()) {
         if ($restore_status !== '') {
-            $upd = $pdo->prepare("UPDATE ipms_road_projects SET status = ? WHERE project_id = ?");
-            $upd->execute([$restore_status, $project_id]);
+            $upd = $pdo->prepare("UPDATE ipms_road_projects SET status = ?, restored_from_archive = ? WHERE project_id = ?");
+            $upd->execute([$restore_status, $rfa, $project_id]);
+        } else {
+            $upd = $pdo->prepare("UPDATE ipms_road_projects SET restored_from_archive = ? WHERE project_id = ?");
+            $upd->execute([$rfa, $project_id]);
         }
         // Reopen in place — do not recreate assignments or change assigned_by.
         rgmap_preserve_ownership_after_restore($conn, $project_id, $project_id, 'ipms_road_projects');
@@ -1437,6 +1443,7 @@ function rgmap_restore_ipms_from_native_archive($conn, array $row, $archive_id) 
     if ($restore_status !== '') {
         $live['status'] = $restore_status;
     }
+    $live['restored_from_archive'] = $rfa;
 
     $dest_cols = [];
     $col_res = $pdo->query("SHOW COLUMNS FROM ipms_road_projects");

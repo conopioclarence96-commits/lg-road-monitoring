@@ -228,7 +228,7 @@ switch ($action) {
         $report = transparency_fetch_request_report($conn, $report_id, $source);
         if (!$report) {
             http_response_code(400);
-            echo json_encode(['success' => false, 'message' => 'Only completed road or transportation projects can be sent for transparency review']);
+            echo json_encode(['success' => false, 'message' => 'Only completed road, transportation, or infrastructure projects can be sent for transparency review']);
             exit;
         }
 

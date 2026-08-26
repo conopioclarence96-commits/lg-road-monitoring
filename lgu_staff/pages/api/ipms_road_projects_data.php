@@ -404,6 +404,10 @@ function rgmap_infra_panel_rows(?PDO $pdo = null, string|array $workflowStatus =
 
     foreach ($raw as $proj) {
         $st = strtolower(trim((string)($proj['status'] ?? '')));
+        // Mirror CIMM / LGU: only restored-cancelled projects are visible here.
+        if ($st === 'cancelled' && (int)($proj['restored_from_archive'] ?? 0) !== 1) {
+            continue;
+        }
         if (!in_array($st, $allowed, true)) {
             continue;
         }
@@ -424,6 +428,7 @@ function rgmap_infra_panel_rows(?PDO $pdo = null, string|array $workflowStatus =
             'department'       => 'Engineering',
             'priority'         => trim((string)($proj['priority'] ?? '')) ?: '—',
             'status'           => (string)($proj['status'] ?? ($allowed[0] ?? '')),
+            'restored_from_archive' => (int)($proj['restored_from_archive'] ?? 0),
             'location'         => (is_array($proj['barangays_covered'] ?? null) && count($proj['barangays_covered']))
                 ? implode(', ', array_filter(array_map('trim', array_map('strval', $proj['barangays_covered'])), fn($b) => $b !== ''))
                 : trim((string)($proj['road_name'] ?? '')),

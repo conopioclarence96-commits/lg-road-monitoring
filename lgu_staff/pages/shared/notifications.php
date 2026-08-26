@@ -54,19 +54,23 @@ $all_tables_exists = "SELECT 1 FROM road_transportation_reports WHERE id = rn.re
                       UNION ALL
                       SELECT 1 FROM road_maintenance_reports WHERE id = rn.report_id
                       UNION ALL
-                      SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id";
+                      SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id
+                      UNION ALL
+                      SELECT 1 FROM ipms_road_projects WHERE project_id = rn.report_id";
 // Trans Monitoring Officers' request-outcome (approve/reject) notifications
 // must stay visible even after the supervisor's approval archived the report:
 // a cancelled/completed report no longer exists in the live table, so the
 // existence gate also checks the archive table for this role. Supervisors'
 // pending-request lists keep checking only live reports (unchanged).
 // Road Monitoring Officers need the same archive fallback so their
-// completion/cancellation request outcomes remain visible after archive.
+// completion/cancellation request outcomes remain visible after archive
+// (including Infrastructure / IPMS projects).
 $ro_exists = ($is_trans_officer || $is_road_officer)
     ? ($is_trans_officer
         ? $trans_exists . " UNION ALL SELECT 1 FROM road_transportation_reports_archive WHERE id = rn.report_id AND report_category = 'transportation' AND report_type != 'infrastructure_issue'"
         : $all_tables_exists . " UNION ALL SELECT 1 FROM road_transportation_reports_archive WHERE id = rn.report_id
-                      UNION ALL SELECT 1 FROM cimm_verification_reports_archive WHERE id = rn.report_id")
+                      UNION ALL SELECT 1 FROM cimm_verification_reports_archive WHERE id = rn.report_id
+                      UNION ALL SELECT 1 FROM ipms_road_projects_archive WHERE project_id = rn.report_id")
     : $all_tables_exists;
 
 // Trans Monitoring Officers and Road Monitoring Officers persist the read
@@ -1011,7 +1015,8 @@ if ($is_admin) {
     if ($is_road_officer && $user_email !== '') {
         try {
             $as_exists = $all_tables_exists . " UNION ALL SELECT 1 FROM road_transportation_reports_archive WHERE id = rn.report_id
-                          UNION ALL SELECT 1 FROM cimm_verification_reports_archive WHERE id = rn.report_id";
+                          UNION ALL SELECT 1 FROM cimm_verification_reports_archive WHERE id = rn.report_id
+                          UNION ALL SELECT 1 FROM ipms_road_projects_archive WHERE project_id = rn.report_id";
             $as_stmt = $conn->prepare("
                 SELECT rn.*, r.report_id AS report_code, r.title AS report_title
                 FROM report_notifications rn
@@ -1363,6 +1368,36 @@ function resolve_progress_notification_source(array $pn): array {
             $pn['report_title'] = $row['title'];
             return $pn;
         }
+
+        // Infrastructure Projects (IPMS mirror) — live then archive.
+        $stmt = $conn->prepare(
+            "SELECT CAST(project_id AS CHAR) AS report_id, project_name AS title
+             FROM ipms_road_projects WHERE project_id = ? LIMIT 1"
+        );
+        $stmt->bind_param("i", $id);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if ($row) {
+            $pn['_source'] = 'infrastructure';
+            $pn['report_code'] = $row['report_id'];
+            $pn['report_title'] = $row['title'];
+            return $pn;
+        }
+        $stmt = $conn->prepare(
+            "SELECT CAST(project_id AS CHAR) AS report_id, project_name AS title
+             FROM ipms_road_projects_archive WHERE project_id = ? LIMIT 1"
+        );
+        $stmt->bind_param("i", $id);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if ($row) {
+            $pn['_source'] = 'infrastructure';
+            $pn['report_code'] = $row['report_id'];
+            $pn['report_title'] = $row['title'];
+            return $pn;
+        }
     } catch (Exception $e) {
         error_log("Progress notification source resolution error: " . $e->getMessage());
     }
@@ -1412,6 +1447,9 @@ function notification_transparency_source_label(string $source): string {
         'lgu' => 'LGU Monitoring',
         'citizen' => 'Citizen',
         'cimm' => 'CIMM',
+        'infrastructure' => 'Infrastructure Projects',
+        'maintenance' => 'Infrastructure Projects',
+        'ipms' => 'Infrastructure Projects',
     ];
     return $labels[strtolower(trim($source))] ?? '';
 }
@@ -1423,7 +1461,13 @@ function notification_transparency_source_label(string $source): string {
 // in road_transportation_reports), not the request's own lgu/citizen split.
 function notification_transparency_request_url(array $tr): string {
     $source = strtolower(trim((string)($tr['report_source'] ?? '')));
-    $hint = ($source === 'cimm') ? 'cimm' : 'transport';
+    if ($source === 'cimm') {
+        $hint = 'cimm';
+    } elseif (in_array($source, ['infrastructure', 'maintenance', 'ipms'], true)) {
+        $hint = 'infrastructure';
+    } else {
+        $hint = 'transport';
+    }
     return 'completed_projects.php?focus_report_id=' . (int)($tr['report_id'] ?? 0)
         . '&source=' . rawurlencode($hint)
         . '&transparency_request=' . (int)($tr['id'] ?? 0);
@@ -1434,7 +1478,13 @@ function notification_transparency_request_url(array $tr): string {
 // reviewing the request stays an administrator action.
 function notification_transparency_outcome_url(array $to): string {
     $source = strtolower(trim((string)($to['report_source'] ?? '')));
-    $hint = ($source === 'cimm') ? 'cimm' : 'transport';
+    if ($source === 'cimm') {
+        $hint = 'cimm';
+    } elseif (in_array($source, ['infrastructure', 'maintenance', 'ipms'], true)) {
+        $hint = 'infrastructure';
+    } else {
+        $hint = 'transport';
+    }
     return 'completed_projects.php?focus_report_id=' . (int)($to['report_id'] ?? 0)
         . '&source=' . rawurlencode($hint);
 }

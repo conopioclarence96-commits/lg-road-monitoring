@@ -510,18 +510,14 @@ if ($method === 'GET') {
             $update_id = $conn->insert_id;
 
             // Automatically advance an Approved report to In Progress once an
-            // update is added. Skip IPMS projects — their local workflow
-            // status stays approved/rejected/completed and is not driven by
-            // progress posts the same way.
-            if ($report_table !== 'ipms_road_projects') {
-                $cur = $conn->query("SELECT `{$status_column}` AS st FROM `{$report_table}` WHERE `{$status_id_column}` = {$report_id}")->fetch_assoc();
-                $current_status = strtolower((string)($cur['st'] ?? ''));
-                if ($current_status === 'approved') {
-                    $target_status = ($report_table === 'cimm_verification_reports') ? 'In Progress' : 'in-progress';
-                    $s_stmt = $conn->prepare("UPDATE `{$report_table}` SET `{$status_column}` = ? WHERE `{$status_id_column}` = ?");
-                    $s_stmt->bind_param("si", $target_status, $report_id);
-                    $s_stmt->execute();
-                }
+            // update is added (transport, maintenance, CIMM, and IPMS).
+            $cur = $conn->query("SELECT `{$status_column}` AS st FROM `{$report_table}` WHERE `{$status_id_column}` = {$report_id}")->fetch_assoc();
+            $current_status = strtolower((string)($cur['st'] ?? ''));
+            if ($current_status === 'approved') {
+                $target_status = ($report_table === 'cimm_verification_reports') ? 'In Progress' : 'in-progress';
+                $s_stmt = $conn->prepare("UPDATE `{$report_table}` SET `{$status_column}` = ? WHERE `{$status_id_column}` = ?");
+                $s_stmt->bind_param("si", $target_status, $report_id);
+                $s_stmt->execute();
             }
 
             // Handle media uploads
@@ -718,6 +714,9 @@ if ($method === 'GET') {
             }
             if (!$report_row) {
                 $report_row = fetch_one("SELECT reference_code AS report_id FROM cimm_verification_reports WHERE id = ?", [$report_id], "i");
+            }
+            if (!$report_row && rgmap_progress_is_ipms_source($source)) {
+                $report_row = ['report_id' => (string)$report_id];
             }
 
             if ($source === 'cimm') {

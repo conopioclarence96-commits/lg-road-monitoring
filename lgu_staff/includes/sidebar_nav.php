@@ -385,9 +385,13 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
                                   UNION ALL
                                   SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id
                                   UNION ALL
+                                  SELECT 1 FROM ipms_road_projects WHERE project_id = rn.report_id
+                                  UNION ALL
                                   SELECT 1 FROM road_transportation_reports_archive WHERE id = rn.report_id
                                   UNION ALL
-                                  SELECT 1 FROM cimm_verification_reports_archive WHERE id = rn.report_id";
+                                  SELECT 1 FROM cimm_verification_reports_archive WHERE id = rn.report_id
+                                  UNION ALL
+                                  SELECT 1 FROM ipms_road_projects_archive WHERE project_id = rn.report_id";
                     $stmt = $conn->prepare("
                         SELECT rn.id FROM report_notifications rn
                         WHERE rn.recipient_email = ? AND rn.type IN ('approve_request','reject_request')
@@ -410,9 +414,13 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
                                   UNION ALL
                                   SELECT 1 FROM cimm_verification_reports WHERE id = rn.report_id
                                   UNION ALL
+                                  SELECT 1 FROM ipms_road_projects WHERE project_id = rn.report_id
+                                  UNION ALL
                                   SELECT 1 FROM road_transportation_reports_archive WHERE id = rn.report_id
                                   UNION ALL
-                                  SELECT 1 FROM cimm_verification_reports_archive WHERE id = rn.report_id";
+                                  SELECT 1 FROM cimm_verification_reports_archive WHERE id = rn.report_id
+                                  UNION ALL
+                                  SELECT 1 FROM ipms_road_projects_archive WHERE project_id = rn.report_id";
                     $stmt = $conn->prepare("
                         SELECT rn.id FROM report_notifications rn
                         WHERE rn.recipient_email = ?

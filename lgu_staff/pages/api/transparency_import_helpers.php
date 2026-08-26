@@ -76,6 +76,11 @@ function transparency_mgmt_source_for_report(array $report): string {
     if ($src === 'cimm') {
         return 'cimm';
     }
+    // Infrastructure Projects (IPMS) appear under the maintenance panel key in
+    // report management — keep the same vocabulary when publishing.
+    if (in_array($src, ['infrastructure', 'maintenance', 'ipms'], true)) {
+        return 'maintenance';
+    }
     return !empty($report['created_by']) ? 'lgu' : 'transport';
 }
 
@@ -137,7 +142,8 @@ function transparency_fetch_road_report($conn, int $report_id, string $source): 
  * Which completed projects a supervisor may send for transparency review. Each
  * role is limited to the reports its own portal lists, so a request can never
  * carry another portal's report:
- *  - Road Operations Supervisor: road projects, including CIMM road reports.
+ *  - Road Operations Supervisor: road projects, including CIMM road reports
+ *    and Infrastructure Projects (IPMS).
  *  - Transportation Operations Supervisor: transportation projects, both
  *    citizen reports and LGU monitoring reports.
  */
@@ -255,6 +261,78 @@ function transparency_fetch_cimm_report($conn, int $report_id): ?array {
 }
 
 /**
+ * Infrastructure Projects (ipms_road_projects) that are locally completed.
+ * Same normalised keys as the LGU/CIMM fetchers so submit/approve/import stay
+ * on the existing transparency path — no separate workflow.
+ */
+function transparency_fetch_ipms_report($conn, int $report_id): ?array {
+    require_once __DIR__ . '/ipms_road_projects_data.php';
+    try {
+        $pdo = rgmap_ipms_pdo();
+        rgmap_ensure_ipms_road_projects_table($pdo);
+        $stmt = $pdo->prepare(
+            "SELECT project_id, project_name, road_name, road_type, road_status, status,
+                    budget, assigned_engineers_json, barangays_json, synced_at, created_at
+             FROM ipms_road_projects
+             WHERE project_id = ?
+             LIMIT 1"
+        );
+        $stmt->execute([$report_id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        error_log('transparency_fetch_ipms_report error: ' . $e->getMessage());
+        return null;
+    }
+    if (!$row) {
+        return null;
+    }
+    if (strtolower(trim((string)($row['status'] ?? ''))) !== 'completed') {
+        return null;
+    }
+
+    $engineers = [];
+    $ae = json_decode((string)($row['assigned_engineers_json'] ?? '[]'), true);
+    if (is_array($ae)) {
+        foreach ($ae as $name) {
+            $name = trim((string)$name);
+            if ($name !== '') {
+                $engineers[] = $name;
+            }
+        }
+    }
+
+    $barangays = json_decode((string)($row['barangays_json'] ?? '[]'), true);
+    $location = '';
+    if (is_array($barangays) && count($barangays)) {
+        $location = implode(', ', array_filter(array_map(static function ($b) {
+            return trim((string)$b);
+        }, $barangays), static fn($b) => $b !== ''));
+    }
+    if ($location === '') {
+        $location = trim((string)($row['road_name'] ?? ''));
+    }
+
+    $title = trim((string)($row['project_name'] ?? ''));
+    $project_id = (int)$row['project_id'];
+
+    return [
+        'id' => $project_id,
+        'report_id' => (string)$project_id,
+        'report_type' => trim((string)($row['road_type'] ?? '')) ?: 'infrastructure_issue',
+        'title' => $title,
+        'description' => trim((string)($row['road_status'] ?? '')),
+        'location' => $location,
+        'status' => 'completed',
+        'report_category' => 'road',
+        'completed_at' => $row['synced_at'] ?? ($row['created_at'] ?? null),
+        'engineer_name' => implode(', ', $engineers),
+        'cost' => ($row['budget'] !== null && $row['budget'] !== '') ? (float)$row['budget'] : 0.0,
+        'report_source_key' => 'infrastructure',
+        'fallback_title' => 'Infrastructure Project #' . $project_id,
+    ];
+}
+
+/**
  * Source-aware lookup for the transparency request workflow. Returns null when
  * the report is not eligible, which callers surface as a validation error.
  */
@@ -262,6 +340,9 @@ function transparency_fetch_request_report($conn, int $report_id, string $source
     $source = strtolower(trim($source));
     if ($source === 'cimm') {
         return transparency_fetch_cimm_report($conn, $report_id);
+    }
+    if (in_array($source, ['infrastructure', 'maintenance', 'ipms'], true)) {
+        return transparency_fetch_ipms_report($conn, $report_id);
     }
     return transparency_fetch_road_report($conn, $report_id, $source);
 }

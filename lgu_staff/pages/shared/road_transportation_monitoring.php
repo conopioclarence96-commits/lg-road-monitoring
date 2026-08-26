@@ -242,8 +242,9 @@ function getEnhancedStats() {
 //     panel), and LGU Transportation reports
 //     (report_category='transportation') do not require CIMM verification and
 //     appear once approved
-//   - Infrastructure Projects (ipms_road_projects): locally APPROVED on
-//     Active Monitoring, or status = 'completed' on Completed Projects
+//   - Infrastructure Projects (ipms_road_projects): locally approved or
+//     in-progress on Active Monitoring (same as transport/CIMM), or
+//     status = 'completed' on Completed Projects
 //   - CIMM reports whose verification_status is 'Verified'
 function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter = 'all', $transport_only = false, $road_only = false, $assigned_to_user_id = null, $completed_only = false) {
     global $conn;
@@ -270,7 +271,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
 
     $ipms_status_sql = $completed_only
         ? "status = 'completed'"
-        : "status = 'approved'";
+        : "status IN ('approved', 'in-progress')";
 
     // Helper to append shared WHERE/ORDER/LIMIT clauses and run a query
     $fetch = function ($sql, $status_filter, $type_filter, $limit) use ($conn, $completed_only) {
@@ -1042,7 +1043,7 @@ function resolve_recent_focus_row(int $id, string $source_hint = ''): ?array {
                 $src = 'infrastructure';
             }
             if ($src === 'infrastructure') {
-                $stmt = $conn->prepare("SELECT project_id AS id, CAST(project_id AS CHAR) AS report_id, project_name AS title, COALESCE(NULLIF(road_type, ''), 'infrastructure_issue') AS report_type, 'road' AS report_category, status, 'medium' AS priority, NULL AS severity, created_at, NULL AS completed_at, road_status AS description, start_lat AS latitude, start_lng AS longitude, COALESCE(NULLIF(road_name, ''), project_name) AS location, NULL AS reporter_name, NULL AS attachments, NULL AS image_path, NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by FROM ipms_road_projects WHERE project_id = ? AND status IN ('approved', 'completed')");
+                $stmt = $conn->prepare("SELECT project_id AS id, CAST(project_id AS CHAR) AS report_id, project_name AS title, COALESCE(NULLIF(road_type, ''), 'infrastructure_issue') AS report_type, 'road' AS report_category, status, 'medium' AS priority, NULL AS severity, created_at, NULL AS completed_at, road_status AS description, start_lat AS latitude, start_lng AS longitude, COALESCE(NULLIF(road_name, ''), project_name) AS location, NULL AS reporter_name, NULL AS attachments, NULL AS image_path, NULL AS cimm_sync_status, NULL AS cimm_verified_at, NULL AS cimm_verified_by FROM ipms_road_projects WHERE project_id = ? AND status IN ('approved', 'in-progress', 'completed')");
                 $stmt->bind_param("i", $id);
                 $stmt->execute();
                 $r = $stmt->get_result()->fetch_assoc();
@@ -6367,9 +6368,10 @@ if ($is_completed_projects_view || $is_system_admin) {
         }
 
         // The transparency workflow only accepts COMPLETED projects: LGU- and
-        // citizen-sourced rows from road_transportation_reports, plus CIMM
-        // verification reports. Mirrors transparency_fetch_request_report().
-        var TRANSPARENCY_SOURCES = ['lgu', 'citizen', 'cimm'];
+        // citizen-sourced rows from road_transportation_reports, CIMM
+        // verification reports, and Infrastructure Projects (ipms_road_projects).
+        // Mirrors transparency_fetch_request_report().
+        var TRANSPARENCY_SOURCES = ['lgu', 'citizen', 'cimm', 'infrastructure', 'maintenance'];
 
         function updatesReportCategory() {
             return String((currentUpdatesReportDetails && currentUpdatesReportDetails.report_category) || '').toLowerCase();

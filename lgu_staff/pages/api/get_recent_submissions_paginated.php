@@ -87,7 +87,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
 
     $ipms_status_sql = $completed_only
         ? "status = 'completed'"
-        : "status = 'approved'";
+        : "status IN ('approved', 'in-progress')";
 
     // Helper to append shared WHERE clauses and run a query (no pagination at query level)
     $fetch = function ($sql, $status_filter) use ($conn, $completed_only) {

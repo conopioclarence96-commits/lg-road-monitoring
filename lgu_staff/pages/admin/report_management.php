@@ -862,6 +862,9 @@ function handle_update_ipms_project() {
         $allowed_statuses = ['approved', 'in-progress'];
         if ($status !== '' && in_array($status, $allowed_statuses, true)) {
             $update_fields[] = "status = ?"; $params[] = $status;
+            // Reopened from archive — clear the restored-cancelled marker once
+            // the supervisor moves the project back to active workflow.
+            $update_fields[] = "restored_from_archive = 0";
         }
 
         $priority = sanitize_input($_POST['priority'] ?? '');

@@ -1525,7 +1525,7 @@ function public_transparency_is_posted_for_report(array $posted_index, $report_i
 
 // Annotate report rows with Transparency Upload Request state and the
 // Public column status used on Completed Projects.
-// Each row needs 'id' + 'source' ('lgu', 'citizen', or 'cimm').
+// Each row needs 'id' + 'source' ('lgu', 'citizen', 'cimm', or 'infrastructure').
 // Sets:
 //   transparency_request_status — raw request status: '', 'pending', 'approved', 'rejected'
 //   public_transparency_status  — display: awaiting|pending|approved|posted|rejected
