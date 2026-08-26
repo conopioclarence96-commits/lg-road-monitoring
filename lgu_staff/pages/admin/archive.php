@@ -2974,9 +2974,6 @@ if (isset($_SESSION['archive_message'])) {
                     if (lguBud) {
                         sourceGrid += rmInfoItem('money-bill-wave', 'Budget', '₱ ' + Number(lguBud).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
                     }
-                    if (row.detected_district) {
-                        sourceGrid += rmInfoItem('map-pin', 'District', row.detected_district);
-                    }
                     sourceGrid += rmInfoItem('calendar-plus', 'CIMM Starting Date', formatDate(row.cimm_starting_date));
                     sourceGrid += rmInfoItem('calendar-check', 'CIMM Estimated End Date', formatDate(row.cimm_estimated_end_date));
                 }

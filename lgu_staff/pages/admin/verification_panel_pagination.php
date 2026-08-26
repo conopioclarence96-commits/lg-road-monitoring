@@ -232,6 +232,7 @@ function vm_build_lgu_rows_json(array $reports, array $creator_map, bool $is_tra
             'latitude' => $lr['latitude'] ?? null,
             'longitude' => $lr['longitude'] ?? null,
             'detected_district' => $lr['detected_district'] ?? null,
+            'cimm_district' => $lr['cimm_district'] ?? null,
             'description' => $lr['description'] ?? null,
             'attachments' => $lr['attachments'] ?? null,
             'created_at' => $lr['created_at'] ?? null,

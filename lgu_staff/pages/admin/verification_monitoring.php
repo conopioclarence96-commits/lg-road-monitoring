@@ -7737,7 +7737,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 locVal += '<br><a href="https://www.google.com/maps?q=' + r.latitude + ',' + r.longitude + '" target="_blank" class="vm-map-link"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map</a>';
             }
             locationGrid += '<div class="lgu-info-item lgu-info-value-full"><div class="lgu-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="lgu-info-label">Location</div><div class="lgu-info-value">' + locVal + '</div></div></div>';
-            locationGrid += lguInfoItem('map-pin', 'District', r.detected_district);
+            locationGrid += lguInfoItem('map-pin', 'District', r.detected_district || r.cimm_district || r.district);
             document.getElementById('lgu-location-grid').innerHTML = locationGrid;
 
             // View Map button: only shown when the report has a saved
