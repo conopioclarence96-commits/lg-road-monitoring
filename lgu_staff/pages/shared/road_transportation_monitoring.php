@@ -3559,7 +3559,7 @@ if ($is_completed_projects_view || $is_system_admin) {
         /* ── Completed Projects polish (UI only) ── */
         body.completed-projects-view { background: #f5f3ee; color: var(--text-primary); }
         body.completed-projects-view.dark-mode { background: var(--bg-page); }
-        body.completed-projects-view .mon-dash { padding: 24px 28px; max-width: 100%; overflow-x: hidden; }
+        body.completed-projects-view .mon-dash { padding: 24px 28px; max-width: 100%; }
 
         body.completed-projects-view .mon-dash .monitoring-header,
         body.completed-projects-view .mon-dash .reports-table-section {
@@ -4088,6 +4088,13 @@ if ($is_completed_projects_view || $is_system_admin) {
                 row-gap: 6px;
             }
         }
+        @media (max-width: 480px) {
+            /* Very narrow screens stay 2x2 for stats-row (overrides the
+               generic stack-to-one-column rule which has lower specificity) */
+            .system-admin-view .stats-row {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
     </style>
 <?php endif; ?>
 <?php if ($is_trans_ops_supervisor): ?>
@@ -4328,46 +4335,23 @@ if ($is_completed_projects_view || $is_system_admin) {
     </style>
 <?php endif; ?>
 <?php if ($is_system_admin && $is_completed_projects_view): ?>
-    <!-- System Admin + Completed Projects page only: mobile fit for the
-         reports-table-section badges. The fixed table-layout cells clip the
-         pill badges mid-pill ("half" visible) on narrow screens — let badge
-         text wrap inside its own cell instead. UI-only CSS scoping — other
-         portals/pages are unaffected and no behaviour changes. -->
+    <!-- System Admin + Completed Projects: badge sizing on phones.
+         The base table CSS now handles scroll and column alignment for all
+         users; this block only tweaks badge pill sizing on small screens. -->
     <style>
         @media (max-width: 768px) {
-            /* Badge pills must be allowed to shrink below their content width
-               and wrap, otherwise the fixed-layout table cells clip them
-               ("half" badge). Applies to db-badge plus every pill that shares
-               the same row (source/category/status/assignment/priority/CIMM/
-               Public transparency). */
             body.completed-projects-view.system-admin-view .mon-dash .reports-table-section .badge,
             body.completed-projects-view.system-admin-view .mon-dash .reports-table-section .db-badge,
             body.completed-projects-view.system-admin-view .mon-dash .reports-table-section .category-badge,
             body.completed-projects-view.system-admin-view .mon-dash .reports-table-section .cimm-verify-badge,
             body.completed-projects-view.system-admin-view .mon-dash .reports-table-section .assignment-badge,
             body.completed-projects-view.system-admin-view .mon-dash .reports-table-section .pt-status-badge {
-                display: inline-block;
-                max-width: 100%;
-                box-sizing: border-box;
-                white-space: normal !important;
-                overflow-wrap: anywhere;
-                word-break: break-word;
-                line-height: 1.45;
-                text-align: left;
-                vertical-align: middle;
                 font-size: 9px;
                 padding: 2px 6px;
             }
-
-            /* Free up horizontal room inside every cell on phones */
             body.completed-projects-view.system-admin-view .mon-dash #recentReportsTable th,
             body.completed-projects-view.system-admin-view .mon-dash #recentReportsTable td {
                 padding: 10px 6px !important;
-            }
-
-            /* Public column cell forces nowrap — let its badge wrap too */
-            body.completed-projects-view.system-admin-view .mon-dash #recentReportsTable .pt-col {
-                white-space: normal !important;
             }
         }
     </style>

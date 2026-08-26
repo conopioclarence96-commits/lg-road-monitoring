@@ -5903,6 +5903,49 @@ if ($focus_id > 0) {
             border-color: #3a3f4a !important;
         }
     </style>
+    <?php if ($is_system_admin): ?>
+    <!-- System Admin only: keep all six quick-stats cards in a 3x2 layout
+         on phones. The generic mobile rules collapse the grid to 2x3 then
+         1 column; switch to a fixed 3-column grid with compact tiles
+         instead. UI-only CSS scoping — other portals are unaffected. -->
+    <style>
+        @media (max-width: 768px) {
+            .system-admin-view .rm-dash .quick-stats {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 8px;
+                margin-bottom: 14px;
+            }
+            .system-admin-view .rm-dash .stat-card {
+                padding: 8px 5px;
+                border-radius: 10px;
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            .system-admin-view .rm-dash .stat-card::before { height: 2px; }
+            .system-admin-view .rm-dash .stat-icon {
+                width: 20px;
+                height: 20px;
+                border-radius: 6px;
+                font-size: 9px;
+                margin-bottom: 4px;
+            }
+            .system-admin-view .rm-dash .stat-number { font-size: 13px; }
+            .system-admin-view .rm-dash .stat-label {
+                font-size: 6.8px;
+                letter-spacing: 0;
+                line-height: 1.25;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+            }
+        }
+        @media (max-width: 480px) {
+            .system-admin-view .rm-dash .quick-stats {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
+    </style>
+    <?php endif; ?>
     <?php if (!empty($is_transport_supervisor)): ?>
     <!-- Transport Operations Supervisor only: keep all six quick-stats cards
          in ONE row on phones so they fit on screen instead of collapsing to
@@ -5944,7 +5987,7 @@ if ($focus_id > 0) {
     </style>
     <?php endif; ?>
 </head>
-<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo !empty($is_transport_supervisor) ? ' trans-supervisor-view' : ''; ?>">
+<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo !empty($is_transport_supervisor) ? ' trans-supervisor-view' : ''; ?><?php echo $is_system_admin ? ' system-admin-view' : ''; ?>">
     <!-- SIDEBAR -->
     <?php include '../../includes/sidebar_nav.php'; ?>
 

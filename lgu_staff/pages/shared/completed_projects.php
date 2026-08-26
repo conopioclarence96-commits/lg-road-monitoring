@@ -100,35 +100,24 @@ function completed_projects_public_column_css() {
         body.dark-mode .pt-status-posted { background: rgba(52,211,153,0.2); color: #6ee7b7; }
         body.dark-mode .pt-status-rejected { background: rgba(248,113,113,0.2); color: #fca5a5; }
 
-        /* Fit Public inside the panel — no horizontal scroll */
-        body.completed-projects-view .main-content.mon-dash {
-            overflow-x: hidden !important;
-            max-width: 100%;
-            min-width: 0;
-            box-sizing: border-box;
-        }
+        /* Table layout — clean columns, horizontal scroll when needed */
         body.completed-projects-view .mon-dash .reports-table-section {
-            overflow: hidden !important;
             max-width: 100%;
-            min-width: 0;
             box-sizing: border-box;
+            overflow: visible !important;
         }
         body.completed-projects-view .mon-dash .reports-table-wrap,
         body.completed-projects-view .mon-dash .completed-reports-scroll {
-            display: block !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            min-width: 0 !important;
-            overflow-x: hidden !important;
+            overflow-x: auto !important;
             overflow-y: visible !important;
+            -webkit-overflow-scrolling: touch;
             padding: 0 4px 6px !important;
             box-sizing: border-box;
         }
         body.completed-projects-view .mon-dash #recentReportsTable {
-            width: 100% !important;
-            min-width: 0 !important;
-            max-width: 100% !important;
-            table-layout: fixed !important;
+            table-layout: auto !important;
+            min-width: 950px !important;
+            width: auto !important;
             border-collapse: collapse;
         }
         body.completed-projects-view .mon-dash #recentReportsTable th,
@@ -136,34 +125,32 @@ function completed_projects_public_column_css() {
             padding: 10px 8px !important;
             font-size: 12px !important;
             vertical-align: middle;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            white-space: nowrap !important;
+            overflow: visible !important;
+            text-overflow: unset !important;
         }
         body.completed-projects-view .mon-dash #recentReportsTable th {
             font-size: 10px !important;
             letter-spacing: 0.2px;
+            white-space: nowrap !important;
+            border-bottom: 2px solid var(--border-light, #e5e7eb);
         }
-        /* Title may wrap; other label columns stay compact */
-        body.completed-projects-view .mon-dash #recentReportsTable th:nth-child(1),
-        body.completed-projects-view .mon-dash #recentReportsTable td:nth-child(1) { width: 9%; }
-        body.completed-projects-view .mon-dash #recentReportsTable th:nth-child(2),
+        /* Title column wraps naturally */
         body.completed-projects-view .mon-dash #recentReportsTable td:nth-child(2) {
-            width: 16%;
             white-space: normal !important;
+            max-width: 240px;
             word-break: break-word;
         }
         body.completed-projects-view .mon-dash #recentReportsTable .pt-col {
             display: table-cell !important;
             visibility: visible !important;
             opacity: 1 !important;
-            width: 7.5% !important;
             min-width: 0 !important;
             white-space: nowrap !important;
             overflow: visible !important;
             text-overflow: clip !important;
         }
         body.completed-projects-view .mon-dash #recentReportsTable .action-cell {
-            width: 18%;
             white-space: normal !important;
             overflow: visible !important;
         }
@@ -179,6 +166,7 @@ function completed_projects_public_column_css() {
         body.completed-projects-view .mon-dash .assignment-badge {
             font-size: 10px;
             padding: 3px 7px;
+            white-space: nowrap;
         }
 CSS;
 }

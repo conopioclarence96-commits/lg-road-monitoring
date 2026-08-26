@@ -782,7 +782,32 @@ function formatLastActive($timestamp) {
         }
         @media (max-width: 768px) {
             .main-content.accounts-dash { margin-left: 0; padding: 16px; }
-            .summary-row { grid-template-columns: repeat(2, 1fr); }
+            /* System Admin page only: keep all five summary cards in a
+               3x2 layout on phones instead of the generic 2x3 collapse.
+               Cards are compacted so the three columns stay readable. */
+            .summary-row { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 16px; }
+            .summary-card {
+                padding: 10px 8px;
+                border-radius: 10px;
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            .summary-card::before { height: 3px; }
+            .summary-card .card-top { margin-bottom: 6px; }
+            .summary-card .card-icon {
+                width: 24px;
+                height: 24px;
+                border-radius: 7px;
+                font-size: 11px;
+            }
+            .summary-card .card-value { font-size: 15px; }
+            .summary-card .card-label {
+                font-size: 8.5px;
+                line-height: 1.25;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+            }
             .accounts-dash .dashboard-header { flex-direction: column; align-items: flex-start; }
             .accounts-dash .modal-content { max-width: 96vw; }
             .modal-form-grid { grid-template-columns: 1fr; }
@@ -821,7 +846,9 @@ function formatLastActive($timestamp) {
             .accounts-dash .workflow-content { max-height: 420px; }
         }
         @media (max-width: 480px) {
-            .summary-row { grid-template-columns: 1fr; }
+            /* Very narrow screens stay 3x2 as well (overrides the generic
+               stack-to-one-column rule) */
+            .summary-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
             /* Workflow header - small phones */
             .accounts-dash .workflow-card { padding: 14px; }

@@ -828,7 +828,9 @@ if ($focus_cr_id > 0) {
             #changeRequestModal .cr-modal-footer { padding: 12px 16px; }
         }
         @media (max-width: 480px) {
-            .summary-row { grid-template-columns: 1fr; }
+            /* Very narrow screens stay 2x2 (overrides the generic
+               stack-to-one-column rule) */
+            .summary-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         }
     </style>
 </head>

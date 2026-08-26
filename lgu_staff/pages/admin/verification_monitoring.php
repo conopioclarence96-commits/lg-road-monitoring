@@ -6384,6 +6384,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
     </style>
+    <?php if ($is_system_admin): ?>
+    <!-- System Admin only: keep the three workflow stat cards in ONE row on
+         phones. The generic mobile rule stacks them into a single column;
+         compact the cards instead so the 3-column grid fits.
+         UI-only CSS scoping — other portals are unaffected. -->
+    <style>
+        @media (max-width: 768px) {
+            .system-admin-view .vm-dash .workflow-stats {
+                width: 100%;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 8px;
+                margin-bottom: 12px;
+            }
+            .system-admin-view .vm-dash .workflow-stat {
+                padding: 10px 8px;
+                border-radius: 10px;
+                gap: 8px;
+            }
+            .system-admin-view .vm-dash .workflow-stat-icon {
+                width: 28px;
+                height: 28px;
+                border-radius: 8px;
+                font-size: 12px;
+            }
+            .system-admin-view .vm-dash .workflow-number { font-size: 15px; }
+            .system-admin-view .vm-dash .workflow-label {
+                font-size: 8.5px;
+                letter-spacing: 0;
+                line-height: 1.25;
+                overflow-wrap: anywhere;
+            }
+        }
+    </style>
+    <?php endif; ?>
     <?php if (!empty($is_transport_supervisor)): ?>
     <!-- Transport Operations Supervisor only: keep the three workflow stat
          cards in ONE row on phones. The generic mobile rule below stacks them
@@ -6420,7 +6454,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     </style>
     <?php endif; ?>
 </head>
-<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo !empty($is_transport_supervisor) ? ' trans-supervisor-view' : ''; ?>">
+<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo !empty($is_transport_supervisor) ? ' trans-supervisor-view' : ''; ?><?php echo $is_system_admin ? ' system-admin-view' : ''; ?>">
     <!-- SIDEBAR -->
     <?php include '../../includes/sidebar_nav.php'; ?>
 

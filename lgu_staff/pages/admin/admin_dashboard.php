@@ -927,12 +927,54 @@ try {
         }
         @media (max-width: 768px) {
             .admin-dash { margin-left: 0; padding: 16px; }
-            .summary-row { grid-template-columns: repeat(2, 1fr); }
+            /* System Admin dashboard only: keep all six summary cards in a
+               3x2 layout on phones instead of the generic 2x3 collapse.
+               Cards are compacted so the three columns stay readable. */
+            .summary-row { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 16px; }
+            .summary-card {
+                padding: 10px 8px;
+                border-radius: 10px;
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            .summary-card::before { height: 3px; }
+            .summary-card .card-top { margin-bottom: 6px; }
+            .summary-card .card-icon {
+                width: 24px;
+                height: 24px;
+                border-radius: 7px;
+                font-size: 11px;
+            }
+            .summary-card .card-value { font-size: 15px; }
+            .summary-card .card-label {
+                font-size: 8.5px;
+                line-height: 1.25;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+            }
             .admin-dash .dashboard-header { flex-direction: column; align-items: flex-start; }
             .admin-dash .modal-content { max-width: 96vw; }
+
+            /* System Admin dashboard only: keep the two dashboard columns
+               (left charts/tables + right side panels) side by side in ONE
+               row on phones instead of stacking. Cards are compacted and
+               tables scroll horizontally inside their narrower column. */
+            .main-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+            .left-col .card,
+            .right-col .card {
+                padding: 12px;
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            .admin-dash .card-header { gap: 8px; }
+            .admin-dash .card-title { font-size: 13px; }
         }
         @media (max-width: 480px) {
-            .summary-row { grid-template-columns: 1fr; }
+            /* Very narrow screens stay 3x2 as well (overrides the generic
+               stack-to-one-column rule) */
+            .summary-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
             .admin-dash .header-icon { width: 36px; height: 36px; }
         }
 

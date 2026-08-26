@@ -129,6 +129,23 @@ if ($conn) {
         body.dark-mode .project-meta span { color: var(--text-secondary) !important; }
         body.dark-mode .project-cost { background: rgba(55, 98, 200, 0.2) !important; color: #93b3e0 !important; }
 
+        /* System Admin: header-actions dark-mode */
+        body.system-admin-view.dark-mode .header-actions .header-datetime {
+            background: rgba(255,255,255,0.05) !important;
+            border-color: var(--border-default) !important;
+            color: var(--text-primary) !important;
+        }
+        body.system-admin-view.dark-mode .header-actions .header-datetime i {
+            background: rgba(96,165,250,0.15) !important;
+            color: #93b3fd !important;
+        }
+        body.system-admin-view.dark-mode .header-actions .header-datetime #dtDate {
+            color: var(--text-primary) !important;
+        }
+        body.system-admin-view.dark-mode .header-actions .header-datetime #dtTime {
+            color: var(--text-secondary) !important;
+        }
+
         .projects-section {
             background: #fff;
             border: 1px solid #e2e8f0;
@@ -951,7 +968,7 @@ if ($conn) {
     </style>
     <?php endif; ?>
 </head>
-<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo $is_trans_ops_supervisor ? ' trans-supervisor-view' : ''; ?>">
+<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo $is_trans_ops_supervisor ? ' trans-supervisor-view' : ''; ?><?php echo $is_admin ? ' system-admin-view' : ''; ?>">
     <!-- SIDEBAR -->
     <?php include '../../includes/sidebar_nav.php'; ?>
 
