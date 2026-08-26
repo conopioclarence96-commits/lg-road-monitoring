@@ -283,6 +283,23 @@ if ($conn) {
         .cf-stars { color: #f59e0b; letter-spacing: 1px; white-space: nowrap; }
         .cf-empty { text-align: center; color: #94a3b8 !important; padding: 24px !important; }
         .cf-muted { color: #94a3b8; font-size: 12px; }
+        .cf-project-link {
+            color: #3762c8;
+            font-weight: 700;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+        .cf-project-link:hover { text-decoration: underline; }
+        .project-item.project-item-highlight {
+            border-color: #3762c8 !important;
+            box-shadow: 0 0 0 3px rgba(55, 98, 200, 0.35), 0 8px 24px rgba(30, 60, 114, 0.12) !important;
+            transform: translateY(-2px);
+            animation: cfProjectPulse 1.2s ease-in-out 2;
+        }
+        @keyframes cfProjectPulse {
+            0%, 100% { box-shadow: 0 0 0 3px rgba(55, 98, 200, 0.35), 0 8px 24px rgba(30, 60, 114, 0.12); }
+            50% { box-shadow: 0 0 0 6px rgba(55, 98, 200, 0.2), 0 8px 24px rgba(30, 60, 114, 0.12); }
+        }
         @media (max-width: 900px) {
             .cf-dash { grid-template-columns: 1fr 1fr; }
             .cf-star-counts { grid-column: 1 / -1; }
@@ -313,6 +330,11 @@ if ($conn) {
         }
         body.dark-mode .cf-sort-label,
         body.dark-mode .cf-pager { color: var(--text-secondary) !important; }
+        body.dark-mode .cf-project-link { color: #7ba3f0 !important; }
+        body.dark-mode .project-item.project-item-highlight {
+            border-color: #3762c8 !important;
+            box-shadow: 0 0 0 3px rgba(55, 98, 200, 0.45), 0 8px 24px rgba(0, 0, 0, 0.35) !important;
+        }
 
         /* System Admin: header-actions dark-mode */
         body.system-admin-view.dark-mode .header-actions .header-datetime {
@@ -1702,13 +1724,14 @@ if ($conn) {
                             <thead>
                                 <tr>
                                     <th>Rating</th>
+                                    <th>Project ID</th>
                                     <th>Project</th>
                                     <th>Comment</th>
                                     <th>Date</th>
                                 </tr>
                             </thead>
                             <tbody id="cfReportBody">
-                                <tr><td colspan="4" class="cf-empty">Loading…</td></tr>
+                                <tr><td colspan="5" class="cf-empty">Loading…</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -2661,13 +2684,18 @@ if ($conn) {
             const body = document.getElementById('cfReportBody');
             if (!body) return;
             if (!rows || !rows.length) {
-                body.innerHTML = '<tr><td colspan="4" class="cf-empty">No project ratings yet.</td></tr>';
+                body.innerHTML = '<tr><td colspan="5" class="cf-empty">No project ratings yet.</td></tr>';
                 return;
             }
             body.innerHTML = rows.map(function (r) {
+                const pid = parseInt(r.project_id, 10) || 0;
+                const idCell = pid
+                    ? '<a href="#" class="cf-project-link" data-project-id="' + pid + '">#' + pid + '</a>'
+                    : '<span class="cf-muted">—</span>';
                 return '<tr>' +
                     '<td>' + starsHtml(r.rating) + '</td>' +
-                    '<td>' + escapeHtml(r.project_title || ('Project #' + (r.project_id || ''))) + '</td>' +
+                    '<td>' + idCell + '</td>' +
+                    '<td>' + escapeHtml(r.project_title || (pid ? ('Project #' + pid) : '—')) + '</td>' +
                     '<td>' + (r.comment ? escapeHtml(r.comment) : '<span class="cf-muted">—</span>') + '</td>' +
                     '<td>' + formatDate(r.created_at) + '</td>' +
                     '</tr>';
@@ -2780,6 +2808,36 @@ if ($conn) {
             }
         }
 
+        let highlightTimer = null;
+        function focusProjectById(id) {
+            const pid = parseInt(id, 10) || 0;
+            if (!pid) return;
+            switchTab('projects');
+            try {
+                const url = new URL(window.location.href);
+                url.searchParams.set('tab', 'projects');
+                url.searchParams.set('project', String(pid));
+                history.replaceState(null, '', url.pathname + url.search);
+            } catch (e) {}
+            const card = document.querySelector('.project-item[data-id="' + pid + '"]');
+            if (!card) {
+                if (typeof showToast === 'function') {
+                    showToast('Project not found on this list', 'error');
+                }
+                return;
+            }
+            document.querySelectorAll('.project-item.project-item-highlight').forEach(function (el) {
+                el.classList.remove('project-item-highlight');
+            });
+            card.classList.add('project-item-highlight');
+            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (highlightTimer) clearTimeout(highlightTimer);
+            highlightTimer = setTimeout(function () {
+                card.classList.remove('project-item-highlight');
+                highlightTimer = null;
+            }, 2500);
+        }
+
         document.querySelectorAll('.pt-tab').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 switchTab(btn.getAttribute('data-pt-tab'));
@@ -2808,6 +2866,12 @@ if ($conn) {
         }
 
         document.addEventListener('click', function (e) {
+            const link = e.target.closest('.cf-project-link');
+            if (link) {
+                e.preventDefault();
+                focusProjectById(link.getAttribute('data-project-id'));
+                return;
+            }
             const btn = e.target.closest('[data-cf-page]');
             if (!btn || btn.disabled) return;
             const kind = btn.getAttribute('data-cf-kind');
@@ -2821,8 +2885,12 @@ if ($conn) {
 
         const params = new URLSearchParams(window.location.search);
         const tab = params.get('tab');
+        const projectParam = params.get('project');
         if (tab === 'feedback' || tab === 'announcements' || tab === 'projects') {
             switchTab(tab);
+        }
+        if (projectParam) {
+            focusProjectById(projectParam);
         }
     })();
 
